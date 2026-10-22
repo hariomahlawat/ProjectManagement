@@ -125,15 +125,10 @@
 .ongoing-card {
     overflow: hidden;
     border: 1px solid var(--oc-border) !important;
-    border-left-width: 4px !important;
     border-radius: 14px;
     background: var(--oc-surface);
     box-shadow: 0 10px 28px rgba(19, 39, 76, .06) !important;
 }
-
-.ongoing-card--coe { border-left-color: #65c446 !important; }
-.ongoing-card--dcd { border-left-color: #4b70e8 !important; }
-.ongoing-card--other { border-left-color: #e27800 !important; }
 
 .ongoing-card__header {
     display: grid;
@@ -239,6 +234,18 @@
     color: #a82222;
     background: #fee9e9;
     border: 1px solid #f8caca;
+}
+
+.oc-pill--warning {
+    gap: .3rem;
+    color: var(--pm-status-warning-text);
+    background: var(--pm-status-warning-bg);
+    border: 1px solid var(--pm-warning-soft-border);
+}
+
+.ongoing-remarks__age.is-stale {
+    color: var(--pm-status-warning-text);
+    font-weight: 700;
 }
 
 .oc-pill--neutral {
@@ -370,10 +377,6 @@
     box-shadow: 0 0 0 4px rgba(53, 108, 240, .12);
 }
 
-.briefing-stage.is-prolonged .briefing-stage__node {
-    box-shadow: 0 0 0 4px rgba(53, 108, 240, .12), 0 0 0 7px rgba(230, 158, 31, .16);
-}
-
 .briefing-stage.is-current .briefing-stage__name {
     color: #173f9d;
     font-weight: 800;
@@ -386,14 +389,15 @@
 }
 
 .briefing-stage__name {
+    display: -webkit-box;
     max-width: 110px;
     overflow: hidden;
     color: #23324b;
     font-size: .72rem;
     font-weight: 700;
     line-height: 1.15;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .briefing-stage__date,
@@ -706,6 +710,10 @@
 
     .ongoing-card__header {
         grid-template-columns: 48px minmax(0, 1fr);
+        /* Two columns need two-column areas, or "Last completed" lands on the thumbnail. */
+        grid-template-areas:
+            "thumb main"
+            "right right";
     }
 
     .ongoing-card__thumb {
@@ -848,18 +856,6 @@ table.ongoing-table td.col-remarks .pm-remark-text {
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25) !important;
 }
 
-:where([data-bs-theme="dark"]) .ongoing-card--coe {
-    border-left-color: #4ade80 !important;
-}
-
-:where([data-bs-theme="dark"]) .ongoing-card--dcd {
-    border-left-color: #6ea8fe !important;
-}
-
-:where([data-bs-theme="dark"]) .ongoing-card--other {
-    border-left-color: #fbbf24 !important;
-}
-
 :where([data-bs-theme="dark"]) .ongoing-card__header {
     background: linear-gradient(180deg, #16181b 0%, #16181b 100%);
 }
@@ -958,10 +954,6 @@ table.ongoing-table td.col-remarks .pm-remark-text {
     box-shadow: 0 0 0 4px rgba(110, 168, 254, 0.25);
 }
 
-:where([data-bs-theme="dark"]) .briefing-stage.is-prolonged .briefing-stage__node {
-    box-shadow: 0 0 0 4px rgba(110, 168, 254, 0.25), 0 0 0 7px rgba(251, 191, 36, 0.25);
-}
-
 :where([data-bs-theme="dark"]) .briefing-stage.is-current .briefing-stage__name {
     color: #6ea8fe;
 }
@@ -1010,20 +1002,18 @@ table.ongoing-table td.col-remarks .pm-remark-text {
 }
 
 :where([data-bs-theme="dark"]) .ongoing-remarks__column--internal {
-    border-left: 3px solid #85a5e0;
+    /* Neutral in dark: the bright blue and purple accents were decoration, not status. */
+    border-left: 3px solid var(--pm-border-strong);
 }
 
 :where([data-bs-theme="dark"]) .ongoing-remarks__column--external {
-    border-left: 3px solid #9a85e0;
+    border-left: 3px solid var(--pm-border-strong);
     background: #16181b;
 }
 
-:where([data-bs-theme="dark"]) .ongoing-remarks__column-title {
-    color: #9985e0;
-}
-
+:where([data-bs-theme="dark"]) .ongoing-remarks__column-title,
 :where([data-bs-theme="dark"]) .ongoing-remarks__column-title--internal {
-    color: #85a7e0;
+    color: var(--pm-text-secondary);
 }
 
 :where([data-bs-theme="dark"]) .ongoing-remarks__empty {
@@ -1091,4 +1081,227 @@ table.ongoing-table td.col-remarks .pm-remark-text {
 
 :where([data-bs-theme="dark"]) .briefing-stage__date--attention {
     color: #fbbf24;
+}
+
+/* ============================================================
+   Top section: two rows with multi-select stage and category chips.
+   Theme tokens only, so Light and Dark follow the site palette.
+   ============================================================ */
+.ongoing-head {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    margin-bottom: 1rem;
+    padding: .9rem 1.1rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 14px;
+    background: var(--pm-card);
+}
+
+.ongoing-head__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .6rem 1.25rem;
+}
+
+.ongoing-head__row--tools {
+    gap: .6rem;
+}
+
+.ongoing-head__identity {
+    flex: 0 0 auto;
+    min-width: 12rem;
+}
+
+.ongoing-head__title {
+    margin: 0;
+    color: var(--pm-text-strong);
+    font-size: 1.5rem;
+    font-weight: 750;
+    line-height: 1.15;
+}
+
+.ongoing-head__count {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    margin: .1rem 0 0;
+    color: var(--pm-text-secondary);
+    font-size: .84rem;
+}
+
+.ongoing-head__count strong {
+    color: var(--pm-text-strong);
+}
+
+.ongoing-head__clear {
+    color: var(--pm-primary-strong);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ongoing-head__clear:hover,
+.ongoing-head__clear:focus-visible {
+    text-decoration: underline;
+}
+
+.ongoing-head__stages {
+    display: flex;
+    flex: 3 1 30rem;
+    min-width: 0;
+    overflow-x: auto;
+    border: 1px solid var(--pm-border-strong);
+    border-radius: 10px;
+}
+
+.ongoing-head__seg,
+.ongoing-head__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 2.5rem;
+    color: var(--pm-text);
+    font-size: .88rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.ongoing-head__seg {
+    flex: var(--grow, 3) 1 0;
+    justify-content: center;
+    min-width: 6rem;
+    padding: 0 .75rem;
+    border: 0;
+    border-right: 1px solid var(--pm-border);
+    background: var(--pm-surface-subtle);
+}
+
+.ongoing-head__seg:last-child {
+    border-right: 0;
+}
+
+.ongoing-head__categories {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+
+.ongoing-head__chip {
+    padding: 0 .85rem;
+    border: 1px solid var(--pm-border-strong);
+    border-radius: 999px;
+    background: var(--pm-card);
+}
+
+.ongoing-head__seg strong,
+.ongoing-head__chip strong {
+    color: var(--pm-text-strong);
+    font-size: .98rem;
+    font-weight: 750;
+}
+
+.ongoing-head__seg.is-active,
+.ongoing-head__chip.is-active {
+    color: var(--pm-primary-strong);
+    background: var(--pm-primary-soft);
+}
+
+.ongoing-head__seg.is-active {
+    box-shadow: inset 0 0 0 2px var(--pm-primary);
+}
+
+.ongoing-head__chip.is-active {
+    border-color: var(--pm-primary);
+}
+
+.ongoing-head__seg.is-active strong,
+.ongoing-head__chip.is-active strong {
+    color: var(--pm-primary-strong);
+}
+
+.ongoing-head__seg.is-empty,
+.ongoing-head__chip.is-empty,
+.ongoing-head__seg.is-empty strong,
+.ongoing-head__chip.is-empty strong {
+    color: var(--pm-text-secondary);
+}
+
+.ongoing-head__seg:focus-visible,
+.ongoing-head__chip:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: -2px;
+}
+
+.ongoing-head__tick {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    color: var(--pm-card);
+    background: var(--pm-primary);
+    font-size: .7rem;
+}
+
+.ongoing-head__search {
+    flex: 2 1 13rem;
+    min-width: 0;
+    min-height: 2.5rem;
+}
+
+.ongoing-head__select {
+    /* min-width 0: a select otherwise refuses to shrink below its longest option. */
+    flex: 1 1 9.5rem;
+    min-width: 0;
+    width: auto;
+    min-height: 2.5rem;
+}
+
+.ongoing-head__order {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 2.5rem;
+}
+
+.ongoing-head__divider {
+    width: 1px;
+    height: 1.75rem;
+    background: var(--pm-border);
+}
+
+.ongoing-head__export {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 2.5rem;
+}
+
+@media (max-width: 640px) {
+    .ongoing-head__identity {
+        flex-basis: 100%;
+    }
+
+    /* Four stage chips as a 2 x 2 grid rather than a strip that scrolls sideways. */
+    .ongoing-head__stages {
+        display: grid;
+        flex-basis: 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1px;
+        overflow: hidden;
+        background: var(--pm-border);
+    }
+
+    .ongoing-head__seg {
+        min-width: 0;
+        border-right: 0;
+    }
+
+    .ongoing-head__divider {
+        display: none;
+    }
 }

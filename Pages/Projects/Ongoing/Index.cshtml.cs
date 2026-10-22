@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -56,9 +57,45 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         [BindProperty(SupportsGet = true)]
         public string? PresentStageCode { get; set; }
 
-        // SECTION: Broad stage bucket selector
+        // SECTION: Broad stage bucket selector (single value; kept so existing links still work)
         [BindProperty(SupportsGet = true)]
         public string? StageBucket { get; set; }
+
+        // SECTION: Multi-select chips. Repeated query values: ?Stage=procurement&Stage=development&Category=3
+        [BindProperty(SupportsGet = true)]
+        public List<string> Stage { get; set; } = new();
+
+        [BindProperty(SupportsGet = true)]
+        public List<int> Category { get; set; } = new();
+
+        // SECTION: Sub-category, narrowing within the selected category chips
+        [BindProperty(SupportsGet = true)]
+        public int? SubCategory { get; set; }
+
+        /// <summary>Stage buckets in effect: the chips plus any legacy single value, in pipeline order.</summary>
+        public IReadOnlyList<string> SelectedStageBuckets { get; private set; } = Array.Empty<string>();
+
+        /// <summary>Top-level category chips selected (a legacy top-level value included).</summary>
+        public IReadOnlyList<int> SelectedCategoryIds { get; private set; } = Array.Empty<int>();
+
+        /// <summary>The category ids the query uses: the sub-category when one is chosen, else the chips.</summary>
+        public IReadOnlyList<int> EffectiveCategoryIds { get; private set; } = Array.Empty<int>();
+
+        public IReadOnlyList<CategoryChipVm> CategoryChips { get; private set; } = Array.Empty<CategoryChipVm>();
+        public IReadOnlyList<SelectListItem> SubCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
+        public bool HasSubCategories { get; private set; }
+
+        public IReadOnlyDictionary<int, int> CategoryCounts { get; private set; } = new Dictionary<int, int>();
+        public int AllProjectsCount { get; private set; }
+
+        public bool HasFilters => SelectedStageBuckets.Count > 0
+            || SelectedCategoryIds.Count > 0
+            || SubCategory.HasValue
+            || !string.IsNullOrWhiteSpace(PresentStageCode)
+            || !string.IsNullOrWhiteSpace(ProjectOfficerId)
+            || !string.IsNullOrWhiteSpace(Search);
+
+        public static readonly IReadOnlyList<string> StageBucketOrder = new[] { "approval", "aon", "procurement", "development" };
 
         // SECTION: View selector (timeline/table)
         [BindProperty(SupportsGet = true)]
@@ -116,36 +153,38 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             View = NormalizeView(View);
             StageFlow = NormalizeStageFlow(StageFlow);
             await LoadCategoriesAsync(cancellationToken);
+            ResolveFilters();
 
             var officerId = Normalize(ProjectOfficerId);
             var search = Normalize(Search);
-            PresentStageCode = NormalizeStageCode(PresentStageCode);
-            StageBucket = NormalizeStageBucket(StageBucket);
-            LoadPresentStageOptions();
-            PresentStageCode = ValidateStageCode(PresentStageCode);
-            if (!string.IsNullOrWhiteSpace(PresentStageCode))
-            {
-                StageBucket = null;
-            }
 
             ProjectOfficerOptions = await _ongoingService.GetProjectOfficerOptionsAsync(
                 officerId,
                 cancellationToken);
 
             Items = await _ongoingService.GetAsync(
-                ProjectCategoryId,
+                EffectiveCategoryIds,
                 officerId,
                 search,
                 PresentStageCode,
-                StageBucket,
+                SelectedStageBuckets,
                 StageFlow,
                 cancellationToken);
 
+            // Each chip group counts with every filter except its own, so a count says
+            // what selecting that chip would show.
             BucketCounts = await _ongoingService.GetStageBucketCountsAsync(
-                ProjectCategoryId,
+                EffectiveCategoryIds,
                 officerId,
                 search,
                 cancellationToken);
+            CategoryCounts = await _ongoingService.GetCategoryCountsAsync(
+                officerId,
+                search,
+                PresentStageCode,
+                SelectedStageBuckets,
+                cancellationToken);
+            AllProjectsCount = await _ongoingService.CountAllAsync(cancellationToken);
 
             // SECTION: Inline external remark editing access + IST date
             CanInlineEditExternalRemarks = User.IsInRole("HoD");
@@ -157,23 +196,17 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
         {
             StageFlow = NormalizeStageFlow(StageFlow);
+            await LoadCategoriesAsync(cancellationToken);
+            ResolveFilters();
             var officerId = Normalize(ProjectOfficerId);
             var search = Normalize(Search);
-            PresentStageCode = NormalizeStageCode(PresentStageCode);
-            StageBucket = NormalizeStageBucket(StageBucket);
-            LoadPresentStageOptions();
-            PresentStageCode = ValidateStageCode(PresentStageCode);
-            if (!string.IsNullOrWhiteSpace(PresentStageCode))
-            {
-                StageBucket = null;
-            }
 
             var items = await _ongoingService.GetAsync(
-                ProjectCategoryId,
+                EffectiveCategoryIds,
                 officerId,
                 search,
                 PresentStageCode,
-                StageBucket,
+                SelectedStageBuckets,
                 StageFlow,
                 cancellationToken);
 
@@ -183,7 +216,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 new OngoingProjectsExportContext(
                     items,
                     now,
-                    ProjectCategoryId,
+                    EffectiveCategoryIds.Count == 1 ? EffectiveCategoryIds[0] : null,
                     search));
 
             var fileName = $"ongoing-projects-{now:yyyyMMddHHmmss}.xlsx";
@@ -248,26 +281,15 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             ChipDcdCategoryId = dcdCategory?.Id;
             ChipOtherRdCategoryId = otherCategory?.Id;
 
-            var countsByCategory = Items
-                .Where(item => item.ProjectCategoryId.HasValue)
-                .Select(item =>
-                {
-                    if (!item.ProjectCategoryId.HasValue)
-                    {
-                        return (int?)null;
-                    }
-
-                    if (!categoryLookup.TryGetValue(item.ProjectCategoryId.Value, out var category))
-                    {
-                        return (int?)null;
-                    }
-
-                    var topLevel = ResolveTopLevelCategory(category, categoryLookup);
-                    return topLevel?.Id;
-                })
-                .Where(categoryId => categoryId.HasValue)
-                .GroupBy(categoryId => categoryId!.Value)
-                .ToDictionary(group => group.Key, group => group.Count());
+            var countsByCategory = CategoryCounts
+                .Select(entry => (
+                    TopLevelId: categoryLookup.TryGetValue(entry.Key, out var category)
+                        ? ResolveTopLevelCategory(category, categoryLookup)?.Id
+                        : null,
+                    entry.Value))
+                .Where(entry => entry.TopLevelId.HasValue)
+                .GroupBy(entry => entry.TopLevelId!.Value)
+                .ToDictionary(group => group.Key, group => group.Sum(entry => entry.Value));
 
             ChipCoECount = (coeCategory != null && countsByCategory.TryGetValue(coeCategory.Id, out var coeCount))
                 ? coeCount
@@ -278,6 +300,16 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             ChipOtherRdCount = (otherCategory != null && countsByCategory.TryGetValue(otherCategory.Id, out var otherCount))
                 ? otherCount
                 : 0;
+
+            // One chip per top-level category, so categories added in Admin get a chip too.
+            CategoryChips = orderedCategories
+                .Select(category => new CategoryChipVm(
+                    category.Id,
+                    OngoingCategoryFilter.ChipLabel(category.Name),
+                    category.Name,
+                    countsByCategory.TryGetValue(category.Id, out var count) ? count : 0,
+                    SelectedCategoryIds.Contains(category.Id)))
+                .ToList();
 
             var orderedCounts = new List<CategoryCountDto>();
 
@@ -336,6 +368,69 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         private static string? Normalize(string? value)
             => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+        // SECTION: Filter resolution shared by the page and the export
+        private void ResolveFilters()
+        {
+            var buckets = Stage.Append(StageBucket)
+                .Select(NormalizeStageBucket)
+                .Where(bucket => bucket is not null)
+                .Select(bucket => bucket!)
+                .ToHashSet(StringComparer.Ordinal);
+            SelectedStageBuckets = StageBucketOrder.Where(buckets.Contains).ToList();
+
+            var nodes = _categories
+                .Select(category => new OngoingCategoryNode(category.Id, category.Name, category.ParentId))
+                .ToList();
+            var categories = OngoingCategoryFilter.Resolve(nodes, Category, ProjectCategoryId, SubCategory);
+            SelectedCategoryIds = categories.TopLevelIds;
+            SubCategory = categories.SubCategoryId;
+            EffectiveCategoryIds = categories.EffectiveIds;
+
+            HasSubCategories = OngoingCategoryFilter.SubCategoryOptions(nodes, Array.Empty<int>()).Count > 0;
+            SubCategoryOptions = new[] { new SelectListItem("Any sub-category", string.Empty, !SubCategory.HasValue) }
+                .Concat(OngoingCategoryFilter.SubCategoryOptions(nodes, SelectedCategoryIds)
+                    .Select(option => new SelectListItem(
+                        option.Label,
+                        option.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        option.Id == SubCategory)))
+                .ToList();
+
+            // The legacy single values are folded into the lists above and not echoed back.
+            StageBucket = null;
+            ProjectCategoryId = null;
+
+            // An exact stage must sit inside the selected buckets, or it is dropped.
+            PresentStageCode = NormalizeStageCode(PresentStageCode);
+            LoadPresentStageOptions();
+            PresentStageCode = ValidateStageCode(PresentStageCode);
+        }
+
+        public static string BucketKey(ProjectManagement.Models.Stages.StageBucket bucket) => bucket switch
+        {
+            ProjectManagement.Models.Stages.StageBucket.Approval => "approval",
+            ProjectManagement.Models.Stages.StageBucket.Aon => "aon",
+            ProjectManagement.Models.Stages.StageBucket.Procurement => "procurement",
+            ProjectManagement.Models.Stages.StageBucket.Development => "development",
+            _ => "unknown"
+        };
+
+        /// <summary>This page's address with the filters in effect, optionally for a handler or another view.</summary>
+        public string FilterUrl(string? handler = null, string? view = null)
+        {
+            var query = new QueryBuilder();
+            if (!string.IsNullOrWhiteSpace(handler)) query.Add("handler", handler);
+            foreach (var bucket in SelectedStageBuckets) query.Add(nameof(Stage), bucket);
+            foreach (var categoryId in SelectedCategoryIds) query.Add(nameof(Category), categoryId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (SubCategory is { } subCategoryId) query.Add(nameof(SubCategory), subCategoryId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (!string.IsNullOrWhiteSpace(PresentStageCode)) query.Add(nameof(PresentStageCode), PresentStageCode);
+            if (!string.IsNullOrWhiteSpace(ProjectOfficerId)) query.Add(nameof(ProjectOfficerId), ProjectOfficerId.Trim());
+            if (!string.IsNullOrWhiteSpace(Search)) query.Add(nameof(Search), Search.Trim());
+            query.Add(nameof(View), view ?? View ?? "timeline");
+            query.Add(nameof(StageFlow), StageFlow);
+
+            return (Url.Page("./Index") ?? "/Projects/Ongoing") + query.ToQueryString();
+        }
+
         // SECTION: Present stage normalization
         private static string? NormalizeStageCode(string? value)
             => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
@@ -365,10 +460,11 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
             var list = new List<SelectListItem>
             {
-                new("All stages", string.Empty, string.IsNullOrWhiteSpace(PresentStageCode))
+                new(SelectedStageBuckets.Count > 0 ? "Any stage in selection" : "Any stage", string.Empty, string.IsNullOrWhiteSpace(PresentStageCode))
             };
 
-            foreach (var stage in stages)
+            foreach (var stage in stages.Where(stage => SelectedStageBuckets.Count == 0
+                || SelectedStageBuckets.Contains(BucketKey(StageBuckets.Of(stage.Code)))))
             {
                 list.Add(new SelectListItem(
                     stage.Name,
@@ -443,6 +539,8 @@ namespace ProjectManagement.Pages.Projects.Ongoing
     }
 
     // SECTION: DTOs
+    public sealed record CategoryChipVm(int Id, string Label, string FullName, int Count, bool IsSelected);
+
     public sealed class CategoryCountDto
     {
         public int ProjectCategoryId { get; init; }

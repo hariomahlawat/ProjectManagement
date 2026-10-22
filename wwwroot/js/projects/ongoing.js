@@ -5,9 +5,7 @@
     return;
   }
 
-  const categorySelect = form.querySelector('[name="ProjectCategoryId"]');
   const stageSelect = form.querySelector('[name="PresentStageCode"]');
-  const stageBucketInput = form.querySelector('[name="StageBucket"]');
   const officerSelect = form.querySelector('[name="ProjectOfficerId"]');
   const stageFlowSelect = form.querySelector('[name="StageFlow"]');
   const searchInput = form.querySelector('[name="Search"]');
@@ -21,54 +19,49 @@
     }
   }
 
-  // SECTION: Stage bucket quick-filter interactions
-  const stageBucketChips = document.querySelectorAll('.js-stage-bucket-chip');
-
-  stageBucketChips.forEach((chip) => {
-    chip.addEventListener('click', () => {
-      if (!stageBucketInput) {
-        return;
-      }
-
-      const selectedBucket = chip.dataset.stageBucket ?? '';
-      const currentBucket = stageBucketInput.value ?? '';
-
-      if (currentBucket === selectedBucket) {
-        stageBucketInput.value = '';
-      } else {
-        stageBucketInput.value = selectedBucket;
-        if (stageSelect) {
-          stageSelect.value = '';
-        }
-      }
-
-      submitFilters();
-    });
-  });
-
-  // SECTION: KPI chip interactions
-  const kpiChips = document.querySelectorAll('.js-kpi-chip');
-
-  kpiChips.forEach((chip) => {
-    chip.addEventListener('click', () => {
-      if (!categorySelect) {
-        return;
-      }
-
-      const categoryId = chip.dataset.categoryId ?? '';
-      categorySelect.value = categoryId;
-      submitFilters();
-    });
-  });
-
-  categorySelect?.addEventListener('change', submitFilters);
-  stageSelect?.addEventListener('change', () => {
-    if (stageBucketInput) {
-      stageBucketInput.value = '';
+  // SECTION: Multi-select chips. Each selected chip is one hidden input; a click adds or
+  // removes its own value and reloads, so stage and category chips combine freely.
+  function toggleHiddenValue(name, value) {
+    const existing = Array.from(form.querySelectorAll('input[type="hidden"]'))
+      .find((input) => input.name === name && input.value === value);
+    if (existing) {
+      existing.remove();
+      return;
     }
 
-    submitFilters();
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  }
+
+  document.querySelectorAll('.js-stage-bucket-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const bucket = chip.dataset.stageBucket;
+      if (!bucket) {
+        return;
+      }
+
+      toggleHiddenValue('Stage', bucket);
+      submitFilters();
+    });
   });
+
+  document.querySelectorAll('.js-kpi-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const categoryId = chip.dataset.categoryId;
+      if (!categoryId) {
+        return;
+      }
+
+      toggleHiddenValue('Category', categoryId);
+      submitFilters();
+    });
+  });
+
+  stageSelect?.addEventListener('change', submitFilters);
+  form.querySelector('[name="SubCategory"]')?.addEventListener('change', submitFilters);
   officerSelect?.addEventListener('change', submitFilters);
   stageFlowSelect?.addEventListener('change', submitFilters);
 
@@ -102,7 +95,7 @@
       panel.dataset.expanded = nextExpanded ? '1' : '0';
       expandedList.hidden = !nextExpanded;
       toggleButton.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
-      toggleLabel.textContent = nextExpanded ? 'Collapse remarks' : 'Expand remarks';
+      toggleLabel.textContent = nextExpanded ? 'Hide earlier updates' : 'View earlier updates';
       if (toggleChevron) {
         toggleChevron.textContent = nextExpanded ? '▴' : '▾';
       }
@@ -111,13 +104,35 @@
 
 
 
+  // SECTION: Fall back to the placeholder when a cover photo cannot be loaded
+  document.querySelectorAll('.ongoing-card__thumb-img').forEach((img) => {
+    const showPlaceholder = () => {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'ongoing-card__thumb-placeholder';
+      placeholder.setAttribute('aria-hidden', 'true');
+      const icon = document.createElement('i');
+      icon.className = 'bi bi-image';
+      placeholder.appendChild(icon);
+      img.replaceWith(placeholder);
+    };
+
+    if (img.complete && img.naturalWidth === 0) {
+      showPlaceholder();
+      return;
+    }
+
+    img.addEventListener('error', showPlaceholder, { once: true });
+  });
+
   // SECTION: Bring the current stage into view on first render
   document.querySelectorAll('.briefing-timeline__rail[data-auto-focus-current="true"]').forEach((rail) => {
     const current = rail.querySelector('[data-current-stage="true"]');
     if (!current) return;
 
-    const desiredLeft = Math.max(0, current.offsetLeft - Math.round(rail.clientWidth * 0.32));
-    rail.scrollLeft = desiredLeft;
+    // Measure against the rail itself: offsetLeft is relative to the nearest positioned
+    // ancestor, which is the card, so cards scrolled to inconsistent positions.
+    const offset = current.getBoundingClientRect().left - rail.getBoundingClientRect().left + rail.scrollLeft;
+    rail.scrollLeft = Math.max(0, offset - Math.round(rail.clientWidth * 0.32));
   });
 
   // SECTION: Mouse drag scrolling for complete lifecycle rails

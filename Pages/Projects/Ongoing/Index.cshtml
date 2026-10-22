@@ -11,21 +11,6 @@
 
     // SECTION: View state
     var isTableView = string.Equals(Model.View, "table", StringComparison.OrdinalIgnoreCase);
-    var isTotalActive = !Model.ProjectCategoryId.HasValue;
-    var isCoeActive = Model.ProjectCategoryId.HasValue
-        && Model.ProjectCategoryId == Model.ChipCoECategoryId;
-    var isDcdActive = Model.ProjectCategoryId.HasValue
-        && Model.ProjectCategoryId == Model.ChipDcdCategoryId;
-    var isOtherActive = Model.ProjectCategoryId.HasValue
-        && Model.ProjectCategoryId == Model.ChipOtherRdCategoryId;
-    // SECTION: Filter state
-    var hasFilters = Model.ProjectCategoryId.HasValue
-        || !string.IsNullOrWhiteSpace(Model.PresentStageCode)
-        || !string.IsNullOrWhiteSpace(Model.StageBucket)
-        || !string.IsNullOrWhiteSpace(Model.ProjectOfficerId)
-        || !string.IsNullOrWhiteSpace(Model.Search);
-    var selectedOfficerLabel = Model.ProjectOfficerOptions
-        .FirstOrDefault(option => option.Selected)?.Text;
 
     // SECTION: Inline remark defaults
     var remarkType = RemarkType.External.ToString();
@@ -58,300 +43,176 @@
     string StageNodeLabel(string code)
         => string.Equals(code, "PAYMENT", StringComparison.OrdinalIgnoreCase) ? "₹" : code;
 
-    // SECTION: Category accent helper
-    string GetCategoryAccentClass(int? categoryId)
+    // SECTION: Update age helper
+    // Updates older than this are marked so a stale status shows without opening the project.
+    const int staleUpdateDays = 30;
+    var nowUtc = DateTime.UtcNow;
+
+    (string Label, bool IsStale) UpdateAge(DateTime createdAtUtc)
     {
-        if (!categoryId.HasValue)
+        var days = Math.Max(0, (int)(nowUtc - DateTime.SpecifyKind(createdAtUtc, DateTimeKind.Utc)).TotalDays);
+        var months = Math.Max(1, (int)Math.Round(days / 30.4));
+        var years = Math.Max(1, (int)Math.Round(days / 365.25));
+        var label = days switch
         {
-            return "ongoing-card--other";
-        }
-
-        if (Model.ChipCoECategoryId.HasValue && categoryId == Model.ChipCoECategoryId)
-        {
-            return "ongoing-card--coe";
-        }
-
-        if (Model.ChipDcdCategoryId.HasValue && categoryId == Model.ChipDcdCategoryId)
-        {
-            return "ongoing-card--dcd";
-        }
-
-        return "ongoing-card--other";
+            0 => "today",
+            1 => "yesterday",
+            < 31 => $"{days} days ago",
+            < 365 => months == 1 ? "1 month ago" : $"{months} months ago",
+            _ => years == 1 ? "1 year ago" : $"{years} years ago"
+        };
+        return (label, days > staleUpdateDays);
     }
 
 }
 
-<!-- SECTION: Ongoing projects top area -->
-<div class="ongoing-top">
-    <!-- SECTION: Page header + KPI chips -->
-    <div class="ongoing-top__header">
-        <!-- SECTION: Page title -->
-        <div class="ongoing-top__identity">
-            <h1 class="ongoing-top__title">Ongoing projects</h1>
-            <p class="ongoing-top__context mb-0">
-                <strong>@Model.FilteredTotal</strong> project@(Model.FilteredTotal == 1 ? "" : "s")
-                @if (!string.IsNullOrWhiteSpace(selectedOfficerLabel) && !string.Equals(selectedOfficerLabel, "All officers", StringComparison.OrdinalIgnoreCase))
+<!-- SECTION: Ongoing projects top area: two rows, multi-select chips -->
+@{
+    var stageChips = new[]
+    {
+        (Key: "approval", Label: "Approval", Codes: "FS, IPA, SOW", Count: Model.BucketApvlCount),
+        (Key: "aon", Label: "AoN", Codes: "AON", Count: Model.BucketAonCount),
+        (Key: "procurement", Label: "Tender", Codes: "BID, TEC, BM, COB, PNC, EAS, SO", Count: Model.BucketProcCount),
+        (Key: "development", Label: "Development", Codes: "DEVP, ATP, PAYMENT, TOT", Count: Model.BucketDevpCount)
+    };
+}
+<form id="ongoingProjectsFilterForm"
+      method="get"
+      class="ongoing-head"
+      aria-labelledby="ongoing-head-title"
+      novalidate>
+    <input type="hidden" asp-for="View" />
+    @if (isTableView)
+    {
+        <input type="hidden" asp-for="StageFlow" />
+    }
+    @foreach (var bucket in Model.SelectedStageBuckets)
+    {
+        <input type="hidden" name="Stage" value="@bucket" />
+    }
+    @foreach (var categoryId in Model.SelectedCategoryIds)
+    {
+        <input type="hidden" name="Category" value="@categoryId" />
+    }
+
+    <!-- SECTION: Row 1 - title, stage and category chips -->
+    <div class="ongoing-head__row">
+        <div class="ongoing-head__identity">
+            <h1 id="ongoing-head-title" class="ongoing-head__title">Ongoing projects</h1>
+            <p class="ongoing-head__count" aria-live="polite">
+                <span>
+                    <strong>@Model.FilteredTotal</strong>
+                    @if (Model.HasFilters)
+                    {
+                        @:of @Model.AllProjectsCount
+                    }
+                    project@(Model.FilteredTotal == 1 && !Model.HasFilters ? "" : "s")
+                </span>
+                @if (Model.HasFilters)
                 {
-                    <span> · @selectedOfficerLabel</span>
+                    <span aria-hidden="true">·</span>
+                    <a asp-page="./Index"
+                       asp-route-View="@Model.View"
+                       asp-route-StageFlow="@Model.StageFlow"
+                       class="ongoing-head__clear">Clear all</a>
+                }
+                @if (Model.BucketUnknownCount > 0)
+                {
+                    <span aria-hidden="true">·</span>
+                    <span title="Projects whose current stage code is not recognised">@Model.BucketUnknownCount unknown stage</span>
                 }
             </p>
         </div>
 
-        <!-- SECTION: Stage pipeline -->
-        <div class="ongoing-top__pipeline" aria-label="Stage bucket distribution">
-            @if (Model.BucketCounts.Total > 0)
+        <div class="ongoing-head__stages" role="group" aria-label="Stage (select one or more)">
+            @foreach (var chip in stageChips)
             {
-                <div class="stage-pipeline-wrap" aria-label="Stage distribution">
-                    <div class="stage-pipeline-wrap__caption">Stage distribution</div>
-
-                    <div class="stage-pipeline" role="group" aria-label="Stage pipeline">
-                        <button type="button"
-                                class="stage-pipeline__seg stage-pipeline__seg--apvl js-stage-bucket-chip @(Model.StageBucket == "approval" ? "is-active" : string.Empty)"
-                                data-stage-bucket="approval"
-                                style="--grow:@Model.BucketApvlCount"
-                                title="Apvl: FS, SOW, IPA"
-                                aria-pressed="@(Model.StageBucket == "approval")">
-                            <span class="stage-pipeline__label">Apvl</span>
-                            <span class="stage-pipeline__count">@Model.BucketApvlCount</span>
-                            @if (Model.StageBucket == "approval")
-                            {
-                                <span class="stage-pipeline__close" aria-hidden="true">×</span>
-                            }
-                        </button>
-
-                        <button type="button"
-                                class="stage-pipeline__seg stage-pipeline__seg--aon js-stage-bucket-chip @(Model.StageBucket == "aon" ? "is-active" : string.Empty)"
-                                data-stage-bucket="aon"
-                                style="--grow:@Model.BucketAonCount"
-                                title="AoN: AON"
-                                aria-pressed="@(Model.StageBucket == "aon")">
-                            <span class="stage-pipeline__label">AoN</span>
-                            <span class="stage-pipeline__count">@Model.BucketAonCount</span>
-                            @if (Model.StageBucket == "aon")
-                            {
-                                <span class="stage-pipeline__close" aria-hidden="true">×</span>
-                            }
-                        </button>
-
-                        <button type="button"
-                                class="stage-pipeline__seg stage-pipeline__seg--proc js-stage-bucket-chip @(Model.StageBucket == "procurement" ? "is-active" : string.Empty)"
-                                data-stage-bucket="procurement"
-                                style="--grow:@Model.BucketProcCount"
-                                title="Tendering (GeM/Proc): BID, TEC, BM, COB, PNC, EAS, SO"
-                                aria-pressed="@(Model.StageBucket == "procurement")">
-                            <span class="stage-pipeline__label">Tender</span>
-                            <span class="stage-pipeline__count">@Model.BucketProcCount</span>
-                            @if (Model.StageBucket == "procurement")
-                            {
-                                <span class="stage-pipeline__close" aria-hidden="true">×</span>
-                            }
-                        </button>
-
-                        <button type="button"
-                                class="stage-pipeline__seg stage-pipeline__seg--devp js-stage-bucket-chip @(Model.StageBucket == "development" ? "is-active" : string.Empty)"
-                                data-stage-bucket="development"
-                                style="--grow:@Model.BucketDevpCount"
-                                title="Devp: DEVP, ATP, PAYMENT, TOT"
-                                aria-pressed="@(Model.StageBucket == "development")">
-                            <span class="stage-pipeline__label">Devp</span>
-                            <span class="stage-pipeline__count">@Model.BucketDevpCount</span>
-                            @if (Model.StageBucket == "development")
-                            {
-                                <span class="stage-pipeline__close" aria-hidden="true">×</span>
-                            }
-                        </button>
-                    </div>
-
-                    @if (Model.BucketUnknownCount > 0)
+                var isOn = Model.SelectedStageBuckets.Contains(chip.Key);
+                <button type="button"
+                        class="ongoing-head__seg js-stage-bucket-chip @(isOn ? "is-active" : null) @(chip.Count == 0 ? "is-empty" : null)"
+                        data-stage-bucket="@chip.Key"
+                        style="--grow:@Math.Max(chip.Count, 3)"
+                        title="@chip.Label: @chip.Codes"
+                        aria-pressed="@(isOn ? "true" : "false")">
+                    @if (isOn)
                     {
-                        <div class="stage-pipeline-wrap__meta">
-                            <span class="stage-pipeline__unknown"
-                                  title="Unknown current stage code found">
-                                Unknown: @Model.BucketUnknownCount
-                            </span>
-                        </div>
+                        <span class="ongoing-head__tick" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                     }
-                </div>
-            }
-            else
-            {
-                <div class="stage-pipeline stage-pipeline--empty" aria-label="No projects">
-                    <span class="stage-pipeline__empty-text">No ongoing projects</span>
-                </div>
+                    <span>@chip.Label</span>
+                    <strong>@chip.Count</strong>
+                </button>
             }
         </div>
 
-        <!-- SECTION: KPI chip filters -->
-        <div class="ongoing-top__kpis" aria-label="Project counts">
-            <button type="button"
-                    class="kpi-chip js-kpi-chip @(isTotalActive ? "is-active" : string.Empty)"
-                    data-category-id=""
-                    aria-pressed="@isTotalActive">
-                <span class="kpi-chip__label">Total</span>
-                <span class="kpi-chip__count">@Model.ChipTotalCount</span>
-                @if (isTotalActive)
-                {
-                    <span class="kpi-chip__close" aria-hidden="true">×</span>
-                }
-            </button>
-            <button type="button"
-                    class="kpi-chip js-kpi-chip @(isCoeActive ? "is-active" : string.Empty)"
-                    data-category-id="@(Model.ChipCoECategoryId?.ToString() ?? string.Empty)"
-                    aria-pressed="@isCoeActive">
-                <span class="kpi-chip__label">CoE</span>
-                <span class="kpi-chip__count">@Model.ChipCoECount</span>
-                @if (isCoeActive)
-                {
-                    <span class="kpi-chip__close" aria-hidden="true">×</span>
-                }
-            </button>
-            <button type="button"
-                    class="kpi-chip js-kpi-chip @(isDcdActive ? "is-active" : string.Empty)"
-                    data-category-id="@(Model.ChipDcdCategoryId?.ToString() ?? string.Empty)"
-                    aria-pressed="@isDcdActive">
-                <span class="kpi-chip__label">DCD</span>
-                <span class="kpi-chip__count">@Model.ChipDcdCount</span>
-                @if (isDcdActive)
-                {
-                    <span class="kpi-chip__close" aria-hidden="true">×</span>
-                }
-            </button>
-            <button type="button"
-                    class="kpi-chip js-kpi-chip @(isOtherActive ? "is-active" : string.Empty)"
-                    data-category-id="@(Model.ChipOtherRdCategoryId?.ToString() ?? string.Empty)"
-                    aria-pressed="@isOtherActive">
-                <span class="kpi-chip__label">Other R&amp;D</span>
-                <span class="kpi-chip__count">@Model.ChipOtherRdCount</span>
-                @if (isOtherActive)
-                {
-                    <span class="kpi-chip__close" aria-hidden="true">×</span>
-                }
-            </button>
+        <div class="ongoing-head__categories" role="group" aria-label="Category (select one or more)">
+            @foreach (var chip in Model.CategoryChips)
+            {
+                var isOn = chip.IsSelected;
+                <button type="button"
+                        class="ongoing-head__chip js-kpi-chip @(isOn ? "is-active" : null) @(chip.Count == 0 ? "is-empty" : null)"
+                        data-category-id="@chip.Id"
+                        title="@chip.FullName"
+                        aria-pressed="@(isOn ? "true" : "false")">
+                    @if (isOn)
+                    {
+                        <span class="ongoing-head__tick" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                    }
+                    <span>@chip.Label</span>
+                    <strong>@chip.Count</strong>
+                </button>
+            }
         </div>
     </div>
 
-    <!-- SECTION: Command bar -->
-    <form id="ongoingProjectsFilterForm"
-          method="get"
-          class="cmdbar"
-          novalidate>
-        <!-- SECTION: Persist view selection -->
-        <input type="hidden" asp-for="View" />
+    <!-- SECTION: Row 2 - search, officer, exact stage, view and actions -->
+    <div class="ongoing-head__row ongoing-head__row--tools">
+        <input asp-for="Search"
+               type="search"
+               class="form-control form-control-sm ongoing-head__search"
+               placeholder="Search project name"
+               aria-label="Search by project name"
+               autocomplete="off" />
+        <select asp-for="ProjectOfficerId"
+                asp-items="Model.ProjectOfficerOptions"
+                class="form-select form-select-sm ongoing-head__select"
+                aria-label="Project officer"></select>
+        <select asp-for="PresentStageCode"
+                asp-items="Model.PresentStageOptions"
+                class="form-select form-select-sm ongoing-head__select"
+                aria-label="Exact stage"></select>
+        @if (Model.HasSubCategories)
+        {
+            <select asp-for="SubCategory"
+                    asp-items="Model.SubCategoryOptions"
+                    class="form-select form-select-sm ongoing-head__select"
+                    aria-label="Sub-category"></select>
+        }
 
-        <!-- SECTION: Persist broad stage bucket quick filter -->
-        <input type="hidden" asp-for="StageBucket" />
+        <span class="ongoing-head__divider" aria-hidden="true"></span>
 
-        <!-- SECTION: Filters row -->
-        <div class="cmdbar__filters cmdbar__filters-row">
-            <div class="cmdbar__field cmdbar__field--category">
-                <label asp-for="ProjectCategoryId" class="cmdbar__label">Project category</label>
-                <select asp-for="ProjectCategoryId"
-                        asp-items="Model.ProjectCategoryOptions"
-                        class="form-select form-select-sm"></select>
-            </div>
-            <div class="cmdbar__field cmdbar__field--stage">
-                <label asp-for="PresentStageCode" class="cmdbar__label">Present stage</label>
-                <select asp-for="PresentStageCode"
-                        asp-items="Model.PresentStageOptions"
-                        class="form-select form-select-sm"></select>
-            </div>
-            <div class="cmdbar__field cmdbar__field--officer">
-                <label asp-for="ProjectOfficerId" class="cmdbar__label">Project officer</label>
-                <select asp-for="ProjectOfficerId"
-                        asp-items="Model.ProjectOfficerOptions"
-                        class="form-select form-select-sm"></select>
-            </div>
-            <div class="cmdbar__field cmdbar__field--search">
-                <label asp-for="Search" class="cmdbar__label">Search by project name</label>
-                <input asp-for="Search"
-                       class="form-control form-control-sm"
-                       placeholder="Search projects"
-                       autocomplete="off" />
-            </div>
+        <div class="segmented" role="group" aria-label="View">
+            <a href="@Model.FilterUrl(view: "timeline")"
+               class="segmented__item @(isTableView ? string.Empty : "is-active")"
+               aria-current="@(isTableView ? null : "page")">Timeline</a>
+            <a href="@Model.FilterUrl(view: "table")"
+               class="segmented__item @(isTableView ? "is-active" : string.Empty)"
+               aria-current="@(isTableView ? "page" : null)">Table</a>
         </div>
-
-        <!-- SECTION: Actions row -->
-        <div class="cmdbar__actions cmdbar__actions-row">
-            <div class="segmented" role="tablist" aria-label="View">
-                <a asp-page="./Index"
-                   asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
-                   asp-route-PresentStageCode="@Model.PresentStageCode"
-                   asp-route-StageBucket="@Model.StageBucket"
-                   asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
-                   asp-route-Search="@Model.Search"
-                   asp-route-View="timeline"
-                   asp-route-StageFlow="@Model.StageFlow"
-                   class="segmented__item @(isTableView ? string.Empty : "is-active")"
-                   role="tab"
-                   aria-selected="@(!isTableView)"
-                   aria-current="@(isTableView ? null : "page")">
-                    Timeline view
-                </a>
-                <a asp-page="./Index"
-                   asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
-                   asp-route-PresentStageCode="@Model.PresentStageCode"
-                   asp-route-StageBucket="@Model.StageBucket"
-                   asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
-                   asp-route-Search="@Model.Search"
-                   asp-route-View="table"
-                   asp-route-StageFlow="@Model.StageFlow"
-                   class="segmented__item @(isTableView ? "is-active" : string.Empty)"
-                   role="tab"
-                   aria-selected="@isTableView"
-                   aria-current="@(isTableView ? "page" : null)">
-                    Table view
-                </a>
-            </div>
-            @if (!isTableView)
-            {
-                <!-- SECTION: Timeline stage flow selector -->
-                <div class="d-flex align-items-center gap-2">
-                    <label asp-for="StageFlow" class="form-label mb-0 small text-muted">
-                        Stage flow
-                    </label>
-                    <select asp-for="StageFlow"
-                            class="form-select form-select-sm"
-                            data-stage-flow-select>
-                        <option value="reverse">Later → Early</option>
-                        <option value="forward">Early → Later</option>
-                    </select>
-                </div>
-            }
-            else
-            {
-                <!-- SECTION: Preserve stage flow while table view owns its existing ordering -->
-                <input type="hidden" asp-for="StageFlow" />
-            }
-            @if (hasFilters)
-            {
-                <!-- SECTION: Clear filters -->
-                <a asp-page="./Index"
-                   asp-route-ProjectCategoryId=""
-                   asp-route-PresentStageCode=""
-                   asp-route-ProjectOfficerId=""
-                   asp-route-Search=""
-                   asp-route-StageBucket=""
-                   asp-route-StageFlow="reverse"
-                   asp-route-View="@Model.View"
-                   class="cmdbar__link-button">
-                    Clear filters
-                </a>
-            }
-            <a asp-page="./Index"
-               asp-page-handler="Export"
-               asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
-               asp-route-PresentStageCode="@Model.PresentStageCode"
-               asp-route-StageBucket="@Model.StageBucket"
-               asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
-               asp-route-Search="@Model.Search"
-               asp-route-View="@Model.View"
-               asp-route-StageFlow="@Model.StageFlow"
-               class="btn btn-sm btn-outline-secondary">
-                Export
-            </a>
-        </div>
-    </form>
-</div>
+        @if (!isTableView)
+        {
+            <select asp-for="StageFlow"
+                    class="form-select form-select-sm ongoing-head__order"
+                    aria-label="Order"
+                    data-stage-flow-select>
+                <option value="reverse">Later stages first</option>
+                <option value="forward">Earlier stages first</option>
+            </select>
+        }
+        <a href="@Model.FilterUrl(handler: "Export")" class="btn btn-sm btn-outline-primary ongoing-head__export">
+            <i class="bi bi-download" aria-hidden="true"></i> Export
+        </a>
+    </div>
+</form>
 
 @if (Model.Items.Count == 0)
 {
@@ -393,11 +254,11 @@ else
             }
 
             <div class="col-12">
-                <article class="ongoing-card @GetCategoryAccentClass(item.ProjectCategoryId) card border-0 shadow-sm h-100">
+                <article class="ongoing-card card border-0 shadow-sm h-100">
                     <div class="card-body p-0">
                         @{
                             // SECTION: Timeline helper values
-                            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+                            var today = DateOnly.FromDateTime(ProjectManagement.Infrastructure.IstClock.ToIst(DateTime.UtcNow));
                             var cur = item.Stages[currentIdx];
                             var presentStage = item.PresentStage;
 
@@ -463,7 +324,7 @@ else
                                             }
                                             else
                                             {
-                                                <span class="text-muted">date not available</span>
+                                                <span class="text-muted">date not recorded</span>
                                             }
                                         }
                                         else
@@ -472,10 +333,6 @@ else
                                             @if (cur.PlannedDue.HasValue)
                                             {
                                                 @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">PDC not set</span>
                                             }
                                         }
 
@@ -512,6 +369,16 @@ else
                                                 </span>
                                             }
                                         }
+
+                                        @if (item.IsCurrentStageProlonged)
+                                        {
+                                            <span class="ms-2 oc-pill oc-pill--warning">
+                                                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                                @(string.Equals(cur.Code, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
+                                                    ? "Development prolonged (6 months+)"
+                                                    : "Stage prolonged")
+                                            </span>
+                                        }
                                     </p>
                                 </div>
                             </div>
@@ -529,7 +396,7 @@ else
                                         }
                                         else
                                         {
-                                            <span class="text-muted">date NA</span>
+                                            <span class="text-muted">date not recorded</span>
                                         }
                                     }
                                     else
@@ -544,40 +411,30 @@ else
                         <!-- SECTION: Complete lifecycle timeline -->
                         <section class="briefing-timeline" aria-label="Project lifecycle timeline">
                             @{
-                                var currentStageIsProlonged = item.IsCurrentStageProlonged;
-                                var currentStageProlongedText = string.Equals(
-                                    cur.Code,
-                                    StageCodes.DEVP,
-                                    StringComparison.OrdinalIgnoreCase)
-                                    ? "Development stage prolonged (6 months+)"
-                                    : "Current stage prolonged";
                                 var priorStagesMissingCompletion = item.Stages
                                     .Take(Math.Max(currentIdx, 0))
                                     .Count(stage => stage.Status is not StageStatus.Completed and not StageStatus.Skipped);
                             }
-                            @if (currentStageIsProlonged || priorStagesMissingCompletion > 0)
+                            @if (priorStagesMissingCompletion > 0)
                             {
                                 <div class="briefing-timeline__alerts" aria-label="Timeline attention items">
-                                    @if (currentStageIsProlonged)
-                                    {
-                                        <span class="briefing-timeline__alert briefing-timeline__alert--warning">
-                                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                                            @currentStageProlongedText
-                                        </span>
-                                    }
-                                    @if (priorStagesMissingCompletion > 0)
-                                    {
-                                        <span class="briefing-timeline__alert briefing-timeline__alert--neutral">
-                                            <i class="bi bi-calendar-x" aria-hidden="true"></i>
-                                            @priorStagesMissingCompletion earlier @(priorStagesMissingCompletion == 1 ? "stage has" : "stages have") no completion date
-                                        </span>
-                                    }
+                                    <span class="briefing-timeline__alert briefing-timeline__alert--neutral">
+                                        <i class="bi bi-calendar-x" aria-hidden="true"></i>
+                                        @priorStagesMissingCompletion earlier @(priorStagesMissingCompletion == 1 ? "stage has" : "stages have") no completion date
+                                    </span>
                                 </div>
                             }
                             <div class="briefing-timeline__rail" role="list" data-auto-focus-current="true">
-                                @for (var i = 0; i < item.Stages.Count; i++)
+                                @{
+                                    // Skipped stages are left off the rail; the current stage always stays.
+                                    var railStages = item.Stages
+                                        .Select((stage, index) => (Stage: stage, Index: index))
+                                        .Where(entry => entry.Stage.Status != StageStatus.Skipped || entry.Index == currentIdx)
+                                        .ToList();
+                                }
+                                @for (var position = 0; position < railStages.Count; position++)
                                 {
-                                    var stage = item.Stages[i];
+                                    var (stage, i) = railStages[position];
                                     var isCurrent = i == currentIdx;
                                     var isCompleted = stage.Status == StageStatus.Completed;
                                     var isSkipped = stage.Status == StageStatus.Skipped;
@@ -630,13 +487,14 @@ else
                                         </div>
                                     </div>
 
-                                    @if (i < item.Stages.Count - 1)
+                                    @if (position < railStages.Count - 1)
                                     {
-                                        <div class="briefing-connector" aria-hidden="true">
-                                            <span class="briefing-connector__line"></span>
+                                        <div class="briefing-connector">
+                                            <span class="briefing-connector__line" aria-hidden="true"></span>
                                             @if (isCompleted && historicalDuration.HasValue)
                                             {
-                                                <span class="briefing-duration briefing-duration--normal">@historicalDuration.Value d</span>
+                                                <span class="briefing-duration briefing-duration--normal"
+                                                      title="@stage.Name took @historicalDuration.Value day@(historicalDuration.Value == 1 ? "" : "s")">@historicalDuration.Value d</span>
                                             }
                                         </div>
                                     }
@@ -696,6 +554,9 @@ else
                                                         <span class="ongoing-remarks__author">@r.AuthorDisplayName</span>
                                                         <span class="ongoing-remarks__meta-sep">·</span>
                                                         <span>@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                        @{ var internalAge = UpdateAge(r.CreatedAtUtc); }
+                                                        <span class="ongoing-remarks__meta-sep">·</span>
+                                                        <span class="ongoing-remarks__age @(internalAge.IsStale ? "is-stale" : null)">@internalAge.Label</span>
                                                     </div>
                                                 </li>
                                             }
@@ -714,6 +575,9 @@ else
                                                             <span class="ongoing-remarks__author">@r.AuthorDisplayName</span>
                                                             <span class="ongoing-remarks__meta-sep">·</span>
                                                             <span>@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                            @{ var olderAge = UpdateAge(r.CreatedAtUtc); }
+                                                            <span class="ongoing-remarks__meta-sep">·</span>
+                                                            <span class="ongoing-remarks__age @(olderAge.IsStale ? "is-stale" : null)">@olderAge.Label</span>
                                                         </div>
                                                     </li>
                                                 }
@@ -743,6 +607,9 @@ else
                                                 <span>@externalRemark.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
                                                 <span class="ongoing-remarks__meta-sep">·</span>
                                                 <span>Event: @externalRemark.EventDate.ToString("dd-MMM-yyyy")</span>
+                                                @{ var externalAge = UpdateAge(externalRemark.CreatedAtUtc); }
+                                                <span class="ongoing-remarks__meta-sep">·</span>
+                                                <span class="ongoing-remarks__age @(externalAge.IsStale ? "is-stale" : null)">@externalAge.Label</span>
                                             </div>
                                         </article>
                                     }

@@ -6912,19 +6912,6 @@ body.has-project-photo-preview-dialog {
     --thumb-size: 80px;
 }
 
-/* --- SECTION: Ongoing projects card category accents --- */
-.ongoing-card--coe {
-    border-left-color: rgba(var(--pm-accent-rgb), 0.45);
-}
-
-.ongoing-card--dcd {
-    border-left-color: rgba(var(--pm-success-rgb), 0.45);
-}
-
-.ongoing-card--other {
-    border-left-color: rgba(var(--pm-purple-rgb), 0.4);
-}
-
 /* SECTION: Timeline card header layout constants (small screens) */
 @media (max-width: 576px) {
     .ongoing-card {
