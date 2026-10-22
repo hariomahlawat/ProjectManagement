@@ -189,4 +189,34 @@ public sealed class ProjectPortfolioPresentationVmTests
 
         Assert.Equal("Approved", presentation.PlanStatus);
     }
+
+    [Fact]
+    public void OverdueCurrentStage_NextActionSaysWhatToDo()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm
+                {
+                    Code = StageCodes.TEC,
+                    Name = "Technical Evaluation",
+                    SortOrder = 0,
+                    Status = StageStatus.InProgress,
+                    ActualStart = new DateOnly(2026, 6, 20),
+                    PlannedEnd = new DateOnly(2026, 8, 7),
+                    Today = new DateOnly(2026, 10, 22)
+                }
+            }
+        };
+
+        var presentation = ProjectPortfolioPresentationVm.Create(
+            new Project { Name = "Project", CreatedByUserId = "seed" },
+            timeline,
+            hasBackfill: false);
+
+        Assert.Equal("Set a revised PDC or complete Technical Evaluation", presentation.NextAction);
+        Assert.Equal(76, presentation.CurrentStageOverdueDays);
+    }
 }

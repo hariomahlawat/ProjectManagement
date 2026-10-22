@@ -383,8 +383,9 @@ public class ProjectTimelineUiTests
         Assert.True(groupEnd < At("SOW"));
         Assert.True(At("SOW") < At("AON"));
         Assert.True(At("AON") < At("BID"));
-        // The group starts collapsed; it opens only on request or for a deep link.
-        Assert.DoesNotContain("data-timeline-completed-group open", html, StringComparison.Ordinal);
+        // The group starts open, so each completed stage shows its date and days taken;
+        // it can still be folded away.
+        Assert.Contains("data-timeline-completed-group open", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -621,6 +622,60 @@ public class ProjectTimelineUiTests
         Assert.Contains("data-stage-current=\"true\"", RowTag("IPA"), StringComparison.Ordinal);
         Assert.Contains("is-future", RowTag("AON"), StringComparison.Ordinal);
         Assert.Contains("data-stage-current=\"false\"", RowTag("AON"), StringComparison.Ordinal);
+    }
+
+    // SECTION: Coming up and a single overdue mention
+    [Fact]
+    public async Task LaterStages_TagTheNextTwo_AndFoldTheRestWithTheirActions()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm { Code = "TEC", Name = "Technical Evaluation", Status = StageStatus.InProgress, SortOrder = 0 },
+                new TimelineItemVm { Code = "BM", Name = "Benchmarking", Status = StageStatus.NotStarted, SortOrder = 1 },
+                new TimelineItemVm { Code = "COB", Name = "Commercial Bid Opening", Status = StageStatus.NotStarted, SortOrder = 2 },
+                new TimelineItemVm { Code = "EAS", Name = "EAS Approval", Status = StageStatus.NotStarted, SortOrder = 3 },
+                new TimelineItemVm { Code = "SO", Name = "Supply Order", Status = StageStatus.NotStarted, SortOrder = 4 }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: true, isAssignedProjectOfficer: false);
+        int At(string code) => html.IndexOf($"id=\"timeline-stage-{code}\"", StringComparison.Ordinal);
+        var foldStart = html.IndexOf("data-timeline-later-group", StringComparison.Ordinal);
+        var foldEnd = html.IndexOf("</details>", foldStart, StringComparison.Ordinal);
+
+        Assert.Contains(">Next</span>", html.Substring(At("BM"), At("COB") - At("BM")), StringComparison.Ordinal);
+        Assert.Contains(">Then</span>", html.Substring(At("COB"), foldStart - At("COB")), StringComparison.Ordinal);
+        Assert.Contains("+2 more later stages", System.Net.WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+        Assert.True(At("COB") < foldStart && foldStart < At("EAS") && At("SO") < foldEnd);
+        // The folded stages keep the HoD's stage action menu.
+        Assert.Contains("data-stage-action-menu", html.Substring(At("SO"), foldEnd - At("SO")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OverdueCurrentStage_SaysHowLateOnce()
+    {
+        var today = new DateOnly(2026, 10, 22);
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm
+                {
+                    Code = "TEC", Name = "Technical Evaluation", Status = StageStatus.InProgress, SortOrder = 0,
+                    ActualStart = new DateOnly(2026, 6, 20), PlannedEnd = new DateOnly(2026, 8, 7), Today = today
+                }
+            }
+        };
+
+        var text = System.Net.WebUtility.HtmlDecode(await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true));
+
+        Assert.Contains("Overdue 76 days", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("76 days overdue", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Set planned completion", text, StringComparison.Ordinal);
     }
 
     private static async Task<string> RenderAsync(

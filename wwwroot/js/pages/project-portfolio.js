@@ -126,7 +126,8 @@
         const wanted = stageCode.toLowerCase();
         const stage = Array.from(root.querySelectorAll('[data-stage-row]'))
             .find((element) => (element.getAttribute('data-stage-row') || '').toLowerCase() === wanted);
-        const group = stage?.closest('[data-timeline-completed-group]');
+        // A deep link opens whichever fold holds the stage: completed or later stages.
+        const group = stage?.closest('[data-timeline-completed-group], [data-timeline-later-group]');
         if (group && !group.open) {
             group.open = true;
         }
