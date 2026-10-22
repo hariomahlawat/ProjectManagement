@@ -49,7 +49,8 @@ public sealed class ProjectOverviewPresentationContractTests
     [Fact]
     public void RecordScores_UseDistinctAndAccurateLabels()
     {
-        var header = ReadRepoFile("Pages", "Projects", "_ProjectCommandHeader.cshtml");
+        // The header strip's tiles live in _ProjectHeaderTile, shared with the overview card.
+        var header = ReadRepoFile("Pages", "Projects", "_ProjectHeaderTile.cshtml");
         var overview = ReadRepoFile("Pages", "Projects", "_ProjectOverviewCard.cshtml");
         var healthModal = ReadRepoFile("Pages", "Projects", "_ProjectRecordCompleteness.cshtml");
         var workspaceTable = ReadRepoFile("Pages", "Workspace", "_ProjectOfficerProjectTable.cshtml");
@@ -64,6 +65,25 @@ public sealed class ProjectOverviewPresentationContractTests
         Assert.Contains("\"Project description\"", healthService, StringComparison.Ordinal);
         Assert.DoesNotContain("Project profile:", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Core project profile", healthService, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DocumentRequests_RenderAsTheWaitingBarUnderTheHeader()
+    {
+        var overview = ReadRepoFile("Pages", "Projects", "Overview.cshtml");
+        var pending = ReadRepoFile("Pages", "Projects", "_ProjectPendingActions.cshtml");
+        var waiting = ReadRepoFile("Pages", "Projects", "_ProjectWaitingOnYou.cshtml");
+
+        var header = overview.IndexOf("_ProjectCommandHeader", StringComparison.Ordinal);
+        var bar = overview.IndexOf("_ProjectWaitingOnYou", StringComparison.Ordinal);
+        Assert.True(header >= 0 && bar > header, "The waiting bar follows the header.");
+        Assert.True(bar < overview.IndexOf("project-portfolio-layout", StringComparison.Ordinal), "The waiting bar spans the page, above both columns.");
+
+        // The bar keeps the approve and reject posts; the old card is gone from the column.
+        Assert.Contains("asp-page-handler=\"Approve\"", waiting, StringComparison.Ordinal);
+        Assert.Contains("asp-page-handler=\"Reject\"", waiting, StringComparison.Ordinal);
+        Assert.Contains("Model.IsDocumentApprover", waiting, StringComparison.Ordinal);
+        Assert.DoesNotContain("DocumentPendingRequests", pending, StringComparison.Ordinal);
     }
 
     [Fact]

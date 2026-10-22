@@ -156,6 +156,8 @@ namespace ProjectManagement.Pages.Projects
         public ProjectMediaSummaryViewModel MediaSummary { get; private set; } = ProjectMediaSummaryViewModel.Empty;
         public ProjectDocumentSummaryViewModel DocumentSummary { get; private set; } = ProjectDocumentSummaryViewModel.Empty;
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
+
+        public ProjectHeaderStripVm HeaderStrip { get; private set; } = ProjectHeaderStripVm.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
         public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
         public ProjectProliferationProfileVm ProliferationProfile { get; private set; } = ProjectProliferationProfileVm.Empty(0);
@@ -674,6 +676,13 @@ namespace ProjectManagement.Pages.Projects
 
             LifecycleSummary = BuildLifecycleSummary(project);
             RemarkSummary = await LoadRemarkSummaryAsync(project.Id, ct);
+            HeaderStrip = ProjectHeaderStripBuilder.Build(
+                project.LifecycleStatus,
+                Portfolio,
+                Procurement,
+                RemarkSummary,
+                DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst())),
+                _clock.UtcNow.UtcDateTime);
             TotSummary = await BuildTotSummaryAsync(project.Id, project.IsBuild, totSnapshot, totRequestSnapshot, ct);
             MediaSummary = BuildMediaSummary();
 
