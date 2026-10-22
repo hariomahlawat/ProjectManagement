@@ -510,3 +510,29 @@ test('a live message arriving while the last newer page loads is kept', async ()
     window.close();
   }
 });
+
+test('a live message arriving while a search hit loads is kept', async () => {
+  let releaseHit;
+  const hitGate = new Promise((resolve) => { releaseHit = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=16')) {
+      await hitGate; // the server read the slice before message 16 was saved
+      return { ...pageOf([14, 15], true), hasNewer: false };
+    }
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="15"></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.onMessage({ id: 16, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-16', body: 'live', sentUtc: new Date().toISOString() });
+    releaseHit();
+    await tick(); await tick(); await tick();
+    const win = app.page.current;
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [14, 15, 16]);
+    assert.equal(win.hasNewer, false);
+    assert.equal(win.heldLive.length, 0);
+  } finally {
+    window.close();
+  }
+});

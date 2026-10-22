@@ -1142,17 +1142,28 @@
   /** Opens a conversation at an older message (a search hit) instead of at the latest. */
   ChatApp.prototype.loadAround = async function (win, messageId) {
     win.syncing = true;
+    // Until the slice arrives, treat the view as behind: live pushes are held (onMessage) rather
+    // than merged into messages this response is about to replace.
+    win.hasNewer = true;
     try {
       const history = await this.request('GET', this.historyPath(win, `&before=${messageId + 1}`));
       win.messages = mergeMessages([], history.messages);
       win.hasMore = history.hasMore;
       win.hasNewer = history.hasNewer;
+      if (!win.hasNewer && win.heldLive.length) {
+        // The slice reaches the latest message: what arrived meanwhile follows it.
+        win.messages = mergeMessages(win.messages, win.heldLive);
+        win.heldLive = [];
+      }
       win.historyLoaded = true;
       win.highlightId = messageId;
       this.applyPeerRead(win, history);
       this.renderMessages(win, { scrollToHighlight: true });
       this.maybeMarkRead(win);
     } catch (_) {
+      win.hasNewer = false;
+      win.messages = mergeMessages([], win.heldLive);
+      win.heldLive = [];
       win.log.replaceChildren(el('li', 'pm-chat__system', 'Messages could not be loaded.'));
     } finally {
       win.syncing = false;
