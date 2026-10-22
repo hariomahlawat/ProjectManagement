@@ -4343,10 +4343,10 @@ a.project-intelligence-card:focus-visible {
 
 /* Project overview facts: a plain label/value sheet with hairline rows, two columns when
    there is room, instead of a grid of boxed tiles. */
-.project-profile-flow .project-facts,
-.project-profile-flow .project-facts.mb-0 {
+.project-profile-flow .project-facts {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    /* min() lets a column shrink below 22rem on a narrow card instead of overflowing. */
+    grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr));
     gap: 0 2rem;
     align-items: start;
 }
