@@ -626,3 +626,32 @@ test('a docked draft moves into the Messages page with its conversation', async 
     window.close();
   }
 });
+
+test('an earlier page still loading for one search hit is dropped when another hit opens', async () => {
+  let releaseEarlier;
+  const earlierGate = new Promise((resolve) => { releaseEarlier = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=151')) return { ...pageOf([111, 150], true), hasNewer: true };
+    if (url.includes('before=111')) {
+      await earlierGate;
+      return pageOf([71, 110], true);
+    }
+    if (url.includes('before=16')) return { ...pageOf([1, 15], false), hasNewer: true };
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="150"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    const earlier = app.loadEarlier(win); // pending for the hit at 150
+    app.page.open('peer', 15);
+    await tick(); await tick();
+    releaseEarlier();
+    await earlier;
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [1, 15]);
+    assert.equal(win.loading, false);
+  } finally {
+    window.close();
+  }
+});

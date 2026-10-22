@@ -1167,6 +1167,7 @@
     win.loadSeq += 1;
     const seq = win.loadSeq;
     win.syncing = true;
+    win.loading = false; // paging requests for the previous slice are now stale
     // Until the slice arrives, treat the view as behind: live pushes are held (onMessage) rather
     // than merged into messages this response is about to replace.
     win.hasNewer = true;
@@ -1201,10 +1202,14 @@
     const oldest = win.messages.find((m) => m.id);
     if (!oldest || win.loading) return;
     win.loading = true;
+    const seq = win.loadSeq;
     const hadFocus = win.node.contains(document.activeElement);
     const before = win.body.scrollHeight - win.body.scrollTop;
     try {
       const history = await this.request('GET', this.historyPath(win, `&before=${oldest.id}`));
+      // Another search hit (or a jump to the latest) replaced the view meanwhile: this page
+      // belongs to the old one and would leave a gap in the new one.
+      if (seq !== win.loadSeq) return;
       win.messages = mergeMessages(win.messages, history.messages);
       win.hasMore = history.hasMore;
       this.applyPeerRead(win, history);
@@ -1214,7 +1219,7 @@
     } catch (_) {
       // Leave the button so the person can try again.
     } finally {
-      win.loading = false;
+      if (seq === win.loadSeq) win.loading = false;
     }
   };
 
