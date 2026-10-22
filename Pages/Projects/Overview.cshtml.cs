@@ -639,25 +639,13 @@ namespace ProjectManagement.Pages.Projects
                 draftExists);
 
             // SECTION: Cost summary
-            decimal? rdOrL1CostLakhs = null;
-
-            // Prefer PNC cost, then L1 cost, then project R&D cost
-            if (Procurement.PncCost is > 0m)
-            {
-                rdOrL1CostLakhs = Procurement.PncCost.Value / 1_00_000m;
-            }
-            else if (Procurement.L1Cost is > 0m)
-            {
-                rdOrL1CostLakhs = Procurement.L1Cost.Value / 1_00_000m;
-            }
-            else
-            {
-                rdOrL1CostLakhs = project.CostLakhs;
-            }
+            // The project's cost follows the one shared rule (ProjectCostResolver).
+            var projectCost = (await new ProjectCostResolver(_db).ResolveCostInCrAsync(new[] { project.Id }, ct))
+                .GetValueOrDefault(project.Id);
 
             CostSummary = new ProjectCostSummaryViewModel
             {
-                RdCostLakhs = rdOrL1CostLakhs,
+                RdCostLakhs = projectCost?.CostInLakhs,
                 ApproxProductionCost = ProliferationProfile.CostLakhs
             };
 

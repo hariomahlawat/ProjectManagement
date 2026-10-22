@@ -140,48 +140,9 @@ namespace ProjectManagement.Services.Projects
                     .ToDictionary(g => g.Key, g => (int?)g.First().Version);
             }
 
-            // SECTION: Cost facts (batched read to avoid N+1)
-            var pncFacts = await _db.ProjectPncFacts
-                .AsNoTracking()
-                .Where(x => projectIds.Contains(x.ProjectId))
-                .Select(x => new { x.ProjectId, x.PncCost, x.CreatedOnUtc })
-                .ToListAsync(cancellationToken);
-
-            var l1Facts = await _db.ProjectCommercialFacts
-                .AsNoTracking()
-                .Where(x => projectIds.Contains(x.ProjectId))
-                .Select(x => new { x.ProjectId, x.L1Cost, x.CreatedOnUtc })
-                .ToListAsync(cancellationToken);
-
-            var aonFacts = await _db.ProjectAonFacts
-                .AsNoTracking()
-                .Where(x => projectIds.Contains(x.ProjectId))
-                .Select(x => new { x.ProjectId, x.AonCost, x.CreatedOnUtc })
-                .ToListAsync(cancellationToken);
-
-            var ipaPositions = await _ipaResolver.ResolveManyAsync(projectIds, cancellationToken);
-
-            var pncByProject = pncFacts
-                .GroupBy(x => x.ProjectId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().PncCost);
-
-            var l1ByProject = l1Facts
-                .GroupBy(x => x.ProjectId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().L1Cost);
-
-            var aonByProject = aonFacts
-                .GroupBy(x => x.ProjectId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().AonCost);
-
-            var ipaByProject = ipaPositions.ToDictionary(
-                pair => pair.Key,
-                pair => (decimal?)pair.Value.AmountInRupees);
+            // SECTION: Project cost (batched; the one shared rule in ProjectCostResolver)
+            var costByProject = await new ProjectCostResolver(_db, _ipaResolver)
+                .ResolveCostInCrAsync(projectIds, cancellationToken);
 
             // 1) stages for the selected projects
             var allStages = await _db.ProjectStages
@@ -241,35 +202,16 @@ namespace ProjectManagement.Services.Projects
                         : proj.CoverPhotoVersion;
                 }
 
-                // SECTION: Cost selection (PNC -> L1 -> AON -> IPA)
-                decimal? pnc = pncByProject.TryGetValue(proj.Id, out var pncVal) ? pncVal : null;
-                decimal? l1 = l1ByProject.TryGetValue(proj.Id, out var l1Val) ? l1Val : null;
-                decimal? aon = aonByProject.TryGetValue(proj.Id, out var aonVal) ? aonVal : null;
-                decimal? ipa = ipaByProject.TryGetValue(proj.Id, out var ipaVal) ? ipaVal : null;
-
-                decimal? chosenInInr = null;
-                string? label = null;
-
-                if (pnc.HasValue)
+                // SECTION: Cost selection (ProjectCostResolver: PNC -> L1 -> AON -> IPA for ongoing projects)
+                var resolvedCost = costByProject.GetValueOrDefault(proj.Id);
+                decimal? chosenInInr = resolvedCost?.AmountInRupees;
+                // Labels keep the page's and the Excel export's existing wording ("AON Cost").
+                string? label = resolvedCost?.Source switch
                 {
-                    chosenInInr = pnc;
-                    label = "PNC Cost";
-                }
-                else if (l1.HasValue)
-                {
-                    chosenInInr = l1;
-                    label = "L1 Cost";
-                }
-                else if (aon.HasValue)
-                {
-                    chosenInInr = aon;
-                    label = "AON Cost";
-                }
-                else if (ipa.HasValue)
-                {
-                    chosenInInr = ipa;
-                    label = "IPA Cost";
-                }
+                    ProjectCostSource.Aon => "AON Cost",
+                    { } source when source != ProjectCostSource.None => $"{resolvedCost.SourceLabel} Cost",
+                    _ => null
+                };
 
                 // SECTION: Cost formatting (full + short)
                 string costFull = "NA";

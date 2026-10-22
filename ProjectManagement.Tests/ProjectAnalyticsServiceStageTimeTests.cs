@@ -17,7 +17,7 @@ namespace ProjectManagement.Tests;
 public class ProjectAnalyticsServiceStageTimeTests
 {
     [Fact]
-    public async Task GetStageTimeInsightsAsync_UsesLatestAvailableCostFacts()
+    public async Task GetStageTimeInsightsAsync_BucketsByTheProjectCost()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -64,10 +64,10 @@ public class ProjectAnalyticsServiceStageTimeTests
                 CompletedOn = new DateOnly(2024, 2, 6)
             });
 
-        db.ProjectAonFacts.Add(new ProjectAonFact
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact
         {
             ProjectId = highCostProject.Id,
-            AonCost = 20_000_000m,
+            L1Cost = 20_000_000m,
             CreatedByUserId = "seed",
             CreatedOnUtc = DateTime.UtcNow
         });
@@ -158,10 +158,10 @@ public class ProjectAnalyticsServiceStageTimeTests
                 CompletedOn = new DateOnly(2024, 5, 4)
             });
 
-        db.ProjectAonFacts.Add(new ProjectAonFact
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact
         {
             ProjectId = designProject.Id,
-            AonCost = 20_000_000m,
+            L1Cost = 20_000_000m,
             CreatedByUserId = "seed",
             CreatedOnUtc = DateTime.UtcNow
         });
@@ -239,10 +239,10 @@ public class ProjectAnalyticsServiceStageTimeTests
                 CompletedOn = new DateOnly(2024, 7, 10)
             });
 
-        db.ProjectAonFacts.Add(new ProjectAonFact
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact
         {
             ProjectId = project.Id,
-            AonCost = 15_000_000m,
+            L1Cost = 15_000_000m,
             CreatedByUserId = "seed",
             CreatedOnUtc = DateTime.UtcNow
         });
@@ -289,10 +289,10 @@ public class ProjectAnalyticsServiceStageTimeTests
             CompletedOn = new DateOnly(2024, 5, 5)
         });
 
-        db.ProjectAonFacts.Add(new ProjectAonFact
+        db.ProjectCommercialFacts.Add(new ProjectCommercialFact
         {
             ProjectId = project.Id,
-            AonCost = 12_000_000m,
+            L1Cost = 12_000_000m,
             CreatedByUserId = "seed",
             CreatedOnUtc = DateTime.UtcNow
         });

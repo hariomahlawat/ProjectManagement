@@ -20,7 +20,10 @@ public enum ProjectBriefingCostBasis
     L1 = 1,
     AoN = 2,
     IPA = 3,
-    Proliferation = 4
+    Proliferation = 4,
+    PNC = 5,
+    // The cost recorded on a completed project (Project.CostLakhs).
+    Recorded = 6
 }
 
 public sealed record ProjectBriefingCostValue(

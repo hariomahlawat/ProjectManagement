@@ -120,7 +120,7 @@ public sealed class FfcQueryService : IFfcQueryService
             projectNameMap = projectSnapshots
                 .ToDictionary(x => x.Id, x => x.Name ?? string.Empty);
 
-            // SECTION: Resolve project costs (CostLakhs -> PNC -> L1 -> AON -> IPA)
+            // SECTION: Resolve project costs (ProjectCostResolver: completed PNC -> L1 -> recorded; otherwise PNC -> L1 -> AON -> IPA)
             var costResolutions = await _costResolver.ResolveCostInCrAsync(
                 linkedProjectIds,
                 cancellationToken);

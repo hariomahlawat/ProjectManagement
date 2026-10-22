@@ -8,6 +8,7 @@ These invariants are intended to constrain maintenance and Codex-assisted change
 2. A business fact should have one authoritative source and one canonical resolution path.
 3. UI, Excel, PDF, PPT and other outputs must not independently reimplement business rules.
 4. Cached, denormalized or display-oriented values must not silently become a second source of truth.
+5. A project's cost is resolved only by `ProjectCostResolver`, taking the first figure above zero: a completed project uses PNC, then L1, then the cost recorded on the project; any other project uses PNC, then L1, then AoN, then IPA. Pages, reports, exports, briefing decks, analytics and the Completed projects summary's development cost read it from there. The header's "Latest cost" tile, the supply-order amount, the IPA amount and proliferation cost are different facts and keep their own rules.
 
 ## Authorization
 

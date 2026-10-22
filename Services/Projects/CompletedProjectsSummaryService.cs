@@ -147,12 +147,17 @@ public sealed class CompletedProjectsSummaryService
                     .OrderByDescending(x => x.Id)
                     .First().Status);
 
+        // SECTION: Development cost (the one shared rule: PNC -> L1 -> recorded cost)
+        var developmentCostByProjectId = await new ProjectCostResolver(_db)
+            .ResolveCostInCrAsync(projectIds, cancellationToken);
+
         // SECTION: DTO mapping
         var result = new List<CompletedProjectSummaryDto>(projects.Count);
 
         foreach (var p in projects)
         {
             costByProjectId.TryGetValue(p.Id, out var cost);
+            var developmentCost = developmentCostByProjectId.GetValueOrDefault(p.Id);
             techByProjectId.TryGetValue(p.Id, out var tech);
             latestLppByProjectId.TryGetValue(p.Id, out var latestLpp);
 
@@ -180,7 +185,8 @@ public sealed class CompletedProjectsSummaryService
                 TechnicalCategoryName = p.TechnicalCategory?.Name,
                 IsBuild = p.IsBuild,
                 BuildType = p.IsBuild ? "Rebuild" : "New",
-                RdCostLakhs = p.CostLakhs,
+                RdCostLakhs = developmentCost?.CostInLakhs,
+                RdCostBasis = developmentCost?.SourceLabel ?? string.Empty,
                 ApproxProductionCost = cost?.ApproxProductionCost,
                 TechStatus = tech?.TechStatus,
                 AvailableForProliferation = tech?.AvailableForProliferation,
@@ -361,6 +367,8 @@ public sealed class CompletedProjectSummaryDto
     public bool IsBuild { get; set; }
     public string BuildType { get; set; } = "New";
     public decimal? RdCostLakhs { get; set; }
+    /// <summary>Which figure the development cost is: "PNC", "L1" or "Recorded"; empty when none.</summary>
+    public string RdCostBasis { get; set; } = string.Empty;
     // Legacy persistence naming is retained internally; presentation code should use the business term.
     public decimal? ApproxProductionCost { get; set; }
     public decimal? ProliferationCostLakhs => ApproxProductionCost;
