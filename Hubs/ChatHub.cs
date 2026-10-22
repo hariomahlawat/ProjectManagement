@@ -24,11 +24,13 @@ public sealed class ChatHub : Hub<IChatClient>
 
     private readonly ChatPresenceTracker _presence;
     private readonly IOptionsMonitor<ChatOptions> _options;
+    private readonly ChatGroupService _groups;
 
-    public ChatHub(ChatPresenceTracker presence, IOptionsMonitor<ChatOptions> options)
+    public ChatHub(ChatPresenceTracker presence, IOptionsMonitor<ChatOptions> options, ChatGroupService groups)
     {
         _presence = presence ?? throw new ArgumentNullException(nameof(presence));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _groups = groups ?? throw new ArgumentNullException(nameof(groups));
     }
 
     public override async Task OnConnectedAsync()
@@ -97,6 +99,33 @@ public sealed class ChatHub : Hub<IChatClient>
         await Clients.User(peerUserId).Typing(new ChatTypingDto(userId));
     }
 
+    /// <summary>
+    /// "I am typing in group <paramref name="groupId"/>". Only a member may signal it, and it goes
+    /// to the other members only; throttled like <see cref="Typing"/>; nothing is stored.
+    /// </summary>
+    public async Task TypingInGroup(long groupId)
+    {
+        var userId = Context.UserIdentifier;
+        if (string.IsNullOrWhiteSpace(userId) || groupId <= 0 || !Context.Items.ContainsKey(PresenceItemKey))
+        {
+            return;
+        }
+
+        var key = TypingItemPrefix + "g:" + groupId;
+        var now = DateTimeOffset.UtcNow;
+        if (Context.Items.TryGetValue(key, out var last) && last is DateTimeOffset previous && now - previous < TypingInterval)
+        {
+            return;
+        }
+
+        Context.Items[key] = now;
+        var others = await _groups.OtherMembersAsync(userId, groupId, Context.ConnectionAborted);
+        if (others is { Count: > 0 })
+        {
+            await Clients.Users(others).GroupTyping(new ChatGroupTypingDto(groupId, userId));
+        }
+    }
+
     private Task BroadcastIfChanged(string userId, (ChatPresence Before, ChatPresence After) change)
     {
         if (change.Before == change.After)
@@ -126,4 +155,14 @@ public interface IChatClient
     Task MessageUnsent(ChatMessageDto message);
 
     Task StatusChanged(ChatStatusDto status);
+
+    /// <summary>A group the user is in was created or changed (members, name, manager).</summary>
+    Task GroupChanged(ChatGroupDto group);
+
+    /// <summary>The user is no longer in this group (left, or was removed).</summary>
+    Task GroupRemoved(long groupId);
+
+    Task GroupRead(ChatGroupReadDto read);
+
+    Task GroupTyping(ChatGroupTypingDto typing);
 }

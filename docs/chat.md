@@ -4,8 +4,8 @@ Person-to-person chat inside PRISM, in the style of the old Google Talk / Yahoo 
 buddy list and small chat windows docked at the bottom-right of every page.
 
 Status: phase 1 (one-to-one text chat, #2730), phase 2 (typing, read ticks, alerts, away,
-Messages page with search, #2731) and status messages, unsend and chat buttons next to names
-are built. Group chats and file attachments (1 GB per person) are next. Owner decisions (2026-10-22): everyone may chat with
+Messages page with search, #2731), status messages, unsend and chat buttons next to names
+(#2732), and group chats are built. File attachments (1 GB per person) are next. Owner decisions (2026-10-22): everyone may chat with
 everyone; messages are kept indefinitely; administrators cannot read chats.
 
 ## What users see
@@ -52,6 +52,23 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   (PO). To add it elsewhere, mark the element `data-chat-user="{userId}"` (and optionally
   `data-chat-name`); `chat.js` adds the button, never for the signed-in user, and also for
   content added to the page later.
+- **Group chats** (owner decisions, 2026-10-22): "New group" under the people search in the
+  buddy list. A group has a name and up to 50 people (active accounts only).
+  - **Any member can add people; only the manager can remove people or rename the group;
+    anyone can leave.** The manager is the creator; if they leave, the longest-standing member
+    becomes manager.
+  - Someone who leaves or is removed **loses access to the group's history**; their open
+    window keeps what it showed, with the reply box closed.
+  - Groups are listed above people in the buddy list, with unread counts, and on the Messages
+    page. The people button in a group window shows members, Add people, Rename (manager) and
+    Leave group (two clicks).
+  - Notices appear in the conversation ("Ravi added Sita", "Sita left", "… renamed the group
+    to …"); they are not counted as unread and do not chime.
+  - Each message shows who sent it; typing shows names ("Ravi and Sita are typing…"); read
+    ticks become **Seen by**: one tick until everyone has read it, then two blue ticks, and the
+    tick's label lists who has read it.
+  - Unsend, search (hits say which group), the Messages page and links
+    (`/Chat?with=g:{groupId}`) all work for groups.
 - **Messages page** (`/Chat`, also linked from the buddy list): every conversation, most recent
   first, with a large conversation view, and **search across all your messages** (at least two
   characters, case-insensitive, newest 50 matches). A search hit opens the conversation at
@@ -63,7 +80,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 
 | Piece | Where |
 | --- | --- |
-| Tables | `ChatConversations`, `ChatParticipants`, `ChatMessages` (`Models/Chat`, migration `20261217110004_AddChat`); `ChatUserStatuses` and `ChatMessages.UnsentUtc` (migration `20261217163005_AddChatStatusAndUnsend`) |
+| Tables | `ChatConversations`, `ChatParticipants`, `ChatMessages` (`Models/Chat`, migration `20261217110004_AddChat`); `ChatUserStatuses` and `ChatMessages.UnsentUtc` (migration `20261217163005_AddChatStatusAndUnsend`); group name/manager and notices (migration `20261217220006_AddChatGroups`) |
+| Group rules | `Services/Chat/ChatGroupService.cs` |
 | Rules | `Services/Chat/ChatService.cs` |
 | Online status | `Services/Chat/ChatPresenceTracker.cs` (in-memory, per process) |
 | HTTP API | `Features/Chat/ChatApi.cs`, under `/api/chat` |
@@ -87,6 +105,17 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   A page that lost its live connection asks `GET /api/chat/unsent?since=` (its own
   conversations only) after reconnecting and while polling, so messages unsent meanwhile are
   blanked too, including older ones already on screen and search results.
+- **Groups** (`/api/chat/groups…`): list, create, get, history (`before`/`after` like direct
+  history, plus each member's read marker), send, read, add members, remove a member, leave,
+  rename. Every call checks membership on the server; a non-member gets **410** (not 404, see
+  above). Each change (membership, group row, notices) commits in one transaction. Pushes:
+  `GroupChanged` (new state, to members), `GroupRemoved` (to whoever lost access),
+  `GroupRead` (to members, for "Seen by" and the reader's other tabs), `ReceiveMessage` for
+  messages and notices. Typing uses the hub method `TypingInGroup(groupId)`, which checks
+  membership and forwards to the other members only.
+- Group conversations have `Kind = 'Group'`, a `Title` and a `ManagerUserId`, and no pair
+  key; check constraints enforce both shapes. Notices are `ChatMessages` rows with an
+  `EventKind` and empty body. Leaving or removal deletes the `ChatParticipants` row.
 - **Search** (`GET /api/chat/search?q=`) joins through the caller's own participant rows, so it
   can only ever match the caller's conversations. The term is matched as plain text (`%` and
   `_` are not wildcards). It is a substring scan without a full-text index, which is fine at
@@ -146,5 +175,5 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 
 ## Not yet built
 
-Group chats and file attachments (1 GB per person) are being built next. Project-linked
-conversations were dropped (owner decision, 2026-10-22).
+File attachments (1 GB per person) are being built next. Project-linked conversations were
+dropped (owner decision, 2026-10-22).

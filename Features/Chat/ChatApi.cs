@@ -46,6 +46,17 @@ public static class ChatApi
         group.MapPost("/status", SetStatusAsync);
         group.MapPost("/messages/{messageId:long}/unsend", UnsendAsync);
         group.MapGet("/unsent", GetUnsentSinceAsync);
+
+        group.MapGet("/groups", ListGroupsAsync);
+        group.MapPost("/groups", CreateGroupAsync);
+        group.MapGet("/groups/{groupId:long}", GetGroupAsync);
+        group.MapGet("/groups/{groupId:long}/messages", GetGroupHistoryAsync);
+        group.MapPost("/groups/{groupId:long}/messages", SendToGroupAsync).RequireRateLimiting(SendRateLimitPolicy);
+        group.MapPost("/groups/{groupId:long}/read", MarkGroupReadAsync);
+        group.MapPost("/groups/{groupId:long}/members", AddGroupMembersAsync);
+        group.MapPost("/groups/{groupId:long}/members/{memberUserId}/remove", RemoveGroupMemberAsync);
+        group.MapPost("/groups/{groupId:long}/leave", LeaveGroupAsync);
+        group.MapPost("/groups/{groupId:long}/rename", RenameGroupAsync);
         group.MapPost("/messages", SendAsync).RequireRateLimiting(SendRateLimitPolicy);
         group.MapPost("/with/{peerUserId}/read", MarkReadAsync);
 
@@ -66,8 +77,17 @@ public static class ChatApi
     }
 
     public static bool IsSendRequest(HttpContext context)
-        => HttpMethods.IsPost(context.Request.Method)
-            && context.Request.Path.Equals("/api/chat/messages", StringComparison.OrdinalIgnoreCase);
+    {
+        if (!HttpMethods.IsPost(context.Request.Method))
+        {
+            return false;
+        }
+
+        var path = context.Request.Path.Value ?? string.Empty;
+        return path.Equals("/api/chat/messages", StringComparison.OrdinalIgnoreCase)
+            || (path.StartsWith("/api/chat/groups/", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/messages", StringComparison.OrdinalIgnoreCase));
+    }
 
     private static async Task<IResult> GetContactsAsync(
         HttpContext httpContext,
@@ -192,7 +212,7 @@ public static class ChatApi
         {
             case ChatUnsendStatus.Unsent:
                 var message = result.Message!;
-                await hub.Clients.Users(message.SenderUserId, message.RecipientUserId).MessageUnsent(message);
+                await hub.Clients.Users(result.NotifyUserIds ?? new[] { message.SenderUserId, message.RecipientUserId }).MessageUnsent(message);
                 return Results.Ok(message);
             case ChatUnsendStatus.TooLate:
                 var minutes = (int)Math.Round(chat.UnsendWindow.TotalMinutes);
@@ -305,6 +325,240 @@ public static class ChatApi
 
         return Results.NoContent();
     }
+
+    // ---------------- Groups
+
+    private static async Task<IResult> ListGroupsAsync(HttpContext httpContext, ChatGroupService groups, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await groups.ListGroupsAsync(userId, cancellationToken));
+    }
+
+    private static async Task<IResult> GetGroupAsync(long groupId, HttpContext httpContext, ChatGroupService groups, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        var group = await groups.GetGroupAsync(userId, groupId, cancellationToken);
+        return group is null ? NotInGroup() : Results.Ok(group);
+    }
+
+    private static async Task<IResult> GetGroupHistoryAsync(
+        long groupId,
+        [FromQuery(Name = "before")] long? beforeMessageId,
+        [FromQuery(Name = "after")] long? afterMessageId,
+        [FromQuery(Name = "limit")] int? limit,
+        HttpContext httpContext,
+        ChatGroupService groups,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        var history = await groups.GetHistoryAsync(userId, groupId, beforeMessageId, limit ?? 40, afterMessageId, cancellationToken);
+        return history is null ? NotInGroup() : Results.Ok(history);
+    }
+
+    private static async Task<IResult> CreateGroupAsync(
+        ChatGroupCreateRequest? request,
+        HttpContext httpContext,
+        ChatGroupService groups,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        var change = await groups.CreateAsync(userId, request?.Title, request?.MemberUserIds, cancellationToken);
+        return await CompleteGroupChangeAsync(change, hub);
+    }
+
+    private static async Task<IResult> AddGroupMembersAsync(
+        long groupId,
+        ChatGroupMembersRequest? request,
+        HttpContext httpContext,
+        ChatGroupService groups,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        return await CompleteGroupChangeAsync(await groups.AddMembersAsync(userId, groupId, request?.UserIds, cancellationToken), hub);
+    }
+
+    private static async Task<IResult> RemoveGroupMemberAsync(
+        long groupId,
+        string memberUserId,
+        HttpContext httpContext,
+        ChatGroupService groups,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        return await CompleteGroupChangeAsync(await groups.RemoveMemberAsync(userId, groupId, memberUserId, cancellationToken), hub);
+    }
+
+    private static async Task<IResult> LeaveGroupAsync(
+        long groupId,
+        HttpContext httpContext,
+        ChatGroupService groups,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        return await CompleteGroupChangeAsync(await groups.LeaveAsync(userId, groupId, cancellationToken), hub);
+    }
+
+    private static async Task<IResult> RenameGroupAsync(
+        long groupId,
+        ChatGroupRenameRequest? request,
+        HttpContext httpContext,
+        ChatGroupService groups,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        return await CompleteGroupChangeAsync(await groups.RenameAsync(userId, groupId, request?.Title, cancellationToken), hub);
+    }
+
+    private static async Task<IResult> SendToGroupAsync(
+        long groupId,
+        ChatGroupSendRequest? request,
+        HttpContext httpContext,
+        ChatGroupService groups,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        if (request is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Message not sent", detail: "The message was empty.");
+        }
+
+        var result = await groups.SendAsync(userId, groupId, request, cancellationToken);
+        switch (result.Status)
+        {
+            case ChatSendStatus.Sent:
+                // Pushed after the save; browsers de-duplicate by message id.
+                await hub.Clients.Users(result.MemberUserIds).ReceiveMessage(result.Message!);
+                return Results.Ok(result.Message);
+            case ChatSendStatus.RecipientUnavailable:
+                return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Message not sent", detail: result.Error);
+            default:
+                return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Message not sent", detail: result.Error);
+        }
+    }
+
+    private static async Task<IResult> MarkGroupReadAsync(
+        long groupId,
+        ChatMarkReadRequest? request,
+        HttpContext httpContext,
+        ChatGroupService groups,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        if (request is null || request.UpToMessageId <= 0)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid request", detail: "A message id is required.");
+        }
+
+        var (marker, members) = await groups.MarkReadAsync(userId, groupId, request.UpToMessageId, cancellationToken);
+        if (marker is { } upTo)
+        {
+            // Everyone in the group: the reader's other tabs clear their badge, the rest update "Seen by".
+            await hub.Clients.Users(members).GroupRead(new ChatGroupReadDto(groupId, userId, upTo));
+        }
+
+        return Results.NoContent();
+    }
+
+    /// <summary>Pushes a group change: the new state and its notices to members, removal to those who left.</summary>
+    private static async Task<IResult> CompleteGroupChangeAsync(ChatGroupChange change, IHubContext<ChatHub, IChatClient> hub)
+    {
+        switch (change.Status)
+        {
+            case ChatGroupStatus.Ok:
+                if (change.NotifyUserIds.Count > 0)
+                {
+                    await hub.Clients.Users(change.NotifyUserIds).GroupChanged(change.Group!);
+                    foreach (var notice in change.Events)
+                    {
+                        await hub.Clients.Users(change.NotifyUserIds).ReceiveMessage(notice);
+                    }
+                }
+
+                if (change.RemovedUserIds.Count > 0)
+                {
+                    await hub.Clients.Users(change.RemovedUserIds).GroupRemoved(change.Group!.Id);
+                }
+
+                return Results.Ok(change.Group);
+            case ChatGroupStatus.NotFound:
+                return NotInGroup();
+            case ChatGroupStatus.Forbidden:
+                return Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Not allowed", detail: change.Error);
+            default:
+                return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Group not changed", detail: change.Error);
+        }
+    }
+
+    /// <summary>
+    /// Not 404: the browser reads 404 from /api/chat as "chat switched off". 410 says the group is
+    /// gone for this user (left, removed, or never a member).
+    /// </summary>
+    private static IResult NotInGroup()
+        => Results.Problem(statusCode: StatusCodes.Status410Gone, title: "Not in this group", detail: "You are not in this group.");
 
     private static async Task<IResult?> ValidateAntiforgeryAsync(HttpContext httpContext, IAntiforgery antiforgery)
     {

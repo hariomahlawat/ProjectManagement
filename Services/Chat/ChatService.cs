@@ -32,8 +32,11 @@ public enum ChatUnsendStatus
     TooLate,
 }
 
-/// <summary>Message is set for Unsent (also when it was already unsent: the call is idempotent).</summary>
-public sealed record ChatUnsendResult(ChatUnsendStatus Status, ChatMessageDto? Message);
+/// <summary>
+/// Message is set for Unsent (also when it was already unsent: the call is idempotent).
+/// NotifyUserIds: everyone in the conversation (both people, or the whole group).
+/// </summary>
+public sealed record ChatUnsendResult(ChatUnsendStatus Status, ChatMessageDto? Message, IReadOnlyList<string>? NotifyUserIds = null);
 
 /// <summary>
 /// Direct person-to-person chat. Everyone may chat with every active (human) user. Messages are
@@ -75,7 +78,7 @@ public sealed class ChatService
     {
         var conversations = await (
                 from mine in _db.ChatParticipants.AsNoTracking()
-                where mine.UserId == userId
+                where mine.UserId == userId && mine.Conversation!.Kind == ChatConversation.DirectKind
                 join peer in _db.ChatParticipants.AsNoTracking()
                     on mine.ConversationId equals peer.ConversationId
                 where peer.UserId != userId
@@ -180,35 +183,7 @@ public sealed class ChatService
         }
 
         var all = _db.ChatMessages.AsNoTracking().Where(m => m.ConversationId == conversationId.Value);
-        bool hasMore;
-        bool hasNewer;
-        List<ChatMessage> page;
-
-        if (afterMessageId is > 0)
-        {
-            var newer = await all
-                .Where(m => m.Id > afterMessageId.Value)
-                .OrderBy(m => m.Id)
-                .Take(size + 1)
-                .ToListAsync(cancellationToken);
-            hasNewer = newer.Count > size;
-            page = newer.Take(size).ToList();
-            hasMore = true; // the caller already holds the message it paged after
-        }
-        else
-        {
-            var query = beforeMessageId is > 0 ? all.Where(m => m.Id < beforeMessageId.Value) : all;
-            var older = await query
-                .OrderByDescending(m => m.Id)
-                .Take(size + 1)
-                .ToListAsync(cancellationToken);
-            hasMore = older.Count > size;
-            page = older.Take(size).OrderBy(m => m.Id).ToList();
-            var lastId = page.Count > 0 ? page[page.Count - 1].Id : 0;
-            hasNewer = beforeMessageId is > 0
-                && page.Count > 0
-                && await all.AnyAsync(m => m.Id > lastId, cancellationToken);
-        }
+        var (page, hasMore, hasNewer) = await PageAsync(all, beforeMessageId, afterMessageId, size, cancellationToken);
 
         var peerLastRead = await _db.ChatParticipants
             .AsNoTracking()
@@ -231,8 +206,45 @@ public sealed class ChatService
     }
 
     /// <summary>
+    /// One page of a conversation, oldest first. No cursor: the latest. before: the page ending
+    /// just before that id (HasNewer when it stops short of the latest). after: the page starting
+    /// just after that id. Shared by direct and group history.
+    /// </summary>
+    internal static async Task<(List<ChatMessage> Page, bool HasMore, bool HasNewer)> PageAsync(
+        IQueryable<ChatMessage> all,
+        long? beforeMessageId,
+        long? afterMessageId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var size = Math.Clamp(limit, 1, MaxHistoryPage);
+        if (afterMessageId is > 0)
+        {
+            var newer = await all
+                .Where(m => m.Id > afterMessageId.Value)
+                .OrderBy(m => m.Id)
+                .Take(size + 1)
+                .ToListAsync(cancellationToken);
+            // hasMore: the caller already holds the message it paged after.
+            return (newer.Take(size).ToList(), true, newer.Count > size);
+        }
+
+        var query = beforeMessageId is > 0 ? all.Where(m => m.Id < beforeMessageId.Value) : all;
+        var older = await query
+            .OrderByDescending(m => m.Id)
+            .Take(size + 1)
+            .ToListAsync(cancellationToken);
+        var page = older.Take(size).OrderBy(m => m.Id).ToList();
+        var lastId = page.Count > 0 ? page[page.Count - 1].Id : 0;
+        var hasNewer = beforeMessageId is > 0
+            && page.Count > 0
+            && await all.AnyAsync(m => m.Id > lastId, cancellationToken);
+        return (page, older.Count > size, hasNewer);
+    }
+
+    /// <summary>
     /// Messages containing <paramref name="query"/> (case-insensitive) across the caller's own
-    /// conversations only, newest first.
+    /// conversations only (direct and group), newest first. Group notices are not searched.
     /// </summary>
     public async Task<IReadOnlyList<ChatSearchHitDto>> SearchAsync(
         string userId,
@@ -252,14 +264,11 @@ public sealed class ChatService
         var hits = await (
                 from mine in _db.ChatParticipants.AsNoTracking()
                 where mine.UserId == userId
-                join peer in _db.ChatParticipants.AsNoTracking()
-                    on mine.ConversationId equals peer.ConversationId
-                where peer.UserId != userId
                 join m in _db.ChatMessages.AsNoTracking()
                     on mine.ConversationId equals m.ConversationId
-                where m.UnsentUtc == null && m.Body.ToLower().Contains(needle)
+                where m.UnsentUtc == null && m.EventKind == null && m.Body.ToLower().Contains(needle)
                 orderby m.Id descending
-                select new { m.Id, PeerUserId = peer.UserId, m.SenderUserId, m.Body, m.SentUtc })
+                select new { m.Id, m.ConversationId, mine.Conversation!.Kind, mine.Conversation.Title, m.SenderUserId, m.Body, m.SentUtc })
             .Take(size)
             .ToListAsync(cancellationToken);
 
@@ -268,7 +277,17 @@ public sealed class ChatService
             return Array.Empty<ChatSearchHitDto>();
         }
 
-        var peerIds = hits.Select(h => h.PeerUserId).Distinct().ToList();
+        // The other person of each direct conversation among the hits.
+        var directIds = hits.Where(h => h.Kind == ChatConversation.DirectKind).Select(h => h.ConversationId).Distinct().ToList();
+        var peers = await _db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => directIds.Contains(p.ConversationId) && p.UserId != userId)
+            .Select(p => new { p.ConversationId, p.UserId })
+            .ToListAsync(cancellationToken);
+        var peerOf = peers
+            .GroupBy(p => p.ConversationId)
+            .ToDictionary(g => g.Key, g => g.First().UserId);
+        var peerIds = peerOf.Values.Distinct().ToList();
         var names = await _db.Users
             .AsNoTracking()
             .Where(u => peerIds.Contains(u.Id))
@@ -276,13 +295,16 @@ public sealed class ChatService
             .ToDictionaryAsync(u => u.Id, u => ResolveDisplayName(u.FullName, u.UserName, u.Id), cancellationToken);
 
         return hits
-            .Select(h => new ChatSearchHitDto(
-                h.Id,
-                h.PeerUserId,
-                names.GetValueOrDefault(h.PeerUserId, FormerUserName),
-                h.SenderUserId,
-                h.Body,
-                h.SentUtc))
+            .Select(h =>
+            {
+                if (h.Kind == ChatConversation.GroupKind)
+                {
+                    return new ChatSearchHitDto(h.Id, string.Empty, h.Title ?? string.Empty, h.SenderUserId, h.Body, h.SentUtc, h.ConversationId);
+                }
+
+                var peer = peerOf.GetValueOrDefault(h.ConversationId, string.Empty);
+                return new ChatSearchHitDto(h.Id, peer, names.GetValueOrDefault(peer, FormerUserName), h.SenderUserId, h.Body, h.SentUtc);
+            })
             .ToList();
     }
 
@@ -322,7 +344,7 @@ public sealed class ChatService
         var existing = await FindExistingAsync(senderUserId, request.ClientMessageId, cancellationToken);
         if (existing is not null)
         {
-            return string.Equals(existing.RecipientUserId, recipientUserId, StringComparison.Ordinal)
+            return existing.GroupId is null && string.Equals(existing.RecipientUserId, recipientUserId, StringComparison.Ordinal)
                 ? new ChatSendResult(ChatSendStatus.Sent, existing, null)
                 : ChatSendResult.Invalid("This message identifier was already used for a different conversation.");
         }
@@ -424,8 +446,12 @@ public sealed class ChatService
     /// </summary>
     public async Task<ChatUnsendResult> UnsendAsync(string userId, long messageId, CancellationToken cancellationToken = default)
     {
+        // Only the caller's own message, in a conversation they are still in; group notices
+        // cannot be unsent.
         var message = await _db.ChatMessages
-            .Where(m => m.Id == messageId && m.SenderUserId == userId)
+            .Where(m => m.Id == messageId && m.SenderUserId == userId && m.EventKind == null
+                && m.Conversation!.Participants.Any(p => p.UserId == userId))
+            .Include(m => m.Conversation)
             .SingleOrDefaultAsync(cancellationToken);
 
         // Someone else's message, or no such message: indistinguishable to the caller.
@@ -434,11 +460,15 @@ public sealed class ChatService
             return new ChatUnsendResult(ChatUnsendStatus.NotFound, null);
         }
 
-        var recipientUserId = await _db.ChatParticipants
+        var members = await _db.ChatParticipants
             .AsNoTracking()
-            .Where(p => p.ConversationId == message.ConversationId && p.UserId != userId)
+            .Where(p => p.ConversationId == message.ConversationId)
             .Select(p => p.UserId)
-            .FirstOrDefaultAsync(cancellationToken) ?? string.Empty;
+            .ToListAsync(cancellationToken);
+        var isGroup = message.Conversation!.Kind == ChatConversation.GroupKind;
+        var recipientUserId = isGroup
+            ? string.Empty
+            : members.FirstOrDefault(id => !string.Equals(id, userId, StringComparison.Ordinal)) ?? string.Empty;
 
         if (message.UnsentUtc is null)
         {
@@ -454,7 +484,10 @@ public sealed class ChatService
 
         return new ChatUnsendResult(
             ChatUnsendStatus.Unsent,
-            new ChatMessageDto(message.Id, userId, recipientUserId, message.ClientMessageId, string.Empty, message.SentUtc, IsUnsent: true));
+            new ChatMessageDto(
+                message.Id, userId, recipientUserId, message.ClientMessageId, string.Empty, message.SentUtc,
+                IsUnsent: true, GroupId: isGroup ? message.ConversationId : null),
+            members);
     }
 
     /// <summary>
@@ -572,6 +605,8 @@ public sealed class ChatService
                 m.Body,
                 m.SentUtc,
                 m.UnsentUtc,
+                m.ConversationId,
+                m.Conversation!.Kind,
                 RecipientUserId = m.Conversation!.Participants
                     .Where(p => p.UserId != senderUserId)
                     .Select(p => p.UserId)
@@ -579,9 +614,16 @@ public sealed class ChatService
             })
             .SingleOrDefaultAsync(cancellationToken);
 
-        return stored is null
-            ? null
-            : new ChatMessageDto(stored.Id, senderUserId, stored.RecipientUserId ?? string.Empty, stored.ClientMessageId, stored.Body, stored.SentUtc, stored.UnsentUtc is not null);
+        if (stored is null)
+        {
+            return null;
+        }
+
+        var isGroup = stored.Kind == ChatConversation.GroupKind;
+        return new ChatMessageDto(
+            stored.Id, senderUserId, isGroup ? string.Empty : stored.RecipientUserId ?? string.Empty,
+            stored.ClientMessageId, stored.Body, stored.SentUtc, stored.UnsentUtc is not null,
+            isGroup ? stored.ConversationId : null);
     }
 
     private async Task<ChatConversation> GetOrCreateDirectConversationAsync(
@@ -620,10 +662,10 @@ public sealed class ChatService
         }
     }
 
-    private static bool IsReachable(UserAccountKind kind, bool isDisabled, bool pendingDeletion)
+    internal static bool IsReachable(UserAccountKind kind, bool isDisabled, bool pendingDeletion)
         => kind == UserAccountKind.Human && !isDisabled && !pendingDeletion;
 
-    private static string ResolveDisplayName(string? fullName, string? userName, string fallback)
+    internal static string ResolveDisplayName(string? fullName, string? userName, string fallback)
     {
         if (!string.IsNullOrWhiteSpace(fullName))
         {
@@ -633,7 +675,7 @@ public sealed class ChatService
         return string.IsNullOrWhiteSpace(userName) ? fallback : userName.Trim();
     }
 
-    private static string BuildInitials(string name)
+    internal static string BuildInitials(string name)
     {
         var parts = name.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)

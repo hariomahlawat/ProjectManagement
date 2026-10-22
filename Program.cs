@@ -826,6 +826,7 @@ builder.Services.AddOptions<ChatOptions>()
     .Bind(builder.Configuration.GetSection(ChatOptions.SectionName));
 builder.Services.AddSingleton<ChatPresenceTracker>();
 builder.Services.AddScoped<ChatService>();
+builder.Services.AddScoped<ChatGroupService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
 builder.Services.AddScoped<IDocumentRequestService, DocumentRequestService>();

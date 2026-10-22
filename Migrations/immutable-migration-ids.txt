@@ -119,3 +119,4 @@
 20261217053003_AddActualCorrectionProposals
 20261217110004_AddChat
 20261217163005_AddChatStatusAndUnsend
+20261217220006_AddChatGroups
