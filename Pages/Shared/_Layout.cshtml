@@ -10,6 +10,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject IErpUsageModuleCatalog ErpUsageModules
 @inject IOptions<ErpUsageOptions> ErpUsageConfiguration
+@inject IOptionsMonitor<ChatOptions> ChatConfiguration
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,6 +43,10 @@
     <link rel="stylesheet" href="~/css/navigation-shell.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
+    @if (SignInManager.IsSignedIn(User) && ChatConfiguration.CurrentValue.Enabled)
+    {
+        <link rel="stylesheet" href="~/css/chat.css" asp-append-version="true" />
+    }
     <link rel="stylesheet" href="~/css/social-media.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" media="print" />
     @await RenderSectionAsync("PrintStyles", required: false)
@@ -61,6 +66,7 @@
 <body class="d-flex flex-column min-vh-100">
     @{
         var signedIn = SignInManager.IsSignedIn(User);
+        var chatEnabled = signedIn && ChatConfiguration.CurrentValue.Enabled;
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
@@ -234,6 +240,10 @@
                         </a>
                     }
 
+                    @if (chatEnabled)
+                    {
+                        <partial name="_ChatLauncher" />
+                    }
                     @await Component.InvokeAsync("NotificationBell")
                     <partial name="_LoginPartial" />
                 </div>
@@ -392,6 +402,17 @@
     }
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
     <script src="~/js/notifications.js" asp-append-version="true" defer></script>
+    @if (chatEnabled)
+    {
+        @* Body-level so the fixed dock is never clipped by the sticky, blurred top bar. *@
+        <div class="pm-chat" id="pmChat"
+             data-chat-root
+             data-current-user-id="@UserManager.GetUserId(User)"
+             data-api-base="@Url.Content("~/api/chat")"
+             data-hub-url="@Url.Content("~/hubs/chat")"
+             data-max-length="@ProjectManagement.Models.Chat.ChatMessage.MaxBodyLength"></div>
+        <script src="~/js/chat.js" asp-append-version="true" defer></script>
+    }
     @await RenderSectionAsync("Scripts", required: false)
     <script src="~/js/init.js" data-todo-src="@Url.Content("~/js/todo.js")" asp-append-version="true" defer></script>
 </body>

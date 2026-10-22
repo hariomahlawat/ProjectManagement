@@ -8,7 +8,7 @@ PRISM ERP is a .NET 8 ASP.NET Core modular monolith. The primary web application
 
 - Razor Pages and Areas for the main UI
 - HTTP API endpoints
-- SignalR for real-time notification/update flows
+- SignalR for real-time notification/update flows and person-to-person chat
 - EF Core with PostgreSQL
 - ASP.NET Core Identity and policy-based authorization
 - hosted/background services
@@ -47,6 +47,7 @@ The current EF model and service registrations show these broad domains:
 - Documents, document repository, OCR/text and attachments
 - Project photos/videos and the enterprise Media Library
 - Remarks, comments, mentions and notifications
+- Person-to-person chat (see [chat.md](chat.md))
 - Notebook
 - Action tasks and sprints
 - Calendars and celebrations

@@ -22,6 +22,7 @@ using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Notifications;
+using ProjectManagement.Models.Chat;
 using ProjectManagement.Helpers;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data.Projects;
@@ -125,6 +126,9 @@ namespace ProjectManagement.Data
         public DbSet<NotificationDispatch> NotificationDispatches => Set<NotificationDispatch>();
         public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
         public DbSet<UserProjectMute> UserProjectMutes => Set<UserProjectMute>();
+        public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
+        public DbSet<ChatParticipant> ChatParticipants => Set<ChatParticipant>();
+        public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
         public DbSet<ProjectDocumentText> ProjectDocumentTexts => Set<ProjectDocumentText>();
@@ -4284,6 +4288,40 @@ namespace ProjectManagement.Data
                 e.HasOne<Project>()
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Chat. No foreign keys to AspNetUsers: chat history must survive account removal,
+            // and user deletion must never be blocked by someone's message history.
+            builder.Entity<ChatConversation>(e =>
+            {
+                e.ToTable("ChatConversations", t =>
+                    t.HasCheckConstraint("CK_ChatConversations_Kind", "\"Kind\" IN ('Direct')"));
+                e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+                e.Property(x => x.DirectKey).HasMaxLength(901);
+                e.HasIndex(x => x.DirectKey).IsUnique();
+            });
+
+            builder.Entity<ChatParticipant>(e =>
+            {
+                e.HasKey(x => new { x.ConversationId, x.UserId });
+                e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+                e.HasIndex(x => x.UserId);
+                e.HasOne(x => x.Conversation)
+                    .WithMany(x => x.Participants)
+                    .HasForeignKey(x => x.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ChatMessage>(e =>
+            {
+                e.Property(x => x.SenderUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.Body).HasMaxLength(ChatMessage.MaxBodyLength).IsRequired();
+                e.HasIndex(x => new { x.ConversationId, x.Id });
+                e.HasIndex(x => new { x.SenderUserId, x.ClientMessageId }).IsUnique();
+                e.HasOne(x => x.Conversation)
+                    .WithMany()
+                    .HasForeignKey(x => x.ConversationId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

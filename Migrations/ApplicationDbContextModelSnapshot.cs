@@ -3492,6 +3492,99 @@ namespace ProjectManagement.Migrations
                     b.ToTable("Celebrations");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatConversation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DirectKey")
+                        .HasMaxLength(901)
+                        .HasColumnType("character varying(901)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset?>("LastMessageUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DirectKey")
+                        .IsUnique();
+
+                    b.ToTable("ChatConversations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ChatConversations_Kind", "\"Kind\" IN ('Direct')");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("ClientMessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("ConversationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SenderUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset>("SentUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId", "Id");
+
+                    b.HasIndex("SenderUserId", "ClientMessageId")
+                        .IsUnique();
+
+                    b.ToTable("ChatMessages");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatParticipant", b =>
+                {
+                    b.Property<long>("ConversationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset>("JoinedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("LastReadMessageId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("ConversationId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ChatParticipants");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.DailyLoginStat", b =>
                 {
                     b.Property<int>("Id")
@@ -10623,6 +10716,32 @@ namespace ProjectManagement.Migrations
                     b.Navigation("SystemItems");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatMessage", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Chat.ChatConversation", "Conversation")
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatParticipant", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Chat.ChatConversation", "Conversation")
+                        .WithMany("Participants")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatConversation", b =>
+                {
+                    b.Navigation("Participants");
+                });
 #pragma warning restore 612, 618
         }
     }
