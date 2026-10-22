@@ -665,6 +665,64 @@
     }
 }
 
+/* ---------- Status message, unsend, chat buttons next to names ---------- */
+.pm-chat__mystatus {
+    padding: .5rem .75rem 0;
+}
+
+.pm-chat__contact-note {
+    overflow: hidden;
+    color: var(--pm-text-secondary);
+    font-size: .72rem;
+    font-style: italic;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-chat__msg.is-unsent .pm-chat__bubble {
+    border-style: dashed;
+    background: transparent;
+    color: var(--pm-text-muted);
+    font-style: italic;
+}
+
+.pm-chat__unsend {
+    font-size: .66rem;
+    vertical-align: baseline;
+}
+
+.pm-chat__unsend-error {
+    color: var(--pm-danger);
+}
+
+.pm-chat-person {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-inline-start: .3rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--pm-primary);
+    font-size: .85rem;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.pm-chat-person:hover,
+.pm-chat-person:focus-visible {
+    background: var(--pm-primary-soft);
+}
+
+@media print {
+    .pm-chat-person {
+        display: none !important;
+    }
+}
+
 /* ---------- Phones: one full-width window, buddy list as a sheet ---------- */
 @media (max-width: 575.98px) {
     .pm-chat {

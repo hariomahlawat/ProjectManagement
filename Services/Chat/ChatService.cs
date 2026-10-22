@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Contracts.Chat;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -23,6 +25,16 @@ public sealed record ChatSendResult(ChatSendStatus Status, ChatMessageDto? Messa
     public static ChatSendResult Invalid(string error) => new(ChatSendStatus.Invalid, null, error);
 }
 
+public enum ChatUnsendStatus
+{
+    Unsent,
+    NotFound,
+    TooLate,
+}
+
+/// <summary>Message is set for Unsent (also when it was already unsent: the call is idempotent).</summary>
+public sealed record ChatUnsendResult(ChatUnsendStatus Status, ChatMessageDto? Message);
+
 /// <summary>
 /// Direct person-to-person chat. Everyone may chat with every active (human) user. Messages are
 /// kept indefinitely and are only ever returned to the two people in the conversation; there is
@@ -38,16 +50,22 @@ public sealed class ChatService
 
     public const int MaxSearchResults = 50;
 
+    public const int MaxUnsentSync = 500;
+
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ChatPresenceTracker _presence;
+    private readonly IOptionsMonitor<ChatOptions> _options;
 
-    public ChatService(ApplicationDbContext db, IClock clock, ChatPresenceTracker presence)
+    public ChatService(ApplicationDbContext db, IClock clock, ChatPresenceTracker presence, IOptionsMonitor<ChatOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _presence = presence ?? throw new ArgumentNullException(nameof(presence));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
     }
+
+    public TimeSpan UnsendWindow => TimeSpan.FromMinutes(Math.Max(0, _options.CurrentValue.UnsendWindowMinutes));
 
     /// <summary>
     /// The buddy list: every active human user, plus anyone the caller has a conversation with
@@ -68,6 +86,7 @@ public sealed class ChatService
                     Unread = _db.ChatMessages.Count(m =>
                         m.ConversationId == mine.ConversationId
                         && m.SenderUserId != userId
+                        && m.UnsentUtc == null
                         && m.Id > (mine.LastReadMessageId ?? 0)),
                 })
             .ToListAsync(cancellationToken);
@@ -84,6 +103,11 @@ public sealed class ChatService
             .ToListAsync(cancellationToken);
 
         var presence = _presence.Snapshot();
+        var listedIds = users.Select(u => u.Id).Concat(peerIds).Distinct().ToList();
+        var statuses = await _db.ChatUserStatuses
+            .AsNoTracking()
+            .Where(s => listedIds.Contains(s.UserId))
+            .ToDictionaryAsync(s => s.UserId, s => s.Message, StringComparer.Ordinal, cancellationToken);
 
         // A peer whose account row has been purged keeps their conversation (no user foreign
         // keys), so they stay listed as an inactive placeholder and the history stays reachable.
@@ -115,7 +139,8 @@ public sealed class ChatService
                     IsOnline: status != ChatPresence.Offline,
                     UnreadCount: conversation?.Unread ?? 0,
                     LastMessageUtc: conversation?.LastMessageUtc,
-                    IsAway: status == ChatPresence.Away);
+                    IsAway: status == ChatPresence.Away,
+                    StatusMessage: statuses.GetValueOrDefault(u.Id));
             })
             .Concat(purged)
             .OrderBy(c => c.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -197,8 +222,9 @@ public sealed class ChatService
                 m.SenderUserId,
                 string.Equals(m.SenderUserId, userId, StringComparison.Ordinal) ? peerUserId : userId,
                 m.ClientMessageId,
-                m.Body,
-                m.SentUtc))
+                m.UnsentUtc is null ? m.Body : string.Empty,
+                m.SentUtc,
+                m.UnsentUtc is not null))
             .ToList();
 
         return new ChatHistoryDto(peerUserId, messages, hasMore, hasNewer, peerLastRead);
@@ -231,7 +257,7 @@ public sealed class ChatService
                 where peer.UserId != userId
                 join m in _db.ChatMessages.AsNoTracking()
                     on mine.ConversationId equals m.ConversationId
-                where m.Body.ToLower().Contains(needle)
+                where m.UnsentUtc == null && m.Body.ToLower().Contains(needle)
                 orderby m.Id descending
                 select new { m.Id, PeerUserId = peer.UserId, m.SenderUserId, m.Body, m.SentUtc })
             .Take(size)
@@ -392,6 +418,137 @@ public sealed class ChatService
         return await mine.Select(p => p.LastReadMessageId).SingleAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Unsends the caller's own message, within <see cref="UnsendWindow"/> of sending it. The text
+    /// is erased; the row stays so the conversation shows "message unsent" in its place.
+    /// </summary>
+    public async Task<ChatUnsendResult> UnsendAsync(string userId, long messageId, CancellationToken cancellationToken = default)
+    {
+        var message = await _db.ChatMessages
+            .Where(m => m.Id == messageId && m.SenderUserId == userId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        // Someone else's message, or no such message: indistinguishable to the caller.
+        if (message is null)
+        {
+            return new ChatUnsendResult(ChatUnsendStatus.NotFound, null);
+        }
+
+        var recipientUserId = await _db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => p.ConversationId == message.ConversationId && p.UserId != userId)
+            .Select(p => p.UserId)
+            .FirstOrDefaultAsync(cancellationToken) ?? string.Empty;
+
+        if (message.UnsentUtc is null)
+        {
+            if (_clock.UtcNow - message.SentUtc > UnsendWindow)
+            {
+                return new ChatUnsendResult(ChatUnsendStatus.TooLate, null);
+            }
+
+            message.UnsentUtc = _clock.UtcNow;
+            message.Body = string.Empty;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return new ChatUnsendResult(
+            ChatUnsendStatus.Unsent,
+            new ChatMessageDto(message.Id, userId, recipientUserId, message.ClientMessageId, string.Empty, message.SentUtc, IsUnsent: true));
+    }
+
+    /// <summary>
+    /// Ids of messages in the caller's own conversations unsent at or after <paramref name="since"/>,
+    /// so a page that missed live unsend events (connection down) can blank them. Bounded: unsend is
+    /// only possible shortly after sending, and the caller passes when it lost its connection.
+    /// </summary>
+    public async Task<ChatUnsentPageDto> ListUnsentSinceAsync(
+        string userId,
+        DateTimeOffset since,
+        long? beforeMessageId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var page = await (
+                from mine in _db.ChatParticipants.AsNoTracking()
+                where mine.UserId == userId
+                join m in _db.ChatMessages.AsNoTracking()
+                    on mine.ConversationId equals m.ConversationId
+                where m.UnsentUtc != null && m.UnsentUtc >= since
+                    && (beforeMessageId == null || m.Id < beforeMessageId)
+                orderby m.Id descending
+                select m.Id)
+            .Take(MaxUnsentSync + 1)
+            .ToListAsync(cancellationToken);
+
+        // Paged, never silently cut short: the caller keeps asking while HasMore is set.
+        return new ChatUnsentPageDto(page.Take(MaxUnsentSync).ToList(), page.Count > MaxUnsentSync);
+    }
+
+    public async Task<string?> GetStatusAsync(string userId, CancellationToken cancellationToken = default)
+        => await _db.ChatUserStatuses
+            .AsNoTracking()
+            .Where(s => s.UserId == userId)
+            .Select(s => s.Message)
+            .SingleOrDefaultAsync(cancellationToken);
+
+    /// <summary>Sets (or, with blank text, clears) the caller's status message. Returns what is stored.</summary>
+    public async Task<string?> SetStatusAsync(string userId, string? message, CancellationToken cancellationToken = default)
+    {
+        var text = NormalizeStatus(message);
+        var existing = await _db.ChatUserStatuses.SingleOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+
+        if (text is null)
+        {
+            if (existing is not null)
+            {
+                _db.ChatUserStatuses.Remove(existing);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            return null;
+        }
+
+        if (existing is null)
+        {
+            _db.ChatUserStatuses.Add(new ChatUserStatus { UserId = userId, Message = text, UpdatedUtc = _clock.UtcNow });
+        }
+        else
+        {
+            existing.Message = text;
+            existing.UpdatedUtc = _clock.UtcNow;
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException) when (existing is null)
+        {
+            // Two tabs set a first status at once; the other insert won. Apply this one over it.
+            _db.ChangeTracker.Clear();
+            var row = await _db.ChatUserStatuses.SingleAsync(s => s.UserId == userId, cancellationToken);
+            row.Message = text;
+            row.UpdatedUtc = _clock.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return text;
+    }
+
+    /// <summary>One line of plain text, whitespace collapsed, at most 140 characters; blank = none.</summary>
+    internal static string? NormalizeStatus(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return null;
+        }
+
+        var collapsed = string.Join(' ', message.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return collapsed.Length <= ChatUserStatus.MaxMessageLength
+            ? collapsed
+            : collapsed[..ChatUserStatus.MaxMessageLength].TrimEnd();
+    }
+
     internal static string NormalizeBody(string? body)
     {
         if (body is null)
@@ -414,6 +571,7 @@ public sealed class ChatService
                 m.ClientMessageId,
                 m.Body,
                 m.SentUtc,
+                m.UnsentUtc,
                 RecipientUserId = m.Conversation!.Participants
                     .Where(p => p.UserId != senderUserId)
                     .Select(p => p.UserId)
@@ -423,7 +581,7 @@ public sealed class ChatService
 
         return stored is null
             ? null
-            : new ChatMessageDto(stored.Id, senderUserId, stored.RecipientUserId ?? string.Empty, stored.ClientMessageId, stored.Body, stored.SentUtc);
+            : new ChatMessageDto(stored.Id, senderUserId, stored.RecipientUserId ?? string.Empty, stored.ClientMessageId, stored.Body, stored.SentUtc, stored.UnsentUtc is not null);
     }
 
     private async Task<ChatConversation> GetOrCreateDirectConversationAsync(

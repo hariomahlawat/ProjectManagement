@@ -122,4 +122,8 @@ public interface IChatClient
     Task PresenceChanged(ChatPresenceDto presence);
 
     Task Typing(ChatTypingDto typing);
+
+    Task MessageUnsent(ChatMessageDto message);
+
+    Task StatusChanged(ChatStatusDto status);
 }

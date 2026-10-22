@@ -411,7 +411,8 @@
              data-api-base="@Url.Content("~/api/chat")"
              data-hub-url="@Url.Content("~/hubs/chat")"
              data-messages-url="@Url.Page("/Chat/Index")"
-             data-max-length="@ProjectManagement.Models.Chat.ChatMessage.MaxBodyLength"></div>
+             data-max-length="@ProjectManagement.Models.Chat.ChatMessage.MaxBodyLength"
+             data-unsend-minutes="@ChatConfiguration.CurrentValue.UnsendWindowMinutes"></div>
         <script src="~/js/chat.js" asp-append-version="true" defer></script>
     }
     @await RenderSectionAsync("Scripts", required: false)

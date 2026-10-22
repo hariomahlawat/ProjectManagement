@@ -14,4 +14,7 @@ public sealed class ChatOptions
     public int SendPermitLimit { get; set; } = 20;
 
     public int SendWindowSeconds { get; set; } = 10;
+
+    /// <summary>How long after sending a message its sender may still unsend it.</summary>
+    public int UnsendWindowMinutes { get; set; } = 5;
 }

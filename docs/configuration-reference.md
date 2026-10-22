@@ -63,6 +63,7 @@ This document lists every supported configuration value, its default, and how th
 | `Chat:Enabled` | `true` | Shows the chat button and dock and serves `/api/chat` and `/hubs/chat`. `false` hides and refuses them without touching stored messages. Read live. See [chat.md](chat.md). |
 | `Chat:SendPermitLimit` | `20` | Messages one user may send per `Chat:SendWindowSeconds` (HTTP 429 beyond that). |
 | `Chat:SendWindowSeconds` | `10` | Length of the chat send window in seconds. |
+| `Chat:UnsendWindowMinutes` | `5` | How long after sending a chat message its sender may unsend it; `0` turns unsend off. |
 
 ## Uploads (photos & documents)
 

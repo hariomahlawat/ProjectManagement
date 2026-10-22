@@ -13,16 +13,21 @@ public sealed record ChatContactDto(
     bool IsOnline,
     int UnreadCount,
     DateTimeOffset? LastMessageUtc,
-    bool IsAway = false);
+    bool IsAway = false,
+    string? StatusMessage = null);
 
-/// <summary>A direct message. Each side works out the other person from the two user ids.</summary>
+/// <summary>
+/// A direct message. Each side works out the other person from the two user ids. An unsent
+/// message keeps its place with IsUnsent and an empty body.
+/// </summary>
 public sealed record ChatMessageDto(
     long Id,
     string SenderUserId,
     string RecipientUserId,
     Guid ClientMessageId,
     string Body,
-    DateTimeOffset SentUtc);
+    DateTimeOffset SentUtc,
+    bool IsUnsent = false);
 
 /// <summary>
 /// A page of one conversation, oldest first. HasMore: older messages exist before this page.
@@ -49,6 +54,16 @@ public sealed record ChatReadDto(string PeerUserId, long UpToMessageId);
 public sealed record ChatPresenceDto(string UserId, bool IsOnline, bool IsAway = false);
 
 public sealed record ChatTypingDto(string UserId);
+
+/// <summary>A person's status message; null Message means cleared.</summary>
+public sealed record ChatStatusDto(string UserId, string? Message);
+
+public sealed record ChatStatusRequest(string? Message);
+
+/// <summary>
+/// Unsent message ids, newest first. HasMore: ask again with before = the smallest id here.
+/// </summary>
+public sealed record ChatUnsentPageDto(IReadOnlyList<long> Ids, bool HasMore);
 
 /// <summary>One search hit: the message and who the conversation is with.</summary>
 public sealed record ChatSearchHitDto(

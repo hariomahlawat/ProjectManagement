@@ -3,8 +3,9 @@
 Person-to-person chat inside PRISM, in the style of the old Google Talk / Yahoo Messenger: a
 buddy list and small chat windows docked at the bottom-right of every page.
 
-Status: phase 1 (one-to-one text chat, #2730) and phase 2 (typing, read ticks, alerts, away,
-Messages page with search) are built. Owner decisions (2026-10-22): everyone may chat with
+Status: phase 1 (one-to-one text chat, #2730), phase 2 (typing, read ticks, alerts, away,
+Messages page with search, #2731) and status messages, unsend and chat buttons next to names
+are built. Group chats and file attachments (1 GB per person) are next. Owner decisions (2026-10-22): everyone may chat with
 everyone; messages are kept indefinitely; administrators cannot read chats.
 
 ## What users see
@@ -37,6 +38,20 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   (`prism.chat.sound.{userId}`).
 - **Online / away / offline**: online while any PRISM tab is open and in use; **away** after
   five minutes without mouse or keyboard activity in every open tab; offline with no tab open.
+- **Status message** (Yahoo-style): a box at the top of the buddy list, "Set a status
+  message". Up to 140 characters on one line; Enter or leaving the box saves, Esc cancels,
+  clearing it removes it. Everyone sees it under your name in their buddy list and in your
+  chat window's header, live.
+- **Unsend**: for 5 minutes after sending (`Chat:UnsendWindowMinutes`), your own messages show
+  an "Unsend" link. Unsending erases the text on the server (the row stays, so the
+  conversation shows "Message unsent" in its place for both people), takes it out of search
+  and unread counts, and reaches the other person live. After the window the link disappears
+  and the server refuses.
+- **Chat buttons next to names**: a small chat icon after a person's name opens a chat with
+  them. Present on the Project Overview header (PO and HoD) and the Ongoing projects list
+  (PO). To add it elsewhere, mark the element `data-chat-user="{userId}"` (and optionally
+  `data-chat-name`); `chat.js` adds the button, never for the signed-in user, and also for
+  content added to the page later.
 - **Messages page** (`/Chat`, also linked from the buddy list): every conversation, most recent
   first, with a large conversation view, and **search across all your messages** (at least two
   characters, case-insensitive, newest 50 matches). A search hit opens the conversation at
@@ -48,7 +63,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 
 | Piece | Where |
 | --- | --- |
-| Tables | `ChatConversations`, `ChatParticipants`, `ChatMessages` (`Models/Chat`, migration `20261217110004_AddChat`) |
+| Tables | `ChatConversations`, `ChatParticipants`, `ChatMessages` (`Models/Chat`, migration `20261217110004_AddChat`); `ChatUserStatuses` and `ChatMessages.UnsentUtc` (migration `20261217163005_AddChatStatusAndUnsend`) |
 | Rules | `Services/Chat/ChatService.cs` |
 | Online status | `Services/Chat/ChatPresenceTracker.cs` (in-memory, per process) |
 | HTTP API | `Features/Chat/ChatApi.cs`, under `/api/chat` |
@@ -64,6 +79,14 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   forwarded as `Typing` to that person only and throttled to once per two seconds per tab and
   person on the server, and `SetAway(bool)` for this tab's idle state. The auth cookie is
   `SameSite=Strict`, so another site cannot open the connection as the user.
+- **Status** (`GET`/`POST /api/chat/status`) and **unsend** (`POST /api/chat/messages/{id}/unsend`)
+  are antiforgery-protected like the other writes; changes are pushed as `StatusChanged` (to
+  everyone) and `MessageUnsent` (to both people). A check constraint keeps an unsent message's
+  text empty in the database. Unsending someone else's message, or an unknown id, answers 400
+  (not 404, which browsers read as "chat switched off").
+  A page that lost its live connection asks `GET /api/chat/unsent?since=` (its own
+  conversations only) after reconnecting and while polling, so messages unsent meanwhile are
+  blanked too, including older ones already on screen and search results.
 - **Search** (`GET /api/chat/search?q=`) joins through the caller's own participant rows, so it
   can only ever match the caller's conversations. The term is matched as plain text (`%` and
   `_` are not wildcards). It is a substring scan without a full-text index, which is fine at
@@ -107,6 +130,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 | `Chat:Enabled` | `true` | Off hides the chat button and dock, answers 404 on `/api/chat/*` and refuses hub connections. Stored messages are untouched, so switching back on loses nothing. Read live; no restart needed. |
 | `Chat:SendPermitLimit` | `20` | Messages one user may send per window. |
 | `Chat:SendWindowSeconds` | `10` | Length of that window. |
+| `Chat:UnsendWindowMinutes` | `5` | How long after sending a message its sender may unsend it. `0` turns unsend off. |
 
 ## Deployment notes
 
@@ -122,5 +146,5 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 
 ## Not yet built
 
-A Yahoo-style status message, a "Chat" button next to people's names elsewhere in PRISM, unsend
-within a few minutes, group chats, file attachments and project-linked conversations.
+Group chats and file attachments (1 GB per person) are being built next. Project-linked
+conversations were dropped (owner decision, 2026-10-22).

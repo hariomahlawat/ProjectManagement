@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Contracts.Chat;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -239,7 +241,7 @@ public sealed class ChatServiceTests
         // A second request that started earlier and carries the lower marker finishes last.
         await using var otherDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlite(scope.Connection).Options);
-        var other = new ChatService(otherDb, new StepClock(), scope.Presence);
+        var other = new ChatService(otherDb, new StepClock(), scope.Presence, new TestOptions());
         await otherDb.ChatParticipants.LoadAsync();
 
         await scope.Service.MarkReadAsync("bob", "alice", second.Message!.Id);
@@ -334,6 +336,115 @@ public sealed class ChatServiceTests
         Assert.Equal("Progress is 50% done", hits[0].Body);
     }
 
+    [Fact]
+    public async Task Unsend_WithinTheWindow_ErasesTheTextForBothPeople()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var sent = await scope.Service.SendAsync("alice", Request("bob", "Oops, wrong person"));
+
+        var result = await scope.Service.UnsendAsync("alice", sent.Message!.Id);
+
+        Assert.Equal(ChatUnsendStatus.Unsent, result.Status);
+        Assert.True(result.Message!.IsUnsent);
+        Assert.Equal("bob", result.Message.RecipientUserId);
+        var stored = await scope.Db.ChatMessages.AsNoTracking().SingleAsync();
+        Assert.Equal(string.Empty, stored.Body);
+        Assert.NotNull(stored.UnsentUtc);
+
+        var bobView = await scope.Service.GetHistoryAsync("bob", "alice", null, 40);
+        Assert.True(bobView.Messages.Single().IsUnsent);
+        Assert.Equal(string.Empty, bobView.Messages.Single().Body);
+        Assert.Equal(0, (await scope.Service.ListContactsAsync("bob")).Single(c => c.UserId == "alice").UnreadCount);
+        Assert.Empty(await scope.Service.SearchAsync("bob", "wrong", 50));
+
+        // Repeating it (a second tab, a retry) is harmless.
+        Assert.Equal(ChatUnsendStatus.Unsent, (await scope.Service.UnsendAsync("alice", sent.Message.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Unsend_AfterTheWindow_IsRefused()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var sent = await scope.Service.SendAsync("alice", Request("bob", "Kept forever"));
+        scope.Clock.Advance(TimeSpan.FromMinutes(6));
+
+        var result = await scope.Service.UnsendAsync("alice", sent.Message!.Id);
+
+        Assert.Equal(ChatUnsendStatus.TooLate, result.Status);
+        Assert.Equal("Kept forever", (await scope.Db.ChatMessages.AsNoTracking().SingleAsync()).Body);
+    }
+
+    [Fact]
+    public async Task Unsend_SomeoneElsesMessage_IsNotFound()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var sent = await scope.Service.SendAsync("alice", Request("bob", "Mine"));
+
+        Assert.Equal(ChatUnsendStatus.NotFound, (await scope.Service.UnsendAsync("bob", sent.Message!.Id)).Status);
+        Assert.Equal(ChatUnsendStatus.NotFound, (await scope.Service.UnsendAsync("alice", 9999)).Status);
+        Assert.Equal("Mine", (await scope.Db.ChatMessages.AsNoTracking().SingleAsync()).Body);
+    }
+
+    [Fact]
+    public async Task Status_IsSetNormalisedShownToOthersAndCleared()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+
+        var stored = await scope.Service.SetStatusAsync("bob", "  In review\nmeeting   till 4  ");
+        Assert.Equal("In review meeting till 4", stored);
+        Assert.Equal("In review meeting till 4", await scope.Service.GetStatusAsync("bob"));
+        Assert.Equal("In review meeting till 4", (await scope.Service.ListContactsAsync("alice")).Single(c => c.UserId == "bob").StatusMessage);
+
+        var updated = await scope.Service.SetStatusAsync("bob", new string('x', 300));
+        Assert.Equal(ChatUserStatus.MaxMessageLength, updated!.Length);
+
+        Assert.Null(await scope.Service.SetStatusAsync("bob", "   "));
+        Assert.Null(await scope.Service.GetStatusAsync("bob"));
+        Assert.Null((await scope.Service.ListContactsAsync("alice")).Single(c => c.UserId == "bob").StatusMessage);
+        Assert.Equal(0, await scope.Db.ChatUserStatuses.CountAsync());
+    }
+
+    [Fact]
+    public async Task UnsentSince_ListsOnlyTheCallersConversationsAfterTheGivenTime()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var early = await scope.Service.SendAsync("alice", Request("bob", "early"));
+        await scope.Service.UnsendAsync("alice", early.Message!.Id);
+        var cutoff = scope.Clock.UtcNow;
+        var late = await scope.Service.SendAsync("alice", Request("bob", "late"));
+        await scope.Service.UnsendAsync("alice", late.Message!.Id);
+        var elsewhere = await scope.Service.SendAsync("carol", Request("dave-before", "not bob's"));
+        await scope.Service.UnsendAsync("carol", elsewhere.Message!.Id);
+
+        var bob = await scope.Service.ListUnsentSinceAsync("bob", cutoff);
+
+        Assert.Equal(new[] { late.Message.Id }, bob.Ids);
+        Assert.False(bob.HasMore);
+    }
+
+    [Fact]
+    public async Task UnsentSince_PagesInsteadOfCuttingShort()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var since = scope.Clock.UtcNow;
+        var expected = new List<long>();
+        for (var i = 0; i < ChatService.MaxUnsentSync + 3; i++)
+        {
+            var sent = await scope.Service.SendAsync("alice", Request("bob", $"m{i}"));
+            await scope.Service.UnsendAsync("alice", sent.Message!.Id);
+            expected.Add(sent.Message.Id);
+        }
+
+        var first = await scope.Service.ListUnsentSinceAsync("bob", since);
+        var second = await scope.Service.ListUnsentSinceAsync("bob", since, first.Ids.Min());
+
+        Assert.Equal(ChatService.MaxUnsentSync, first.Ids.Count);
+        Assert.True(first.HasMore);
+        Assert.Equal(3, second.Ids.Count);
+        Assert.False(second.HasMore);
+        Assert.Equal(expected.OrderBy(id => id), first.Ids.Concat(second.Ids).OrderBy(id => id));
+    }
+
     private static ChatSendRequest Request(string recipient, string body)
         => new(recipient, Guid.NewGuid(), body);
 
@@ -346,7 +457,8 @@ public sealed class ChatServiceTests
             _connection = connection;
             Db = db;
             Presence = new ChatPresenceTracker();
-            Service = new ChatService(db, new StepClock(), Presence);
+            Clock = new StepClock();
+            Service = new ChatService(db, Clock, Presence, new TestOptions());
         }
 
         public ApplicationDbContext Db { get; }
@@ -354,6 +466,8 @@ public sealed class ChatServiceTests
         public SqliteConnection Connection => _connection;
 
         public ChatPresenceTracker Presence { get; }
+
+        public StepClock Clock { get; }
 
         public ChatService Service { get; }
 
@@ -392,5 +506,16 @@ public sealed class ChatServiceTests
         private DateTimeOffset _now = new(2026, 10, 22, 9, 0, 0, TimeSpan.Zero);
 
         public DateTimeOffset UtcNow => _now = _now.AddSeconds(1);
+
+        public void Advance(TimeSpan by) => _now = _now.Add(by);
+    }
+
+    private sealed class TestOptions : IOptionsMonitor<ChatOptions>
+    {
+        public ChatOptions CurrentValue { get; } = new() { UnsendWindowMinutes = 5 };
+
+        public ChatOptions Get(string? name) => CurrentValue;
+
+        public IDisposable? OnChange(Action<ChatOptions, string?> listener) => null;
     }
 }

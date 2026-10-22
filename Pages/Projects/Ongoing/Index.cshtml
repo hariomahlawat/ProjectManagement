@@ -308,7 +308,7 @@ else
                                 <p class="ongoing-card__meta mb-1">
                                     <span>@FormatValue(item.ProjectCategoryName)</span>
                                     <span class="ongoing-card__meta-divider">•</span>
-                                    <span>@(string.IsNullOrWhiteSpace(item.LeadPoName) ? "Project Officer not assigned" : item.LeadPoName)</span>
+                                    <span data-chat-user="@item.LeadPoUserId" data-chat-name="@item.LeadPoName">@(string.IsNullOrWhiteSpace(item.LeadPoName) ? "Project Officer not assigned" : item.LeadPoName)</span>
                                     <span class="ongoing-card__meta-divider">•</span>
                                     <span>Cost: @item.CostLakhsText</span>
                                 </p>
@@ -698,7 +698,7 @@ else
                                                 @row.ProjectName
                                             </a>
                                             <span class="ongoing-table__secondary">
-                                                @(string.IsNullOrWhiteSpace(row.LeadPoName) ? "Project Officer not assigned" : row.LeadPoName)
+                                                <span data-chat-user="@row.LeadPoUserId" data-chat-name="@row.LeadPoName">@(string.IsNullOrWhiteSpace(row.LeadPoName) ? "Project Officer not assigned" : row.LeadPoName)</span>
                                                 <span aria-hidden="true"> · </span>
                                                 @FormatValue(row.ProjectCategoryName)
                                             </span>

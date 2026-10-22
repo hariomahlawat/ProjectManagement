@@ -8,7 +8,11 @@
  *   GET  {api}/search?q=                        message search across the user's conversations
  *   POST {api}/messages                         { recipientUserId, clientMessageId, body }
  *   POST {api}/with/{peer}/read                 { upToMessageId }
- *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing
+ *   GET/POST {api}/status                       { message } (own status message)
+ *   POST {api}/messages/{id}/unsend             own message, shortly after sending
+ *   GET  {api}/unsent?since=                    ids unsent while this page was not listening
+ *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing /
+ *             MessageUnsent / StatusChanged
  *   hub  out: Typing(peerUserId), SetAway(bool)  (ephemeral signals only; nothing is stored)
  *
  * Every piece of user text is written with textContent; nothing from the server is parsed as HTML.
@@ -29,6 +33,11 @@
   const IDLE_MS = 5 * 60 * 1000; // no input for this long in this tab = away
   const IDLE_CHECK_MS = 30000;
   const SEARCH_DELAY_MS = 300;
+  const UNSENT_RETRY_MS = 15000;
+  const SERVER_TIMEOUT_MS = 90000; // how long a silent drop can go unnoticed
+  // Catch-up looks back this far before the moment a drop was noticed: the whole detection
+  // window, plus a minute for clock differences between browser and server.
+  const UNSENT_LOOKBACK_MS = SERVER_TIMEOUT_MS + 60000;
 
   const timeFormat = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TIME_ZONE });
   const dayKeyFormat = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TIME_ZONE });
@@ -102,7 +111,10 @@
       if (m.id) byId.set(m.id, m); else pending.push(m);
     }
     for (const m of incoming) {
-      byId.set(m.id, m);
+      // An unsend is final: a stale copy (an older history page, a late send response) must
+      // never bring the text back.
+      const known = byId.get(m.id);
+      byId.set(m.id, known && known.isUnsent && !m.isUnsent ? known : m);
       const index = pending.findIndex((p) => p.clientMessageId === m.clientMessageId);
       if (index >= 0) pending.splice(index, 1);
     }
@@ -295,6 +307,13 @@
     this.hubUrl = root.dataset.hubUrl;
     this.messagesUrl = root.dataset.messagesUrl || '';
     this.maxLength = Number(root.dataset.maxLength) || 4000;
+    this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
+    this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
+    // When live events stopped arriving (or, until the first connection, when this page started
+    // loading history), so unsends in between can be caught up on once connected.
+    this.offlineSince = new Date();
+    this.offlineGeneration = 0; // bumped on every drop, so a catch-up can tell it was overtaken
+    this.myStatus = null;
     this.storageKey = `prism.chat.dock.${this.me}`;
     this.soundKey = `prism.chat.sound.${this.me}`;
     this.dingKey = `prism.chat.ding.${this.me}`;
@@ -326,6 +345,16 @@
     });
     global.addEventListener('focus', () => this.title.stop());
     this.watchActivity();
+
+    this.attachPersonButtons(document);
+    if (typeof global.MutationObserver === 'function' && document.body) {
+      let pending = null;
+      new global.MutationObserver(() => {
+        if (pending) return;
+        pending = global.setTimeout(() => { pending = null; this.attachPersonButtons(document); }, 200);
+      }).observe(document.body, { childList: true, subtree: true });
+    }
+    this.loadMyStatus();
 
     const pageNode = document.querySelector('[data-chat-page]');
     if (pageNode) this.page = new MessagesPage(this, pageNode);
@@ -429,8 +458,10 @@
     this.stopped = true;
     if (this.pollTimer) global.clearInterval(this.pollTimer);
     if (this.idleTimer) global.clearInterval(this.idleTimer);
+    if (this.unsentRetry) global.clearTimeout(this.unsentRetry);
     if (this.connection) this.connection.stop().catch(() => {});
     this.title.stop();
+    document.querySelectorAll('.pm-chat-person').forEach((button) => button.remove());
     this.root.hidden = true;
     this.launchers.forEach((b) => { b.hidden = true; });
   };
@@ -458,16 +489,22 @@
     }
 
     const connection = builder.build();
-    connection.serverTimeoutInMilliseconds = 90000;
+    connection.serverTimeoutInMilliseconds = SERVER_TIMEOUT_MS;
     connection.on('ReceiveMessage', (message) => this.onMessage(message));
     connection.on('ConversationRead', (read) => this.onRead(read));
     connection.on('PeerRead', (read) => this.onPeerRead(read));
     connection.on('PresenceChanged', (presence) => this.onPresence(presence));
     connection.on('Typing', (typing) => this.onTyping(typing));
-    connection.onreconnecting(() => this.startPolling());
+    connection.on('MessageUnsent', (message) => this.onUnsent(message));
+    connection.on('StatusChanged', (status) => this.onStatus(status));
+    connection.onreconnecting(() => {
+      this.markOffline();
+      this.startPolling();
+    });
     connection.onreconnected(() => this.resync());
     connection.onclose(() => {
       if (this.stopped) return;
+      this.markOffline();
       this.startPolling();
       global.setTimeout(() => this.startConnection(), 30000);
     });
@@ -500,13 +537,61 @@
     } catch (_) { /* ignore */ }
   };
 
+  ChatApp.prototype.markOffline = function () {
+    this.offlineGeneration += 1;
+    if (!this.offlineSince) this.offlineSince = new Date();
+  };
+
   /** While the live connection is down, keep badges and open windows roughly current. */
   ChatApp.prototype.startPolling = function () {
     if (this.pollTimer || this.stopped) return;
+    this.markOffline();
     this.pollTimer = global.setInterval(() => {
       this.refreshContacts();
       this.windows.forEach((w) => this.loadLatest(w));
+      this.syncUnsent();
     }, POLL_MS);
+  };
+
+  /**
+   * Unsends that happened while no live event could arrive: history catch-up only fetches newer
+   * messages, so an already-loaded message that was unsent meanwhile would keep its text.
+   */
+  ChatApp.prototype.syncUnsent = async function (done) {
+    if (!this.offlineSince || this.stopped) return;
+    if (this.unsentRetry) {
+      global.clearTimeout(this.unsentRetry);
+      this.unsentRetry = null;
+    }
+    const generation = this.offlineGeneration;
+    const since = new Date(this.offlineSince.getTime() - UNSENT_LOOKBACK_MS);
+    const base = `/unsent?since=${encodeURIComponent(since.toISOString())}`;
+    try {
+      // Read every page: the watermark is only cleared once nothing was skipped.
+      const ids = [];
+      let before = null;
+      for (let guard = 0; guard < 200; guard += 1) {
+        const page = await this.request('GET', before ? `${base}&before=${before}` : base);
+        ids.push(...page.ids);
+        if (!page.hasMore || !page.ids.length) break;
+        before = Math.min(...page.ids);
+      }
+      ids.forEach((id) => this.unsentIds.add(id));
+      if (ids.length) {
+        this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
+        if (this.page) this.page.refreshResults();
+      }
+      // Live again: events cover the rest, unless the connection dropped again while this ran
+      // (that outage still needs its own catch-up).
+      const stillLive = !this.connection || this.isConnected();
+      if (done && generation === this.offlineGeneration && stillLive) this.offlineSince = null;
+    } catch (_) {
+      // While polling, the next poll tries again. Once live again nothing else would, so keep
+      // retrying until the catch-up succeeds (one timer at a time).
+      if (done && !this.stopped) {
+        this.unsentRetry = global.setTimeout(() => this.syncUnsent(true), UNSENT_RETRY_MS);
+      }
+    }
   };
 
   ChatApp.prototype.resync = function () {
@@ -516,6 +601,7 @@
     }
     // A new connection starts as active on the server; repeat this tab's idle state.
     if (this.away) this.signal('SetAway', true);
+    this.syncUnsent(true);
     this.refreshContacts();
     this.windows.forEach((w) => this.loadLatest(w));
   };
@@ -667,6 +753,48 @@
     if (win) this.renderWindowState(win);
   };
 
+  /** A message was unsent (by this user in another tab, or by the other person). */
+  ChatApp.prototype.onUnsent = function (message) {
+    const peerId = message.senderUserId === this.me ? message.recipientUserId : message.senderUserId;
+    this.unsentIds.add(message.id); // also for a window opened later, or one still loading
+    const win = this.windows.get(peerId);
+    if (win) this.applyUnsent(win, message);
+    if (this.page) this.page.refreshResults();
+    // An unread message that was unsent no longer counts; the server has the exact number.
+    if (message.senderUserId !== this.me) this.refreshContacts();
+  };
+
+  ChatApp.prototype.applyUnsent = function (win, message) {
+    this.unsentIds.add(message.id);
+    this.renderMessages(win, { stickToBottom: false });
+  };
+
+  /**
+   * Turns any message this page knows was unsent into its placeholder. Runs before every render,
+   * so a history page or send response that was already in flight when the unsend arrived
+   * cannot show the withdrawn text.
+   */
+  ChatApp.prototype.applyTombstones = function (win) {
+    if (!this.unsentIds.size) return;
+    const mark = (list) => list.map((m) => (m.id && this.unsentIds.has(m.id) && !m.isUnsent ? { ...m, body: '', isUnsent: true } : m));
+    win.messages = mark(win.messages);
+    win.heldLive = mark(win.heldLive);
+  };
+
+  ChatApp.prototype.onStatus = function (status) {
+    if (status.userId === this.me) {
+      this.myStatus = status.message || null;
+      this.renderMyStatus();
+      return;
+    }
+    const contact = this.contacts.get(status.userId);
+    if (!contact) return;
+    contact.statusMessage = status.message || null;
+    this.renderContacts();
+    const win = this.windows.get(status.userId);
+    if (win) this.renderWindowState(win);
+  };
+
   ChatApp.prototype.onTyping = function (typing) {
     const win = this.windows.get(typing.userId);
     if (!win) return;
@@ -709,6 +837,27 @@
     close.addEventListener('click', () => this.toggleBuddy(false));
     header.append(close);
 
+    const statusWrap = el('form', 'pm-chat__mystatus');
+    const statusInput = el('input', 'form-control form-control-sm');
+    statusInput.type = 'text';
+    statusInput.maxLength = 140;
+    statusInput.placeholder = 'Set a status message';
+    statusInput.setAttribute('aria-label', 'Your status message, shown to everyone');
+    statusWrap.append(statusInput);
+    statusWrap.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.saveMyStatus();
+      statusInput.blur();
+    });
+    statusInput.addEventListener('blur', () => this.saveMyStatus());
+    statusInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        statusInput.value = this.myStatus || '';
+        statusInput.blur();
+      }
+    });
+    this.statusInput = statusInput;
+
     const searchWrap = el('div', 'pm-chat__search');
     const search = el('input', 'form-control form-control-sm');
     search.type = 'search';
@@ -722,12 +871,39 @@
     this.list.setAttribute('role', 'list');
     this.emptyNote = el('p', 'pm-chat__empty', 'Loading…');
 
-    buddy.append(header, searchWrap, this.list, this.emptyNote);
+    buddy.append(header, statusWrap, searchWrap, this.list, this.emptyNote);
     this.buddy = buddy;
 
     this.windowRow = el('div', 'pm-chat__windows');
     dock.append(this.windowRow, buddy);
     this.root.append(dock);
+  };
+
+  ChatApp.prototype.loadMyStatus = async function () {
+    try {
+      const status = await this.request('GET', '/status');
+      this.myStatus = (status && status.message) || null;
+      this.renderMyStatus();
+    } catch (_) { /* the box just stays empty */ }
+  };
+
+  ChatApp.prototype.renderMyStatus = function () {
+    if (this.statusInput && document.activeElement !== this.statusInput) {
+      this.statusInput.value = this.myStatus || '';
+    }
+  };
+
+  ChatApp.prototype.saveMyStatus = async function () {
+    const text = this.statusInput.value.replace(/\s+/g, ' ').trim();
+    if (text === (this.myStatus || '')) return;
+    try {
+      const status = await this.request('POST', '/status', { message: text });
+      this.myStatus = (status && status.message) || null;
+    } catch (_) {
+      // Leave what was typed; the next blur or Enter tries again.
+      return;
+    }
+    this.renderMyStatus();
   };
 
   ChatApp.prototype.renderSoundToggle = function () {
@@ -807,11 +983,12 @@
       const text = el('span', 'pm-chat__contact-text');
       text.append(el('span', 'pm-chat__contact-name', contact.displayName));
       text.append(el('span', 'pm-chat__contact-meta', contact.rank ? `${contact.rank} · ${statusText(contact)}` : statusText(contact)));
+      if (contact.statusMessage) text.append(el('span', 'pm-chat__contact-note', contact.statusMessage));
       button.append(face, text);
       if (contact.unreadCount > 0) {
         button.append(el('span', 'badge rounded-pill pm-chat__unread', contact.unreadCount > 99 ? '99+' : String(contact.unreadCount)));
       }
-      button.setAttribute('aria-label', `${contact.displayName}, ${statusText(contact)}${contact.unreadCount ? `, ${contact.unreadCount} unread` : ''}`);
+      button.setAttribute('aria-label', `${contact.displayName}, ${statusText(contact)}${contact.statusMessage ? `, ${contact.statusMessage}` : ''}${contact.unreadCount ? `, ${contact.unreadCount} unread` : ''}`);
       button.addEventListener('click', () => this.openWindow(contact.userId, { focus: true }));
       item.append(button);
       return item;
@@ -821,6 +998,30 @@
     this.emptyNote.textContent = all.length ? 'No one matches that search.' : 'No other users yet.';
     this.renderLauncherBadge();
     if (this.page) this.page.renderConversations();
+  };
+
+  /**
+   * Adds a small chat button to every element marked data-chat-user="{userId}" (people's names
+   * elsewhere in PRISM), except the signed-in user. Safe to call repeatedly.
+   */
+  ChatApp.prototype.attachPersonButtons = function (scope) {
+    if (this.stopped) return;
+    scope.querySelectorAll('[data-chat-user]').forEach((node) => {
+      const userId = node.dataset.chatUser;
+      if (!userId || userId === this.me || node.querySelector(':scope > .pm-chat-person')) return;
+      const name = node.dataset.chatName || node.textContent.trim();
+      const button = el('button', 'pm-chat-person');
+      button.type = 'button';
+      button.title = `Chat with ${name}`;
+      button.setAttribute('aria-label', `Chat with ${name}`);
+      button.append(icon('chat-dots'));
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.openWindow(userId, { focus: true });
+      });
+      node.append(button);
+    });
   };
 
   ChatApp.prototype.renderLauncherBadge = function () {
@@ -955,7 +1156,7 @@
       peerId, node, face, name, status, body, log, earlier, newer, notice, input, form, minimize, embedded,
       messages: [], hasMore: false, hasNewer: false, historyLoaded: false, syncing: false, syncAgain: false,
       loading: false, minimized: false, attention: false, lastReadId: 0, readSending: 0, peerReadId: 0,
-      typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0,
+      typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0, unsendTimer: null,
     };
 
     if (!embedded) {
@@ -1026,7 +1227,9 @@
     setPresence(win.face, contact);
     const typing = win.typingUntil > Date.now();
     win.node.classList.toggle('is-typing', typing);
-    win.status.textContent = typing ? 'typing…' : (win.attention ? 'New message' : statusText(contact));
+    const note = contact && contact.statusMessage ? ` · ${contact.statusMessage}` : '';
+    win.status.textContent = typing ? 'typing…' : (win.attention ? 'New message' : statusText(contact) + note);
+    win.status.title = contact && contact.statusMessage ? contact.statusMessage : '';
 
     const canSend = !!contact && contact.isActive;
     win.form.hidden = !canSend;
@@ -1267,12 +1470,14 @@
   };
 
   ChatApp.prototype.renderMessages = function (win, options) {
+    this.applyTombstones(win);
     const body = win.body;
     const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 48;
     const now = new Date();
     const items = [];
     let lastDay = null;
     let highlighted = null;
+    let nextExpiry = Infinity;
 
     if (!win.messages.length) {
       items.push(el('li', 'pm-chat__system', 'No messages yet. Say hello.'));
@@ -1291,7 +1496,8 @@
         item.classList.add('is-highlight');
         highlighted = item;
       }
-      const bubble = el('div', 'pm-chat__bubble', message.body);
+      const bubble = el('div', 'pm-chat__bubble', message.isUnsent ? (mine ? 'You unsent a message' : 'Message unsent') : message.body);
+      if (message.isUnsent) item.classList.add('is-unsent');
       const meta = el('span', 'pm-chat__time');
       if (message.failed) {
         item.classList.add('is-failed');
@@ -1316,6 +1522,18 @@
           tick.setAttribute('aria-label', seen ? 'Seen' : 'Sent');
           tick.title = seen ? 'Seen' : 'Sent';
           meta.append(' ', tick);
+          const left = this.unsendMs - (Date.now() - Date.parse(message.sentUtc));
+          if (!message.isUnsent && left > 0) {
+            const undo = el('button', 'btn btn-link btn-sm p-0 pm-chat__unsend', 'Unsend');
+            undo.type = 'button';
+            undo.setAttribute('aria-label', 'Unsend this message');
+            undo.addEventListener('click', () => this.unsend(win, message));
+            meta.append(' · ', undo);
+            nextExpiry = Math.min(nextExpiry, left);
+          }
+          if (message.unsendError && !message.isUnsent) {
+            meta.append(' · ', el('span', 'pm-chat__unsend-error', message.unsendError));
+          }
         }
       }
       item.append(bubble, meta);
@@ -1323,12 +1541,27 @@
     }
 
     win.log.replaceChildren(...items);
+    // Take the Unsend link away when its time runs out.
+    if (win.unsendTimer) global.clearTimeout(win.unsendTimer);
+    win.unsendTimer = Number.isFinite(nextExpiry)
+      ? global.setTimeout(() => this.renderMessages(win, { stickToBottom: false }), nextExpiry + 250)
+      : null;
     win.earlier.hidden = !win.hasMore;
     win.newer.hidden = !win.hasNewer;
     if (options && options.scrollToHighlight && highlighted) {
       if (typeof highlighted.scrollIntoView === 'function') highlighted.scrollIntoView({ block: 'center' });
     } else if (options && options.stickToBottom && (nearBottom || win.messages.length <= HISTORY_PAGE)) {
       body.scrollTop = body.scrollHeight;
+    }
+  };
+
+  ChatApp.prototype.unsend = async function (win, message) {
+    try {
+      const result = await this.request('POST', `/messages/${message.id}/unsend`, {});
+      this.applyUnsent(this.viewFor(win), result);
+    } catch (error) {
+      message.unsendError = error.message;
+      this.renderMessages(this.viewFor(win), { stickToBottom: false });
     }
   };
 
@@ -1569,6 +1802,7 @@
     const term = this.searchInput.value.trim();
     const seq = ++this.searchSeq;
     if (term.length < 2) {
+      this.lastHits = null;
       this.results.hidden = true;
       this.results.replaceChildren();
       this.list.hidden = false;
@@ -1583,14 +1817,25 @@
     try {
       const hits = await this.app.request('GET', `/search?q=${encodeURIComponent(term)}`);
       if (seq !== this.searchSeq) return; // a newer search has started
+      this.lastHits = hits;
+      this.lastTerm = term;
       this.renderResults(hits, term);
     } catch (_) {
       if (seq === this.searchSeq) this.results.replaceChildren(el('p', 'pm-chat-page__empty', 'Search failed. Try again.'));
     }
   };
 
-  MessagesPage.prototype.renderResults = function (hits, term) {
+  /** Re-renders the visible results, e.g. after an unsend removed one of them. */
+  MessagesPage.prototype.refreshResults = function () {
+    if (this.results.hidden || !this.lastHits) return;
+    this.renderResults(this.lastHits, this.lastTerm);
+  };
+
+  MessagesPage.prototype.renderResults = function (allHits, term) {
     const now = new Date();
+    // An unsent message's text is gone; it must not linger here either (including in a
+    // response that was already on its way when the unsend arrived).
+    const hits = allHits.filter((hit) => !this.app.unsentIds.has(hit.messageId));
     if (!hits.length) {
       this.results.replaceChildren(el('p', 'pm-chat-page__empty', 'No messages match.'));
       return;

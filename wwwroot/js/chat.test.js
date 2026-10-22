@@ -790,3 +790,331 @@ test('a send in flight when its conversation moves to the Messages page reports 
     window.close();
   }
 });
+
+// --- Status messages, unsend, chat buttons next to names ------------------------------------
+
+test('status messages show for others and my own can be set from the contact list', async () => {
+  const posted = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, statusMessage: 'In review meeting till 4' }];
+    if (url.endsWith('/status') && init.method === 'POST') {
+      posted.push(JSON.parse(init.body).message);
+      return { userId: 'me', message: JSON.parse(init.body).message };
+    }
+    if (url.endsWith('/status')) return { userId: 'me', message: 'At my desk' };
+    return pageOf([], false);
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    assert.equal(app.statusInput.value, 'At my desk');
+    assert.equal(app.list.querySelector('.pm-chat__contact-note').textContent, 'In review meeting till 4');
+
+    const win = app.openWindow('peer', { focus: false });
+    assert.match(win.status.textContent, /In review meeting till 4/);
+
+    app.onStatus({ userId: 'peer', message: null });
+    assert.equal(app.list.querySelector('.pm-chat__contact-note'), null);
+
+    app.statusInput.value = '  Out   for lunch ';
+    await app.saveMyStatus();
+    assert.deepEqual(posted, ['Out for lunch']);
+    await app.saveMyStatus(); // unchanged: no second request
+    assert.equal(posted.length, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test('my recent messages offer Unsend until the window passes, and unsent ones show a placeholder', async () => {
+  const now = Date.now();
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsend') && init.method === 'POST') {
+      return { status: 200, body: { id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: '', sentUtc: new Date(now).toISOString(), isUnsent: true } };
+    }
+    if (url.includes('/messages')) {
+      return {
+        messages: [
+          { id: 1, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-1', body: 'old', sentUtc: new Date(now - 10 * 60000).toISOString() },
+          { id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: 'fresh', sentUtc: new Date(now).toISOString() },
+          { id: 3, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-3', body: 'theirs', sentUtc: new Date(now).toISOString() },
+        ],
+        hasMore: false,
+      };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    app.unsendMs = 5 * 60000;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const links = win.log.querySelectorAll('.pm-chat__unsend');
+    assert.equal(links.length, 1, 'only my message from the last five minutes');
+
+    await app.unsend(win, win.messages.find((m) => m.id === 2));
+    const unsent = win.log.querySelector('.is-unsent .pm-chat__bubble');
+    assert.equal(unsent.textContent, 'You unsent a message');
+    assert.equal(win.log.querySelectorAll('.pm-chat__unsend').length, 0);
+
+    app.onUnsent({ id: 3, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-3', body: '', sentUtc: new Date(now).toISOString(), isUnsent: true });
+    const texts = Array.from(win.log.querySelectorAll('.is-unsent .pm-chat__bubble'), (b) => b.textContent);
+    assert.deepEqual(texts, ['You unsent a message', 'Message unsent']);
+    assert.equal(win.log.textContent.includes('theirs'), false);
+  } finally {
+    window.close();
+  }
+});
+
+test('a refused unsend explains why', async () => {
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsend') && init.method === 'POST') return { status: 409, body: { detail: 'A message can only be unsent within 5 minutes of sending it.' } };
+    if (url.includes('/messages')) return { messages: [{ id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: 'fresh', sentUtc: new Date().toISOString() }], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    app.unsendMs = 5 * 60000;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    await app.unsend(win, win.messages[0]);
+    assert.match(win.log.querySelector('.pm-chat__unsend-error').textContent, /within 5 minutes/);
+  } finally {
+    window.close();
+  }
+});
+
+test('names marked data-chat-user get one chat button, never for myself', async () => {
+  const window = bootApp(async (url) => (url.endsWith('/contacts') ? [contact] : pageOf([], false)),
+    '<p><span id="po" data-chat-user="peer" data-chat-name="Peer Person">PO Peer Person</span>'
+    + '<span id="me" data-chat-user="me">Me</span><span id="none" data-chat-user="">Unassigned</span></p>');
+  try {
+    await tick();
+    const app = window.PMChat;
+    const doc = window.document;
+    app.attachPersonButtons(doc); // again: must not duplicate
+    assert.equal(doc.querySelectorAll('#po .pm-chat-person').length, 1);
+    assert.equal(doc.querySelector('#po .pm-chat-person').getAttribute('aria-label'), 'Chat with Peer Person');
+    assert.equal(doc.querySelectorAll('#me .pm-chat-person, #none .pm-chat-person').length, 0);
+
+    doc.querySelector('#po .pm-chat-person').click();
+    assert.ok(app.windows.get('peer'));
+    assert.equal(doc.activeElement, app.windows.get('peer').input);
+  } finally {
+    window.close();
+  }
+});
+
+test('an unsend that arrives while history is loading is not undone by the response', async () => {
+  let releaseHistory;
+  const historyGate = new Promise((resolve) => { releaseHistory = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/messages')) {
+      await historyGate; // read on the server before the unsend
+      return { messages: [{ id: 7, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-7', body: 'withdrawn text', sentUtc: new Date().toISOString() }], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    app.onUnsent({ id: 7, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-7', body: '', sentUtc: new Date().toISOString(), isUnsent: true });
+    releaseHistory();
+    await tick(); await tick(); await tick();
+    assert.equal(win.log.textContent.includes('withdrawn text'), false);
+    assert.equal(win.messages[0].isUnsent, true);
+
+    // A stale copy merged later cannot restore it either.
+    win.messages = window.PMChatInternals.mergeMessages(win.messages, [{ id: 7, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-7', body: 'withdrawn text' }]);
+    assert.equal(win.messages[0].isUnsent, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('unsends missed while offline are applied on reconnect, also to older loaded messages', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) {
+      asked.push(url);
+      return { ids: [1], hasMore: false };
+    }
+    if (url.includes('/messages')) return pageOf([1, 2], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    app.resync();
+    await tick(); await tick(); await tick();
+    assert.equal(asked.length, 1);
+    assert.equal(win.messages.find((m) => m.id === 1).isUnsent, true);
+    assert.equal(app.offlineSince, null);
+  } finally {
+    window.close();
+  }
+});
+
+test('an unsent message leaves the search results, also from a late response', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('/search')) {
+      return [
+        { messageId: 15, peerUserId: 'peer', peerDisplayName: 'Peer Person', senderUserId: 'peer', body: 'secret minutes', sentUtc: '2026-10-01T09:00:00Z' },
+        { messageId: 16, peerUserId: 'peer', peerDisplayName: 'Peer Person', senderUserId: 'peer', body: 'other minutes', sentUtc: '2026-10-01T09:00:00Z' },
+      ];
+    }
+    return pageOf([], false);
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const page = app.page;
+    page.searchInput.value = 'minutes';
+    await page.runSearch();
+    assert.equal(page.results.querySelectorAll('.pm-chat-page__hit').length, 2);
+
+    app.onUnsent({ id: 15, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-15', body: '', sentUtc: new Date().toISOString(), isUnsent: true });
+    assert.equal(page.results.textContent.includes('secret minutes'), false);
+    assert.equal(page.results.querySelectorAll('.pm-chat-page__hit').length, 1);
+
+    await page.runSearch(); // the server copy still lists it (in flight before the unsend)
+    assert.equal(page.results.textContent.includes('secret minutes'), false);
+  } finally {
+    window.close();
+  }
+});
+
+test('a failed unsend catch-up after reconnecting is retried until it succeeds', async () => {
+  let failures = 1;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) {
+      if (failures > 0) { failures -= 1; return { status: 500, body: {} }; }
+      return { ids: [1], hasMore: false };
+    }
+    if (url.includes('/messages')) return pageOf([1, 2], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(true); // fails
+    assert.ok(app.unsentRetry, 'a retry is scheduled');
+    assert.notEqual(app.offlineSince, null);
+    window.clearTimeout(app.unsentRetry);
+    await app.syncUnsent(true); // the retry
+    assert.equal(app.unsentRetry, null);
+    assert.equal(app.offlineSince, null);
+    assert.equal(win.messages.find((m) => m.id === 1).isUnsent, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('unsends between the first history load and the first connection are caught up', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) {
+      asked.push(url);
+      return { ids: [1], hasMore: false };
+    }
+    if (url.includes('/messages')) return pageOf([1, 2], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    assert.ok(app.offlineSince, 'tracking starts with the page, before any connection');
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.resync(); // what the first successful connection does
+    await tick(); await tick(); await tick();
+    assert.equal(asked.length, 1);
+    assert.equal(win.messages.find((m) => m.id === 1).isUnsent, true);
+    assert.equal(app.offlineSince, null);
+  } finally {
+    window.close();
+  }
+});
+
+test('unsend catch-up reads every page before counting itself done', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) {
+      asked.push(url);
+      return url.includes('before=') ? { ids: [3, 1], hasMore: false } : { ids: [9, 7], hasMore: true };
+    }
+    if (url.includes('/messages')) return pageOf([1, 2, 3], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    await app.syncUnsent(true);
+    assert.equal(asked.length, 2);
+    assert.ok(asked[1].includes('before=7'));
+    assert.deepEqual(Array.from(win.messages.filter((m) => m.isUnsent), (m) => m.id), [1, 3]);
+    assert.equal(app.offlineSince, null);
+  } finally {
+    window.close();
+  }
+});
+
+test('unsend catch-up looks back over the whole drop-detection window', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) { asked.push(url); return { ids: [], hasMore: false }; }
+    return pageOf([], false);
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const noticed = new Date('2026-10-22T10:00:00Z');
+    app.offlineSince = noticed;
+    await app.syncUnsent(true);
+    const since = new Date(decodeURIComponent(asked[0].split('since=')[1]));
+    assert.ok(noticed.getTime() - since.getTime() >= 150000, 'covers the 90 s timeout plus skew');
+  } finally {
+    window.close();
+  }
+});
+
+test('a drop during catch-up keeps the watermark for the next catch-up', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) { await gate; return { ids: [], hasMore: false }; }
+    return pageOf([], false);
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const running = app.syncUnsent(true);
+    app.markOffline(); // dropped again while the request was in flight
+    release();
+    await running;
+    assert.notEqual(app.offlineSince, null);
+  } finally {
+    window.close();
+  }
+});
