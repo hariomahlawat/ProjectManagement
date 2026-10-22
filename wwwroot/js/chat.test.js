@@ -655,3 +655,37 @@ test('an earlier page still loading for one search hit is dropped when another h
     window.close();
   }
 });
+
+test('paging is blocked while a replacement search slice loads', async () => {
+  let releaseHit;
+  const hitGate = new Promise((resolve) => { releaseHit = resolve; });
+  const requested = [];
+  const window = bootApp(async (url) => {
+    requested.push(url);
+    if (url.endsWith('/contacts')) return [{ ...contact, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('before=151')) return { ...pageOf([111, 150], true), hasNewer: true };
+    if (url.includes('before=16')) {
+      await hitGate;
+      return { ...pageOf([1, 15], false), hasNewer: true };
+    }
+    if (url.includes('before=111')) return pageOf([71, 110], true);
+    return pageOf([], false);
+  }, '<section data-chat-page data-open-with="peer" data-open-at="150"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.page.current;
+    app.page.open('peer', 15); // replacement slice in flight
+    assert.equal(win.earlier.hidden, true);
+    assert.equal(win.newer.hidden, true);
+    await app.loadEarlier(win); // clicked from the old slice meanwhile
+    releaseHit();
+    await tick(); await tick(); await tick();
+    assert.equal(requested.some((u) => u.includes('before=111')), false);
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [1, 15]);
+    assert.equal(win.loading, false);
+    assert.equal(win.newer.hidden, false);
+  } finally {
+    window.close();
+  }
+});

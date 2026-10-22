@@ -1167,7 +1167,12 @@
     win.loadSeq += 1;
     const seq = win.loadSeq;
     win.syncing = true;
-    win.loading = false; // paging requests for the previous slice are now stale
+    // Paging is locked until the new slice is in: requests still in flight for the previous
+    // slice are stale (load sequence), and "Show earlier/newer" must not start from the old
+    // slice's cursor while this one loads.
+    win.loading = true;
+    win.earlier.hidden = true;
+    win.newer.hidden = true;
     // Until the slice arrives, treat the view as behind: live pushes are held (onMessage) rather
     // than merged into messages this response is about to replace.
     win.hasNewer = true;
@@ -1189,12 +1194,16 @@
       this.maybeMarkRead(win);
     } catch (_) {
       if (seq !== win.loadSeq) return;
+      win.loading = false;
       win.hasNewer = false;
       win.messages = mergeMessages(win.messages.filter((m) => !m.id), win.heldLive);
       win.heldLive = [];
       win.log.replaceChildren(el('li', 'pm-chat__system', 'Messages could not be loaded.'));
     } finally {
-      if (seq === win.loadSeq) win.syncing = false;
+      if (seq === win.loadSeq) {
+        win.syncing = false;
+        win.loading = false;
+      }
     }
   };
 
