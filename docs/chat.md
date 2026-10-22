@@ -55,8 +55,9 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **Group chats** (owner decisions, 2026-10-22): "New group" under the people search in the
   buddy list. A group has a name and up to 50 people (active accounts only).
   - **Any member can add people; only the manager can remove people or rename the group;
-    anyone can leave.** The manager is the creator; if they leave, the longest-standing member
-    becomes manager.
+    anyone can leave.** The manager is the creator; if they leave, or their account is
+    deactivated or removed, the longest-standing member with an active account becomes manager
+    (with none, the group has no manager).
   - Someone who leaves or is removed **loses access to the group's history**; their open
     window keeps what it showed, with the reply box closed.
   - Groups are listed above people in the buddy list, with unread counts, and on the Messages

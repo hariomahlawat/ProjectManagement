@@ -195,6 +195,25 @@ public sealed class ChatGroupServiceTests
     }
 
     [Fact]
+    public async Task AManagerWhoseAccountIsGone_IsReplacedWithoutLeaving()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        await scope.Groups.AddMembersAsync("bob", id, new[] { "carol" });
+        // Alice (the manager) is purged by account housekeeping; she never left the group.
+        scope.Db.Users.Remove(await scope.Db.Users.SingleAsync(u => u.Id == "alice"));
+        await scope.Db.SaveChangesAsync();
+
+        Assert.Equal("bob", (await scope.Groups.ListGroupsAsync("carol")).Single().ManagerUserId);
+        Assert.Equal("bob", (await scope.Groups.GetGroupAsync("carol", id))!.ManagerUserId);
+        Assert.Equal(ChatGroupStatus.Forbidden, (await scope.Groups.RenameAsync("carol", id, "Mine")).Status);
+
+        var renamed = await scope.Groups.RenameAsync("bob", id, "Bob's desk");
+        Assert.Equal(ChatGroupStatus.Ok, renamed.Status);
+        Assert.Equal("bob", (await scope.Db.ChatConversations.AsNoTracking().SingleAsync(c => c.Id == id)).ManagerUserId);
+    }
+
+    [Fact]
     public async Task AFailedChange_LeavesNothingBehind()
     {
         await using var scope = await GroupScope.CreateAsync();

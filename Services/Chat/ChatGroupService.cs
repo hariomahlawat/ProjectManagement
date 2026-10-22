@@ -77,8 +77,19 @@ public sealed class ChatGroupService
                 })
             .ToListAsync(cancellationToken);
 
+        // The stored manager may have lost their account since; show who actually manages it.
+        var managers = rows.Select(r => r.ManagerUserId).OfType<string>().Distinct().ToList();
+        var goneManagers = (await UnreachableAsync(managers, cancellationToken)).ToHashSet(StringComparer.Ordinal);
+        var effective = new Dictionary<long, string?>();
+        foreach (var row in rows)
+        {
+            effective[row.ConversationId] = row.ManagerUserId is not null && !goneManagers.Contains(row.ManagerUserId)
+                ? row.ManagerUserId
+                : await NextManagerAsync(row.ConversationId, cancellationToken);
+        }
+
         return rows
-            .Select(r => new ChatGroupSummaryDto(r.ConversationId, r.Title ?? string.Empty, r.ManagerUserId ?? string.Empty, r.MemberCount, r.Unread, r.LastMessageUtc))
+            .Select(r => new ChatGroupSummaryDto(r.ConversationId, r.Title ?? string.Empty, effective[r.ConversationId] ?? string.Empty, r.MemberCount, r.Unread, r.LastMessageUtc))
             .OrderByDescending(g => g.LastMessageUtc)
             .ThenBy(g => g.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -257,6 +268,7 @@ public sealed class ChatGroupService
             return ChatGroupChange.Fail(ChatGroupStatus.NotFound);
         }
 
+        await RepairManagerAsync(group, cancellationToken);
         if (!string.Equals(group.ManagerUserId, userId, StringComparison.Ordinal))
         {
             return ChatGroupChange.Fail(ChatGroupStatus.Forbidden, "Only the group's manager can remove people.");
@@ -297,6 +309,10 @@ public sealed class ChatGroupService
         {
             group.ManagerUserId = await NextManagerAsync(group.Id, cancellationToken);
         }
+        else
+        {
+            await RepairManagerAsync(group, cancellationToken);
+        }
 
         var notice = await AddEventAsync(group, userId, ChatGroupEvent.Left, userId, cancellationToken);
         var members = (await MemberIdsAsync(group.Id, cancellationToken)).ToList();
@@ -312,6 +328,7 @@ public sealed class ChatGroupService
             return ChatGroupChange.Fail(ChatGroupStatus.NotFound);
         }
 
+        await RepairManagerAsync(group, cancellationToken);
         if (!string.Equals(group.ManagerUserId, userId, StringComparison.Ordinal))
         {
             return ChatGroupChange.Fail(ChatGroupStatus.Forbidden, "Only the group's manager can rename it.");
@@ -531,6 +548,24 @@ public sealed class ChatGroupService
     }
 
     /// <summary>
+    /// Account removal (purge) and deactivation do not go through Leave, so the stored manager can
+    /// be someone whose account is gone or who is no longer in the group. Management then belongs
+    /// to the next active member: every read reports that person, and a management change (under
+    /// the group lock) stores it before checking who may act.
+    /// </summary>
+    private async Task RepairManagerAsync(ChatConversation group, CancellationToken cancellationToken)
+    {
+        var current = group.ManagerUserId;
+        var stillManages = current is not null
+            && (await UnreachableAsync(new[] { current }, cancellationToken)).Count == 0
+            && await _db.ChatParticipants.AnyAsync(p => p.ConversationId == group.Id && p.UserId == current, cancellationToken);
+        if (!stillManages)
+        {
+            group.ManagerUserId = await NextManagerAsync(group.Id, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// The longest-standing remaining member whose account is still active (ties broken by id, so
     /// it is stable), or null when none is: a purged or deactivated account keeps its membership
     /// row (no user foreign keys) but must not be handed a group nobody else could then manage.
@@ -639,10 +674,17 @@ public sealed class ChatGroupService
             .Select(u => new { u.Id, u.FullName, u.UserName, u.AccountKind, u.IsDisabled, u.PendingDeletion })
             .ToDictionaryAsync(u => u.Id, StringComparer.Ordinal, cancellationToken);
 
+        var manager = group.ManagerUserId;
+        if (manager is null || !users.TryGetValue(manager, out var m) || !ChatService.IsReachable(m.AccountKind, m.IsDisabled, m.PendingDeletion)
+            || !ids.Contains(manager, StringComparer.Ordinal))
+        {
+            manager = await NextManagerAsync(group.Id, cancellationToken);
+        }
+
         return new ChatGroupDto(
             group.Id,
             group.Title ?? string.Empty,
-            group.ManagerUserId ?? string.Empty,
+            manager ?? string.Empty,
             members.Select(m =>
             {
                 users.TryGetValue(m.UserId, out var u);
