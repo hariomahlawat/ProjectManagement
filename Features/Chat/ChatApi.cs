@@ -149,6 +149,7 @@ public static class ChatApi
 
     private static async Task<IResult> GetUnsentSinceAsync(
         [FromQuery(Name = "since")] DateTimeOffset? since,
+        [FromQuery(Name = "before")] long? beforeMessageId,
         HttpContext httpContext,
         ChatService chat,
         CancellationToken cancellationToken)
@@ -164,7 +165,7 @@ public static class ChatApi
         }
 
         SetNoStoreHeaders(httpContext.Response);
-        return Results.Ok(await chat.ListUnsentSinceAsync(userId, since.Value, cancellationToken));
+        return Results.Ok(await chat.ListUnsentSinceAsync(userId, since.Value, beforeMessageId, cancellationToken));
     }
 
     private static async Task<IResult> UnsendAsync(

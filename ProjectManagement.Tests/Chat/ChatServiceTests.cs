@@ -418,7 +418,31 @@ public sealed class ChatServiceTests
 
         var bob = await scope.Service.ListUnsentSinceAsync("bob", cutoff);
 
-        Assert.Equal(new[] { late.Message.Id }, bob);
+        Assert.Equal(new[] { late.Message.Id }, bob.Ids);
+        Assert.False(bob.HasMore);
+    }
+
+    [Fact]
+    public async Task UnsentSince_PagesInsteadOfCuttingShort()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var since = scope.Clock.UtcNow;
+        var expected = new List<long>();
+        for (var i = 0; i < ChatService.MaxUnsentSync + 3; i++)
+        {
+            var sent = await scope.Service.SendAsync("alice", Request("bob", $"m{i}"));
+            await scope.Service.UnsendAsync("alice", sent.Message!.Id);
+            expected.Add(sent.Message.Id);
+        }
+
+        var first = await scope.Service.ListUnsentSinceAsync("bob", since);
+        var second = await scope.Service.ListUnsentSinceAsync("bob", since, first.Ids.Min());
+
+        Assert.Equal(ChatService.MaxUnsentSync, first.Ids.Count);
+        Assert.True(first.HasMore);
+        Assert.Equal(3, second.Ids.Count);
+        Assert.False(second.HasMore);
+        Assert.Equal(expected.OrderBy(id => id), first.Ids.Concat(second.Ids).OrderBy(id => id));
     }
 
     private static ChatSendRequest Request(string recipient, string body)

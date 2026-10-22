@@ -305,7 +305,9 @@
     this.maxLength = Number(root.dataset.maxLength) || 4000;
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
     this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
-    this.offlineSince = null; // when live events stopped arriving, to catch up on missed unsends
+    // When live events stopped arriving (or, until the first connection, when this page started
+    // loading history), so unsends in between can be caught up on once connected.
+    this.offlineSince = new Date();
     this.myStatus = null;
     this.storageKey = `prism.chat.dock.${this.me}`;
     this.soundKey = `prism.chat.sound.${this.me}`;
@@ -556,8 +558,17 @@
       this.unsentRetry = null;
     }
     const since = new Date(this.offlineSince.getTime() - 60000); // allow for clock skew
+    const base = `/unsent?since=${encodeURIComponent(since.toISOString())}`;
     try {
-      const ids = await this.request('GET', `/unsent?since=${encodeURIComponent(since.toISOString())}`);
+      // Read every page: the watermark is only cleared once nothing was skipped.
+      const ids = [];
+      let before = null;
+      for (let guard = 0; guard < 200; guard += 1) {
+        const page = await this.request('GET', before ? `${base}&before=${before}` : base);
+        ids.push(...page.ids);
+        if (!page.hasMore || !page.ids.length) break;
+        before = Math.min(...page.ids);
+      }
       ids.forEach((id) => this.unsentIds.add(id));
       if (ids.length) {
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));

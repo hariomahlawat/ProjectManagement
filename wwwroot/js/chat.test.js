@@ -944,7 +944,7 @@ test('unsends missed while offline are applied on reconnect, also to older loade
     if (url.endsWith('/contacts')) return [contact];
     if (url.includes('/unsent?since=')) {
       asked.push(url);
-      return [1];
+      return { ids: [1], hasMore: false };
     }
     if (url.includes('/messages')) return pageOf([1, 2], false);
     return { status: 204, body: null };
@@ -1001,7 +1001,7 @@ test('a failed unsend catch-up after reconnecting is retried until it succeeds',
     if (url.endsWith('/contacts')) return [contact];
     if (url.includes('/unsent?since=')) {
       if (failures > 0) { failures -= 1; return { status: 500, body: {} }; }
-      return [1];
+      return { ids: [1], hasMore: false };
     }
     if (url.includes('/messages')) return pageOf([1, 2], false);
     return { status: 204, body: null };
@@ -1020,6 +1020,59 @@ test('a failed unsend catch-up after reconnecting is retried until it succeeds',
     assert.equal(app.unsentRetry, null);
     assert.equal(app.offlineSince, null);
     assert.equal(win.messages.find((m) => m.id === 1).isUnsent, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('unsends between the first history load and the first connection are caught up', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) {
+      asked.push(url);
+      return { ids: [1], hasMore: false };
+    }
+    if (url.includes('/messages')) return pageOf([1, 2], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    assert.ok(app.offlineSince, 'tracking starts with the page, before any connection');
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.resync(); // what the first successful connection does
+    await tick(); await tick(); await tick();
+    assert.equal(asked.length, 1);
+    assert.equal(win.messages.find((m) => m.id === 1).isUnsent, true);
+    assert.equal(app.offlineSince, null);
+  } finally {
+    window.close();
+  }
+});
+
+test('unsend catch-up reads every page before counting itself done', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsent?since=')) {
+      asked.push(url);
+      return url.includes('before=') ? { ids: [3, 1], hasMore: false } : { ids: [9, 7], hasMore: true };
+    }
+    if (url.includes('/messages')) return pageOf([1, 2, 3], false);
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    await app.syncUnsent(true);
+    assert.equal(asked.length, 2);
+    assert.ok(asked[1].includes('before=7'));
+    assert.deepEqual(Array.from(win.messages.filter((m) => m.isUnsent), (m) => m.id), [1, 3]);
+    assert.equal(app.offlineSince, null);
   } finally {
     window.close();
   }

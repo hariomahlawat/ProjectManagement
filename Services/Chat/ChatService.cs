@@ -462,21 +462,26 @@ public sealed class ChatService
     /// so a page that missed live unsend events (connection down) can blank them. Bounded: unsend is
     /// only possible shortly after sending, and the caller passes when it lost its connection.
     /// </summary>
-    public async Task<IReadOnlyList<long>> ListUnsentSinceAsync(
+    public async Task<ChatUnsentPageDto> ListUnsentSinceAsync(
         string userId,
         DateTimeOffset since,
+        long? beforeMessageId = null,
         CancellationToken cancellationToken = default)
     {
-        return await (
+        var page = await (
                 from mine in _db.ChatParticipants.AsNoTracking()
                 where mine.UserId == userId
                 join m in _db.ChatMessages.AsNoTracking()
                     on mine.ConversationId equals m.ConversationId
                 where m.UnsentUtc != null && m.UnsentUtc >= since
+                    && (beforeMessageId == null || m.Id < beforeMessageId)
                 orderby m.Id descending
                 select m.Id)
-            .Take(MaxUnsentSync)
+            .Take(MaxUnsentSync + 1)
             .ToListAsync(cancellationToken);
+
+        // Paged, never silently cut short: the caller keeps asking while HasMore is set.
+        return new ChatUnsentPageDto(page.Take(MaxUnsentSync).ToList(), page.Count > MaxUnsentSync);
     }
 
     public async Task<string?> GetStatusAsync(string userId, CancellationToken cancellationToken = default)

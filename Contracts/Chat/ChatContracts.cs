@@ -60,6 +60,11 @@ public sealed record ChatStatusDto(string UserId, string? Message);
 
 public sealed record ChatStatusRequest(string? Message);
 
+/// <summary>
+/// Unsent message ids, newest first. HasMore: ask again with before = the smallest id here.
+/// </summary>
+public sealed record ChatUnsentPageDto(IReadOnlyList<long> Ids, bool HasMore);
+
 /// <summary>One search hit: the message and who the conversation is with.</summary>
 public sealed record ChatSearchHitDto(
     long MessageId,
