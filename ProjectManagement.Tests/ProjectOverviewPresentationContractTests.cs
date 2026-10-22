@@ -47,6 +47,20 @@ public sealed class ProjectOverviewPresentationContractTests
     }
 
     [Fact]
+    public void LatestUpdate_IsAFullWidthBandUnderTheStrip_NotATile()
+    {
+        var header = ReadRepoFile("Pages", "Projects", "_ProjectCommandHeader.cshtml");
+        var tiles = ReadRepoFile("Pages", "Projects", "_ProjectHeaderTile.cshtml");
+
+        var strip = header.IndexOf("project-intelligence-strip", StringComparison.Ordinal);
+        var band = header.IndexOf("data-latest-update", StringComparison.Ordinal);
+        Assert.True(strip >= 0 && band > strip, "The latest-update band follows the tile strip.");
+        Assert.Contains("data-latest-update-toggle", header, StringComparison.Ordinal);
+        Assert.Contains("href=\"#remarks\" data-project-open-remarks", header, StringComparison.Ordinal);
+        Assert.DoesNotContain("Last update", tiles, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RecordScores_UseDistinctAndAccurateLabels()
     {
         // The header strip's tiles live in _ProjectHeaderTile, shared with the overview card.

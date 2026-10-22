@@ -145,4 +145,34 @@
             @await Html.PartialAsync("_ProjectHeaderTile", Model, new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["HeaderTile"] = tile })
         }
     </div>
+    @if (Model.HeaderStrip.ShowsLastUpdate)
+    {
+        var update = Model.HeaderStrip.LastUpdate;
+        @* A remark is prose, so it reads at full width: three lines, then "Show more"
+           (project-portfolio.js) reveals the rest in place. *@
+        <section class="project-latest-update@(update.HasRemark ? null : " project-latest-update--empty")"
+                 aria-labelledby="project-latest-update-label"
+                 data-latest-update>
+            <div class="project-latest-update__head">
+                <h2 id="project-latest-update-label" class="project-latest-update__label">
+                    <i class="bi bi-chat-left-text" aria-hidden="true"></i>Latest update
+                </h2>
+                <span class="project-latest-update__meta@(update.IsStale ? " project-latest-update__meta--stale" : null)">@update.Meta</span>
+                @if (update.HasRemark)
+                {
+                    <a class="project-latest-update__all" href="#remarks" data-project-open-remarks>All remarks</a>
+                }
+            </div>
+            <p id="project-latest-update-text" class="project-latest-update__text" data-latest-update-text>@update.Text</p>
+            @if (update.HasRemark)
+            {
+                <button type="button"
+                        class="project-latest-update__more"
+                        aria-expanded="false"
+                        aria-controls="project-latest-update-text"
+                        data-latest-update-toggle
+                        hidden>Show more</button>
+            }
+        </section>
+    }
 </section>

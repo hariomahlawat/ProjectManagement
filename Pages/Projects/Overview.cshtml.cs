@@ -1685,7 +1685,7 @@ namespace ProjectManagement.Pages.Projects
                 LastRemarkType = lastRemark?.Type,
                 LastRemarkActorRole = lastRemark?.AuthorRole,
                 LastActivityUtc = lastRemark?.CreatedAtUtc,
-                LastRemarkPreview = ProjectHeaderStripBuilder.RemarkPreview(lastRemark?.Body),
+                LastRemarkText = ProjectHeaderStripBuilder.RemarkText(lastRemark?.Body),
                 LastRemarkAuthorDisplayName = authorDisplayName
             };
         }
