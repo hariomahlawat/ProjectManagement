@@ -62,6 +62,18 @@ public sealed class ProjectContentPresentationContractTests
     }
 
     [Fact]
+    public void WritingGuidance_AndLengthChips_ShowOnlyToEditors()
+    {
+        var partial = ReadRepoFile("Pages", "Projects", "_ProjectContentTabs.cshtml");
+
+        // Readers see the content; the word-count advice and readiness chips are for whoever writes it.
+        Assert.Matches(@"@if \(canEdit\)\s*\{\s*<div class=""project-content__guidance"">\s*Recommended:", partial);
+        Assert.Matches(@"@if \(canEdit\)\s*\{\s*<div class=""project-content__guidance"">\s*Use @ProjectFieldLimits", partial);
+        Assert.Matches(@"@if \(canEdit\)\s*\{\s*<span class=""project-content__status @briefStatusClass"">", partial);
+        Assert.Matches(@"@if \(canEdit\)\s*\{\s*<span class=""project-content__status @capabilityStatusClass"">", partial);
+    }
+
+    [Fact]
     public void DescriptionPreview_UsesAuthoritativeServerMarkdownRenderer()
     {
         var pageModel = ReadRepoFile("Pages", "Projects", "Overview.Content.cs");

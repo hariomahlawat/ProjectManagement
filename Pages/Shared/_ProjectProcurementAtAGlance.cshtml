@@ -5,25 +5,8 @@
 @using ProjectManagement.Areas.ProjectOfficeReports.Application
 @inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
 @{
-    string ShortInr(decimal value)
-    {
-        var culture = CultureInfo.GetCultureInfo("en-IN");
-        var abs = System.Math.Abs(value);
-
-        if (abs >= 1_00_00_000m)
-        {
-            return $"₹ {(value / 1_00_00_000m).ToString("0.##", culture)} Cr";
-        }
-
-        if (abs >= 1_00_000m)
-        {
-            return $"₹ {(value / 1_00_000m).ToString("0.##", culture)} Lakh";
-        }
-
-        return value.ToString("C2", culture);
-    }
-
-    string Money(decimal? value) => value.HasValue ? ShortInr(value.Value) : "—";
+    // The shared formatter, so the header's Latest cost tile and this card read the same.
+    string Money(decimal? value) => value.HasValue ? IndianCurrencyFormatter.FormatCompact(value.Value) : "—";
     string FullInr(decimal? value) => value.HasValue ? value.Value.ToString("C2", CultureInfo.GetCultureInfo("en-IN")) : "—";
     string DateDmy(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
 
@@ -184,8 +167,10 @@
       }
       else if (ipaPosition?.IsLegacyFallback == true)
       {
-        <div class="mt-2 small text-muted">
-          IPA source: legacy project record. ARPP will become authoritative after this project is linked to an ARPP entry.
+        <div class="mt-2 small text-muted"
+             title="IPA source: legacy project record. ARPP will become authoritative after this project is linked to an ARPP entry.">
+          Source: legacy project record <i class="bi bi-info-circle" aria-hidden="true"></i>
+          <span class="visually-hidden">. ARPP will become authoritative after this project is linked to an ARPP entry.</span>
         </div>
       }
       else
