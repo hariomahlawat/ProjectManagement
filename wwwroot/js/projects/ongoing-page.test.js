@@ -81,3 +81,29 @@ test('a loaded cover photo is kept', () => {
 
     assert.ok(window.document.querySelector('.ongoing-card__thumb-img'));
 });
+
+test('stage and category chips add and remove their own hidden values, then submit', () => {
+    const window = createDom(`
+<button type="button" class="js-stage-bucket-chip" data-stage-bucket="procurement">Tender</button>
+<button type="button" class="js-stage-bucket-chip" data-stage-bucket="development">Development</button>
+<button type="button" class="js-kpi-chip" data-category-id="3">DCD</button>`);
+    const form = window.document.getElementById('ongoingProjectsFilterForm');
+    // One stage is already selected when the page loads.
+    form.insertAdjacentHTML('beforeend', '<input type="hidden" name="Stage" value="procurement">');
+    let submits = 0;
+    form.requestSubmit = () => { submits += 1; };
+
+    run(window);
+    const values = (name) => Array.from(form.querySelectorAll(`input[type="hidden"][name="${name}"]`)).map((input) => input.value);
+    const [tender, development] = window.document.querySelectorAll('.js-stage-bucket-chip');
+
+    development.click();
+    assert.deepEqual(values('Stage'), ['procurement', 'development']);
+
+    tender.click();
+    assert.deepEqual(values('Stage'), ['development']);
+
+    window.document.querySelector('.js-kpi-chip').click();
+    assert.deepEqual(values('Category'), ['3']);
+    assert.equal(submits, 3);
+});

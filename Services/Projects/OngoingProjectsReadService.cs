@@ -51,12 +51,34 @@ namespace ProjectManagement.Services.Projects
             _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
         }
 
-        public async Task<IReadOnlyList<OngoingProjectRowDto>> GetAsync(
+        public Task<IReadOnlyList<OngoingProjectRowDto>> GetAsync(
             int? projectCategoryId,
             string? leadPoUserId,
             string? search,
             string? presentStageCode,
             string? stageBucket,
+            string? stageFlow,
+            CancellationToken cancellationToken)
+            => GetAsync(
+                SingleCategory(projectCategoryId),
+                leadPoUserId,
+                search,
+                presentStageCode,
+                SingleBucket(stageBucket),
+                stageFlow,
+                cancellationToken);
+
+        /// <summary>
+        /// Multi-select form: a project matches when its category is under any of
+        /// <paramref name="projectCategoryIds"/> and its current stage is in any of
+        /// <paramref name="stageBuckets"/>. An empty list means no filter.
+        /// </summary>
+        public async Task<IReadOnlyList<OngoingProjectRowDto>> GetAsync(
+            IReadOnlyCollection<int> projectCategoryIds,
+            string? leadPoUserId,
+            string? search,
+            string? presentStageCode,
+            IReadOnlyCollection<string> stageBuckets,
             string? stageFlow,
             CancellationToken cancellationToken)
         {
@@ -67,7 +89,7 @@ namespace ProjectManagement.Services.Projects
 
             q = await ApplyProjectScopeFiltersAsync(
                 q,
-                projectCategoryId,
+                projectCategoryIds,
                 leadPoUserId,
                 search,
                 cancellationToken);
@@ -204,7 +226,7 @@ namespace ProjectManagement.Services.Projects
                         StringComparer.Ordinal,
                         cancellationToken);
 
-            var selectedStageBucket = ParseStageBucketFilter(stageBucket);
+            var selectedStageBuckets = ParseStageBucketFilters(stageBuckets);
             var result = new List<OngoingProjectRowDto>(projects.Count);
             var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
 
@@ -347,7 +369,7 @@ namespace ProjectManagement.Services.Projects
                     continue;
                 }
 
-                if (selectedStageBucket.HasValue && StageBuckets.Of(stageDtos[currentIndex].Code) != selectedStageBucket.Value)
+                if (selectedStageBuckets.Count > 0 && !selectedStageBuckets.Contains(StageBuckets.Of(stageDtos[currentIndex].Code)))
                 {
                     continue;
                 }
@@ -509,18 +531,77 @@ namespace ProjectManagement.Services.Projects
                 .ToList();
         }
 
-        public async Task<OngoingStageBucketCountsDto> GetStageBucketCountsAsync(
+        public Task<OngoingStageBucketCountsDto> GetStageBucketCountsAsync(
             int? projectCategoryId,
             string? leadPoUserId,
             string? search,
             CancellationToken cancellationToken)
-        {
-            // SECTION: Build the same project scope as the row query without loading row-only details
-            var q = BuildActiveProjectsQuery();
+            => GetStageBucketCountsAsync(SingleCategory(projectCategoryId), leadPoUserId, search, cancellationToken);
 
-            q = await ApplyProjectScopeFiltersAsync(
-                q,
-                projectCategoryId,
+        /// <summary>
+        /// Stage bucket counts for the chips: every filter applies except the stage filters,
+        /// so each count says what selecting that bucket would show.
+        /// </summary>
+        public async Task<OngoingStageBucketCountsDto> GetStageBucketCountsAsync(
+            IReadOnlyCollection<int> projectCategoryIds,
+            string? leadPoUserId,
+            string? search,
+            CancellationToken cancellationToken)
+        {
+            var projects = await LoadCurrentStagesAsync(projectCategoryIds, leadPoUserId, search, cancellationToken);
+            if (projects.Count == 0)
+            {
+                return OngoingStageBucketCountsDto.Empty;
+            }
+
+            var counts = new OngoingStageBucketCountsDto();
+            foreach (var project in projects)
+            {
+                counts.Add(StageBuckets.Of(project.CurrentStageCode));
+            }
+
+            return counts;
+        }
+
+        /// <summary>
+        /// Project counts by category id for the category chips: every filter applies except
+        /// the category filter. Projects without a category are left out.
+        /// </summary>
+        public async Task<IReadOnlyDictionary<int, int>> GetCategoryCountsAsync(
+            string? leadPoUserId,
+            string? search,
+            string? presentStageCode,
+            IReadOnlyCollection<string> stageBuckets,
+            CancellationToken cancellationToken)
+        {
+            var projects = await LoadCurrentStagesAsync(Array.Empty<int>(), leadPoUserId, search, cancellationToken);
+            var buckets = ParseStageBucketFilters(stageBuckets);
+
+            return projects
+                .Where(project => project.CategoryId.HasValue)
+                .Where(project => string.IsNullOrWhiteSpace(presentStageCode)
+                    || string.Equals(project.CurrentStageCode, presentStageCode, StringComparison.OrdinalIgnoreCase))
+                .Where(project => buckets.Count == 0 || buckets.Contains(StageBuckets.Of(project.CurrentStageCode)))
+                .GroupBy(project => project.CategoryId!.Value)
+                .ToDictionary(group => group.Key, group => group.Count());
+        }
+
+        /// <summary>All ongoing projects, before any filter.</summary>
+        public Task<int> CountAllAsync(CancellationToken cancellationToken)
+            => BuildActiveProjectsQuery().CountAsync(cancellationToken);
+
+        // SECTION: Current stage of each project in scope, without row-only details
+        private sealed record CurrentStageRow(int ProjectId, int? CategoryId, string CurrentStageCode);
+
+        private async Task<IReadOnlyList<CurrentStageRow>> LoadCurrentStagesAsync(
+            IReadOnlyCollection<int> projectCategoryIds,
+            string? leadPoUserId,
+            string? search,
+            CancellationToken cancellationToken)
+        {
+            var q = await ApplyProjectScopeFiltersAsync(
+                BuildActiveProjectsQuery(),
+                projectCategoryIds,
                 leadPoUserId,
                 search,
                 cancellationToken);
@@ -530,13 +611,14 @@ namespace ProjectManagement.Services.Projects
                 .Select(p => new
                 {
                     p.Id,
+                    p.CategoryId,
                     p.WorkflowVersion
                 })
                 .ToListAsync(cancellationToken);
 
             if (projects.Count == 0)
             {
-                return OngoingStageBucketCountsDto.Empty;
+                return Array.Empty<CurrentStageRow>();
             }
 
             var projectIds = projects.Select(p => p.Id).ToArray();
@@ -559,20 +641,16 @@ namespace ProjectManagement.Services.Projects
                     g => g.Key,
                     g => g.ToDictionary(s => s.StageCode, s => s.Status, StringComparer.OrdinalIgnoreCase));
 
-            var counts = new OngoingStageBucketCountsDto();
-
-            foreach (var project in projects)
-            {
-                var currentStageCode = ResolveCurrentStageCode(
-                    project.WorkflowVersion,
-                    stagesByProject.TryGetValue(project.Id, out var stageStatuses)
-                        ? stageStatuses
-                        : EmptyStageStatuses);
-
-                counts.Add(StageBuckets.Of(currentStageCode));
-            }
-
-            return counts;
+            return projects
+                .Select(project => new CurrentStageRow(
+                    project.Id,
+                    project.CategoryId,
+                    ResolveCurrentStageCode(
+                        project.WorkflowVersion,
+                        stagesByProject.TryGetValue(project.Id, out var stageStatuses)
+                            ? stageStatuses
+                            : EmptyStageStatuses)))
+                .ToList();
         }
 
         /// <summary>
@@ -629,15 +707,16 @@ namespace ProjectManagement.Services.Projects
 
         private async Task<IQueryable<Project>> ApplyProjectScopeFiltersAsync(
             IQueryable<Project> query,
-            int? projectCategoryId,
+            IReadOnlyCollection<int> projectCategoryIds,
             string? leadPoUserId,
             string? search,
             CancellationToken cancellationToken)
         {
-            // SECTION: Category filtering
-            if (projectCategoryId is { } catId && catId > 0)
+            // SECTION: Category filtering (any of the selected categories and their sub-categories)
+            var rootIds = projectCategoryIds.Where(id => id > 0).Distinct().ToArray();
+            if (rootIds.Length > 0)
             {
-                var categoryScopeIds = await GetCategoryScopeIdsAsync(catId, cancellationToken);
+                var categoryScopeIds = await GetCategoryScopeIdsAsync(rootIds, cancellationToken);
                 query = query.Where(p => p.CategoryId.HasValue && categoryScopeIds.Contains(p.CategoryId.Value));
             }
 
@@ -685,7 +764,7 @@ namespace ProjectManagement.Services.Projects
         }
 
         // -------------------- Category scope helpers --------------------
-        private async Task<int[]> GetCategoryScopeIdsAsync(int rootCategoryId, CancellationToken cancellationToken)
+        private async Task<int[]> GetCategoryScopeIdsAsync(IReadOnlyCollection<int> rootCategoryIds, CancellationToken cancellationToken)
         {
             var categories = await _db.ProjectCategories
                 .AsNoTracking()
@@ -697,10 +776,9 @@ namespace ProjectManagement.Services.Projects
                 .GroupBy(c => c.ParentId!.Value)
                 .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
 
-            var collectedIds = new List<int> { rootCategoryId };
+            var collectedIds = rootCategoryIds.Distinct().ToList();
             var collectedSet = new HashSet<int>(collectedIds);
-            var toVisit = new Queue<int>();
-            toVisit.Enqueue(rootCategoryId);
+            var toVisit = new Queue<int>(collectedIds);
 
             while (toVisit.Count > 0)
             {
@@ -725,6 +803,20 @@ namespace ProjectManagement.Services.Projects
 
             return collectedIds.ToArray();
         }
+
+        // SECTION: Single-value filters in their multi-select form
+        private static IReadOnlyCollection<int> SingleCategory(int? projectCategoryId)
+            => projectCategoryId is { } id && id > 0 ? new[] { id } : Array.Empty<int>();
+
+        private static IReadOnlyCollection<string> SingleBucket(string? stageBucket)
+            => string.IsNullOrWhiteSpace(stageBucket) ? Array.Empty<string>() : new[] { stageBucket };
+
+        private static HashSet<StageBucket> ParseStageBucketFilters(IReadOnlyCollection<string> values)
+            => values
+                .Select(ParseStageBucketFilter)
+                .Where(bucket => bucket.HasValue)
+                .Select(bucket => bucket!.Value)
+                .ToHashSet();
 
         // SECTION: Stage bucket filter parsing
         private static StageBucket? ParseStageBucketFilter(string? value)

@@ -1082,3 +1082,223 @@ table.ongoing-table td.col-remarks .pm-remark-text {
 :where([data-bs-theme="dark"]) .briefing-stage__date--attention {
     color: #fbbf24;
 }
+
+/* ============================================================
+   Top section: two rows with multi-select stage and category chips.
+   Theme tokens only, so Light and Dark follow the site palette.
+   ============================================================ */
+.ongoing-head {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    margin-bottom: 1rem;
+    padding: .9rem 1.1rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 14px;
+    background: var(--pm-card);
+}
+
+.ongoing-head__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .6rem 1.25rem;
+}
+
+.ongoing-head__row--tools {
+    gap: .6rem;
+}
+
+.ongoing-head__identity {
+    flex: 0 0 auto;
+    min-width: 12rem;
+}
+
+.ongoing-head__title {
+    margin: 0;
+    color: var(--pm-text-strong);
+    font-size: 1.5rem;
+    font-weight: 750;
+    line-height: 1.15;
+}
+
+.ongoing-head__count {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    margin: .1rem 0 0;
+    color: var(--pm-text-secondary);
+    font-size: .84rem;
+}
+
+.ongoing-head__count strong {
+    color: var(--pm-text-strong);
+}
+
+.ongoing-head__clear {
+    color: var(--pm-primary-strong);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ongoing-head__clear:hover,
+.ongoing-head__clear:focus-visible {
+    text-decoration: underline;
+}
+
+.ongoing-head__stages {
+    display: flex;
+    flex: 3 1 30rem;
+    min-width: 0;
+    overflow-x: auto;
+    border: 1px solid var(--pm-border-strong);
+    border-radius: 10px;
+}
+
+.ongoing-head__seg,
+.ongoing-head__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 2.5rem;
+    color: var(--pm-text);
+    font-size: .88rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.ongoing-head__seg {
+    flex: var(--grow, 3) 1 0;
+    justify-content: center;
+    min-width: 6rem;
+    padding: 0 .75rem;
+    border: 0;
+    border-right: 1px solid var(--pm-border);
+    background: var(--pm-surface-subtle);
+}
+
+.ongoing-head__seg:last-child {
+    border-right: 0;
+}
+
+.ongoing-head__categories {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+
+.ongoing-head__chip {
+    padding: 0 .85rem;
+    border: 1px solid var(--pm-border-strong);
+    border-radius: 999px;
+    background: var(--pm-card);
+}
+
+.ongoing-head__seg strong,
+.ongoing-head__chip strong {
+    color: var(--pm-text-strong);
+    font-size: .98rem;
+    font-weight: 750;
+}
+
+.ongoing-head__seg.is-active,
+.ongoing-head__chip.is-active {
+    color: var(--pm-primary-strong);
+    background: var(--pm-primary-soft);
+}
+
+.ongoing-head__seg.is-active {
+    box-shadow: inset 0 0 0 2px var(--pm-primary);
+}
+
+.ongoing-head__chip.is-active {
+    border-color: var(--pm-primary);
+}
+
+.ongoing-head__seg.is-active strong,
+.ongoing-head__chip.is-active strong {
+    color: var(--pm-primary-strong);
+}
+
+.ongoing-head__seg.is-empty,
+.ongoing-head__chip.is-empty,
+.ongoing-head__seg.is-empty strong,
+.ongoing-head__chip.is-empty strong {
+    color: var(--pm-text-secondary);
+}
+
+.ongoing-head__seg:focus-visible,
+.ongoing-head__chip:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: -2px;
+}
+
+.ongoing-head__tick {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    color: var(--pm-card);
+    background: var(--pm-primary);
+    font-size: .7rem;
+}
+
+.ongoing-head__search {
+    flex: 2 1 16rem;
+    min-height: 2.5rem;
+}
+
+.ongoing-head__select {
+    flex: 1 1 12rem;
+    width: auto;
+    min-height: 2.5rem;
+}
+
+.ongoing-head__order {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 2.5rem;
+}
+
+.ongoing-head__divider {
+    width: 1px;
+    height: 1.75rem;
+    background: var(--pm-border);
+}
+
+.ongoing-head__export {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 2.5rem;
+}
+
+@media (max-width: 640px) {
+    .ongoing-head__identity {
+        flex-basis: 100%;
+    }
+
+    /* Four stage chips as a 2 x 2 grid rather than a strip that scrolls sideways. */
+    .ongoing-head__stages {
+        display: grid;
+        flex-basis: 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1px;
+        overflow: hidden;
+        background: var(--pm-border);
+    }
+
+    .ongoing-head__seg {
+        min-width: 0;
+        border-right: 0;
+    }
+
+    .ongoing-head__divider {
+        display: none;
+    }
+}

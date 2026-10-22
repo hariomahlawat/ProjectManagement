@@ -80,7 +80,7 @@ function createHarness() {
 
   return {
     search: controls.Search,
-    category: controls.ProjectCategoryId,
+    officer: controls.ProjectOfficerId,
     submitCount: () => submitCount,
     timerCount: () => timerCount,
   };
@@ -115,8 +115,8 @@ test('composition, held Enter, and other keys do not submit', () => {
 
 test('non-search filters continue to auto-submit', () => {
   const harness = createHarness();
-  harness.category.value = '4';
-  harness.category.dispatch('change');
+  harness.officer.value = 'officer-4';
+  harness.officer.dispatch('change');
 
   assert.equal(harness.submitCount(), 1);
 });
