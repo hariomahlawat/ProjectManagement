@@ -499,9 +499,10 @@
     margin-bottom: .5rem;
 }
 
-/* Inside the open completed group the title already says "completed": each row keeps its
-   status pill for screen readers and scripts but does not show it, and rows sit tighter. */
-.pm-completed-group [data-stage-status-pill] {
+/* Inside the open completed group the title already says "completed": each completed row
+   keeps its status pill for screen readers and scripts but does not show it, and rows sit
+   tighter. Skipped rows keep their visible "Skipped" pill, their only status label. */
+.pm-completed-group .pm-item.is-complete [data-stage-status-pill] {
     position: absolute;
     width: 1px;
     height: 1px;
