@@ -16,6 +16,6 @@ public sealed class ProjectRemarkSummaryViewModel
     public int? LastRemarkId { get; init; }
     public RemarkType? LastRemarkType { get; init; }
     public RemarkActorRole? LastRemarkActorRole { get; init; }
-    public string? LastRemarkPreview { get; init; }
+    public string? LastRemarkText { get; init; }
     public string? LastRemarkAuthorDisplayName { get; init; }
 }
