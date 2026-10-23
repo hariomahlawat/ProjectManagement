@@ -3,6 +3,11 @@
 ###############################################################################
 * text=auto
 
+# Committed Notebook build output (see ProjectManagement.csproj NotebookAssetOutputs).
+# esbuild always writes LF; check it out as LF too so a local build leaves the tree clean
+# instead of showing phantom modifications under core.autocrlf=true.
+wwwroot/dist/** text eol=lf
+
 ###############################################################################
 # Set default behavior for command prompt diff.
 #
