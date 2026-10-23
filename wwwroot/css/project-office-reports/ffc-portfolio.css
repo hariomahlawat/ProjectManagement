@@ -11,6 +11,33 @@
     padding-bottom: 2rem;
 }
 
+/* A record with no projects yet: a plain note and, for managers, a way to add one. */
+.ffc-portfolio-row__units--empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.75rem;
+}
+
+.ffc-portfolio-row__no-projects {
+    color: var(--ffc-text-muted);
+    font-size: 0.82rem;
+    font-style: italic;
+}
+
+.ffc-portfolio-row__add-project {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ffc-portfolio-row__add-project:hover {
+    text-decoration: underline;
+}
+
 .ffc-portfolio .dropdown-item {
     display: flex;
     align-items: center;

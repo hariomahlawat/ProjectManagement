@@ -47,9 +47,9 @@
 
     static string LifecycleLabel(ProjectLifecycleStatus? status) => status switch
     {
-        ProjectLifecycleStatus.Completed => "Completed",
-        ProjectLifecycleStatus.Cancelled => "Cancelled",
-        ProjectLifecycleStatus.Active => "Active",
+        ProjectLifecycleStatus.Completed => "Project completed",
+        ProjectLifecycleStatus.Cancelled => "Project cancelled",
+        ProjectLifecycleStatus.Active => "Project active",
         _ => string.Empty
     };
 
@@ -115,6 +115,28 @@
                 </div>
             </div>
 
+            @if (Model.ProjectCount == 0)
+            {
+                @* Nothing to deliver or install yet: say so, rather than "Delivery pending". *@
+                <div class="ffc-portfolio-row__units ffc-portfolio-row__units--empty">
+                    <span class="ffc-portfolio-row__no-projects">No projects yet</span>
+                    @if (canManage)
+                    {
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/Records/Details"
+                           asp-route-id="@Model.RecordId"
+                           asp-route-editor="project"
+                           asp-route-returnUrl="@currentReturnUrl"
+                           class="ffc-portfolio-row__add-project"
+                           data-ffc-row-link>
+                            <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                            Add project
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
             <div class="ffc-portfolio-row__units">
                 <div class="ffc-row-unit-numbers">
                     <span><strong>@Model.InstalledUnits</strong> installed</span>
@@ -139,6 +161,7 @@
                     <span class="ffc-status-chip @CompletionClass(Model.InstallationState)">Installation @CompletionLabel(Model.InstallationState)</span>
                 </div>
             </div>
+            }
 
             <div class="ffc-portfolio-row__position">
                 <div class="ffc-portfolio-row__position-label">Current status</div>

@@ -3,6 +3,14 @@
 
 @{
     var canEdit = ProjectOfficeReportsPolicies.CanInlineEditFfc(User);
+
+    // Status chip colours follow the three quantity positions (FfcQueryService row status).
+    static string StatusClass(string? status) => status switch
+    {
+        "Installed" => "ffc-dtable__status--installed",
+        "Delivered (not installed)" => "ffc-dtable__status--delivered",
+        _ => "ffc-dtable__status--planned"
+    };
     var returnUrl = $"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}";
 }
 
@@ -78,8 +86,8 @@ else
                         var progressStatusId = $"ffc-progress-{row.FfcProjectId}";
 
                         <tr class="ffc-dtable__project-row">
-                            <td class="text-center text-muted ffc-dtable__number ffc-dtable__serial-cell">@row.Serial</td>
-                            <td class="ffc-dtable__project-name ffc-dtable__project-cell">
+                            <td class="text-center text-muted ffc-dtable__number ffc-dtable__serial-cell" data-label="S. No.">@row.Serial</td>
+                            <td class="ffc-dtable__project-name ffc-dtable__project-cell" data-label="Project">
                                 @if (row.LinkedProjectId.HasValue)
                                 {
                                     <a asp-page="/Projects/Overview" asp-route-id="@row.LinkedProjectId">@row.ProjectName</a>
@@ -89,7 +97,7 @@ else
                                     @row.ProjectName
                                 }
                             </td>
-                            <td class="text-end ffc-dtable__number ffc-dtable__number-cell">
+                            <td class="text-end ffc-dtable__number ffc-dtable__number-cell" data-label="Cost (₹ lakh)">
                                 @if (row.CostInCr.HasValue)
                                 {
                                     var costInLakh = row.CostInCr.Value * 100m;
@@ -100,9 +108,10 @@ else
                                     @:—
                                 }
                             </td>
-                            <td class="text-end ffc-dtable__number ffc-dtable__number-cell">@row.Quantity.ToString("N0")</td>
-                            <td class="ffc-dtable__status-cell"><span class="ffc-dtable__status-label">@row.Status</span></td>
+                            <td class="text-end ffc-dtable__number ffc-dtable__number-cell" data-label="Quantity">@row.Quantity.ToString("N0")</td>
+                            <td class="ffc-dtable__status-cell" data-label="Status"><span class="ffc-dtable__status-label @StatusClass(row.Status)">@row.Status</span></td>
                             <td class="ffc-dtable__progress-cell"
+                                data-label="Current progress"
                                 data-kind="progress"
                                 data-ffc-project-id="@row.FfcProjectId"
                                 data-linked-project-id="@(row.LinkedProjectId?.ToString() ?? string.Empty)"
@@ -114,9 +123,7 @@ else
                                 {
                                     <div class="display-text ffc-dtable__narrative" data-expandable>
                                         <span id="@progressStatusId"
-                                              class="display-value ffc-dtable__narrative-text ffc-dtable__clamp@(progressHasValue ? string.Empty : " text-muted fst-italic")">
-                                            @(progressHasValue ? progressText : "No progress recorded.")
-                                        </span>
+                                              class="display-value ffc-dtable__narrative-text ffc-dtable__clamp@(progressHasValue ? string.Empty : " text-muted fst-italic")">@(progressHasValue ? progressText : "No progress recorded.")</span>
                                         <button type="button"
                                                 class="btn btn-link btn-sm p-0 ffc-dtable__expand js-expand-status d-none"
                                                 aria-expanded="false"
@@ -138,9 +145,7 @@ else
                                 {
                                     <div class="ffc-dtable__narrative" data-expandable>
                                         <span id="@progressStatusId"
-                                              class="ffc-dtable__narrative-text ffc-dtable__clamp@(progressHasValue ? string.Empty : " text-muted fst-italic")">
-                                            @(progressHasValue ? progressText : "No progress recorded.")
-                                        </span>
+                                              class="ffc-dtable__narrative-text ffc-dtable__clamp@(progressHasValue ? string.Empty : " text-muted fst-italic")">@(progressHasValue ? progressText : "No progress recorded.")</span>
                                         <button type="button"
                                                 class="btn btn-link btn-sm p-0 ffc-dtable__expand js-expand-status d-none"
                                                 aria-expanded="false"
@@ -155,6 +160,7 @@ else
                                 var isOverallEditable = canEdit;
                                 <td rowspan="@rowSpan"
                                     class="align-top ffc-dtable__overall-cell"
+                                    data-label="Overall status"
                                     data-kind="overall"
                                     data-ffc-record-id="@group.FfcRecordId"
                                     data-editable="@isOverallEditable.ToString().ToLowerInvariant()"
@@ -164,9 +170,7 @@ else
                                     {
                                         <div class="display-text ffc-dtable__narrative" data-expandable>
                                             <span id="@overallStatusId"
-                                                  class="display-value ffc-dtable__narrative-text ffc-dtable__clamp@(overallHasRemarks ? string.Empty : " text-muted fst-italic")">
-                                                @(overallHasRemarks ? overallRemarksDisplay : "No overall status recorded.")
-                                            </span>
+                                                  class="display-value ffc-dtable__narrative-text ffc-dtable__clamp@(overallHasRemarks ? string.Empty : " text-muted fst-italic")">@(overallHasRemarks ? overallRemarksDisplay : "No overall status recorded.")</span>
                                             <button type="button"
                                                     class="btn btn-link btn-sm p-0 ffc-dtable__expand js-expand-status d-none"
                                                     aria-expanded="false"
@@ -188,9 +192,7 @@ else
                                     {
                                         <div class="ffc-dtable__narrative" data-expandable>
                                             <span id="@overallStatusId"
-                                                  class="ffc-dtable__narrative-text ffc-dtable__clamp@(overallHasRemarks ? string.Empty : " text-muted fst-italic")">
-                                                @(overallHasRemarks ? overallRemarksDisplay : "No overall status recorded.")
-                                            </span>
+                                                  class="ffc-dtable__narrative-text ffc-dtable__clamp@(overallHasRemarks ? string.Empty : " text-muted fst-italic")">@(overallHasRemarks ? overallRemarksDisplay : "No overall status recorded.")</span>
                                             <button type="button"
                                                     class="btn btn-link btn-sm p-0 ffc-dtable__expand js-expand-status d-none"
                                                     aria-expanded="false"

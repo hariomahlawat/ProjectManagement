@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **7740** stylesheet literals in 85 files, **6** in inline view styles.
+Totals: **7738** stylesheet literals in 85 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -32,7 +32,7 @@ Totals: **7740** stylesheet literals in 85 files, **6** in inline view styles.
 | `command-workspace.css` | 231 | 164 |
 | `officer-conference.css` | 202 | 139 |
 | `pages/projects-completed-summary.css` | 186 | 140 |
-| `calendar.css` | 184 | 112 |
+| `calendar.css` | 184 | 113 |
 | `workspace.css` | 148 | 100 |
 | `pages/dashboard.css` | 144 | 86 |
 | `projects/ongoing-conference.css` | 87 | 50 |
@@ -94,7 +94,7 @@ Totals: **7740** stylesheet literals in 85 files, **6** in inline view styles.
 
 ## Wave 4: Action tracker, tasks, office reports, admin and the rest
 
-1620 literals.
+1618 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
@@ -115,9 +115,9 @@ Totals: **7740** stylesheet literals in 85 files, **6** in inline view styles.
 | `action-task-details-redesign.css` | 37 | 25 |
 | `project-office-reports/ffc-record-workspace.css` | 36 | 17 |
 | `project-office-reports/arpp.css` | 33 | 36 |
-| `project-office-reports/ffc-detailed-table.css` | 26 | 18 |
 | `project-office-reports/ffc-powerpoint-export.css` | 26 | 17 |
 | `project-office-reports/arpp-tokens.css` | 24 | 2 |
+| `project-office-reports/ffc-detailed-table.css` | 24 | 17 |
 | `project-office-reports/visits.css` | 24 | 13 |
 | `action-task-peek.css` | 21 | 15 |
 | `project-office-reports/ffc-footprint.css` | 15 | 11 |

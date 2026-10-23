@@ -93,7 +93,7 @@ public sealed class CreateModel : PageModel
     {
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("FFC Projects", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
             ("New record", null));
     }
 

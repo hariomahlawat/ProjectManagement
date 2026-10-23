@@ -13,8 +13,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 // -----------------------------------------------------------------------------
 public class MapTableModel : PageModel
 {
+    // Straight to the country cards (where MapBoard also leads). The page name is area-relative:
+    // the old "/ProjectOfficeReports/FFC/MapBoard" named no page and answered 500.
     public IActionResult OnGet()
-    {
-        return RedirectToPage("/ProjectOfficeReports/FFC/MapBoard");
-    }
+        => RedirectToPage("/FFC/Footprint", new { area = "ProjectOfficeReports", view = "cards" });
 }

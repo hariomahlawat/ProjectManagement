@@ -39,19 +39,24 @@ public sealed class FfcDetailedTableContractTests
     }
 
     [Fact]
-    public void DetailedTablePage_ProvidesCompactWordAndExcelExportMenuWithoutPermanentFilters()
+    public void DetailedTablePage_ProvidesExportMenuFiltersAndTotalsOutsidePrint()
     {
         var markup = ReadTestData("MapTableDetailed.cshtml");
 
-        Assert.Contains("FFC – Detailed Table", markup, StringComparison.Ordinal);
+        Assert.Contains("FfcView.DetailedTable", markup, StringComparison.Ordinal);
+        Assert.Contains("_FfcViewHeader.cshtml", markup, StringComparison.Ordinal);
         Assert.Contains("FFC Projects Update", markup, StringComparison.Ordinal);
         Assert.Contains("Export to Word", markup, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"ExportWord\"", markup, StringComparison.Ordinal);
         Assert.Contains("Export to Excel", markup, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"ExportExcel\"", markup, StringComparison.Ordinal);
         Assert.Contains("Handling / classification marking", ReadTestData("MapTableDetailed.cshtml.cs"), StringComparison.Ordinal);
-        Assert.DoesNotContain("form-select", markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("permanent-filter", markup, StringComparison.OrdinalIgnoreCase);
+        // Year and country filters and the totals strip, kept out of the printed table.
+        Assert.Contains("<form method=\"get\" class=\"ffc-detailed-filters\" data-hide-in-print", markup, StringComparison.Ordinal);
+        Assert.Contains("name=\"year\"", markup, StringComparison.Ordinal);
+        Assert.Contains("name=\"countryId\"", markup, StringComparison.Ordinal);
+        Assert.Contains("class=\"ffc-detailed-summary\" aria-label=\"Totals for the projects shown\" data-hide-in-print", markup, StringComparison.Ordinal);
+        Assert.Contains("FfcDetailedTableExportSummary.Create(Groups)", ReadTestData("MapTableDetailed.cshtml.cs"), StringComparison.Ordinal);
     }
 
     [Fact]

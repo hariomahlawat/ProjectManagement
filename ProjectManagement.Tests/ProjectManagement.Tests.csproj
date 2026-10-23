@@ -100,6 +100,12 @@
     <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Footprint.cshtml"
           Link="TestData\Ffc\Footprint.cshtml"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Partials\_FfcViewHeader.cshtml"
+          Link="TestData\Ffc\Partials\_FfcViewHeader.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\FfcViewHeader.cs"
+          Link="TestData\Ffc\FfcViewHeader.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Map.cshtml.cs"
           Link="TestData\Ffc\Map.cshtml.cs"
           CopyToOutputDirectory="PreserveNewest" />
