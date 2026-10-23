@@ -50,7 +50,9 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
 - **More results.** "Showing 1–20 of 512 results". **Show more results** appends the next
   page in place, updates the range and moves focus to the first new result; without
   JavaScript (or if the request fails) it opens the next page, which shows its own range and
-  a **First results** link.
+  a **First results** link. If the index changed since the previous page (`StaleCursor`), the
+  engine restarts from the first result and the page says so in a blue `role="status"` notice;
+  **Show more** opens that page instead of appending results the reader has already seen.
 - **Zero results.** Offers the did-you-mean search (filters kept), **Remove all filters**,
   **Search all categories**, recent searches and search tips.
 - **Filters panel.** Anchored under the Filters button; header and Apply/Clear stay visible

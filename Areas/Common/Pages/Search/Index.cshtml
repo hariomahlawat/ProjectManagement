@@ -261,6 +261,17 @@ else
                 </div>
             }
 
+            @if (search.UsedSearchV2 && search.V2ExecutionStatus == SearchV2ExecutionStatus.StaleCursor)
+            {
+                <div class="pm-gs-banner pm-gs-banner--info" role="status" data-search-stale-cursor>
+                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                    <div>
+                        <strong>Results have changed.</strong>
+                        <span>Records were added or updated since the previous page, so the list starts again from the top.</span>
+                    </div>
+                </div>
+            }
+
             @if (!search.IsUnavailable)
             {
                 <section class="pm-gs-toolbar" aria-label="Search result controls">

@@ -404,6 +404,12 @@
     color: var(--pm-danger-soft-text);
 }
 
+.pm-gs-banner--info {
+    border-color: var(--pm-info-soft-border);
+    background: var(--pm-info-soft-bg);
+    color: var(--pm-info-soft-text);
+}
+
 .pm-gs-banner--warning {
     border-color: var(--pm-warning-soft-border);
     background: var(--pm-warning-soft-bg);
