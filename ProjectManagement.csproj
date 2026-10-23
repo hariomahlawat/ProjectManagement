@@ -35,6 +35,10 @@
     <PackageReference Include="Markdig" Version="0.31.0" />
     <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
     <PackageReference Include="Ical.Net" Version="4.3.0" />
+    <!-- Ical.Net 4.3.0 declares NodaTime 3.1.10 but is compiled against 3.1.12; without this the
+         older assembly ships, expanding a recurrence fails to load NodaTime, and repeating events
+         show only their first occurrence. -->
+    <PackageReference Include="NodaTime" Version="3.1.12" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="SixLabors.ImageSharp.Web" Version="3.2.0" />
     <PackageReference Include="TimeZoneConverter" Version="7.0.0" />

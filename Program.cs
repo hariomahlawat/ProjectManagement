@@ -1586,6 +1586,7 @@ static IEnumerable<CalendarEventVm> BuildCelebrationOccurrences(
 eventsApi.MapGet("", async (ApplicationDbContext db,
                              UserManager<ApplicationUser> users,
                              ClaimsPrincipal user,
+                             ILoggerFactory loggerFactory,
                              [FromQuery(Name = "start")] DateTimeOffset start,
                              [FromQuery(Name = "end")] DateTimeOffset end,
                              [FromQuery(Name = "includeCelebrations")] bool? includeCelebrations) =>
@@ -1606,7 +1607,12 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
     foreach (var ev in rows)
     {
         IEnumerable<RecurrenceExpander.Occ> occs;
-        try { occs = RecurrenceExpander.Expand(ev, start, end); }
+        try
+        {
+            occs = RecurrenceExpander.Expand(ev, start, end, ex => loggerFactory
+                .CreateLogger("Calendar")
+                .LogWarning(ex, "Recurrence of event {EventId} could not be expanded; it shows as a single occurrence.", ev.Id));
+        }
         catch { occs = Array.Empty<RecurrenceExpander.Occ>(); }
 
         foreach (var o in occs)
