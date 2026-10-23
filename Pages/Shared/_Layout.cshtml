@@ -42,6 +42,10 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/navigation-shell.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    @if (!SignInManager.IsSignedIn(User))
+    {
+        <link rel="stylesheet" href="~/css/public-shell.css" asp-append-version="true" />
+    }
     @await RenderSectionAsync("Styles", required: false)
     @if (SignInManager.IsSignedIn(User) && ChatConfiguration.CurrentValue.Enabled)
     {
@@ -260,39 +264,40 @@
         <header class="public-topbar">
             <div class="public-topbar__inner">
                 <a class="public-brand" asp-area="" asp-page="/Index" aria-label="PRISM ERP home">
-                    <img src="~/img/logos/artrac.png" alt="ARTRAC crest" />
-                    <span>PRISM ERP</span>
+                    <img src="~/img/logos/artrac.png" alt="" width="30" height="30" />
+                    <span class="public-brand__name">PRISM <span>ERP</span></span>
                 </a>
-                @if (isPublicAuthPage)
-                {
-                    <nav class="public-topbar__nav" aria-label="Authentication navigation">
-                        <a class="public-topbar__home" asp-area="" asp-page="/Index">
+                <nav class="public-topbar__nav" aria-label="@(isPublicAuthPage ? "Authentication navigation" : "Public navigation")">
+                    @if (isPublicAuthPage)
+                    {
+                        <a class="public-topbar__link" asp-area="" asp-page="/Index">
                             <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                            Back to home
+                            <span>Home</span>
                         </a>
-                    </nav>
-                }
-                else
-                {
-                    <nav class="public-topbar__nav" aria-label="Public navigation">
-                        <a class="public-topbar__desktop-link" href="/#capabilities">Capabilities</a>
-                        <a class="public-topbar__desktop-link" href="/#roles-title">Role-based experience</a>
+                    }
+                    else
+                    {
+                        <a class="public-topbar__link public-topbar__link--section" href="/#workflow">Workflow</a>
+                        <a class="public-topbar__link public-topbar__link--section" href="/#inside">Inside PRISM</a>
+                        <a class="public-topbar__link public-topbar__link--section" href="/#trust">Security</a>
+                    }
+                    @* Light / Dark / System for signed-out visitors; theme-preference.js handles the clicks. *@
+                    <div class="public-theme" role="group" aria-label="Theme">
+                        <button type="button" class="public-theme__option" data-theme-preference-value="light" aria-pressed="false" title="Light theme">
+                            <i class="bi bi-sun" aria-hidden="true"></i><span class="visually-hidden">Light</span>
+                        </button>
+                        <button type="button" class="public-theme__option" data-theme-preference-value="dark" aria-pressed="false" title="Dark theme">
+                            <i class="bi bi-moon-stars" aria-hidden="true"></i><span class="visually-hidden">Dark</span>
+                        </button>
+                        <button type="button" class="public-theme__option" data-theme-preference-value="system" aria-pressed="false" title="Match Windows">
+                            <i class="bi bi-circle-half" aria-hidden="true"></i><span class="visually-hidden">System</span>
+                        </button>
+                    </div>
+                    @if (!isPublicAuthPage)
+                    {
                         <a class="public-topbar__signin" asp-area="Identity" asp-page="/Account/Login">Sign in</a>
-                        <div class="dropdown public-topbar__mobile-menu">
-                            <button class="public-topbar__menu-button"
-                                    type="button"
-                                    data-bs-toggle="dropdown"
-                                    aria-expanded="false"
-                                    aria-label="Open public navigation">
-                                <i class="bi bi-list" aria-hidden="true"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end public-topbar__menu">
-                                <li><a class="dropdown-item" href="/#capabilities">Capabilities</a></li>
-                                <li><a class="dropdown-item" href="/#roles-title">Role-based experience</a></li>
-                            </ul>
-                        </div>
-                    </nav>
-                }
+                    }
+                </nav>
             </div>
         </header>
     }
@@ -369,9 +374,11 @@
     {
         <footer class="public-footer">
             <div class="public-footer__inner">
-                <span>© @DateTime.UtcNow.Year PRISM ERP</span>
-                <span>Simulator Development Division</span>
-                <a asp-area="Identity" asp-page="/Account/Login">Authorised access only</a>
+                <span class="public-footer__brand">
+                    <img src="~/img/logos/sdd.png" alt="" width="20" height="20" />
+                    Simulator Development Division
+                </span>
+                <span>PRISM ERP &middot; &copy; @DateTime.UtcNow.Year &middot; Authorised use only</span>
             </div>
         </footer>
     }
