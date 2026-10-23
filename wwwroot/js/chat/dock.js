@@ -99,6 +99,8 @@
     this.list = el('ul', 'pm-chat__contacts');
     this.list.setAttribute('role', 'list');
     this.emptyNote = el('p', 'pm-chat__empty', 'Loading…');
+    this.tips = this.buildTips();
+    if (this.tips) scroller.append(this.tips);
     scroller.append(this.groupHeading, this.groupList, this.peopleHeading, this.list, this.emptyNote);
 
     buddy.append(header, statusWrap, searchWrap, this.groupForm, scroller);
@@ -133,6 +135,58 @@
     this.windowRow = el('div', 'pm-chat__windows');
     dock.append(this.windowRow, buddy);
     this.root.append(dock, this.announcer);
+  };
+
+  /**
+   * First-open tips at the top of the contact list: what people would not find on their own.
+   * Shown until "Got it", remembered per browser and user (prism.chat.tips.{userId}); never shown
+   * when the browser cannot remember that, so it does not come back on every page.
+   */
+  ChatApp.prototype.buildTips = function () {
+    const key = `prism.chat.tips.${this.me}`;
+    try {
+      if (global.localStorage.getItem(key)) return null;
+    } catch (_) {
+      return null;
+    }
+
+    const card = el('section', 'pm-chat__tips');
+    card.setAttribute('aria-labelledby', 'pmChatTipsTitle');
+    const title = el('h3', 'pm-chat__tips-title', 'Chat away! A few things worth knowing');
+    title.id = 'pmChatTipsTitle';
+    const list = el('ul', 'pm-chat__tips-list');
+    const tip = (glyph, text) => {
+      const item = el('li');
+      item.append(icon(glyph), el('span', null, text));
+      list.append(item);
+    };
+    tip('person', 'Click a name to say hello.');
+    tip('chat-dots', 'See the chat icon next to a name anywhere in PRISM? It starts a chat with that person.');
+    if (this.unsendMs > 0) {
+      const minutes = Math.round(this.unsendMs / 60000);
+      tip('arrow-counterclockwise', `Sent too soon? You can unsend for ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`);
+    }
+    tip('pencil', 'Set a status above so people know where you are.');
+    if (this.attachments.enabled) tip('paperclip', 'Share files with the paperclip in any chat.');
+    tip('search', 'Your conversations are saved, so you can always scroll back or search them.');
+
+    const actions = el('div', 'pm-chat__tips-actions');
+    const gotIt = el('button', 'btn btn-primary btn-sm', 'Got it');
+    gotIt.type = 'button';
+    gotIt.addEventListener('click', () => {
+      try { global.localStorage.setItem(key, 'done'); } catch (_) { /* gone for this page anyway */ }
+      card.remove();
+      this.tips = null;
+      if (this.search) this.search.focus();
+    });
+    actions.append(gotIt);
+    if (this.guideUrl) {
+      const guide = el('a', 'btn btn-link btn-sm', 'Quick guide');
+      guide.href = this.guideUrl;
+      actions.append(guide);
+    }
+    card.append(title, list, actions);
+    return card;
   };
 
   /** Says text through the live region (cleared first, so the same words are read again). */

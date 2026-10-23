@@ -40,6 +40,46 @@ namespace ProjectManagement.Tests.Chat;
 public sealed class ChatApiTests
 {
     [Fact]
+    public async Task Layout_IntroducesChatFirst_AndTheGuideFollowsTheSettings()
+    {
+        await using var host = await ChatHost.CreateAsync(new Dictionary<string, string?>
+        {
+            ["Chat:Attachments:Enabled"] = "true",
+            ["Chat:UnsendWindowMinutes"] = "5",
+        });
+        using var client = host.ClientFor("alice");
+
+        var html = await client.GetStringAsync("/Chat");
+        var chatCard = html.IndexOf("data-whats-new=\"prism.whatsNew.chat\"", StringComparison.Ordinal);
+        var themeCard = html.IndexOf("data-whats-new=\"prism.themeIntro\"", StringComparison.Ordinal);
+        Assert.True(chatCard >= 0 && themeCard > chatCard, "the Chat card comes before the theme card");
+        Assert.Contains("data-whats-new-skip-if-stored=\"prism.chat.dock.", html);
+        Assert.Contains("data-guide-url=\"/Chat/Guide\"", html);
+
+        var guide = await client.GetStringAsync("/Chat/Guide");
+        Assert.Contains("Chat quick guide", guide);
+        Assert.Contains("within 5 minutes", guide);
+        Assert.Contains("Share files", guide);
+        Assert.Contains("1 GB", guide);
+    }
+
+    [Fact]
+    public async Task Guide_LeavesOutFiles_WhileAttachmentsAreOff_AndIsGoneWithChat()
+    {
+        await using (var host = await ChatHost.CreateAsync(new Dictionary<string, string?> { ["Chat:Attachments:Enabled"] = "false" }))
+        {
+            using var client = host.ClientFor("alice");
+            Assert.DoesNotContain("Share files", await client.GetStringAsync("/Chat/Guide"));
+        }
+
+        await using (var host = await ChatHost.CreateAsync(new Dictionary<string, string?> { ["Chat:Enabled"] = "false" }))
+        {
+            using var client = host.ClientFor("alice");
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/Chat/Guide")).StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task Pages_LoadEveryChatScriptInOrder_AndEachIsServed()
     {
         await using var host = await ChatHost.CreateAsync();

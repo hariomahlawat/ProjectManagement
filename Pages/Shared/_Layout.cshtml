@@ -404,26 +404,8 @@
     @if (signedIn)
     {
         <script src="~/js/core/erp-usage-heartbeat.js" asp-append-version="true" defer></script>
-        @* One-time card introducing the Dark theme; Light stays the default (theme-intro.js). *@
-        <section class="pm-theme-intro" id="pmThemeIntro" aria-labelledby="pmThemeIntroTitle" hidden>
-            <span class="pm-theme-intro__icon" aria-hidden="true"><i class="bi bi-moon-stars"></i></span>
-            <div class="pm-theme-intro__body">
-                <h2 class="pm-theme-intro__title" id="pmThemeIntroTitle">New: Dark theme</h2>
-                <p class="pm-theme-intro__text" data-theme-intro-text>Easier on the eyes in low light. PRISM stays Light unless you choose otherwise.</p>
-                <p class="pm-theme-intro__hint">Change it any time: profile menu (top right) &rarr; Theme.</p>
-                <div class="pm-theme-intro__actions" data-theme-intro-ask>
-                    <button type="button" class="btn btn-primary btn-sm" data-theme-intro-choose="dark">Try Dark</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-theme-intro-choose="system">Use Windows setting</button>
-                    <button type="button" class="btn btn-link btn-sm" data-theme-intro-close>Not now</button>
-                </div>
-                <div class="pm-theme-intro__actions" data-theme-intro-done hidden>
-                    <button type="button" class="btn btn-primary btn-sm" data-theme-intro-close data-theme-intro-keep>Keep it</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-theme-intro-undo>Back to Light</button>
-                </div>
-            </div>
-            <button type="button" class="btn-close pm-theme-intro__close" data-theme-intro-close aria-label="Close"></button>
-        </section>
-        <script src="~/js/core/theme-intro.js" asp-append-version="true" defer></script>
+        <partial name="_WhatsNew" model="chatEnabled" />
+        <script src="~/js/core/whats-new.js" asp-append-version="true" defer></script>
     }
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
     <script src="~/js/notifications.js" asp-append-version="true" defer></script>
@@ -436,6 +418,7 @@
              data-api-base="@Url.Content("~/api/chat")"
              data-hub-url="@Url.Content("~/hubs/chat")"
              data-messages-url="@Url.Page("/Chat/Index")"
+             data-guide-url="@Url.Page("/Chat/Guide")"
              data-max-length="@ProjectManagement.Models.Chat.ChatMessage.MaxBodyLength"
              data-unsend-minutes="@ChatConfiguration.CurrentValue.UnsendWindowMinutes"
              data-attachments="@(ChatConfiguration.CurrentValue.Attachments.Enabled ? "on" : "off")"

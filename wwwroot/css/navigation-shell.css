@@ -843,8 +843,8 @@ body.pm-drawer-open {
     box-shadow: 0 1px 2px rgba(15, 23, 42, .12);
 }
 
-/* One-time Dark theme introduction (theme-intro.js) ---------------------- */
-.pm-theme-intro {
+/* What's new cards (whats-new.js) ---------------------- */
+.pm-whats-new {
     position: fixed;
     top: 4.75rem;
     right: 1rem;
@@ -859,18 +859,18 @@ body.pm-drawer-open {
     background: var(--pm-card);
     color: var(--bs-body-color);
     box-shadow: var(--pm-shadow-lg, var(--pm-shadow));
-    animation: pm-theme-intro-in .2s ease-out;
+    animation: pm-whats-new-in .2s ease-out;
 }
 
-.pm-theme-intro[hidden] {
+.pm-whats-new[hidden] {
     display: none;
 }
 
-.pm-theme-intro.is-stepped-aside {
+.pm-whats-new.is-stepped-aside {
     visibility: hidden;
 }
 
-.pm-theme-intro__icon {
+.pm-whats-new__icon {
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
@@ -883,29 +883,29 @@ body.pm-drawer-open {
     font-size: 1.05rem;
 }
 
-.pm-theme-intro__body {
+.pm-whats-new__body {
     flex: 1 1 auto;
     min-width: 0;
 }
 
-.pm-theme-intro__title {
+.pm-whats-new__title {
     margin: .1rem 0 .3rem;
     font-size: .95rem;
     font-weight: 700;
 }
 
-.pm-theme-intro__text,
-.pm-theme-intro__hint {
+.pm-whats-new__text,
+.pm-whats-new__hint {
     margin: 0 0 .35rem;
     font-size: .84rem;
     line-height: 1.45;
 }
 
-.pm-theme-intro__hint {
+.pm-whats-new__hint {
     color: var(--bs-secondary-color);
 }
 
-.pm-theme-intro__actions {
+.pm-whats-new__actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -913,26 +913,26 @@ body.pm-drawer-open {
     margin-top: .65rem;
 }
 
-.pm-theme-intro__actions[hidden] {
+.pm-whats-new__actions[hidden] {
     display: none;
 }
 
-.pm-theme-intro__close {
+.pm-whats-new__close {
     flex: 0 0 auto;
     font-size: .7rem;
 }
 
-@keyframes pm-theme-intro-in {
+@keyframes pm-whats-new-in {
     from { opacity: 0; transform: translateY(-6px); }
     to { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .pm-theme-intro { animation: none; }
+    .pm-whats-new { animation: none; }
 }
 
 @media print {
-    .pm-theme-intro { display: none !important; }
+    .pm-whats-new { display: none !important; }
 }
 
 /* ============================================================

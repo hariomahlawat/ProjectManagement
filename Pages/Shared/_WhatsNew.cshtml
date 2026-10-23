@@ -1,0 +1,50 @@
+@model bool
+@using ProjectManagement.Models
+@inject UserManager<ApplicationUser> UserManager
+@{
+    // Model: whether chat is switched on. One card at a time, in this order (wwwroot/js/core/whats-new.js).
+    var chatEnabled = Model;
+    var userId = UserManager.GetUserId(User);
+}
+@* One-time cards introducing new features; each appears until answered, then never again. *@
+@if (chatEnabled && !string.IsNullOrEmpty(userId))
+{
+    <section class="pm-whats-new" id="pmWhatsNewChat" aria-labelledby="pmWhatsNewChatTitle" hidden
+             data-whats-new="prism.whatsNew.chat"
+             data-whats-new-skip-if-stored="prism.chat.dock.@userId"
+             data-whats-new-answered-by="[data-chat-launcher]">
+        <span class="pm-whats-new__icon" aria-hidden="true"><i class="bi bi-chat-dots"></i></span>
+        <div class="pm-whats-new__body">
+            <h2 class="pm-whats-new__title" id="pmWhatsNewChatTitle">PRISM just learned to talk.</h2>
+            <p class="pm-whats-new__text">Message anyone in PRISM, from any page. The fastest way to get an answer. Chat away!</p>
+            <p class="pm-whats-new__hint">Find it any time: the chat button next to the bell (top right).</p>
+            <div class="pm-whats-new__actions">
+                <button type="button" class="btn btn-primary btn-sm" data-whats-new-open-chat>Show me</button>
+                <a class="btn btn-outline-secondary btn-sm" asp-page="/Chat/Guide">Quick guide</a>
+                <button type="button" class="btn btn-link btn-sm" data-whats-new-close>Not now</button>
+            </div>
+        </div>
+        <button type="button" class="btn-close pm-whats-new__close" data-whats-new-close aria-label="Close"></button>
+    </section>
+}
+<section class="pm-whats-new" id="pmThemeIntro" aria-labelledby="pmThemeIntroTitle" hidden
+         data-whats-new="prism.themeIntro"
+         data-whats-new-skip-if-stored="prism.theme"
+         data-whats-new-answered-by="[data-theme-preference-value]">
+    <span class="pm-whats-new__icon" aria-hidden="true"><i class="bi bi-moon-stars"></i></span>
+    <div class="pm-whats-new__body">
+        <h2 class="pm-whats-new__title" id="pmThemeIntroTitle">New: Dark theme</h2>
+        <p class="pm-whats-new__text" data-whats-new-text>Easier on the eyes in low light. PRISM stays Light unless you choose otherwise.</p>
+        <p class="pm-whats-new__hint">Change it any time: profile menu (top right) &rarr; Theme.</p>
+        <div class="pm-whats-new__actions" data-whats-new-ask>
+            <button type="button" class="btn btn-primary btn-sm" data-whats-new-theme="dark" data-whats-new-confirm="Dark theme is on.">Try Dark</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-whats-new-theme="system" data-whats-new-confirm="PRISM now follows your Windows setting (System).">Use Windows setting</button>
+            <button type="button" class="btn btn-link btn-sm" data-whats-new-close>Not now</button>
+        </div>
+        <div class="pm-whats-new__actions" data-whats-new-done hidden>
+            <button type="button" class="btn btn-primary btn-sm" data-whats-new-close data-whats-new-keep>Keep it</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-whats-new-undo>Back to Light</button>
+        </div>
+    </div>
+    <button type="button" class="btn-close pm-whats-new__close" data-whats-new-close aria-label="Close"></button>
+</section>
