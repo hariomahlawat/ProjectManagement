@@ -45,6 +45,13 @@
     fresh.append(icon('pencil-square'), ' New chat');
     fresh.addEventListener('click', () => this.app.toggleBuddy(true));
     tools.append(search, fresh);
+    if (this.app.attachments.enabled) {
+      const files = el('button', 'btn btn-outline-secondary btn-sm pm-chat-page__new');
+      files.type = 'button';
+      files.append(icon('paperclip'), ' My files');
+      files.addEventListener('click', () => this.showFiles());
+      tools.append(files);
+    }
     this.searchInput = search;
 
     this.results = el('div', 'pm-chat-page__results');
@@ -76,7 +83,30 @@
     const withId = conversationKey(this.node.dataset.openWith);
     const at = Number(this.node.dataset.openAt) || 0;
     this.renderConversations();
-    if (withId) this.open(withId, at || 0);
+    if (this.node.dataset.openView === 'files' && this.app.attachments.enabled) this.showFiles();
+    else if (withId) this.open(withId, at || 0);
+  };
+
+  /**
+   * My files (chat/files.js) in the large pane, in place of a conversation; the conversation
+   * set aside stays registered, as when switching conversations.
+   */
+  MessagesPage.prototype.showFiles = function () {
+    if (this.current) this.current.node.remove();
+    this.current = null;
+    if (!this.filesPanel) this.filesPanel = this.app.myFilesPanel((key) => this.open(key, 0));
+    this.placeholder.hidden = true;
+    if (!this.filesPanel.node.isConnected) this.pane.append(this.filesPanel.node);
+    this.layout.classList.add('has-thread');
+    this.renderConversations();
+    this.filesPanel.refresh();
+    try {
+      const url = new URL(global.location.href);
+      url.searchParams.set('view', 'files');
+      url.searchParams.delete('with');
+      url.searchParams.delete('at');
+      global.history.replaceState(null, '', url);
+    } catch (_) { /* address bar is cosmetic */ }
   };
 
   MessagesPage.prototype.renderConversations = function () {
@@ -136,6 +166,7 @@
       // draft and any unsent or failed messages are there when the person comes back.
       this.current.node.remove();
     }
+    if (this.filesPanel && this.filesPanel.node.isConnected) this.filesPanel.node.remove();
 
     let created = false;
     if (!win) {
@@ -179,6 +210,7 @@
     try {
       const url = new URL(global.location.href);
       url.searchParams.set('with', peerId);
+      url.searchParams.delete('view');
       if (at) url.searchParams.set('at', String(at)); else url.searchParams.delete('at');
       global.history.replaceState(null, '', url);
     } catch (_) { /* address bar is cosmetic */ }

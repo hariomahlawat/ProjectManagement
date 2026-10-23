@@ -650,6 +650,123 @@
     font-style: italic;
 }
 
+/* ---------- My files (Messages page, chat/files.js) ---------- */
+.pm-chat-files {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    padding: 1rem;
+}
+
+.pm-chat-files__title {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.pm-chat-files__lede,
+.pm-chat-files__note {
+    margin: 0;
+    color: var(--pm-text-muted);
+    font-size: .82rem;
+}
+
+.pm-chat-files__note:empty {
+    display: none;
+}
+
+.pm-chat-files__usage {
+    display: flex;
+    gap: .6rem;
+    align-items: center;
+    font-size: .82rem;
+}
+
+.pm-chat-files__meter {
+    flex: 1;
+    max-width: 18rem;
+    height: .5rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--pm-surface-subtle);
+}
+
+.pm-chat-files__meter-fill {
+    display: block;
+    height: 100%;
+    background: var(--pm-primary);
+}
+
+.pm-chat-files__meter.is-high .pm-chat-files__meter-fill {
+    background: var(--pm-danger);
+}
+
+.pm-chat-files__tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    align-items: center;
+}
+
+.pm-chat-files__tools .form-select {
+    width: auto;
+}
+
+.pm-chat-files__list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pm-chat-files__item {
+    display: flex;
+    gap: .6rem;
+    align-items: center;
+    padding: .45rem .25rem;
+    border-bottom: 1px solid var(--pm-border-subtle);
+}
+
+.pm-chat-files__item > .bi {
+    color: var(--pm-primary);
+    font-size: 1.2rem;
+}
+
+.pm-chat-files__item.is-removed .pm-chat-files__name {
+    color: var(--pm-text-muted);
+    text-decoration: line-through;
+}
+
+.pm-chat-files__spacer {
+    width: 1em;
+}
+
+.pm-chat-files__text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pm-chat-files__name {
+    overflow: hidden;
+    font-size: .88rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-chat-files__meta,
+.pm-chat-files__status {
+    color: var(--pm-text-muted);
+    font-size: .76rem;
+}
+
+.pm-chat-files__where {
+    font-size: .76rem;
+    vertical-align: baseline;
+}
+
 /* ---------- Phase 2: ticks, typing, search highlight ---------- */
 .pm-chat__tick {
     font-size: .8rem;

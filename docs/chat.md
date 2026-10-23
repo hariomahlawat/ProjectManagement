@@ -123,6 +123,12 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   messages (Remove, then Remove? within five seconds) or unsending the message frees the space.
   Images show as thumbnails that open the full image; other files show as cards that download
   them. There is no malware scanning (owner decision).
+- **My files** (`/Chat?view=files`, the "My files" button on the Messages page): the files you
+  sent, with how much of your allowance they use; sort by date or size; tick files and
+  "Remove selected", or "Remove" everything older than 30, 90, 180 days or a year (each asks for
+  a second click). A removed file can be restored for a day. Automatic retention removes sent
+  files older than a year; you are told, and can restore them for a day too. Files an
+  administrator removed say so and are restored by an administrator.
 - **Messages page** (`/Chat`, also linked from the buddy list): every conversation, most recent
   first, with a large conversation view, and **search across all your messages** (at least two
   characters, case-insensitive, newest 50 matches). A search hit opens the conversation at
@@ -188,6 +194,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   blanked too, including older ones already on screen and search results.
   With attachments on it also asks `GET /api/chat/attachments/removed?since=` (paged with
   `before`, only messages the caller may read), so files removed meanwhile show as removed.
+  Files it remembers as removed are checked with `GET /api/chat/attachments/current?ids=` (up
+  to 500 at a time), so one restored meanwhile comes back.
 - **Groups** (`/api/chat/groups…`): list, create, get, history (`before`/`after` like direct
   history, plus each member's read marker), send, read, add members, remove a member, leave,
   rename. Every call checks membership on the server; a non-member gets **410**, sending
@@ -221,6 +229,13 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   read the message, checked on every request. Removals are pushed as `AttachmentRemoved`.
   `Services/Chat/ChatAttachmentService.cs`, `ChatAttachmentInspector.cs`,
   `Hosted/ChatAttachmentCleanupWorker.cs`, `wwwroot/js/chat/files.js`.
+- **Storage management** (`Services/Chat/ChatStorageService.cs`): My files
+  (`GET /api/chat/attachments/mine`, `POST …/mine/remove`, `…/mine/remove-older`,
+  `…/mine/restore`); the admin page **Admin › Recovery › Chat storage** (preview, type REMOVE,
+  undo; sizes and people only; audited as `Chat.AttachmentsRemoved` / `Chat.AttachmentsRestored`);
+  retention once a day (`Chat.AttachmentsRemovedByRetention`); a `ChatFilesRemoved`
+  notification to each person whose files an administrator or retention removed. Removals keep
+  their file on disk for the undo window; restores are pushed as `AttachmentRestored`.
 - **Search** (`GET /api/chat/search?q=`) joins through the caller's own participant rows, so it
   can only ever match the caller's conversations. The term is matched as plain text (`%` and
   `_` are not wildcards). It is a substring scan without a full-text index, which is fine at
@@ -284,6 +299,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 | `Chat:Attachments:MinimumFreeDiskGb` | `20` | Uploads are refused while the upload disk has less free. |
 | `Chat:Attachments:MaxFilesPerMessage` | `5` | Files one message may carry. |
 | `Chat:Attachments:UnusedUploadMinutes` | `60` | An upload not sent within this time is removed by the clean-up job. |
+| `Chat:Attachments:RetentionDays` | `365` | Sent files older than this are removed automatically once a day; `0` turns retention off. |
+| `Chat:Attachments:UndoHours` | `24` | How long a removal can be undone before the file is deleted from disk (unsending is final). |
 | `Chat:Attachments:UploadPermitLimit` / `UploadWindowSeconds` | `30` / `60` | Uploads one person may start per window. |
 | `Chat:UnsendWindowMinutes` | `5` | How long after sending a message its sender may unsend it. `0` turns unsend off. |
 

@@ -93,6 +93,8 @@ public sealed class RecordingHubContext : IHubContext<ChatHub, IChatClient>, IHu
         public Task GroupTyping(ChatGroupTypingDto typing) => Push(nameof(GroupTyping), typing);
 
         public Task AttachmentRemoved(ChatAttachmentRemovedDto removed) => Push(nameof(AttachmentRemoved), removed);
+
+        public Task AttachmentRestored(ChatAttachmentRestoredDto restored) => Push(nameof(AttachmentRestored), restored);
     }
 
     private sealed class NoGroups : IGroupManager

@@ -63,6 +63,8 @@ public static class NotificationPresentationCatalog
                 NotificationKind.NotebookCollaborationLeft => new("Notebook", "bi bi-box-arrow-left", "Normal", false),
                 NotificationKind.NotebookAccessChanged => new("Notebook", "bi bi-shield-check", "Normal", false),
 
+                NotificationKind.ChatFilesRemoved => new("Chat", "bi bi-paperclip", "Normal", false),
+
                 _ => Default(module, eventType),
             };
         }

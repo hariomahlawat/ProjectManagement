@@ -15,6 +15,7 @@ public static class AdminNavigationKeys
     public const string DatabaseHealth = "database-health";
     public const string SearchIndex = "search-index";
     public const string RecoveryCentre = "recovery-centre";
+    public const string ChatStorage = "chat-storage";
     public const string ProjectTrash = "project-trash";
     public const string DocumentRecycle = "document-recycle";
     public const string PdfIngestion = "pdf-ingestion";
@@ -193,6 +194,14 @@ public static class AdminNavigationCatalog
             Item("Recovery centre", "Admin", "/Recovery/Index", "bi-arrow-counterclockwise", AdminPolicies.RecoveryManage),
             exactPage: true,
             showOnDashboard: true),
+
+        Entry(
+            AdminNavigationKeys.ChatStorage,
+            AdminNavigationGroups.Recovery,
+            56,
+            Item("Chat storage", "Admin", "/Chat/Storage", "bi-paperclip", AdminPolicies.RecoveryManage),
+            exactPage: true,
+            showOnDashboard: false),
 
         Entry(
             AdminNavigationKeys.ProjectTrash,

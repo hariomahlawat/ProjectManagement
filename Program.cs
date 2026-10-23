@@ -846,6 +846,7 @@ builder.Services.AddSingleton<ChatPresenceTracker>();
 builder.Services.AddScoped<ChatService>();
 builder.Services.AddScoped<ChatLinkPreviewService>();
 builder.Services.AddScoped<ChatAttachmentService>();
+builder.Services.AddScoped<ChatStorageService>();
 builder.Services.AddSingleton<IChatDiskSpace, ChatDiskSpace>();
 builder.Services.AddHostedService<ChatAttachmentCleanupWorker>();
 builder.Services.AddScoped<ChatGroupService>();

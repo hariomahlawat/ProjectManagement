@@ -2640,6 +2640,78 @@ test('I can remove a file from my own message with a second click, and others se
   }
 });
 
+test('a live restore that arrives during catch-up is not undone by its older answer', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const window = fileApp(async (url) => {
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/attachments/removed?since=')) {
+      await gate; // read before the restore, answered after it
+      return { files: [{ attachmentId: 46, messageId: 101, groupId: null, removalReason: 'Sender' }], hasMore: false };
+    }
+    if (url.includes('/attachments/current?ids=')) return [];
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const file = { id: 46, fileName: 'live.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false };
+    app.acceptSaved(win, [{
+      id: 101, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-101', body: 'File', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 46, fileName: '', contentType: '', sizeBytes: 0, isImage: false, isRemoved: true }],
+    }]);
+
+    app.offlineSince = new Date();
+    const catchUp = app.syncUnsent(true);
+    await tick();
+    app.onAttachmentRestored({ messageId: 101, attachment: file });
+    release();
+    await catchUp;
+
+    assert.ok(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/46"]'));
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 0);
+    assert.equal(app.removedFiles.has(46), false);
+  } finally {
+    window.close();
+  }
+});
+
+test('a file restored while the connection was down comes back on catch-up', async () => {
+  const asked = [];
+  const window = fileApp(async (url) => {
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/attachments/removed?since=')) return { files: [], hasMore: false };
+    if (url.includes('/attachments/current?ids=')) {
+      asked.push(url);
+      return [{ messageId: 99, groupId: null, attachment: { id: 44, fileName: 'back.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false } }];
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.acceptSaved(win, [{
+      id: 99, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-99', body: 'File', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 44, fileName: 'back.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }],
+    }]);
+    app.onAttachmentRemoved({ attachmentId: 44, messageId: 99 });
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 1);
+
+    app.offlineSince = new Date();
+    await app.syncUnsent(true);
+    assert.match(asked[0], /ids=44$/);
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 0);
+    assert.ok(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/44"]'));
+    assert.equal(app.removedFiles.has(44), false);
+  } finally {
+    window.close();
+  }
+});
+
 test('files removed while the connection was down are marked on catch-up', async () => {
   const asked = [];
   const window = fileApp(async (url) => {
@@ -2706,6 +2778,8 @@ test('file sizes read naturally', () => {
   assert.equal(PMChatParts.formatSize(2048), '2 KB');
   assert.equal(PMChatParts.formatSize(1.5 * 1024 * 1024), '1.5 MB');
   assert.equal(PMChatParts.formatSize(100 * 1024 * 1024), '100 MB');
+  assert.equal(PMChatParts.formatSize(1024 * 1024 * 1024), '1 GB');
+  assert.equal(PMChatParts.formatSize(2.5 * 1024 * 1024 * 1024), '2.5 GB');
 });
 
 test('files waiting to be sent keep a window from being closed to make room, and survive closing', async () => {
@@ -2738,6 +2812,140 @@ test('files waiting to be sent keep a window from being closed to make room, and
     const again = app.openWindow('peer', { focus: true });
     assert.deepEqual(Array.from(again.pending, (p) => p.attachment && p.attachment.id), [40]);
     assert.match(again.pendingList.textContent, /plan\.pdf/);
+  } finally {
+    window.close();
+  }
+});
+
+// --- Storage management: removal reasons, restores, My files ---------------------------------------
+
+test('a restored file stays restored when a stale copy of its message arrives later', async () => {
+  const window = fileApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const removedCopy = () => ({
+      id: 100, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-100', body: 'Plan', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 45, fileName: '', contentType: '', sizeBytes: 0, isImage: false, isRemoved: true, removalReason: 'Sender' }],
+    });
+    app.acceptSaved(win, [removedCopy()]);
+    app.onAttachmentRestored({ messageId: 100, attachment: { id: 45, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false } });
+    assert.ok(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/45"]'));
+
+    // A history page fetched before the restore arrives afterwards.
+    app.acceptSaved(win, [removedCopy()]);
+    assert.ok(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/45"]'));
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 0);
+
+    // A later removal still wins.
+    app.onAttachmentRemoved({ attachmentId: 45, messageId: 100 });
+    app.acceptSaved(win, [{ ...removedCopy(), attachments: [{ id: 45, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }] }]);
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test('a removed file says who removed it, and a restored file comes back', async () => {
+  const window = fileApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.acceptSaved(win, [{
+      id: 96, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-96', body: 'Docs', sentUtc: new Date().toISOString(),
+      attachments: [
+        { id: 50, fileName: 'a.pdf', contentType: 'application/pdf', sizeBytes: 10, isImage: false },
+        { id: 51, fileName: 'b.pdf', contentType: 'application/pdf', sizeBytes: 10, isImage: false },
+      ],
+    }]);
+    app.onAttachmentRemoved({ attachmentId: 50, messageId: 96, removalReason: 'Admin' });
+    app.onAttachmentRemoved({ attachmentId: 51, messageId: 96, removalReason: 'Retention' });
+    const notes = Array.from(win.log.querySelectorAll('.pm-chat__file-removed'), (n) => n.textContent);
+    assert.deepEqual(notes, ['File removed by an administrator', 'File removed automatically (old)']);
+
+    app.onAttachmentRestored({ messageId: 96, attachment: { id: 50, fileName: 'a.pdf', contentType: 'application/pdf', sizeBytes: 10, isImage: false } });
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 1);
+    assert.ok(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/50"]'));
+  } finally {
+    window.close();
+  }
+});
+
+function myFilesApp(handler) {
+  return bootApp(async (url, init) => {
+    const answer = await handler(url, init);
+    if (answer !== undefined) return answer;
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.endsWith('/groups')) return [];
+    return { status: 204, body: null };
+  }, '<section data-chat-page data-open-view="files"></section>', attachmentsOn);
+}
+
+const myFiles = {
+  usedBytes: 900 * 1024 * 1024,
+  allowanceBytes: 1024 * 1024 * 1024,
+  undoHours: 24,
+  files: [
+    { id: 1, fileName: 'old-report.pdf', contentType: 'application/pdf', sizeBytes: 5 * 1024 * 1024, isImage: false, sentUtc: '2026-01-10T09:00:00Z', conversationKey: 'peer', conversationName: 'Peer Person', messageId: 10, removedUtc: null, removalReason: null, restorableUntil: null },
+    { id: 2, fileName: 'photo.png', contentType: 'image/png', sizeBytes: 50 * 1024 * 1024, isImage: true, sentUtc: '2026-10-20T09:00:00Z', conversationKey: 'g:5', conversationName: 'TEC desk', messageId: 11, removedUtc: null, removalReason: null, restorableUntil: null },
+    { id: 3, fileName: 'draft.docx', contentType: 'x', sizeBytes: 1024, isImage: false, sentUtc: '2026-10-21T09:00:00Z', conversationKey: 'peer', conversationName: 'Peer Person', messageId: 12, removedUtc: '2026-10-22T09:00:00Z', removalReason: 'Sender', restorableUntil: '2026-10-23T09:00:00Z' },
+    { id: 4, fileName: 'gone.pdf', contentType: 'x', sizeBytes: 1024, isImage: false, sentUtc: '2026-10-21T09:00:00Z', conversationKey: 'peer', conversationName: 'Peer Person', messageId: 13, removedUtc: '2026-10-22T09:00:00Z', removalReason: 'Admin', restorableUntil: null },
+  ],
+};
+
+test('My files lists my files with my usage, and opens from ?view=files', async () => {
+  const window = myFilesApp(async (url) => (url.endsWith('/attachments/mine') ? myFiles : undefined));
+  try {
+    await tick(); await tick(); await tick(); await tick();
+    const panel = window.document.querySelector('.pm-chat-files');
+    assert.ok(panel, 'My files is shown');
+    assert.equal(panel.querySelector('.pm-chat-files__usage-text').textContent, '900 MB of 1 GB used');
+    assert.ok(panel.querySelector('.pm-chat-files__meter').classList.contains('is-high') === false);
+    const names = Array.from(panel.querySelectorAll('.pm-chat-files__name'), (n) => n.textContent);
+    assert.deepEqual(names, ['draft.docx', 'gone.pdf', 'photo.png', 'old-report.pdf']);
+    assert.match(panel.textContent, /File removed by an administrator/);
+    assert.ok(panel.querySelector('[aria-label^="Restore draft.docx"]'));
+    assert.equal(panel.querySelector('[aria-label^="Restore gone.pdf"]'), null);
+
+    panel.querySelector('select[aria-label="Sort files"]').value = 'largest';
+    panel.querySelector('select[aria-label="Sort files"]').dispatchEvent(new window.Event('change'));
+    assert.equal(panel.querySelector('.pm-chat-files__name').textContent, 'photo.png');
+  } finally {
+    window.close();
+  }
+});
+
+test('removing selected files takes a second click; restore puts one back', async () => {
+  const posts = [];
+  const window = myFilesApp(async (url, init) => {
+    if (url.endsWith('/attachments/mine')) return myFiles;
+    if (url.includes('/attachments/mine/') && init.method === 'POST') {
+      posts.push([url.replace(/^.*\/mine\//, ''), JSON.parse(init.body)]);
+      return { status: 200, body: { files: 1, bytes: 5 * 1024 * 1024, batchId: 'b', restorableUntil: '2026-10-24T09:00:00Z' } };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick(); await tick(); await tick();
+    const panel = window.document.querySelector('.pm-chat-files');
+    panel.querySelector('[aria-label="Select old-report.pdf"]').click();
+    const removeButton = () => Array.from(panel.querySelectorAll('.pm-chat-files__tools button')).find((b) => /selected/.test(b.textContent));
+    assert.equal(removeButton().textContent, 'Remove selected (1)');
+    removeButton().click();
+    assert.equal(removeButton().textContent, 'Remove 1 selected?');
+    assert.equal(posts.length, 0);
+    removeButton().click();
+    await tick(); await tick(); await wait(50);
+    assert.deepEqual(posts[0], ['remove', { ids: [1] }]);
+    assert.match(panel.querySelector('.pm-chat-files__note').textContent, /Removed 1 file \(5\.0 MB\)/);
+
+    panel.querySelector('[aria-label^="Restore draft.docx"]').click();
+    await tick(); await tick();
+    assert.deepEqual(posts[1], ['restore', { ids: [3] }]);
   } finally {
     window.close();
   }

@@ -1,0 +1,170 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Chat.StorageModel
+@using ProjectManagement.Areas.Admin.Pages.Chat
+@{
+    ViewData["Title"] = "Chat storage";
+    var settings = Model.Settings;
+}
+
+<header class="admin-page-header">
+    <div class="admin-page-header__content">
+        <div class="admin-page-header__eyebrow">Recovery</div>
+        <h1><i class="bi bi-paperclip me-2" aria-hidden="true"></i>Chat storage</h1>
+        <p>Space used by files sent in chat, and clean-ups. Sizes and people only: file names and conversations stay private. Every clean-up can be undone for @settings.UndoHours hours, and the people affected are told.</p>
+    </div>
+</header>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+@if (!settings.Enabled)
+{
+    <div class="alert alert-secondary" role="status">Chat attachments are switched off (<code>Chat:Attachments:Enabled</code>). Files already sent are listed here and can still be cleaned up.</div>
+}
+
+<section class="admin-monitoring-metric-grid" aria-label="Chat storage summary">
+    <article class="admin-monitoring-metric">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span>
+        <div><small>Files kept</small><strong>@Model.Totals.Files.ToString("N0")</strong><span>@StorageModel.Size(Model.Totals.TotalBytes) in all</span></div>
+    </article>
+    <article class="admin-monitoring-metric">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-hdd"></i></span>
+        <div><small>Free on the upload disk</small><strong>@(Model.Totals.FreeDiskBytes is { } free ? StorageModel.Size(free) : "Unknown")</strong><span>Uploads stop below @settings.MinimumFreeDiskGb GB</span></div>
+    </article>
+    <article class="admin-monitoring-metric">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-person"></i></span>
+        <div><small>Allowance</small><strong>@StorageModel.Size(settings.AllowanceBytes) each</strong><span>@settings.MaxFileMb MB per file</span></div>
+    </article>
+    <article class="admin-monitoring-metric">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-x"></i></span>
+        <div><small>Automatic retention</small><strong>@(settings.RetentionDays > 0 ? $"{settings.RetentionDays} days" : "Off")</strong><span>Older files are removed once a day</span></div>
+    </article>
+</section>
+
+<section class="admin-panel mt-3" aria-labelledby="chatStorageCleanUp">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Clean up</div><h2 id="chatStorageCleanUp">Remove chat files</h2></div>
+    </header>
+    <form method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="preview" value="true" />
+        <div class="col-md-5">
+            <label class="form-label small" for="chatStorageUser">Whose files</label>
+            <select id="chatStorageUser" name="UserId" class="form-select">
+                <option value="">Everyone</option>
+                @foreach (var person in Model.People)
+                {
+                    <option value="@person.UserId" selected="@(person.UserId == Model.UserId)">@person.DisplayName (@StorageModel.Size(person.Bytes))</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small" for="chatStorageAge">Older than (days, blank for all)</label>
+            <input id="chatStorageAge" name="OlderThanDays" type="number" min="1" class="form-control" value="@Model.OlderThanDays" placeholder="e.g. 30" />
+        </div>
+        <div class="col-auto"><button type="submit" class="btn btn-outline-primary"><i class="bi bi-eye me-1" aria-hidden="true"></i>Preview</button></div>
+    </form>
+
+    @if (Model.Preview is { } preview)
+    {
+        <div class="admin-inline-notice mt-3" role="status">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            @if (preview.Files == 0)
+            {
+                <span>There are no @Model.ScopeLabel to remove.</span>
+            }
+            else
+            {
+                <span>This removes <strong>@preview.Files.ToString("N0") file(s), @StorageModel.Size(preview.Bytes)</strong>, sent by @preview.People.ToString("N0") @(preview.People == 1 ? "person" : "people"): @Model.ScopeLabel.</span>
+            }
+        </div>
+        @if (preview.Files > 0)
+        {
+            <form method="post" asp-page-handler="Remove" class="row g-2 align-items-end mt-1">
+                <input type="hidden" name="UserId" value="@Model.UserId" />
+                <input type="hidden" name="OlderThanDays" value="@Model.OlderThanDays" />
+                <div class="col-md-5">
+                    <label class="form-label small" for="chatStorageConfirm">Type <strong>@StorageModel.ConfirmationWord</strong> to confirm</label>
+                    <input id="chatStorageConfirm" name="Confirmation" class="form-control" autocomplete="off" required />
+                </div>
+                <div class="col-auto"><button type="submit" class="btn btn-danger"><i class="bi bi-trash3 me-1" aria-hidden="true"></i>Remove @preview.Files.ToString("N0") file(s)</button></div>
+                <div class="col-12 small text-muted">The messages stay and show the file as removed. You can undo this for @settings.UndoHours hours; after that the files are deleted from disk.</div>
+            </form>
+        }
+    }
+</section>
+
+<section class="admin-panel mt-3" aria-labelledby="chatStorageBatches">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Undo</div><h2 id="chatStorageBatches">Recent clean-ups</h2></div>
+    </header>
+    @if (Model.Batches.Count == 0)
+    {
+        <div class="admin-compact-empty"><i class="bi bi-check-circle"></i><span>No clean-ups in the last 7 days.</span></div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>When</th><th>By</th><th>Files</th><th>Size</th><th>People</th><th>Undo until</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var batch in Model.Batches)
+                {
+                    <tr>
+                        <td>@StorageModel.Local(batch.RemovedUtc)</td>
+                        <td>@(batch.Reason == ProjectManagement.Models.Chat.ChatAttachmentRemovalReason.Retention ? "Automatic retention" : "Administrator")</td>
+                        <td>@batch.Files.ToString("N0")</td>
+                        <td>@StorageModel.Size(batch.Bytes)</td>
+                        <td>@batch.People.ToString("N0")</td>
+                        <td>@(batch.CanUndo ? StorageModel.Local(batch.RestorableUntil) : "—")</td>
+                        <td class="text-end">
+                            @if (batch.CanUndo)
+                            {
+                                <form method="post" asp-page-handler="Undo" data-confirm="Restore the files of this clean-up?">
+                                    <input type="hidden" name="batchId" value="@batch.BatchId" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Undo</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="admin-panel mt-3" aria-labelledby="chatStoragePeople">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Use</div><h2 id="chatStoragePeople">Who uses most</h2></div>
+    </header>
+    @if (Model.People.Count == 0)
+    {
+        <div class="admin-compact-empty"><i class="bi bi-inbox"></i><span>No chat files are stored.</span></div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Person</th><th>Files</th><th>Size</th><th>Of allowance</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var person in Model.People.Take(50))
+                {
+                    var share = settings.AllowanceBytes > 0 ? (int)Math.Min(100, Math.Round(person.Bytes * 100d / settings.AllowanceBytes)) : 0;
+                    <tr>
+                        <td>@person.DisplayName</td>
+                        <td>@person.Files.ToString("N0")</td>
+                        <td>@StorageModel.Size(person.Bytes)</td>
+                        <td>@share%</td>
+                        <td class="text-end"><a class="btn btn-sm btn-link" asp-page="/Chat/Storage" asp-route-userId="@person.UserId" asp-route-preview="true">Clean up…</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

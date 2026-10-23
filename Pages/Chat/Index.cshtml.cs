@@ -29,6 +29,10 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true, Name = "at")]
     public long? At { get; set; }
 
+    /// <summary>"files" opens My files (the files you sent) instead of a conversation.</summary>
+    [BindProperty(SupportsGet = true, Name = "view")]
+    public string? View { get; set; }
+
     public IActionResult OnGet()
     {
         if (!_options.CurrentValue.Enabled)

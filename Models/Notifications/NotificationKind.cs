@@ -37,5 +37,8 @@ public enum NotificationKind
     NotebookShared = 120,
     NotebookAccessRemoved = 121,
     NotebookCollaborationLeft = 122,
-    NotebookAccessChanged = 123
+    NotebookAccessChanged = 123,
+
+    // Chat: an administrator or automatic retention removed some of a person's chat files.
+    ChatFilesRemoved = 124
 }

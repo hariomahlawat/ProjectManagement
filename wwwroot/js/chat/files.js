@@ -15,17 +15,30 @@
 
   const document = global.document;
   const {
-    ChatApp, ARM_MS, el, icon, iconButton, newClientId,
+    ChatApp, ARM_MS, el, icon, iconButton, newClientId, focusKeyIn, refocus,
   } = global.PMChatParts;
 
   const ACCEPT = '.pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png,.webp,.txt,.csv';
+
+  /** What a removed file says in the conversation, by who or what removed it. */
+  function removedText(reason) {
+    if (reason === 'Admin') return 'File removed by an administrator';
+    if (reason === 'Retention') return 'File removed automatically (old)';
+    return 'File removed';
+  }
+
+  const timeFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  const untilFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
 
   /** "840 KB", "12.5 MB". */
   function formatSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-    const mb = bytes / (1024 * 1024);
-    return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+    if (bytes < 1024 * 1024 * 1024) {
+      const mb = bytes / (1024 * 1024);
+      return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+    }
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1).replace(/\.0$/, '')} GB`;
   }
 
   function fileIcon(attachment) {
@@ -218,7 +231,7 @@
     const box = el('div', 'pm-chat__files');
     for (const file of files) {
       if (file.isRemoved) {
-        box.append(el('span', 'pm-chat__file-removed', 'File removed'));
+        box.append(el('span', 'pm-chat__file-removed', removedText(file.removalReason)));
         continue;
       }
       const wrap = el('div', 'pm-chat__file');
@@ -292,12 +305,213 @@
    * the file back.
    */
   ChatApp.prototype.onAttachmentRemoved = function (removed) {
-    this.removedFiles.set(removed.attachmentId, { id: removed.attachmentId, isRemoved: true });
+    this.fileEventAt.set(removed.attachmentId, ++this.fileEventSeq);
+    this.restoredFiles.delete(removed.attachmentId);
+    this.removedFiles.set(removed.attachmentId, { id: removed.attachmentId, isRemoved: true, removalReason: removed.removalReason || null });
     const shows = (list) => list.some((m) => m.attachments && m.attachments.some((a) => a.id === removed.attachmentId && !a.isRemoved));
     this.windows.forEach((win) => {
       if (!shows(win.messages) && !shows(win.heldLive)) return;
       this.applyTombstones(win);
       this.renderMessages(win, { stickToBottom: false });
     });
+    if (this.filesPanelOpen) this.filesPanelOpen.refresh();
+  };
+
+  /** A removed file came back (restored within the undo window). */
+  ChatApp.prototype.onAttachmentRestored = function (restored) {
+    const file = restored.attachment;
+    // Remembered like a removal, so a history page or send response still in flight (or a
+    // message not loaded yet) shows the file too.
+    this.fileEventAt.set(file.id, ++this.fileEventSeq);
+    this.removedFiles.delete(file.id);
+    this.restoredFiles.set(file.id, file);
+    const bringBack = (list) => {
+      let changed = false;
+      const next = list.map((message) => {
+        if (message.id !== restored.messageId || !message.attachments) return message;
+        if (!message.attachments.some((a) => a.id === file.id)) return message;
+        changed = true;
+        return { ...message, attachments: message.attachments.map((a) => (a.id === file.id ? file : a)) };
+      });
+      return changed ? next : null;
+    };
+    this.windows.forEach((win) => {
+      const held = bringBack(win.heldLive);
+      if (held) win.heldLive = held;
+      const messages = bringBack(win.messages);
+      if (!messages) return;
+      win.messages = messages;
+      this.renderMessages(win, { stickToBottom: false });
+    });
+  };
+
+  // ----- My files ---------------------------------------------------------------------------
+
+  /**
+   * My files: the files I sent, with how much of my allowance they use. Remove a selection or
+   * everything older than an age (each a second click to confirm), restore within the undo
+   * window; files an administrator removed say so and are restored by an administrator.
+   * Returns { node, refresh }. openConversation(key) opens a file's chat.
+   */
+  ChatApp.prototype.myFilesPanel = function (openConversation) {
+    const node = el('section', 'pm-chat-files');
+    node.setAttribute('aria-labelledby', 'pmChatFilesTitle');
+    const title = el('h2', 'pm-chat-files__title', 'My files');
+    title.id = 'pmChatFilesTitle';
+    const lede = el('p', 'pm-chat-files__lede', 'Files you sent in chat. Only what you keep counts against your allowance; a removed file can be restored for a day.');
+    const usage = el('div', 'pm-chat-files__usage');
+    const meter = el('div', 'pm-chat-files__meter');
+    meter.setAttribute('role', 'progressbar');
+    meter.setAttribute('aria-valuemin', '0');
+    meter.setAttribute('aria-valuemax', '100');
+    const fill = el('span', 'pm-chat-files__meter-fill');
+    meter.append(fill);
+    const usageText = el('span', 'pm-chat-files__usage-text');
+    usage.append(meter, usageText);
+
+    const tools = el('div', 'pm-chat-files__tools');
+    const sort = el('select', 'form-select form-select-sm');
+    sort.setAttribute('aria-label', 'Sort files');
+    for (const [value, label] of [['newest', 'Newest first'], ['largest', 'Largest first']]) {
+      const option = el('option', null, label);
+      option.value = value;
+      sort.append(option);
+    }
+    const removeSelected = el('button', 'btn btn-outline-danger btn-sm');
+    removeSelected.type = 'button';
+    const ageSelect = el('select', 'form-select form-select-sm');
+    ageSelect.setAttribute('aria-label', 'Remove files older than');
+    for (const days of [30, 90, 180, 365]) {
+      const option = el('option', null, days === 365 ? 'Older than a year' : `Older than ${days} days`);
+      option.value = String(days);
+      ageSelect.append(option);
+    }
+    const removeOlder = el('button', 'btn btn-outline-danger btn-sm');
+    removeOlder.type = 'button';
+    tools.append(sort, removeSelected, ageSelect, removeOlder);
+
+    const note = el('p', 'pm-chat-files__note');
+    note.setAttribute('aria-live', 'polite');
+    const list = el('ul', 'pm-chat-files__list');
+    list.setAttribute('aria-label', 'Your files');
+    const empty = el('p', 'pm-chat-page__empty', 'Loading…');
+    node.append(title, lede, usage, tools, note, list, empty);
+
+    const state = { files: [], selected: new Set(), armed: '', armTimer: null };
+    const arm = (which) => {
+      state.armed = which;
+      if (state.armTimer) global.clearTimeout(state.armTimer);
+      state.armTimer = global.setTimeout(() => { state.armed = ''; draw(); }, ARM_MS);
+      draw();
+    };
+
+    const change = async (path, body, done) => {
+      state.armed = '';
+      try {
+        const result = await this.request('POST', `/attachments/mine/${path}`, body);
+        note.textContent = done(result);
+        this.announce(note.textContent);
+        state.selected.clear();
+      } catch (error) {
+        note.textContent = error.message;
+        this.announce(error.message);
+      }
+      await refresh();
+    };
+
+    removeSelected.addEventListener('click', () => {
+      if (!state.selected.size) return;
+      if (state.armed !== 'selected') return arm('selected');
+      change('remove', { ids: Array.from(state.selected) },
+        (r) => `Removed ${r.files} ${r.files === 1 ? 'file' : 'files'} (${formatSize(r.bytes)}). You can restore them until ${untilFormat.format(new Date(r.restorableUntil))}.`);
+    });
+    removeOlder.addEventListener('click', () => {
+      if (state.armed !== 'older') return arm('older');
+      change('remove-older', { days: Number(ageSelect.value) },
+        (r) => `Removed ${r.files} ${r.files === 1 ? 'file' : 'files'} (${formatSize(r.bytes)}). You can restore them until ${untilFormat.format(new Date(r.restorableUntil))}.`);
+    });
+    sort.addEventListener('change', () => draw());
+    ageSelect.addEventListener('change', () => { state.armed = ''; draw(); });
+
+    const draw = () => {
+      const kept = state.files.filter((f) => !f.removedUtc);
+      removeSelected.textContent = state.armed === 'selected'
+        ? `Remove ${state.selected.size} selected?`
+        : `Remove selected (${state.selected.size})`;
+      removeSelected.disabled = state.selected.size === 0;
+      removeOlder.textContent = state.armed === 'older' ? 'Remove them?' : 'Remove';
+      const ordered = state.files.slice().sort(sort.value === 'largest'
+        ? (a, b) => b.sizeBytes - a.sizeBytes
+        : (a, b) => Date.parse(b.sentUtc) - Date.parse(a.sentUtc));
+      const focused = focusKeyIn(list);
+      list.replaceChildren(...ordered.map((file) => {
+        const row = el('li', `pm-chat-files__item${file.removedUtc ? ' is-removed' : ''}`);
+        if (!file.removedUtc) {
+          const box = el('input', 'form-check-input');
+          box.type = 'checkbox';
+          box.checked = state.selected.has(file.id);
+          box.dataset.focusKey = `file:${file.id}`;
+          box.setAttribute('aria-label', `Select ${file.fileName}`);
+          box.addEventListener('change', () => {
+            if (box.checked) state.selected.add(file.id); else state.selected.delete(file.id);
+            state.armed = '';
+            draw();
+          });
+          row.append(box);
+        } else {
+          row.append(el('span', 'pm-chat-files__spacer'));
+        }
+        row.append(icon(file.isImage ? 'file-earmark-image' : fileIcon(file)));
+        const text = el('span', 'pm-chat-files__text');
+        text.append(el('span', 'pm-chat-files__name', file.fileName));
+        const where = el('button', 'btn btn-link btn-sm p-0 pm-chat-files__where', file.conversationName);
+        where.type = 'button';
+        where.setAttribute('aria-label', `Open the chat with ${file.conversationName}`);
+        where.addEventListener('click', () => openConversation(file.conversationKey));
+        const meta = el('span', 'pm-chat-files__meta', `${formatSize(file.sizeBytes)} · ${timeFormat.format(new Date(file.sentUtc))} · `);
+        meta.append(where);
+        text.append(meta);
+        row.append(text);
+        if (file.removedUtc) {
+          if (file.restorableUntil) {
+            const restore = el('button', 'btn btn-sm btn-outline-secondary', 'Restore');
+            restore.type = 'button';
+            restore.dataset.focusKey = `restore:${file.id}`;
+            restore.setAttribute('aria-label', `Restore ${file.fileName}, possible until ${untilFormat.format(new Date(file.restorableUntil))}`);
+            restore.addEventListener('click', () => change('restore', { ids: [file.id] }, () => `Restored ${file.fileName}.`));
+            row.append(el('span', 'pm-chat-files__status', `Removed · restore until ${untilFormat.format(new Date(file.restorableUntil))}`), restore);
+          } else {
+            row.append(el('span', 'pm-chat-files__status', removedText(file.removalReason)));
+          }
+        }
+        return row;
+      }));
+      refocus(list, focused);
+      empty.hidden = state.files.length > 0;
+      empty.textContent = 'You have not sent any files.';
+      removeSelected.hidden = kept.length === 0;
+    };
+
+    const refresh = async () => {
+      try {
+        const mine = await this.request('GET', '/attachments/mine');
+        state.files = mine.files || [];
+        const live = new Set(state.files.filter((f) => !f.removedUtc).map((f) => f.id));
+        state.selected.forEach((id) => { if (!live.has(id)) state.selected.delete(id); });
+        const percent = mine.allowanceBytes ? Math.min(100, Math.round((mine.usedBytes / mine.allowanceBytes) * 100)) : 0;
+        fill.style.width = `${percent}%`;
+        meter.classList.toggle('is-high', percent >= 90);
+        meter.setAttribute('aria-valuenow', String(percent));
+        meter.setAttribute('aria-label', `${percent}% of your allowance used`);
+        usageText.textContent = `${formatSize(mine.usedBytes)} of ${formatSize(mine.allowanceBytes)} used`;
+      } catch (error) {
+        empty.textContent = error.message;
+      }
+      draw();
+    };
+
+    const panel = { node, refresh };
+    this.filesPanelOpen = panel;
+    return panel;
   };
 })(window);

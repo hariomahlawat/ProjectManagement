@@ -145,6 +145,89 @@ public sealed class ChatApiTests
         Assert.Equal(HttpStatusCode.Forbidden, (await alice.GetAsync("/api/chat/attachments/totals")).StatusCode);
     }
 
+    private static async Task<long> UploadAndSendAsync(ChatHost host, HttpClient client, string token, string to, string name)
+    {
+        using var form = PdfForm(name);
+        using var upload = new HttpRequestMessage(HttpMethod.Post, "/api/chat/attachments") { Content = form };
+        upload.Headers.Add("X-CSRF-TOKEN", token);
+        var file = (await (await client.SendAsync(upload)).Content.ReadFromJsonAsync<ChatAttachmentDto>())!;
+        var sent = await host.PostAsync(client, token, "/api/chat/messages", new ChatSendRequest(to, Guid.NewGuid(), "", new[] { file.Id }));
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        return file.Id;
+    }
+
+    [Fact]
+    public async Task MyFiles_ListRemoveRestore_OverHttp()
+    {
+        await using var host = await ChatHost.CreateAsync(new Dictionary<string, string?> { ["Chat:Attachments:Enabled"] = "true" });
+        using var alice = host.ClientFor("alice");
+        var token = await host.TokenAsync(alice);
+        var id = await UploadAndSendAsync(host, alice, token, "bob", "plan.pdf");
+
+        var mine = await alice.GetFromJsonAsync<ChatMyFilesDto>("/api/chat/attachments/mine");
+        Assert.Equal("plan.pdf", Assert.Single(mine!.Files).FileName);
+        Assert.Equal("Bob Bhatia", mine.Files[0].ConversationName);
+
+        host.Hub.Pushes.Clear();
+        var removed = await host.PostAsync(alice, token, "/api/chat/attachments/mine/remove", new ChatFileIdsRequest(new[] { id }));
+        Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
+        var push = Assert.Single(host.Hub.Pushes);
+        Assert.Equal(nameof(IChatClient.AttachmentRemoved), push.Method);
+        Assert.Equal(new[] { "alice", "bob" }, push.Targets.OrderBy(t => t));
+
+        var restored = await host.PostAsync(alice, token, "/api/chat/attachments/mine/restore", new ChatFileIdsRequest(new[] { id }));
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+        Assert.Equal(nameof(IChatClient.AttachmentRestored), host.Hub.Pushes.Last().Method);
+
+        var nothing = await host.PostAsync(alice, token, "/api/chat/attachments/mine/remove-older", new ChatRemoveOlderRequest(30));
+        Assert.Equal(HttpStatusCode.BadRequest, nothing.StatusCode); // nothing that old
+    }
+
+    [Fact]
+    public async Task AdminChatStorage_IsForAdministrators_PreviewConfirmAndUndo()
+    {
+        await using var host = await ChatHost.CreateAsync(new Dictionary<string, string?> { ["Chat:Attachments:Enabled"] = "true" });
+        using var alice = host.ClientFor("alice");
+        var token = await host.TokenAsync(alice);
+        var id = await UploadAndSendAsync(host, alice, token, "bob", "secret-plans.pdf");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await alice.GetAsync("/Admin/Chat/Storage")).StatusCode);
+
+        using var admin = host.ClientFor("carol", "Admin");
+        var preview = await admin.GetStringAsync("/Admin/Chat/Storage?preview=true");
+        Assert.Contains("This removes", preview);
+        Assert.Contains("Alice Anand", preview);
+        Assert.DoesNotContain("secret-plans", preview); // sizes and people only
+        var formToken = Regex.Match(preview, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"(?<t>[^\"]+)\"").Groups["t"].Value;
+        Assert.False(string.IsNullOrEmpty(formToken));
+
+        // Without typing REMOVE nothing happens.
+        var unconfirmed = await admin.PostAsync("/Admin/Chat/Storage?handler=Remove", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = formToken, ["Confirmation"] = "yes",
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, unconfirmed.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await alice.GetAsync($"/api/chat/attachments/{id}")).StatusCode);
+
+        var confirmed = await admin.PostAsync("/Admin/Chat/Storage?handler=Remove", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = formToken, ["Confirmation"] = "REMOVE",
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, confirmed.StatusCode);
+        Assert.Equal(HttpStatusCode.Gone, (await alice.GetAsync($"/api/chat/attachments/{id}")).StatusCode);
+
+        var page = await admin.GetStringAsync("/Admin/Chat/Storage");
+        Assert.Contains("Removed 1 file(s)", page);
+        Assert.Contains("handler=Undo", page);
+        var batchId = Regex.Match(page, "name=\"batchId\" value=\"(?<id>[0-9a-f-]+)\"").Groups["id"].Value;
+        var undo = await admin.PostAsync("/Admin/Chat/Storage?handler=Undo", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = formToken, ["batchId"] = batchId,
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, undo.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await alice.GetAsync($"/api/chat/attachments/{id}")).StatusCode);
+    }
+
     private static MultipartFormDataContent PdfForm(string name)
     {
         var form = new MultipartFormDataContent();
@@ -287,6 +370,7 @@ public sealed class ChatApiTests
     private sealed class ChatHost : IAsyncDisposable
     {
         private const string UserHeader = "X-Chat-Test-User";
+        private const string RolesHeader = "X-Chat-Test-Roles";
 
         private readonly SqliteConnection _connection;
         private readonly WebApplicationFactory<Program> _factory;
@@ -361,10 +445,15 @@ public sealed class ChatApiTests
             return new ChatHost(connection, factory, hub);
         }
 
-        public HttpClient ClientFor(string userId)
+        public HttpClient ClientFor(string userId, params string[] roles)
         {
             var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
             client.DefaultRequestHeaders.Add(UserHeader, userId);
+            if (roles.Length > 0)
+            {
+                client.DefaultRequestHeaders.Add(RolesHeader, string.Join(",", roles));
+            }
+
             return client;
         }
 
@@ -434,8 +523,12 @@ public sealed class ChatApiTests
                     return Task.FromResult(AuthenticateResult.NoResult());
                 }
 
+                var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId), new(ClaimTypes.Name, userId) };
+                claims.AddRange(Request.Headers[RolesHeader].ToString()
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(role => new Claim(ClaimTypes.Role, role)));
                 var principal = new ClaimsPrincipal(new ClaimsIdentity(
-                    new[] { new Claim(ClaimTypes.NameIdentifier, userId), new Claim(ClaimTypes.Name, userId) },
+                    claims,
                     // The layout renders the antiforgery token only for an Identity sign-in.
                     IdentityConstants.ApplicationScheme));
                 return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, "ChatTest")));

@@ -444,7 +444,7 @@ public sealed class ChatAttachmentService
     internal static ChatAttachmentDto ToDto(ChatAttachment a)
         => a.RemovedUtc is null
             ? new ChatAttachmentDto(a.Id, a.FileName, a.ContentType, a.SizeBytes, a.IsImage, a.Width, a.Height)
-            : new ChatAttachmentDto(a.Id, string.Empty, string.Empty, 0, false, null, null, IsRemoved: true);
+            : new ChatAttachmentDto(a.Id, string.Empty, string.Empty, 0, false, null, null, IsRemoved: true, RemovalReason: a.RemovalReason);
 
     // ------------------------------------------------------------------ download
 
@@ -524,8 +524,25 @@ public sealed class ChatAttachmentService
             return null;
         }
 
-        attachment.RemovedUtc = _clock.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
+        // Claimed with one conditional update: if an administrator or retention removed it
+        // meanwhile, theirs stands (and only they can restore it).
+        DateTimeOffset? removedUtc = _clock.UtcNow;
+        Guid? batchId = Guid.NewGuid();
+        var claimed = await _db.ChatAttachments
+            .Where(a => a.Id == attachment.Id && a.RemovedUtc == null)
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(a => a.RemovedUtc, removedUtc)
+                    .SetProperty(a => a.RemovalReason, ChatAttachmentRemovalReason.Sender)
+                    .SetProperty(a => a.RemovedByUserId, userId)
+                    .SetProperty(a => a.RemovalBatchId, batchId),
+                cancellationToken);
+        _db.Entry(attachment).State = EntityState.Detached;
+        if (claimed == 0)
+        {
+            return null;
+        }
+
 
         var message = attachment.Message;
         if (message is null)
@@ -540,7 +557,7 @@ public sealed class ChatAttachmentService
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
         return new ChatAttachmentRemoval(
-            new ChatAttachmentRemovedDto(attachment.Id, message.Id, isGroup ? message.ConversationId : null),
+            new ChatAttachmentRemovedDto(attachment.Id, message.Id, isGroup ? message.ConversationId : null, ChatAttachmentRemovalReason.Sender),
             notify);
     }
 
@@ -564,15 +581,47 @@ public sealed class ChatAttachmentService
                 where p.UserId == userId
                     && (p.Conversation!.Kind == ChatConversation.DirectKind || p.JoinedUtc <= m.SentUtc)
                 orderby a.Id descending
-                select new { a.Id, MessageId = m.Id, m.ConversationId, p.Conversation!.Kind })
+                select new { a.Id, MessageId = m.Id, m.ConversationId, p.Conversation!.Kind, a.RemovalReason })
             .Take(ChatService.MaxUnsentSync + 1)
             .ToListAsync(cancellationToken);
 
         var files = page
             .Take(ChatService.MaxUnsentSync)
-            .Select(f => new ChatAttachmentRemovedDto(f.Id, f.MessageId, f.Kind == ChatConversation.GroupKind ? f.ConversationId : null))
+            .Select(f => new ChatAttachmentRemovedDto(f.Id, f.MessageId, f.Kind == ChatConversation.GroupKind ? f.ConversationId : null, f.RemovalReason))
             .ToList();
         return new ChatRemovedFilesPageDto(files, page.Count > ChatService.MaxUnsentSync);
+    }
+
+    /// <summary>The most file ids one state check takes.</summary>
+    public const int MaxStateCheck = 500;
+
+    /// <summary>
+    /// The current state of the given sent files, those in messages the caller may read: a page
+    /// that remembers files as removed asks after an outage, so one restored meanwhile comes back.
+    /// </summary>
+    public async Task<IReadOnlyList<ChatAttachmentRestoredDto>> ListCurrentAsync(
+        string userId,
+        IReadOnlyCollection<long> attachmentIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = attachmentIds.Distinct().Take(MaxStateCheck).ToList();
+        if (ids.Count == 0)
+        {
+            return Array.Empty<ChatAttachmentRestoredDto>();
+        }
+
+        var rows = await (
+                from a in _db.ChatAttachments.AsNoTracking()
+                where ids.Contains(a.Id) && a.MessageId != null
+                join m in _db.ChatMessages.AsNoTracking() on a.MessageId equals m.Id
+                join p in _db.ChatParticipants.AsNoTracking() on m.ConversationId equals p.ConversationId
+                where p.UserId == userId
+                    && (p.Conversation!.Kind == ChatConversation.DirectKind || p.JoinedUtc <= m.SentUtc)
+                select new { Attachment = a, MessageId = m.Id, m.ConversationId, p.Conversation!.Kind })
+            .ToListAsync(cancellationToken);
+        return rows
+            .Select(r => new ChatAttachmentRestoredDto(r.MessageId, r.Kind == ChatConversation.GroupKind ? r.ConversationId : null, ToDto(r.Attachment)))
+            .ToList();
     }
 
     // ------------------------------------------------------------------ clean-up
@@ -588,27 +637,61 @@ public sealed class ChatAttachmentService
         var unusedBefore = now.AddMinutes(-Math.Max(1, Settings.UnusedUploadMinutes));
         await _db.ChatAttachments
             .Where(a => a.MessageId == null && a.RemovedUtc == null && a.CreatedUtc < unusedBefore)
-            .ExecuteUpdateAsync(set => set.SetProperty(a => a.RemovedUtc, now), cancellationToken);
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(a => a.RemovedUtc, now)
+                    .SetProperty(a => a.RemovalReason, ChatAttachmentRemovalReason.Unused),
+                cancellationToken);
+
+        // A removal that can still be undone waits out the undo window before its file goes.
+        var undoableBefore = now - Settings.UndoWindow;
 
         var deleted = 0;
-        var batch = await _db.ChatAttachments
+        var due = _db.ChatAttachments
             .Where(a => a.RemovedUtc != null && a.PurgedUtc == null)
+            .Where(a => (a.RemovalReason != ChatAttachmentRemovalReason.Sender
+                        && a.RemovalReason != ChatAttachmentRemovalReason.Administrator
+                        && a.RemovalReason != ChatAttachmentRemovalReason.Retention)
+                    || a.RemovedUtc < undoableBefore);
+        var candidates = await due.OrderBy(a => a.Id).Select(a => a.Id).Take(500).ToListAsync(cancellationToken);
+
+        // Claim the files before touching the disk: one conditional update, so a restore that
+        // committed meanwhile (or is committing: the update waits for it, then finds the file
+        // kept) is never deleted. Restores in turn only take files not claimed (PurgedUtc null).
+        DateTimeOffset? claimedMarker = ChatAttachment.PurgeClaimed;
+        await due.Where(a => candidates.Contains(a.Id))
+            .ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, claimedMarker), cancellationToken);
+
+        // Every file claimed and not yet confirmed gone: this sweep's, and any an earlier sweep
+        // claimed but could not finish (a file held open, a stop or a failure part-way), so
+        // nothing claimed is ever left behind on disk.
+        var claimed = await _db.ChatAttachments.AsNoTracking()
+            .Where(a => a.PurgedUtc == claimedMarker)
             .OrderBy(a => a.Id)
             .Take(500)
             .ToListAsync(cancellationToken);
-        foreach (var attachment in batch)
+
+        var gone = new List<long>();
+        foreach (var attachment in claimed)
         {
             var fileGone = DeleteQuietly(_paths.ToAbsolute(attachment.StorageKey));
             var thumbnailGone = attachment.ThumbnailKey is null || DeleteQuietly(_paths.ToAbsolute(attachment.ThumbnailKey));
-            // A file still on disk (held open, access denied) stays due, for the next sweep.
+            // A file still on disk (held open, access denied) stays claimed, for the next sweep.
             if (fileGone && thumbnailGone)
             {
-                attachment.PurgedUtc = now;
-                deleted++;
+                gone.Add(attachment.Id);
             }
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
+        if (gone.Count > 0)
+        {
+            DateTimeOffset? purgedUtc = now;
+            await _db.ChatAttachments
+                .Where(a => gone.Contains(a.Id) && a.PurgedUtc == claimedMarker)
+                .ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, purgedUtc), cancellationToken);
+            deleted = gone.Count;
+        }
+
         CleanTemporaryFolder(now);
         return deleted;
     }
@@ -658,8 +741,26 @@ public sealed class ChatAttachmentService
         }
     }
 
+    /// <summary>"512 B", "840 KB", "12.5 MB", "1 GB", "2.4 GB".</summary>
     internal static string FormatSize(long bytes)
-        => bytes >= 1024L * 1024 * 1024 && bytes % (1024L * 1024 * 1024) == 0
-            ? $"{bytes / (1024L * 1024 * 1024)} GB"
-            : $"{Math.Round(bytes / (1024d * 1024), 1)} MB";
+    {
+        const double Kb = 1024, Mb = Kb * 1024, Gb = Mb * 1024;
+        if (bytes < Kb)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < Mb)
+        {
+            return $"{Math.Max(1, Math.Round(bytes / Kb))} KB";
+        }
+
+        if (bytes < Gb)
+        {
+            var mb = bytes / Mb;
+            return mb < 10 ? $"{mb:0.#} MB" : $"{Math.Round(mb)} MB";
+        }
+
+        return $"{bytes / Gb:0.#} GB";
+    }
 }

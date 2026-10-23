@@ -3522,6 +3522,17 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset?>("PurgedUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("RemovalBatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RemovalReason")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("RemovedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<DateTimeOffset?>("RemovedUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -3553,6 +3564,8 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("MessageId");
+
+                    b.HasIndex("RemovalBatchId");
 
                     b.HasIndex("StorageKey")
                         .IsUnique();

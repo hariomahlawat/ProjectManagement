@@ -45,7 +45,8 @@ public sealed record ChatAttachmentDto(
     bool IsImage,
     int? Width,
     int? Height,
-    bool IsRemoved = false);
+    bool IsRemoved = false,
+    string? RemovalReason = null);
 
 /// <summary>A person's own use of their attachment allowance, and the limits that apply.</summary>
 public sealed record ChatAttachmentUsageDto(long UsedBytes, long AllowanceBytes, long MaxFileBytes, int MaxFilesPerMessage);
@@ -55,8 +56,64 @@ public sealed record ChatAttachmentTotalsDto(int Files, long TotalBytes, long? F
 
 public sealed record ChatAttachmentPersonUsageDto(string DisplayName, long UsedBytes);
 
-/// <summary>A sender removed a file from a message (the message itself stays).</summary>
-public sealed record ChatAttachmentRemovedDto(long AttachmentId, long MessageId, long? GroupId);
+/// <summary>
+/// A file was removed from a message (the message itself stays). RemovalReason: Sender, Admin or
+/// Retention, so the conversation can say how it went.
+/// </summary>
+public sealed record ChatAttachmentRemovedDto(long AttachmentId, long MessageId, long? GroupId, string? RemovalReason = null);
+
+/// <summary>A removed file was restored within the undo window.</summary>
+public sealed record ChatAttachmentRestoredDto(long MessageId, long? GroupId, ChatAttachmentDto Attachment);
+
+// ---------------- Storage management (docs/chat-attachments.md)
+
+/// <summary>
+/// One of my sent files. RestorableUntil is set while a removed file can still be restored;
+/// ConversationKey opens the chat ("g:{id}" for a group, else the other person's id).
+/// </summary>
+public sealed record ChatMyFileDto(
+    long Id,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    bool IsImage,
+    DateTimeOffset SentUtc,
+    string ConversationKey,
+    string ConversationName,
+    long MessageId,
+    DateTimeOffset? RemovedUtc,
+    string? RemovalReason,
+    DateTimeOffset? RestorableUntil);
+
+public sealed record ChatMyFilesDto(IReadOnlyList<ChatMyFileDto> Files, long UsedBytes, long AllowanceBytes, int UndoHours);
+
+public sealed record ChatFileIdsRequest(IReadOnlyList<long>? Ids);
+
+public sealed record ChatRemoveOlderRequest(int Days);
+
+/// <summary>The outcome of removing or restoring files. Error is set when nothing was done.</summary>
+public sealed record ChatStorageChangeDto(int Files, long Bytes, Guid? BatchId, DateTimeOffset? RestorableUntil, string? Error = null);
+
+/// <summary>
+/// An administrator clean-up: everyone's files (UserId null) or one person's, optionally only
+/// those older than OlderThanDays.
+/// </summary>
+public sealed record ChatStorageScope(string? UserId, int? OlderThanDays);
+
+public sealed record ChatStoragePreviewDto(int Files, long Bytes, int People);
+
+/// <summary>A clean-up (by an administrator, or automatic retention), undoable until RestorableUntil.</summary>
+public sealed record ChatStorageBatchDto(
+    Guid BatchId,
+    string Reason,
+    DateTimeOffset RemovedUtc,
+    int Files,
+    long Bytes,
+    int People,
+    bool CanUndo,
+    DateTimeOffset RestorableUntil);
+
+public sealed record ChatStoragePersonDto(string UserId, string DisplayName, int Files, long Bytes);
 
 /// <summary>Files removed from messages since a time, for a page that missed the live events.</summary>
 public sealed record ChatRemovedFilesPageDto(IReadOnlyList<ChatAttachmentRemovedDto> Files, bool HasMore);
