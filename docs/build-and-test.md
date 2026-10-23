@@ -91,6 +91,20 @@ PRISM_TEST_POSTGRES_CONNECTION=...
 
 For migration changes, reproduce the workflow locally where possible and ensure both the application migration lineage and Media Library migration lineage remain valid.
 
+## Local demo data
+
+`tools/dev-data/` holds SQL scripts that add clearly labelled demo records to a **local development database**, for checking pages that are empty without recent activity. Never run them against production or a shared database.
+
+- `command-desk-demo-seed.sql` adds what the Command desk's "What moved forward" counts: two projects (stages completed, one project completed, ToT, proliferation), IPRs filed and granted, an FFC delivery and installation, visits, a training and activities, plus three closed tasks. Every name starts with `Demo · ` (IPR numbers with `DEMO-`). All dates count back from the day the script runs, so the records fall within the last 30 days. It needs the user names of an existing Project Officer and HoD, and does nothing if the demo projects already exist.
+- `command-desk-demo-remove.sql` deletes only those records (and their child rows).
+
+```bash
+psql -v ON_ERROR_STOP=1 -v po_user=<po-user-name> -v hod_user=<hod-user-name> -d <dev-database> -f tools/dev-data/command-desk-demo-seed.sql
+psql -v ON_ERROR_STOP=1 -d <dev-database> -f tools/dev-data/command-desk-demo-remove.sql
+```
+
+To bring the dates up to date, run the remove script and then the seed script. The demo projects get new ids each time.
+
 ## CI note
 
 `.github/workflows/notebook.yml` provides the broadest normal build/test path currently committed. The repository does not yet have one single workflow that expresses every required validation for every change type; use the affected-area tests plus the checks above.

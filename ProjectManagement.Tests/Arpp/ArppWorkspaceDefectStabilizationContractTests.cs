@@ -98,7 +98,8 @@ public sealed class ArppWorkspaceDefectStabilizationContractTests
     private static string ReadRepoFile(params string[] segments)
     {
         var root = ResolveRepoRoot();
-        return File.ReadAllText(Path.Combine(new[] { root }.Concat(segments).ToArray()));
+        // Compared as LF: a Windows checkout may hold the file with CRLF line endings.
+        return File.ReadAllText(Path.Combine(new[] { root }.Concat(segments).ToArray())).Replace("\r\n", "\n");
     }
 
     private static string ResolveRepoRoot()

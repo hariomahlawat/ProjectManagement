@@ -78,7 +78,8 @@ public sealed class ArppProductionUxContractTests
     {
         var root = ResolveRepoRoot();
         var path = Path.Combine(new[] { root }.Concat(segments).ToArray());
-        return File.ReadAllText(path);
+        // Compared as LF: a Windows checkout may hold the file with CRLF line endings.
+        return File.ReadAllText(path).Replace("\r\n", "\n");
     }
 
     private static string ResolveRepoRoot()
