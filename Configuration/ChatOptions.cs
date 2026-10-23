@@ -28,6 +28,11 @@ public sealed class ChatOptions
 
     public int SearchWindowSeconds { get; set; } = 60;
 
+    /// <summary>Link-preview requests one user may make in <see cref="PreviewWindowSeconds"/> (each asks for up to 10 links).</summary>
+    public int PreviewPermitLimit { get; set; } = 120;
+
+    public int PreviewWindowSeconds { get; set; } = 60;
+
     /// <summary>How long after sending a message its sender may still unsend it.</summary>
     public int UnsendWindowMinutes { get; set; } = 5;
 }

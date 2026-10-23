@@ -389,6 +389,67 @@
     opacity: .65;
 }
 
+/* Links in messages, and preview cards for links to PRISM records. */
+.pm-chat__link {
+    color: var(--pm-primary-strong);
+    text-decoration: underline;
+}
+
+.pm-chat__card {
+    display: flex;
+    gap: .55rem;
+    align-items: center;
+    max-width: 100%;
+    margin-top: .3rem;
+    padding: .4rem .55rem;
+    border: 1px solid var(--pm-border);
+    border-radius: .6rem;
+    background: var(--pm-card);
+    color: var(--pm-text);
+    text-decoration: none;
+}
+
+.pm-chat__card:hover,
+.pm-chat__card:focus-visible {
+    border-color: var(--pm-primary);
+    color: var(--pm-text);
+}
+
+.pm-chat__card > .bi {
+    flex: none;
+    color: var(--pm-primary);
+    font-size: 1.3rem;
+}
+
+.pm-chat__card-image {
+    flex: none;
+    width: 3.2rem;
+    height: 2.4rem;
+    border-radius: .35rem;
+    object-fit: cover;
+    background: var(--pm-surface-subtle);
+}
+
+.pm-chat__card-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pm-chat__card-kind,
+.pm-chat__card-detail {
+    color: var(--pm-text-muted);
+    font-size: .72rem;
+}
+
+.pm-chat__card-title {
+    overflow: hidden;
+    font-size: .82rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .pm-chat__msg.is-failed .pm-chat__bubble {
     border-color: var(--pm-danger-soft-border);
 }

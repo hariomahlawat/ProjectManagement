@@ -2299,3 +2299,110 @@ test('the people panel follows presence changes while it is open', async () => {
     window.close();
   }
 });
+
+// --- Links in messages and preview cards for PRISM records ---------------------------------------
+
+test('links are found in text, without the punctuation that ends a sentence, and only http(s)', () => {
+  const { PMChatParts } = load();
+  const parts = PMChatParts.linkParts('See https://prism.local/Projects/Overview/12. Also (http://x.example/a) and javascript:alert(1)');
+  const links = Array.from(parts.filter((p) => p.url), (p) => p.text);
+  assert.deepEqual(links, ['https://prism.local/Projects/Overview/12', 'http://x.example/a']);
+  assert.equal(parts.map((p) => p.text).join(''), 'See https://prism.local/Projects/Overview/12. Also (http://x.example/a) and javascript:alert(1)');
+  assert.deepEqual(Array.from(PMChatParts.previewLinks(
+    'a https://prism.local/Projects/Overview/12 b https://prism.local/Projects/Overview/12 c https://other.example/Projects/Overview/1 d https://prism.local/ActionTasks/Details/3?x=1',
+    'https://prism.local')), ['/Projects/Overview/12', '/ActionTasks/Details/3?x=1']);
+});
+
+test('a message shows its links as links; other sites open in a new tab; markup stays text', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.onMessage(directMessage(80, 'peer', 'Docs at https://other.example/guide and <b>bold</b>'));
+    const bubble = win.log.querySelector('.pm-chat__msg:last-child .pm-chat__bubble');
+    const link = bubble.querySelector('a.pm-chat__link');
+    assert.equal(link.href, 'https://other.example/guide');
+    assert.equal(link.target, '_blank');
+    assert.equal(link.rel, 'noopener noreferrer');
+    assert.equal(bubble.querySelector('b'), null);
+    assert.match(bubble.textContent, /<b>bold<\/b>/);
+  } finally {
+    window.close();
+  }
+});
+
+test('links to PRISM records get cards from one batched request, only for what the server returns', async () => {
+  const asked = [];
+  const window = groupApp(async (url) => {
+    if (url.includes('/previews?')) {
+      asked.push(new URL(url, 'https://prism.local').searchParams.getAll('link'));
+      return [
+        { link: '/Projects/Overview/12', kind: 'project', title: 'Simulator Upgrade', subtitle: 'Project officer: Bob Bhatia', imageUrl: '/Projects/12/Photos/3/View/xs?v=2' },
+        { link: '/ActionTasks/Details/4', kind: 'task', title: 'Collect data', subtitle: 'Task · Assigned · due 5 Nov 2026', imageUrl: null },
+      ];
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.onMessage(directMessage(81, 'peer', 'Look at https://prism.local/Projects/Overview/12 and https://prism.local/ActionTasks/Details/4'));
+    app.onMessage(directMessage(82, 'peer', 'and https://prism.local/Projects/Overview/99 (hidden from me)'));
+    await wait(80); await tick();
+
+    assert.equal(asked.length, 1, 'one request for the links of both messages');
+    assert.deepEqual(asked[0].sort(), ['/ActionTasks/Details/4', '/Projects/Overview/12', '/Projects/Overview/99']);
+
+    const cards = Array.from(win.log.querySelectorAll('.pm-chat__card'));
+    assert.equal(cards.length, 2);
+    assert.equal(cards[0].getAttribute('href'), '/Projects/Overview/12');
+    assert.equal(cards[0].getAttribute('aria-label'), 'Project: Simulator Upgrade, Project officer: Bob Bhatia');
+    assert.equal(cards[0].querySelector('img').getAttribute('src'), '/Projects/12/Photos/3/View/xs?v=2');
+    assert.equal(cards[1].querySelector('img'), null);
+    assert.match(cards[1].textContent, /Action task/);
+
+    // Known now, so redrawing asks again for nothing.
+    app.renderMessages(win, { stickToBottom: false });
+    await wait(80);
+    assert.equal(asked.length, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test('a card never loads a picture from another site', () => {
+  const { PMChatParts } = load();
+  const card = PMChatParts.previewCard({ link: '/Projects/Overview/1', kind: 'project', title: 'X', subtitle: null, imageUrl: '//evil.example/x.png' });
+  assert.equal(card.querySelector('img'), null);
+});
+
+test('a failed preview request leaves plain links and is not repeated', async () => {
+  let asked = 0;
+  const window = groupApp(async (url) => {
+    if (url.includes('/previews?')) {
+      asked += 1;
+      return { status: 404, body: null }; // e.g. a server from before previews existed
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.onMessage(directMessage(83, 'peer', 'https://prism.local/Projects/Overview/12'));
+    await wait(80);
+    app.renderMessages(win, { stickToBottom: false });
+    await wait(80);
+    assert.equal(asked, 1);
+    assert.equal(win.log.querySelectorAll('.pm-chat__card').length, 0);
+    assert.ok(win.log.querySelector('a.pm-chat__link'));
+    assert.notEqual(app.stopped, true, 'a plain 404 does not switch chat off');
+  } finally {
+    window.close();
+  }
+});

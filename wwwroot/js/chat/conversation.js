@@ -1,6 +1,6 @@
 /*
  * PRISM chat, one conversation: reading, history paging, drawing messages, sending.
- * One of the chat scripts loaded in order by _Layout.cshtml (see chat/core.js for the list and
+ * One of the chat scripts loaded in order by _ChatScripts.cshtml (see chat/core.js for the list and
  * the server contract). Shared helpers come from PMChatParts, set up by chat/core.js.
  */
 (function (global) {
@@ -11,8 +11,57 @@
     ChatApp, HISTORY_PAGE, CATCH_UP_PAGES, timeFormat, newClientId, dayKey,
     dayLabel, mergeMessages, fetchSince, seenBy, seenByEveryone, el,
     focusKeyIn, refocus, icon,
-    newestId,
+    newestId, appendLinked, previewLinks, previewCard,
   } = global.PMChatParts;
+
+  const PREVIEW_BATCH = 10; // links per GET {api}/previews (the server's limit)
+  const PREVIEW_DELAY_MS = 40; // gather the links of one redraw (or several) into one request
+
+  /** The cards for a message's PRISM links that are known; unknown links are asked for. */
+  ChatApp.prototype.cardsFor = function (message) {
+    const cards = [];
+    for (const link of previewLinks(message.body || '', global.location.origin)) {
+      const preview = this.previews.get(link);
+      if (preview === undefined) this.queuePreview(link);
+      else if (preview) cards.push(previewCard(preview));
+    }
+    return cards;
+  };
+
+  ChatApp.prototype.queuePreview = function (link) {
+    this.previewQueue.add(link);
+    if (!this.previewTimer) this.previewTimer = global.setTimeout(() => this.flushPreviews(), PREVIEW_DELAY_MS);
+  };
+
+  /**
+   * Asks the server for the queued links' cards. Every link asked for gets an answer in the cache
+   * (a card, or null), also when the request fails, so a link is never asked for twice on a page.
+   */
+  ChatApp.prototype.flushPreviews = async function () {
+    this.previewTimer = null;
+    const batch = Array.from(this.previewQueue).slice(0, PREVIEW_BATCH);
+    batch.forEach((link) => {
+      this.previewQueue.delete(link);
+      this.previews.set(link, null);
+    });
+    if (this.previewQueue.size) this.previewTimer = global.setTimeout(() => this.flushPreviews(), PREVIEW_DELAY_MS);
+    if (!batch.length || this.stopped) return;
+
+    let found = [];
+    try {
+      found = await this.request('GET', `/previews?${batch.map((link) => `link=${encodeURIComponent(link)}`).join('&')}`) || [];
+    } catch (_) {
+      return; // no cards (an older server without previews, or a refusal): the links still work
+    }
+    let any = false;
+    for (const preview of found) {
+      if (preview && batch.includes(preview.link)) {
+        this.previews.set(preview.link, preview);
+        any = true;
+      }
+    }
+    if (any) this.windows.forEach((win) => this.renderMessages(win, { stickToBottom: true }));
+  };
 
   /**
    * A conversation counts as read only while the person is in it (keyboard focus inside an
@@ -312,8 +361,17 @@
         item.classList.add('is-highlight');
         highlighted = item;
       }
-      const bubble = el('div', 'pm-chat__bubble', message.isUnsent ? (mine ? 'You unsent a message' : 'Message unsent') : message.body);
-      if (message.isUnsent) item.classList.add('is-unsent');
+      const bubble = el('div', 'pm-chat__bubble');
+      let cards = [];
+      if (message.isUnsent) {
+        bubble.textContent = mine ? 'You unsent a message' : 'Message unsent';
+        item.classList.add('is-unsent');
+      } else {
+        // Links are anchors (built from text, never parsed as HTML); links to PRISM records get
+        // a card when the server says this user may open the record.
+        appendLinked(bubble, message.body || '', global.location.origin);
+        cards = this.cardsFor(message);
+      }
       const meta = el('span', 'pm-chat__time');
       if (message.failed) {
         item.classList.add('is-failed');
@@ -364,7 +422,7 @@
           }
         }
       }
-      item.append(bubble, meta);
+      item.append(bubble, ...cards, meta);
       items.push(item);
     }
 

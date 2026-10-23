@@ -59,6 +59,35 @@ public sealed class ChatApiTests
     }
 
     [Fact]
+    public async Task Previews_ShowRecordsTheCallerMayOpen_AndAreBounded()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        await using (var db = host.NewContext())
+        {
+            db.Projects.Add(new Project { Id = 7, Name = "Simulator Upgrade", CreatedByUserId = "alice", LeadPoUserId = "bob" });
+            db.ActionTasks.Add(new ActionTaskItem
+            {
+                Id = 3, Title = "Private task", Description = "-", CreatedByUserId = "carol", AssignedToUserId = "carol",
+                CreatedByRole = "HoD", AssignedToRole = "Project Officer", AssignedOn = DateTime.UtcNow, DueDate = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = host.ClientFor("alice");
+        var cards = await client.GetFromJsonAsync<ChatLinkPreviewDto[]>(
+            "/api/chat/previews?link=" + Uri.EscapeDataString("/Projects/Overview/7")
+            + "&link=" + Uri.EscapeDataString("/ActionTasks/Details/3")
+            + "&link=" + Uri.EscapeDataString("/Projects/Overview/404"));
+
+        var card = Assert.Single(cards!); // alice has no Action Tracker role: the task stays hidden
+        Assert.Equal("Simulator Upgrade", card.Title);
+        Assert.Equal("Project officer: Bob Bhatia", card.Subtitle);
+
+        var tooMany = "/api/chat/previews?" + string.Join("&", Enumerable.Range(1, 11).Select(i => "link=%2FProjects%2FOverview%2F" + i));
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(tooMany)).StatusCode);
+    }
+
+    [Fact]
     public async Task AnonymousRequests_Get401()
     {
         await using var host = await ChatHost.CreateAsync();
@@ -287,6 +316,9 @@ public sealed class ChatApiTests
             request.Headers.Add("X-CSRF-TOKEN", token);
             return await client.SendAsync(request);
         }
+
+        public ApplicationDbContext NewContext()
+            => new(new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(_connection).Options);
 
         public async ValueTask DisposeAsync()
         {
