@@ -122,3 +122,4 @@
 20261217220006_AddChatGroups
 20261218033007_AddChatAttachments
 20261218090008_AddChatAttachmentRemovalDetails
+20261219100000_AddSearchV2QueryAccelerators

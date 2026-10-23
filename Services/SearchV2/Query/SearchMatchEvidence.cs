@@ -23,7 +23,7 @@ public static partial class SearchMatchEvidenceResolver
     {
         if (string.IsNullOrWhiteSpace(query.Exact)) return null;
 
-        if (ContainsChannel(channels, "exact_identifier") || ContainsChannel(channels, "identifier_prefix"))
+        if (ContainsChannel(channels, "exact_identifier") || ContainsChannel(channels, "identifier_prefix") || ContainsChannel(channels, "identifier_number"))
         {
             return "Identifier";
         }
