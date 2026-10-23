@@ -84,8 +84,15 @@
       }
     });
 
-    card.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape') {
+    // Escape closes it from inside the card or from the page itself (the card does not take
+    // focus when it appears). Escape in a field, the chat or a menu stays theirs.
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape' || event.defaultPrevented || card.hidden
+          || card.classList.contains('is-stepped-aside')) {
+        return;
+      }
+      var active = document.activeElement;
+      if (!active || active === document.body || active === document.documentElement || card.contains(active)) {
         close();
       }
     });

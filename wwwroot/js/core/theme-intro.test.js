@@ -90,10 +90,24 @@ test('Not now and Escape close it for good', async () => {
   assert.equal(page.stored('prism.themeIntro'), 'done');
   assert.equal(page.stored('prism.theme'), null, 'Not now changes nothing');
 
+  // Focus stays on the page when the card appears; Escape there closes it.
   page = await load();
-  page.cardEl.dispatchEvent(new page.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(page.doc.activeElement, page.doc.body);
+  page.doc.body.dispatchEvent(new page.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   assert.equal(page.cardEl.hidden, true);
   assert.equal(page.stored('prism.themeIntro'), 'done');
+
+  // From inside the card too.
+  page = await load();
+  page.doc.getElementById('tryDark').focus();
+  page.doc.activeElement.dispatchEvent(new page.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(page.cardEl.hidden, true);
+
+  // Escape in a form field belongs to the field.
+  page = await load();
+  page.doc.getElementById('field').focus();
+  page.doc.activeElement.dispatchEvent(new page.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(page.cardEl.hidden, false);
 });
 
 test('choosing a theme in the user menu answers the card too', async () => {
