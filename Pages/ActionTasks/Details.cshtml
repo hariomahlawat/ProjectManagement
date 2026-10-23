@@ -97,7 +97,7 @@
         <div class="at-task-workspace-meta">
             @if (!Model.IsBacklog)
             {
-                <span class="at-meta-assignee"><i class="bi bi-person" aria-hidden="true"></i>@Model.ResolveAssigneeName()</span>
+                <span class="at-meta-assignee" data-chat-user="@Model.TaskItem.AssignedToUserId" data-chat-name="@Model.ResolveAssigneeName()"><i class="bi bi-person" aria-hidden="true"></i>@Model.ResolveAssigneeName()</span>
             }
             <span class="@Model.GetStatusBadgeClass()">@statusLabel</span>
             @if (string.Equals(Model.TaskItem.Priority, "Critical", StringComparison.OrdinalIgnoreCase))
@@ -185,6 +185,11 @@
                     @if (!Model.IsBacklog)
                     {
                         <div class="at-task-property-row"><span class="at-task-property-key">Assigned to</span><span class="at-task-property-value">@Model.ResolveAssigneeName()</span></div>
+                    }
+                    @if (Model.ResolveAssignerName() is string assignerName)
+                    {
+                        @* The chat scripts add a chat button after the name (not for the viewer). *@
+                        <div class="at-task-property-row"><span class="at-task-property-key">@(Model.IsBacklog ? "Created by" : "Assigned by")</span><span class="at-task-property-value"><span data-chat-user="@Model.TaskItem.CreatedByUserId" data-chat-name="@assignerName">@assignerName</span></span></div>
                     }
                     <div class="at-task-property-row"><span class="at-task-property-key">@(Model.IsBacklog ? "Target date" : "Due date")</span><span class="at-task-property-value">@Model.TaskItem.DueDate.ToString("dd MMM yyyy")</span></div>
                     <div class="at-task-property-row"><span class="at-task-property-key">Sprint</span><span class="at-task-property-value">@Model.GetSprintText()</span></div>

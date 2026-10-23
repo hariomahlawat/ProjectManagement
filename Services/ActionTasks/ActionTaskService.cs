@@ -71,6 +71,9 @@ public class ActionTaskService : IActionTaskService
     }
 
 
+    public Task<IReadOnlyDictionary<int, ActionTaskBlock>> GetLatestBlocksAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default)
+        => ActionTaskBlocks.LatestAsync(_context, taskIds, cancellationToken);
+
     public async Task<Dictionary<int, DateTime?>> GetLastActivityUtcByTaskIdsAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default)
     {
         if (taskIds.Count == 0)

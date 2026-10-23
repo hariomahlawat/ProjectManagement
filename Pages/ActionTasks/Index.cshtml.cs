@@ -87,6 +87,10 @@ public class IndexModel : PageModel
     public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> UpdateAttachments { get; private set; } = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
     public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, string> TaskAssignerNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    // SECTION: Why each blocked task in Needs attention is blocked (latest move to Blocked).
+    public IReadOnlyDictionary<int, ActionTaskBlock> TaskBlocks { get; private set; } = new Dictionary<int, ActionTaskBlock>();
     public IReadOnlyDictionary<string, string> TaskActorNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, string> SprintActorNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyList<CountSummary> AssigneePendingCounts { get; private set; } = Array.Empty<CountSummary>();
@@ -530,6 +534,21 @@ public class IndexModel : PageModel
             ? assigneeName
             : "User";
     }
+
+    /// <summary>Who assigned the task (its creator), or null when unknown.</summary>
+    public string? ResolveAssignerName(ActionTaskItem task)
+        => !string.IsNullOrWhiteSpace(task.CreatedByUserId) && TaskAssignerNames.TryGetValue(task.CreatedByUserId, out var name)
+            ? name
+            : null;
+
+    // SECTION: Attention details, on the same IST calendar and overdue rule as the counts.
+    /// <summary>Days past due for an overdue task (see <see cref="IsTaskOverdue"/>), else null.</summary>
+    public int? DaysOverdue(ActionTaskItem task)
+        => IsTaskOverdue(task) ? (int)(_clock.IstToday - task.DueDate.Date).TotalDays : null;
+
+    /// <summary>Whole days a submitted task has waited for closure (IST), else null.</summary>
+    public int? DaysAwaitingClosure(ActionTaskItem task)
+        => ActionTaskAttention.DaysAwaitingClosure(task, _clock.IstToday);
 
     public string ResolveSprintName(int? sprintId)
     {
@@ -1505,6 +1524,7 @@ public class IndexModel : PageModel
         // SECTION: Query read-model dependencies
         AssignableUsers = await _userLookup.LoadAssignableUsersAsync(CurrentRole);
         TaskAssigneeNames = await _userLookup.LoadTaskAssigneeNamesAsync(sourceTasks);
+        TaskAssignerNames = await _userLookup.LoadTaskAssignerNamesAsync(sourceTasks);
 
         // SECTION: Workspace read-model orchestration boundary
         var workspaceReadModel = await _workspaceBuilder.BuildAsync(BuildWorkspaceRequest(), sourceTasks, TaskAssigneeNames);
@@ -1531,6 +1551,7 @@ public class IndexModel : PageModel
         ActiveSprintMetrics = readModel.ActiveSprintMetrics;
         MyWorkQueue = _myWorkQueueBuilder.Build(Tasks, ActiveSprint);
         CommandCentreSummary = _commandCentreSummaryBuilder.Build(Tasks, CriticalOpenTasks.Count);
+        TaskBlocks = await _service.GetLatestBlocksAsync(CommandCentreSummary.BlockedTasks.Select(task => task.Id).ToList());
         SprintWorkspaceSummary = _sprintWorkspaceSummaryBuilder.Build(new ActionTaskSprintWorkspaceSummaryRequest(Tasks, BacklogTasks, SelectedSprintTasks, SprintClosureReview.UnfinishedTasks, Sprints, ActiveSprint));
         DueTodayTasks = readModel.DueBuckets.Today;
         DueThisWeekTasks = readModel.DueBuckets.ThisWeek;

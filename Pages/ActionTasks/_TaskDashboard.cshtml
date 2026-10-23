@@ -96,11 +96,37 @@ else if (Model.CanPlanSprints)
             @foreach (var entry in orderedAttention)
             {
                 var task = entry.Item.Task;
+                // What to do about it: the blocking reason, or how long a submission has waited.
+                // Days overdue sit under the due date, so a blocked task that is also late shows both.
+                var daysOverdue = Model.DaysOverdue(task);
+                var daysWaiting = Model.DaysAwaitingClosure(task);
+                var blockReason = Model.TaskBlocks.TryGetValue(task.Id, out var block) ? block.Reason : null;
+                var detail = blockReason is not null
+                    ? $"“{blockReason}”"
+                    : daysWaiting switch
+                    {
+                        0 => "Submitted today",
+                        1 => "Waiting 1 day for closure",
+                        int days => $"Waiting {days} days for closure",
+                        null => null
+                    };
                 <a class="at-unified-attention-row is-@entry.Tone @(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">
                     <span class="at-attention-reason">@entry.Label</span>
-                    <span class="at-attention-task">AT-@task.Id · @task.Title</span>
+                    <span class="at-attention-task">
+                        <span class="at-attention-title">AT-@task.Id · @task.Title</span>
+                        @if (detail is not null)
+                        {
+                            <span class="at-attention-detail" title="@detail">@detail</span>
+                        }
+                    </span>
                     <span class="at-attention-owner">@entry.Item.AssigneeName</span>
-                    <span class="at-attention-date">Due @task.DueDate.ToString("dd MMM yyyy")</span>
+                    <span class="at-attention-date">
+                        Due @task.DueDate.ToString("dd MMM yyyy")
+                        @if (daysOverdue is int late)
+                        {
+                            <span class="at-attention-late">@late @(late == 1 ? "day" : "days") overdue</span>
+                        }
+                    </span>
                     <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 </a>
             }

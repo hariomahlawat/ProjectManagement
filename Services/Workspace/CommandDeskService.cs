@@ -10,6 +10,7 @@ using ProjectManagement.Models.Activities;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.Approvals;
 using ProjectManagement.Services.Authorization;
 using ProjectManagement.Services.Plans;
@@ -430,23 +431,7 @@ public sealed class CommandDeskService
         var names = await LoadNamesAsync(tasks.SelectMany(task => new[] { task.AssignedToUserId, task.CreatedByUserId }), ct);
         var blockedIds = tasks.Where(task => task.Status == ActionTaskStatuses.Blocked).Select(task => task.Id).ToArray();
         // The latest move to Blocked: its reason, and since when the task has been blocked.
-        var blocks = blockedIds.Length == 0
-            ? new Dictionary<int, (string? Reason, DateTime At)>()
-            : (await _db.ActionTaskAuditLogs
-                    .AsNoTracking()
-                    .Where(log => blockedIds.Contains(log.TaskId)
-                        && log.ActionType == "StatusUpdated"
-                        && log.NewValue == ActionTaskStatuses.Blocked)
-                    .Select(log => new { log.TaskId, log.PerformedAt, log.Id, log.Remarks })
-                    .ToListAsync(ct))
-                .GroupBy(log => log.TaskId)
-                .ToDictionary(
-                    group => group.Key,
-                    group =>
-                    {
-                        var latest = group.OrderByDescending(log => log.PerformedAt).ThenByDescending(log => log.Id).First();
-                        return (Reason: latest.Remarks, At: latest.PerformedAt);
-                    });
+        var blocks = await ActionTaskBlocks.LatestAsync(_db, blockedIds, ct);
 
         return tasks
             .Select(task => new CommandDeskTaskInput(
@@ -460,7 +445,7 @@ public sealed class CommandDeskService
                 blocks.TryGetValue(task.Id, out var block) ? block.Reason : null,
                 task.CreatedByUserId,
                 blocks.TryGetValue(task.Id, out var since)
-                    ? new DateTimeOffset(DateTime.SpecifyKind(since.At, DateTimeKind.Utc))
+                    ? new DateTimeOffset(since.BlockedAtUtc)
                     : null))
             .ToList();
     }
