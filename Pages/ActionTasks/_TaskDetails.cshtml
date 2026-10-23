@@ -118,7 +118,7 @@
                             <span data-chat-user="@task.AssignedToUserId" data-chat-name="@peekAssignee">@peekAssignee</span>
                             @if (peekAssigner is not null)
                             {
-                                <span class="at-task-peek-assigner">· assigned by <span data-chat-user="@task.CreatedByUserId" data-chat-name="@peekAssigner">@peekAssigner</span></span>
+                                <span class="at-task-peek-assigner">· assigned by <span data-chat-user="@Model.ResolveAssignerUserId(task)" data-chat-name="@peekAssigner">@peekAssigner</span></span>
                             }
                         </div>
                     }

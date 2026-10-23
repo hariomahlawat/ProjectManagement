@@ -81,6 +81,7 @@ public sealed class DetailsModel : PageModel
     public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> Attachments { get; private set; } = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
     public IReadOnlyDictionary<string, string> ActorNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, string> AssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+    public string? AssignerUserId { get; private set; }
     public IReadOnlyDictionary<string, string> AssignerNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyList<ActionSprint> Sprints { get; private set; } = Array.Empty<ActionSprint>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
@@ -611,9 +612,9 @@ public sealed class DetailsModel : PageModel
     public string ResolveAssigneeName()
         => AssigneeNames.TryGetValue(TaskItem.AssignedToUserId, out var name) ? name : TaskItem.AssignedToUserId;
 
-    /// <summary>Who assigned the task (its creator), or null when unknown.</summary>
+    /// <summary>Who assigned the task to its current assignee (ActionTaskAssigners), or null when unknown.</summary>
     public string? ResolveAssignerName()
-        => !string.IsNullOrWhiteSpace(TaskItem.CreatedByUserId) && AssignerNames.TryGetValue(TaskItem.CreatedByUserId, out var name)
+        => AssignerUserId is not null && AssignerNames.TryGetValue(AssignerUserId, out var name)
             ? name
             : null;
 
@@ -678,7 +679,8 @@ public sealed class DetailsModel : PageModel
         ActorNames = model.ActorNames;
         LastActivityAtUtc = model.LastActivityAtUtc;
         AssigneeNames = await _userLookup.LoadTaskAssigneeNamesAsync(new[] { TaskItem });
-        AssignerNames = await _userLookup.LoadTaskAssignerNamesAsync(new[] { TaskItem });
+        AssignerUserId = (await _service.GetAssignerUserIdsAsync(new[] { TaskItem })).GetValueOrDefault(TaskItem.Id);
+        AssignerNames = await _userLookup.LoadTaskAssignerNamesAsync(AssignerUserId is null ? Array.Empty<string>() : new[] { AssignerUserId });
         Sprints = await _sprintService.GetSprintsAsync();
         if (CanManagePlanning || Capabilities.CanReassignTask)
         {

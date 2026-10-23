@@ -27,7 +27,7 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
    - Auto-completed (backfilled) stages and future-dated events do not count.
 2. **Waiting on you**: hidden when nothing waits on the viewer.
    - Viewers who can approve (HoD, Admin) see the Decision Centre queue from `IApprovalQueueService`, so the two never disagree.
-   - Any viewer sees tasks they assigned that were submitted for closure, and tasks they assigned that are **blocked** (with the blocking reason; a blocked task usually needs its assigner). Blocked tasks also stay under Tasks below, which everyone sees.
+   - Any viewer sees tasks they assigned that were submitted for closure, and tasks they assigned that are **blocked** (with the blocking reason; a blocked task usually needs its assigner). Blocked tasks also stay under Tasks below, which everyone sees. Who assigned a task is its creator, or whoever later put it from the backlog into a sprint with a responsible person or reassigned it (`ActionTaskAssigners`, shared with Task Management's "assigned by").
    - Items are listed oldest first, up to 8.
 3. **What's lagging**:
    - **PDC watch**: assigned active projects whose current-stage PDC is overdue or due within 30 days.

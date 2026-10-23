@@ -87,6 +87,7 @@ public class IndexModel : PageModel
     public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> UpdateAttachments { get; private set; } = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
     public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<int, string> TaskAssignerIds { get; private set; } = new Dictionary<int, string>();
     public IReadOnlyDictionary<string, string> TaskAssignerNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     // SECTION: Why each blocked task in Needs attention is blocked (latest move to Blocked).
@@ -535,9 +536,12 @@ public class IndexModel : PageModel
             : "User";
     }
 
-    /// <summary>Who assigned the task (its creator), or null when unknown.</summary>
+    /// <summary>Who assigned the task to its current assignee (ActionTaskAssigners), or null when unknown.</summary>
+    public string? ResolveAssignerUserId(ActionTaskItem task)
+        => TaskAssignerIds.TryGetValue(task.Id, out var userId) ? userId : null;
+
     public string? ResolveAssignerName(ActionTaskItem task)
-        => !string.IsNullOrWhiteSpace(task.CreatedByUserId) && TaskAssignerNames.TryGetValue(task.CreatedByUserId, out var name)
+        => ResolveAssignerUserId(task) is string userId && TaskAssignerNames.TryGetValue(userId, out var name)
             ? name
             : null;
 
@@ -1524,7 +1528,8 @@ public class IndexModel : PageModel
         // SECTION: Query read-model dependencies
         AssignableUsers = await _userLookup.LoadAssignableUsersAsync(CurrentRole);
         TaskAssigneeNames = await _userLookup.LoadTaskAssigneeNamesAsync(sourceTasks);
-        TaskAssignerNames = await _userLookup.LoadTaskAssignerNamesAsync(sourceTasks);
+        TaskAssignerIds = await _service.GetAssignerUserIdsAsync(sourceTasks);
+        TaskAssignerNames = await _userLookup.LoadTaskAssignerNamesAsync(TaskAssignerIds.Values);
 
         // SECTION: Workspace read-model orchestration boundary
         var workspaceReadModel = await _workspaceBuilder.BuildAsync(BuildWorkspaceRequest(), sourceTasks, TaskAssigneeNames);

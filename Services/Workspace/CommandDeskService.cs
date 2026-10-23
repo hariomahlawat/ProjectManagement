@@ -262,14 +262,18 @@ public sealed class CommandDeskService
                 CommandDeskRoutes.Approval(item.ApprovalType.ToString(), item.RequestId))));
         }
 
-        // A task submitted for closure waits on whoever assigned it.
-        var submitted = await _db.ActionTasks
+        // A task submitted for closure waits on whoever assigned it to its current assignee: the
+        // creator, or whoever later assigned it from the backlog or reassigned it (ActionTaskAssigners).
+        var submittedTasks = await _db.ActionTasks
             .AsNoTracking()
-            .Where(task => !task.IsDeleted
-                && task.Status == ActionTaskStatuses.Submitted
-                && task.CreatedByUserId == userId)
-            .Select(task => new { task.Id, task.Title, task.AssignedToUserId, task.SubmittedOn, task.AssignedOn })
+            .Where(task => !task.IsDeleted && task.Status == ActionTaskStatuses.Submitted)
+            .Select(task => new { task.Id, task.Title, task.AssignedToUserId, task.CreatedByUserId, task.SubmittedOn, task.AssignedOn })
             .ToListAsync(ct);
+        var submittedAssigners = await ActionTaskAssigners.ResolveAsync(
+            _db, submittedTasks.Select(task => (task.Id, task.CreatedByUserId)).ToList(), ct);
+        var submitted = submittedTasks
+            .Where(task => string.Equals(submittedAssigners.GetValueOrDefault(task.Id), userId, StringComparison.Ordinal))
+            .ToList();
         var names = await LoadNamesAsync(submitted.Select(task => task.AssignedToUserId), ct);
         decisions.AddRange(submitted.Select(task => new CommandDeskDecisionInput(
             task.Title,
@@ -428,7 +432,10 @@ public sealed class CommandDeskService
             return Array.Empty<CommandDeskTaskInput>();
         }
 
-        var names = await LoadNamesAsync(tasks.SelectMany(task => new[] { task.AssignedToUserId, task.CreatedByUserId }), ct);
+        // Who gave each task to its current assignee: the creator, or whoever later assigned it
+        // from the backlog or reassigned it (one rule with Task Management).
+        var assigners = await ActionTaskAssigners.ResolveAsync(_db, tasks.Select(task => (task.Id, task.CreatedByUserId)).ToList(), ct);
+        var names = await LoadNamesAsync(tasks.Select(task => task.AssignedToUserId).Concat(assigners.Values), ct);
         var blockedIds = tasks.Where(task => task.Status == ActionTaskStatuses.Blocked).Select(task => task.Id).ToArray();
         // The latest move to Blocked: its reason, and since when the task has been blocked.
         var blocks = await ActionTaskBlocks.LatestAsync(_db, blockedIds, ct);
@@ -438,12 +445,12 @@ public sealed class CommandDeskService
                 task.Id,
                 task.Title,
                 names.GetValueOrDefault(task.AssignedToUserId) ?? "Unassigned",
-                names.GetValueOrDefault(task.CreatedByUserId) ?? "Unknown",
+                names.GetValueOrDefault(assigners.GetValueOrDefault(task.Id) ?? string.Empty) ?? "Unknown",
                 task.Priority,
                 task.Status,
                 DateOnly.FromDateTime(task.DueDate),
                 blocks.TryGetValue(task.Id, out var block) ? block.Reason : null,
-                task.CreatedByUserId,
+                assigners.GetValueOrDefault(task.Id),
                 blocks.TryGetValue(task.Id, out var since)
                     ? new DateTimeOffset(since.BlockedAtUtc)
                     : null))

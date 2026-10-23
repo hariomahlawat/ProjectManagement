@@ -189,7 +189,7 @@
                     @if (Model.ResolveAssignerName() is string assignerName)
                     {
                         @* The chat scripts add a chat button after the name (not for the viewer). *@
-                        <div class="at-task-property-row"><span class="at-task-property-key">@(Model.IsBacklog ? "Created by" : "Assigned by")</span><span class="at-task-property-value"><span data-chat-user="@Model.TaskItem.CreatedByUserId" data-chat-name="@assignerName">@assignerName</span></span></div>
+                        <div class="at-task-property-row"><span class="at-task-property-key">@(Model.IsBacklog ? "Created by" : "Assigned by")</span><span class="at-task-property-value"><span data-chat-user="@Model.AssignerUserId" data-chat-name="@assignerName">@assignerName</span></span></div>
                     }
                     <div class="at-task-property-row"><span class="at-task-property-key">@(Model.IsBacklog ? "Target date" : "Due date")</span><span class="at-task-property-value">@Model.TaskItem.DueDate.ToString("dd MMM yyyy")</span></div>
                     <div class="at-task-property-row"><span class="at-task-property-key">Sprint</span><span class="at-task-property-value">@Model.GetSprintText()</span></div>

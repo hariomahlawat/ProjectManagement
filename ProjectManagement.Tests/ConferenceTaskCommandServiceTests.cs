@@ -269,5 +269,6 @@ public sealed class ConferenceTaskCommandServiceTests
         public Task<List<ActionTaskAuditLog>> GetTaskLogsAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Dictionary<int, DateTime?>> GetLastActivityUtcByTaskIdsAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyDictionary<int, ActionTaskBlock>> GetLatestBlocksAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<int, string>> GetAssignerUserIdsAsync(IReadOnlyCollection<ActionTaskItem> tasks, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

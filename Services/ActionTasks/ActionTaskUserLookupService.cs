@@ -55,9 +55,9 @@ public sealed class ActionTaskUserLookupService
     public Task<IReadOnlyDictionary<string, string>> LoadTaskAssigneeNamesAsync(IReadOnlyList<ActionTaskItem> tasks)
         => LoadUserDisplayNamesAsync(tasks.Select(t => t.AssignedToUserId));
 
-    // SECTION: Who assigned each task (the task's creator), shown beside the assignee.
-    public Task<IReadOnlyDictionary<string, string>> LoadTaskAssignerNamesAsync(IReadOnlyList<ActionTaskItem> tasks)
-        => LoadUserDisplayNamesAsync(tasks.Select(t => t.CreatedByUserId));
+    // SECTION: Names of the people who assigned tasks (ActionTaskAssigners), shown beside the assignee.
+    public Task<IReadOnlyDictionary<string, string>> LoadTaskAssignerNamesAsync(IEnumerable<string> assignerUserIds)
+        => LoadUserDisplayNamesAsync(assignerUserIds);
 
     // SECTION: Task audit actor display lookup keeps inspector history names consistent.
     public Task<IReadOnlyDictionary<string, string>> LoadTaskActorNamesAsync(IReadOnlyList<ActionTaskAuditLog> logs)

@@ -57,6 +57,41 @@ public sealed class ActionTaskAttentionTests
     }
 
     [Fact]
+    public async Task Assigners_AreTheCreator_UnlessLaterAssignedFromTheBacklogOrReassigned()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
+        db.ActionTaskAuditLogs.AddRange(
+            Audit(2, "TaskAssignedToSprint", "hod", new DateTime(2026, 10, 5, 5, 0, 0)),
+            Audit(3, "TaskAssignedToSprint", "hod", new DateTime(2026, 10, 5, 5, 0, 0)),
+            Audit(3, "TaskReassigned", "comdt", new DateTime(2026, 10, 9, 5, 0, 0)),
+            Audit(3, "StatusUpdated", "officer", new DateTime(2026, 10, 12, 5, 0, 0)));
+        await db.SaveChangesAsync();
+        var tasks = new[]
+        {
+            new ActionTaskItem { Id = 1, CreatedByUserId = "comdt" },   // created with an assignee
+            new ActionTaskItem { Id = 2, CreatedByUserId = "officer" }, // backlog item, assigned by the HoD
+            new ActionTaskItem { Id = 3, CreatedByUserId = "officer" }  // then reassigned by the Comdt
+        };
+
+        var assigners = await ActionTaskAssigners.ResolveAsync(db, tasks);
+
+        Assert.Equal("comdt", assigners[1]);
+        Assert.Equal("hod", assigners[2]);
+        Assert.Equal("comdt", assigners[3]);
+    }
+
+    private static ActionTaskAuditLog Audit(int taskId, string action, string by, DateTime at) => new()
+    {
+        TaskId = taskId,
+        ActionType = action,
+        PerformedByUserId = by,
+        PerformedByRole = "HoD",
+        PerformedAt = at
+    };
+
+    [Fact]
     public void Views_ShowWhatToActOn_WhoAssignedIt_AndOfferChat()
     {
         var dashboard = ReadRepoFile("Pages", "ActionTasks", "_TaskDashboard.cshtml");
@@ -69,7 +104,7 @@ public sealed class ActionTaskAttentionTests
         Assert.Contains("<span class=\"at-attention-late\">", dashboard, StringComparison.Ordinal);
         Assert.Contains("Model.DaysOverdue(task) is int daysOverdue", register, StringComparison.Ordinal);
         Assert.Contains("data-chat-user=\"@task.AssignedToUserId\"", register, StringComparison.Ordinal);
-        Assert.Contains("assigned by <span data-chat-user=\"@task.CreatedByUserId\"", peek, StringComparison.Ordinal);
+        Assert.Contains("assigned by <span data-chat-user=\"@Model.ResolveAssignerUserId(task)\"", peek, StringComparison.Ordinal);
         Assert.Contains("Model.ResolveAssignerName() is string assignerName", details, StringComparison.Ordinal);
     }
 
