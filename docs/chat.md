@@ -109,8 +109,9 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   "You: "), including group messages after the first of a run. Conversation logs are
   `role=log` with `aria-live=off`, because a redraw would read them out again; instead one
   polite live region (`ChatApp.announce`) says each new message once (the text when the person
-  is in that conversation, otherwise "New message from …"), group-change errors, and how many
-  messages a search found. Window status lines only change their text when it really changes.
+  is in that conversation, otherwise "New message from …"), including messages fetched by
+  polling or catch-up while the live connection was down ("3 new messages from …"), a message
+  that could not be sent, group-change errors, and how many messages a search found. Window status lines only change their text when it really changes.
 - Inactive people are shown with a muted name and faded avatar, not a faded row, so their text
   keeps its contrast; the row says "Inactive account".
 

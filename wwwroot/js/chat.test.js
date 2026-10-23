@@ -2001,3 +2001,54 @@ test('a message search announces how many it found', async () => {
     window.close();
   }
 });
+
+test('messages fetched while the live connection is down are announced, one or several', async () => {
+  let page = [directMessage(1, 'peer', 'Hello')];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/with/peer/messages')) return { messages: page, hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    assert.equal(win.historyLoaded, true);
+
+    page = [directMessage(1, 'peer', 'Hello'), directMessage(2, 'peer', 'Are you there?')];
+    await app.loadLatest(win); // what polling does
+    await wait(50);
+    assert.equal(app.announcer.textContent, 'New message from Peer Person');
+
+    page = page.concat([directMessage(3, 'peer', 'Ping'), directMessage(4, 'me', 'Yes'), directMessage(5, 'peer', 'Good')]);
+    await app.loadLatest(win);
+    await wait(50);
+    assert.equal(app.announcer.textContent, '2 new messages from Peer Person');
+  } finally {
+    window.close();
+  }
+});
+
+test('a message that could not be sent is announced', async () => {
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.endsWith('/messages') && init.method === 'POST') return { status: 500, body: { detail: 'The server is busy.' } };
+    if (url.includes('/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    win.input.value = 'Hello';
+    app.send(win);
+    await tick(); await tick();
+    await wait(50);
+    assert.equal(app.announcer.textContent, 'Message not sent. The server is busy.');
+    assert.ok(win.log.querySelector('.pm-chat__retry'));
+  } finally {
+    window.close();
+  }
+});

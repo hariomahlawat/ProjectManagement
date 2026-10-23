@@ -840,6 +840,19 @@
     }
   };
 
+  /** Announces messages that came in through a fetch: one is read like a pushed message. */
+  ChatApp.prototype.announceFetched = function (win, messages) {
+    const incoming = messages.filter((m) => m.senderUserId !== this.me && !m.eventKind && !m.isUnsent);
+    if (!incoming.length) return;
+    const group = win.groupId ? this.groups.get(win.groupId) : null;
+    if (incoming.length === 1) {
+      this.announceMessage(incoming[0], win, group);
+      return;
+    }
+    const where = group ? `in ${group.title}` : `from ${this.nameOf(win.peerId, win)}`;
+    this.announce(`${incoming.length} new messages ${where}`);
+  };
+
   /** Sound and title flash for a message the person is not looking at. */
   ChatApp.prototype.alert = function (message, contact, group) {
     const name = group
@@ -2087,6 +2100,9 @@
         }
         win.messages = mergeMessages(win.messages, result.messages);
         this.applyPeerRead(win, peerRead);
+        // Fetched rather than pushed (polling while the live connection is down, or catching
+        // up after it returns): the log is not a live region, so say what arrived.
+        this.announceFetched(win, result.messages.filter((m) => m.id > knownMax));
       }
       this.renderMessages(win, { stickToBottom: true, force: firstLoad });
       this.maybeMarkRead(win);
@@ -2419,6 +2435,7 @@
       message.failed = true;
       message.error = error.message;
       this.checkGone(win, error);
+      this.announce(`Message not sent. ${error.message}`);
     }
     this.renderMessages(this.viewFor(win), { stickToBottom: true });
   };
