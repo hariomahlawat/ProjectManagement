@@ -554,6 +554,10 @@ public class IndexModel : PageModel
     public int? DaysAwaitingClosure(ActionTaskItem task)
         => ActionTaskAttention.DaysAwaitingClosure(task, _clock.IstToday);
 
+    // SECTION: Sprint header facts (ActionSprintSchedule), on the IST calendar.
+    public string SprintDateRange(ActionSprint sprint) => ActionSprintSchedule.DateRange(sprint);
+    public string? SprintTiming(ActionSprint sprint) => ActionSprintSchedule.Timing(sprint, _clock.IstToday);
+
     public string ResolveSprintName(int? sprintId)
     {
         if (!sprintId.HasValue)
