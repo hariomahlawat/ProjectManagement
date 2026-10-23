@@ -6,7 +6,7 @@ surfaces rather than shadows, and blue used only as an accent.
 
 Status: owner-approved direction (2026-10-21). The site-wide foundation is built and
 **opt-in**: Light stays the default, so nobody sees dark unless they choose it. A one-time card
-(`wwwroot/js/core/theme-intro.js`, markup in `_Layout.cshtml`) tells signed-in users the theme
+(`wwwroot/js/core/whats-new.js`, markup in `Pages/Shared/_WhatsNew.cshtml`, after the Chat card) tells signed-in users the theme
 exists and where to change it: Try Dark, Use Windows setting (System) or Not now. It is shown
 per browser on up to three page loads until answered, never over an open dialog or panel or
 while a form field has focus, and never to someone who has already used the switch.

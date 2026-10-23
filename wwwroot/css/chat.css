@@ -194,6 +194,65 @@
     color: var(--pm-text-inverted);
 }
 
+/* First-open tips at the top of the contact list (dock.js buildTips). */
+.pm-chat__tips {
+    margin: .5rem .6rem .25rem;
+    padding: .7rem .8rem .55rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 10px;
+    background: var(--pm-primary-soft);
+    color: var(--bs-body-color);
+}
+
+.pm-chat__tips-title {
+    margin: 0 0 .4rem;
+    font-size: .82rem;
+    font-weight: 700;
+}
+
+.pm-chat__tips-list {
+    display: grid;
+    gap: .3rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: .78rem;
+    line-height: 1.4;
+}
+
+.pm-chat__tips-list li {
+    display: flex;
+    gap: .45rem;
+}
+
+.pm-chat__tips-list .bi {
+    flex: 0 0 auto;
+    color: var(--pm-primary);
+}
+
+.pm-chat__tips-actions {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    margin-top: .55rem;
+}
+
+/* "Show me" on the What's new card points at the chat button for a moment. */
+.pm-chat-launcher.is-pointed {
+    border-radius: 999px;
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 4px;
+    animation: pm-chat-point 1.2s ease-in-out 2;
+}
+
+@keyframes pm-chat-point {
+    50% { outline-offset: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pm-chat-launcher.is-pointed { animation: none; }
+}
+
 .pm-chat__empty {
     margin: 0;
     padding: 1rem;

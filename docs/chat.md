@@ -8,6 +8,22 @@ Messages page with search, #2731), status messages, unsend and chat buttons next
 (#2732), group chats and file attachments (1 GB per person, with storage management) are built. Owner decisions (2026-10-22): everyone may chat with
 everyone; messages are kept indefinitely; administrators cannot read chats.
 
+## Introducing chat
+
+- **What's new card** (`Pages/Shared/_WhatsNew.cshtml`, `wwwroot/js/core/whats-new.js`): signed-in
+  users see "PRISM just learned to talk." once, near the top bar, with **Show me** (opens the
+  contact list and briefly rings the chat button), **Quick guide** and **Not now**. It shows on up
+  to three page loads until answered, never over a dialog or while typing, and never to someone
+  who has already opened chat (`prism.chat.dock.{userId}` exists). Cards queue: the Dark theme
+  card waits until the Chat card has been answered and a day has passed
+  (`prism.whatsNew.lastAnswered`), and no card appears while the contact list is open.
+- **First-open tips** at the top of the contact list (`buildTips` in `chat/dock.js`): say hello,
+  the chat icon next to names, unsend (when on), status message, files (when on), conversations
+  are saved. **Got it** hides them for good (`prism.chat.tips.{userId}`).
+- **Quick guide** at `/Chat/Guide`: one printable page; the numbers (unsend minutes, files per
+  message, file size, allowance) come from the live settings, and the files section appears only
+  while attachments are on. 404 when chat is off.
+
 ## What users see
 
 - A **chat button** in the top bar, beside the notification bell, with a red badge for unread

@@ -2982,3 +2982,52 @@ test('the Messages page starts when the scripts run after the page is parsed, as
     window.close();
   }
 });
+
+test('first-open tips sit at the top of the contact list until Got it, then stay gone', async () => {
+  const window = bootApp(async (url) => (url.endsWith('/contacts') ? [{ ...contact }] : { status: 204, body: null }),
+    '', 'data-unsend-minutes="5" data-attachments="on" data-guide-url="/Chat/Guide"');
+  try {
+    await tick();
+    const app = window.PMChat;
+    app.toggleBuddy(true);
+    const tips = app.buddy.querySelector('.pm-chat__tips');
+    assert.ok(tips, 'tips shown the first time');
+    const text = tips.textContent;
+    assert.match(text, /Click a name to say hello/);
+    assert.match(text, /unsend for 5 minutes/);
+    assert.match(text, /paperclip/);
+    assert.match(text, /saved/);
+    assert.equal(tips.querySelector('a').getAttribute('href'), '/Chat/Guide');
+
+    Array.from(tips.querySelectorAll('button')).find((b) => b.textContent === 'Got it').click();
+    assert.equal(app.buddy.querySelector('.pm-chat__tips'), null);
+    assert.equal(window.localStorage.getItem('prism.chat.tips.me'), 'done');
+    assert.equal(window.document.activeElement, app.search);
+  } finally {
+    window.close();
+  }
+
+  // Next page: answered, so no tips.
+  const again = bootApp(async () => ({ status: 204, body: null }));
+  try {
+    again.localStorage.setItem('prism.chat.tips.me', 'done');
+    const app = new again.PMChatParts.ChatApp(again.document.querySelector('[data-chat-root]'));
+    app.buildDock();
+    assert.equal(app.tips, null);
+  } finally {
+    again.close();
+  }
+});
+
+test('tips leave out unsend and files when those are switched off', async () => {
+  const window = bootApp(async () => ({ status: 204, body: null }));
+  try {
+    await tick();
+    const text = window.PMChat.tips.textContent;
+    assert.doesNotMatch(text, /unsend/i);
+    assert.doesNotMatch(text, /paperclip/);
+    assert.equal(window.PMChat.tips.querySelector('a'), null, 'no guide link without a guide URL');
+  } finally {
+    window.close();
+  }
+});

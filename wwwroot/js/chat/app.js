@@ -22,6 +22,7 @@
     this.api = root.dataset.apiBase.replace(/\/$/, '');
     this.hubUrl = root.dataset.hubUrl;
     this.messagesUrl = root.dataset.messagesUrl || '';
+    this.guideUrl = root.dataset.guideUrl || '';
     this.maxLength = Number(root.dataset.maxLength) || 4000;
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
     // File attachments (chat/files.js), when switched on for this server.

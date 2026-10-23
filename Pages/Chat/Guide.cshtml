@@ -1,0 +1,85 @@
+@page
+@model ProjectManagement.Pages.Chat.GuideModel
+@{
+    ViewData["Title"] = "Chat quick guide";
+    var options = Model.Options;
+    var attachments = options.Attachments;
+    var unsend = options.UnsendWindowMinutes;
+}
+
+<article class="pm-chat-guide">
+    <header class="pm-chat-guide__head">
+        <div>
+            <h1 class="pm-chat-guide__title">Chat quick guide</h1>
+            <p class="pm-chat-guide__lede">The fastest way to get an answer in PRISM. Chat away!</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary btn-sm d-print-none" data-print>
+            <i class="bi bi-printer me-1" aria-hidden="true"></i>Print
+        </button>
+    </header>
+
+    <div class="pm-chat-guide__grid">
+        <section class="pm-chat-guide__card">
+            <h2><i class="bi bi-chat-dots" aria-hidden="true"></i>Start a chat</h2>
+            <ul>
+                <li>Click the <strong>chat button</strong> next to the bell (top right) and pick a name.</li>
+                <li>See the <i class="bi bi-chat-dots" aria-label="chat"></i> icon next to someone&rsquo;s name anywhere in PRISM? Click it to chat with them.</li>
+                <li>Several people? Choose <strong>New group</strong> in the contact list.</li>
+                <li>Your chats stay open as you move between pages.</li>
+            </ul>
+        </section>
+
+        <section class="pm-chat-guide__card">
+            <h2><i class="bi bi-send" aria-hidden="true"></i>Send</h2>
+            <ul>
+                <li><kbd>Enter</kbd> sends; <kbd>Shift</kbd>+<kbd>Enter</kbd> starts a new line.</li>
+                @if (unsend > 0)
+                {
+                    <li>Sent too soon? <strong>Unsend</strong> it within @unsend @(unsend == 1 ? "minute" : "minutes").</li>
+                }
+                <li>One tick: sent. Two blue ticks: read.</li>
+            </ul>
+        </section>
+
+        @if (attachments.Enabled)
+        {
+            <section class="pm-chat-guide__card">
+                <h2><i class="bi bi-paperclip" aria-hidden="true"></i>Share files</h2>
+                <ul>
+                    <li>Click the <strong>paperclip</strong> in a chat: up to @attachments.MaxFilesPerMessage files at a time, @attachments.MaxFileMb MB each.</li>
+                    <li>PDF, Word, Excel, PowerPoint, pictures (JPG, PNG, WebP), text and CSV.</li>
+                    <li>You have @(attachments.AllowanceMb >= 1024 && attachments.AllowanceMb % 1024 == 0 ? $"{attachments.AllowanceMb / 1024} GB" : $"{attachments.AllowanceMb} MB") for the files you send. See and tidy them in <a asp-page="/Chat/Index" asp-route-view="files">My files</a>.</li>
+                </ul>
+            </section>
+        }
+
+        <section class="pm-chat-guide__card">
+            <h2><i class="bi bi-person-check" aria-hidden="true"></i>Who&rsquo;s around</h2>
+            <ul>
+                <li><span class="pm-chat-guide__dot is-online" aria-hidden="true"></span>Green: online. <span class="pm-chat-guide__dot is-away" aria-hidden="true"></span>Amber: away. <span class="pm-chat-guide__dot is-offline" aria-hidden="true"></span>Grey: offline.</li>
+                <li>Set a <strong>status message</strong> at the top of the contact list: &ldquo;In a meeting till 3&rdquo;, &ldquo;On leave today&rdquo;.</li>
+            </ul>
+        </section>
+
+        <section class="pm-chat-guide__card">
+            <h2><i class="bi bi-bell" aria-hidden="true"></i>Never miss a message</h2>
+            <ul>
+                <li>A new message opens its chat, plays a short chime and flashes the tab title when PRISM is in the background.</li>
+                <li>Prefer quiet? Use the speaker button in the contact list.</li>
+            </ul>
+        </section>
+
+        <section class="pm-chat-guide__card">
+            <h2><i class="bi bi-search" aria-hidden="true"></i>Find it later</h2>
+            <ul>
+                <li>Your conversations are saved, so you can always scroll back.</li>
+                <li><a asp-page="/Chat/Index">Messages</a> shows every conversation and searches them all.</li>
+                <li>Only you and the people in a conversation can read it.</li>
+            </ul>
+        </section>
+    </div>
+</article>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/chat-guide.css" asp-append-version="true" />
+}
