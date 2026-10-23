@@ -1,12 +1,21 @@
 @page
+@using System.Globalization
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.MapTableDetailedModel
 @{
-    ViewData["Title"] = "FFC – Detailed Table";
+    ViewData["Title"] = FfcViewHeader.PageTitle(FfcView.DetailedTable);
     ViewData["UseFullWidth"] = true;
+    var summary = Model.Summary;
+    static string Share(int part, int total) => total == 0
+        ? "0%"
+        : (part * 100d / total).ToString("0.###", CultureInfo.InvariantCulture) + "%";
 }
 
 @section Styles
 {
+    <link rel="stylesheet"
+          href="~/css/project-office-reports/ffc-views.css"
+          asp-append-version="true" />
     <link rel="stylesheet"
           href="~/css/project-office-reports/ffc-detailed-table.css"
           asp-append-version="true" />
@@ -22,65 +31,119 @@
 
 <div class="ffc-detailed-page"
      data-open-word-export-modal="@Model.ShowWordExportModal.ToString().ToLowerInvariant()">
-    <header class="ffc-detailed-toolbar" data-hide-in-print>
-        <div>
-            <h1 class="ffc-detailed-toolbar__title">FFC – Detailed Table</h1>
-            <p class="ffc-detailed-toolbar__subtitle mb-0">Project-wise portfolio position with current progress and overall status.</p>
-        </div>
-
-        <div class="dropdown">
-            <button class="btn btn-primary btn-sm dropdown-toggle ffc-export-menu__trigger"
-                    type="button"
-                    id="ffcExportMenu"
-                    data-bs-toggle="dropdown"
-                    aria-expanded="false">
-                <i class="bi bi-download" aria-hidden="true"></i>
-                <span>Export</span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="ffcExportMenu">
-                <li>
-                    <button class="dropdown-item d-flex align-items-start gap-2"
+    @{
+        var header = new FfcViewHeader(
+            FfcView.DetailedTable,
+            "Project-wise position with current progress and the overall status of each country-year.",
+            Model.Year,
+            Model.CountryId)
+        {
+            Actions = @<text>
+                <div class="dropdown">
+                    <button class="btn btn-primary btn-sm dropdown-toggle ffc-export-menu__trigger"
                             type="button"
-                            data-bs-toggle="modal"
-                            data-bs-target="#ffcWordExportModal">
-                        <i class="bi bi-file-earmark-word mt-1" aria-hidden="true"></i>
-                        <span>
-                            <span class="d-block fw-semibold">Export to Word</span>
-                            <span class="d-block small text-muted">Editable, formatted report</span>
-                        </span>
+                            id="ffcExportMenu"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                        <span>Export</span>
                     </button>
-                </li>
-                <li><hr class="dropdown-divider" /></li>
-                <li>
-                    <a asp-page="./MapTableDetailed"
-                       asp-page-handler="ExportExcel"
-                       asp-route-countryId="@Model.CountryId"
-                       asp-route-countryIso3="@Model.CountryIso3"
-                       asp-route-year="@Model.Year"
-                       class="dropdown-item d-flex align-items-start gap-2">
-                        <i class="bi bi-file-earmark-excel mt-1" aria-hidden="true"></i>
-                        <span>
-                            <span class="d-block fw-semibold">Export to Excel</span>
-                            <span class="d-block small text-muted">Filterable project register</span>
-                        </span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </header>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="ffcExportMenu">
+                        <li>
+                            <button class="dropdown-item d-flex align-items-start gap-2"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#ffcWordExportModal">
+                                <i class="bi bi-file-earmark-word mt-1" aria-hidden="true"></i>
+                                <span>
+                                    <span class="d-block fw-semibold">Export to Word</span>
+                                    <span class="d-block small text-muted">Editable, formatted report</span>
+                                </span>
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider" /></li>
+                        <li>
+                            <a asp-page="./MapTableDetailed"
+                               asp-page-handler="ExportExcel"
+                               asp-route-countryId="@Model.CountryId"
+                               asp-route-countryIso3="@Model.CountryIso3"
+                               asp-route-year="@Model.Year"
+                               class="dropdown-item d-flex align-items-start gap-2">
+                                <i class="bi bi-file-earmark-excel mt-1" aria-hidden="true"></i>
+                                <span>
+                                    <span class="d-block fw-semibold">Export to Excel</span>
+                                    <span class="d-block small text-muted">Filterable project register</span>
+                                </span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </text>
+        };
+    }
+    <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Partials/_FfcViewHeader.cshtml" model="header" />
 
     <section class="ffc-detailed-print-heading" aria-hidden="true">
         <h1>FFC Projects Update</h1>
         <p>@Model.ExportScopeLabel · Position as at @Model.GeneratedAtIstDisplay</p>
     </section>
 
-    @if (Model.HasFilters && !string.IsNullOrWhiteSpace(Model.FilterSummary))
-    {
-        <div class="alert alert-info py-2 ffc-detailed-filter-alert" role="status" data-hide-in-print>
-            Showing records for <strong>@Model.FilterSummary</strong>.
-            <a asp-page="./MapTableDetailed" class="alert-link">Show complete portfolio</a>
+    <form method="get" class="ffc-detailed-filters" data-hide-in-print aria-label="Filter the detailed table">
+        <div class="ffc-detailed-filters__field">
+            <label for="ffcDetailedYear" class="form-label">Year</label>
+            <select id="ffcDetailedYear" name="year" class="form-select form-select-sm">
+                <option value="">All years</option>
+                @foreach (var year in Model.YearOptions)
+                {
+                    <option value="@year" selected="@(Model.Year == year)">@year</option>
+                }
+            </select>
         </div>
-    }
+        <div class="ffc-detailed-filters__field ffc-detailed-filters__field--country">
+            <label for="ffcDetailedCountry" class="form-label">Country</label>
+            <select id="ffcDetailedCountry" name="countryId" class="form-select form-select-sm">
+                <option value="">All countries</option>
+                @foreach (var country in Model.CountryOptions)
+                {
+                    <option value="@country.Id" selected="@(Model.CountryId == country.Id)">@country.Name · @country.IsoCode</option>
+                }
+            </select>
+        </div>
+        <div class="ffc-detailed-filters__actions">
+            <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+            @if (Model.HasFilters)
+            {
+                <a asp-page="./MapTableDetailed" class="btn btn-link btn-sm">Clear filters</a>
+            }
+        </div>
+    </form>
+
+    <section class="ffc-detailed-summary" aria-label="Totals for the projects shown" data-hide-in-print>
+        <dl class="ffc-detailed-summary__metrics">
+            <div><dt>Countries</dt><dd>@summary.CountryCount</dd></div>
+            <div><dt>Records</dt><dd>@summary.RecordCount</dd></div>
+            <div><dt>Projects</dt><dd>@summary.ProjectCount</dd></div>
+            <div><dt>Total quantity</dt><dd>@summary.TotalQuantity.ToString("N0")</dd></div>
+            <div>
+                <dt>Cost (₹ lakh)</dt>
+                <dd>@summary.AvailableCostInLakh.ToString("N2")</dd>
+                <span class="ffc-detailed-summary__note">@summary.CostCoverageLabel</span>
+            </div>
+        </dl>
+        <div class="ffc-detailed-summary__status">
+            <div class="ffc-detailed-summary__bar"
+                 role="img"
+                 aria-label="Quantity status: @summary.InstalledQuantity installed, @summary.DeliveredNotInstalledQuantity delivered awaiting installation, @summary.PlannedQuantity planned">
+                <span class="ffc-detailed-summary__segment is-installed" style="width: @Share(summary.InstalledQuantity, summary.TotalQuantity)"></span>
+                <span class="ffc-detailed-summary__segment is-delivered" style="width: @Share(summary.DeliveredNotInstalledQuantity, summary.TotalQuantity)"></span>
+            </div>
+            <ul class="ffc-detailed-summary__legend">
+                <li><span class="ffc-detailed-summary__dot is-installed" aria-hidden="true"></span>Installed <strong>@summary.InstalledQuantity</strong></li>
+                <li><span class="ffc-detailed-summary__dot is-delivered" aria-hidden="true"></span>Delivered, awaiting installation <strong>@summary.DeliveredNotInstalledQuantity</strong></li>
+                <li><span class="ffc-detailed-summary__dot is-planned" aria-hidden="true"></span>Planned <strong>@summary.PlannedQuantity</strong></li>
+            </ul>
+        </div>
+    </section>
 
     <div class="pm-card pm-card--content ffc-detailed-card">
         <div class="pm-card__body">

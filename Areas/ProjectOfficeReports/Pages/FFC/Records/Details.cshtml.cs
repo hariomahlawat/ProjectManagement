@@ -503,7 +503,7 @@ public sealed class DetailsModel : PageModel
     {
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", SafeReturnUrl),
+            ("FFC Projects", SafeReturnUrl),
             ($"{Workspace.CountryName} – {Workspace.Year}", null));
     }
 

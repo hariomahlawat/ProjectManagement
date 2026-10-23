@@ -237,6 +237,12 @@
     border-bottom: 1px solid var(--ffc-border);
 }
 
+/* The heading's button keeps its label on one line; the description wraps instead. */
+.ffc-workspace-section__heading > .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
 .ffc-workspace-section__heading h2,
 .ffc-editor-section__heading h2 {
     margin: 0;

@@ -125,7 +125,7 @@ public sealed class IndexModel : PageModel
             cancellationToken);
 
         PageNumber = Portfolio.PageNumber;
-        FfcBreadcrumbs.Set(ViewData, ("FFC Proposals", null));
+        FfcBreadcrumbs.Set(ViewData, (FfcViewHeader.ModuleName, null));
     }
 
     public Dictionary<string, string?> BuildRoute(

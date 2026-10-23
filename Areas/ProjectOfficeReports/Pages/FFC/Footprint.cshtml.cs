@@ -76,12 +76,12 @@ public sealed class FootprintModel : PageModel
     {
         NormalizeRequest();
 
-        ViewData["Title"] = "FFC Proposals – Global footprint";
+        ViewData["Title"] = FfcViewHeader.PageTitle(FfcView.Footprint);
         ViewData["UseFullWidth"] = true;
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
-            ("Global footprint", null));
+            (FfcViewHeader.ModuleName, Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("Footprint", null));
 
         Result = await _footprintService.GetAsync(
             new FfcFootprintRequest(

@@ -5,7 +5,7 @@
 @using ProjectManagement.Models
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.DetailsModel
 @{
-    ViewData["Title"] = $"FFC Proposals – {Model.Workspace.CountryName} {Model.Workspace.Year}";
+    ViewData["Title"] = $"FFC Projects – {Model.Workspace.CountryName} {Model.Workspace.Year}";
     ViewData["UseFullWidth"] = true;
 
     var projectOptionsJson = JsonSerializer.Serialize(Model.ProjectOptions.Select(project => new

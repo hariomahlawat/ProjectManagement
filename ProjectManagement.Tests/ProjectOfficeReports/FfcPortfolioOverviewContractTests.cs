@@ -16,7 +16,7 @@ public sealed class FfcPortfolioOverviewContractTests
         Assert.Contains("_PortfolioRow.cshtml", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("_FfcRecordCard", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("ffcFiltersModal", overview, StringComparison.Ordinal);
-        Assert.Contains("/FFC/MapTableDetailed", overview, StringComparison.Ordinal);
+        Assert.Contains("_FfcViewHeader.cshtml", overview, StringComparison.Ordinal);
     }
 
     [Fact]

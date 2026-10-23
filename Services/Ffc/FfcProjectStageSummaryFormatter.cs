@@ -49,13 +49,25 @@ public static class FfcProjectStageSummaryFormatter
         var started = stages.FirstOrDefault(stage =>
             stage.Status is StageStatus.InProgress or StageStatus.Blocked);
 
-        var missed = topCompleted is null
-            ? Array.Empty<string>()
+        // Earlier stages that are not completed: deliberately skipped ones, and ones never
+        // recorded as done although a later stage was. Neither is an error, so neither is
+        // called "missed".
+        var earlierOpen = topCompleted is null
+            ? new List<FfcProjectStageSnapshot>()
             : stages
                 .Where(stage => stage.SortOrder < topCompleted.SortOrder &&
                                 stage.Status != StageStatus.Completed)
-                .Select(stage => StageCodes.DisplayNameOf(stage.StageCode))
-                .ToArray();
+                .ToList();
+        var skipped = earlierOpen
+            .Where(stage => stage.Status == StageStatus.Skipped)
+            .Select(stage => StageCodes.DisplayNameOf(stage.StageCode))
+            .ToArray();
+        var notRecorded = earlierOpen
+            .Where(stage => stage.Status != StageStatus.Skipped)
+            .Select(stage => StageCodes.DisplayNameOf(stage.StageCode))
+            .ToArray();
+        var gapsPart = (notRecorded.Length > 0 ? $" — not recorded: {string.Join(", ", notRecorded)}" : string.Empty)
+                       + (skipped.Length > 0 ? $" — skipped: {string.Join(", ", skipped)}" : string.Empty);
 
         if (started is not null)
         {
@@ -69,20 +81,17 @@ public static class FfcProjectStageSummaryFormatter
             var previousDate = previous is null ? string.Empty : FormatDate(previous.CompletedOn);
             var currentLabel = StageCodes.DisplayNameOf(started.StageCode);
             var currentState = started.Status == StageStatus.Blocked ? "Blocked" : "In progress";
-            var missedPart = missed.Length > 0
-                ? $" — missed: {string.Join(", ", missed)}"
-                : string.Empty;
 
             if (previousLabel is null)
             {
-                return $"Now: {currentLabel} ({currentState}){missedPart}";
+                return $"Now: {currentLabel} ({currentState}){gapsPart}";
             }
 
             var previousPart = string.IsNullOrEmpty(previousDate)
                 ? previousLabel
                 : $"{previousLabel} ({previousDate})";
 
-            return $"Last completed: {previousPart} · Now: {currentLabel} ({currentState}){missedPart}";
+            return $"Last completed: {previousPart} · Now: {currentLabel} ({currentState}){gapsPart}";
         }
 
         if (topCompleted is not null)
@@ -108,11 +117,8 @@ public static class FfcProjectStageSummaryFormatter
                 nextPart = $" · Next: {nextLabel}{suffix}";
             }
 
-            var missedPart = missed.Length > 0
-                ? $" — missed: {string.Join(", ", missed)}"
-                : string.Empty;
 
-            return $"Last completed: {topPart}{nextPart}{missedPart}";
+            return $"Last completed: {topPart}{nextPart}{gapsPart}";
         }
 
         var firstDefined = stages.FirstOrDefault();

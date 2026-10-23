@@ -19,9 +19,9 @@
 
     static string LifecycleLabel(ProjectLifecycleStatus? status) => status switch
     {
-        ProjectLifecycleStatus.Completed => "Completed",
-        ProjectLifecycleStatus.Cancelled => "Cancelled",
-        ProjectLifecycleStatus.Active => "Active",
+        ProjectLifecycleStatus.Completed => "Project completed",
+        ProjectLifecycleStatus.Cancelled => "Project cancelled",
+        ProjectLifecycleStatus.Active => "Project active",
         _ => string.Empty
     };
 }

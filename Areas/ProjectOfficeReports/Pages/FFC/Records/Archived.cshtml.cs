@@ -76,7 +76,7 @@ public sealed class ArchivedModel : PageModel
     {
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", ResolveReturnUrl()),
+            ("FFC Projects", ResolveReturnUrl()),
             ("Archived records", null));
     }
 }
