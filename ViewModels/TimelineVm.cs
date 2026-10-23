@@ -73,7 +73,8 @@ public sealed class TimelineItemVm
         IsArppManaged && (!ActualStart.HasValue || HasActualStartDataQualityIssue);
     /// <summary>
     /// Completed or skipped with nothing outstanding: no missing completion date,
-    /// no pending update and no ARPP start issue. The Timeline may collapse these.
+    /// no pending update and no ARPP start issue. A finished stage that is not settled
+    /// keeps its place on the Timeline and is counted as needing attention.
     /// </summary>
     public bool IsSettled =>
         Status is StageStatus.Completed or StageStatus.Skipped &&

@@ -349,9 +349,9 @@ public class ProjectTimelineUiTests
     }
 
 
-    // SECTION: PO Timeline Increment 1e (lead with the stage that needs action)
+    // SECTION: PO Timeline Increment 1e (finished stages, always in workflow order)
     [Fact]
-    public async Task SettledStages_CollapseIntoOneGroupAboveTheStagesThatNeedAction()
+    public async Task FinishedStages_FoldIntoOneGroup_InWorkflowOrder_WithStagesNeedingAttentionInPlace()
     {
         var timeline = new TimelineVm
         {
@@ -371,17 +371,18 @@ public class ProjectTimelineUiTests
 
         Assert.Equal(1, CountOccurrences(html, "data-timeline-completed-group"));
         var text = System.Net.WebUtility.HtmlDecode(html);
-        Assert.Contains("2 completed stages · 1 skipped", text, StringComparison.Ordinal);
+        Assert.Contains("3 completed stages · 1 skipped · 1 needs attention", text, StringComparison.Ordinal);
         Assert.Contains("Latest: In-Principle Approval · 10 Feb 2026", text, StringComparison.Ordinal);
         var groupStart = html.IndexOf("data-timeline-completed-group", StringComparison.Ordinal);
         var groupEnd = html.IndexOf("</details>", StringComparison.Ordinal);
         int At(string code) => html.IndexOf($"id=\"timeline-stage-{code}\"", StringComparison.Ordinal);
+        // Workflow order throughout: the stage needing a completion date keeps its place.
         Assert.True(groupStart < At("FS"));
         Assert.True(At("FS") < At("IPA"));
+        Assert.True(At("IPA") < At("SOW"));
+        Assert.True(At("SOW") < At("PNC"));
         Assert.True(At("PNC") < groupEnd);
-        // A stage that still needs a completion date stays visible, after the group.
-        Assert.True(groupEnd < At("SOW"));
-        Assert.True(At("SOW") < At("AON"));
+        Assert.True(groupEnd < At("AON"));
         Assert.True(At("AON") < At("BID"));
         // The group starts open, so each completed stage shows its date and days taken;
         // it can still be folded away.
@@ -389,7 +390,37 @@ public class ProjectTimelineUiTests
     }
 
     [Fact]
-    public async Task CompletedStageWithAPendingUpdate_StaysOutsideTheGroup()
+    public async Task ArppStageWithoutAStartDate_KeepsItsPlace_AndSaysWhy()
+    {
+        // The reported case: IPA (ARPP-derived, no actual start) was shown just above EAS.
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm { Code = "FS", Name = "Feasibility Study", Status = StageStatus.Completed, SortOrder = 0, CompletedOn = new DateOnly(2025, 3, 10) },
+                new TimelineItemVm { Code = "SOW", Name = "SOW Vetting", Status = StageStatus.Completed, SortOrder = 1, CompletedOn = new DateOnly(2025, 5, 10) },
+                new TimelineItemVm { Code = "IPA", Name = "In-Principle Approval", Status = StageStatus.Completed, SortOrder = 2, CompletedOn = new DateOnly(2025, 6, 17), IsArppManaged = true },
+                new TimelineItemVm { Code = "AON", Name = "Acceptance of Necessity", Status = StageStatus.Completed, SortOrder = 3, CompletedOn = new DateOnly(2025, 9, 1) },
+                new TimelineItemVm { Code = "PNC", Name = "PNC", Status = StageStatus.Skipped, SortOrder = 4 },
+                new TimelineItemVm { Code = "EAS", Name = "EAS Approval", Status = StageStatus.InProgress, SortOrder = 5 }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
+
+        int At(string code) => html.IndexOf($"id=\"timeline-stage-{code}\"", StringComparison.Ordinal);
+        Assert.True(At("SOW") < At("IPA"));
+        Assert.True(At("IPA") < At("AON"));
+        Assert.True(At("PNC") < At("EAS"));
+        Assert.True(At("IPA") < html.IndexOf("</details>", StringComparison.Ordinal));
+        Assert.Contains("1 needs attention", System.Net.WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+        Assert.Contains("data-stage-start-attention", html, StringComparison.Ordinal);
+        Assert.Contains("Start date missing", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OnlyTheFinishedStagesAtTheStartFold_SoALaterFinishedStageNeverMovesUp()
     {
         var timeline = new TimelineVm
         {
@@ -397,17 +428,22 @@ public class ProjectTimelineUiTests
             Items = new[]
             {
                 new TimelineItemVm { Code = "FS", Name = "Feasibility Study", Status = StageStatus.Completed, SortOrder = 0, CompletedOn = new DateOnly(2026, 1, 10) },
-                new TimelineItemVm { Code = "IPA", Name = "In-Principle Approval", Status = StageStatus.Completed, SortOrder = 1, CompletedOn = new DateOnly(2026, 2, 10) },
-                new TimelineItemVm { Code = "SOW", Name = "SOW Vetting", Status = StageStatus.Completed, SortOrder = 2, CompletedOn = new DateOnly(2026, 3, 10),
-                    HasPendingRequest = true, PendingStatus = "NotStarted" },
-                new TimelineItemVm { Code = "AON", Name = "AON", Status = StageStatus.InProgress, SortOrder = 3 }
+                new TimelineItemVm { Code = "SOW", Name = "SOW Vetting", Status = StageStatus.Completed, SortOrder = 1, CompletedOn = new DateOnly(2026, 2, 10) },
+                new TimelineItemVm { Code = "IPA", Name = "In-Principle Approval", Status = StageStatus.InProgress, SortOrder = 2 },
+                new TimelineItemVm { Code = "AON", Name = "AON", Status = StageStatus.Completed, SortOrder = 3, CompletedOn = new DateOnly(2026, 3, 10) },
+                new TimelineItemVm { Code = "BID", Name = "Bidding", Status = StageStatus.NotStarted, SortOrder = 4 }
             }
         };
 
         var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
 
+        var groupEnd = html.IndexOf("</details>", StringComparison.Ordinal);
+        int At(string code) => html.IndexOf($"id=\"timeline-stage-{code}\"", StringComparison.Ordinal);
         Assert.Contains("2 completed stages", html, StringComparison.Ordinal);
-        Assert.True(html.IndexOf("</details>", StringComparison.Ordinal) < html.IndexOf("id=\"timeline-stage-SOW\"", StringComparison.Ordinal));
+        Assert.True(At("SOW") < groupEnd);
+        Assert.True(groupEnd < At("IPA"));
+        Assert.True(At("IPA") < At("AON"));
+        Assert.True(At("AON") < At("BID"));
     }
 
     [Theory]
