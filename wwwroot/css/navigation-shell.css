@@ -754,14 +754,11 @@ body.pm-drawer-open {
     font-weight: 600;
 }
 
-.pm-search-option__title mark {
-    padding: 0;
-    background: transparent;
+.pm-search-popup .pm-search-option__title mark {
+    padding: 0 .1em;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--pm-warning) 30%, transparent);
     color: inherit;
-    font-weight: 800;
-    text-decoration: underline;
-    text-decoration-color: var(--pm-primary);
-    text-underline-offset: 2px;
 }
 
 .pm-search-option__meta {

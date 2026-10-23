@@ -268,7 +268,7 @@ else
                             {
                                 <text>Showing <strong>@Count(firstRank)–@Count(lastRank)</strong> of <strong>@Count(search.FilteredHits)</strong> results</text>
                             }
-                            else if (search.IsPartial)
+                            else if (search.IsPartial && results.Count > 0)
                             {
                                 <text><strong>@Count(results.Count)</strong> top result@(results.Count == 1 ? "" : "s")</text>
                             }
@@ -509,6 +509,10 @@ else
                         @foreach (var hit in results)
                         {
                             var projectName = IndexModel.ProjectNameFor(hit);
+                            if (projectName is not null && hit.Subtitle?.Contains(projectName, StringComparison.OrdinalIgnoreCase) == true)
+                            {
+                                projectName = null; // the subtitle already names the project
+                            }
                             var evidence = MatchEvidence(hit);
                             <article class="pm-gs-hit" data-search-hit>
                                 <span class="pm-gs-hit__icon" aria-hidden="true"><i class="bi @TypeIcon(hit)"></i></span>

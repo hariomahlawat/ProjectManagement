@@ -534,7 +534,8 @@ function initFilterPanel(details) {
     }
   });
 
-  details.addEventListener('keydown', (event) => {
+  // On the document: focus may have left the panel after a click elsewhere.
+  document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && details.open && !event.defaultPrevented) {
       event.preventDefault();
       close({ discard: true, returnFocus: true });

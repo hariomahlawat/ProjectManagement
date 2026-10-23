@@ -185,7 +185,9 @@ export function createSearchCombobox(input, options = {}) {
   live.setAttribute('aria-atomic', 'true');
 
   popup.append(status, listbox);
-  form.append(popup, live);
+  // Anchor the popup to the box around the input (positioned), not the whole form.
+  (input.parentElement || form).append(popup);
+  form.append(live);
 
   input.setAttribute('role', 'combobox');
   input.setAttribute('aria-autocomplete', 'list');
