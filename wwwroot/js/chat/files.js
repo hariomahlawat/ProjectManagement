@@ -305,6 +305,7 @@
    * the file back.
    */
   ChatApp.prototype.onAttachmentRemoved = function (removed) {
+    this.restoredFiles.delete(removed.attachmentId);
     this.removedFiles.set(removed.attachmentId, { id: removed.attachmentId, isRemoved: true, removalReason: removed.removalReason || null });
     const shows = (list) => list.some((m) => m.attachments && m.attachments.some((a) => a.id === removed.attachmentId && !a.isRemoved));
     this.windows.forEach((win) => {
@@ -318,7 +319,10 @@
   /** A removed file came back (restored within the undo window). */
   ChatApp.prototype.onAttachmentRestored = function (restored) {
     const file = restored.attachment;
+    // Remembered like a removal, so a history page or send response still in flight (or a
+    // message not loaded yet) shows the file too.
     this.removedFiles.delete(file.id);
+    this.restoredFiles.set(file.id, file);
     const bringBack = (list) => {
       let changed = false;
       const next = list.map((message) => {

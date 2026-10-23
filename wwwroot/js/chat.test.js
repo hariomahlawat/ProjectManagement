@@ -2781,6 +2781,35 @@ test('files waiting to be sent keep a window from being closed to make room, and
 
 // --- Storage management: removal reasons, restores, My files ---------------------------------------
 
+test('a restored file stays restored when a stale copy of its message arrives later', async () => {
+  const window = fileApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const removedCopy = () => ({
+      id: 100, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-100', body: 'Plan', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 45, fileName: '', contentType: '', sizeBytes: 0, isImage: false, isRemoved: true, removalReason: 'Sender' }],
+    });
+    app.acceptSaved(win, [removedCopy()]);
+    app.onAttachmentRestored({ messageId: 100, attachment: { id: 45, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false } });
+    assert.ok(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/45"]'));
+
+    // A history page fetched before the restore arrives afterwards.
+    app.acceptSaved(win, [removedCopy()]);
+    assert.ok(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/45"]'));
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 0);
+
+    // A later removal still wins.
+    app.onAttachmentRemoved({ attachmentId: 45, messageId: 100 });
+    app.acceptSaved(win, [{ ...removedCopy(), attachments: [{ id: 45, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }] }]);
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 1);
+  } finally {
+    window.close();
+  }
+});
+
 test('a removed file says who removed it, and a restored file comes back', async () => {
   const window = fileApp();
   try {

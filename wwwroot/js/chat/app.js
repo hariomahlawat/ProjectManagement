@@ -32,6 +32,7 @@
     };
     this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
     this.removedFiles = new Map(); // attachment id -> its removed card, the same for file removals
+    this.restoredFiles = new Map(); // attachment id -> the file, for restores (undo) of removals
     // When live events stopped arriving (or, until the first connection, when this page started
     // loading history), so unsends in between can be caught up on once connected.
     this.offlineSince = new Date();
@@ -368,7 +369,10 @@
       }
       ids.forEach((id) => this.unsentIds.add(id));
       const removed = this.attachments.enabled ? await this.removedFilesSince(since) : [];
-      removed.forEach((file) => this.removedFiles.set(file.attachmentId, { id: file.attachmentId, isRemoved: true, removalReason: file.removalReason || null }));
+      removed.forEach((file) => {
+        this.restoredFiles.delete(file.attachmentId);
+        this.removedFiles.set(file.attachmentId, { id: file.attachmentId, isRemoved: true, removalReason: file.removalReason || null });
+      });
       // A file this page remembers as removed may have been restored meanwhile (undo window):
       // ask after the rest, and bring back any that are kept again.
       const fresh = new Set(removed.map((file) => file.attachmentId));

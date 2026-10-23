@@ -208,11 +208,13 @@
    * cannot show the withdrawn text.
    */
   ChatApp.prototype.applyTombstones = function (win) {
-    if (!this.unsentIds.size && !this.removedFiles.size) return;
+    if (!this.unsentIds.size && !this.removedFiles.size && !this.restoredFiles.size) return;
+    // The latest removal or restore of each file this page heard about wins over an older copy.
+    const stale = (a) => (a.isRemoved ? this.restoredFiles.has(a.id) : this.removedFiles.has(a.id));
+    const latest = (a) => (a.isRemoved ? this.restoredFiles.get(a.id) : this.removedFiles.get(a.id));
     const removeFiles = (m) => {
-      if (!m.attachments || !this.removedFiles.size) return m;
-      if (!m.attachments.some((a) => !a.isRemoved && this.removedFiles.has(a.id))) return m;
-      return { ...m, attachments: m.attachments.map((a) => (!a.isRemoved && this.removedFiles.has(a.id) ? this.removedFiles.get(a.id) : a)) };
+      if (!m.attachments || !m.attachments.some(stale)) return m;
+      return { ...m, attachments: m.attachments.map((a) => (stale(a) ? latest(a) : a)) };
     };
     const mark = (list) => list.map((m) => removeFiles(m.id && this.unsentIds.has(m.id) && !m.isUnsent ? { ...m, body: '', isUnsent: true } : m));
     win.messages = mark(win.messages);

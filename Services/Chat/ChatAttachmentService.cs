@@ -647,28 +647,48 @@ public sealed class ChatAttachmentService
         var undoableBefore = now - Settings.UndoWindow;
 
         var deleted = 0;
-        var batch = await _db.ChatAttachments
+        var due = _db.ChatAttachments
             .Where(a => a.RemovedUtc != null && a.PurgedUtc == null)
             .Where(a => (a.RemovalReason != ChatAttachmentRemovalReason.Sender
                         && a.RemovalReason != ChatAttachmentRemovalReason.Administrator
                         && a.RemovalReason != ChatAttachmentRemovalReason.Retention)
-                    || a.RemovedUtc < undoableBefore)
-            .OrderBy(a => a.Id)
-            .Take(500)
+                    || a.RemovedUtc < undoableBefore);
+        var candidates = await due.OrderBy(a => a.Id).Select(a => a.Id).Take(500).ToListAsync(cancellationToken);
+
+        // Claim the files before touching the disk: one conditional update, so a restore that
+        // committed meanwhile (or is committing: the update waits for it, then finds the file
+        // kept) is never deleted. Restores in turn only take files not claimed here.
+        DateTimeOffset? purgedUtc = now;
+        await due.Where(a => candidates.Contains(a.Id))
+            .ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, purgedUtc), cancellationToken);
+        var claimed = await _db.ChatAttachments.AsNoTracking()
+            .Where(a => candidates.Contains(a.Id) && a.PurgedUtc == purgedUtc)
             .ToListAsync(cancellationToken);
-        foreach (var attachment in batch)
+
+        var stillOnDisk = new List<long>();
+        foreach (var attachment in claimed)
         {
             var fileGone = DeleteQuietly(_paths.ToAbsolute(attachment.StorageKey));
             var thumbnailGone = attachment.ThumbnailKey is null || DeleteQuietly(_paths.ToAbsolute(attachment.ThumbnailKey));
-            // A file still on disk (held open, access denied) stays due, for the next sweep.
             if (fileGone && thumbnailGone)
             {
-                attachment.PurgedUtc = now;
                 deleted++;
+            }
+            else
+            {
+                stillOnDisk.Add(attachment.Id);
             }
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
+        // A file still on disk (held open, access denied) stays due, for the next sweep.
+        if (stillOnDisk.Count > 0)
+        {
+            DateTimeOffset? notPurged = null;
+            await _db.ChatAttachments
+                .Where(a => stillOnDisk.Contains(a.Id) && a.PurgedUtc == purgedUtc)
+                .ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, notPurged), cancellationToken);
+        }
+
         CleanTemporaryFolder(now);
         return deleted;
     }
