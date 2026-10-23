@@ -97,7 +97,7 @@ const pageModel = read('Areas', 'Common', 'Pages', 'Search', 'Index.cshtml.cs');
 const searchContracts = read('Services', 'SearchV2', 'Models', 'SearchContracts.cs');
 const adminSearchIndex = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml.cs');
 
-expect(options.includes('ProjectionVersion') && options.includes('ProjectionVersion { get; set; } = 6;'), 'Projection semantic version is missing or was not bumped to 6');
+expect(options.includes('ProjectionVersion') && options.includes('ProjectionVersion { get; set; } = 7;'), 'Projection semantic version is missing or was not bumped to 7');
 expect(worker.includes('IsReadyAsync(_options.ProjectionVersion'), 'Index worker does not force projection-version compatibility');
 expect(worker.includes('ReplaceFullGenerationAsync(projections, _options.ProjectionVersion'), 'Full rebuild does not activate the configured projection version');
 expect(indexStore.includes('RequestFullRebuildAsync') && indexStore.includes("'__FullRebuild__'"), 'Administrative full rebuild queue support is missing');
