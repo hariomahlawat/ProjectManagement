@@ -582,7 +582,7 @@ else
                                         }
                                         @if (!string.IsNullOrWhiteSpace(hit.Status))
                                         {
-                                            <li class="pm-gs-hit__status"><span class="visually-hidden">Status: </span>@DisplayToken(hit.Status)</li>
+                                            <li><span class="pm-gs-hit__status"><span class="visually-hidden">Status: </span>@DisplayToken(hit.Status)</span></li>
                                         }
                                         @if (hit.EventDate.HasValue)
                                         {
