@@ -97,7 +97,7 @@ const pageModel = read('Areas', 'Common', 'Pages', 'Search', 'Index.cshtml.cs');
 const searchContracts = read('Services', 'SearchV2', 'Models', 'SearchContracts.cs');
 const adminSearchIndex = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml.cs');
 
-expect(options.includes('ProjectionVersion') && options.includes('= 4;'), 'Projection semantic version is missing or was not bumped to 4');
+expect(options.includes('ProjectionVersion') && options.includes('ProjectionVersion { get; set; } = 6;'), 'Projection semantic version is missing or was not bumped to 6');
 expect(worker.includes('IsReadyAsync(_options.ProjectionVersion'), 'Index worker does not force projection-version compatibility');
 expect(worker.includes('ReplaceFullGenerationAsync(projections, _options.ProjectionVersion'), 'Full rebuild does not activate the configured projection version');
 expect(indexStore.includes('RequestFullRebuildAsync') && indexStore.includes("'__FullRebuild__'"), 'Administrative full rebuild queue support is missing');
@@ -211,10 +211,9 @@ expect(engine.includes('Add(command, "aliasWebQuery", aliasWebSearchQuery)'), 'S
 expect(engine.includes(`'alias_fts'::text AS channel`), 'Dedicated alias FTS channel is missing');
 expect(engine.includes("websearch_to_tsquery('simple', @webQuery)") && engine.includes("websearch_to_tsquery('simple', @aliasWebQuery)"), 'Literal and alias FTS parameters are not independently executed');
 expect(!engine.includes('configured_alias_fts'), 'Legacy configured_alias_fts path still bypasses separated alias semantics');
-expect(engine.includes('_corrections.TryCorrectAsync') && engine.includes('autocomplete used spelling-assistance fallback'), 'Committed search/autocomplete correction fallback is not wired end-to-end');
+expect(engine.includes('_corrections.TryCorrectAsync') && !engine.includes('autocomplete used spelling-assistance fallback'), 'Committed search must offer correction and autocomplete must not');
 expect(matchEvidence.includes('alias_fts') && matchEvidence.includes('alias_title_phrase'), 'Alias-aware match evidence is incomplete');
 expect(options.includes('CorrectionCandidateTrigramThreshold') && options.includes('CorrectionMinConfidence') && options.includes('CorrectionMaxEditDistance'), 'Correction guardrails are not configurable');
-expect(options.includes('public int ProjectionVersion { get; set; } = 4;'), 'Query-assistance phase must not force a projection rebuild');
 
 
 if (failures.length) {

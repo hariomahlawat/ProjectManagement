@@ -124,12 +124,13 @@ This document explains how the application performs OCR and full-text search (FT
 | `ServeV2`, `ServeV2Users`, `ServeV2Roles` | `false`, empty | Who V2 serves. Everyone else gets Legacy. |
 | `ShadowMode` | `true` | Allows sampled background comparison. |
 | `ShadowSampleRate` | unset | 0–1. Unset means `0` while V2 serves the user and `1` while Legacy serves. |
-| `ProjectionVersion` | `5` | Bump when indexed fields, categories, metadata or visibility rules change; the index is rebuilt atomically. Version 5 removes trashed/archived project documents and unapproved proliferation entries. |
+| `ProjectionVersion` | `6` | Bump when indexed fields, categories, metadata or visibility rules change; the index is rebuilt atomically. Version 5 removes trashed/archived project documents and unapproved proliferation entries. Version 6 titles Training rows by project, clusters single-project trainings under their Project, folds punctuation in normalised titles and adds identifier-key terms (see [Search V2 ranking](search-v2-ranking.md)). |
 | `WorkerIntervalSeconds` | `15` | Healthy tick interval. |
 | `WorkItemLeaseMinutes` | `10` | Stale-lease timeout for entity work items. |
 | `FullReconciliationMinutes` | `1440` | Scheduled full rebuild interval. |
 | `FullRebuildRetryMinutes` | `15` | Wait after a failed automatic rebuild (doubles, capped at 4×). |
 | `QueryLogRetentionDays` | `90` | Applies to query, click and shadow rows. |
+| `FuzzyThreshold`, `FuzzyWordSimilarityThreshold` | `0.28`, `0.5` | pg_trgm `similarity` / per-token `word_similarity` floors for the trigram fallback, applied with `SET LOCAL` per search. |
 
 - **Integration tests.** `ProjectManagement.Tests/Search/SearchV2PostgresIntegrationTests.cs` runs only when `PRISM_SEARCHV2_TEST_CONNECTION` names a PostgreSQL server; it then creates, migrates and drops a disposable `prism_test_searchv2_*` database. Without the variable the tests are reported as skipped. CI runs them in the `Production Database Migration Gate` workflow.
 

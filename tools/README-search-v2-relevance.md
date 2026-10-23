@@ -13,6 +13,25 @@ Expand toward 250–300 queries once the first set is stable.
 
 Use `tools/search-v2-relevance-dataset.schema.json` to validate the dataset structure.
 
+## Capturing a run
+
+`ProjectManagement.Tests/Search/SearchV2RelevanceCaptureTests.cs` captures results, median latencies and
+`auto_explain` plans from a real database. It is skipped unless configured:
+
+```powershell
+$env:PRISM_SEARCHV2_BENCH_CONNECTION = "Host=localhost;Port=5433;Database=<copy>;Username=...;Password=..."
+$env:PRISM_SEARCHV2_BENCH_DATASET = "C:\bench\dataset.json"
+$env:PRISM_SEARCHV2_BENCH_OUTPUT = "C:\bench\run"
+$env:PRISM_SEARCHV2_BENCH_REBUILD = "1"         # optional: rebuild the index for this build's ProjectionVersion
+$env:PRISM_SEARCHV2_BENCH_EXPLAIN = "simulator"  # optional: ';'-separated queries to capture plans for
+dotnet test ProjectManagement.Tests --filter FullyQualifiedName~SearchV2RelevanceCaptureTests
+node tools/search-v2-relevance-evaluator.mjs C:\bench\dataset.json C:\bench\run\results.json
+```
+
+Use a copy of the database. A rebuild replaces the active generation, and another running PRISM instance with a
+different `ProjectionVersion` would rebuild it back. Datasets and outputs contain corpus text, so keep them out of
+the repository.
+
 ## Metrics
 
 `tools/search-v2-relevance-evaluator.mjs` reports:

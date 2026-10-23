@@ -106,7 +106,7 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("request.ProjectIds", engine, StringComparison.Ordinal);
         Assert.Contains("request.Statuses", engine, StringComparison.Ordinal);
         Assert.Contains("request.DateFrom", engine, StringComparison.Ordinal);
-        Assert.Contains("indexHealth.ActiveGeneration", engine, StringComparison.Ordinal);
+        Assert.Contains("_cursorCodec.DecodeKeyset(cursorKey, request.Cursor, activeGeneration", engine, StringComparison.Ordinal);
         Assert.DoesNotContain("facet_clustered", engine, StringComparison.Ordinal);
         Assert.Contains("CategoryFacetFilterClause", engine, StringComparison.Ordinal);
         Assert.Contains("SourceFacetFilterClause", engine, StringComparison.Ordinal);
@@ -196,7 +196,7 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("5 AS tier", engine, StringComparison.Ordinal);
         Assert.Contains("searchTextQuality", engine, StringComparison.Ordinal);
         Assert.Contains("searchTextQuality", projection, StringComparison.Ordinal);
-        Assert.Contains("public int ProjectionVersion { get; set; } = 5;", options, StringComparison.Ordinal);
+        Assert.Contains("public int ProjectionVersion { get; set; } = 6;", options, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -312,10 +312,12 @@ public sealed class SearchV2SourceContractTests
         var aliases = ReadRepoFile("Services", "SearchV2", "Query", "SearchAliasProvider.cs");
         var di = ReadRepoFile("Services", "SearchV2", "SearchV2ServiceCollectionExtensions.cs");
 
+        var vocabularyMigration = ReadRepoFile("Migrations", "20261219100000_AddSearchV2QueryAccelerators.cs");
+
         Assert.Contains("ISearchCorrectionService", correction, StringComparison.Ordinal);
-        Assert.Contains("SearchTermKinds.Location", correction, StringComparison.Ordinal);
-        Assert.Contains("SearchTermKinds.Organisation", correction, StringComparison.Ordinal);
-        Assert.Contains("SearchTermKinds.Name", correction, StringComparison.Ordinal);
+        Assert.Contains("FROM \"SearchVocabularyTerms\" v", correction, StringComparison.Ordinal);
+        Assert.Contains("NEW.\"TermType\" IN ('Name', 'Location', 'Organisation')", vocabularyMigration, StringComparison.Ordinal);
+        Assert.DoesNotContain("'Person'", vocabularyMigration, StringComparison.Ordinal);
         Assert.DoesNotContain("NarrativeText", correction, StringComparison.Ordinal);
         Assert.DoesNotContain("StructuredText", correction, StringComparison.Ordinal);
         Assert.Contains("@aliasWebQuery", engine, StringComparison.Ordinal);
@@ -324,6 +326,41 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("websearch_to_tsquery('simple', @aliasWebQuery)", engine, StringComparison.Ordinal);
         Assert.Contains("AliasWebSearchQuery", aliases, StringComparison.Ordinal);
         Assert.Contains("AddScoped<ISearchCorrectionService, SearchCorrectionService>()", di, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchV2_ChannelsReadIndexedEntriesDirectlyAndAutocompleteSkipsCorrection()
+    {
+        var engine = ReadRepoFile("Services", "SearchV2", "Query", "SearchEngine.cs");
+
+        // A multiply-referenced "authorised" CTE is materialised by PostgreSQL and hides
+        // every GIN/trigram index from the retrieval channels.
+        Assert.DoesNotContain("authorised AS (", engine, StringComparison.Ordinal);
+        Assert.Contains("FROM \"SearchEntries\" e", engine, StringComparison.Ordinal);
+        Assert.Contains("SetTrigramThresholdsAsync", engine, StringComparison.Ordinal);
+        Assert.Contains("_store.GetActiveStateAsync(cancellationToken)", engine, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetHealthAsync", engine, StringComparison.Ordinal);
+        Assert.Contains("SUBSTRING(e.\"NarrativeText\"", engine, StringComparison.Ordinal);
+        Assert.Contains("SearchV2ExecutionStatus.StaleCursor", engine, StringComparison.Ordinal);
+
+        var suggest = engine[engine.IndexOf("public async Task<IReadOnlyList<SearchSuggestion>> SuggestAsync", StringComparison.Ordinal)..
+                             engine.IndexOf("internal static async Task SetTrigramThresholdsAsync", StringComparison.Ordinal)];
+        Assert.DoesNotContain("TryCorrectAsync", suggest, StringComparison.Ordinal);
+        Assert.DoesNotContain("LEFT(e.\"NormalizedTitle\", LENGTH(@exact))", suggest, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchV2_QueryAcceleratorMigrationIsAdditiveAndRegistered()
+    {
+        var migration = ReadRepoFile("Migrations", "20261219100000_AddSearchV2QueryAccelerators.cs");
+        var manifest = ReadRepoFile("Migrations", "immutable-migration-ids.txt");
+
+        Assert.Contains("20261219100000_AddSearchV2QueryAccelerators", manifest, StringComparison.Ordinal);
+        Assert.Contains("CREATE TABLE IF NOT EXISTS \"SearchVocabularyTerms\"", migration, StringComparison.Ordinal);
+        Assert.Contains("gin_trgm_ops", migration, StringComparison.Ordinal);
+        Assert.Contains("text_pattern_ops", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("DROP TABLE IF EXISTS \"SearchEntries\"", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("ALTER TABLE", migration, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] parts)

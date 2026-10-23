@@ -25,7 +25,8 @@ public interface ISearchCorrectionService
 /// <summary>
 /// Provides conservative query assistance for zero/weak-result searches.
 /// Vocabulary is drawn only from rows the current user may search and only from
-/// titles plus high-authority typed terms (Name, Location, Organisation). OCR,
+/// titles plus high-authority typed terms (SearchTermKinds.Name, SearchTermKinds.Location,
+/// SearchTermKinds.Organisation) as kept in "SearchVocabularyTerms". OCR,
 /// narrative and arbitrary body text are deliberately excluded.
 /// </summary>
 public sealed partial class SearchCorrectionService : ISearchCorrectionService
@@ -66,18 +67,32 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
         var originalTokens = TokenRegex().Matches(query.Original)
             .Select(match => match.Value)
             .ToArray();
-        var replacements = new Dictionary<int, string>();
 
+        var eligible = new List<int>(normalizedTokens.Length);
         for (var index = 0; index < normalizedTokens.Length; index++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
             var token = normalizedTokens[index];
             if (token.Length < _options.CorrectionMinTokenLength) continue;
 
             var originalToken = index < originalTokens.Length ? originalTokens[index] : token;
             if (SearchCorrectionScorer.IsProtectedOriginalToken(originalToken)) continue;
+            eligible.Add(index);
+        }
 
-            var candidates = await ReadCandidatesAsync(connection, token, access, cancellationToken);
+        if (eligible.Count == 0) return null;
+
+        // One round trip for all eligible tokens, against a precomputed vocabulary.
+        var candidatesByToken = await ReadCandidatesAsync(
+            connection,
+            eligible.Select(index => normalizedTokens[index]).Distinct(StringComparer.Ordinal).ToArray(),
+            access,
+            cancellationToken);
+
+        var replacements = new Dictionary<int, string>();
+        foreach (var index in eligible)
+        {
+            var token = normalizedTokens[index];
+            if (!candidatesByToken.TryGetValue(token, out var candidates)) continue;
             if (candidates.Any(candidate => string.Equals(candidate.Token, token, StringComparison.OrdinalIgnoreCase)))
             {
                 // The token is already present in the user's authorised vocabulary. A
@@ -110,100 +125,93 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
         return corrected;
     }
 
-    private async Task<IReadOnlyList<SearchCorrectionCandidate>> ReadCandidatesAsync(
+    private async Task<IReadOnlyDictionary<string, IReadOnlyList<SearchCorrectionCandidate>>> ReadCandidatesAsync(
         DbConnection connection,
-        string token,
+        string[] tokens,
         SearchAccessContext access,
         CancellationToken cancellationToken)
     {
+        // "SearchVocabularyTerms" is maintained per SearchEntry by database triggers from the
+        // title and the Name/Location/Organisation terms (authority 2/4/5/4). Only entries the
+        // user may search contribute, so suggestions never reveal unauthorised wording.
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SearchEngine.SetTrigramThresholdsAsync(
+            connection,
+            transaction,
+            _options.CorrectionCandidateTrigramThreshold,
+            _options.CorrectionCandidateTrigramThreshold,
+            cancellationToken);
+
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         var authorization = SearchAuthorizationSql.Build(command, access);
         command.CommandText = $"""
-            WITH state AS (
-                SELECT "ActiveGeneration"
+            WITH state AS MATERIALIZED (
+                SELECT "ActiveGeneration" AS generation
                 FROM "SearchIndexState"
                 WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
-            ), authorised AS (
-                SELECT e."Id", e."NormalizedTitle"
-                FROM "SearchEntries" e
-                JOIN state s ON s."ActiveGeneration" = e."Generation"
-                WHERE e."IndexVersion" = @indexVersion
-                  {authorization}
-            ), vocabulary_rows AS (
-                SELECT BTRIM(tokens.token) AS token, 2::int AS authority
-                FROM authorised a
-                CROSS JOIN LATERAL regexp_split_to_table(a."NormalizedTitle", '\s+') AS tokens(token)
-                WHERE LENGTH(BTRIM(tokens.token)) >= @minTokenLength
-
-                UNION ALL
-
-                SELECT BTRIM(tokens.token) AS token,
-                       CASE t."TermType"
-                           WHEN @locationKind THEN 5
-                           WHEN @nameKind THEN 4
-                           WHEN @organisationKind THEN 4
-                           ELSE 1
-                       END::int AS authority
-                FROM authorised a
-                JOIN "SearchEntryTerms" t ON t."SearchEntryId" = a."Id"
-                CROSS JOIN LATERAL regexp_split_to_table(t."NormalizedTerm", '\s+') AS tokens(token)
-                WHERE t."TermType" IN (@nameKind, @locationKind, @organisationKind)
-                  AND LENGTH(BTRIM(tokens.token)) >= @minTokenLength
-            ), vocabulary AS (
-                SELECT token,
-                       COUNT(*)::int AS frequency,
-                       MAX(authority)::int AS authority
-                FROM vocabulary_rows
-                WHERE token ~ '^[[:alpha:]][[:alpha:]-]*$'
-                GROUP BY token
-            ), candidate_scores AS (
-                SELECT token,
-                       frequency,
-                       authority,
-                       GREATEST(similarity(token, @token), word_similarity(@token, token))::double precision AS trigram_similarity
-                FROM vocabulary
-                WHERE ABS(LENGTH(token) - LENGTH(@token)) <= @maxLengthDelta
-                  AND (
-                      token = @token
-                      OR LEFT(token, 1) = LEFT(@token, 1)
-                      OR GREATEST(similarity(token, @token), word_similarity(@token, token)) >= @candidateThreshold
-                  )
             )
-            SELECT token, frequency, authority, trigram_similarity
-            FROM candidate_scores
-            WHERE token = @token OR trigram_similarity >= @candidateThreshold
-            ORDER BY
-                CASE WHEN token = @token THEN 0 ELSE 1 END,
-                trigram_similarity DESC,
-                authority DESC,
-                frequency DESC,
-                ABS(LENGTH(token) - LENGTH(@token)),
-                token
-            LIMIT @candidateLimit;
+            SELECT q.token AS input, c.token, c.frequency, c.authority, c.trigram_similarity
+            FROM unnest(@tokens) AS q(token)
+            CROSS JOIN LATERAL (
+                SELECT v."Token" AS token,
+                       COUNT(DISTINCT v."SearchEntryId")::int AS frequency,
+                       MAX(v."Authority")::int AS authority,
+                       GREATEST(similarity(v."Token", q.token), word_similarity(q.token, v."Token"))::double precision AS trigram_similarity
+                FROM "SearchVocabularyTerms" v
+                JOIN "SearchEntries" e ON e."Id" = v."SearchEntryId"
+                WHERE (v."Token" % q.token OR q.token <% v."Token")
+                  AND LENGTH(v."Token") >= @minTokenLength
+                  AND ABS(LENGTH(v."Token") - LENGTH(q.token)) <= @maxLengthDelta
+                  AND e."Generation" = (SELECT generation FROM state)
+                  AND e."IndexVersion" = @indexVersion
+                  {authorization}
+                GROUP BY v."Token"
+                HAVING v."Token" = q.token
+                    OR GREATEST(similarity(v."Token", q.token), word_similarity(q.token, v."Token")) >= @candidateThreshold
+                ORDER BY
+                    CASE WHEN v."Token" = q.token THEN 0 ELSE 1 END,
+                    trigram_similarity DESC,
+                    authority DESC,
+                    frequency DESC,
+                    ABS(LENGTH(v."Token") - LENGTH(q.token)),
+                    v."Token"
+                LIMIT @candidateLimit
+            ) c;
             """;
 
         Add(command, "indexVersion", _options.ProjectionVersion);
-        Add(command, "token", token);
+        Add(command, "tokens", tokens);
         Add(command, "minTokenLength", _options.CorrectionMinTokenLength);
         Add(command, "maxLengthDelta", _options.CorrectionMaxLengthDelta);
         Add(command, "candidateThreshold", _options.CorrectionCandidateTrigramThreshold);
         Add(command, "candidateLimit", _options.CorrectionCandidateLimit);
-        Add(command, "nameKind", SearchTermKinds.Name);
-        Add(command, "locationKind", SearchTermKinds.Location);
-        Add(command, "organisationKind", SearchTermKinds.Organisation);
 
-        var candidates = new List<SearchCorrectionCandidate>(_options.CorrectionCandidateLimit);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        var candidates = new Dictionary<string, List<SearchCorrectionCandidate>>(StringComparer.Ordinal);
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
-            candidates.Add(new SearchCorrectionCandidate(
-                reader.GetString(0),
-                reader.GetInt32(1),
-                reader.GetInt32(2),
-                reader.GetDouble(3)));
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var input = reader.GetString(0);
+                if (!candidates.TryGetValue(input, out var list))
+                {
+                    list = new List<SearchCorrectionCandidate>(_options.CorrectionCandidateLimit);
+                    candidates[input] = list;
+                }
+
+                list.Add(new SearchCorrectionCandidate(
+                    reader.GetString(1),
+                    reader.GetInt32(2),
+                    reader.GetInt32(3),
+                    reader.GetDouble(4)));
+            }
         }
 
-        return candidates;
+        await transaction.CommitAsync(cancellationToken);
+        return candidates.ToDictionary(
+            pair => pair.Key,
+            pair => (IReadOnlyList<SearchCorrectionCandidate>)pair.Value,
+            StringComparer.Ordinal);
     }
 
     private static void Add(DbCommand command, string name, object? value)

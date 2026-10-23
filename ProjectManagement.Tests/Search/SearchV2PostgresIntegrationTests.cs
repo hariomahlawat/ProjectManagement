@@ -442,6 +442,116 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.NotNull(afterRelease);
     }
 
+    [SearchV2PostgresFact]
+    public async Task PostgreSql_SetLocalTrigramThresholdGovernsIndexedOperatorsForOneTransactionOnly()
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        // similarity('hydrbd', 'hyderabad') is about 0.21: below pg_trgm's 0.3 default.
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            await SearchEngine.SetTrigramThresholdsAsync(connection, transaction, 0.2, 0.2, CancellationToken.None);
+            await using var inside = connection.CreateCommand();
+            inside.Transaction = transaction;
+            inside.CommandText = "SELECT 'hydrbd' % 'hyderabad', 'hydrbd' <% 'iit hyderabad campus';";
+            await using (var reader = await inside.ExecuteReaderAsync())
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.True(reader.GetBoolean(0));
+                Assert.True(reader.GetBoolean(1));
+            }
+
+            await transaction.CommitAsync();
+        }
+
+        await using var after = connection.CreateCommand();
+        after.CommandText = "SELECT 'hydrbd' % 'hyderabad';";
+        Assert.False((bool)(await after.ExecuteScalarAsync())!);
+    }
+
+    [SearchV2PostgresFact]
+    public async Task PostgreSql_WordSimilarityReachesLongRecordsWhereWholeTextSimilarityCannot()
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            WITH record(text) AS (
+                VALUES ('small arms range trainer simulator drona firing sml 30102 sdd other r&d projects driving smls inf tot completed')
+            )
+            SELECT similarity('simulatr', text) < 0.28, word_similarity('simulatr', text) >= 0.5
+            FROM record;
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+    }
+
+    [SearchV2PostgresFact]
+    public async Task PostgreSql_QuotedTsQueryOperandsMatchTheIndexedParserTokens()
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                to_tsvector('simple', '0.22 Rif Firing Sml') @@ to_tsquery('simple', @decimal),
+                to_tsvector('simple', 'Ref 30102/VRMDFS/SDD/24 allotment') @@ to_tsquery('simple', @path),
+                to_tsvector('simple', 'रक्षा मंत्रालय की बैठक') @@ to_tsquery('simple', @devanagari),
+                to_tsvector('simple', 'O''Neil report') @@ to_tsquery('simple', @apostrophe);
+            """;
+        command.Parameters.AddWithValue("decimal", SearchQueryNormalizer.BuildPrefixTsQuery("0.22 rif fir"));
+        command.Parameters.AddWithValue("path", SearchQueryNormalizer.BuildTokenTsQuery("30102/vrmdfs/sdd/24"));
+        command.Parameters.AddWithValue("devanagari", SearchQueryNormalizer.BuildTokenTsQuery(new SearchQueryNormalizer().NormalizeExact("रक्षा मंत्रालय")));
+        command.Parameters.AddWithValue("apostrophe", SearchQueryNormalizer.BuildTokenTsQuery("o'neil"));
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        for (var ordinal = 0; ordinal < 4; ordinal++) Assert.True(reader.GetBoolean(ordinal), $"column {ordinal}");
+    }
+
+    [SearchV2PostgresFact]
+    public async Task SearchV2_VocabularyTriggersFollowTitlesAndAuthoritativeTerms()
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            WITH entry AS (
+                INSERT INTO "SearchEntries" (
+                    "Generation", "EntityType", "EntityKey", "CanonicalEntityType", "CanonicalEntityKey",
+                    "SourceModule", "ResultCategory", "Title", "NormalizedTitle", "CanonicalUrl", "FuzzyText",
+                    "UpdatedAtUtc", "IndexVersion")
+                VALUES (-1, 'TestOnly', 'vocabulary', 'TestOnly', 'vocabulary',
+                        'Test', 'Test', 'Tunguska Driving Sml 2024', 'tunguska driving sml 2024', '/', 'x',
+                        NOW(), 0)
+                RETURNING "Id"
+            )
+            INSERT INTO "SearchEntryTerms" ("SearchEntryId", "Term", "NormalizedTerm", "TermType")
+            SELECT "Id", 'Hyderabad', 'hyderabad', 'Location' FROM entry
+            UNION ALL SELECT "Id", 'Person Name', 'person name', 'Person' FROM entry;
+
+            UPDATE "SearchEntries" SET "NormalizedTitle" = 'strela driving sml'
+            WHERE "Generation" = -1 AND "EntityKey" = 'vocabulary';
+
+            SELECT string_agg(v."Token" || ':' || v."Authority", ',' ORDER BY v."Token")
+            FROM "SearchVocabularyTerms" v
+            JOIN "SearchEntries" e ON e."Id" = v."SearchEntryId"
+            WHERE e."Generation" = -1 AND e."EntityKey" = 'vocabulary';
+            """;
+        var tokens = (string?)await command.ExecuteScalarAsync();
+        await transaction.RollbackAsync();
+
+        // Title tokens follow the latest title; Location terms are authoritative (5);
+        // Person terms and numbers never enter the correction vocabulary.
+        Assert.Equal("driving:2,hyderabad:5,sml:2,strela:2", tokens);
+    }
+
     private sealed class ThrowingCorrectionService : ISearchCorrectionService
     {
         public Task<string?> TryCorrectAsync(DbConnection connection, NormalizedSearchQuery query, SearchAccessContext access, CancellationToken cancellationToken) =>

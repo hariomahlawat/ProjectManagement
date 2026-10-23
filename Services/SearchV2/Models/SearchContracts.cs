@@ -7,7 +7,13 @@ public enum SearchV2ExecutionStatus
     Success = 0,
     Disabled = 1,
     IndexNotReady = 2,
-    QueryFailed = 3
+    QueryFailed = 3,
+    /// <summary>
+    /// The request carried a next-page cursor that no longer applies (the index was rebuilt,
+    /// or it belongs to a different query/filter set). The response is ready and holds the
+    /// first page, so callers can say the results restarted instead of silently doing so.
+    /// </summary>
+    StaleCursor = 4
 }
 
 public sealed record SearchTextSegment(string Text, bool Highlighted);
