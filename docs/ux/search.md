@@ -59,7 +59,8 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
   and an `AbortController`. Clicking outside or on the Filters button with unapplied changes
   keeps the panel open and says "Changes not applied yet"; Escape or the close button discards
   them and returns focus to the button. Date presets: last 30 days, last 12 months, this year.
-  Active filter chips all read "Dimension: value".
+  Active filter chips all read "Dimension: value"; a project chip is named from the facets or,
+  when the project is not among them (for example with no results), from the project record.
 - **Print** prints the result list only, with each result's address.
 
 ## Styling

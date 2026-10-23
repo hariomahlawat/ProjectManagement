@@ -134,7 +134,9 @@
 
     string ProjectFacetLabel(string projectValue) =>
         search.Facets.Projects.FirstOrDefault(facet => string.Equals(facet.Value, projectValue, StringComparison.OrdinalIgnoreCase))?.Label
-        ?? $"Project {projectValue}";
+        ?? (int.TryParse(projectValue, out var projectId) && Model.SelectedProjectNames.TryGetValue(projectId, out var projectName)
+            ? projectName
+            : $"Project {projectValue}");
 
     ViewData["Title"] = !hasQuery
         ? "Search"

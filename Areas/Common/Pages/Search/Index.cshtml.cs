@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
 using ProjectManagement.Configuration;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -16,9 +18,15 @@ public sealed class IndexModel : PageModel
     private readonly ISearchGateway _search;
     private readonly IWebHostEnvironment _environment;
     private readonly IAuthorizationService _authorization;
+    private readonly ApplicationDbContext _db;
 
-    public IndexModel(ISearchGateway search, IWebHostEnvironment environment, IAuthorizationService authorization)
+    public IndexModel(
+        ISearchGateway search,
+        IWebHostEnvironment environment,
+        IAuthorizationService authorization,
+        ApplicationDbContext db)
     {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
         _search = search ?? throw new ArgumentNullException(nameof(search));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
         _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
@@ -28,6 +36,10 @@ public sealed class IndexModel : PageModel
 
     // Query latency is an operator detail: shown to those who can open Search diagnostics.
     public bool ShowLatency { get; private set; }
+
+    // Names for the project filters in the URL, so the active-filter chips can name a project
+    // even when it is not among the returned facets (for example when nothing matches).
+    public IReadOnlyDictionary<int, string> SelectedProjectNames { get; private set; } = new Dictionary<int, string>();
 
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }
@@ -72,6 +84,7 @@ public sealed class IndexModel : PageModel
             cancellationToken);
         ShowLatency = ShowEngineDiagnostics
             || (await _authorization.AuthorizeAsync(User, AdminPolicies.SecurityView)).Succeeded;
+        SelectedProjectNames = await LoadSelectedProjectNamesAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnGetFacetsAsync(CancellationToken cancellationToken)
@@ -196,6 +209,21 @@ public sealed class IndexModel : PageModel
         }
 
         return null;
+    }
+
+    private async Task<IReadOnlyDictionary<int, string>> LoadSelectedProjectNamesAsync(CancellationToken cancellationToken)
+    {
+        var ids = Project?.Where(value => value > 0).Distinct().Take(50).ToArray() ?? Array.Empty<int>();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<int, string>();
+        }
+
+        // Project names are visible to every signed-in user (Projects pages are [Authorize] only).
+        return await _db.Projects
+            .AsNoTracking()
+            .Where(project => ids.Contains(project.Id) && !project.IsDeleted)
+            .ToDictionaryAsync(project => project.Id, project => project.Name, cancellationToken);
     }
 
     public bool HasAdvancedFilters() =>
