@@ -36,6 +36,10 @@ public sealed class OpsTileVm
     public int? DeltaAbs { get; init; }
     public double? DeltaPct { get; init; }
     public string? DeltaLabel { get; init; }
+    /// <summary>What the change compares, shown beside it: "vs previous 3 months".</summary>
+    public string? DeltaBasis { get; init; }
+    /// <summary>The exact months compared, for a tooltip: "Aug–Oct 2026 compared with May–Jul 2026".</summary>
+    public string? DeltaPeriods { get; init; }
     // END SECTION
 
     // SECTION: Navigation + icon

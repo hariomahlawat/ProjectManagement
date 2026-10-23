@@ -257,6 +257,11 @@
                                 </div>
                             }
                         </div>
+                        @if (!string.IsNullOrWhiteSpace(tile.Caption))
+                        {
+                            @* The numbers above are totals since records began; the chart below is 12 months. *@
+                            <span class="db-output-card__scope">@tile.Caption</span>
+                        }
                         <div class="db-output-card__chart @(hasRecentActivity ? "" : "is-empty")" data-db-spark data-values='@Html.Raw(Json(values))' data-labels='@Html.Raw(Json(labels))'>
                             <canvas role="img" aria-label="@tile.Label monthly activity over the last 12 months"></canvas>
                             @if (!hasRecentActivity)
@@ -266,19 +271,26 @@
                         </div>
                         <div class="db-output-card__foot">
                             <span>@(string.IsNullOrWhiteSpace(tile.TrendLabel) ? "Monthly activity · 12 months" : tile.TrendLabel)</span>
-                            @if (tile.DeltaPct is not null)
-                            {
-                                var deltaUp = tile.DeltaPct >= 0;
-                                <em class="@(deltaUp ? "is-up" : "is-down")"><i class="bi @(deltaUp ? "bi-arrow-up" : "bi-arrow-down")"></i>@string.Format("{0:+0;-0;0}%", Math.Round((tile.DeltaPct ?? 0) * 100))</em>
-                            }
-                            else if (!string.IsNullOrWhiteSpace(tile.DeltaLabel))
-                            {
-                                <em class="is-neutral">@tile.DeltaLabel</em>
-                            }
-                            else
-                            {
-                                <em class="is-neutral">No change</em>
-                            }
+                            @* The change compares the last three months with the three before (DeltaPeriods). *@
+                            <span class="db-output-card__delta" title="@tile.DeltaPeriods">
+                                @if (tile.DeltaPct is not null)
+                                {
+                                    var deltaUp = tile.DeltaPct >= 0;
+                                    <em class="@(deltaUp ? "is-up" : "is-down")"><i class="bi @(deltaUp ? "bi-arrow-up" : "bi-arrow-down")"></i>@string.Format("{0:+0;-0;0}%", Math.Round((tile.DeltaPct ?? 0) * 100))</em>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(tile.DeltaLabel))
+                                {
+                                    <em class="is-neutral">@tile.DeltaLabel</em>
+                                }
+                                else
+                                {
+                                    <em class="is-neutral">No change</em>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(tile.DeltaBasis))
+                                {
+                                    <small>@tile.DeltaBasis</small>
+                                }
+                            </span>
                         </div>
                     </a>
                 }

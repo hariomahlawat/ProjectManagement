@@ -216,7 +216,12 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 .db-output-card__chart canvas { width:100%!important; height:100%!important; }
 .db-output-card__chart.is-empty canvas { opacity:.25; }
 .db-chart-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#7b8798; font-size:.61rem; font-weight:650; text-align:center; }
-.db-output-card__foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; padding-top:8px; color:#8794a6; font-size:.59rem; }
+.db-output-card__foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; margin-top:auto; padding-top:8px; color:#8794a6; font-size:.59rem; }
+/* The change and what it compares ("vs previous 3 months"); the exact months are in its tooltip. */
+.db-output-card__delta { display:inline-flex; align-items:baseline; gap:4px; }
+.db-output-card__delta small { color:var(--db-muted); font-size:inherit; white-space:nowrap; }
+/* "All time" under the headline numbers, which are totals since records began. */
+.db-output-card__scope { display:block; margin-top:2px; color:var(--db-muted); font-size:.62rem; font-weight:650; letter-spacing:.02em; text-transform:uppercase; }
 .db-output-card__foot em { font-style:normal; font-weight:750; white-space:nowrap; }
 .db-output-card__foot .is-up { color:var(--db-green); }
 .db-output-card__foot .is-down { color:var(--db-red); }
@@ -503,6 +508,8 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 .db-empty--compact { padding:12px 0; text-align:left; }
 
 .db-reveal { opacity:1; transform:none; }
+/* Printed pages show every panel, whatever has scrolled into view. */
+@media print { .js .db-reveal { opacity:1; transform:none; } }
 .js .db-reveal { opacity:0; transform:translateY(8px); }
 .js .db-reveal.is-visible { opacity:1; transform:translateY(0); transition:opacity 360ms cubic-bezier(.22,.61,.36,1),transform 360ms cubic-bezier(.22,.61,.36,1); }
 @media (prefers-reduced-motion:no-preference) {
@@ -565,6 +572,11 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 }
 @media (max-width:520px) {
     .db-output-grid { grid-template-columns:1fr; }
+    /* Four lifecycle stages as a 2 x 2 grid: in one row the last one ran off a phone screen. */
+    .db-lifecycle { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    /* The FFC section's link goes under its title so the title keeps the full width. */
+    .db-ffc-panel > .db-section-head { flex-direction:column; align-items:flex-start; gap:8px; }
+    .db-ffc-panel > .db-section-head .db-ffc-module-actions { align-self:flex-start; }
     .db-stage-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .db-completed-summary,.db-idea-summary,.db-activity-kpis { grid-template-columns:1fr 1fr; }
     .db-ffc-primary-stats { grid-template-columns:repeat(3,minmax(0,1fr)); }

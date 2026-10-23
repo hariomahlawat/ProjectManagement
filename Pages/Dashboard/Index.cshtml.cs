@@ -445,7 +445,8 @@ namespace ProjectManagement.Pages.Dashboard
                     TotalActivities = totalActivities,
                     Last30DaysCount = last30DaysCount,
                     TopTypes = topTypes,
-                    MonthlyLabels = months.Select(m => m.ToString("MMM", CultureInfo.CurrentCulture)).ToArray(),
+                    // With the year: the chart's ends read "Nov 2025" and "Oct 2026", not "Nov" and "Oct".
+                    MonthlyLabels = months.Select(m => m.ToString("MMM yyyy", CultureInfo.CurrentCulture)).ToArray(),
                     MonthlyTrend = months.Select(m => monthlyRows
                         .Where(x => x.Year == m.Year && x.Month == m.Month)
                         .Select(x => x.Count)
