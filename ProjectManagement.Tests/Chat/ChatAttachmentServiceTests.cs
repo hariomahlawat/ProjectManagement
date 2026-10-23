@@ -399,6 +399,24 @@ public sealed class ChatAttachmentServiceTests
     }
 
     [Fact]
+    public async Task CurrentState_ShowsARestoredFile_ToThoseWhoMayReadIt()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var file = await SendFileAsync(scope, "alice", "bob", "a.txt");
+        await scope.Storage.RemoveMineAsync("alice", new[] { file.Id });
+
+        var removed = Assert.Single(await scope.Files.ListCurrentAsync("bob", new[] { file.Id }));
+        Assert.True(removed.Attachment.IsRemoved);
+        Assert.Equal(string.Empty, removed.Attachment.FileName); // a removed file keeps its name private
+
+        await scope.Storage.RestoreMineAsync("alice", new[] { file.Id });
+        var kept = Assert.Single(await scope.Files.ListCurrentAsync("bob", new[] { file.Id }));
+        Assert.False(kept.Attachment.IsRemoved);
+        Assert.Equal("a.txt", kept.Attachment.FileName);
+        Assert.Empty(await scope.Files.ListCurrentAsync("dave", new[] { file.Id })); // not in the conversation
+    }
+
+    [Fact]
     public async Task AnAuditFailure_LeavesNoCleanUpBehind()
     {
         await using var scope = await FileScope.CreateAsync();

@@ -369,6 +369,14 @@
       ids.forEach((id) => this.unsentIds.add(id));
       const removed = this.attachments.enabled ? await this.removedFilesSince(since) : [];
       removed.forEach((file) => this.removedFiles.set(file.attachmentId, { id: file.attachmentId, isRemoved: true, removalReason: file.removalReason || null }));
+      // A file this page remembers as removed may have been restored meanwhile (undo window):
+      // ask after the rest, and bring back any that are kept again.
+      const fresh = new Set(removed.map((file) => file.attachmentId));
+      const remembered = Array.from(this.removedFiles.keys()).filter((id) => !fresh.has(id));
+      for (let start = 0; start < remembered.length; start += 500) {
+        const states = await this.request('GET', `/attachments/current?ids=${remembered.slice(start, start + 500).join(',')}`);
+        states.filter((state) => !state.attachment.isRemoved).forEach((state) => this.onAttachmentRestored(state));
+      }
       if (ids.length || removed.length) {
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
         if (this.page) this.page.refreshResults();

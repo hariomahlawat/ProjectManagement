@@ -194,6 +194,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   blanked too, including older ones already on screen and search results.
   With attachments on it also asks `GET /api/chat/attachments/removed?since=` (paged with
   `before`, only messages the caller may read), so files removed meanwhile show as removed.
+  Files it remembers as removed are checked with `GET /api/chat/attachments/current?ids=` (up
+  to 500 at a time), so one restored meanwhile comes back.
 - **Groups** (`/api/chat/groups…`): list, create, get, history (`before`/`after` like direct
   history, plus each member's read marker), send, read, add members, remove a member, leave,
   rename. Every call checks membership on the server; a non-member gets **410**, sending

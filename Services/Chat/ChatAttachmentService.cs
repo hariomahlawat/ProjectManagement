@@ -592,6 +592,38 @@ public sealed class ChatAttachmentService
         return new ChatRemovedFilesPageDto(files, page.Count > ChatService.MaxUnsentSync);
     }
 
+    /// <summary>The most file ids one state check takes.</summary>
+    public const int MaxStateCheck = 500;
+
+    /// <summary>
+    /// The current state of the given sent files, those in messages the caller may read: a page
+    /// that remembers files as removed asks after an outage, so one restored meanwhile comes back.
+    /// </summary>
+    public async Task<IReadOnlyList<ChatAttachmentRestoredDto>> ListCurrentAsync(
+        string userId,
+        IReadOnlyCollection<long> attachmentIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = attachmentIds.Distinct().Take(MaxStateCheck).ToList();
+        if (ids.Count == 0)
+        {
+            return Array.Empty<ChatAttachmentRestoredDto>();
+        }
+
+        var rows = await (
+                from a in _db.ChatAttachments.AsNoTracking()
+                where ids.Contains(a.Id) && a.MessageId != null
+                join m in _db.ChatMessages.AsNoTracking() on a.MessageId equals m.Id
+                join p in _db.ChatParticipants.AsNoTracking() on m.ConversationId equals p.ConversationId
+                where p.UserId == userId
+                    && (p.Conversation!.Kind == ChatConversation.DirectKind || p.JoinedUtc <= m.SentUtc)
+                select new { Attachment = a, MessageId = m.Id, m.ConversationId, p.Conversation!.Kind })
+            .ToListAsync(cancellationToken);
+        return rows
+            .Select(r => new ChatAttachmentRestoredDto(r.MessageId, r.Kind == ChatConversation.GroupKind ? r.ConversationId : null, ToDto(r.Attachment)))
+            .ToList();
+    }
+
     // ------------------------------------------------------------------ clean-up
 
     /// <summary>

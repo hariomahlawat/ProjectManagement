@@ -91,6 +91,7 @@ public static class ChatApi
         files.MapPost("/", UploadAttachmentAsync).RequireRateLimiting(UploadRateLimitPolicy);
         files.MapGet("/usage", GetAttachmentUsageAsync);
         files.MapGet("/removed", GetRemovedAttachmentsSinceAsync);
+        files.MapGet("/current", GetCurrentAttachmentsAsync);
         files.MapGet("/totals", GetAttachmentTotalsAsync).RequireAuthorization(policy => policy.RequireRole(RoleNames.Admin));
         files.MapGet("/{attachmentId:long}", DownloadAttachmentAsync);
         files.MapPost("/{attachmentId:long}/remove", RemoveAttachmentAsync).RequireRateLimiting(ChangeRateLimitPolicy);
@@ -354,6 +355,32 @@ public static class ChatApi
 
         SetNoStoreHeaders(httpContext.Response);
         return Results.Ok(await attachments.ListRemovedSinceAsync(userId, since.Value, beforeAttachmentId, cancellationToken));
+    }
+
+    /// <summary>The current state of files a page remembers as removed (<c>?ids=1,2,3</c>), after an outage.</summary>
+    private static async Task<IResult> GetCurrentAttachmentsAsync(
+        [FromQuery(Name = "ids")] string? ids,
+        HttpContext httpContext,
+        ChatAttachmentService attachments,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var parsed = (ids ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(id => long.TryParse(id, out var value) ? value : 0)
+            .Where(id => id > 0)
+            .ToList();
+        if (parsed.Count > ChatAttachmentService.MaxStateCheck)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid request", detail: $"Ask about at most {ChatAttachmentService.MaxStateCheck} files at once.");
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await attachments.ListCurrentAsync(userId, parsed, cancellationToken));
     }
 
     /// <summary>Administrators: storage totals only, never names of files or conversations (D8).</summary>
