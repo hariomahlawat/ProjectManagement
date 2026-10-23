@@ -529,9 +529,11 @@ public sealed class ChatService
             message.Body = string.Empty;
             // Its files go with it (docs/chat-attachments.md, D6): the space returns to the sender
             // and the clean-up job deletes them.
-            foreach (var file in await _db.ChatAttachments.Where(a => a.MessageId == message.Id && a.RemovedUtc == null).ToListAsync(cancellationToken))
+            // A file already removed (by its sender, say) becomes final too: restoring it would
+            // charge the allowance for a file nobody can open.
+            foreach (var file in await _db.ChatAttachments.Where(a => a.MessageId == message.Id && a.PurgedUtc == null).ToListAsync(cancellationToken))
             {
-                file.RemovedUtc = message.UnsentUtc;
+                file.RemovedUtc ??= message.UnsentUtc;
                 file.RemovalReason = ChatAttachmentRemovalReason.Unsent;
                 file.RemovedByUserId = userId;
             }

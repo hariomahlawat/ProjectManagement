@@ -399,6 +399,59 @@ public sealed class ChatAttachmentServiceTests
     }
 
     [Fact]
+    public async Task AnAuditFailure_LeavesNoCleanUpBehind()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var file = await SendFileAsync(scope, "alice", "bob", "a.txt");
+        scope.Audit.Fail = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => scope.Storage.RemoveAsAdministratorAsync("dave", null, new ChatStorageScope(null, null)));
+
+        scope.Db.ChangeTracker.Clear();
+        Assert.Null((await scope.Db.ChatAttachments.AsNoTracking().SingleAsync(a => a.Id == file.Id)).RemovedUtc);
+
+        // The same for an undo.
+        scope.Audit.Fail = false;
+        var removal = await scope.Storage.RemoveAsAdministratorAsync("dave", null, new ChatStorageScope(null, null));
+        scope.Audit.Fail = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => scope.Storage.UndoBatchAsync("dave", null, removal.Change.BatchId!.Value));
+        scope.Db.ChangeTracker.Clear();
+        Assert.NotNull((await scope.Db.ChatAttachments.AsNoTracking().SingleAsync(a => a.Id == file.Id)).RemovedUtc);
+    }
+
+    [Fact]
+    public async Task ARemovalNeverOverwritesAnother()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var file = await SendFileAsync(scope, "alice", "bob", "a.txt");
+        await scope.Storage.RemoveAsAdministratorAsync("dave", null, new ChatStorageScope(null, null));
+
+        // The sender's page still shows the file (loaded before) and removes it.
+        Assert.Null(await scope.Files.RemoveAsync("alice", file.Id));
+        Assert.NotNull((await scope.Storage.RemoveMineAsync("alice", new[] { file.Id })).Change.Error);
+        Assert.NotNull((await scope.Storage.ApplyRetentionAsync()).Change.Error);
+
+        var stored = await scope.Db.ChatAttachments.AsNoTracking().SingleAsync(a => a.Id == file.Id);
+        Assert.Equal(ProjectManagement.Models.Chat.ChatAttachmentRemovalReason.Administrator, stored.RemovalReason);
+        Assert.NotNull((await scope.Storage.RestoreMineAsync("alice", new[] { file.Id })).Change.Error);
+    }
+
+    [Fact]
+    public async Task AFileOfAnUnsentMessage_CannotBeRestored()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var upload = (await scope.Files.UploadAsync("alice", Content("pdf"), "plan.pdf")).Attachment!;
+        var sent = await scope.Chat.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "plan", new[] { upload.Id }));
+        await scope.Files.RemoveAsync("alice", upload.Id);
+        await scope.Chat.UnsendAsync("alice", sent.Message!.Id);
+
+        Assert.Empty((await scope.Storage.ListMineAsync("alice")).Files);
+        Assert.NotNull((await scope.Storage.RestoreMineAsync("alice", new[] { upload.Id })).Change.Error);
+        var stored = await scope.Db.ChatAttachments.AsNoTracking().SingleAsync(a => a.Id == upload.Id);
+        Assert.Equal(ProjectManagement.Models.Chat.ChatAttachmentRemovalReason.Unsent, stored.RemovalReason);
+    }
+
+    [Fact]
     public async Task MyFiles_ListRemoveAndRestoreWithinTheDay()
     {
         await using var scope = await FileScope.CreateAsync();
@@ -740,8 +793,15 @@ public sealed class ChatAttachmentServiceTests
     {
         public List<ProjectManagement.Services.Admin.AdminAuditEntry> Entries { get; } = new();
 
+        public bool Fail { get; set; }
+
         public Task RecordAsync(ProjectManagement.Services.Admin.AdminAuditEntry entry, System.Threading.CancellationToken cancellationToken = default)
         {
+            if (Fail)
+            {
+                throw new InvalidOperationException("Audit store unavailable.");
+            }
+
             Entries.Add(entry);
             return Task.CompletedTask;
         }

@@ -82,7 +82,7 @@ public sealed class ChatStorageService
         var undoFrom = _clock.UtcNow - settings.UndoWindow;
         var rows = await _db.ChatAttachments
             .AsNoTracking()
-            .Where(a => a.UploaderUserId == userId && a.MessageId != null)
+            .Where(a => a.UploaderUserId == userId && a.MessageId != null && a.Message!.UnsentUtc == null)
             .Where(a => a.RemovedUtc == null
                 || (a.PurgedUtc == null
                     && a.RemovedUtc > undoFrom
@@ -148,7 +148,7 @@ public sealed class ChatStorageService
     {
         var wanted = (ids ?? Array.Empty<long>()).Distinct().Take(1000).ToList();
         var query = KeptSent.Where(a => a.UploaderUserId == userId && wanted.Contains(a.Id));
-        return await RemoveAsync(query, ChatAttachmentRemovalReason.Sender, userId, notifyOwners: false, cancellationToken);
+        return await RemoveAsync(query, ChatAttachmentRemovalReason.Sender, userId, notifyOwners: false, audit: null, cancellationToken);
     }
 
     /// <summary>Removes every file I sent more than <paramref name="days"/> days ago, as one batch.</summary>
@@ -161,7 +161,7 @@ public sealed class ChatStorageService
 
         var cutoff = _clock.UtcNow.AddDays(-days);
         var query = KeptSent.Where(a => a.UploaderUserId == userId && a.CreatedUtc < cutoff);
-        return await RemoveAsync(query, ChatAttachmentRemovalReason.Sender, userId, notifyOwners: false, cancellationToken);
+        return await RemoveAsync(query, ChatAttachmentRemovalReason.Sender, userId, notifyOwners: false, audit: null, cancellationToken);
     }
 
     /// <summary>
@@ -176,30 +176,26 @@ public sealed class ChatStorageService
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         await LockAllowanceAsync(userId, cancellationToken);
-        var restoring = await _db.ChatAttachments
-            .Where(a => a.UploaderUserId == userId && wanted.Contains(a.Id) && a.MessageId != null)
-            .Where(a => a.RemovedUtc != null && a.RemovedUtc > undoFrom && a.PurgedUtc == null)
-            .Where(a => a.RemovalReason == ChatAttachmentRemovalReason.Sender || a.RemovalReason == ChatAttachmentRemovalReason.Retention)
-            .ToListAsync(cancellationToken);
+        var restorable = Restorable(undoFrom, ChatAttachmentRemovalReason.Sender, ChatAttachmentRemovalReason.Retention)
+            .Where(a => a.UploaderUserId == userId && wanted.Contains(a.Id));
+        var bytes = await restorable.SumAsync(a => (long?)a.SizeBytes, cancellationToken) ?? 0;
+        var used = await _db.ChatAttachments
+            .Where(a => a.UploaderUserId == userId && a.RemovedUtc == null)
+            .SumAsync(a => (long?)a.SizeBytes, cancellationToken) ?? 0;
+        if (bytes > 0 && used + bytes > settings.AllowanceBytes)
+        {
+            return Failed($"Restoring these files would go over your {ChatAttachmentService.FormatSize(settings.AllowanceBytes)} allowance. Remove other files first.");
+        }
+
+        var restoring = await RestoreAsync(restorable, cancellationToken);
         if (restoring.Count == 0)
         {
             return Failed("These files can no longer be restored.");
         }
 
-        var used = await _db.ChatAttachments
-            .Where(a => a.UploaderUserId == userId && a.RemovedUtc == null)
-            .SumAsync(a => (long?)a.SizeBytes, cancellationToken) ?? 0;
-        var bytes = restoring.Sum(a => a.SizeBytes);
-        if (used + bytes > settings.AllowanceBytes)
-        {
-            return Failed($"Restoring these files would go over your {ChatAttachmentService.FormatSize(settings.AllowanceBytes)} allowance. Remove other files first.");
-        }
-
-        Restore(restoring);
-        await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new ChatStorageResult(
-            new ChatStorageChangeDto(restoring.Count, bytes, null, null),
+            new ChatStorageChangeDto(restoring.Count, restoring.Sum(a => a.SizeBytes), null, null),
             await UpdatesForAsync(restoring, restored: true, cancellationToken));
     }
 
@@ -242,20 +238,20 @@ public sealed class ChatStorageService
             return Failed("The age cannot be negative.");
         }
 
-        var result = await RemoveAsync(InScope(scope), ChatAttachmentRemovalReason.Administrator, adminUserId, notifyOwners: true, cancellationToken);
-        if (result.Change.Files > 0)
-        {
-            await _audit.RecordAsync(new AdminAuditEntry(
+        return await RemoveAsync(
+            InScope(scope),
+            ChatAttachmentRemovalReason.Administrator,
+            adminUserId,
+            notifyOwners: true,
+            change => _audit.RecordAsync(new AdminAuditEntry(
                 "Chat.AttachmentsRemoved",
                 "ChatAttachmentBatch",
-                result.Change.BatchId?.ToString(),
-                After: new { result.Change.Files, result.Change.Bytes, Scope = DescribeScope(scope), result.Change.RestorableUntil },
+                change.BatchId?.ToString(),
+                After: new { change.Files, change.Bytes, Scope = DescribeScope(scope), change.RestorableUntil },
                 ActorUserId: adminUserId,
                 ActorName: adminName,
-                Origin: "Admin.ChatStorage"), cancellationToken);
-        }
-
-        return result;
+                Origin: "Admin.ChatStorage"), cancellationToken),
+            cancellationToken);
     }
 
     /// <summary>Recent clean-ups by administrators and retention, newest first.</summary>
@@ -297,18 +293,18 @@ public sealed class ChatStorageService
     public async Task<ChatStorageResult> UndoBatchAsync(string adminUserId, string? adminName, Guid batchId, CancellationToken cancellationToken = default)
     {
         var undoFrom = _clock.UtcNow - Settings.UndoWindow;
-        var restoring = await _db.ChatAttachments
-            .Where(a => a.RemovalBatchId == batchId && a.RemovedUtc > undoFrom && a.PurgedUtc == null)
-            .Where(a => a.RemovalReason == ChatAttachmentRemovalReason.Administrator || a.RemovalReason == ChatAttachmentRemovalReason.Retention)
-            .ToListAsync(cancellationToken);
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        var restoring = await RestoreAsync(
+            Restorable(undoFrom, ChatAttachmentRemovalReason.Administrator, ChatAttachmentRemovalReason.Retention)
+                .Where(a => a.RemovalBatchId == batchId),
+            cancellationToken);
         if (restoring.Count == 0)
         {
             return Failed("This clean-up can no longer be undone.");
         }
 
-        Restore(restoring);
-        await _db.SaveChangesAsync(cancellationToken);
         var bytes = restoring.Sum(a => a.SizeBytes);
+        // In the same transaction: a restore is never left unaudited.
         await _audit.RecordAsync(new AdminAuditEntry(
             "Chat.AttachmentsRestored",
             "ChatAttachmentBatch",
@@ -317,6 +313,7 @@ public sealed class ChatStorageService
             ActorUserId: adminUserId,
             ActorName: adminName,
             Origin: "Admin.ChatStorage"), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return new ChatStorageResult(
             new ChatStorageChangeDto(restoring.Count, bytes, batchId, null),
             await UpdatesForAsync(restoring.Take(MaxLiveUpdates).ToList(), restored: true, cancellationToken));
@@ -337,16 +334,21 @@ public sealed class ChatStorageService
         }
 
         var cutoff = _clock.UtcNow.AddDays(-days);
-        var result = await RemoveAsync(KeptSent.Where(a => a.CreatedUtc < cutoff), ChatAttachmentRemovalReason.Retention, null, notifyOwners: true, cancellationToken);
+        var result = await RemoveAsync(
+            KeptSent.Where(a => a.CreatedUtc < cutoff),
+            ChatAttachmentRemovalReason.Retention,
+            null,
+            notifyOwners: true,
+            change => _audit.RecordAsync(new AdminAuditEntry(
+                "Chat.AttachmentsRemovedByRetention",
+                "ChatAttachmentBatch",
+                change.BatchId?.ToString(),
+                After: new { change.Files, change.Bytes, OlderThanDays = days, change.RestorableUntil },
+                Origin: "Chat.Retention"), cancellationToken),
+            cancellationToken);
         if (result.Change.Files > 0)
         {
             _logger.LogInformation("Chat retention removed {Files} file(s), {Bytes} bytes, older than {Days} days.", result.Change.Files, result.Change.Bytes, days);
-            await _audit.RecordAsync(new AdminAuditEntry(
-                "Chat.AttachmentsRemovedByRetention",
-                "ChatAttachmentBatch",
-                result.Change.BatchId?.ToString(),
-                After: new { result.Change.Files, result.Change.Bytes, OlderThanDays = days, result.Change.RestorableUntil },
-                Origin: "Chat.Retention"), cancellationToken);
         }
 
         return result;
@@ -377,26 +379,39 @@ public sealed class ChatStorageService
         return scope.OlderThanDays is > 0 ? $"{who}, older than {scope.OlderThanDays} days" : who;
     }
 
-    /// <summary>Marks the files removed as one batch, and (for administrators and retention) queues each owner a notification, in one transaction.</summary>
-    private async Task<ChatStorageResult> RemoveAsync(IQueryable<ChatAttachment> query, string reason, string? byUserId, bool notifyOwners, CancellationToken cancellationToken)
+    /// <summary>
+    /// Marks the files removed as one batch, queues each owner a notification (administrators and
+    /// retention) and records the audit entry, all in one transaction. The files are claimed with
+    /// one conditional update, so of two overlapping removals each takes only files still kept
+    /// when it runs: neither overwrites the other's reason or batch, and counts and notifications
+    /// cover only what this one removed.
+    /// </summary>
+    private async Task<ChatStorageResult> RemoveAsync(
+        IQueryable<ChatAttachment> query,
+        string reason,
+        string? byUserId,
+        bool notifyOwners,
+        Func<ChatStorageChangeDto, Task>? audit,
+        CancellationToken cancellationToken)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        var files = await query.ToListAsync(cancellationToken);
-        if (files.Count == 0)
+        DateTimeOffset? removedUtc = _clock.UtcNow;
+        Guid? batch = Guid.NewGuid();
+        var claimed = await query.ExecuteUpdateAsync(
+            set => set
+                .SetProperty(a => a.RemovedUtc, removedUtc)
+                .SetProperty(a => a.RemovalReason, reason)
+                .SetProperty(a => a.RemovedByUserId, byUserId)
+                .SetProperty(a => a.RemovalBatchId, batch),
+            cancellationToken);
+        if (claimed == 0)
         {
             return Failed("There are no files to remove.");
         }
 
-        var now = _clock.UtcNow;
-        var batchId = Guid.NewGuid();
-        foreach (var file in files)
-        {
-            file.RemovedUtc = now;
-            file.RemovalReason = reason;
-            file.RemovedByUserId = byUserId;
-            file.RemovalBatchId = batchId;
-        }
-
+        var now = removedUtc.Value;
+        var batchId = batch.Value;
+        var files = await _db.ChatAttachments.AsNoTracking().Where(a => a.RemovalBatchId == batchId).ToListAsync(cancellationToken);
         var restorableUntil = now + Settings.UndoWindow;
         if (notifyOwners)
         {
@@ -407,11 +422,15 @@ public sealed class ChatStorageService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        var change = new ChatStorageChangeDto(files.Count, files.Sum(f => f.SizeBytes), batchId, restorableUntil);
+        if (audit is not null)
+        {
+            await audit(change);
+        }
 
-        var bytes = files.Sum(f => f.SizeBytes);
+        await transaction.CommitAsync(cancellationToken);
         return new ChatStorageResult(
-            new ChatStorageChangeDto(files.Count, bytes, batchId, restorableUntil),
+            change,
             await UpdatesForAsync(files.Take(MaxLiveUpdates).ToList(), restored: false, cancellationToken));
     }
 
@@ -442,15 +461,37 @@ public sealed class ChatStorageService
             cancellationToken);
     }
 
-    private static void Restore(IEnumerable<ChatAttachment> files)
+    /// <summary>Removed sent files, still on disk and within the undo window, removed for one of the reasons; never those of an unsent message.</summary>
+    private IQueryable<ChatAttachment> Restorable(DateTimeOffset undoFrom, string reason, string otherReason)
+        => _db.ChatAttachments.Where(a => a.MessageId != null
+            && a.RemovedUtc != null && a.RemovedUtc > undoFrom && a.PurgedUtc == null
+            && (a.RemovalReason == reason || a.RemovalReason == otherReason)
+            && a.Message!.UnsentUtc == null);
+
+    /// <summary>
+    /// Restores the files the query matches when the update runs (one conditional update, so a
+    /// file another removal or restore changed meanwhile is left alone) and returns them.
+    /// </summary>
+    private async Task<IReadOnlyList<ChatAttachment>> RestoreAsync(IQueryable<ChatAttachment> query, CancellationToken cancellationToken)
     {
-        foreach (var file in files)
+        var ids = await query.Select(a => a.Id).ToListAsync(cancellationToken);
+        if (ids.Count == 0)
         {
-            file.RemovedUtc = null;
-            file.RemovalReason = null;
-            file.RemovedByUserId = null;
-            file.RemovalBatchId = null;
+            return Array.Empty<ChatAttachment>();
         }
+
+        DateTimeOffset? none = null;
+        Guid? noBatch = null;
+        await query.Where(a => ids.Contains(a.Id)).ExecuteUpdateAsync(
+            set => set
+                .SetProperty(a => a.RemovedUtc, none)
+                .SetProperty(a => a.RemovalReason, (string?)null)
+                .SetProperty(a => a.RemovedByUserId, (string?)null)
+                .SetProperty(a => a.RemovalBatchId, noBatch),
+            cancellationToken);
+        return await _db.ChatAttachments.AsNoTracking()
+            .Where(a => ids.Contains(a.Id) && a.RemovedUtc == null)
+            .ToListAsync(cancellationToken);
     }
 
     /// <summary>For each file, who can see its message: they get the live update.</summary>

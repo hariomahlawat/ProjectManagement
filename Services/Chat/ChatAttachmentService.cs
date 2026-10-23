@@ -524,11 +524,25 @@ public sealed class ChatAttachmentService
             return null;
         }
 
-        attachment.RemovedUtc = _clock.UtcNow;
-        attachment.RemovalReason = ChatAttachmentRemovalReason.Sender;
-        attachment.RemovedByUserId = userId;
-        attachment.RemovalBatchId = Guid.NewGuid();
-        await _db.SaveChangesAsync(cancellationToken);
+        // Claimed with one conditional update: if an administrator or retention removed it
+        // meanwhile, theirs stands (and only they can restore it).
+        DateTimeOffset? removedUtc = _clock.UtcNow;
+        Guid? batchId = Guid.NewGuid();
+        var claimed = await _db.ChatAttachments
+            .Where(a => a.Id == attachment.Id && a.RemovedUtc == null)
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(a => a.RemovedUtc, removedUtc)
+                    .SetProperty(a => a.RemovalReason, ChatAttachmentRemovalReason.Sender)
+                    .SetProperty(a => a.RemovedByUserId, userId)
+                    .SetProperty(a => a.RemovalBatchId, batchId),
+                cancellationToken);
+        _db.Entry(attachment).State = EntityState.Detached;
+        if (claimed == 0)
+        {
+            return null;
+        }
+
 
         var message = attachment.Message;
         if (message is null)
