@@ -63,18 +63,21 @@ public sealed class CommandDeskService
             user.IsInRole(RoleNames.Admin),
             user.IsInRole(RoleNames.HoD));
 
-        var projects = await LoadProjectsAsync(userId, today, ct);
+        var progress = await LoadProgressAsync(today, ct);
+        var (decisions, planReviews) = await LoadDecisionsAsync(user, userId, canOpenDecisionCentre, ct);
+        var projects = await LoadProjectsAsync(userId, today, planReviews, ct);
         var input = new CommandDeskInput(
             today,
             CommandDeskBuilder.NormaliseWindow(windowDays),
-            await LoadProgressAsync(today, ct),
-            await LoadDecisionsAsync(user, userId, canOpenDecisionCentre, ct),
+            progress,
+            decisions,
             canOpenDecisionCentre,
             projects.Select(project => project.Input).ToList(),
             await LoadDirectionsAsync(userId, ct),
             await LoadTasksAsync(today, ct),
             await LoadReturnedAsync(projects, ct),
-            await LoadRegistersAsync(today, ct));
+            await LoadRegistersAsync(today, ct),
+            userId);
 
         return CommandDeskBuilder.Build(input);
     }
@@ -206,17 +209,25 @@ public sealed class CommandDeskService
     }
 
     // SECTION: Waiting on you
-    private async Task<IReadOnlyList<CommandDeskDecisionInput>> LoadDecisionsAsync(
+    // Also returns, by project, the review link of each timeline plan the viewer can decide, so
+    // the PDC watch can say the plan is waiting on them and link to it.
+    private async Task<(IReadOnlyList<CommandDeskDecisionInput> Decisions, IReadOnlyDictionary<int, string> PlanReviews)> LoadDecisionsAsync(
         ClaimsPrincipal user,
         string userId,
         bool canOpenDecisionCentre,
         CancellationToken ct)
     {
         var decisions = new List<CommandDeskDecisionInput>();
+        var planReviews = new Dictionary<int, string>();
         if (canOpenDecisionCentre)
         {
             // The Decision Centre's own queue, so the desk never disagrees with it.
             var pending = await _approvals.GetPendingAsync(new ApprovalQueueQuery(), user, ct);
+            foreach (var plan in pending.Where(item => item.ApprovalType == ApprovalQueueType.PlanApproval && item.ProjectId.HasValue))
+            {
+                planReviews.TryAdd(plan.ProjectId!.Value, CommandDeskRoutes.Approval(plan.ApprovalType.ToString(), plan.RequestId));
+            }
+
             decisions.AddRange(pending.Select(item => new CommandDeskDecisionInput(
                 item.ProjectName ?? item.Summary,
                 ApprovalTypeLabel(item),
@@ -243,7 +254,7 @@ public sealed class CommandDeskService
             "Close or return",
             CommandDeskRoutes.Task(task.Id))));
 
-        return decisions;
+        return (decisions, planReviews);
     }
 
     private static string ApprovalTypeLabel(ApprovalQueueItemVm item) => item.ApprovalType switch
@@ -264,7 +275,11 @@ public sealed class CommandDeskService
     // SECTION: Projects (PDC watch and needs attention)
     private sealed record ProjectFacts(CommandDeskProjectInput Input);
 
-    private async Task<IReadOnlyList<ProjectFacts>> LoadProjectsAsync(string userId, DateOnly today, CancellationToken ct)
+    private async Task<IReadOnlyList<ProjectFacts>> LoadProjectsAsync(
+        string userId,
+        DateOnly today,
+        IReadOnlyDictionary<int, string> planReviews,
+        CancellationToken ct)
     {
         // The workload service owns assignment, lifecycle and current-stage resolution.
         var officers = await _workload.GetAllAsync(userId, ct);
@@ -315,7 +330,8 @@ public sealed class CommandDeskService
                 item.project.StageName,
                 pdcByStage.GetValueOrDefault((item.project.ProjectId, (item.project.StageCode ?? string.Empty).ToUpperInvariant())),
                 withHod.Contains(item.project.ProjectId),
-                latestByOfficer.TryGetValue((item.project.ProjectId, item.officer.UserId), out var latest) ? latest : null)))
+                latestByOfficer.TryGetValue((item.project.ProjectId, item.officer.UserId), out var latest) ? latest : null,
+                planReviews.GetValueOrDefault(item.project.ProjectId))))
             .ToList();
     }
 
@@ -341,7 +357,8 @@ public sealed class CommandDeskService
                     item.LatestDirection.AuthorName,
                     DateOnly.FromDateTime(IstClock.ToIst(DateTime.SpecifyKind(item.LatestDirection.CreatedAtUtc, DateTimeKind.Utc))),
                     IsAnswered(item),
-                    CommandDeskRoutes.Conference(conference.OfficerUserId)));
+                    CommandDeskRoutes.Conference(conference.OfficerUserId),
+                    conference.OfficerUserId));
             }
         }
 
@@ -386,8 +403,9 @@ public sealed class CommandDeskService
 
         var names = await LoadNamesAsync(tasks.SelectMany(task => new[] { task.AssignedToUserId, task.CreatedByUserId }), ct);
         var blockedIds = tasks.Where(task => task.Status == ActionTaskStatuses.Blocked).Select(task => task.Id).ToArray();
-        var reasons = blockedIds.Length == 0
-            ? new Dictionary<int, string?>()
+        // The latest move to Blocked: its reason, and since when the task has been blocked.
+        var blocks = blockedIds.Length == 0
+            ? new Dictionary<int, (string? Reason, DateTime At)>()
             : (await _db.ActionTaskAuditLogs
                     .AsNoTracking()
                     .Where(log => blockedIds.Contains(log.TaskId)
@@ -398,7 +416,11 @@ public sealed class CommandDeskService
                 .GroupBy(log => log.TaskId)
                 .ToDictionary(
                     group => group.Key,
-                    group => group.OrderByDescending(log => log.PerformedAt).ThenByDescending(log => log.Id).First().Remarks);
+                    group =>
+                    {
+                        var latest = group.OrderByDescending(log => log.PerformedAt).ThenByDescending(log => log.Id).First();
+                        return (Reason: latest.Remarks, At: latest.PerformedAt);
+                    });
 
         return tasks
             .Select(task => new CommandDeskTaskInput(
@@ -409,7 +431,11 @@ public sealed class CommandDeskService
                 task.Priority,
                 task.Status,
                 DateOnly.FromDateTime(task.DueDate),
-                reasons.GetValueOrDefault(task.Id)))
+                blocks.TryGetValue(task.Id, out var block) ? block.Reason : null,
+                task.CreatedByUserId,
+                blocks.TryGetValue(task.Id, out var since)
+                    ? new DateTimeOffset(DateTime.SpecifyKind(since.At, DateTimeKind.Utc))
+                    : null))
             .ToList();
     }
 

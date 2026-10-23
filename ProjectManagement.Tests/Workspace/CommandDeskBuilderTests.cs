@@ -195,6 +195,87 @@ public sealed class CommandDeskBuilderTests
         Assert.Empty(desk.WaitingOnYou);
     }
 
+    // SECTION: Acting from the desk
+    [Fact]
+    public void PdcWatch_ToAnApprover_SaysTheRevisedPlanWaitsOnThem_AndLinksToItsReview()
+    {
+        var desk = Build(projects: new[]
+        {
+            Project(1, "Mine to decide", pdcInDays: -20, planWithHod: true, planReviewUrl: "/Approvals/Pending/PlanApproval/7"),
+            Project(2, "Someone else's", pdcInDays: -10, planWithHod: true)
+        });
+
+        var mine = desk.PdcWatch.Single(item => item.ProjectName == "Mine to decide");
+        Assert.Equal("Revised plan · waiting on you", mine.Note);
+        Assert.Equal("/Approvals/Pending/PlanApproval/7", mine.NoteUrl);
+        var other = desk.PdcWatch.Single(item => item.ProjectName == "Someone else's");
+        Assert.Equal("Revised plan with HoD", other.Note);
+        Assert.Null(other.NoteUrl);
+    }
+
+    [Fact]
+    public void NoPdc_DoesNotCountAProjectWhosePlanIsWaitingForApproval()
+    {
+        var desk = Build(projects: new[]
+        {
+            Project(1, "UIFOS", pdcInDays: null, officer: "srinath"),
+            Project(2, "SPRINT", pdcInDays: null, planWithHod: true, officer: "srinath"),
+            Project(3, "AFS", pdcInDays: null, planWithHod: true, officer: "srinath")
+        });
+
+        var noPdc = desk.Attention.Single(reason => reason.Key == "no-pdc");
+        Assert.Equal(1, noPdc.Count);
+        Assert.Equal("UIFOS", Assert.Single(noPdc.ByOfficer[0].Projects!).Name);
+    }
+
+    [Fact]
+    public void ABlockedTaskTheViewerAssigned_AlsoWaitsOnThem_WithItsReason()
+    {
+        var since = new DateTimeOffset(2026, 10, 19, 5, 0, 0, TimeSpan.Zero);
+        var desk = Build(tasks: new[]
+        {
+            Task(1, "Close vendor clarifications", ActionTaskStatuses.Blocked, dueInDays: -4,
+                reason: "Vendor has not replied; escalated to HoD.", assignerUserId: "hod", blockedSinceUtc: since),
+            Task(2, "Someone else's blocked task", ActionTaskStatuses.Blocked, dueInDays: 3, reason: "Waiting.")
+        });
+
+        var waiting = Assert.Single(desk.WaitingOnYou);
+        Assert.Equal("Close vendor clarifications", waiting.Title);
+        Assert.Equal("Task blocked: “Vendor has not replied; escalated to HoD.”", waiting.TypeLabel);
+        Assert.Equal("Open task", waiting.ActionLabel);
+        Assert.Equal("/ActionTasks/Details/1", waiting.Url);
+        Assert.Equal("3 days", waiting.AgeLabel);
+        Assert.Equal(2, desk.Tasks.Count); // still under Tasks, which everyone sees
+        Assert.Empty(Build(tasks: new[] { Task(1, "x", ActionTaskStatuses.Blocked, -1, assignerUserId: "hod") }, viewer: null).WaitingOnYou);
+    }
+
+    [Fact]
+    public void Attention_ListsTheProjectsBehindEachOfficersCount_AndOffersAMessage()
+    {
+        var desk = Build(projects: new[]
+        {
+            Project(1, "Beta", pdcInDays: null, officer: "srinath"),
+            Project(2, "Alpha", pdcInDays: null, officer: "srinath"),
+            Project(3, "Own project", pdcInDays: null, officer: "hod")
+        });
+
+        var noPdc = desk.Attention.Single(reason => reason.Key == "no-pdc");
+        var srinath = noPdc.ByOfficer.Single(officer => officer.OfficerName == "srinath");
+        Assert.Equal(new[] { "Alpha", "Beta" }, srinath.Projects!.Select(project => project.Name));
+        Assert.Equal("/Projects/Overview/2", srinath.Projects![0].Url);
+        Assert.Equal("/Chat?with=srinath", srinath.MessageUrl);
+        Assert.Null(noPdc.ByOfficer.Single(officer => officer.OfficerName == "hod").MessageUrl); // not to yourself
+    }
+
+    [Fact]
+    public void Directions_OfferAMessageToTheOfficer()
+    {
+        var desk = Build(directions: new[] { Direction("Old", daysAgo: 14), Direction("Unknown officer", daysAgo: 3, officerUserId: null) });
+
+        Assert.Equal("/Chat?with=srinath-id", desk.Directions.Single(item => item.Title == "Old").MessageUrl);
+        Assert.Null(desk.Directions.Single(item => item.Title == "Unknown officer").MessageUrl);
+    }
+
     // SECTION: Builders
     private static CommandDeskVm Build(
         int window = 30,
@@ -204,7 +285,8 @@ public sealed class CommandDeskBuilderTests
         IReadOnlyList<CommandDeskDirectionInput>? directions = null,
         IReadOnlyList<CommandDeskTaskInput>? tasks = null,
         IReadOnlyList<CommandDeskReturnedInput>? returned = null,
-        IReadOnlyList<CommandDeskRegisterInput>? registers = null)
+        IReadOnlyList<CommandDeskRegisterInput>? registers = null,
+        string? viewer = "hod")
         => CommandDeskBuilder.Build(new CommandDeskInput(
             Today,
             window,
@@ -215,7 +297,8 @@ public sealed class CommandDeskBuilderTests
             directions ?? Array.Empty<CommandDeskDirectionInput>(),
             tasks ?? Array.Empty<CommandDeskTaskInput>(),
             returned ?? Array.Empty<CommandDeskReturnedInput>(),
-            registers ?? Array.Empty<CommandDeskRegisterInput>()));
+            registers ?? Array.Empty<CommandDeskRegisterInput>(),
+            viewer));
 
     // Noon IST on Today, minus the given hours.
     private static CommandDeskDecisionInput Decision(string title, int hoursAgo)
@@ -227,15 +310,25 @@ public sealed class CommandDeskBuilderTests
         int? pdcInDays,
         bool planWithHod = false,
         string officer = "officer",
-        int? lastUpdateDaysAgo = 1)
+        int? lastUpdateDaysAgo = 1,
+        string? planReviewUrl = null)
         => new(id, name, officer, officer, "DEVP",
             pdcInDays.HasValue ? Today.AddDays(pdcInDays.Value) : null,
             planWithHod,
-            lastUpdateDaysAgo.HasValue ? Today.AddDays(-lastUpdateDaysAgo.Value) : null);
+            lastUpdateDaysAgo.HasValue ? Today.AddDays(-lastUpdateDaysAgo.Value) : null,
+            planReviewUrl);
 
-    private static CommandDeskDirectionInput Direction(string title, int daysAgo, bool answered = false)
-        => new(ConferenceItemKind.Project, title, "K Srinath", "Set the PDC.", "Brig Ashish Johar", Today.AddDays(-daysAgo), answered, "/c");
+    private static CommandDeskDirectionInput Direction(string title, int daysAgo, bool answered = false, string? officerUserId = "srinath-id")
+        => new(ConferenceItemKind.Project, title, "K Srinath", "Set the PDC.", "Brig Ashish Johar", Today.AddDays(-daysAgo), answered, "/c", officerUserId);
 
-    private static CommandDeskTaskInput Task(int id, string title, string status, int dueInDays, string priority = "Normal", string? reason = null)
-        => new(id, title, "K Srinath", "Hari Om Ahlawat", priority, status, Today.AddDays(dueInDays), reason);
+    private static CommandDeskTaskInput Task(
+        int id,
+        string title,
+        string status,
+        int dueInDays,
+        string priority = "Normal",
+        string? reason = null,
+        string? assignerUserId = "someone-else",
+        DateTimeOffset? blockedSinceUtc = null)
+        => new(id, title, "K Srinath", "Hari Om Ahlawat", priority, status, Today.AddDays(dueInDays), reason, assignerUserId, blockedSinceUtc);
 }

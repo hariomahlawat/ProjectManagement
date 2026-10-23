@@ -6,7 +6,12 @@
     </span>
     <span class="cd-row__date">PDC @Model.Pdc.ToString("dd MMM yyyy")</span>
     <span class="cd-pill @(Model.IsOverdue ? "cd-pill--danger" : "cd-pill--warning")">@Model.WhenLabel</span>
-    @if (!string.IsNullOrWhiteSpace(Model.Note))
+    @if (!string.IsNullOrWhiteSpace(Model.Note) && !string.IsNullOrWhiteSpace(Model.NoteUrl))
+    {
+        @* The plan waits on the viewer: the note opens its review. *@
+        <a class="cd-pill cd-pill--note cd-pill--link" href="@Model.NoteUrl">@Model.Note<span class="visually-hidden"> for @Model.ProjectName</span> <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    }
+    else if (!string.IsNullOrWhiteSpace(Model.Note))
     {
         <span class="cd-pill cd-pill--note">@Model.Note</span>
     }

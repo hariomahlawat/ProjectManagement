@@ -54,7 +54,8 @@ public sealed record CommandDeskPdcVm(
     string WhenLabel,
     bool IsOverdue,
     string? Note,
-    string Url);
+    string Url,
+    string? NoteUrl = null);
 
 public sealed record CommandDeskDirectionVm(
     string Title,
@@ -66,7 +67,8 @@ public sealed record CommandDeskDirectionVm(
     int AgeDays,
     string AgeLabel,
     bool IsOlderThanWeek,
-    string Url);
+    string Url,
+    string? MessageUrl = null);
 
 public sealed record CommandDeskTaskVm(
     string Title,
@@ -83,7 +85,14 @@ public sealed record CommandDeskAttentionVm(
     string Label,
     IReadOnlyList<CommandDeskOfficerCountVm> ByOfficer);
 
-public sealed record CommandDeskOfficerCountVm(string OfficerName, int Count, string? Url);
+public sealed record CommandDeskOfficerCountVm(
+    string OfficerName,
+    int Count,
+    string? Url,
+    IReadOnlyList<CommandDeskAttentionProjectVm>? Projects = null,
+    string? MessageUrl = null);
+
+public sealed record CommandDeskAttentionProjectVm(string Name, string Url);
 
 public sealed record CommandDeskRegisterVm(
     string Label,
