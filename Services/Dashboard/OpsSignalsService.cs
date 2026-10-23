@@ -171,8 +171,10 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // END SECTION
 
             // SECTION: Proliferation aggregation
+            // Approved entries only, as the headline total and the Command desk count them.
             var prolifByMonth = await _db.ProliferationGranularEntries
-                .Where(p => p.ProliferationDate >= start && p.ProliferationDate <= end)
+                .Where(p => p.ApprovalStatus == ApprovalStatus.Approved
+                    && p.ProliferationDate >= start && p.ProliferationDate <= end)
                 .GroupBy(p => new { p.ProliferationDate.Year, p.ProliferationDate.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Sum(x => x.Quantity) })
                 .ToListAsync(ct);
@@ -180,7 +182,6 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 prolifByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
                              .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
-            var prolifTotal = await _db.ProliferationGranularEntries.LongCountAsync(ct);
             var prolifSummary = await _proliferationSummaryService.GetSummaryAsync(ct);
             var prolifGrandTotal = CalculateProliferationGrandTotal(prolifSummary);
             // END SECTION
@@ -197,12 +198,12 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 var prev = values.Skip(Math.Max(0, values.Count - 6)).Take(3).Sum();
                 if (cur == 0 && prev == 0)
                 {
-                    return (cur, prev, null, "No recent activity");
+                    return (cur, prev, null, "None in the last 6 months");
                 }
 
                 if (prev == 0 && cur > 0)
                 {
-                    return (cur, prev, null, "New activity");
+                    return (cur, prev, null, "New in the last 3 months");
                 }
 
                 if (cur == 0 && prev > 0)
@@ -227,8 +228,26 @@ public sealed class OpsSignalsService : IOpsSignalsService
             var (_, _, prPct, prLabel) = Delta(prolifSpark);
             // END SECTION
 
+            // SECTION: What the change label compares: the last three months shown against the three
+            // before them (the current month counts as far as it has run).
+            static string MonthSpan(DateOnly first, DateOnly last)
+                => first.Year == last.Year
+                    ? $"{MonthLabel(first)}–{MonthLabel(last)} {last.Year}"
+                    : $"{MonthLabel(first)} {first.Year}–{MonthLabel(last)} {last.Year}";
+            const string deltaBasis = "vs previous 3 months";
+            // A percentage or "No change" is followed by what it compares; the worded labels
+            // ("New in the last 3 months", "None in the last 6 months") already say it.
+            static string? Basis(double? pct, string? label, string basis)
+                => pct is not null || label is null || label == "No change" ? basis : null;
+            var deltaPeriods = months.Length >= 6
+                ? $"{MonthSpan(months[^3], months[^1])} compared with {MonthSpan(months[^6], months[^4])}"
+                : null;
+            // END SECTION
+
             // SECTION: Tile assembly
-            var labels = months.Select(MonthLabel).ToList();
+            // Headline numbers are all-time totals; the chart shows the last 12 months.
+            const string allTime = "All time";
+            var labels = months.Select(m => $"{MonthLabel(m)} {m.Year}").ToList();
             var tiles = new List<OpsTileVm>
             {
                 new()
@@ -237,6 +256,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Label = "Visits to SDD",
                     Value = visitsCount,
                     Unit = "visits",
+                    Caption = allTime,
                     SecondaryValue = visitorsTotal,
                     SecondaryLabel = "visitors",
                     TrendLabel = "Monthly visits · 12 months",
@@ -245,6 +265,8 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     DeltaAbs = vCur - vPrev,
                     DeltaPct = vPct,
                     DeltaLabel = vLabel,
+                    DeltaBasis = Basis(vPct, vLabel, deltaBasis),
+                    DeltaPeriods = deltaPeriods,
                     LinkUrl = "/ProjectOfficeReports/Visits",
                     Icon = "bi-people"
                 },
@@ -254,10 +276,13 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Label = "Social-media activities",
                     Value = outreachTotal,
                     Unit = "activities",
+                    Caption = allTime,
                     Sparkline = outreachSpark,
                     SparklineLabels = labels,
                     DeltaPct = outPct,
                     DeltaLabel = outLabel,
+                    DeltaBasis = Basis(outPct, outLabel, deltaBasis),
+                    DeltaPeriods = deltaPeriods,
                     LinkUrl = "/ProjectOfficeReports/SocialMedia",
                     Icon = "bi-megaphone"
                 },
@@ -267,10 +292,13 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Label = "Training reach",
                     Value = trainingTotal,
                     Unit = "people",
+                    Caption = allTime,
                     Sparkline = trainingSpark,
                     SparklineLabels = labels,
                     DeltaPct = trPct,
                     DeltaLabel = trLabel,
+                    DeltaBasis = Basis(trPct, trLabel, deltaBasis),
+                    DeltaPeriods = deltaPeriods,
                     LinkUrl = "/ProjectOfficeReports/Training",
                     Icon = "bi-mortarboard"
                 },
@@ -280,10 +308,13 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Label = "ToT completed",
                     Value = totTotal,
                     Unit = "projects",
+                    Caption = allTime,
                     Sparkline = totSpark,
                     SparklineLabels = labels,
                     DeltaPct = totPct,
                     DeltaLabel = totLabel,
+                    DeltaBasis = Basis(totPct, totLabel, deltaBasis),
+                    DeltaPeriods = deltaPeriods,
                     LinkUrl = "/ProjectOfficeReports/Tot/Summary",
                     Icon = "bi-arrow-left-right"
                 },
@@ -293,13 +324,19 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Label = "IPR",
                     Value = iprGrantedTotal,
                     Unit = "granted",
+                    Caption = allTime,
                     SecondaryValue = iprFiledTotal,
                     SecondaryLabel = "filed",
                     TrendLabel = "Monthly filings · 12 months",
                     Sparkline = iprSpark,
                     SparklineLabels = labels,
                     DeltaPct = iprPct,
-                    DeltaLabel = iprLabel,
+                    // The headline counts grants; the chart and the change count filings.
+                    DeltaLabel = iprLabel == "New in the last 3 months" ? "New filings in the last 3 months"
+                        : iprLabel == "None in the last 6 months" ? "No filings in the last 6 months"
+                        : iprLabel,
+                    DeltaBasis = Basis(iprPct, iprLabel, "filings " + deltaBasis),
+                    DeltaPeriods = deltaPeriods,
                     LinkUrl = "/ProjectOfficeReports/Ipr",
                     Icon = "bi-file-lock"
                 },
@@ -307,12 +344,16 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 {
                     Key = "proliferation",
                     Label = "Proliferated units",
-                    Value = prolifGrandTotal > 0 ? prolifGrandTotal : prolifTotal,
+                    // Approved units from the proliferation summary; never a count of entries.
+                    Value = prolifGrandTotal,
                     Unit = "units",
+                    Caption = allTime,
                     Sparkline = prolifSpark,
                     SparklineLabels = labels,
                     DeltaPct = prPct,
                     DeltaLabel = prLabel,
+                    DeltaBasis = Basis(prPct, prLabel, deltaBasis),
+                    DeltaPeriods = deltaPeriods,
                     LinkUrl = "/ProjectOfficeReports/Proliferation/Summary",
                     Icon = "bi-globe2"
                 }

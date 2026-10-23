@@ -22,6 +22,10 @@
             section.style.transitionDelay = `${Math.min(index * 35, 140)}ms`;
             observer.observe(section);
         });
+
+        // A safety net: whatever has not been revealed by now is shown anyway, so a panel never
+        // stays blank (a background tab, an observer that never fires).
+        window.setTimeout(() => sections.forEach(section => section.classList.add('is-visible')), 2500);
     }
 
     if (typeof window.Chart === 'undefined') return;
