@@ -33,6 +33,17 @@ Sections follow the Conference view order: Projects, Ideas, Tasks. Empty section
 A direction counts as answered under the same rule `ProjectOfficerConferenceActionQuery` uses:
 any later remark, idea note or task update by the PO.
 
+**Card header.** The header tags agree with the checks. When a revised plan is with the HoD for
+a missing or overdue PDC, the PDC tag reads "PDC with HoD since …" or "Revised PDC with HoD
+since …" in a neutral tone, not "PDC not set" or a red "overdue": the PDC check already counts
+that plan as the PO's answer.
+
+**Required and optional.** In "Before you brief", required steps carry the strong button
+(`bd-btn--required`), whether the PO completes them on the desk or they go to the HoD; the line
+under the button says which. **Improve the record** lists optional record-health gaps; it is
+folded to one line ("38% now · up to +53 points · 5 optional items") until opened, and its
+buttons are quiet (`bd-btn--optional`).
+
 ## What the PO can finish on the desk
 
 All posts go through the existing services, so audit records, notifications and workflow rules
@@ -83,7 +94,8 @@ shows **With HoD** and the item appears under **With others**.
 ## Weekly round
 
 **Start weekly round** walks the PO through every not-ready card, one at a time, in desk order.
-The meters, the side column and the section headings are hidden while it runs. The round is
+The meters, the side column, the section headings and Recently completed are hidden while it
+runs. The round is
 kept in `sessionStorage` (this tab only), so a post that reloads the page resumes on the same
 card. It ends with a summary of how many items from the round are now brief-ready. If storage
 is unavailable, the round still works within the page.
@@ -112,3 +124,10 @@ The PO menu has five entries: **Briefing desk**, **My conference review**, **Pro
 
 The previous overview's Command view card and ERP activity heatmap were removed from the landing
 page. ERP activity stays under **My ERP activity**.
+
+## Phones
+
+Below 576 px the three meters sit in one compact row and the With HoD / Returned counts form one
+line under them, so the first card is on the first screen. Unread circulars are counted in the
+side column's Reading panel only. The workspace rail, folded, becomes a row of its icons above
+the page (`command-workspace.css`, all workspace pages); expanding it opens the usual overlay.

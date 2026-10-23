@@ -177,16 +177,22 @@
 
                 @if (item.Improvements.Any())
                 {
-                    <h4 class="bd-checks__title bd-checks__title--improve">
-                        Improve the record
-                        <span>@item.RecordHealthPercent% now · up to +@item.ImprovementPoints points</span>
-                    </h4>
-                    <ul class="bd-checklist bd-checklist--improve">
-                        @foreach (var improvement in item.Improvements)
-                        {
-                            @await Html.PartialAsync("_BriefingDeskCheck", improvement)
-                        }
-                    </ul>
+                    @* Optional and never needed for the brief, so folded to one line until opened. *@
+                    <details class="bd-improve">
+                        <summary>
+                            <h4 class="bd-checks__title bd-checks__title--improve">
+                                Improve the record
+                                <span>@item.RecordHealthPercent% now · up to +@item.ImprovementPoints points · @item.Improvements.Count optional item@(item.Improvements.Count == 1 ? string.Empty : "s")</span>
+                                <i class="bi bi-chevron-down bd-improve__chevron" aria-hidden="true"></i>
+                            </h4>
+                        </summary>
+                        <ul class="bd-checklist bd-checklist--improve">
+                            @foreach (var improvement in item.Improvements)
+                            {
+                                @await Html.PartialAsync("_BriefingDeskCheck", improvement)
+                            }
+                        </ul>
+                    </details>
                 }
             </div>
         </div>

@@ -338,11 +338,11 @@
 /* Life strip: project stages or task status */
 .bd-strip {
     display: flex;
+    flex-wrap: wrap; /* a second line rather than a scrollbar on every card */
     gap: 0.2rem;
     margin: 0;
     padding: 0 1.25rem 0.75rem;
     list-style: none;
-    overflow-x: auto;
 }
 
 .bd-step {
@@ -520,6 +520,36 @@
 .bd-checks__title--improve span {
     font-weight: 500;
     color: var(--pm-text-secondary);
+}
+
+/* Improve the record: optional, folded to its title line until opened. */
+.bd-improve > summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.bd-improve > summary::-webkit-details-marker {
+    display: none;
+}
+
+.bd-improve > summary:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+}
+
+.bd-improve__chevron {
+    align-self: center;
+    color: var(--pm-text-secondary);
+    transition: transform 0.15s ease;
+}
+
+.bd-improve[open] .bd-improve__chevron {
+    transform: rotate(180deg);
+}
+
+.bd-improve[open] > .bd-checklist {
+    margin-top: 0.5rem;
 }
 
 .bd-checklist {
@@ -800,6 +830,28 @@
     background: var(--pm-surface-lilac);
 }
 
+/* Checks: what is needed before the brief is the strong button; optional improvements are quiet. */
+.bd-btn--required {
+    color: var(--pm-card);
+    background: var(--pm-primary);
+}
+
+.bd-btn--required:hover {
+    color: var(--pm-card);
+    background: var(--pm-primary-hover);
+}
+
+.bd-btn--optional {
+    color: var(--pm-primary);
+    background: var(--pm-card);
+    border-color: var(--pm-border);
+}
+
+.bd-btn--optional:hover {
+    color: var(--pm-primary-hover);
+    background: var(--pm-surface-subtle);
+}
+
 .bd-btn--danger {
     color: var(--pm-card);
     background: var(--pm-danger);
@@ -1019,6 +1071,42 @@
         text-align: left;
         padding-left: 2rem;
     }
+
+    /* The three meters in one compact row, so the first card is on the first screen. */
+    .bd-meters {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .bd-meter {
+        gap: 0.3rem;
+        padding: 0.6rem 0.7rem;
+    }
+
+    .bd-meter__caption {
+        display: none;
+    }
+
+    .bd-meter__top {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.1rem;
+    }
+
+    .bd-meter__value {
+        white-space: nowrap;
+    }
+
+    .bd-meter--summary {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.25rem 1.25rem;
+    }
+
+    .bd-meter--summary .bd-meter__row {
+        gap: 0.4rem;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1144,6 +1232,7 @@
 .bd.is-round .bd-meters,
 .bd.is-round .bd-rail,
 .bd.is-round .bd-section__head,
+.bd.is-round .bd-completed,
 .bd.is-round [data-bd-round-start] {
     display: none;
 }
