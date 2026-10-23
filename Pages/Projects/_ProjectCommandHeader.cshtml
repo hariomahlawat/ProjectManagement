@@ -36,7 +36,7 @@
         {
             @* Same fallback contract as the overview cover (cover-photo-fallback.js): if the
                thumbnail cannot load, the image is removed and the icon tile shows instead. *@
-            <a class="project-command-header__cover" href="#project-profile-details" aria-label="Project overview and cover photo" data-project-cover-host>
+            <a class="project-command-header__cover" href="#project-profile-details" aria-label="View the cover photo" data-project-cover-host data-media-viewer-open="project-photos" data-media-viewer-key="@ProjectManagement.ViewModels.ProjectMediaViewerItems.PhotoKey(headerCover.Id)">
                 <img src="@headerCoverUrl" alt="" decoding="async" data-project-cover-image />
                 <span class="project-command-header__cover-fallback d-none" data-project-cover-fallback aria-hidden="true">
                     <i class="bi bi-image"></i>

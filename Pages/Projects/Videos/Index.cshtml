@@ -1,6 +1,7 @@
 @page "/Projects/{id:int}/Videos"
 @model ProjectManagement.Pages.Projects.Videos.IndexModel
 @using System
+@using ProjectManagement.ViewModels
 @{
     ViewData["Title"] = $"Videos – {Model.Project.Name}";
 
@@ -92,6 +93,7 @@
             {
                 var isFeatured = Model.Project.FeaturedVideoId == video.Id || video.IsFeatured;
                 var featureIcon = isFeatured ? "bi-star" : "bi-star-fill";
+                var viewerItem = ProjectMediaViewerItems.ForVideo(Url, Model.Project.Id, Model.Project.Name, video);
                 <li class="project-video-card">
                     <div class="project-video-card__media">
                         <video controls
@@ -105,6 +107,26 @@
                         {
                             <span class="project-video-card__featured"><i class="bi bi-star-fill" aria-hidden="true"></i> Featured</span>
                         }
+                        @* Full screen, stepping through the project's videos; without JavaScript the
+                           video file opens in a new tab. *@
+                        <a class="project-video-card__expand"
+                           href="@viewerItem.DisplayUrl"
+                           target="_blank"
+                           rel="noopener"
+                           aria-label="Play @viewerItem.Title full screen"
+                           data-media-viewer-item
+                           data-media-viewer-group="project-videos"
+                           data-media-viewer-open="project-videos"
+                           data-media-viewer-key="@viewerItem.Key"
+                           data-kind="@viewerItem.Kind"
+                           data-display-url="@viewerItem.DisplayUrl"
+                           data-title="@viewerItem.Title"
+                           data-context="@viewerItem.Context"
+                           data-date="@viewerItem.Date"
+                           data-original-url="@viewerItem.OriginalUrl"
+                           data-poster="@viewerItem.Poster">
+                            <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i> Full screen
+                        </a>
                     </div>
                     <div class="project-video-card__body">
                         <h2>@DisplayTitle(video)</h2>
@@ -165,9 +187,13 @@
     </form>
 }
 
+<partial name="_MediaViewer" />
+
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/project-videos.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/widgets/media-viewer.css" asp-append-version="true" />
 }
 @section Scripts {
     <script type="module" src="~/js/pages/project-video-library.js" asp-append-version="true"></script>
+    <script src="~/js/widgets/media-viewer.js" asp-append-version="true"></script>
 }

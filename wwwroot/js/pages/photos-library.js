@@ -81,162 +81,80 @@
 
     if (tiles.length === 0) return;
 
-    const mediaHost = viewer.querySelector('[data-viewer-media]');
-    const title = viewer.querySelector('[data-viewer-title]');
-    const context = viewer.querySelector('[data-viewer-context]');
-    const position = viewer.querySelector('[data-viewer-position]');
-    const originalLink = viewer.querySelector('[data-viewer-original]');
-    const downloadLink = viewer.querySelector('[data-viewer-download]');
-    const infoButton = viewer.querySelector('[data-viewer-info]');
-    const infoPanel = viewer.querySelector('[data-viewer-info-panel]');
-    if (infoPanel) infoPanel.inert = true;
-    const previousButton = viewer.querySelector('[data-viewer-prev]');
-    const nextButton = viewer.querySelector('[data-viewer-next]');
-    const zoomInButton = viewer.querySelector('[data-viewer-zoom-in]');
-    const zoomOutButton = viewer.querySelector('[data-viewer-zoom-out]');
-    const zoomResetButton = viewer.querySelector('[data-viewer-zoom-reset]');
-    const zoomLabel = viewer.querySelector('[data-viewer-zoom-label]');
-
-    let currentIndex = 0;
-    let previousFocus = null;
-    let returnHash = '';
-    let inertedElements = [];
-    let zoom = 1;
-
-    const mediaHashPrefix = '#media=';
-    const mediaKey = tile => tile.dataset.mediaKey || tile.dataset.assetId || String(tiles.indexOf(tile) + 1);
-    const hashFor = tile => `${mediaHashPrefix}${encodeURIComponent(mediaKey(tile))}`;
-    const isMediaHash = hash => hash.startsWith(mediaHashPrefix);
-    const focusableSelector = [
-        'a[href]:not([hidden])',
-        'button:not([disabled]):not([hidden])',
-        'input:not([disabled]):not([hidden])',
-        'select:not([disabled]):not([hidden])',
-        'textarea:not([disabled]):not([hidden])',
-        '[tabindex]:not([tabindex="-1"]):not([hidden])'
-    ].join(',');
-
+    // The full-screen viewer is the shared one (js/widgets/media-viewer.js); the gallery adds
+    // its information panel (collection, people, albums, caption, file details).
     const value = (tile, name) => tile.dataset[name] || '';
+    const mediaKey = tile => tile.dataset.mediaKey || tile.dataset.assetId || String(tiles.indexOf(tile) + 1);
+    const items = tiles.map(tile => ({
+        key: mediaKey(tile),
+        kind: value(tile, 'kind') === 'video' ? 'video' : 'photo',
+        displayUrl: value(tile, 'displayUrl'),
+        title: value(tile, 'title'),
+        context: value(tile, 'context'),
+        date: value(tile, 'date'),
+        originalUrl: value(tile, 'originalUrl'),
+        downloadUrl: value(tile, 'downloadUrl') || value(tile, 'originalUrl'),
+        tile
+    }));
 
-    function setBackgroundInert(enabled) {
-        if (!enabled) {
-            inertedElements.forEach(({ element, inert, ariaHidden }) => {
-                element.inert = inert;
-                if (ariaHidden === null) element.removeAttribute('aria-hidden');
-                else element.setAttribute('aria-hidden', ariaHidden);
-            });
-            inertedElements = [];
-            return;
-        }
-
-        if (inertedElements.length > 0) return;
-        let current = viewer;
-        while (current?.parentElement) {
-            const parent = current.parentElement;
-            [...parent.children].forEach(sibling => {
-                if (sibling === current || sibling.contains(viewer)) return;
-                inertedElements.push({
-                    element: sibling,
-                    inert: sibling.inert,
-                    ariaHidden: sibling.getAttribute('aria-hidden')
-                });
-                sibling.inert = true;
-                sibling.setAttribute('aria-hidden', 'true');
-            });
-            current = parent;
-            if (current === document.body) break;
-        }
-    }
-
-    function setOptionalLink(link, href) {
-        if (!link) return;
-        link.href = href || '#';
-        link.hidden = !href;
-    }
-
-    function setZoom(nextZoom) {
-        zoom = Math.min(3, Math.max(0.5, nextZoom));
-        mediaHost.style.setProperty('--viewer-zoom', String(zoom));
-        if (zoomLabel) zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
-        if (zoomOutButton) zoomOutButton.disabled = zoom <= 0.5;
-        if (zoomInButton) zoomInButton.disabled = zoom >= 3;
-    }
-
-    function render(index) {
-        currentIndex = (index + tiles.length) % tiles.length;
-        const tile = tiles[currentIndex];
-        const kind = value(tile, 'kind');
-        const displayUrl = value(tile, 'displayUrl');
-
-        setZoom(1);
-        mediaHost.replaceChildren();
-
-        if (kind === 'video') {
-            const video = document.createElement('video');
-            video.src = displayUrl;
-            video.controls = true;
-            video.autoplay = true;
-            video.playsInline = true;
-            video.preload = 'metadata';
-            mediaHost.append(video);
-        } else {
-            const image = document.createElement('img');
-            image.src = displayUrl;
-            image.alt = value(tile, 'title');
-            image.decoding = 'async';
-            image.addEventListener('dblclick', () => setZoom(zoom === 1 ? 2 : 1));
-            mediaHost.append(image);
-        }
-
-        title.textContent = value(tile, 'title');
-        context.textContent = `${value(tile, 'context')} · ${value(tile, 'date')}`;
-        position.textContent = `${currentIndex + 1} of ${tiles.length}`;
-
-        setOptionalLink(originalLink, value(tile, 'originalUrl'));
-        setOptionalLink(downloadLink, value(tile, 'downloadUrl') || value(tile, 'originalUrl'));
-
-        const sourceLink = viewer.querySelector('[data-info-source-link]');
-        setOptionalLink(sourceLink, value(tile, 'sourceUrl'));
-        viewer.querySelector('[data-info-context]').textContent = value(tile, 'context');
-        viewer.querySelector('[data-info-date]').textContent = value(tile, 'date');
-        viewer.querySelector('[data-info-source]').textContent = `${value(tile, 'sourceLabel')} · ${value(tile, 'subtitle')}`;
-        viewer.querySelector('[data-info-classification]').textContent = value(tile, 'classification') || 'Not classified';
-        const caption = value(tile, 'caption');
-        viewer.querySelector('[data-info-caption]').textContent = caption;
-        const captionRow = viewer.querySelector('[data-info-caption-row]');
-        if (captionRow) captionRow.hidden = !caption;
-
-        const albumsHost = viewer.querySelector('[data-info-albums]');
-        const albumsRow = viewer.querySelector('[data-info-albums-row]');
-        let albums = [];
+    const parseLinks = (raw) => {
         try {
-            const parsed = JSON.parse(value(tile, 'albums') || '[]');
-            albums = Array.isArray(parsed) ? parsed.filter(album => album && album.name && album.url) : [];
+            const parsed = JSON.parse(raw || '[]');
+            return Array.isArray(parsed) ? parsed.filter(entry => entry && entry.name && entry.url) : [];
         } catch {
-            albums = [];
+            return [];
         }
-        if (albumsHost) {
-            albumsHost.replaceChildren();
-            albums.forEach(album => {
+    };
+
+    const fillLinks = (host, row, links) => {
+        if (host) {
+            host.replaceChildren();
+            links.forEach(entry => {
                 const link = document.createElement('a');
-                link.href = album.url;
-                link.textContent = album.name;
-                albumsHost.append(link);
+                link.href = entry.url;
+                link.textContent = entry.name;
+                host.append(link);
             });
         }
-        if (albumsRow) albumsRow.hidden = albums.length === 0;
+        if (row) row.hidden = links.length === 0;
+    };
+
+    const setText = (selector, text) => {
+        const host = viewer.querySelector(selector);
+        if (host) host.textContent = text;
+    };
+
+    const setRow = (selector, visible) => {
+        const row = viewer.querySelector(selector);
+        if (row) row.hidden = !visible;
+    };
+
+    function renderInfo(item) {
+        const tile = item.tile;
+        const sourceLink = viewer.querySelector('[data-info-source-link]');
+        if (sourceLink) {
+            sourceLink.href = value(tile, 'sourceUrl') || '#';
+            sourceLink.hidden = !value(tile, 'sourceUrl');
+        }
+        setText('[data-info-context]', value(tile, 'context'));
+        setText('[data-info-date]', value(tile, 'date'));
+        setText('[data-info-source]', `${value(tile, 'sourceLabel')} · ${value(tile, 'subtitle')}`);
+        setText('[data-info-classification]', value(tile, 'classification') || 'Not classified');
+
+        const caption = value(tile, 'caption');
+        setText('[data-info-caption]', caption);
+        setRow('[data-info-caption-row]', Boolean(caption));
+
+        fillLinks(viewer.querySelector('[data-info-albums]'), viewer.querySelector('[data-info-albums-row]'), parseLinks(value(tile, 'albums')));
+        fillLinks(viewer.querySelector('[data-info-people]'), viewer.querySelector('[data-info-people-row]'), parseLinks(value(tile, 'people')));
 
         const filename = value(tile, 'filename');
-        const filenameRow = viewer.querySelector('[data-info-filename-row]');
-        if (filenameRow) filenameRow.hidden = !filename;
-        const filenameHost = viewer.querySelector('[data-info-filename]');
-        if (filenameHost) filenameHost.textContent = filename;
+        setRow('[data-info-filename-row]', Boolean(filename));
+        setText('[data-info-filename]', filename);
 
         const fileSize = value(tile, 'fileSize');
-        const fileSizeRow = viewer.querySelector('[data-info-file-size-row]');
-        if (fileSizeRow) fileSizeRow.hidden = !fileSize;
-        const fileSizeHost = viewer.querySelector('[data-info-file-size]');
-        if (fileSizeHost) fileSizeHost.textContent = fileSize;
+        setRow('[data-info-file-size-row]', Boolean(fileSize));
+        setText('[data-info-file-size]', fileSize);
 
         const editCaptionButton = viewer.querySelector('[data-info-edit-caption]');
         if (editCaptionButton) {
@@ -247,144 +165,29 @@
             editCaptionButton.dataset.token = value(tile, 'editorialToken');
         }
 
-        const peopleHost = viewer.querySelector('[data-info-people]');
-        const peopleRow = viewer.querySelector('[data-info-people-row]');
-        let people = [];
-        try {
-            const parsed = JSON.parse(value(tile, 'people') || '[]');
-            people = Array.isArray(parsed)
-                ? parsed.filter(person => person && person.name && person.url)
-                : [];
-        } catch {
-            people = [];
-        }
-        peopleHost.replaceChildren();
-        people.forEach(person => {
-            const link = document.createElement('a');
-            link.href = person.url;
-            link.textContent = person.name;
-            peopleHost.append(link);
-        });
-        peopleRow.hidden = people.length === 0;
-
         const unidentified = Number.parseInt(value(tile, 'unidentified'), 10) || 0;
-        const unidentifiedRow = viewer.querySelector('[data-info-unidentified-row]');
-        unidentifiedRow.hidden = unidentified === 0;
-        viewer.querySelector('[data-info-unidentified]').textContent = unidentified === 1
-            ? '1 face awaiting review'
-            : `${unidentified} faces awaiting review`;
+        setRow('[data-info-unidentified-row]', unidentified > 0);
+        setText('[data-info-unidentified]', unidentified === 1 ? '1 face awaiting review' : `${unidentified} faces awaiting review`);
 
         const width = value(tile, 'width');
         const height = value(tile, 'height');
-        const dimensionsRow = viewer.querySelector('[data-info-dimensions-row]');
-        dimensionsRow.hidden = !width || !height;
-        viewer.querySelector('[data-info-dimensions]').textContent = width && height ? `${width} × ${height} px` : '';
+        setRow('[data-info-dimensions-row]', Boolean(width && height));
+        setText('[data-info-dimensions]', width && height ? `${width} × ${height} px` : '');
 
         const duration = value(tile, 'duration');
-        const durationRow = viewer.querySelector('[data-info-duration-row]');
-        durationRow.hidden = !duration;
-        viewer.querySelector('[data-info-duration]').textContent = duration;
-
-        previousButton.hidden = tiles.length < 2;
-        nextButton.hidden = tiles.length < 2;
+        setRow('[data-info-duration-row]', Boolean(duration));
+        setText('[data-info-duration]', duration);
     }
 
-    function open(index, trigger, fromHash = false) {
-        if (viewer.hidden) {
-            previousFocus = trigger || document.activeElement;
-            returnHash = isMediaHash(window.location.hash) ? '' : window.location.hash;
-            setBackgroundInert(true);
-        }
-        render(index);
-        viewer.hidden = false;
-        viewer.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('photos-viewer-open');
-        if (!fromHash) {
-            const nextHash = hashFor(tiles[currentIndex]);
-            if (window.location.hash !== nextHash) history.replaceState(null, '', nextHash);
-        }
-        viewer.querySelector('[data-viewer-close]').focus({ preventScroll: true });
-    }
-
-    function close() {
-        const video = mediaHost.querySelector('video');
-        if (video) video.pause();
-
-        viewer.hidden = true;
-        viewer.setAttribute('aria-hidden', 'true');
-        viewer.classList.remove('is-info-open');
-        infoButton.setAttribute('aria-pressed', 'false');
-        infoPanel.setAttribute('aria-hidden', 'true');
-        infoPanel.inert = true;
-        mediaHost.replaceChildren();
-        setZoom(1);
-        document.body.classList.remove('photos-viewer-open');
-        setBackgroundInert(false);
-
-        if (previousFocus instanceof HTMLElement && document.contains(previousFocus)) {
-            previousFocus.focus({ preventScroll: true });
-        }
-
-        if (isMediaHash(window.location.hash)) {
-            const destination = `${window.location.pathname}${window.location.search}${returnHash}`;
-            history.replaceState(null, '', destination);
-        }
-    }
+    const mediaViewer = window.PMMediaViewer.attach(viewer, {
+        items,
+        hashPrefix: '#media=',
+        onRender: renderInfo
+    });
 
     if (root.dataset.organizeAlbum !== 'true') {
-        tiles.forEach((tile, index) => tile.addEventListener('click', () => open(index, tile)));
+        tiles.forEach((tile, index) => tile.addEventListener('click', () => mediaViewer.open(index, tile)));
     }
-    viewer.querySelectorAll('[data-viewer-close]').forEach(button => button.addEventListener('click', close));
-    previousButton.addEventListener('click', () => {
-        render(currentIndex - 1);
-        history.replaceState(null, '', hashFor(tiles[currentIndex]));
-    });
-    nextButton.addEventListener('click', () => {
-        render(currentIndex + 1);
-        history.replaceState(null, '', hashFor(tiles[currentIndex]));
-    });
-    zoomInButton?.addEventListener('click', () => setZoom(zoom + 0.25));
-    zoomOutButton?.addEventListener('click', () => setZoom(zoom - 0.25));
-    zoomResetButton?.addEventListener('click', () => setZoom(1));
-
-    infoButton.addEventListener('click', () => {
-        const openNow = viewer.classList.toggle('is-info-open');
-        infoButton.setAttribute('aria-pressed', String(openNow));
-        infoPanel.setAttribute('aria-hidden', String(!openNow));
-        infoPanel.inert = !openNow;
-    });
-
-    document.addEventListener('keydown', event => {
-        if (viewer.hidden) return;
-
-        if (event.key === 'Tab') {
-            const focusable = [...viewer.querySelectorAll(focusableSelector)]
-                .filter(element => !element.hidden && element.getClientRects().length > 0);
-            if (focusable.length === 0) {
-                event.preventDefault();
-                return;
-            }
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
-            }
-            return;
-        }
-
-        if (event.key === 'Escape') { event.preventDefault(); close(); }
-        if (event.key === 'ArrowLeft') { event.preventDefault(); render(currentIndex - 1); history.replaceState(null, '', hashFor(tiles[currentIndex])); }
-        if (event.key === 'ArrowRight') { event.preventDefault(); render(currentIndex + 1); history.replaceState(null, '', hashFor(tiles[currentIndex])); }
-        if (event.key === '+' || event.key === '=') { event.preventDefault(); setZoom(zoom + 0.25); }
-        if (event.key === '-') { event.preventDefault(); setZoom(zoom - 0.25); }
-        if (event.key === '0') { event.preventDefault(); setZoom(1); }
-        if (event.key.toLowerCase() === 'i') { event.preventDefault(); infoButton.click(); }
-    });
-
 
     const markUnavailable = (image) => {
         const tile = image.closest('[data-media-item]');
@@ -518,26 +321,10 @@
 
     layoutAll();
 
-    const syncViewerWithHash = () => {
-        if (!isMediaHash(window.location.hash)) {
-            if (!viewer.hidden) close();
-            return;
-        }
-
-        let key;
-        try {
-            key = decodeURIComponent(window.location.hash.slice(mediaHashPrefix.length));
-        } catch {
-            return;
-        }
-        const index = tiles.findIndex(tile => mediaKey(tile) === key);
-        if (index >= 0) open(index, tiles[index], true);
-    };
-
     if (root.dataset.organizeAlbum !== 'true') {
-        window.addEventListener('hashchange', syncViewerWithHash);
-        syncViewerWithHash();
-    } else if (isMediaHash(window.location.hash)) {
+        window.addEventListener('hashchange', () => mediaViewer.syncWithHash());
+        mediaViewer.syncWithHash();
+    } else if (window.location.hash.startsWith('#media=')) {
         history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
     }
 

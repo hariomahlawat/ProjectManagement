@@ -74,7 +74,8 @@
     object-fit: contain;
 }
 
-.project-video-card__featured {
+.project-video-card__featured,
+.project-video-card__expand {
     position: absolute;
     top: .75rem;
     left: .75rem;
@@ -88,6 +89,19 @@
     font-size: .72rem;
     font-weight: 700;
     backdrop-filter: blur(6px);
+}
+
+/* Full screen: opens the media viewer (js/widgets/media-viewer.js). */
+.project-video-card__expand {
+    left: auto;
+    right: .75rem;
+    text-decoration: none;
+}
+
+.project-video-card__expand:hover,
+.project-video-card__expand:focus-visible {
+    color: inherit;
+    text-decoration: underline;
 }
 
 .project-video-card__body {
@@ -252,7 +266,8 @@
     background: #25282d;
 }
 
-:where([data-bs-theme="dark"]) .project-video-card__featured {
+:where([data-bs-theme="dark"]) .project-video-card__featured,
+:where([data-bs-theme="dark"]) .project-video-card__expand {
     background: rgba(0, 0, 0, 0.82);
     color: #fff;
 }

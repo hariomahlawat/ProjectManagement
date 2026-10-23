@@ -15,11 +15,11 @@
     var videoPreview = Model.VideoPreviewItems.Take(2).ToList();
 
     const int maxPhotoPreviewCount = 8;
-    var photoPreview = new List<(string Url, string Alt, bool IsCover)>();
+    var photoPreview = new List<(int Id, string Url, string Alt, bool IsCover)>();
     var includedPhotoIds = new HashSet<int>();
     if (media.CoverPhoto is not null && !string.IsNullOrWhiteSpace(media.CoverPhotoUrl))
     {
-        photoPreview.Add((media.CoverPhotoUrl!, media.CoverPhoto.Caption ?? "Project cover photograph", true));
+        photoPreview.Add((media.CoverPhoto.Id, media.CoverPhotoUrl!, media.CoverPhoto.Caption ?? "Project cover photograph", true));
         includedPhotoIds.Add(media.CoverPhoto.Id);
     }
 
@@ -45,7 +45,7 @@
 
         if (!string.IsNullOrWhiteSpace(photoUrl))
         {
-            photoPreview.Add((photoUrl!, photo.Caption ?? "Project photograph", false));
+            photoPreview.Add((photo.Id, photoUrl!, photo.Caption ?? "Project photograph", false));
         }
     }
 
@@ -166,10 +166,14 @@
                     {
                         var photo = photoPreview[index];
                         var showRemaining = index == photoPreview.Count - 1 && remainingPhotos > 0;
+                        @* Opens the full-screen viewer at this photo (all project photos, in gallery
+                           order); without JavaScript, or with a modified click, the photos page. *@
                         <a class="project-photo-grid__item"
                            asp-page="/Projects/Photos/Index"
                            asp-route-id="@projectId"
-                           aria-label="View photo @(index + 1) of @media.PhotoCount in the project gallery">
+                           data-media-viewer-open="project-photos"
+                           data-media-viewer-key="@ProjectMediaViewerItems.PhotoKey(photo.Id)"
+                           aria-label="View photo @(index + 1) of @media.PhotoCount">
                             <img src="@photo.Url" alt="@photo.Alt" loading="lazy" />
                             @if (photo.IsCover)
                             {
@@ -238,6 +242,9 @@
                         <a class="project-video-preview__item"
                            asp-page="/Projects/Videos/Index"
                            asp-route-id="@projectId"
+                           data-media-viewer-open="project-videos"
+                           data-media-viewer-key="@ProjectMediaViewerItems.VideoKey(video.Id)"
+                           aria-label="Play @video.Title"
                            role="listitem">
                             <span class="project-video-preview__thumb">
                                 <img src="@video.ThumbnailUrl" alt="" loading="lazy" />
@@ -286,3 +293,6 @@
         </div>
     </section>
 </div>
+<partial name="_MediaViewerItems" model="@(new MediaViewerItemsGroup("project-photos", Model.PhotoViewerItems))" />
+<partial name="_MediaViewerItems" model="@(new MediaViewerItemsGroup("project-videos", Model.VideoViewerItems))" />
+<partial name="_MediaViewer" />

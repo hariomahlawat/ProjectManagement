@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **7753** stylesheet literals in 84 files, **6** in inline view styles.
+Totals: **7743** stylesheet literals in 85 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -24,11 +24,11 @@ Totals: **7753** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 1: Dashboard, My Workspace, Projects lists, Calendar, shared site.css
 
-1873 literals.
+1880 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 415 | 308 |
+| `site.css` | 405 | 300 |
 | `command-workspace.css` | 231 | 164 |
 | `officer-conference.css` | 202 | 139 |
 | `pages/projects-completed-summary.css` | 186 | 140 |
@@ -42,18 +42,19 @@ Totals: **7753** stylesheet literals in 84 files, **6** in inline view styles.
 | `todo-widget.css` | 39 | 22 |
 | `widgets/ffc-simulator-map.css` | 32 | 19 |
 | `erp-activity-strip.css` | 22 | 14 |
+| `widgets/media-viewer.css` | 17 | 14 |
 | `widgets/ops-signals.css` | 13 | 6 |
 | `components/pm-table.css` | 1 | 1 |
 
 ## Wave 2: Notebook, Photos, Documents, Search
 
-1049 literals.
+1032 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `notebook.css` | 348 | 243 |
 | `pages/photos-people.css` | 183 | 114 |
-| `pages/photos-library.css` | 169 | 110 |
+| `pages/photos-library.css` | 152 | 96 |
 | `docrepo-ui.css` | 75 | 51 |
 | `pages/photos-person-profile.css` | 75 | 55 |
 | `pages/photos-curation.css` | 53 | 38 |
