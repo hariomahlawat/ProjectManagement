@@ -132,6 +132,12 @@ function initLoadMore(root) {
       const hits = Array.from(page.querySelectorAll('[data-search-results] [data-search-hit]'));
       if (hits.length === 0) throw new Error('No further results in the response.');
 
+      // If the index changed, the server restarts from the first result; show that page
+      // as it is rather than appending results the reader has already seen.
+      const shownRanks = Array.from(results.querySelectorAll('a[data-search-result]'), (anchor) => Number(anchor.dataset.searchRank || 0));
+      const firstNew = Number(hits[0].querySelector('a[data-search-result]')?.dataset.searchRank || 0);
+      if (firstNew <= Math.max(0, ...shownRanks)) throw new Error('Results restarted from the beginning.');
+
       const imported = hits.map((hit) => document.importNode(hit, true));
       results.append(...imported);
 
