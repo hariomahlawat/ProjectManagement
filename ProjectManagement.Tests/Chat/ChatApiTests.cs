@@ -92,7 +92,8 @@ public sealed class ChatApiTests
     [Fact]
     public async Task Attachments_AreAbsentWhileSwitchedOff()
     {
-        await using var host = await ChatHost.CreateAsync();
+        // Switched off explicitly: appsettings.json now ships with attachments on.
+        await using var host = await ChatHost.CreateAsync(new Dictionary<string, string?> { ["Chat:Attachments:Enabled"] = "false" });
         using var client = host.ClientFor("alice");
 
         var response = await client.GetAsync("/api/chat/attachments/usage");
