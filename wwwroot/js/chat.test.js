@@ -2950,3 +2950,35 @@ test('removing selected files takes a second click; restore puts one back', asyn
     window.close();
   }
 });
+
+test('the Messages page starts when the scripts run after the page is parsed, as deferred scripts do', async () => {
+  // A browser runs deferred scripts once parsing has finished (readyState "interactive"), so
+  // start-up happens straight away rather than on DOMContentLoaded. MessagesPage must already be
+  // registered by then, or /Chat stays empty and the chat panel never loads.
+  const dom = new JSDOM(`<!doctype html><html><head><meta name="csrf-token" content="t"></head><body>
+    <section data-chat-page data-open-with="peer"></section>
+    <div data-chat-root data-current-user-id="me" data-api-base="/api/chat" data-max-length="4000"></div>
+  </body></html>`, { runScripts: 'outside-only', url: 'https://prism.local/', pretendToBeVisual: true });
+  const { window } = dom;
+  Object.defineProperty(window, 'crypto', { value: webcrypto, configurable: true });
+  window.fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    json: async () => (String(url).endsWith('/contacts') ? [contact] : String(url).includes('/messages') ? pageOf([], false) : []),
+  });
+  try {
+    if (window.document.readyState === 'loading') {
+      await new Promise((resolve) => window.document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+    }
+    assert.notEqual(window.document.readyState, 'loading');
+
+    window.eval(script);
+    await tick(); await tick();
+
+    assert.ok(window.PMChat, 'the chat app started');
+    assert.ok(window.PMChat.page, 'the Messages page was built');
+  } finally {
+    window.close();
+  }
+});
