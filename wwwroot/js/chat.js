@@ -202,6 +202,7 @@
   };
 
   const GROUP_PREFIX = 'g:';
+  let panelSerial = 0; // ids for aria-controls
 
   function groupKey(id) {
     return `${GROUP_PREFIX}${id}`;
@@ -276,6 +277,32 @@
     if (className) node.className = className;
     if (text !== undefined && text !== null) node.textContent = text;
     return node;
+  }
+
+  /**
+   * Lists and logs are redrawn whole on every update (presence, unread counts, read ticks), which
+   * would drop keyboard focus. Controls that can hold focus carry data-focus-key; this is the key
+   * of the one that has focus inside container, or '' when focus is elsewhere.
+   */
+  function focusKeyIn(container) {
+    const active = document.activeElement;
+    return active && active !== container && container.contains(active) && active.dataset
+      ? active.dataset.focusKey || ''
+      : '';
+  }
+
+  /** After a redraw, focus the control with that key again; false when it is gone. */
+  function refocus(container, key) {
+    if (!key) return false;
+    const again = Array.from(container.querySelectorAll('[data-focus-key]')).find((n) => n.dataset.focusKey === key);
+    if (!again) return false;
+    again.focus({ preventScroll: true });
+    return true;
+  }
+
+  /** Writes text only when it changed, so a live region does not announce the same words again. */
+  function setText(node, text) {
+    if (node.textContent !== text) node.textContent = text;
   }
 
   function icon(name) {
@@ -793,8 +820,37 @@
     if (fresh && !(win && this.isAttended(win))) {
       this.alert(message, contact, group);
     }
+    if (fresh) this.announceMessage(message, win, group);
 
     this.renderContacts();
+  };
+
+  /**
+   * Tells a screen reader about a new message once: the text when the person is in that
+   * conversation, otherwise who it is from (the conversation logs are not live regions).
+   */
+  ChatApp.prototype.announceMessage = function (message, win, group) {
+    const who = this.nameOf(message.senderUserId, win);
+    const from = group ? `${who} in ${group.title}` : who;
+    if (win && this.isAttended(win)) {
+      const text = message.body.length > 200 ? `${message.body.slice(0, 200)}…` : message.body;
+      this.announce(`${from}: ${text}`);
+    } else {
+      this.announce(`New message from ${from}`);
+    }
+  };
+
+  /** Announces messages that came in through a fetch: one is read like a pushed message. */
+  ChatApp.prototype.announceFetched = function (win, messages) {
+    const incoming = messages.filter((m) => m.senderUserId !== this.me && !m.eventKind && !m.isUnsent);
+    if (!incoming.length) return;
+    const group = win.groupId ? this.groups.get(win.groupId) : null;
+    if (incoming.length === 1) {
+      this.announceMessage(incoming[0], win, group);
+      return;
+    }
+    const where = group ? `in ${group.title}` : `from ${this.nameOf(win.peerId, win)}`;
+    this.announce(`${incoming.length} new messages ${where}`);
   };
 
   /** Sound and title flash for a message the person is not looking at. */
@@ -1082,7 +1138,10 @@
     }
 
     const close = iconButton('x-lg', 'Close contacts');
-    close.addEventListener('click', () => this.toggleBuddy(false));
+    close.addEventListener('click', () => {
+      this.toggleBuddy(false);
+      this.focusLauncher();
+    });
     header.append(close);
 
     const statusWrap = el('form', 'pm-chat__mystatus');
@@ -1100,8 +1159,10 @@
     statusInput.addEventListener('blur', () => this.saveMyStatus());
     statusInput.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
+        event.stopPropagation(); // cancels the edit; a second Esc closes the contact list
         statusInput.value = this.myStatus || '';
         statusInput.blur();
+        search.focus();
       }
     });
     this.statusInput = statusInput;
@@ -1136,10 +1197,49 @@
 
     buddy.append(header, statusWrap, searchWrap, this.groupForm, scroller);
     this.buddy = buddy;
+    this.newGroupButton = newGroup;
+
+    // Esc steps back one level: clears the search, closes the New group form, then the list.
+    buddy.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (event.target === search && search.value) {
+        event.preventDefault();
+        search.value = '';
+        this.renderContacts();
+        return;
+      }
+      if (!this.groupForm.hidden && this.groupForm.contains(event.target)) {
+        this.groupForm.hidden = true;
+        newGroup.focus();
+        return;
+      }
+      this.toggleBuddy(false);
+      this.focusLauncher();
+    });
+
+    // One polite live region for things a screen reader user would otherwise miss: a message
+    // arriving, or an error in a form. The conversation logs themselves are not live regions,
+    // because they are redrawn whole and would be read out again each time.
+    this.announcer = el('div', 'visually-hidden');
+    this.announcer.setAttribute('aria-live', 'polite');
+    this.announcer.setAttribute('aria-atomic', 'true');
 
     this.windowRow = el('div', 'pm-chat__windows');
     dock.append(this.windowRow, buddy);
-    this.root.append(dock);
+    this.root.append(dock, this.announcer);
+  };
+
+  /** Says text through the live region (cleared first, so the same words are read again). */
+  ChatApp.prototype.announce = function (text) {
+    if (!this.announcer || !text) return;
+    this.announcer.textContent = '';
+    global.setTimeout(() => { this.announcer.textContent = text; }, 30);
+  };
+
+  /** Back to the chat button in the top bar, when focus would otherwise fall to the page. */
+  ChatApp.prototype.focusLauncher = function () {
+    const launcher = this.launchers.find((b) => !b.hidden && b.offsetParent !== null) || this.launchers[0];
+    if (launcher) launcher.focus();
   };
 
   ChatApp.prototype.loadMyStatus = async function () {
@@ -1236,10 +1336,12 @@
     const online = all.filter((c) => c.isOnline && c.isActive && !c.isAway).length;
     this.onlineCount.textContent = `${online} online`;
 
+    const focused = focusKeyIn(this.list);
     this.list.replaceChildren(...shown.map((contact) => {
       const item = el('li');
       const button = el('button', 'pm-chat__contact');
       button.type = 'button';
+      button.dataset.focusKey = `contact:${contact.userId}`;
       if (!contact.isActive) button.classList.add('is-inactive');
       const face = avatar(contact);
       setPresence(face, contact);
@@ -1256,6 +1358,7 @@
       item.append(button);
       return item;
     }));
+    refocus(this.list, focused);
 
     this.emptyNote.hidden = shown.length > 0;
     this.emptyNote.textContent = all.length ? 'No one matches that search.' : 'No other users yet.';
@@ -1274,10 +1377,12 @@
   ChatApp.prototype.renderGroupList = function () {
     const needle = (this.search.value || '').trim().toLowerCase();
     const groups = this.sortedGroups().filter((g) => !needle || g.title.toLowerCase().includes(needle));
+    const focused = focusKeyIn(this.groupList);
     this.groupList.replaceChildren(...groups.map((group) => {
       const item = el('li');
       const button = el('button', 'pm-chat__contact');
       button.type = 'button';
+      button.dataset.focusKey = `group:${group.id}`;
       const text = el('span', 'pm-chat__contact-text');
       text.append(el('span', 'pm-chat__contact-name', group.title));
       text.append(el('span', 'pm-chat__contact-meta', peopleCount(group.memberCount)));
@@ -1290,17 +1395,16 @@
       item.append(button);
       return item;
     }));
+    refocus(this.groupList, focused);
     this.groupHeading.hidden = groups.length === 0;
     this.peopleHeading.hidden = groups.length === 0;
   };
 
   /**
    * People picker shared by "New group" and "Add people": active contacts, filtered by a search
-   * box, as checkboxes. Returns { node, selected() }.
-   */
-  /**
-   * A searchable list of people to tick. state ({ chosen: Set, filter: string }), when given, holds
-   * the ticks and the search text, so a redraw of the surrounding panel does not lose them.
+   * box, as checkboxes. Returns { node, selected(), focus() }. state ({ chosen: Set, filter:
+   * string }), when given, holds the ticks and the search text, so a redraw of the surrounding
+   * panel does not lose them.
    */
   ChatApp.prototype.peoplePicker = function (exclude, limit, state) {
     const node = el('div', 'pm-chat__picker');
@@ -1308,13 +1412,16 @@
     filter.type = 'search';
     filter.placeholder = 'Find people';
     filter.setAttribute('aria-label', 'Find people to add');
-    filter.dataset.panelFocus = 'filter';
+    filter.dataset.focusKey = 'filter';
     const list = el('ul', 'pm-chat__picker-list');
+    list.setAttribute('role', 'group');
+    list.setAttribute('aria-label', 'People');
     const chosen = state ? state.chosen : new Set();
     // People who joined meanwhile (someone else added them) are no longer choices.
     exclude.forEach((id) => chosen.delete(id));
     if (state) filter.value = state.filter || '';
     const note = el('p', 'pm-chat__picker-note');
+    note.setAttribute('aria-live', 'polite'); // "3 selected", and the 50-people limit
     const draw = () => {
       const needle = filter.value.trim().toLowerCase();
       const people = sortContacts(Array.from(this.contacts.values()))
@@ -1326,7 +1433,7 @@
         const label = el('label', 'pm-chat__picker-item');
         const box = el('input', 'form-check-input');
         box.type = 'checkbox';
-        box.dataset.panelFocus = `pick:${c.userId}`;
+        box.dataset.focusKey = `pick:${c.userId}`;
         box.checked = chosen.has(c.userId);
         box.addEventListener('change', () => {
           if (box.checked && chosen.size >= limit) {
@@ -1365,12 +1472,16 @@
     title.setAttribute('aria-label', 'Group name');
     const picker = this.peoplePicker(new Set([this.me]), GROUP_LIMIT - 1);
     const error = el('p', 'pm-chat__form-error');
+    error.setAttribute('aria-live', 'polite');
     const actions = el('div', 'pm-chat__form-actions');
     const create = el('button', 'btn btn-primary btn-sm', 'Create group');
     create.type = 'submit';
     const cancel = el('button', 'btn btn-link btn-sm', 'Cancel');
     cancel.type = 'button';
-    cancel.addEventListener('click', () => { form.hidden = true; });
+    cancel.addEventListener('click', () => {
+      form.hidden = true;
+      this.newGroupButton.focus();
+    });
     actions.append(create, cancel);
     form.replaceChildren(el('h3', 'pm-chat__section', 'New group'), title, picker.node, error, actions);
     form.onsubmit = async (event) => {
@@ -1557,7 +1668,9 @@
     earlier.hidden = true;
     const log = el('ol', 'pm-chat__log');
     log.setAttribute('role', 'log');
-    log.setAttribute('aria-live', 'polite');
+    // Not live: the log is redrawn whole on every update and would be read out again. New
+    // messages are announced once through the app's live region instead.
+    log.setAttribute('aria-live', 'off');
     const newer = el('button', 'btn btn-link btn-sm pm-chat__earlier', 'Show newer messages');
     newer.type = 'button';
     newer.hidden = true;
@@ -1568,6 +1681,12 @@
 
     const panel = el('div', 'pm-chat__members');
     panel.hidden = true;
+    panel.id = `pm-chat-people-${++panelSerial}`;
+    panel.setAttribute('role', 'region');
+    panel.setAttribute('aria-label', 'People in this group');
+    panel.tabIndex = -1;
+    people.setAttribute('aria-controls', panel.id);
+    people.setAttribute('aria-expanded', 'false');
     const stage = el('div', 'pm-chat__window-stage');
     stage.append(body, panel);
 
@@ -1584,7 +1703,7 @@
     node.append(head, stage, notice, form);
 
     const win = {
-      peerId, node, face, name, status, body, log, earlier, newer, notice, input, form, minimize, embedded,
+      peerId, node, face, name, status, body, log, earlier, newer, notice, input, form, minimize, embedded, toggle,
       messages: [], hasMore: false, hasNewer: false, historyLoaded: false, syncing: false, syncAgain: false,
       loading: false, minimized: false, attention: false, lastReadId: 0, readSending: 0, peerReadId: 0,
       typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0, unsendTimer: null,
@@ -1592,9 +1711,28 @@
     };
 
     people.addEventListener('click', () => {
-      win.panelOpen = !win.panelOpen;
-      if (!win.panelOpen) win.panelState = null;
+      if (win.panelOpen) {
+        this.closeMembersPanel(win);
+        return;
+      }
+      win.panelOpen = true;
       this.renderMembersPanel(win);
+      panel.focus(); // into the panel, so the keyboard user is where the content appeared
+    });
+
+    // Esc steps back one level: closes the people panel, then minimises the window (docked).
+    node.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (win.panelOpen) {
+        event.stopPropagation();
+        this.closeMembersPanel(win);
+        return;
+      }
+      if (embedded) return;
+      win.minimized = true;
+      this.renderWindowState(win);
+      this.saveState();
+      toggle.focus(); // the title bar stays visible and reopens the window
     });
 
     if (!embedded) {
@@ -1609,14 +1747,11 @@
         win.minimized = true;
         this.renderWindowState(win);
         this.saveState();
+        toggle.focus();
       });
-      close.addEventListener('click', () => this.closeWindow(peerId));
-      node.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          win.minimized = true;
-          this.renderWindowState(win);
-          this.saveState();
-        }
+      close.addEventListener('click', () => {
+        this.closeWindow(peerId);
+        this.focusLauncher();
       });
     }
     earlier.addEventListener('click', () => this.loadEarlier(win));
@@ -1675,12 +1810,13 @@
       win.name.textContent = contact.displayName;
       win.face.querySelector('.pm-chat__initials').textContent = contact.initials;
       win.node.setAttribute('aria-label', `Chat with ${contact.displayName}`);
+      win.input.setAttribute('aria-label', `Message ${contact.displayName}`);
     }
     setPresence(win.face, contact);
     const typing = win.typingUntil > Date.now();
     win.node.classList.toggle('is-typing', typing);
     const note = contact && contact.statusMessage ? ` · ${contact.statusMessage}` : '';
-    win.status.textContent = typing ? 'typing…' : (win.attention ? 'New message' : statusText(contact) + note);
+    setText(win.status, typing ? 'typing…' : (win.attention ? 'New message' : statusText(contact) + note));
     win.status.title = contact && contact.statusMessage ? contact.statusMessage : '';
 
     const canSend = !!contact && contact.isActive;
@@ -1695,15 +1831,16 @@
     win.name.textContent = title;
     win.face.title = title;
     win.node.setAttribute('aria-label', `Group chat ${title}`);
+    win.input.setAttribute('aria-label', `Message ${title}`); // follows a rename
     const now = Date.now();
     const typers = Array.from(win.typers.entries())
       .filter(([, until]) => until > now)
       .map(([userId]) => this.nameOf(userId, win));
     win.node.classList.toggle('is-typing', typers.length > 0);
     const count = group ? group.memberCount : (win.members || []).length;
-    win.status.textContent = typers.length
+    setText(win.status, typers.length
       ? typingLine(typers)
-      : (win.attention ? 'New message' : (win.removed ? 'You are not in this group' : peopleCount(count)));
+      : (win.attention ? 'New message' : (win.removed ? 'You are not in this group' : peopleCount(count))));
     win.status.title = '';
     win.people.hidden = win.removed;
 
@@ -1728,21 +1865,15 @@
     const state = win.panelState || (win.panelState = {
       chosen: new Set(), filter: '', addOpen: false, rename: null, leaveArmed: false, error: '',
     });
-    const active = document.activeElement;
-    const focusKey = active && panel.contains(active) ? active.dataset.panelFocus : '';
+    const focusKey = focusKeyIn(panel);
     const group = this.groups.get(win.groupId);
     const manager = group ? group.managerUserId : '';
     const iManage = manager === this.me;
 
     const head = el('div', 'pm-chat__members-head');
     head.append(el('strong', null, 'People in this group'));
-    const close = iconButton('x-lg', 'Close');
-    close.addEventListener('click', () => {
-      win.panelOpen = false;
-      win.panelState = null;
-      this.renderMembersPanel(win);
-      win.people.focus();
-    });
+    const close = iconButton('x-lg', 'Close people');
+    close.addEventListener('click', () => this.closeMembersPanel(win));
     head.append(close);
 
     // Members arrive with the first history page; until then there is nothing to list or exclude.
@@ -1761,7 +1892,7 @@
         const remove = el('button', 'btn btn-link btn-sm p-0', 'Remove');
         remove.type = 'button';
         remove.setAttribute('aria-label', `Remove ${member.displayName}`);
-        remove.dataset.panelFocus = `remove:${member.userId}`;
+        remove.dataset.focusKey = `remove:${member.userId}`;
         remove.addEventListener('click', () => this.groupAction(win, `/members/${encodeURIComponent(member.userId)}/remove`, {}));
         item.append(remove);
       }
@@ -1776,13 +1907,13 @@
     add.open = state.addOpen;
     add.addEventListener('toggle', () => { state.addOpen = add.open; });
     const summary = el('summary', null, 'Add people');
-    summary.dataset.panelFocus = 'add-toggle';
+    summary.dataset.focusKey = 'add-toggle';
     add.append(summary);
     const existing = new Set((win.members || []).map((m) => m.userId));
     const picker = this.peoplePicker(existing, Math.max(0, GROUP_LIMIT - existing.size), state);
     const addButton = el('button', 'btn btn-primary btn-sm', 'Add');
     addButton.type = 'button';
-    addButton.dataset.panelFocus = 'add';
+    addButton.dataset.focusKey = 'add';
     addButton.addEventListener('click', () => {
       const ids = picker.selected();
       if (ids.length) this.groupAction(win, '/members', { userIds: ids });
@@ -1797,11 +1928,11 @@
       input.maxLength = 100;
       input.value = state.rename !== null ? state.rename : (group ? group.title : '');
       input.setAttribute('aria-label', 'Group name');
-      input.dataset.panelFocus = 'rename';
+      input.dataset.focusKey = 'rename';
       input.addEventListener('input', () => { state.rename = input.value; });
       const save = el('button', 'btn btn-outline-secondary btn-sm', 'Rename');
       save.type = 'submit';
-      save.dataset.panelFocus = 'rename-save';
+      save.dataset.focusKey = 'rename-save';
       rename.append(input, save);
       rename.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -1813,7 +1944,7 @@
     const armedText = iManage ? 'Leave? Someone else will manage it' : 'Click again to leave';
     const leave = el('button', 'btn btn-outline-danger btn-sm pm-chat__leave', state.leaveArmed ? armedText : 'Leave group');
     leave.type = 'button';
-    leave.dataset.panelFocus = 'leave';
+    leave.dataset.focusKey = 'leave';
     leave.addEventListener('click', () => {
       // A second click confirms, so a stray click cannot remove you from the group.
       if (!state.leaveArmed) {
@@ -1825,10 +1956,15 @@
     });
     parts.push(error, leave);
     panel.replaceChildren(...parts);
-    if (focusKey) {
-      const again = Array.from(panel.querySelectorAll('[data-panel-focus]')).find((n) => n.dataset.panelFocus === focusKey);
-      if (again) again.focus();
-    }
+    refocus(panel, focusKey);
+  };
+
+  /** Closes the people panel, forgets what was in progress there, and hands focus back. */
+  ChatApp.prototype.closeMembersPanel = function (win) {
+    win.panelOpen = false;
+    win.panelState = null;
+    this.renderMembersPanel(win);
+    win.people.focus();
   };
 
   /** Runs a group change; the pushed GroupChanged/GroupRemoved events update every view. */
@@ -1857,6 +1993,7 @@
       } else {
         if (state) state.error = error.message;
         if (win.panelError) win.panelError.textContent = error.message;
+        this.announce(error.message);
       }
     }
   };
@@ -1963,6 +2100,9 @@
         }
         win.messages = mergeMessages(win.messages, result.messages);
         this.applyPeerRead(win, peerRead);
+        // Fetched rather than pushed (polling while the live connection is down, or catching
+        // up after it returns): the log is not a live region, so say what arrived.
+        this.announceFetched(win, result.messages.filter((m) => m.id > knownMax));
       }
       this.renderMessages(win, { stickToBottom: true, force: firstLoad });
       this.maybeMarkRead(win);
@@ -2116,6 +2256,7 @@
     this.applyTombstones(win);
     const body = win.body;
     const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 48;
+    const focused = focusKeyIn(win.log);
     const now = new Date();
     const items = [];
     let lastDay = null;
@@ -2142,9 +2283,13 @@
       }
       const mine = message.senderUserId === this.me;
       const item = el('li', `pm-chat__msg ${mine ? 'is-mine' : 'is-theirs'}`);
+      const who = this.nameOf(message.senderUserId, win);
       if (win.groupId && !mine && message.senderUserId !== lastSender) {
         // In a group, say who is talking at the start of each run of their messages.
-        item.append(el('span', 'pm-chat__sender', this.nameOf(message.senderUserId, win)));
+        item.append(el('span', 'pm-chat__sender', who));
+      } else {
+        // Sides and colours show who wrote it; a screen reader hears it instead.
+        item.append(el('span', 'visually-hidden', `${who}: `));
       }
       lastSender = message.senderUserId;
       if (message.id && message.id === win.highlightId) {
@@ -2159,6 +2304,7 @@
         meta.textContent = message.error || 'Not sent.';
         const retry = el('button', 'btn btn-link btn-sm p-0 pm-chat__retry', 'Retry');
         retry.type = 'button';
+        retry.dataset.focusKey = `retry:${message.clientMessageId}`;
         retry.addEventListener('click', () => this.deliver(win, message));
         meta.append(' ', retry);
       } else if (!message.id) {
@@ -2192,6 +2338,7 @@
             const undo = el('button', 'btn btn-link btn-sm p-0 pm-chat__unsend', 'Unsend');
             undo.type = 'button';
             undo.setAttribute('aria-label', 'Unsend this message');
+            undo.dataset.focusKey = `unsend:${message.id}`;
             undo.addEventListener('click', () => this.unsend(win, message));
             meta.append(' · ', undo);
             nextExpiry = Math.min(nextExpiry, left);
@@ -2206,6 +2353,10 @@
     }
 
     win.log.replaceChildren(...items);
+    if (focused && !refocus(win.log, focused) && !win.form.hidden) {
+      // The control is gone (sent after Retry, unsent, or its time ran out): stay in the window.
+      win.input.focus({ preventScroll: true });
+    }
     // Take the Unsend link away when its time runs out.
     if (win.unsendTimer) global.clearTimeout(win.unsendTimer);
     win.unsendTimer = Number.isFinite(nextExpiry)
@@ -2284,6 +2435,7 @@
       message.failed = true;
       message.error = error.message;
       this.checkGone(win, error);
+      this.announce(`Message not sent. ${error.message}`);
     }
     this.renderMessages(this.viewFor(win), { stickToBottom: true });
   };
@@ -2351,7 +2503,8 @@
 
     this.results = el('div', 'pm-chat-page__results');
     this.results.hidden = true;
-    this.results.setAttribute('aria-live', 'polite');
+    // Not live: the results are a long list; the outcome is announced once instead.
+    this.results.setAttribute('aria-live', 'off');
 
     this.list = el('ul', 'pm-chat-page__list');
     this.list.setAttribute('role', 'list');
@@ -2390,10 +2543,12 @@
     const conversations = direct.concat(groups)
       .sort((a, b) => (Date.parse(b.last) || 0) - (Date.parse(a.last) || 0));
     const now = new Date();
+    const focused = focusKeyIn(this.list);
     this.list.replaceChildren(...conversations.map((entry) => {
       const item = el('li');
       const button = el('button', 'pm-chat-page__item');
       button.type = 'button';
+      button.dataset.focusKey = `conv:${entry.key}`;
       if (this.current && this.current.peerId === entry.key) button.setAttribute('aria-current', 'true');
       const text = el('span', 'pm-chat__contact-text');
       let face;
@@ -2419,6 +2574,7 @@
       item.append(button);
       return item;
     }));
+    refocus(this.list, focused);
     this.listEmpty.hidden = conversations.length > 0;
     this.listEmpty.textContent = 'No conversations yet. Start one with New chat.';
   };
@@ -2511,8 +2667,14 @@
       this.lastHits = hits;
       this.lastTerm = term;
       this.renderResults(hits, term);
+      this.app.announce(hits.length
+        ? `${hits.length} ${hits.length === 1 ? 'message' : 'messages'} found${hits.length >= 50 ? ', newest 50 shown' : ''}`
+        : 'No messages match.');
     } catch (_) {
-      if (seq === this.searchSeq) this.results.replaceChildren(el('p', 'pm-chat-page__empty', 'Search failed. Try again.'));
+      if (seq === this.searchSeq) {
+        this.results.replaceChildren(el('p', 'pm-chat-page__empty', 'Search failed. Try again.'));
+        this.app.announce('Search failed. Try again.');
+      }
     }
   };
 

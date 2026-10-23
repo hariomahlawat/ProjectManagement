@@ -151,7 +151,16 @@
     background: var(--pm-surface-subtle);
 }
 
-.pm-chat__contact.is-inactive {
+/* Inactive accounts: muted name and a faded avatar, not a faded row. Fading the whole row
+   would also fade the already-muted text below a readable contrast; the row says
+   "Inactive account" in words. */
+.pm-chat__contact.is-inactive .pm-chat__contact-name,
+.pm-chat-page__item.is-inactive .pm-chat__contact-name {
+    color: var(--pm-text-muted);
+}
+
+.pm-chat__contact.is-inactive .pm-chat__avatar,
+.pm-chat-page__item.is-inactive .pm-chat__avatar {
     opacity: .6;
 }
 
@@ -388,7 +397,7 @@
     margin-top: .1rem;
     padding-inline: .2rem;
     color: var(--pm-text-muted);
-    font-size: .66rem;
+    font-size: .72rem;
 }
 
 .pm-chat__msg.is-failed .pm-chat__time {
@@ -544,9 +553,6 @@
     background: var(--pm-primary-soft);
 }
 
-.pm-chat-page__item.is-inactive {
-    opacity: .6;
-}
 
 .pm-chat-page__item-side {
     display: flex;

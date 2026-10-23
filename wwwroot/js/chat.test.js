@@ -1544,7 +1544,7 @@ test('ticked people survive a group change, except anyone who joined meanwhile',
     const win = app.openWindow('g:5', { focus: false });
     await tick(); await tick();
     win.people.click();
-    const tickFor = (id) => win.panel.querySelector('[data-panel-focus="pick:' + id + '"]');
+    const tickFor = (id) => win.panel.querySelector('[data-focus-key="pick:' + id + '"]');
     tickFor('fourth').click();
     tickFor('fifth').click();
     assert.deepEqual(Array.from(win.panelState.chosen).sort(), ['fifth', 'fourth']);
@@ -1740,6 +1740,314 @@ test('a group title, sender name or notice containing markup is shown as text', 
     assert.equal(window.document.querySelector('img'), null);
     assert.equal(window.__pwned, undefined);
     assert.ok(win.name.textContent.includes('<img'));
+  } finally {
+    window.close();
+  }
+});
+
+// --- Accessibility: focus that survives redraws, Esc and focus return, what screen readers hear --
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function directMessage(id, sender, body, extra) {
+  const recipient = sender === 'me' ? 'peer' : 'me';
+  return { id, senderUserId: sender, recipientUserId: recipient, clientMessageId: 'c-' + id, body, sentUtc: new Date().toISOString(), ...extra };
+}
+
+function focusKeyOf(window) {
+  const active = window.document.activeElement;
+  return active && active.dataset ? active.dataset.focusKey || '' : '';
+}
+
+test('keyboard focus in the contact list survives presence and unread updates', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.toggleBuddy(true);
+    await tick(); await tick();
+    app.list.querySelector('[data-focus-key="contact:third"]').focus();
+
+    app.onPresence({ userId: 'peer', isOnline: false, isAway: false });
+    app.contacts.get('third').unreadCount = 4;
+    app.renderContacts();
+
+    assert.equal(focusKeyOf(window), 'contact:third');
+    assert.match(window.document.activeElement.getAttribute('aria-label'), /4 unread/);
+
+    app.groupList.querySelector('[data-focus-key="group:5"]').focus();
+    app.groups.get(5).unreadCount = 7;
+    app.renderContacts();
+    assert.equal(focusKeyOf(window), 'group:5');
+  } finally {
+    window.close();
+  }
+});
+
+test('focus on Unsend survives a redraw, and moves to the message box when the link goes', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.unsendMs = 5 * 60000;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.acceptSaved(win, [directMessage(30, 'me', 'Sent just now')]);
+    win.log.querySelector('[data-focus-key="unsend:30"]').focus();
+
+    app.onPeerRead({ peerUserId: 'peer', upToMessageId: 30 }); // read ticks redraw the log
+    app.renderMessages(win, { stickToBottom: false });
+    assert.equal(focusKeyOf(window), 'unsend:30');
+
+    app.unsendMs = 0; // the window has passed: the link disappears on the next redraw
+    app.renderMessages(win, { stickToBottom: false });
+    assert.equal(win.log.querySelector('[data-focus-key="unsend:30"]'), null);
+    assert.equal(window.document.activeElement, win.input);
+  } finally {
+    window.close();
+  }
+});
+
+test('Esc minimises a window and leaves focus on its title bar; the minimise button does too', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(win.minimized, true);
+    assert.equal(window.document.activeElement, win.toggle);
+
+    win.toggle.click();
+    assert.equal(win.minimized, false);
+    win.minimize.click();
+    assert.equal(window.document.activeElement, win.toggle);
+  } finally {
+    window.close();
+  }
+});
+
+test('closing a window or the contact list hands focus back to the chat button', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const launcher = window.document.querySelector('[data-chat-launcher]');
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.node.querySelector('[aria-label="Close chat"]').click();
+    assert.equal(app.windows.has('peer'), false);
+    assert.equal(window.document.activeElement, launcher);
+
+    app.toggleBuddy(true);
+    app.buddy.querySelector('[aria-label="Close contacts"]').click();
+    assert.equal(app.buddy.hidden, true);
+    assert.equal(window.document.activeElement, launcher);
+  } finally {
+    window.close();
+  }
+});
+
+test('Esc in the contact list clears the search first, then closes the list', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const launcher = window.document.querySelector('[data-chat-launcher]');
+    app.toggleBuddy(true);
+    const esc = (target) => target.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+
+    // Esc while editing the status message cancels the edit only.
+    app.statusInput.focus();
+    app.statusInput.value = 'half typed';
+    esc(app.statusInput);
+    assert.equal(app.buddy.hidden, false);
+    assert.equal(app.statusInput.value, '');
+
+    app.search.value = 'thi';
+    app.renderContacts();
+    esc(app.search);
+    assert.equal(app.search.value, '');
+    assert.equal(app.buddy.hidden, false);
+
+    esc(app.search);
+    assert.equal(app.buddy.hidden, true);
+    assert.equal(window.document.activeElement, launcher);
+  } finally {
+    window.close();
+  }
+});
+
+test('the people panel is announced, takes focus, and Esc closes it before the window', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: true });
+    await tick(); await tick();
+    assert.equal(win.people.getAttribute('aria-expanded'), 'false');
+    assert.equal(win.people.getAttribute('aria-controls'), win.panel.id);
+    assert.equal(win.panel.getAttribute('role'), 'region');
+
+    win.people.click();
+    assert.equal(win.people.getAttribute('aria-expanded'), 'true');
+    assert.equal(window.document.activeElement, win.panel);
+
+    win.panel.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(win.panel.hidden, true);
+    assert.equal(win.minimized, false, 'the first Esc only closes the panel');
+    assert.equal(window.document.activeElement, win.people);
+  } finally {
+    window.close();
+  }
+});
+
+test('a failed group change is announced', async () => {
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/groups/5/rename') && init.method === 'POST') return { status: 400, body: { detail: 'That is already the group’s name.' } };
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    win.people.click();
+    await app.groupAction(win, '/rename', { title: 'TEC desk' });
+    await wait(50);
+    assert.match(app.announcer.textContent, /already the group/);
+    assert.match(win.panel.querySelector('.pm-chat__form-error').textContent, /already the group/);
+  } finally {
+    window.close();
+  }
+});
+
+test('screen readers hear who wrote each message, and new messages once, not the whole log', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    assert.equal(win.log.getAttribute('aria-live'), 'off');
+
+    app.onMessage(directMessage(40, 'peer', 'Are you free at three?'));
+    await wait(50);
+    assert.equal(app.announcer.textContent, 'New message from Peer Person', 'not in the window: who, not what');
+
+    win.input.focus(); // now in the conversation
+    app.onMessage(directMessage(41, 'peer', 'Room 4'));
+    await wait(50);
+    assert.equal(app.announcer.textContent, 'Peer Person: Room 4');
+
+    app.acceptSaved(win, [directMessage(42, 'me', 'Yes')]);
+    const hidden = Array.from(win.log.querySelectorAll('.pm-chat__msg .visually-hidden'), (n) => n.textContent);
+    assert.deepEqual(hidden, ['Peer Person: ', 'Peer Person: ', 'You: ']);
+  } finally {
+    window.close();
+  }
+});
+
+test('in a group, every message names its sender for screen readers, not just the first of a run', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    app.onMessage(groupMessage(20, 'peer', 'One'));
+    app.onMessage(groupMessage(21, 'peer', 'Two'));
+    const lastTwo = Array.from(win.log.querySelectorAll('.pm-chat__msg')).slice(-2);
+    assert.equal(lastTwo[0].querySelector('.pm-chat__sender').textContent, 'Peer Person');
+    assert.equal(lastTwo[1].querySelector('.pm-chat__sender'), null);
+    assert.equal(lastTwo[1].querySelector('.visually-hidden').textContent, 'Peer Person: ');
+  } finally {
+    window.close();
+  }
+});
+
+test('the message box label follows a group rename', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    assert.equal(win.input.getAttribute('aria-label'), 'Message TEC desk');
+    app.onGroupChanged({ id: 5, title: 'TEC desk (Nov)', managerUserId: 'me', members: deskMembers.map((m) => ({ ...m })) });
+    assert.equal(win.input.getAttribute('aria-label'), 'Message TEC desk (Nov)');
+  } finally {
+    window.close();
+  }
+});
+
+test('a message search announces how many it found', async () => {
+  const window = groupApp(async (url) => {
+    if (url.includes('/search')) {
+      return [{ messageId: 11, peerUserId: '', peerDisplayName: 'TEC desk', senderUserId: 'peer', body: 'Minutes attached', sentUtc: '2026-10-22T08:00:00Z', groupId: 5 }];
+    }
+    return undefined;
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const page = window.PMChat.page;
+    assert.equal(page.results.getAttribute('aria-live'), 'off');
+    page.searchInput.value = 'minutes';
+    await page.runSearch();
+    await wait(50);
+    assert.equal(window.PMChat.announcer.textContent, '1 message found');
+  } finally {
+    window.close();
+  }
+});
+
+test('messages fetched while the live connection is down are announced, one or several', async () => {
+  let page = [directMessage(1, 'peer', 'Hello')];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/with/peer/messages')) return { messages: page, hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    assert.equal(win.historyLoaded, true);
+
+    page = [directMessage(1, 'peer', 'Hello'), directMessage(2, 'peer', 'Are you there?')];
+    await app.loadLatest(win); // what polling does
+    await wait(50);
+    assert.equal(app.announcer.textContent, 'New message from Peer Person');
+
+    page = page.concat([directMessage(3, 'peer', 'Ping'), directMessage(4, 'me', 'Yes'), directMessage(5, 'peer', 'Good')]);
+    await app.loadLatest(win);
+    await wait(50);
+    assert.equal(app.announcer.textContent, '2 new messages from Peer Person');
+  } finally {
+    window.close();
+  }
+});
+
+test('a message that could not be sent is announced', async () => {
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.endsWith('/messages') && init.method === 'POST') return { status: 500, body: { detail: 'The server is busy.' } };
+    if (url.includes('/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    win.input.value = 'Hello';
+    app.send(win);
+    await tick(); await tick();
+    await wait(50);
+    assert.equal(app.announcer.textContent, 'Message not sent. The server is busy.');
+    assert.ok(win.log.querySelector('.pm-chat__retry'));
   } finally {
     window.close();
   }
