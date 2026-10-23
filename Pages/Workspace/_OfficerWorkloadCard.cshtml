@@ -33,7 +33,11 @@
         }
         <span class="cw-avatar">@initial</span>
         <div class="cw-officer-identity">
-            <h3>@displayName</h3>
+            @* The chat scripts add a chat button after the name (data-chat-user), except on the
+               viewer's own card and when chat is off. *@
+            <h3 class="cw-officer-name"
+                data-chat-user="@(string.IsNullOrWhiteSpace(officer.UserId) ? null : officer.UserId)"
+                data-chat-name="@displayName"><span class="cw-officer-name__text">@displayName</span></h3>
             <p>
                 <span><strong>@officer.ProjectCount</strong> projects</span>
                 <span><strong>@officer.IdeaCount</strong> ideas</span>
