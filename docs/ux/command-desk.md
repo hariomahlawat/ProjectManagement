@@ -20,7 +20,7 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
 ## Sections, in order
 
 1. **What moved forward**: the last 15 or 30 days (`?window=15`; the default is 30).
-   - Counts of stages completed, projects completed, tasks closed, ToT completed, IPR filed or granted, approved proliferation units, and FFC deliveries and installations.
+   - Counts of stages completed, projects completed, ToT completed, IPR filed or granted, approved proliferation units, and FFC deliveries and installations.
    - Up to five recent highlights.
    - Auto-completed (backfilled) stages and future-dated events do not count.
 2. **Waiting on you**: hidden when nothing waits on the viewer.

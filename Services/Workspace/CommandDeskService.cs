@@ -87,7 +87,6 @@ public sealed class CommandDeskService
     {
         var from = today.AddDays(-(MaxWindowDays - 1));
         var fromUtc = IstClock.StartOfDayIstToUtc(from);
-        var fromUtcDateTime = fromUtc.UtcDateTime;
         var events = new List<CommandDeskProgressEvent>();
 
         var stages = await _db.ProjectStages
@@ -132,13 +131,6 @@ public sealed class CommandDeskService
             Text: $"{project.Name} completed",
             Meta: project.Officer,
             Url: WorkspaceRouteHelper.ProjectOverview(project.Id))));
-
-        var closedTasks = await _db.ActionTasks
-            .AsNoTracking()
-            .Where(task => !task.IsDeleted && task.Status == ActionTaskStatuses.Closed && task.ClosedOn >= fromUtcDateTime)
-            .Select(task => task.ClosedOn!.Value)
-            .ToListAsync(ct);
-        events.AddRange(closedTasks.Select(on => new CommandDeskProgressEvent(CommandDeskProgressKind.TaskClosed, IstDate(on))));
 
         // The ToT tracker's own eligibility rule, so trashed, archived or repeat-build projects never count.
         var tots = await _db.ProjectTots

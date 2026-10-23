@@ -37,12 +37,12 @@ public sealed class CommandDeskBuilderTests
         {
             new CommandDeskProgressEvent(CommandDeskProgressKind.UnitsProliferated, Today.AddDays(-1), 40),
             new CommandDeskProgressEvent(CommandDeskProgressKind.UnitsProliferated, Today.AddDays(-9), 80),
-            new CommandDeskProgressEvent(CommandDeskProgressKind.TaskClosed, Today)
+            new CommandDeskProgressEvent(CommandDeskProgressKind.FfcDelivered, Today)
         });
 
         Assert.Collection(desk.MovedForward,
-            count => Assert.Equal((1, "task closed"), (count.Count, count.Label)),
-            count => Assert.Equal((120, "units proliferated"), (count.Count, count.Label)));
+            count => Assert.Equal((120, "units proliferated"), (count.Count, count.Label)),
+            count => Assert.Equal((1, "FFC delivery"), (count.Count, count.Label)));
     }
 
     [Theory]

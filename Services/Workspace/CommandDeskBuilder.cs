@@ -22,7 +22,6 @@ public enum CommandDeskProgressKind
 {
     StageCompleted,
     ProjectCompleted,
-    TaskClosed,
     TotCompleted,
     IprFiled,
     IprGranted,
@@ -176,7 +175,6 @@ public static class CommandDeskBuilder
 
         Add(CommandDeskProgressKind.StageCompleted, "stage completed", "stages completed", null);
         Add(CommandDeskProgressKind.ProjectCompleted, "project completed", "projects completed", "/Projects?Lifecycle=Completed");
-        Add(CommandDeskProgressKind.TaskClosed, "task closed", "tasks closed", "/ActionTasks");
         Add(CommandDeskProgressKind.TotCompleted, "ToT completed", "ToTs completed", CommandDeskRoutes.Tot);
         Add(CommandDeskProgressKind.IprFiled, "IPR filed", "IPRs filed", CommandDeskRoutes.Ipr);
         Add(CommandDeskProgressKind.IprGranted, "IPR granted", "IPRs granted", CommandDeskRoutes.Ipr);
