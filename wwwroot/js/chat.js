@@ -950,10 +950,9 @@
       win.removed = false;
       this.renderWindowState(win);
       if (readded) {
-        // Back in the group: it now starts from this new membership, so reload it from there.
-        win.messages = win.messages.filter((m) => !m.id);
-        win.historyLoaded = false;
-        this.loadLatest(win);
+        // Back in the group: it now starts from this new membership, so reload it from there,
+        // resetting all paging (the window may have been showing an older search slice).
+        this.jumpToLatest(win);
       } else {
         this.renderMessages(win, { stickToBottom: false });
       }
@@ -1906,6 +1905,8 @@
         ...m,
         lastReadMessageId: Math.max(m.lastReadMessageId || 0, known.get(m.userId) || 0),
       }));
+      // A panel opened before the members arrived is still showing "Loading…".
+      if (win.panelOpen) this.renderMembersPanel(win);
     }
   };
 

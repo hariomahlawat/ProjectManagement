@@ -1561,7 +1561,7 @@ test('ticked people survive a group change, except anyone who joined meanwhile',
   }
 });
 
-test('the people panel waits for members instead of offering everyone', async () => {
+test('the people panel waits for members, then fills in when they arrive', async () => {
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   const window = groupApp(async (url) => {
@@ -1575,6 +1575,13 @@ test('the people panel waits for members instead of offering everyone', async ()
     win.people.click();
     assert.match(win.panel.textContent, /Loading/);
     assert.equal(win.panel.querySelector('.pm-chat__members-add'), null);
+
+    // Codex review on #2734: the open panel must not stay on "Loading…".
+    release();
+    await tick(); await tick(); await tick();
+    assert.doesNotMatch(win.panel.textContent, /Loading/);
+    assert.equal(win.panel.querySelectorAll('.pm-chat__members-list li').length, 3);
+    assert.ok(win.panel.querySelector('.pm-chat__members-add'));
   } finally {
     release();
     window.close();
@@ -1610,6 +1617,44 @@ test('being added back to a group reloads it from the new membership', async () 
     assert.equal(loads, 2);
     assert.deepEqual(Array.from(win.messages, (m) => m.id), [50]);
     assert.equal(win.form.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('being added back while an older search slice is open still loads the new membership', async () => {
+  let latest = 0;
+  const window = groupApp(async (url, init) => {
+    if (url.includes('/groups/5/messages') && (!init.method || init.method === 'GET') && !url.includes('before=') && !url.includes('after=')) {
+      latest += 1;
+      if (latest > 1) {
+        return {
+          groupId: 5,
+          messages: [groupMessage(50, 'peer', '', { eventKind: 'Added', eventData: 'me' })],
+          hasMore: false,
+          hasNewer: false,
+          members: deskMembers.map((m) => ({ ...m })),
+        };
+      }
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    // As if a search hit had opened an older slice of the conversation.
+    win.hasNewer = true;
+    win.highlightId = 11;
+
+    app.onGroupRemoved(5);
+    app.onGroupChanged({ id: 5, title: 'TEC desk', managerUserId: 'peer', members: deskMembers.map((m) => ({ ...m })) });
+    await tick(); await tick();
+
+    assert.equal(latest, 2);
+    assert.equal(win.hasNewer, false);
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [50]);
   } finally {
     window.close();
   }
