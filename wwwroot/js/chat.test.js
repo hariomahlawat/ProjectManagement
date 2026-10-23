@@ -129,6 +129,7 @@ function bootApp(handler, extraBody = '') {
     return {
       ok: status >= 200 && status < 300,
       status,
+      headers: { get: (name) => (result && result.headers ? result.headers[name] || null : null) },
       json: async () => body,
     };
   };
@@ -1427,6 +1428,318 @@ test('group messages arrive on their own hub events, never on ReceiveMessage', a
     await tick();
     handlers.ReceiveGroupMessage(groupMessage(40, 'peer', 'On the group channel'));
     assert.ok(window.PMChat.windows.get('g:5').messages.some((m) => m.id === 40));
+  } finally {
+    window.close();
+  }
+});
+
+// --- Review fixes: links, 404s, ticks, the people panel, drafts --------------------------------
+
+test('group links are normalised and malformed ones are refused', () => {
+  const { PMChatInternals } = load();
+  assert.equal(PMChatInternals.conversationKey('g:05'), 'g:5');
+  assert.equal(PMChatInternals.conversationKey('g:5.5'), '');
+  assert.equal(PMChatInternals.conversationKey('g:-3'), '');
+  assert.equal(PMChatInternals.conversationKey('g:abc'), '');
+  assert.equal(PMChatInternals.conversationKey('g:'), '');
+  assert.equal(PMChatInternals.conversationKey('peer'), 'peer');
+  assert.equal(PMChatInternals.groupIdOf('g:5.5'), 0);
+  assert.equal(PMChatInternals.groupIdOf('g:99999999999999999'), 0, 'beyond a safe integer');
+});
+
+test('an ordinary 404 is an error for that request; only "chat is off" stands chat down', async () => {
+  let off = false;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/groups/77')) {
+      return off ? { status: 404, headers: { 'X-Chat-Disabled': 'true' }, body: null } : { status: 404, body: null };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    await assert.rejects(app.request('GET', '/groups/77/messages'));
+    assert.notEqual(app.stopped, true);
+    assert.equal(app.root.hidden, false);
+
+    off = true;
+    await assert.rejects(app.request('GET', '/groups/77/messages'));
+    assert.equal(app.stopped, true);
+    assert.equal(app.root.hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('"Seen" in a group waits only for members who can read the message', () => {
+  const { PMChatInternals } = load();
+  const message = { id: 12, sentUtc: '2026-10-22T09:00:00Z' };
+  const members = [
+    { userId: 'me', isActive: true, lastReadMessageId: 12 },
+    { userId: 'peer', isActive: true, lastReadMessageId: 12, joinedUtc: '2026-10-01T00:00:00Z' },
+    { userId: 'gone', isActive: false, lastReadMessageId: 3 }, // inactive: never reads
+    { userId: 'late', isActive: true, lastReadMessageId: null, joinedUtc: '2026-10-22T10:00:00Z' }, // joined after it
+  ];
+  assert.equal(PMChatInternals.seenByEveryone(members, 'me', message), true);
+  // The label never names someone who joined after the message, however far they have read.
+  members[3].lastReadMessageId = 40;
+  assert.deepEqual(Array.from(PMChatInternals.seenBy(members, 'me', message), (m) => m.userId), ['peer']);
+  members[1].lastReadMessageId = 11;
+  assert.equal(PMChatInternals.seenByEveryone(members, 'me', message), false);
+  assert.equal(PMChatInternals.seenByEveryone([{ userId: 'me', isActive: true }], 'me', message), false, 'nobody else');
+});
+
+test('the people panel covers the window, not the scrolled messages, and keeps work across changes', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    win.people.click();
+    const panel = win.panel;
+    assert.notEqual(panel.parentNode, win.body, 'not inside the scrolling body');
+    assert.ok(panel.parentNode.classList.contains('pm-chat__window-stage'));
+
+    // Start adding someone and renaming, arm Leave, then another member changes the group.
+    const details = panel.querySelector('.pm-chat__members-add');
+    details.open = true;
+    details.dispatchEvent(new window.Event('toggle'));
+    const rename = panel.querySelector('.pm-chat__members-rename input');
+    rename.value = 'TEC desk (Nov)';
+    rename.dispatchEvent(new window.Event('input'));
+    panel.querySelector('.pm-chat__leave').click();
+    rename.focus();
+
+    app.onGroupChanged({ id: 5, title: 'TEC desk', managerUserId: 'me', members: deskMembers.map((m) => ({ ...m })) });
+
+    const renameAgain = panel.querySelector('.pm-chat__members-rename input');
+    assert.equal(panel.querySelector('.pm-chat__members-add').open, true);
+    assert.equal(renameAgain.value, 'TEC desk (Nov)');
+    assert.equal(window.document.activeElement, renameAgain, 'focus survives');
+    assert.match(panel.querySelector('.pm-chat__leave').textContent, /Leave\?/);
+
+    // Closing the panel forgets it and returns focus to the people button.
+    panel.querySelector('.pm-chat__members-head button').click();
+    assert.equal(panel.hidden, true);
+    assert.equal(window.document.activeElement, win.people);
+    win.people.click();
+    assert.equal(panel.querySelector('.pm-chat__members-rename input').value, 'TEC desk');
+  } finally {
+    window.close();
+  }
+});
+
+test('ticked people survive a group change, except anyone who joined meanwhile', async () => {
+  const window = groupApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      return ['peer', 'third', 'fourth', 'fifth'].map((id) => ({ ...contact, userId: id, displayName: 'Person ' + id, unreadCount: 0 }));
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    win.people.click();
+    const tickFor = (id) => win.panel.querySelector('[data-panel-focus="pick:' + id + '"]');
+    tickFor('fourth').click();
+    tickFor('fifth').click();
+    assert.deepEqual(Array.from(win.panelState.chosen).sort(), ['fifth', 'fourth']);
+
+    // Someone else adds "fourth".
+    app.onGroupChanged({
+      id: 5,
+      title: 'TEC desk',
+      managerUserId: 'me',
+      members: deskMembers.concat([{ userId: 'fourth', displayName: 'Person fourth', initials: 'PF', isActive: true, lastReadMessageId: null }]),
+    });
+    assert.deepEqual(Array.from(win.panelState.chosen), ['fifth']);
+    assert.equal(tickFor('fifth').checked, true);
+    assert.equal(tickFor('fourth'), null);
+  } finally {
+    window.close();
+  }
+});
+
+test('the people panel waits for members, then fills in when they arrive', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const window = groupApp(async (url) => {
+    if (url.includes('/groups/5/messages')) await gate;
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    win.people.click();
+    assert.match(win.panel.textContent, /Loading/);
+    assert.equal(win.panel.querySelector('.pm-chat__members-add'), null);
+
+    // Codex review on #2734: the open panel must not stay on "Loading…".
+    release();
+    await tick(); await tick(); await tick();
+    assert.doesNotMatch(win.panel.textContent, /Loading/);
+    assert.equal(win.panel.querySelectorAll('.pm-chat__members-list li').length, 3);
+    assert.ok(win.panel.querySelector('.pm-chat__members-add'));
+  } finally {
+    release();
+    window.close();
+  }
+});
+
+test('being added back to a group reloads it from the new membership', async () => {
+  let loads = 0;
+  const window = groupApp(async (url, init) => {
+    if (url.includes('/groups/5/messages') && (!init.method || init.method === 'GET')) {
+      loads += 1;
+      if (loads > 1) {
+        return {
+          groupId: 5,
+          messages: [groupMessage(50, 'peer', '', { eventKind: 'Added', eventData: 'me' })],
+          hasMore: false,
+          hasNewer: false,
+          members: deskMembers.map((m) => ({ ...m })),
+        };
+      }
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    assert.equal(loads, 1);
+    app.onGroupRemoved(5);
+    app.onGroupChanged({ id: 5, title: 'TEC desk', managerUserId: 'peer', members: deskMembers.map((m) => ({ ...m })) });
+    await tick(); await tick();
+    assert.equal(loads, 2);
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [50]);
+    assert.equal(win.form.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('being added back while an older search slice is open still loads the new membership', async () => {
+  let latest = 0;
+  const window = groupApp(async (url, init) => {
+    if (url.includes('/groups/5/messages') && (!init.method || init.method === 'GET') && !url.includes('before=') && !url.includes('after=')) {
+      latest += 1;
+      if (latest > 1) {
+        return {
+          groupId: 5,
+          messages: [groupMessage(50, 'peer', '', { eventKind: 'Added', eventData: 'me' })],
+          hasMore: false,
+          hasNewer: false,
+          members: deskMembers.map((m) => ({ ...m })),
+        };
+      }
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    // As if a search hit had opened an older slice of the conversation.
+    win.hasNewer = true;
+    win.highlightId = 11;
+
+    app.onGroupRemoved(5);
+    app.onGroupChanged({ id: 5, title: 'TEC desk', managerUserId: 'peer', members: deskMembers.map((m) => ({ ...m })) });
+    await tick(); await tick();
+
+    assert.equal(latest, 2);
+    assert.equal(win.hasNewer, false);
+    assert.deepEqual(Array.from(win.messages, (m) => m.id), [50]);
+  } finally {
+    window.close();
+  }
+});
+
+function narrow(window) {
+  Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true });
+}
+
+test('a message does not push aside a window someone is typing in; it waits as unread', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    narrow(window);
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.input.value = 'Half a thought';
+    win.input.blur();
+
+    app.onMessage({ id: 70, senderUserId: 'third', recipientUserId: 'me', clientMessageId: 'c-70', body: 'Ping', sentUtc: new Date().toISOString() });
+    assert.equal(app.windows.has('third'), false);
+    assert.equal(app.windows.get('peer'), win);
+    assert.equal(app.contacts.get('third').unreadCount, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test('a draft and a failed message come back when a closed window is reopened', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    narrow(window);
+    const app = window.PMChat;
+    const first = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    first.input.value = 'Draft for peer';
+    first.messages.push({ id: 0, clientMessageId: 'c-x', senderUserId: 'me', body: 'did not go', failed: true, sentUtc: new Date().toISOString() });
+
+    app.openWindow('third', { focus: true }); // one window fits: peer's closes
+    await tick(); await tick();
+    assert.equal(app.windows.has('peer'), false);
+
+    const again = app.openWindow('peer', { focus: true });
+    assert.equal(again.input.value, 'Draft for peer');
+    assert.ok(again.messages.some((m) => m.clientMessageId === 'c-x' && m.failed));
+    assert.equal(app.kept.has('peer'), false);
+  } finally {
+    window.close();
+  }
+});
+
+test('the Messages page opens a normalised group link', async () => {
+  const window = groupApp(undefined, '<section data-chat-page data-open-with="g:05"></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const app = window.PMChat;
+    assert.ok(app.windows.has('g:5'));
+    assert.equal(app.windows.has('g:05'), false);
+  } finally {
+    window.close();
+  }
+});
+
+test('a group title, sender name or notice containing markup is shown as text', async () => {
+  const evil = '<img src=x onerror="window.__pwned=1">';
+  const window = groupApp(async (url) => {
+    if (url.endsWith('/groups')) return [{ ...desk, title: evil }];
+    if (url.endsWith('/contacts')) return [{ ...contact, displayName: evil, unreadCount: 0 }];
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    app.onMessage(groupMessage(60, 'peer', evil));
+    app.onMessage(groupMessage(61, 'peer', '', { eventKind: 'Renamed', eventData: evil }));
+    assert.equal(window.document.querySelector('img'), null);
+    assert.equal(window.__pwned, undefined);
+    assert.ok(win.name.textContent.includes('<img'));
   } finally {
     window.close();
   }

@@ -26,6 +26,16 @@ public static class ChatApi
 {
     public const string SendRateLimitPolicy = "chat-send";
 
+    public const string ChangeRateLimitPolicy = "chat-change";
+
+    public const string SearchRateLimitPolicy = "chat-search";
+
+    /// <summary>
+    /// Set on the 404 that every endpoint answers while chat is switched off, so the browser can
+    /// tell "chat is off" (stand down) from an ordinary missing resource (show an error).
+    /// </summary>
+    public const string DisabledHeader = "X-Chat-Disabled";
+
     public static IEndpointRouteBuilder MapChatApi(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
@@ -35,28 +45,34 @@ public static class ChatApi
             .AddEndpointFilter(async (context, next) =>
             {
                 var options = context.HttpContext.RequestServices.GetRequiredService<IOptionsMonitor<ChatOptions>>();
-                return options.CurrentValue.Enabled ? await next(context) : Results.NotFound();
+                if (options.CurrentValue.Enabled)
+                {
+                    return await next(context);
+                }
+
+                context.HttpContext.Response.Headers[DisabledHeader] = "true";
+                return Results.NotFound();
             })
             .WithTags("Chat");
 
         group.MapGet("/contacts", GetContactsAsync);
         group.MapGet("/with/{peerUserId}/messages", GetHistoryAsync);
-        group.MapGet("/search", SearchAsync);
+        group.MapGet("/search", SearchAsync).RequireRateLimiting(SearchRateLimitPolicy);
         group.MapGet("/status", GetStatusAsync);
-        group.MapPost("/status", SetStatusAsync);
-        group.MapPost("/messages/{messageId:long}/unsend", UnsendAsync);
+        group.MapPost("/status", SetStatusAsync).RequireRateLimiting(ChangeRateLimitPolicy);
+        group.MapPost("/messages/{messageId:long}/unsend", UnsendAsync).RequireRateLimiting(ChangeRateLimitPolicy);
         group.MapGet("/unsent", GetUnsentSinceAsync);
 
         group.MapGet("/groups", ListGroupsAsync);
-        group.MapPost("/groups", CreateGroupAsync);
+        group.MapPost("/groups", CreateGroupAsync).RequireRateLimiting(ChangeRateLimitPolicy);
         group.MapGet("/groups/{groupId:long}", GetGroupAsync);
         group.MapGet("/groups/{groupId:long}/messages", GetGroupHistoryAsync);
         group.MapPost("/groups/{groupId:long}/messages", SendToGroupAsync).RequireRateLimiting(SendRateLimitPolicy);
         group.MapPost("/groups/{groupId:long}/read", MarkGroupReadAsync);
-        group.MapPost("/groups/{groupId:long}/members", AddGroupMembersAsync);
-        group.MapPost("/groups/{groupId:long}/members/{memberUserId}/remove", RemoveGroupMemberAsync);
-        group.MapPost("/groups/{groupId:long}/leave", LeaveGroupAsync);
-        group.MapPost("/groups/{groupId:long}/rename", RenameGroupAsync);
+        group.MapPost("/groups/{groupId:long}/members", AddGroupMembersAsync).RequireRateLimiting(ChangeRateLimitPolicy);
+        group.MapPost("/groups/{groupId:long}/members/{memberUserId}/remove", RemoveGroupMemberAsync).RequireRateLimiting(ChangeRateLimitPolicy);
+        group.MapPost("/groups/{groupId:long}/leave", LeaveGroupAsync).RequireRateLimiting(ChangeRateLimitPolicy);
+        group.MapPost("/groups/{groupId:long}/rename", RenameGroupAsync).RequireRateLimiting(ChangeRateLimitPolicy);
         group.MapPost("/messages", SendAsync).RequireRateLimiting(SendRateLimitPolicy);
         group.MapPost("/with/{peerUserId}/read", MarkReadAsync);
 
@@ -65,28 +81,28 @@ public static class ChatApi
 
     /// <summary>Per-user fixed window; anonymous requests never reach here (the group requires sign-in).</summary>
     public static RateLimitPartition<string> GetSendPartition(HttpContext context, ChatOptions options)
+        => GetUserPartition(context, options.SendPermitLimit, options.SendWindowSeconds);
+
+    public static RateLimitPartition<string> GetChangePartition(HttpContext context, ChatOptions options)
+        => GetUserPartition(context, options.ChangePermitLimit, options.ChangeWindowSeconds);
+
+    public static RateLimitPartition<string> GetSearchPartition(HttpContext context, ChatOptions options)
+        => GetUserPartition(context, options.SearchPermitLimit, options.SearchWindowSeconds);
+
+    /// <summary>Any throttled chat request (sends, changes, searches) answers 429.</summary>
+    public static bool IsChatRequest(HttpContext context)
+        => context.Request.Path.StartsWithSegments("/api/chat", StringComparison.OrdinalIgnoreCase);
+
+    private static RateLimitPartition<string> GetUserPartition(HttpContext context, int permitLimit, int windowSeconds)
     {
         var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
         return RateLimitPartition.GetFixedWindowLimiter(userId, _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = Math.Max(1, options.SendPermitLimit),
-            Window = TimeSpan.FromSeconds(Math.Max(1, options.SendWindowSeconds)),
+            PermitLimit = Math.Max(1, permitLimit),
+            Window = TimeSpan.FromSeconds(Math.Max(1, windowSeconds)),
             QueueLimit = 0,
             AutoReplenishment = true,
         });
-    }
-
-    public static bool IsSendRequest(HttpContext context)
-    {
-        if (!HttpMethods.IsPost(context.Request.Method))
-        {
-            return false;
-        }
-
-        var path = context.Request.Path.Value ?? string.Empty;
-        return path.Equals("/api/chat/messages", StringComparison.OrdinalIgnoreCase)
-            || (path.StartsWith("/api/chat/groups/", StringComparison.OrdinalIgnoreCase)
-                && path.EndsWith("/messages", StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task<IResult> GetContactsAsync(
@@ -489,7 +505,9 @@ public static class ChatApi
                 await hub.Clients.Users(result.MemberUserIds).ReceiveGroupMessage(result.Message!);
                 return Results.Ok(result.Message);
             case ChatSendStatus.RecipientUnavailable:
-                return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Message not sent", detail: result.Error);
+                // The sender is not (or no longer) in the group: 410 like every other group call,
+                // so the browser closes the reply box instead of offering Retry.
+                return NotInGroup();
             default:
                 return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Message not sent", detail: result.Error);
         }

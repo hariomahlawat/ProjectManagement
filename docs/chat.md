@@ -19,10 +19,17 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   they stay open across page navigation (the set of open windows is remembered per browser
   and per user in `localStorage` key `prism.chat.dock.{userId}`; it holds user ids only, never
   message text). As many windows open as fit beside the buddy list; on a phone, one window
-  fills the width.
+  fills the width. When a new window needs room, the oldest window the person is not busy in
+  closes first (busy = something typed, a message still sending or failed, or keyboard focus).
+  A closed window's draft and failed messages come back when the conversation is reopened in
+  the same page (kept in memory only, never in browser storage).
 - A message to someone with no open window **pops that window open**, with a "New message"
-  highlight. A conversation counts as read only when the person is in it (keyboard focus in an
-  expanded window on a visible tab), so a window that merely popped open stays unread.
+  highlight, unless every window on screen is busy: then it waits in the unread count, with
+  the chime and title flash, instead of pushing a window aside. A conversation counts as read
+  only when the person is in it (keyboard focus in an expanded window on a visible tab), so a
+  window that merely popped open stays unread.
+- A window stays where the person has scrolled: new messages and the 30-second refresh scroll
+  to the newest message only when the view is already at the bottom.
 - **Enter** sends, **Shift+Enter** adds a line, **Esc** minimises. Messages are plain text, up
   to 4,000 characters. A failed send stays in the window with a Retry link.
 - A conversation with a **deactivated** account stays readable but cannot be replied to.
@@ -58,18 +65,24 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
     anyone can leave.** The manager is the creator; if they leave, or their account is
     deactivated or removed, the longest-standing member with an active account becomes manager
     (with none, the group has no manager).
-  - Someone who leaves or is removed **loses access to the group's history**; their open
-    window keeps what it showed, with the reply box closed.
+  - **A member sees the group from when they joined** (owner decision, 2026-10-23, WhatsApp
+    style): messages from before they were added are not shown, searched or counted as unread.
+    Someone who leaves or is removed **loses access to the group's history**; their open window
+    keeps what it showed, with the reply box closed. If they are added back, the group starts
+    again from that moment, so they never see what was said while they were out.
   - Groups are listed above people in the buddy list, with unread counts, and on the Messages
     page. The people button in a group window shows members, Add people, Rename (manager) and
-    Leave group (two clicks).
+    Leave group (two clicks). The panel covers the conversation; ticked people, a half-typed
+    name and an armed Leave survive changes other members make meanwhile.
   - Notices appear in the conversation ("Ravi added Sita", "Sita left", "… renamed the group
     to …"); they are not counted as unread and do not chime.
   - Each message shows who sent it; typing shows names ("Ravi and Sita are typing…"); read
-    ticks become **Seen by**: one tick until everyone has read it, then two blue ticks, and the
+    ticks become **Seen by**: one tick until everyone who can read it has (members with inactive
+    accounts and members who joined after it are not waited for), then two blue ticks, and the
     tick's label lists who has read it.
   - Unsend, search (hits say which group), the Messages page and links
-    (`/Chat?with=g:{groupId}`) all work for groups.
+    (`/Chat?with=g:{groupId}`) all work for groups. A malformed group link (`g:5.5`, `g:abc`)
+    opens nothing; `g:05` opens group 5.
 - **Messages page** (`/Chat`, also linked from the buddy list): every conversation, most recent
   first, with a large conversation view, and **search across all your messages** (at least two
   characters, case-insensitive, newest 50 matches). A search hit opens the conversation at
@@ -97,23 +110,33 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **The browser may invoke only two hub methods, and neither stores anything**: `Typing(peerUserId)`,
   forwarded as `Typing` to that person only and throttled to once per two seconds per tab and
   person on the server, and `SetAway(bool)` for this tab's idle state. The auth cookie is
-  `SameSite=Strict`, so another site cannot open the connection as the user.
+  `SameSite=Strict`, so another site cannot open the connection as the user. One tab may signal
+  typing to at most 16 conversations within two seconds (`ChatHub.MaxTypingTargets`), which
+  bounds what a misbehaving client can make the server remember or look up.
 - **Status** (`GET`/`POST /api/chat/status`) and **unsend** (`POST /api/chat/messages/{id}/unsend`)
   are antiforgery-protected like the other writes; changes are pushed as `StatusChanged` (to
   everyone) and `MessageUnsent` (to both people). A check constraint keeps an unsent message's
-  text empty in the database. Unsending someone else's message, or an unknown id, answers 400
-  (not 404, which browsers read as "chat switched off").
+  text empty in the database. Unsending someone else's message, or an unknown id, answers 400.
+- **"Chat is off" vs. "not found"**: while `Chat:Enabled` is false every `/api/chat` endpoint
+  answers 404 with the header `X-Chat-Disabled: true`, and only that makes the browser stand
+  chat down. Any other 404 is an ordinary error for that one request. (Pages from before this
+  header stood down on any 404; endpoints still avoid 404 for expected refusals, for them.)
   A page that lost its live connection asks `GET /api/chat/unsent?since=` (its own
   conversations only) after reconnecting and while polling, so messages unsent meanwhile are
   blanked too, including older ones already on screen and search results.
 - **Groups** (`/api/chat/groups…`): list, create, get, history (`before`/`after` like direct
   history, plus each member's read marker), send, read, add members, remove a member, leave,
-  rename. Every call checks membership on the server; a non-member gets **410** (not 404, see
-  above). Each change (membership, group row, notices) commits in one transaction. Pushes:
-  `GroupChanged` (new state, to members), `GroupRemoved` (to whoever lost access),
-  `GroupRead` (to members, for "Seen by" and the reader's other tabs), `ReceiveMessage` for
-  messages and notices. Typing uses the hub method `TypingInGroup(groupId)`, which checks
-  membership and forwards to the other members only.
+  rename. Every call checks membership on the server; a non-member gets **410**, sending
+  included (not 404, see above). Each change (membership, group row, notices) commits in one
+  transaction. Pushes: `GroupChanged` (new state, to members), `GroupRemoved` (to whoever lost
+  access), `GroupRead` (to members, for "Seen by" and the reader's other tabs),
+  `ReceiveGroupMessage` for messages and notices and `GroupMessageUnsent` for unsends. Typing
+  uses the hub method `TypingInGroup(groupId)`, which checks membership and forwards to the
+  other members only.
+- **Group visibility** comes from `ChatParticipants.JoinedUtc`: group history, unread counts
+  and search only include group messages with `SentUtc >= JoinedUtc` of the caller's current
+  membership row (a new row when someone is added back). Each member in a group's member list
+  carries `joinedUtc` for "Seen by".
 - **Old pages during a rolling deployment** never receive group traffic they would misread:
   group messages, notices and unsends use their own hub events (`ReceiveGroupMessage`,
   `GroupMessageUnsent`), and search returns group hits only when asked with `groups=true`.
@@ -137,18 +160,22 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **Unread** is the count of the other person's messages with an id greater than the reader's
   `ChatParticipants.LastReadMessageId`, which only moves forward.
 - **No foreign keys to `AspNetUsers`**, so chat history never blocks removing an account and
-  survives it. The participant table already allows more than two members, so group chat
-  needs no schema rework.
+  survives it.
 - If the live connection drops, the browser reconnects with back-off and polls every 30
   seconds meanwhile. Nothing is loaded from outside the LAN: the SignalR client and icons are
   already bundled.
-- Sending is throttled per user (`chat-send` rate-limit policy, 20 messages per 10 seconds by
-  default; HTTP 429 beyond that).
+- **Rate limits**, per user, HTTP 429 beyond them:
+  - `chat-send`: direct and group messages, 20 per 10 seconds by default.
+  - `chat-change`: status messages, unsends and group changes (create, add, remove, rename,
+    leave), 20 per minute by default. Most of these are pushed to many people.
+  - `chat-search`: message searches, 60 per minute by default (the page searches 300 ms after
+    typing stops).
 
 ## Privacy
 
-- Messages are returned only to the two people in the conversation. The history lookup is by
-  the caller's own pair key, so there is no way to ask for someone else's thread.
+- Direct messages are returned only to the two people in the conversation. The history lookup
+  is by the caller's own pair key, so there is no way to ask for someone else's thread. Group
+  messages are returned only to current members, from when each joined.
 - **There is no administrator read path**: no admin page, report, export or search covers chat
   messages, and none should be added without an owner decision.
 - Messages are **not end-to-end encrypted**. Anyone with direct access to the PostgreSQL
@@ -163,6 +190,10 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 | `Chat:Enabled` | `true` | Off hides the chat button and dock, answers 404 on `/api/chat/*` and refuses hub connections. Stored messages are untouched, so switching back on loses nothing. Read live; no restart needed. |
 | `Chat:SendPermitLimit` | `20` | Messages one user may send per window. |
 | `Chat:SendWindowSeconds` | `10` | Length of that window. |
+| `Chat:ChangePermitLimit` | `20` | Status messages, unsends and group changes one user may make per window. |
+| `Chat:ChangeWindowSeconds` | `60` | Length of that window. |
+| `Chat:SearchPermitLimit` | `60` | Message searches one user may run per window. |
+| `Chat:SearchWindowSeconds` | `60` | Length of that window. |
 | `Chat:UnsendWindowMinutes` | `5` | How long after sending a message its sender may unsend it. `0` turns unsend off. |
 
 ## Deployment notes
@@ -176,6 +207,11 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   and each tab repeats its away state on reconnect.
 - Phase 2 needs no migration. During a rolling restart an old page talking to the new server,
   or the reverse, keeps working: new fields are optional, and a hub method one side does not know fails harmlessly.
+- The review fixes of 2026-10-23 need no migration (`JoinedUtc` already exists). Changes in
+  behaviour on deployment: members added to a group after it started no longer see the
+  messages from before they joined, and the new rate limits apply. A new page talking to an
+  old server while chat is switched off sees plain 404s (no `X-Chat-Disabled` header) and
+  shows errors instead of hiding chat until it is reloaded.
 
 ## Not yet built
 

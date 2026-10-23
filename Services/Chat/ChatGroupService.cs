@@ -73,6 +73,7 @@ public sealed class ChatGroupService
                         && m.SenderUserId != userId
                         && m.UnsentUtc == null
                         && m.EventKind == null
+                        && m.SentUtc >= mine.JoinedUtc
                         && m.Id > (mine.LastReadMessageId ?? 0)),
                 })
             .ToListAsync(cancellationToken);
@@ -366,7 +367,19 @@ public sealed class ChatGroupService
             return null;
         }
 
-        var all = _db.ChatMessages.AsNoTracking().Where(m => m.ConversationId == group.Id);
+        // A member sees the group from when they (last) joined: earlier messages, and anything
+        // said while they were out of the group, stay with the people who were there.
+        var joined = await _db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => p.ConversationId == group.Id && p.UserId == userId)
+            .Select(p => (DateTimeOffset?)p.JoinedUtc)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (joined is null)
+        {
+            return null; // removed a moment ago
+        }
+
+        var all = _db.ChatMessages.AsNoTracking().Where(m => m.ConversationId == group.Id && m.SentUtc >= joined.Value);
         var (page, hasMore, hasNewer) = await ChatService.PageAsync(all, beforeMessageId, afterMessageId, limit, cancellationToken);
         var dto = await BuildGroupDtoAsync(group, cancellationToken);
         return new ChatGroupHistoryDto(group.Id, page.Select(m => ToDto(m, group.Id)).ToList(), hasMore, hasNewer, dto.Members);
@@ -441,7 +454,7 @@ public sealed class ChatGroupService
         if (existing is not null)
         {
             return existing.ConversationId == group.Id
-                ? new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, members)
+                ? new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken))
                 : Invalid("This message identifier was already used for a different conversation.");
         }
 
@@ -471,7 +484,7 @@ public sealed class ChatGroupService
                 throw;
             }
 
-            return new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, members);
+            return new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken));
         }
 
         return new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(message, group.Id), null, members);
@@ -615,6 +628,17 @@ public sealed class ChatGroupService
         return await (track ? query : query.AsNoTracking()).SingleOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The members a stored message may be (re)delivered to: those who had joined by the time it was
+    /// sent. A retry can arrive after someone new joined, and they must not receive an earlier message.
+    /// </summary>
+    internal async Task<IReadOnlyList<string>> MembersWhoCanSeeAsync(long groupId, DateTimeOffset sentUtc, CancellationToken cancellationToken)
+        => await _db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => p.ConversationId == groupId && p.JoinedUtc <= sentUtc)
+            .Select(p => p.UserId)
+            .ToListAsync(cancellationToken);
+
     private async Task<HashSet<string>> MemberIdsAsync(long groupId, CancellationToken cancellationToken)
         => (await _db.ChatParticipants
                 .AsNoTracking()
@@ -665,7 +689,7 @@ public sealed class ChatGroupService
             .Where(p => p.ConversationId == group.Id)
             .OrderBy(p => p.JoinedUtc)
             .ThenBy(p => p.UserId)
-            .Select(p => new { p.UserId, p.LastReadMessageId })
+            .Select(p => new { p.UserId, p.LastReadMessageId, p.JoinedUtc })
             .ToListAsync(cancellationToken);
         var ids = members.Select(m => m.UserId).ToList();
         var users = await _db.Users
@@ -694,7 +718,8 @@ public sealed class ChatGroupService
                     name,
                     u is null ? "?" : ChatService.BuildInitials(name),
                     u is not null && ChatService.IsReachable(u.AccountKind, u.IsDisabled, u.PendingDeletion),
-                    m.LastReadMessageId);
+                    m.LastReadMessageId,
+                    m.JoinedUtc);
             }).ToList());
     }
 

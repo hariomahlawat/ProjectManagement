@@ -273,6 +273,8 @@ public sealed class ChatService
                     on mine.ConversationId equals m.ConversationId
                 where m.UnsentUtc == null && m.EventKind == null && m.Body.ToLower().Contains(needle)
                     && (includeGroups || mine.Conversation!.Kind == ChatConversation.DirectKind)
+                    // A group member only ever sees messages from when they (last) joined.
+                    && (mine.Conversation!.Kind == ChatConversation.DirectKind || m.SentUtc >= mine.JoinedUtc)
                 orderby m.Id descending
                 select new { m.Id, m.ConversationId, mine.Conversation!.Kind, mine.Conversation.Title, m.SenderUserId, m.Body, m.SentUtc })
             .Take(size)
@@ -466,12 +468,14 @@ public sealed class ChatService
             return new ChatUnsendResult(ChatUnsendStatus.NotFound, null);
         }
 
+        var isGroup = message.Conversation!.Kind == ChatConversation.GroupKind;
+        // In a group, only the members who could see the message (joined by the time it was sent).
+        var sentUtc = message.SentUtc;
         var members = await _db.ChatParticipants
             .AsNoTracking()
-            .Where(p => p.ConversationId == message.ConversationId)
+            .Where(p => p.ConversationId == message.ConversationId && (!isGroup || p.JoinedUtc <= sentUtc))
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
-        var isGroup = message.Conversation!.Kind == ChatConversation.GroupKind;
         var recipientUserId = isGroup
             ? string.Empty
             : members.FirstOrDefault(id => !string.Equals(id, userId, StringComparison.Ordinal)) ?? string.Empty;

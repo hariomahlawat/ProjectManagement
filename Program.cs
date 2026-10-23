@@ -418,7 +418,7 @@ builder.Services.AddRateLimiter(options =>
                 .LogWarning("Document uploads throttled for {Uploader}.", DocumentUploadRateLimiting.UploaderLabel(context.HttpContext));
             context.HttpContext.Response.Redirect(DocumentUploadRateLimiting.BuildThrottledRedirect(context.HttpContext));
         }
-        else if (ChatApi.IsSendRequest(context.HttpContext))
+        else if (ChatApi.IsChatRequest(context.HttpContext))
         {
             context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         }
@@ -429,6 +429,16 @@ builder.Services.AddRateLimiter(options =>
     // Chat sends are throttled per signed-in user so one stuck client cannot flood a colleague.
     options.AddPolicy(ChatApi.SendRateLimitPolicy, context =>
         ChatApi.GetSendPartition(
+            context,
+            context.RequestServices.GetRequiredService<IOptionsMonitor<ChatOptions>>().CurrentValue));
+
+    // Status messages, unsends and group changes are pushed to many people; searches scan text.
+    options.AddPolicy(ChatApi.ChangeRateLimitPolicy, context =>
+        ChatApi.GetChangePartition(
+            context,
+            context.RequestServices.GetRequiredService<IOptionsMonitor<ChatOptions>>().CurrentValue));
+    options.AddPolicy(ChatApi.SearchRateLimitPolicy, context =>
+        ChatApi.GetSearchPartition(
             context,
             context.RequestServices.GetRequiredService<IOptionsMonitor<ChatOptions>>().CurrentValue));
 

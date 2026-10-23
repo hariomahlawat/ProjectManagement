@@ -91,7 +91,17 @@ public sealed record ChatGroupSummaryDto(
     int UnreadCount,
     DateTimeOffset? LastMessageUtc);
 
-public sealed record ChatGroupMemberDto(string UserId, string DisplayName, string Initials, bool IsActive, long? LastReadMessageId);
+/// <summary>
+/// JoinedUtc: when this membership started. A member sees only messages sent from then on, so
+/// "Seen by" for an older message leaves them out.
+/// </summary>
+public sealed record ChatGroupMemberDto(
+    string UserId,
+    string DisplayName,
+    string Initials,
+    bool IsActive,
+    long? LastReadMessageId,
+    DateTimeOffset? JoinedUtc = null);
 
 public sealed record ChatGroupDto(long Id, string Title, string ManagerUserId, IReadOnlyList<ChatGroupMemberDto> Members);
 

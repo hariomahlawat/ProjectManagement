@@ -207,14 +207,46 @@
     return `${GROUP_PREFIX}${id}`;
   }
 
-  /** The group id in a conversation key, or 0 for a direct conversation. */
+  /**
+   * The group id in a conversation key, or 0 for a direct conversation or a malformed group key
+   * (anything but a positive whole number, e.g. from a hand-edited ?with= link).
+   */
   function groupIdOf(key) {
-    return typeof key === 'string' && key.startsWith(GROUP_PREFIX) ? Number(key.slice(GROUP_PREFIX.length)) || 0 : 0;
+    if (typeof key !== 'string' || !key.startsWith(GROUP_PREFIX)) return 0;
+    const text = key.slice(GROUP_PREFIX.length);
+    const id = /^\d{1,16}$/.test(text) ? Number(text) : 0;
+    return Number.isSafeInteger(id) && id > 0 ? id : 0;
   }
 
-  /** The other members who have read up to messageId (group read receipts). */
-  function seenBy(members, me, messageId) {
-    return (members || []).filter((m) => m.userId !== me && (m.lastReadMessageId || 0) >= messageId);
+  /** One spelling per conversation ("g:05" and "g:5" are the same group); '' when malformed. */
+  function conversationKey(key) {
+    if (typeof key !== 'string' || !key) return '';
+    if (!key.startsWith(GROUP_PREFIX)) return key;
+    const id = groupIdOf(key);
+    return id ? groupKey(id) : '';
+  }
+
+  /**
+   * The other members who could see a group message: those who had joined by the time it was
+   * sent. Someone added later never sees it, however far their read marker has moved.
+   */
+  function couldSee(members, me, message) {
+    const sent = Date.parse(message.sentUtc) || 0;
+    return (members || []).filter((m) => m.userId !== me && !(m.joinedUtc && Date.parse(m.joinedUtc) > sent));
+  }
+
+  /** The other members who have read a group message ("Seen by"). */
+  function seenBy(members, me, message) {
+    return couldSee(members, me, message).filter((m) => (m.lastReadMessageId || 0) >= message.id);
+  }
+
+  /**
+   * Whether a group message counts as seen (two ticks): every other member who could see it has
+   * read it. Members with inactive accounts never will, so they do not hold the ticks back.
+   */
+  function seenByEveryone(members, me, message) {
+    const expected = couldSee(members, me, message).filter((m) => m.isActive !== false);
+    return expected.length > 0 && expected.every((m) => (m.lastReadMessageId || 0) >= message.id);
   }
 
   function peopleCount(n) {
@@ -230,7 +262,7 @@
   }
 
   global.PMChatInternals = {
-    groupKey, groupIdOf, seenBy, typingLine, peopleCount,
+    groupKey, groupIdOf, conversationKey, seenBy, seenByEveryone, typingLine, peopleCount,
     newClientId, dayLabel, shortStamp, sortContacts, filterContacts, conversationList,
     windowCapacity, mergeMessages, fetchSince, highlightParts, TitleFlasher,
   };
@@ -365,6 +397,9 @@
     this.groups = new Map(); // groupId -> { id, title, managerUserId, memberCount, unreadCount, lastMessageUtc }
     this.windows = new Map(); // conversation key -> window state (docked, or embedded in the Messages page)
     this.order = []; // docked peer ids, most recently opened first
+    // Drafts and failed messages of closed windows, until the conversation is opened again. In
+    // memory only: like the rest of chat, message text is never written to browser storage.
+    this.kept = new Map();
     this.buddyOpen = false;
     this.connection = null;
     this.pollTimer = null;
@@ -479,8 +514,9 @@
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
-    if (response.status === 401 || response.status === 404) {
-      // Signed out, or chat switched off on the server: stand down quietly.
+    if (response.status === 401 || (response.status === 404 && response.headers && response.headers.get('X-Chat-Disabled'))) {
+      // Signed out, or chat switched off on the server: stand down quietly. Any other 404 (a
+      // conversation that no longer exists, a bad link) is an ordinary error for this request.
       this.shutdown();
       throw new Error('Chat is not available.');
     }
@@ -729,7 +765,7 @@
     let win = this.windows.get(key);
     if (!win && countable) {
       // Classic behaviour: a new message pops its conversation open.
-      win = this.openWindow(key, { focus: false });
+      win = this.openWindow(key, { focus: false, pop: true });
     }
 
     let fresh = countable;
@@ -914,10 +950,17 @@
     this.groups.set(group.id, summary);
     const win = this.windows.get(groupKey(group.id));
     if (win) {
+      const readded = win.removed;
       win.members = group.members;
       win.removed = false;
       this.renderWindowState(win);
-      this.renderMessages(win, { stickToBottom: false });
+      if (readded) {
+        // Back in the group: it now starts from this new membership, so reload it from there,
+        // resetting all paging (the window may have been showing an older search slice).
+        this.jumpToLatest(win);
+      } else {
+        this.renderMessages(win, { stickToBottom: false });
+      }
       if (win.panelOpen) this.renderMembersPanel(win);
     }
     this.renderContacts();
@@ -930,6 +973,7 @@
     if (win) {
       win.removed = true;
       win.panelOpen = false;
+      win.panelState = null;
       this.renderWindowState(win);
     }
     this.renderContacts();
@@ -1254,14 +1298,22 @@
    * People picker shared by "New group" and "Add people": active contacts, filtered by a search
    * box, as checkboxes. Returns { node, selected() }.
    */
-  ChatApp.prototype.peoplePicker = function (exclude, limit) {
+  /**
+   * A searchable list of people to tick. state ({ chosen: Set, filter: string }), when given, holds
+   * the ticks and the search text, so a redraw of the surrounding panel does not lose them.
+   */
+  ChatApp.prototype.peoplePicker = function (exclude, limit, state) {
     const node = el('div', 'pm-chat__picker');
     const filter = el('input', 'form-control form-control-sm');
     filter.type = 'search';
     filter.placeholder = 'Find people';
     filter.setAttribute('aria-label', 'Find people to add');
+    filter.dataset.panelFocus = 'filter';
     const list = el('ul', 'pm-chat__picker-list');
-    const chosen = new Set();
+    const chosen = state ? state.chosen : new Set();
+    // People who joined meanwhile (someone else added them) are no longer choices.
+    exclude.forEach((id) => chosen.delete(id));
+    if (state) filter.value = state.filter || '';
     const note = el('p', 'pm-chat__picker-note');
     const draw = () => {
       const needle = filter.value.trim().toLowerCase();
@@ -1274,6 +1326,7 @@
         const label = el('label', 'pm-chat__picker-item');
         const box = el('input', 'form-check-input');
         box.type = 'checkbox';
+        box.dataset.panelFocus = `pick:${c.userId}`;
         box.checked = chosen.has(c.userId);
         box.addEventListener('change', () => {
           if (box.checked && chosen.size >= limit) {
@@ -1289,8 +1342,12 @@
         return item;
       }));
     };
-    filter.addEventListener('input', draw);
+    filter.addEventListener('input', () => {
+      if (state) state.filter = filter.value;
+      draw();
+    });
     draw();
+    if (chosen.size) note.textContent = `${chosen.size} selected`;
     node.append(filter, list, note);
     return { node, selected: () => Array.from(chosen), focus: () => filter.focus() };
   };
@@ -1387,6 +1444,12 @@
       return win;
     }
 
+    if (!win && opts.pop && !this.hasRoom()) {
+      // Every window on screen is in use (typing, sending, or the one being read): the new
+      // message waits in the unread count and the alert instead of pushing one of them aside.
+      return null;
+    }
+
     if (!win) {
       win = this.createWindow(peerId);
       this.windows.set(peerId, win);
@@ -1420,16 +1483,41 @@
     if (!win) return;
     win.node.remove();
     if (win.typingTimer) global.clearTimeout(win.typingTimer);
+    if (win.unsendTimer) global.clearTimeout(win.unsendTimer);
+    // Failed messages are kept with the draft; ones still sending are stored on the server and
+    // come back with the history.
+    const unsent = win.messages.filter((m) => !m.id && m.failed);
+    if (win.input.value.trim() || unsent.length) {
+      this.kept.set(peerId, { draft: win.input.value, unsent });
+    }
     this.windows.delete(peerId);
     this.order = this.order.filter((id) => id !== peerId);
     this.saveState();
   };
 
-  /** Too many windows for the screen: the least recently opened ones close (history is kept). */
+  /** The person is in the middle of something in this window: typing, sending, or in it. */
+  ChatApp.prototype.isBusy = function (win) {
+    return !!win.input.value.trim()
+      || win.messages.some((m) => !m.id)
+      || win.node.contains(document.activeElement);
+  };
+
+  /** Whether another docked window fits, or one can make way without interrupting the person. */
+  ChatApp.prototype.hasRoom = function () {
+    const capacity = windowCapacity(global.innerWidth || 1280);
+    return this.order.length < capacity || this.order.some((id) => !this.isBusy(this.windows.get(id)));
+  };
+
+  /**
+   * Too many windows for the screen: the least recently opened ones close (history is kept).
+   * Windows the person is busy in go last, and even then their draft is kept for reopening.
+   */
   ChatApp.prototype.enforceCapacity = function () {
     const capacity = windowCapacity(global.innerWidth || 1280);
     while (this.order.length > capacity) {
-      this.closeWindow(this.order[this.order.length - 1]);
+      const candidates = this.order.slice(1).reverse(); // never the one just opened
+      const idle = candidates.find((id) => !this.isBusy(this.windows.get(id)));
+      this.closeWindow(idle || candidates[0]);
     }
   };
 
@@ -1480,7 +1568,8 @@
 
     const panel = el('div', 'pm-chat__members');
     panel.hidden = true;
-    body.append(panel);
+    const stage = el('div', 'pm-chat__window-stage');
+    stage.append(body, panel);
 
     const form = el('form', 'pm-chat__compose');
     const input = el('textarea', 'form-control form-control-sm pm-chat__input');
@@ -1492,7 +1581,7 @@
     send.type = 'submit';
     form.append(input, send);
 
-    node.append(head, body, notice, form);
+    node.append(head, stage, notice, form);
 
     const win = {
       peerId, node, face, name, status, body, log, earlier, newer, notice, input, form, minimize, embedded,
@@ -1504,6 +1593,7 @@
 
     people.addEventListener('click', () => {
       win.panelOpen = !win.panelOpen;
+      if (!win.panelOpen) win.panelState = null;
       this.renderMembersPanel(win);
     });
 
@@ -1550,6 +1640,15 @@
       event.preventDefault();
       this.send(win);
     });
+
+    // Reopened after it was closed (or closed to make room): what the person had typed, and any
+    // message that failed to send, are back where they left them.
+    const kept = this.kept.get(peerId);
+    if (kept) {
+      this.kept.delete(peerId);
+      input.value = kept.draft;
+      win.messages = kept.unsent;
+    }
 
     return win;
   };
@@ -1615,11 +1714,22 @@
   };
 
   /** Members, add people, rename, leave: shown over the conversation, from the people button. */
+  /**
+   * Redrawn whenever the group changes (someone else may add or remove people while it is open),
+   * so what the person is in the middle of lives in win.panelState and survives the redraw: ticked
+   * people, search text, the open Add section, a half-typed name, an armed Leave, the last error,
+   * and which control had focus.
+   */
   ChatApp.prototype.renderMembersPanel = function (win) {
     const panel = win.panel;
     panel.hidden = !win.panelOpen || win.removed;
     win.people.setAttribute('aria-expanded', String(!panel.hidden));
     if (panel.hidden) return;
+    const state = win.panelState || (win.panelState = {
+      chosen: new Set(), filter: '', addOpen: false, rename: null, leaveArmed: false, error: '',
+    });
+    const active = document.activeElement;
+    const focusKey = active && panel.contains(active) ? active.dataset.panelFocus : '';
     const group = this.groups.get(win.groupId);
     const manager = group ? group.managerUserId : '';
     const iManage = manager === this.me;
@@ -1627,8 +1737,19 @@
     const head = el('div', 'pm-chat__members-head');
     head.append(el('strong', null, 'People in this group'));
     const close = iconButton('x-lg', 'Close');
-    close.addEventListener('click', () => { win.panelOpen = false; this.renderMembersPanel(win); });
+    close.addEventListener('click', () => {
+      win.panelOpen = false;
+      win.panelState = null;
+      this.renderMembersPanel(win);
+      win.people.focus();
+    });
     head.append(close);
+
+    // Members arrive with the first history page; until then there is nothing to list or exclude.
+    if (!(win.members || []).length) {
+      panel.replaceChildren(head, el('p', 'pm-chat__picker-note', 'Loading…'));
+      return;
+    }
 
     const list = el('ul', 'pm-chat__members-list');
     for (const member of win.members || []) {
@@ -1640,22 +1761,28 @@
         const remove = el('button', 'btn btn-link btn-sm p-0', 'Remove');
         remove.type = 'button';
         remove.setAttribute('aria-label', `Remove ${member.displayName}`);
+        remove.dataset.panelFocus = `remove:${member.userId}`;
         remove.addEventListener('click', () => this.groupAction(win, `/members/${encodeURIComponent(member.userId)}/remove`, {}));
         item.append(remove);
       }
       list.append(item);
     }
 
-    const error = el('p', 'pm-chat__form-error');
+    const error = el('p', 'pm-chat__form-error', state.error);
     win.panelError = error;
     const parts = [head, list];
 
     const add = el('details', 'pm-chat__members-add');
-    add.append(el('summary', null, 'Add people'));
+    add.open = state.addOpen;
+    add.addEventListener('toggle', () => { state.addOpen = add.open; });
+    const summary = el('summary', null, 'Add people');
+    summary.dataset.panelFocus = 'add-toggle';
+    add.append(summary);
     const existing = new Set((win.members || []).map((m) => m.userId));
-    const picker = this.peoplePicker(existing, Math.max(0, GROUP_LIMIT - existing.size));
+    const picker = this.peoplePicker(existing, Math.max(0, GROUP_LIMIT - existing.size), state);
     const addButton = el('button', 'btn btn-primary btn-sm', 'Add');
     addButton.type = 'button';
+    addButton.dataset.panelFocus = 'add';
     addButton.addEventListener('click', () => {
       const ids = picker.selected();
       if (ids.length) this.groupAction(win, '/members', { userIds: ids });
@@ -1668,10 +1795,13 @@
       const input = el('input', 'form-control form-control-sm');
       input.type = 'text';
       input.maxLength = 100;
-      input.value = group ? group.title : '';
+      input.value = state.rename !== null ? state.rename : (group ? group.title : '');
       input.setAttribute('aria-label', 'Group name');
+      input.dataset.panelFocus = 'rename';
+      input.addEventListener('input', () => { state.rename = input.value; });
       const save = el('button', 'btn btn-outline-secondary btn-sm', 'Rename');
       save.type = 'submit';
+      save.dataset.panelFocus = 'rename-save';
       rename.append(input, save);
       rename.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -1680,33 +1810,54 @@
       parts.push(rename);
     }
 
-    const leave = el('button', 'btn btn-outline-danger btn-sm pm-chat__leave', 'Leave group');
+    const armedText = iManage ? 'Leave? Someone else will manage it' : 'Click again to leave';
+    const leave = el('button', 'btn btn-outline-danger btn-sm pm-chat__leave', state.leaveArmed ? armedText : 'Leave group');
     leave.type = 'button';
+    leave.dataset.panelFocus = 'leave';
     leave.addEventListener('click', () => {
       // A second click confirms, so a stray click cannot remove you from the group.
-      if (leave.dataset.confirm !== 'yes') {
-        leave.dataset.confirm = 'yes';
-        leave.textContent = iManage ? 'Leave? Someone else will manage it' : 'Click again to leave';
+      if (!state.leaveArmed) {
+        state.leaveArmed = true;
+        leave.textContent = armedText;
         return;
       }
       this.groupAction(win, '/leave', {});
     });
     parts.push(error, leave);
     panel.replaceChildren(...parts);
+    if (focusKey) {
+      const again = Array.from(panel.querySelectorAll('[data-panel-focus]')).find((n) => n.dataset.panelFocus === focusKey);
+      if (again) again.focus();
+    }
   };
 
   /** Runs a group change; the pushed GroupChanged/GroupRemoved events update every view. */
   ChatApp.prototype.groupAction = async function (win, path, body) {
+    const state = win.panelState;
     try {
       const group = await this.request('POST', `/groups/${win.groupId}${path}`, body);
+      if (state) {
+        // Done: what was being added or typed is spent.
+        state.error = '';
+        if (path === '/members') {
+          state.chosen.clear();
+          state.filter = '';
+          state.addOpen = false;
+        }
+        if (path === '/rename') state.rename = null;
+      }
       if (path === '/leave') {
         this.onGroupRemoved(win.groupId);
       } else if (group) {
         this.onGroupChanged(group);
       }
     } catch (error) {
-      if (error.status === 410) this.onGroupRemoved(win.groupId);
-      else if (win.panelError) win.panelError.textContent = error.message;
+      if (error.status === 410) {
+        this.onGroupRemoved(win.groupId);
+      } else {
+        if (state) state.error = error.message;
+        if (win.panelError) win.panelError.textContent = error.message;
+      }
     }
   };
 
@@ -1759,6 +1910,8 @@
         ...m,
         lastReadMessageId: Math.max(m.lastReadMessageId || 0, known.get(m.userId) || 0),
       }));
+      // A panel opened before the members arrived is still showing "Loading…".
+      if (win.panelOpen) this.renderMembersPanel(win);
     }
   };
 
@@ -1781,6 +1934,7 @@
     win.syncing = true;
     const seq = win.loadSeq;
     const path = this.historyPath(win);
+    const firstLoad = !win.historyLoaded;
     try {
       if (!win.historyLoaded) {
         const history = await this.request('GET', path);
@@ -1810,7 +1964,7 @@
         win.messages = mergeMessages(win.messages, result.messages);
         this.applyPeerRead(win, peerRead);
       }
-      this.renderMessages(win, { stickToBottom: true });
+      this.renderMessages(win, { stickToBottom: true, force: firstLoad });
       this.maybeMarkRead(win);
     } catch (error) {
       this.checkGone(win, error);
@@ -1972,7 +2126,6 @@
       items.push(el('li', 'pm-chat__system', 'No messages yet. Say hello.'));
     }
 
-    const others = (win.members || []).filter((m) => m.userId !== this.me).length;
     let lastSender = null;
     for (const message of win.messages) {
       const sent = new Date(message.sentUtc || Date.now());
@@ -2019,8 +2172,8 @@
           let seen;
           let label;
           if (win.groupId) {
-            const readers = seenBy(win.members, this.me, message.id);
-            seen = others > 0 && readers.length === others;
+            const readers = seenBy(win.members, this.me, message);
+            seen = seenByEveryone(win.members, this.me, message);
             label = readers.length ? `Seen by ${readers.map((m) => m.displayName).join(', ')}` : 'Sent';
           } else {
             seen = message.id <= (win.peerReadId || 0);
@@ -2062,7 +2215,9 @@
     win.newer.hidden = !win.hasNewer;
     if (options && options.scrollToHighlight && highlighted) {
       if (typeof highlighted.scrollIntoView === 'function') highlighted.scrollIntoView({ block: 'center' });
-    } else if (options && options.stickToBottom && (nearBottom || win.messages.length <= HISTORY_PAGE)) {
+    } else if (options && options.stickToBottom && (nearBottom || options.force)) {
+      // Only while the person is at the bottom, or on the first load: someone reading back
+      // through older messages is not pulled down by a new message or the 30-second refresh.
       body.scrollTop = body.scrollHeight;
     }
   };
@@ -2219,7 +2374,7 @@
   };
 
   MessagesPage.prototype.start = function () {
-    const withId = this.node.dataset.openWith;
+    const withId = conversationKey(this.node.dataset.openWith);
     const at = Number(this.node.dataset.openAt) || 0;
     this.renderConversations();
     if (withId) this.open(withId, at || 0);
@@ -2312,7 +2467,7 @@
     } else if (win.hasNewer) {
       app.jumpToLatest(win); // back from a search slice: a plain open means the latest
     } else if (!already) {
-      if (!created) app.renderMessages(win, { stickToBottom: true });
+      if (!created) app.renderMessages(win, { stickToBottom: true, force: true }); // reattached: scroll was reset
       app.loadLatest(win); // first load, or catch up after being set aside
     }
     win.input.focus();
