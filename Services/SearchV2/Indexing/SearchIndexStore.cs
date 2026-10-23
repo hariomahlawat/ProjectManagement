@@ -8,20 +8,31 @@ namespace ProjectManagement.Services.SearchV2.Indexing;
 public interface ISearchIndexStore
 {
     Task<bool> IsReadyAsync(int indexVersion, CancellationToken cancellationToken);
+    Task<SearchIndexHealth> GetHealthAsync(CancellationToken cancellationToken);
+    Task<SearchIndexActiveState> GetActiveStateAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Cheap per-query readiness probe: the active generation when the index is built for
-    /// <paramref name="indexVersion"/>, otherwise 0. Unlike GetHealthAsync it counts nothing.
+    /// Writes and atomically activates a new generation. Unless <paramref name="allowDowngrade"/>
+    /// is set, activation is refused with <see cref="SearchIndexSupersededException"/> when the
+    /// active generation was built by a newer projection version.
     /// </summary>
-    Task<long> GetActiveGenerationAsync(int indexVersion, CancellationToken cancellationToken);
-    Task<SearchIndexHealth> GetHealthAsync(CancellationToken cancellationToken);
-    Task ReplaceFullGenerationAsync(IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken);
+    Task ReplaceFullGenerationAsync(IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken, bool allowDowngrade = false);
     Task ReplaceEntityAsync(string requestedEntityType, string requestedEntityKey, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken);
     Task EnqueueAsync(string entityType, string entityKey, CancellationToken cancellationToken);
-    Task<SearchIndexWorkItem?> DequeueAsync(CancellationToken cancellationToken);
+    Task<SearchIndexWorkItem?> DequeueAsync(CancellationToken cancellationToken, string? entityType = null);
     Task CompleteAsync(long workItemId, CancellationToken cancellationToken);
-    Task<int> RecoverStaleWorkItemsAsync(TimeSpan leaseTimeout, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Returns abandoned leases to Pending. Full-rebuild requests are excluded unless
+    /// <paramref name="includeFullRebuildRequests"/> is set: a rebuild legitimately holds its
+    /// lease far longer than an entity does, so only a caller holding the full-rebuild lock
+    /// (which proves nobody is still working on it) may recover one.
+    /// </summary>
+    Task<int> RecoverStaleWorkItemsAsync(TimeSpan leaseTimeout, CancellationToken cancellationToken, bool includeFullRebuildRequests = false);
     Task FailAsync(long workItemId, string error, CancellationToken cancellationToken);
+
+    /// <summary>Returns a leased item to Pending without counting a failed attempt.</summary>
+    Task ReleaseAsync(long workItemId, TimeSpan retryAfter, CancellationToken cancellationToken);
     Task RecordReconciliationAsync(CancellationToken cancellationToken);
     Task RecordIndexErrorAsync(string error, CancellationToken cancellationToken);
     Task RequestFullRebuildAsync(string requestedBy, CancellationToken cancellationToken);
@@ -31,6 +42,8 @@ public interface ISearchIndexStore
 
 public sealed class SearchIndexStore : ISearchIndexStore
 {
+    public const string FullRebuildEntityType = "__FullRebuild__";
+
     private readonly ApplicationDbContext _db;
 
     public SearchIndexStore(ApplicationDbContext db)
@@ -56,31 +69,6 @@ public sealed class SearchIndexStore : ISearchIndexStore
         catch (Exception ex) when (IsSchemaUnavailable(ex))
         {
             return false;
-        }
-        finally
-        {
-            await SafeCloseAsync();
-        }
-    }
-
-    public async Task<long> GetActiveGenerationAsync(int indexVersion, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _db.Database.OpenConnectionAsync(cancellationToken);
-            await using var command = _db.Database.GetDbConnection().CreateCommand();
-            command.CommandText = """
-                SELECT COALESCE("ActiveGeneration", 0)
-                FROM "SearchIndexState"
-                WHERE "Id" = 1 AND "IndexVersion" = @version;
-                """;
-            Add(command, "version", indexVersion);
-            var result = await command.ExecuteScalarAsync(cancellationToken);
-            return result is null or DBNull ? 0 : Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
-        }
-        catch (Exception ex) when (IsSchemaUnavailable(ex))
-        {
-            return 0;
         }
         finally
         {
@@ -137,10 +125,39 @@ public sealed class SearchIndexStore : ISearchIndexStore
         }
     }
 
+    public async Task<SearchIndexActiveState> GetActiveStateAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _db.Database.OpenConnectionAsync(cancellationToken);
+            await using var command = _db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = """
+                SELECT COALESCE("ActiveGeneration", 0), COALESCE("IndexVersion", 0), "LastFullRebuildUtc"
+                FROM "SearchIndexState"
+                WHERE "Id" = 1;
+                """;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken)) return SearchIndexActiveState.None;
+            return new SearchIndexActiveState(
+                reader.GetInt64(0),
+                reader.GetInt32(1),
+                reader.IsDBNull(2) ? null : reader.GetFieldValue<DateTimeOffset>(2));
+        }
+        catch (Exception ex) when (IsSchemaUnavailable(ex))
+        {
+            return SearchIndexActiveState.None;
+        }
+        finally
+        {
+            await SafeCloseAsync();
+        }
+    }
+
     public async Task ReplaceFullGenerationAsync(
         IReadOnlyList<SearchProjection> projections,
         int indexVersion,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowDowngrade = false)
     {
         await _db.Database.OpenConnectionAsync(cancellationToken);
         var connection = _db.Database.GetDbConnection();
@@ -156,6 +173,9 @@ public sealed class SearchIndexStore : ISearchIndexStore
             await using (var activate = connection.CreateCommand())
             {
                 activate.Transaction = transaction;
+                // Rolling deployments overlap old and new processes. A process must never
+                // replace a generation built by a newer projection version; the guard is
+                // evaluated against the locked state row, so it holds under concurrency.
                 activate.CommandText = """
                     INSERT INTO "SearchIndexState" ("Id", "ActiveGeneration", "IndexVersion", "LastFullRebuildUtc", "LastReconciliationUtc", "LastError")
                     VALUES (1, @generation, @version, NOW(), NOW(), NULL)
@@ -164,12 +184,26 @@ public sealed class SearchIndexStore : ISearchIndexStore
                         "IndexVersion" = EXCLUDED."IndexVersion",
                         "LastFullRebuildUtc" = EXCLUDED."LastFullRebuildUtc",
                         "LastReconciliationUtc" = EXCLUDED."LastReconciliationUtc",
-                        "LastError" = NULL;
-                    DELETE FROM "SearchEntries" WHERE "Generation" <> @generation;
+                        "LastError" = NULL
+                    WHERE @allowDowngrade
+                       OR COALESCE("SearchIndexState"."ActiveGeneration", 0) = 0
+                       OR COALESCE("SearchIndexState"."IndexVersion", 0) <= EXCLUDED."IndexVersion";
                     """;
                 Add(activate, "generation", generation);
                 Add(activate, "version", indexVersion);
-                await activate.ExecuteNonQueryAsync(cancellationToken);
+                Add(activate, "allowDowngrade", allowDowngrade);
+                if (await activate.ExecuteNonQueryAsync(cancellationToken) == 0)
+                {
+                    throw new SearchIndexSupersededException(indexVersion);
+                }
+            }
+
+            await using (var prune = connection.CreateCommand())
+            {
+                prune.Transaction = transaction;
+                prune.CommandText = "DELETE FROM \"SearchEntries\" WHERE \"Generation\" <> @generation;";
+                Add(prune, "generation", generation);
+                await prune.ExecuteNonQueryAsync(cancellationToken);
             }
 
             await transaction.CommitAsync(cancellationToken);
@@ -259,7 +293,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
             """, cancellationToken);
     }
 
-    public async Task<SearchIndexWorkItem?> DequeueAsync(CancellationToken cancellationToken)
+    public async Task<SearchIndexWorkItem?> DequeueAsync(CancellationToken cancellationToken, string? entityType = null)
     {
         try
         {
@@ -270,6 +304,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
                     SELECT "Id"
                     FROM "SearchIndexWorkItems"
                     WHERE "Status" = 0 AND "NextAttemptAtUtc" <= NOW()
+                      AND (CAST(@entityType AS text) IS NULL OR "EntityType" = CAST(@entityType AS text))
                     ORDER BY "RequestedAtUtc", "Id"
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
@@ -279,6 +314,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 WHERE w."Id" = (SELECT "Id" FROM next_item)
                 RETURNING w."Id", w."EntityType", w."EntityKey", w."RetryCount";
                 """;
+            Add(command, "entityType", entityType);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken)) return null;
             return new SearchIndexWorkItem(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3));
@@ -308,7 +344,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
               AND "RequestedAtUtc" > "StartedAtUtc";
             """, cancellationToken);
 
-    public Task<int> RecoverStaleWorkItemsAsync(TimeSpan leaseTimeout, CancellationToken cancellationToken)
+    public Task<int> RecoverStaleWorkItemsAsync(TimeSpan leaseTimeout, CancellationToken cancellationToken, bool includeFullRebuildRequests = false)
     {
         var seconds = Math.Clamp((int)Math.Ceiling(leaseTimeout.TotalSeconds), 30, 86400);
         return _db.Database.ExecuteSqlInterpolatedAsync($"""
@@ -322,7 +358,20 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 END
             WHERE "Status" = 1
               AND "StartedAtUtc" IS NOT NULL
-              AND "StartedAtUtc" < NOW() - ({seconds} * INTERVAL '1 second');
+              AND "StartedAtUtc" < NOW() - ({seconds} * INTERVAL '1 second')
+              AND ({includeFullRebuildRequests} OR "EntityType" <> {FullRebuildEntityType});
+            """, cancellationToken);
+    }
+
+    public Task ReleaseAsync(long workItemId, TimeSpan retryAfter, CancellationToken cancellationToken)
+    {
+        var seconds = Math.Clamp((int)Math.Ceiling(retryAfter.TotalSeconds), 0, 86400);
+        return _db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE "SearchIndexWorkItems"
+            SET "Status" = 0,
+                "StartedAtUtc" = NULL,
+                "NextAttemptAtUtc" = NOW() + ({seconds} * INTERVAL '1 second')
+            WHERE "Id" = {workItemId} AND "Status" = 1;
             """, cancellationToken);
     }
 
@@ -360,7 +409,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
         var note = $"Requested by {actor}.";
         return _db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO "SearchIndexWorkItems" ("EntityType", "EntityKey", "RequestedAtUtc", "Status", "RetryCount", "NextAttemptAtUtc", "LastError")
-            VALUES ('__FullRebuild__', 'active', NOW(), 0, 0, NOW(), {note})
+            VALUES ({FullRebuildEntityType}, 'active', NOW(), 0, 0, NOW(), {note})
             ON CONFLICT ("EntityType", "EntityKey") DO UPDATE SET
                 "RequestedAtUtc" = NOW(),
                 -- Preserve an in-flight lease. CompleteAsync will observe the newer

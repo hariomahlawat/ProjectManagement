@@ -121,7 +121,8 @@ public sealed class SearchTelemetryRetentionWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.Value.Enabled) return;
+        // Runs even when Search V2 is disabled: the gateway still records Legacy
+        // queries, and click/shadow rows persist from earlier V2 periods.
         try { await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken); }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
 

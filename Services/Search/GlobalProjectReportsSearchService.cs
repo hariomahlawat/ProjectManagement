@@ -324,6 +324,7 @@ namespace ProjectManagement.Services.Search
         {
             var records = await _dbContext.Set<ProliferationGranular>()
                 .AsNoTracking()
+                .Where(record => record.ApprovalStatus == ApprovalStatus.Approved)
                 .Where(record =>
                     EF.Functions.ToTsVector("english",
                         record.UnitName + " " +

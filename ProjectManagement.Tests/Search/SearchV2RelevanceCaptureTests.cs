@@ -6,8 +6,6 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using ProjectManagement.Areas.ProjectOfficeReports.Application;
-using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.SearchV2;
@@ -226,15 +224,6 @@ public sealed class SearchV2RelevanceCaptureTests
             Task.FromResult(new SearchAccessContext(
                 "search-bench",
                 Array.Empty<string>(),
-                new[]
-                {
-                    Policies.Documents.View,
-                    Policies.Ipr.View,
-                    ProjectOfficeReportsPolicies.ViewVisits,
-                    ProjectOfficeReportsPolicies.ViewTotTracker,
-                    ProjectOfficeReportsPolicies.ViewTrainingTracker,
-                    ProjectOfficeReportsPolicies.ViewProliferationTracker,
-                    ProjectOfficeReportsPolicies.ViewArpp
-                }));
+                SearchSourcePolicies.AllPolicies));
     }
 }

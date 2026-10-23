@@ -96,7 +96,10 @@ public sealed class SearchEngine : ISearchV2Engine
 
         // Cheap readiness probe (one primary-key row). Entry/work-item counts belong to the
         // administrative health page, not to every committed search.
-        var activeGeneration = await _store.GetActiveGenerationAsync(_options.ProjectionVersion, cancellationToken);
+        var indexState = await _store.GetActiveStateAsync(cancellationToken);
+        var activeGeneration = indexState.HasActiveGeneration && indexState.IndexVersion == _options.ProjectionVersion
+            ? indexState.ActiveGeneration
+            : 0;
         if (activeGeneration <= 0)
         {
             _logger.LogDebug(
@@ -248,7 +251,20 @@ public sealed class SearchEngine : ISearchV2Engine
             if (!request.FacetsOnly && after is null && ShouldOfferCorrection(normalized, rows))
             {
                 var correctionStopwatch = Stopwatch.StartNew();
-                correctedQuery = await _corrections.TryCorrectAsync(connection, normalized, access, cancellationToken);
+                // Spelling assistance is optional: its failure must not discard the
+                // valid results already read (and push the gateway to Legacy fallback).
+                try
+                {
+                    correctedQuery = await _corrections.TryCorrectAsync(connection, normalized, access, cancellationToken);
+                }
+                catch (Exception correctionEx) when (!cancellationToken.IsCancellationRequested)
+                {
+                    correctedQuery = null;
+                    _logger.LogWarning(
+                        correctionEx,
+                        "Search V2 spelling assistance failed; results are served without a correction. QueryFingerprint={QueryFingerprint}.",
+                        Fingerprint(normalized.Exact));
+                }
                 correctionStopwatch.Stop();
                 correctionMilliseconds = correctionStopwatch.ElapsedMilliseconds;
                 if (string.Equals(correctedQuery, normalized.Exact, StringComparison.OrdinalIgnoreCase)) correctedQuery = null;
