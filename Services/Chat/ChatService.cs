@@ -525,20 +525,32 @@ public sealed class ChatService
                 return new ChatUnsendResult(ChatUnsendStatus.TooLate, null);
             }
 
-            message.UnsentUtc = _clock.UtcNow;
+            await using var transaction = _db.Database.CurrentTransaction is null
+                ? await _db.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            DateTimeOffset? unsentUtc = _clock.UtcNow;
+            message.UnsentUtc = unsentUtc;
             message.Body = string.Empty;
-            // Its files go with it (docs/chat-attachments.md, D6): the space returns to the sender
-            // and the clean-up job deletes them.
-            // A file already removed (by its sender, say) becomes final too: restoring it would
-            // charge the allowance for a file nobody can open.
-            foreach (var file in await _db.ChatAttachments.Where(a => a.MessageId == message.Id && a.PurgedUtc == null).ToListAsync(cancellationToken))
-            {
-                file.RemovedUtc ??= message.UnsentUtc;
-                file.RemovalReason = ChatAttachmentRemovalReason.Unsent;
-                file.RemovedByUserId = userId;
-            }
-
             await _db.SaveChangesAsync(cancellationToken);
+
+            // Its files go with it (docs/chat-attachments.md, D6): the space returns to the sender
+            // and the clean-up job deletes them. A file already removed (by its sender, say)
+            // becomes final too: restoring it would charge the allowance for a file nobody can
+            // open. One conditional update: a restore committing meanwhile is overridden (the
+            // update waits for it, then removes the file again), and a later restore finds the
+            // file unsent and leaves it.
+            await _db.ChatAttachments
+                .Where(a => a.MessageId == message.Id && a.PurgedUtc == null)
+                .ExecuteUpdateAsync(
+                    set => set
+                        .SetProperty(a => a.RemovedUtc, a => a.RemovedUtc ?? unsentUtc)
+                        .SetProperty(a => a.RemovalReason, ChatAttachmentRemovalReason.Unsent)
+                        .SetProperty(a => a.RemovedByUserId, userId),
+                    cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
         }
 
         return new ChatUnsendResult(

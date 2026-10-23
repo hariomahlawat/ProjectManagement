@@ -283,7 +283,27 @@ public sealed class ChatAttachmentServiceTests
             Assert.Equal(0, await scope.Files.CleanUpAsync()); // held open: not deleted, not marked done
         }
 
-        Assert.Null((await scope.Db.ChatAttachments.AsNoTracking().SingleAsync()).PurgedUtc);
+        // Claimed (it can no longer be restored) but not confirmed gone, so the next sweep finishes it.
+        Assert.Equal(ProjectManagement.Models.Chat.ChatAttachment.PurgeClaimed, (await scope.Db.ChatAttachments.AsNoTracking().SingleAsync()).PurgedUtc);
+        Assert.Equal(1, await scope.Files.CleanUpAsync());
+        Assert.False(File.Exists(scope.PathOf(key)));
+        Assert.NotEqual(ProjectManagement.Models.Chat.ChatAttachment.PurgeClaimed, (await scope.Db.ChatAttachments.AsNoTracking().SingleAsync()).PurgedUtc);
+        Assert.Equal(0, await scope.Files.CleanUpAsync()); // done: nothing left to do
+    }
+
+    [Fact]
+    public async Task CleanUp_FinishesAClaimAnInterruptedSweepLeftBehind()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var upload = (await scope.Files.UploadAsync("alice", Content("pdf"), "left.pdf")).Attachment!;
+        await scope.Files.RemoveAsync("alice", upload.Id);
+        var key = (await scope.Db.ChatAttachments.AsNoTracking().SingleAsync()).StorageKey;
+
+        // A sweep claimed the file and stopped before deleting it.
+        DateTimeOffset? claimedAt = ProjectManagement.Models.Chat.ChatAttachment.PurgeClaimed;
+        await scope.Db.ChatAttachments.ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, claimedAt));
+        Assert.True(File.Exists(scope.PathOf(key)));
+
         Assert.Equal(1, await scope.Files.CleanUpAsync());
         Assert.False(File.Exists(scope.PathOf(key)));
     }

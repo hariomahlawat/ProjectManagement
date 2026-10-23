@@ -47,8 +47,15 @@ public sealed class ChatAttachment
     /// </summary>
     public DateTimeOffset? RemovedUtc { get; set; }
 
-    /// <summary>When the clean-up job deleted the file (and thumbnail) from disk.</summary>
+    /// <summary>
+    /// When the clean-up job deleted the file (and thumbnail) from disk. While the job is
+    /// deleting it this holds <see cref="PurgeClaimed"/>: from the claim on, it cannot be
+    /// restored, and a claim a sweep could not finish is finished by a later one.
+    /// </summary>
     public DateTimeOffset? PurgedUtc { get; set; }
+
+    /// <summary><see cref="PurgedUtc"/> of a file claimed for deletion and not yet confirmed gone.</summary>
+    public static readonly DateTimeOffset PurgeClaimed = DateTimeOffset.UnixEpoch;
 
     /// <summary>Why it was removed (<see cref="ChatAttachmentRemovalReason"/>); null while kept.</summary>
     public string? RemovalReason { get; set; }
