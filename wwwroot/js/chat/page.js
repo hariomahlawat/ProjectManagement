@@ -293,6 +293,10 @@
     this.results.replaceChildren(count, list);
   };
 
+  // Registered before start-up: deferred scripts run once the page is parsed, so boot() below runs
+  // straight away and ChatApp.start needs MessagesPage on the Messages page.
+  global.PMChatParts.MessagesPage = MessagesPage;
+
   // ---------------------------------------------------------------------------
 
   function boot() {
@@ -308,6 +312,4 @@
   } else {
     boot();
   }
-
-  global.PMChatParts.MessagesPage = MessagesPage;
 })(window);
