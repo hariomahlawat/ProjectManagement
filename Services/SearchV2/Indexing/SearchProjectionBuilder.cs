@@ -467,7 +467,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 "FFC",
                 "Trackers",
                 title,
-                "Foreign Field Cooperation",
+                "Friendly Foreign Countries",
                 _urls.FfcRecordDetails(row.Id),
                 null,
                 null,

@@ -38,9 +38,10 @@ expect(gateway.includes('!ShouldServeV2(user)'), 'V2 suggestions must remain hid
 expect(options.includes('WorkItemLeaseMinutes'), 'Search indexing work-item lease must be configurable');
 expect(worker.includes('_options.WorkItemLeaseMinutes'), 'Search index worker does not use the configured work-item lease');
 const healthService = read('Services', 'Dashboard', 'SearchHealthService.cs');
-const healthWidget = read('Pages', 'Dashboard', 'Partials', '_SearchHealthWidget.cshtml');
+// The unused Dashboard search-health partial was removed; index health lives on the admin Search index page.
+const healthWidget = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml');
 expect(healthService.includes('ISearchIndexStore'), 'Dashboard search health does not consume Search V2 index health');
-expect(healthWidget.includes('Search index'), 'Dashboard does not expose Search V2 index health separately from OCR');
+expect(healthWidget.includes('Search index'), 'Search V2 index health is not exposed separately from OCR');
 
 const engine = read('Services', 'SearchV2', 'Query', 'SearchEngine.cs');
 expect(engine.includes('exact_identifier'), 'Deterministic exact-identifier ranking tier is missing');
@@ -96,7 +97,7 @@ const pageModel = read('Areas', 'Common', 'Pages', 'Search', 'Index.cshtml.cs');
 const searchContracts = read('Services', 'SearchV2', 'Models', 'SearchContracts.cs');
 const adminSearchIndex = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml.cs');
 
-expect(options.includes('ProjectionVersion') && options.includes('ProjectionVersion { get; set; } = 6;'), 'Projection semantic version is missing or was not bumped to 6');
+expect(options.includes('ProjectionVersion') && options.includes('ProjectionVersion { get; set; } = 7;'), 'Projection semantic version is missing or was not bumped to 7');
 expect(worker.includes('IsReadyAsync(_options.ProjectionVersion'), 'Index worker does not force projection-version compatibility');
 expect(worker.includes('ReplaceFullGenerationAsync(projections, _options.ProjectionVersion'), 'Full rebuild does not activate the configured projection version');
 expect(indexStore.includes('RequestFullRebuildAsync') && indexStore.includes("'__FullRebuild__'"), 'Administrative full rebuild queue support is missing');

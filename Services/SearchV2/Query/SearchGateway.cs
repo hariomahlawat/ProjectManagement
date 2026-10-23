@@ -139,7 +139,8 @@ public sealed class SearchGateway : ISearchGateway
         // Legacy serves: V2 is not enabled for this user, or V2 could not serve (for
         // example, the index is temporarily unavailable). Source-module authorization
         // is applied before adapting results.
-        var legacyResults = await ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken);
+        var legacyRead = await ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken);
+        var legacyResults = legacyRead.Hits;
 
         var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };
         var v2Status = v2Response?.ExecutionStatus
@@ -199,7 +200,8 @@ public sealed class SearchGateway : ISearchGateway
             null,
             fellBackToLegacy,
             v2Status,
-            v2Response?.DiagnosticId);
+            v2Response?.DiagnosticId,
+            IsUnavailable: legacyRead.Failed);
     }
 
     public async Task<IReadOnlyList<SearchSuggestion>> SuggestAsync(
@@ -340,7 +342,10 @@ public sealed class SearchGateway : ISearchGateway
         return _options.ServeV2Roles.Any(role => user.IsInRole(role));
     }
 
-    private async Task<IReadOnlyList<GlobalSearchHit>> ReadLegacyAuthorizedAsync(
+    // Failed lets the page say "search is unavailable" instead of showing zero results.
+    private sealed record LegacyRead(IReadOnlyList<GlobalSearchHit> Hits, bool Failed);
+
+    private async Task<LegacyRead> ReadLegacyAuthorizedAsync(
         string query,
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
@@ -352,12 +357,12 @@ public sealed class SearchGateway : ISearchGateway
         {
             var hits = await searchTask;
             var access = await accessTask;
-            return FilterLegacyByAccess(hits, access);
+            return new LegacyRead(FilterLegacyByAccess(hits, access), false);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Legacy search failed while Search V2 gateway was active.");
-            return Array.Empty<GlobalSearchHit>();
+            return new LegacyRead(Array.Empty<GlobalSearchHit>(), true);
         }
     }
 

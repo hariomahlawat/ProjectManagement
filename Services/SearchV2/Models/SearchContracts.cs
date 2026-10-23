@@ -145,8 +145,15 @@ public sealed record SearchGatewayResponse(
     string? CorrectedQuery,
     bool FellBackToLegacy = false,
     SearchV2ExecutionStatus V2ExecutionStatus = SearchV2ExecutionStatus.Disabled,
-    string? V2DiagnosticId = null)
+    string? V2DiagnosticId = null,
+    bool IsUnavailable = false)
 {
+    /// <summary>
+    /// Search V2 should have served this user but could not, so the bounded Legacy engine
+    /// answered instead: results may be incomplete and advanced filters are not applied.
+    /// </summary>
+    public bool IsDegraded => FellBackToLegacy && !IsUnavailable;
+
     public string EngineLabel => UsedSearchV2
         ? "V2"
         : FellBackToLegacy

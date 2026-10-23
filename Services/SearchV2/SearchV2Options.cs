@@ -96,7 +96,7 @@ public sealed class SearchV2Options
     /// index generation is rebuilt atomically when this value changes.
     /// </summary>
     [Range(1, int.MaxValue)]
-    public int ProjectionVersion { get; set; } = 6;
+    public int ProjectionVersion { get; set; } = 7;
 
     [Range(5, 3600)]
     public int WorkerIntervalSeconds { get; set; } = 15;

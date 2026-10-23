@@ -124,7 +124,7 @@ This document explains how the application performs OCR and full-text search (FT
 | `ServeV2`, `ServeV2Users`, `ServeV2Roles` | `false`, empty | Who V2 serves. Everyone else gets Legacy. |
 | `ShadowMode` | `true` | Allows sampled background comparison. |
 | `ShadowSampleRate` | unset | 0–1. Unset means `0` while V2 serves the user and `1` while Legacy serves. |
-| `ProjectionVersion` | `6` | Bump when indexed fields, categories, metadata or visibility rules change; the index is rebuilt atomically. Version 5 removes trashed/archived project documents and unapproved proliferation entries. Version 6 titles Training rows by project, clusters single-project trainings under their Project, folds punctuation in normalised titles and adds identifier-key terms (see [Search V2 ranking](search-v2-ranking.md)). |
+| `ProjectionVersion` | `7` | Bump when indexed fields, categories, metadata or visibility rules change; the index is rebuilt atomically. Version 5 removes trashed/archived project documents and unapproved proliferation entries. Version 6 titles Training rows by project, clusters single-project trainings under their Project, folds punctuation in normalised titles and adds identifier-key terms (see [Search V2 ranking](search-v2-ranking.md)). Version 7 labels FFC records "Friendly Foreign Countries" (was "Foreign Field Cooperation"). |
 | `WorkerIntervalSeconds` | `15` | Healthy tick interval. |
 | `WorkItemLeaseMinutes` | `10` | Stale-lease timeout for entity work items. |
 | `FullReconciliationMinutes` | `1440` | Scheduled full rebuild interval. |

@@ -32,6 +32,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Razor Pages catalogue](razor-pages.md) | UI/page inventory and role checks. |
 | [Dark theme palette](ux/dark-theme-palette.md) | Neutral-graphite dark theme: palette, principles, the opt-in Light/Dark/System switch, what is covered and how to convert a page. |
 | [Theme coverage](ux/theme-coverage.md) | Generated per-stylesheet count of literal colours and dark-theme gaps, grouped into conversion waves; enforced by `npm test`. |
+| [Search page and search box](ux/search.md) | What users see: the accessible search box, recent searches, shortcuts, failure banners, result cards, filters and paging. |
 | [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
 | [Chat](chat.md) | Person-to-person chat: buddy list, docked windows, API/hub contract, privacy position and configuration. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |

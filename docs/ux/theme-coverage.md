@@ -8,15 +8,15 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **7877** stylesheet literals in 85 files, **6** in inline view styles.
+Totals: **7753** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
-182 literals.
+172 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `navigation-shell.css` | 88 | 42 |
+| `navigation-shell.css` | 78 | 36 |
 | `pages/project-portfolio.css` | 57 | 48 |
 | `components/prism-confirm-dialog.css` | 22 | 8 |
 | `projects/timeline.css` | 13 | 6 |
@@ -47,14 +47,13 @@ Totals: **7877** stylesheet literals in 85 files, **6** in inline view styles.
 
 ## Wave 2: Notebook, Photos, Documents, Search
 
-1163 literals.
+1049 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `notebook.css` | 348 | 243 |
 | `pages/photos-people.css` | 183 | 114 |
 | `pages/photos-library.css` | 169 | 110 |
-| `pages/search.css` | 114 | 79 |
 | `docrepo-ui.css` | 75 | 51 |
 | `pages/photos-person-profile.css` | 75 | 55 |
 | `pages/photos-curation.css` | 53 | 38 |

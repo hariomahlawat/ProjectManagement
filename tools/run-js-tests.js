@@ -26,6 +26,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'core', 'declarative-actions.test.js'),
   path.join('wwwroot', 'js', 'core', 'page-handled-contract.test.js'),
   path.join('wwwroot', 'js', 'core', 'theme-preference.test.js'),
+  path.join('wwwroot', 'js', 'navigation', 'search-combobox.test.js'),
   path.join('tools', 'check-views.test.js'),
   path.join('tools', 'theme-coverage.test.js'),
   path.join('tools', 'theme-dark-codemod.test.js'),

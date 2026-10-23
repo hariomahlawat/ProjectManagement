@@ -227,8 +227,11 @@
                                    class="pm-top-search__input"
                                    placeholder="Search PRISM"
                                    autocomplete="off"
-                                   aria-keyshortcuts="Control+K Meta+K" />
-                            <kbd class="pm-top-search__shortcut" aria-hidden="true">Ctrl K</kbd>
+                                   spellcheck="false"
+                                   enterkeyhint="search"
+                                   data-search-combobox
+                                   aria-keyshortcuts="Control+K /" />
+                            <kbd class="pm-top-search__shortcut" aria-hidden="true" data-search-shortcut-hint>Ctrl K</kbd>
                         </form>
 
                         <a asp-area="Common"

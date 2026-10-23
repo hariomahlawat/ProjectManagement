@@ -1,4 +1,8 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
+using ProjectManagement.Configuration;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -13,14 +17,29 @@ public sealed class IndexModel : PageModel
 {
     private readonly ISearchGateway _search;
     private readonly IWebHostEnvironment _environment;
+    private readonly IAuthorizationService _authorization;
+    private readonly ApplicationDbContext _db;
 
-    public IndexModel(ISearchGateway search, IWebHostEnvironment environment)
+    public IndexModel(
+        ISearchGateway search,
+        IWebHostEnvironment environment,
+        IAuthorizationService authorization,
+        ApplicationDbContext db)
     {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
         _search = search ?? throw new ArgumentNullException(nameof(search));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+        _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
     }
 
     public bool ShowEngineDiagnostics => _environment.IsDevelopment();
+
+    // Query latency is an operator detail: shown to those who can open Search diagnostics.
+    public bool ShowLatency { get; private set; }
+
+    // Names for the project filters in the URL, so the active-filter chips can name a project
+    // even when it is not among the returned facets (for example when nothing matches).
+    public IReadOnlyDictionary<int, string> SelectedProjectNames { get; private set; } = new Dictionary<int, string>();
 
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }
@@ -63,6 +82,9 @@ public sealed class IndexModel : PageModel
             BuildSearchRequest(includeDetailedFacets: HasAdvancedFilters(), facetsOnly: false),
             User,
             cancellationToken);
+        ShowLatency = ShowEngineDiagnostics
+            || (await _authorization.AuthorizeAsync(User, AdminPolicies.SecurityView)).Succeeded;
+        SelectedProjectNames = await LoadSelectedProjectNamesAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnGetFacetsAsync(CancellationToken cancellationToken)
@@ -157,7 +179,54 @@ public sealed class IndexModel : PageModel
         IncludeDetailedFacets: includeDetailedFacets,
         FacetsOnly: facetsOnly);
 
-    private bool HasAdvancedFilters() =>
+    /// <summary>
+    /// The parent project a non-project result belongs to, read from the indexed match fields
+    /// (stored as "Name · Case"). Null for projects themselves and for Legacy results.
+    /// </summary>
+    public static string? ProjectNameFor(SearchResult hit)
+    {
+        if (string.Equals(hit.EntityType, "Project", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(hit.MetadataJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var metadata = JsonDocument.Parse(hit.MetadataJson);
+            if (metadata.RootElement.ValueKind == JsonValueKind.Object
+                && metadata.RootElement.TryGetProperty("matchFields", out var fields)
+                && fields.ValueKind == JsonValueKind.Object
+                && fields.TryGetProperty("Project", out var project)
+                && project.ValueKind == JsonValueKind.String)
+            {
+                var name = project.GetString()?.Split(" · ", 2)[0].Trim();
+                return string.IsNullOrWhiteSpace(name) ? null : name;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return null;
+    }
+
+    private async Task<IReadOnlyDictionary<int, string>> LoadSelectedProjectNamesAsync(CancellationToken cancellationToken)
+    {
+        var ids = Project?.Where(value => value > 0).Distinct().Take(50).ToArray() ?? Array.Empty<int>();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<int, string>();
+        }
+
+        // Project names are visible to every signed-in user (Projects pages are [Authorize] only).
+        return await _db.Projects
+            .AsNoTracking()
+            .Where(project => ids.Contains(project.Id) && !project.IsDeleted)
+            .ToDictionaryAsync(project => project.Id, project => project.Name, cancellationToken);
+    }
+
+    public bool HasAdvancedFilters() =>
         (Source?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
         || (Project?.Any(value => value > 0) ?? false)
         || (Status?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
