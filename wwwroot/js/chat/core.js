@@ -21,6 +21,7 @@
  *   GET/POST {api}/status                       { message } (own status message)
  *   POST {api}/messages/{id}/unsend             own message, shortly after sending
  *   GET  {api}/unsent?since=                    ids unsent while this page was not listening
+ *   GET  {api}/previews?link=&link=             cards for links to PRISM records the user may open
  *   GET/POST {api}/groups, GET {api}/groups/{id}, …/messages, …/read, …/members,
  *            …/members/{user}/remove, …/leave, …/rename      group chats (410 = not in the group)
  *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing /
@@ -382,6 +383,95 @@
     }
   }
 
+  // ----- links in messages ------------------------------------------------------------
+
+  const LINK_PATTERN = /\bhttps?:\/\/[^\s<>"']+/gi;
+  const PREVIEWS_PER_MESSAGE = 3;
+  const PREVIEW_KINDS = {
+    project: 'Project',
+    document: 'Project document',
+    task: 'Action task',
+    idea: 'Project idea',
+    'repository-document': 'Repository document',
+  };
+
+  /**
+   * Splits message text into plain text and web links ({ text } / { text, url }). Only http and
+   * https are links; punctuation that ends a sentence ("see https://…/12.") stays text, as does
+   * a closing bracket the link did not open.
+   */
+  function linkParts(value) {
+    const text = value == null ? '' : String(value);
+    const parts = [];
+    let last = 0;
+    for (const match of text.matchAll(LINK_PATTERN)) {
+      let raw = match[0];
+      while (/[.,;:!?'"]$/.test(raw) || (raw.endsWith(')') && !raw.includes('('))) raw = raw.slice(0, -1);
+      let url = null;
+      try {
+        url = new URL(raw);
+      } catch (_) { /* not a link after all */ }
+      if (!url || (url.protocol !== 'http:' && url.protocol !== 'https:')) continue;
+      if (match.index > last) parts.push({ text: text.slice(last, match.index) });
+      parts.push({ text: raw, url });
+      last = match.index + raw.length;
+    }
+    if (last < text.length) parts.push({ text: text.slice(last) });
+    return parts;
+  }
+
+  /** Writes message text with its links as anchors; links off this PRISM server open a new tab. */
+  function appendLinked(node, text, origin) {
+    for (const part of linkParts(text)) {
+      if (!part.url) {
+        node.append(document.createTextNode(part.text));
+        continue;
+      }
+      const a = el('a', 'pm-chat__link', part.text);
+      a.href = part.url.href;
+      if (part.url.origin !== origin) {
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+      }
+      node.append(a);
+    }
+  }
+
+  /** The links in a message that point at this PRISM server, as path + query, at most three. */
+  function previewLinks(text, origin) {
+    const links = [];
+    for (const part of linkParts(text)) {
+      if (!part.url || part.url.origin !== origin) continue;
+      const link = part.url.pathname + part.url.search;
+      if (!links.includes(link)) links.push(link);
+      if (links.length === PREVIEWS_PER_MESSAGE) break;
+    }
+    return links;
+  }
+
+  /** A preview card (from GET {api}/previews): one link with the record's kind, name and detail. */
+  function previewCard(preview) {
+    const card = el('a', 'pm-chat__card');
+    card.href = preview.link;
+    const kind = PREVIEW_KINDS[preview.kind] || 'PRISM';
+    card.setAttribute('aria-label', `${kind}: ${preview.title}${preview.subtitle ? `, ${preview.subtitle}` : ''}`);
+    // Only a same-site path the server built (a project's cover photo); never another site.
+    if (typeof preview.imageUrl === 'string' && preview.imageUrl.startsWith('/') && !preview.imageUrl.startsWith('//')) {
+      const image = el('img', 'pm-chat__card-image');
+      image.src = preview.imageUrl;
+      image.alt = '';
+      image.loading = 'lazy';
+      card.append(image);
+    } else {
+      card.append(icon(preview.kind === 'project' ? 'kanban' : preview.kind === 'task' ? 'check2-square' : preview.kind === 'idea' ? 'lightbulb' : 'file-earmark-text'));
+    }
+    const text = el('span', 'pm-chat__card-text');
+    text.append(el('span', 'pm-chat__card-kind', kind), el('span', 'pm-chat__card-title', preview.title));
+    if (preview.subtitle) text.append(el('span', 'pm-chat__card-detail', preview.subtitle));
+    card.append(text);
+    return card;
+  }
+
   // ---------------------------------------------------------------------------
   // Sound: a short two-note chime made with Web Audio, so no audio file has to ship.
   // ---------------------------------------------------------------------------
@@ -426,7 +516,7 @@
 
   // Handed to the other chat scripts (chat/app.js … chat/page.js), loaded after this one.
   global.PMChatParts = {
-    countLabel, unreadBadge, newestId,
+    countLabel, unreadBadge, newestId, linkParts, appendLinked, previewLinks, previewCard,
     TIME_ZONE, HISTORY_PAGE, POLL_MS, CATCH_UP_PAGES, WINDOW_WIDTH, BUDDY_WIDTH,
     DOCK_GAP, TYPING_SEND_MS, TYPING_SHOW_MS, IDLE_MS, IDLE_CHECK_MS, SEARCH_DELAY_MS,
     UNSENT_RETRY_MS, GROUP_LIMIT, ARM_MS, PICKER_MAX, SERVER_TIMEOUT_MS, UNSENT_LOOKBACK_MS,

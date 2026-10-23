@@ -441,6 +441,10 @@ builder.Services.AddRateLimiter(options =>
         ChatApi.GetSearchPartition(
             context,
             context.RequestServices.GetRequiredService<IOptionsMonitor<ChatOptions>>().CurrentValue));
+    options.AddPolicy(ChatApi.PreviewRateLimitPolicy, context =>
+        ChatApi.GetPreviewPartition(
+            context,
+            context.RequestServices.GetRequiredService<IOptionsMonitor<ChatOptions>>().CurrentValue));
 
     // Document uploads are throttled per signed-in user; opening the upload page is not.
     options.AddPolicy(DocumentUploadRateLimiting.PolicyName, context =>
@@ -836,6 +840,7 @@ builder.Services.AddOptions<ChatOptions>()
     .Bind(builder.Configuration.GetSection(ChatOptions.SectionName));
 builder.Services.AddSingleton<ChatPresenceTracker>();
 builder.Services.AddScoped<ChatService>();
+builder.Services.AddScoped<ChatLinkPreviewService>();
 builder.Services.AddScoped<ChatGroupService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();

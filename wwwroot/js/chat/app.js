@@ -1,6 +1,6 @@
 /*
  * PRISM chat, the controller: state, browser storage, HTTP, the live connection, polling, away.
- * One of the chat scripts loaded in order by _Layout.cshtml (see chat/core.js for the list and
+ * One of the chat scripts loaded in order by _ChatScripts.cshtml (see chat/core.js for the list and
  * the server contract). Shared helpers come from PMChatParts, set up by chat/core.js.
  */
 (function (global) {
@@ -41,6 +41,11 @@
     // Drafts and failed messages of closed windows, until the conversation is opened again. In
     // memory only: like the rest of chat, message text is never written to browser storage.
     this.kept = new Map();
+    // Preview cards for links to PRISM records, by link (path + query): the card, or null for
+    // "no card" (not a record, or not one this user may open). Asked for in batches, once per page.
+    this.previews = new Map();
+    this.previewQueue = new Set();
+    this.previewTimer = null;
     this.buddyOpen = false;
     this.connection = null;
     this.pollTimer = null;

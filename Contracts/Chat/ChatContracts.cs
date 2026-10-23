@@ -81,6 +81,13 @@ public sealed record ChatSearchHitDto(
     DateTimeOffset SentUtc,
     long? GroupId = null);
 
+/// <summary>
+/// A preview card for a link to a PRISM record in a message, built for the person asking.
+/// Link is the link as asked for (path and query); Kind is project, document, task, idea or
+/// repository-document; ImageUrl, when set, is a small picture (a project's cover photo).
+/// </summary>
+public sealed record ChatLinkPreviewDto(string Link, string Kind, string Title, string? Subtitle, string? ImageUrl);
+
 // ---------------- Groups
 
 public sealed record ChatGroupSummaryDto(

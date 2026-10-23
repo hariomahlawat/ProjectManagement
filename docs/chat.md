@@ -99,6 +99,21 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   - Unsend, search (hits say which group), the Messages page and links
     (`/Chat?with=g:{groupId}`) all work for groups. A malformed group link (`g:5.5`, `g:abc`)
     opens nothing; `g:05` opens group 5.
+- **Links and preview cards**: web links in a message are clickable (http and https only;
+  links to other sites open in a new tab). A link to a PRISM record also shows a small card
+  under the message, for up to three records per message:
+  - **Project** (`/Projects/Overview/{id}`): cover photo, name and project officer;
+  - **Project document** (`/Projects/Documents/Preview?documentId={id}`): title and project;
+  - **Action task** (`/ActionTasks/Details/{id}`): title, status and due date;
+  - **Project idea** (`/ProjectIdeas/Details/{id}`): title and status;
+  - **Repository document** (`/DocumentRepository/Documents/Reader/{id}` or `View?id=`):
+    subject, office and category.
+
+  Each person sees a card only for a record they may open, under the same rule as the record's
+  own page, applied by the server with that person's permissions: deleted projects, ideas,
+  tasks and repository documents, unpublished or archived project documents, and other
+  people's tasks (unless the viewer may see all tasks) get no card, and the answer is the same
+  as for a record that does not exist. The link itself still works as any link does.
 - **Messages page** (`/Chat`, also linked from the buddy list): every conversation, most recent
   first, with a large conversation view, and **search across all your messages** (at least two
   characters, case-insensitive, newest 50 matches). A search hit opens the conversation at
@@ -181,6 +196,13 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - Group conversations have `Kind = 'Group'`, a `Title` and a `ManagerUserId`, and no pair
   key; check constraints enforce both shapes. Notices are `ChatMessages` rows with an
   `EventKind` and empty body. Leaving or removal deletes the `ChatParticipants` row.
+- **Previews** (`GET /api/chat/previews?link=…&link=…`, at most 10 links, each a path with
+  its query, including the path base): `Services/Chat/ChatLinkPreviewService.cs` recognises
+  the record pages above and builds a card for each record the caller may open; the rest are
+  left out of the answer. The browser asks once per link per page, in batches, and keeps the
+  answer (card or none) for the page's lifetime. Previews read records directly and never go
+  through the record pages, so opening a card's record is what records a view (for example an
+  AOTS document), not the preview.
 - **Search** (`GET /api/chat/search?q=`) joins through the caller's own participant rows, so it
   can only ever match the caller's conversations. The term is matched as plain text (`%` and
   `_` are not wildcards). It is a substring scan without a full-text index, which is fine at
@@ -208,6 +230,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
     leave), 20 per minute by default. Most of these are pushed to many people.
   - `chat-search`: message searches, 60 per minute by default (the page searches 300 ms after
     typing stops).
+  - `chat-preview`: link-preview requests, 120 per minute by default.
 
 ## Privacy
 
@@ -232,6 +255,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 | `Chat:ChangeWindowSeconds` | `60` | Length of that window. |
 | `Chat:SearchPermitLimit` | `60` | Message searches one user may run per window. |
 | `Chat:SearchWindowSeconds` | `60` | Length of that window. |
+| `Chat:PreviewPermitLimit` | `120` | Link-preview requests one user may make per window (each asks for up to 10 links). |
+| `Chat:PreviewWindowSeconds` | `60` | Length of that window. |
 | `Chat:UnsendWindowMinutes` | `5` | How long after sending a message its sender may unsend it. `0` turns unsend off. |
 
 ## Deployment notes

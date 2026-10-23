@@ -30,6 +30,8 @@ public static class ChatApi
 
     public const string SearchRateLimitPolicy = "chat-search";
 
+    public const string PreviewRateLimitPolicy = "chat-preview";
+
     /// <summary>
     /// Set on the 404 that every endpoint answers while chat is switched off, so the browser can
     /// tell "chat is off" (stand down) from an ordinary missing resource (show an error).
@@ -58,6 +60,7 @@ public static class ChatApi
         group.MapGet("/contacts", GetContactsAsync);
         group.MapGet("/with/{peerUserId}/messages", GetHistoryAsync);
         group.MapGet("/search", SearchAsync).RequireRateLimiting(SearchRateLimitPolicy);
+        group.MapGet("/previews", GetPreviewsAsync).RequireRateLimiting(PreviewRateLimitPolicy);
         group.MapGet("/status", GetStatusAsync);
         group.MapPost("/status", SetStatusAsync).RequireRateLimiting(ChangeRateLimitPolicy);
         group.MapPost("/messages/{messageId:long}/unsend", UnsendAsync).RequireRateLimiting(ChangeRateLimitPolicy);
@@ -88,6 +91,9 @@ public static class ChatApi
 
     public static RateLimitPartition<string> GetSearchPartition(HttpContext context, ChatOptions options)
         => GetUserPartition(context, options.SearchPermitLimit, options.SearchWindowSeconds);
+
+    public static RateLimitPartition<string> GetPreviewPartition(HttpContext context, ChatOptions options)
+        => GetUserPartition(context, options.PreviewPermitLimit, options.PreviewWindowSeconds);
 
     /// <summary>Any throttled chat request (sends, changes, searches) answers 429.</summary>
     public static bool IsChatRequest(HttpContext context)
@@ -244,6 +250,30 @@ public static class ChatApi
                     title: "Cannot unsend",
                     detail: "Only your own messages can be unsent.");
         }
+    }
+
+    /// <summary>
+    /// Preview cards for links to PRISM records (?link=/Projects/Overview/12&amp;link=…, at most
+    /// 10). Only records the caller may open get a card; the rest are simply left out.
+    /// </summary>
+    private static async Task<IResult> GetPreviewsAsync(
+        [FromQuery(Name = "link")] string[]? links,
+        HttpContext httpContext,
+        ChatLinkPreviewService previews,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out _))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (links is { Length: > ChatLinkPreviewService.MaxLinksPerRequest })
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid request", detail: $"Ask for at most {ChatLinkPreviewService.MaxLinksPerRequest} links at a time.");
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await previews.PreviewAsync(httpContext.User, links ?? Array.Empty<string>(), httpContext.Request.PathBase, cancellationToken));
     }
 
     private static async Task<IResult> SearchAsync(

@@ -1,6 +1,6 @@
 /*
  * PRISM chat, the Messages page (/Chat), and start-up.
- * One of the chat scripts loaded in order by _Layout.cshtml (see chat/core.js for the list and
+ * One of the chat scripts loaded in order by _ChatScripts.cshtml (see chat/core.js for the list and
  * the server contract). Shared helpers come from PMChatParts, set up by chat/core.js.
  */
 (function (global) {
