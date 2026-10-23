@@ -38,6 +38,27 @@ namespace ProjectManagement.Tests.Chat;
 public sealed class ChatApiTests
 {
     [Fact]
+    public async Task Pages_LoadEveryChatScriptInOrder_AndEachIsServed()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        using var client = host.ClientFor("alice");
+
+        var html = await client.GetStringAsync("/Chat");
+        var scripts = Regex.Matches(html, "src=\"(?<src>/js/chat/[\\w-]+\\.js)(\\?[^\"]*)?\"")
+            .Select(m => m.Groups["src"].Value)
+            .ToList();
+
+        Assert.Equal(
+            new[] { "core", "app", "events", "dock", "windows", "conversation", "page" }.Select(n => $"/js/chat/{n}.js"),
+            scripts);
+        Assert.DoesNotContain("/js/chat.js", html);
+        foreach (var src in scripts)
+        {
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(src)).StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task AnonymousRequests_Get401()
     {
         await using var host = await ChatHost.CreateAsync();

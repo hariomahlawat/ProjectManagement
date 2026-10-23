@@ -1,0 +1,9 @@
+@* The chat scripts, in load order: core.js first (shared helpers), page.js last (it starts chat).
+   defer keeps this order. wwwroot/js/chat.test.js reads this list, so tests load exactly these. *@
+<script src="~/js/chat/core.js" asp-append-version="true" defer></script>
+<script src="~/js/chat/app.js" asp-append-version="true" defer></script>
+<script src="~/js/chat/events.js" asp-append-version="true" defer></script>
+<script src="~/js/chat/dock.js" asp-append-version="true" defer></script>
+<script src="~/js/chat/windows.js" asp-append-version="true" defer></script>
+<script src="~/js/chat/conversation.js" asp-append-version="true" defer></script>
+<script src="~/js/chat/page.js" asp-append-version="true" defer></script>
