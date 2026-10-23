@@ -105,11 +105,13 @@ public sealed class SearchGateway : ISearchGateway
             }
         }
 
-        IReadOnlyList<GlobalSearchHit>? legacyResults = null;
+        LegacyRead? legacyRead = null;
         if (legacyTask is not null)
         {
-            legacyResults = await legacyTask;
+            legacyRead = await legacyTask;
         }
+
+        var legacyResults = legacyRead?.Hits;
 
         if (_options.ShadowMode && v2Response is { IsReady: true } && legacyResults is not null)
         {
@@ -178,7 +180,8 @@ public sealed class SearchGateway : ISearchGateway
         // V2 may be enabled without Legacy having been started (for example,
         // ServeV2=true but the index is temporarily unavailable). Fall back
         // safely and apply source-module authorization before adapting results.
-        legacyResults ??= await ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken);
+        legacyRead ??= await ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken);
+        legacyResults = legacyRead.Hits;
 
         var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };
         var v2Status = v2Response?.ExecutionStatus
@@ -233,7 +236,8 @@ public sealed class SearchGateway : ISearchGateway
             null,
             fellBackToLegacy,
             v2Status,
-            v2Response?.DiagnosticId);
+            v2Response?.DiagnosticId,
+            IsUnavailable: legacyRead.Failed);
     }
 
     public async Task<IReadOnlyList<SearchSuggestion>> SuggestAsync(
@@ -312,7 +316,10 @@ public sealed class SearchGateway : ISearchGateway
         return _options.ServeV2Roles.Any(role => user.IsInRole(role));
     }
 
-    private async Task<IReadOnlyList<GlobalSearchHit>> ReadLegacyAuthorizedAsync(
+    // Failed lets the page say "search is unavailable" instead of showing zero results.
+    private sealed record LegacyRead(IReadOnlyList<GlobalSearchHit> Hits, bool Failed);
+
+    private async Task<LegacyRead> ReadLegacyAuthorizedAsync(
         string query,
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
@@ -324,12 +331,12 @@ public sealed class SearchGateway : ISearchGateway
         {
             var hits = await searchTask;
             var access = await accessTask;
-            return FilterLegacyByAccess(hits, access);
+            return new LegacyRead(FilterLegacyByAccess(hits, access), false);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Legacy search failed while Search V2 gateway was active.");
-            return Array.Empty<GlobalSearchHit>();
+            return new LegacyRead(Array.Empty<GlobalSearchHit>(), true);
         }
     }
 

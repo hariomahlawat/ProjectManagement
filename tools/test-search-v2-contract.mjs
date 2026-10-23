@@ -38,9 +38,10 @@ expect(gateway.includes('!ShouldServeV2(user)'), 'V2 suggestions must remain hid
 expect(options.includes('WorkItemLeaseMinutes'), 'Search indexing work-item lease must be configurable');
 expect(worker.includes('_options.WorkItemLeaseMinutes'), 'Search index worker does not use the configured work-item lease');
 const healthService = read('Services', 'Dashboard', 'SearchHealthService.cs');
-const healthWidget = read('Pages', 'Dashboard', 'Partials', '_SearchHealthWidget.cshtml');
+// The unused Dashboard search-health partial was removed; index health lives on the admin Search index page.
+const healthWidget = read('Areas', 'Admin', 'Pages', 'Diagnostics', 'SearchIndex.cshtml');
 expect(healthService.includes('ISearchIndexStore'), 'Dashboard search health does not consume Search V2 index health');
-expect(healthWidget.includes('Search index'), 'Dashboard does not expose Search V2 index health separately from OCR');
+expect(healthWidget.includes('Search index'), 'Search V2 index health is not exposed separately from OCR');
 
 const engine = read('Services', 'SearchV2', 'Query', 'SearchEngine.cs');
 expect(engine.includes('exact_identifier'), 'Deterministic exact-identifier ranking tier is missing');

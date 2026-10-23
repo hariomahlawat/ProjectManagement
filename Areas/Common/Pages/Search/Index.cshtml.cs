@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using ProjectManagement.Configuration;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -13,14 +15,19 @@ public sealed class IndexModel : PageModel
 {
     private readonly ISearchGateway _search;
     private readonly IWebHostEnvironment _environment;
+    private readonly IAuthorizationService _authorization;
 
-    public IndexModel(ISearchGateway search, IWebHostEnvironment environment)
+    public IndexModel(ISearchGateway search, IWebHostEnvironment environment, IAuthorizationService authorization)
     {
         _search = search ?? throw new ArgumentNullException(nameof(search));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+        _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
     }
 
     public bool ShowEngineDiagnostics => _environment.IsDevelopment();
+
+    // Query latency is an operator detail: shown to those who can open Search diagnostics.
+    public bool ShowLatency { get; private set; }
 
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }
@@ -63,6 +70,8 @@ public sealed class IndexModel : PageModel
             BuildSearchRequest(includeDetailedFacets: HasAdvancedFilters(), facetsOnly: false),
             User,
             cancellationToken);
+        ShowLatency = ShowEngineDiagnostics
+            || (await _authorization.AuthorizeAsync(User, AdminPolicies.SecurityView)).Succeeded;
     }
 
     public async Task<IActionResult> OnGetFacetsAsync(CancellationToken cancellationToken)
@@ -157,7 +166,39 @@ public sealed class IndexModel : PageModel
         IncludeDetailedFacets: includeDetailedFacets,
         FacetsOnly: facetsOnly);
 
-    private bool HasAdvancedFilters() =>
+    /// <summary>
+    /// The parent project a non-project result belongs to, read from the indexed match fields
+    /// (stored as "Name · Case"). Null for projects themselves and for Legacy results.
+    /// </summary>
+    public static string? ProjectNameFor(SearchResult hit)
+    {
+        if (string.Equals(hit.EntityType, "Project", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(hit.MetadataJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var metadata = JsonDocument.Parse(hit.MetadataJson);
+            if (metadata.RootElement.ValueKind == JsonValueKind.Object
+                && metadata.RootElement.TryGetProperty("matchFields", out var fields)
+                && fields.ValueKind == JsonValueKind.Object
+                && fields.TryGetProperty("Project", out var project)
+                && project.ValueKind == JsonValueKind.String)
+            {
+                var name = project.GetString()?.Split(" · ", 2)[0].Trim();
+                return string.IsNullOrWhiteSpace(name) ? null : name;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return null;
+    }
+
+    public bool HasAdvancedFilters() =>
         (Source?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
         || (Project?.Any(value => value > 0) ?? false)
         || (Status?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
