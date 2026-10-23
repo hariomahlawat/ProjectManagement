@@ -496,6 +496,160 @@
     color: var(--pm-primary);
 }
 
+/* ---------- File attachments (chat/files.js) ---------- */
+.pm-chat__attach {
+    color: var(--pm-text-muted);
+}
+
+.pm-chat__pending {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    max-height: 9rem;
+    margin: 0;
+    padding: .4rem .5rem 0;
+    overflow-y: auto;
+    border-top: 1px solid var(--pm-border);
+    list-style: none;
+}
+
+.pm-chat__pending[hidden] {
+    display: none;
+}
+
+.pm-chat__pending-item {
+    display: flex;
+    gap: .4rem;
+    align-items: center;
+    padding: .2rem .35rem;
+    border: 1px solid var(--pm-border);
+    border-radius: .4rem;
+    background: var(--pm-surface-subtle);
+    font-size: .78rem;
+}
+
+.pm-chat__pending-item.is-failed {
+    border-color: var(--pm-danger-soft-border);
+}
+
+.pm-chat__pending-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pm-chat__pending-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-chat__pending-status {
+    color: var(--pm-text-muted);
+    font-size: .72rem;
+}
+
+.pm-chat__pending-item.is-failed .pm-chat__pending-status {
+    color: var(--pm-danger);
+}
+
+.pm-chat__pending-note {
+    margin: 0;
+    padding: .2rem .6rem 0;
+    color: var(--pm-danger);
+    font-size: .72rem;
+}
+
+.pm-chat__pending-note:empty {
+    display: none;
+}
+
+.pm-chat__files {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    margin-top: .25rem;
+}
+
+.pm-chat__file {
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+    align-items: flex-start;
+    max-width: 100%;
+}
+
+/* My files line up on the right, with my text; Remove sits under each. */
+.pm-chat__msg.is-mine .pm-chat__files,
+.pm-chat__msg.is-mine .pm-chat__file {
+    align-items: flex-end;
+}
+
+.pm-chat__thumb img {
+    display: block;
+    max-width: min(220px, 100%);
+    height: auto;
+    border: 1px solid var(--pm-border);
+    border-radius: .6rem;
+    background: var(--pm-surface-subtle);
+}
+
+.pm-chat__file-card {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    min-width: 0;
+    max-width: 230px;
+    padding: .4rem .55rem;
+    border: 1px solid var(--pm-border);
+    border-radius: .6rem;
+    background: var(--pm-card);
+    color: var(--pm-text);
+    text-decoration: none;
+}
+
+.pm-chat__file-card:hover,
+.pm-chat__file-card:focus-visible {
+    border-color: var(--pm-primary);
+    color: var(--pm-text);
+}
+
+.pm-chat__file-card > .bi {
+    flex: none;
+    color: var(--pm-primary);
+    font-size: 1.3rem;
+}
+
+.pm-chat__file-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pm-chat__file-name {
+    overflow: hidden;
+    font-size: .8rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-chat__file-size {
+    color: var(--pm-text-muted);
+    font-size: .72rem;
+}
+
+.pm-chat__file-remove {
+    font-size: .72rem;
+}
+
+.pm-chat__file-removed {
+    color: var(--pm-text-muted);
+    font-size: .78rem;
+    font-style: italic;
+}
+
 /* ---------- Phase 2: ticks, typing, search highlight ---------- */
 .pm-chat__tick {
     font-size: .8rem;

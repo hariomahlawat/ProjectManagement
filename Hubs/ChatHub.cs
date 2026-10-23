@@ -214,4 +214,7 @@ public interface IChatClient
     Task GroupRead(ChatGroupReadDto read);
 
     Task GroupTyping(ChatGroupTypingDto typing);
+
+    /// <summary>A sender removed a file from a message (docs/chat-attachments.md, D3).</summary>
+    Task AttachmentRemoved(ChatAttachmentRemovedDto removed);
 }

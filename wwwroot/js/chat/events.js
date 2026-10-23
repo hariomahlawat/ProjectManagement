@@ -208,8 +208,13 @@
    * cannot show the withdrawn text.
    */
   ChatApp.prototype.applyTombstones = function (win) {
-    if (!this.unsentIds.size) return;
-    const mark = (list) => list.map((m) => (m.id && this.unsentIds.has(m.id) && !m.isUnsent ? { ...m, body: '', isUnsent: true } : m));
+    if (!this.unsentIds.size && !this.removedFiles.size) return;
+    const removeFiles = (m) => {
+      if (!m.attachments || !this.removedFiles.size) return m;
+      if (!m.attachments.some((a) => !a.isRemoved && this.removedFiles.has(a.id))) return m;
+      return { ...m, attachments: m.attachments.map((a) => (!a.isRemoved && this.removedFiles.has(a.id) ? this.removedFiles.get(a.id) : a)) };
+    };
+    const mark = (list) => list.map((m) => removeFiles(m.id && this.unsentIds.has(m.id) && !m.isUnsent ? { ...m, body: '', isUnsent: true } : m));
     win.messages = mark(win.messages);
     win.heldLive = mark(win.heldLive);
   };

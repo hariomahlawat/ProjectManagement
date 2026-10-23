@@ -412,7 +412,10 @@
              data-hub-url="@Url.Content("~/hubs/chat")"
              data-messages-url="@Url.Page("/Chat/Index")"
              data-max-length="@ProjectManagement.Models.Chat.ChatMessage.MaxBodyLength"
-             data-unsend-minutes="@ChatConfiguration.CurrentValue.UnsendWindowMinutes"></div>
+             data-unsend-minutes="@ChatConfiguration.CurrentValue.UnsendWindowMinutes"
+             data-attachments="@(ChatConfiguration.CurrentValue.Attachments.Enabled ? "on" : "off")"
+             data-attach-max-mb="@ChatConfiguration.CurrentValue.Attachments.MaxFileMb"
+             data-attach-max-files="@ChatConfiguration.CurrentValue.Attachments.MaxFilesPerMessage"></div>
         <partial name="_ChatScripts" />
     }
     @await RenderSectionAsync("Scripts", required: false)

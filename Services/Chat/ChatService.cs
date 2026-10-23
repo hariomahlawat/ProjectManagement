@@ -202,7 +202,7 @@ public sealed class ChatService
                 m.UnsentUtc is not null))
             .ToList();
 
-        return new ChatHistoryDto(peerUserId, messages, hasMore, hasNewer, peerLastRead);
+        return new ChatHistoryDto(peerUserId, await ChatAttachmentService.WithAttachmentsAsync(_db, messages, cancellationToken), hasMore, hasNewer, peerLastRead);
     }
 
     /// <summary>
@@ -338,7 +338,7 @@ public sealed class ChatService
         }
 
         var body = NormalizeBody(request.Body);
-        if (body.Length == 0)
+        if (body.Length == 0 && request.AttachmentIds is not { Count: > 0 })
         {
             return ChatSendResult.Invalid("Type a message before sending.");
         }
@@ -353,7 +353,7 @@ public sealed class ChatService
         if (existing is not null)
         {
             return existing.GroupId is null && string.Equals(existing.RecipientUserId, recipientUserId, StringComparison.Ordinal)
-                ? new ChatSendResult(ChatSendStatus.Sent, existing, null)
+                ? new ChatSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, existing, cancellationToken), null)
                 : ChatSendResult.Invalid("This message identifier was already used for a different conversation.");
         }
 
@@ -385,6 +385,19 @@ public sealed class ChatService
         _db.ChatMessages.Add(message);
         conversation.LastMessageUtc = now;
 
+        // Files uploaded first go with the message: checked now, taken atomically once the
+        // message is saved, all in one transaction (docs/chat-attachments.md).
+        var fileIds = ChatAttachmentService.DistinctIds(request.AttachmentIds);
+        var fileError = await ChatAttachmentService.CheckAsync(_db, _options.CurrentValue.Attachments, senderUserId, fileIds, cancellationToken);
+        if (fileError is not null)
+        {
+            _db.ChangeTracker.Clear();
+            return ChatSendResult.Invalid(fileError);
+        }
+
+        await using var transaction = fileIds.Count > 0 && _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -392,6 +405,11 @@ public sealed class ChatService
         catch (DbUpdateException)
         {
             // Two tabs retried the same message at once; the other request stored it.
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
             _db.ChangeTracker.Clear();
             existing = await FindExistingAsync(senderUserId, request.ClientMessageId, cancellationToken);
             if (existing is null)
@@ -399,12 +417,32 @@ public sealed class ChatService
                 throw;
             }
 
-            return new ChatSendResult(ChatSendStatus.Sent, existing, null);
+            return new ChatSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, existing, cancellationToken), null);
+        }
+
+        fileError = await ChatAttachmentService.ClaimAsync(_db, senderUserId, fileIds, message.Id, cancellationToken);
+        if (fileError is not null)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
+            _db.ChangeTracker.Clear();
+            return ChatSendResult.Invalid(fileError);
+        }
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
         }
 
         return new ChatSendResult(
             ChatSendStatus.Sent,
-            new ChatMessageDto(message.Id, senderUserId, recipientUserId, message.ClientMessageId, message.Body, message.SentUtc),
+            await ChatAttachmentService.WithAttachmentsAsync(
+                _db,
+                new ChatMessageDto(message.Id, senderUserId, recipientUserId, message.ClientMessageId, message.Body, message.SentUtc),
+                cancellationToken),
             null);
     }
 
@@ -489,6 +527,13 @@ public sealed class ChatService
 
             message.UnsentUtc = _clock.UtcNow;
             message.Body = string.Empty;
+            // Its files go with it (docs/chat-attachments.md, D6): the space returns to the sender
+            // and the clean-up job deletes them.
+            foreach (var file in await _db.ChatAttachments.Where(a => a.MessageId == message.Id && a.RemovedUtc == null).ToListAsync(cancellationToken))
+            {
+                file.RemovedUtc = message.UnsentUtc;
+            }
+
             await _db.SaveChangesAsync(cancellationToken);
         }
 

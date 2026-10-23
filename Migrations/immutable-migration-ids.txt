@@ -1,4 +1,4 @@
-20251102161908_InitialMigrations
+﻿20251102161908_InitialMigrations
 20251107172308_AddDocRepoSoftDelete
 20251109042620_CompletedProjectsCostAndStatus
 20251110105531_RealignTimeline
@@ -120,3 +120,4 @@
 20261217110004_AddChat
 20261217163005_AddChatStatusAndUnsend
 20261217220006_AddChatGroups
+20261218033007_AddChatAttachments
