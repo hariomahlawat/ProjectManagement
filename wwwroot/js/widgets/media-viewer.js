@@ -30,7 +30,9 @@
         'input:not([disabled]):not([hidden])',
         'select:not([disabled]):not([hidden])',
         'textarea:not([disabled]):not([hidden])',
-        '[tabindex]:not([tabindex="-1"]):not([hidden])'
+        '[tabindex]:not([tabindex="-1"]):not([hidden])',
+        // A video's own controls (play, seek, volume, full screen) are reached with Tab too.
+        'video[controls]:not([hidden])'
     ].join(',');
 
     function attach(viewer, options = {}) {
@@ -132,6 +134,7 @@
                 video.playsInline = true;
                 video.preload = 'metadata';
                 video.setAttribute('aria-label', item.title || 'Video');
+                video.tabIndex = 0; // its controls are reached with Tab in every browser
                 mediaHost.append(video);
             } else {
                 const image = doc.createElement('img');

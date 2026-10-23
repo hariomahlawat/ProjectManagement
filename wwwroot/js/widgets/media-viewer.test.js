@@ -114,6 +114,23 @@ test('a video plays in the viewer with its poster, and the page video is paused'
   window.close();
 });
 
+test('Tab reaches the video controls and wraps from them back to the toolbar', () => {
+  const { window } = overview();
+  // jsdom lays nothing out; treat every element as visible.
+  window.HTMLElement.prototype.getClientRects = () => [{ width: 1, height: 1 }];
+  click(window, window.document.getElementById('v1'));
+  const viewer = viewerOf(window);
+  const video = viewer.querySelector('[data-viewer-media] video');
+
+  video.focus();
+  const tab = new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  window.document.dispatchEvent(tab);
+
+  assert.equal(tab.defaultPrevented, true, 'the video is the last stop in the loop');
+  assert.equal(window.document.activeElement, viewer.querySelector('[data-viewer-zoom-out]'));
+  window.close();
+});
+
 test('without a JSON list the group is read from the page, in its current order', () => {
   const item = (id, title) => `<a href="/p/${id}/xl" data-media-viewer-item data-media-viewer-group="project-photos"
       data-media-viewer-open="project-photos" data-media-viewer-key="photo-${id}" data-kind="photo"
