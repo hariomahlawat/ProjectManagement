@@ -283,5 +283,6 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 
 ## Not yet built
 
-File attachments (1 GB per person) are being built next. Project-linked conversations were
-dropped (owner decision, 2026-10-22).
+File attachments (1 GB per person) are being built next; the decided design is in
+[`chat-attachments.md`](chat-attachments.md). Project-linked conversations were dropped (owner
+decision, 2026-10-22).
