@@ -41,6 +41,8 @@ DECLARE
     b_id  integer;
     codes text[] := ARRAY['FS','SOW','IPA','AON','BID','TEC','BM','COB','PNC','EAS','SO','DEVP','ATP','PAYMENT','TOT'];
     i     integer;
+    ffc_year    integer;
+    ffc_country integer;
 BEGIN
     IF EXISTS (SELECT 1 FROM "Projects" WHERE "Name" LIKE 'Demo · %') THEN
         RAISE NOTICE 'Demo data already present; nothing to do. Run command-desk-demo-remove.sql first to refresh it.';
@@ -137,12 +139,24 @@ BEGIN
            ('DEMO-0002', 'Demo · Motion cueing algorithm for driving simulators', 'Patent', 'Granted',
             pg_temp.demo_time('2025-03-12 05:30+00'), pg_temp.demo_time('2026-10-14 05:30+00'), '\x06'::bytea, a_id);
 
-    -- FFC: one unit delivered 14 days ago and installed 4 days ago.
-    INSERT INTO "FfcRecords" ("CountryId", "Year", "DeliveryYes", "DeliveryDate", "DeliveryRemarks",
-                              "InstallationYes", "InstallationDate", "InstallationRemarks", "OverallRemarks", "CreatedByUserId", "RowVersion")
-    VALUES (COALESCE((SELECT "Id" FROM "FfcCountries" WHERE "Name" = 'Myanmar'), (SELECT min("Id") FROM "FfcCountries")), EXTRACT(YEAR FROM pg_temp.demo_date('2026-10-09'))::int,
-            true, pg_temp.demo_date('2026-10-09'), 'Demo data', true, pg_temp.demo_date('2026-10-19'), 'Demo data',
-            'Demo · record for the Command desk', hod, '\x07'::bytea);
+    -- FFC: one unit delivered 14 days ago and installed 4 days ago. Only one active record is
+    -- allowed per country and year, so use a country with none that year (Myanmar if free).
+    ffc_year := EXTRACT(YEAR FROM pg_temp.demo_date('2026-10-09'))::int;
+    SELECT country."Id" INTO ffc_country
+    FROM "FfcCountries" country
+    WHERE NOT EXISTS (SELECT 1 FROM "FfcRecords" record
+                      WHERE record."CountryId" = country."Id" AND record."Year" = ffc_year AND NOT record."IsDeleted")
+    ORDER BY (country."Name" = 'Myanmar') DESC, country."Id"
+    LIMIT 1;
+    IF ffc_country IS NULL THEN
+        RAISE NOTICE 'Every FFC country already has a record for %; the demo FFC record was skipped.', ffc_year;
+    ELSE
+        INSERT INTO "FfcRecords" ("CountryId", "Year", "DeliveryYes", "DeliveryDate", "DeliveryRemarks",
+                                  "InstallationYes", "InstallationDate", "InstallationRemarks", "OverallRemarks", "CreatedByUserId", "RowVersion")
+        VALUES (ffc_country, ffc_year,
+                true, pg_temp.demo_date('2026-10-09'), 'Demo data', true, pg_temp.demo_date('2026-10-19'), 'Demo data',
+                'Demo · record for the Command desk', hod, '\x07'::bytea);
+    END IF;
 
     RAISE NOTICE 'Demo projects added: % and %.', a_id, b_id;
 END $$;
