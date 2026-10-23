@@ -5,7 +5,7 @@ buddy list and small chat windows docked at the bottom-right of every page.
 
 Status: phase 1 (one-to-one text chat, #2730), phase 2 (typing, read ticks, alerts, away,
 Messages page with search, #2731), status messages, unsend and chat buttons next to names
-(#2732), and group chats are built. File attachments (1 GB per person) are next. Owner decisions (2026-10-22): everyone may chat with
+(#2732), group chats and file attachments (1 GB per person, with storage management) are built. Owner decisions (2026-10-22): everyone may chat with
 everyone; messages are kept indefinitely; administrators cannot read chats.
 
 ## What users see
@@ -293,7 +293,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 | `Chat:SearchWindowSeconds` | `60` | Length of that window. |
 | `Chat:PreviewPermitLimit` | `120` | Link-preview requests one user may make per window (each asks for up to 10 links). |
 | `Chat:PreviewWindowSeconds` | `60` | Length of that window. |
-| `Chat:Attachments:Enabled` | `false` | File attachments. Off hides the attach button and answers 404 on `/api/chat/attachments*`; files already sent stay stored. |
+| `Chat:Attachments:Enabled` | `true` | File attachments. Off hides the attach button and answers 404 on `/api/chat/attachments*`; files already sent stay stored. |
 | `Chat:Attachments:AllowanceMb` | `1024` | Total size of the files one person has sent that are still kept. |
 | `Chat:Attachments:MaxFileMb` | `100` | Largest single file. |
 | `Chat:Attachments:MinimumFreeDiskGb` | `20` | Uploads are refused while the upload disk has less free. |
