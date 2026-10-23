@@ -941,6 +941,12 @@
   color: #5b21b6;
 }
 
+.calendar-details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .calendar-details-offcanvas.is-celebration #btnAddToTasks {
   display: none !important;
 }

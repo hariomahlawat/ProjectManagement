@@ -217,7 +217,7 @@
 
           <div class="calendar-inline-hint">
             <i class="bi bi-clock-history" aria-hidden="true"></i>
-            <span>All times use your local browser time.</span>
+            <span>All times are IST (Indian Standard Time).</span>
           </div>
 
           <div id="timedDateTimeFields" class="calendar-date-time-grid">
@@ -422,7 +422,7 @@
       </div>
       <div class="calendar-details-meta-row d-none" id="eventDetailsRepeat">
         <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
-        <span>Repeats annually</span>
+        <span id="eventDetailsRepeatText">Repeats annually</span>
       </div>
     </div>
 
@@ -446,12 +446,20 @@
       <div id="eventDetailsDescription"></div>
     </div>
 
-    <button class="btn btn-outline-primary btn-sm"
-            id="btnAddToTasks"
-            type="button">
-      <i class="bi bi-check2-square me-1" aria-hidden="true"></i>
-      Add to My Tasks
-    </button>
+    <div class="calendar-details-actions">
+      <button class="btn btn-primary btn-sm d-none"
+              id="btnEditEvent"
+              type="button">
+        <i class="bi bi-pencil me-1" aria-hidden="true"></i>
+        <span data-edit-label>Edit event</span>
+      </button>
+      <button class="btn btn-outline-primary btn-sm"
+              id="btnAddToTasks"
+              type="button">
+        <i class="bi bi-check2-square me-1" aria-hidden="true"></i>
+        Add to My Tasks
+      </button>
+    </div>
   </div>
 </div>
 
