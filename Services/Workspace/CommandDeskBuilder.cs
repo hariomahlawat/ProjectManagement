@@ -14,7 +14,6 @@ public sealed record CommandDeskInput(
     IReadOnlyList<CommandDeskProjectInput> Projects,
     IReadOnlyList<CommandDeskDirectionInput> Directions,
     IReadOnlyList<CommandDeskTaskInput> Tasks,
-    IReadOnlyList<CommandDeskReturnedInput> Returned,
     IReadOnlyList<CommandDeskRegisterInput> Registers,
     string? ViewerUserId = null);
 
@@ -91,8 +90,6 @@ public sealed record CommandDeskTaskInput(
     string? AssignerUserId = null,
     DateTimeOffset? BlockedSinceUtc = null);
 
-public sealed record CommandDeskReturnedInput(int ProjectId, string OfficerUserId, string OfficerName);
-
 public sealed record CommandDeskRegisterInput(string Label, DateOnly? LastOn, int ExpectedDays, string Url);
 
 public static class CommandDeskBuilder
@@ -155,8 +152,7 @@ public static class CommandDeskBuilder
             TasksBlockedCount = input.Tasks.Count(task => IsOpenForLag(task) && IsBlocked(task)),
             TasksOverdueCount = input.Tasks.Count(task => IsOpenForLag(task) && !IsBlocked(task) && task.Due < today),
             TasksDueSoonCount = input.Tasks.Count(task => IsOpenForLag(task) && !IsBlocked(task) && task.Due >= today && task.Due.DayNumber - today.DayNumber <= TaskDueSoonDays),
-            Attention = BuildAttention(input.Projects, input.Returned, today, input.ViewerUserId),
-            NothingReturned = input.Returned.Count == 0,
+            Attention = BuildAttention(input.Projects, today, input.ViewerUserId),
             QuietRegisters = quietRegisters,
             CurrentRegisterCount = quiet.Count - quietRegisters.Count
         };
@@ -344,7 +340,6 @@ public static class CommandDeskBuilder
     // directly or message the officer, not only read a number.
     private static IReadOnlyList<CommandDeskAttentionVm> BuildAttention(
         IReadOnlyList<CommandDeskProjectInput> projects,
-        IReadOnlyList<CommandDeskReturnedInput> returned,
         DateOnly today,
         string? viewerUserId = null)
     {
@@ -380,8 +375,6 @@ public static class CommandDeskBuilder
             }
         }
 
-        Add("returned", "item returned by the HoD and not yet corrected", "items returned by the HoD and not yet corrected",
-            returned.Select(item => (item.OfficerUserId, item.OfficerName, item.ProjectId)));
         // A plan waiting for approval is the officer's answer to a missing PDC (as on the officer's
         // own desk), so those projects are not counted here; the plan is under Waiting on you.
         Add("no-pdc", "project with no PDC on its current stage", "projects with no PDC on their current stage",

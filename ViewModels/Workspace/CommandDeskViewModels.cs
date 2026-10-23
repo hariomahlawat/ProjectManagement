@@ -29,7 +29,6 @@ public sealed class CommandDeskVm
     public int TasksOverdueCount { get; init; }
     public int TasksDueSoonCount { get; init; }
     public IReadOnlyList<CommandDeskAttentionVm> Attention { get; init; } = Array.Empty<CommandDeskAttentionVm>();
-    public bool NothingReturned { get; init; }
 
     // SECTION: What's gone quiet
     public IReadOnlyList<CommandDeskRegisterVm> QuietRegisters { get; init; } = Array.Empty<CommandDeskRegisterVm>();

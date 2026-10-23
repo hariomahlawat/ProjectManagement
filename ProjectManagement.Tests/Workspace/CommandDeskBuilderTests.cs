@@ -151,7 +151,7 @@ public sealed class CommandDeskBuilderTests
 
     // SECTION: Needs attention
     [Fact]
-    public void Attention_GroupsByOfficer_AndSaysWhenNothingIsReturned()
+    public void Attention_GroupsByOfficer()
     {
         var desk = Build(projects: new[]
         {
@@ -161,7 +161,6 @@ public sealed class CommandDeskBuilderTests
             Project(4, "D", pdcInDays: 40, officer: "arpan", lastUpdateDaysAgo: 9)
         });
 
-        Assert.True(desk.NothingReturned);
         Assert.Collection(desk.Attention,
             reason =>
             {
@@ -176,15 +175,6 @@ public sealed class CommandDeskBuilderTests
                 Assert.Equal(2, reason.Count);
                 Assert.Equal(new[] { "arpan", "srinath" }, reason.ByOfficer.Select(officer => officer.OfficerName));
             });
-    }
-
-    [Fact]
-    public void Attention_ListsReturnedItemsFirst()
-    {
-        var desk = Build(returned: new[] { new CommandDeskReturnedInput(1, "srinath", "srinath") });
-
-        Assert.False(desk.NothingReturned);
-        Assert.Equal("item returned by the HoD and not yet corrected", desk.Attention[0].Label);
     }
 
     // SECTION: What's gone quiet
@@ -303,7 +293,6 @@ public sealed class CommandDeskBuilderTests
         IReadOnlyList<CommandDeskProjectInput>? projects = null,
         IReadOnlyList<CommandDeskDirectionInput>? directions = null,
         IReadOnlyList<CommandDeskTaskInput>? tasks = null,
-        IReadOnlyList<CommandDeskReturnedInput>? returned = null,
         IReadOnlyList<CommandDeskRegisterInput>? registers = null,
         string? viewer = "hod")
         => CommandDeskBuilder.Build(new CommandDeskInput(
@@ -315,7 +304,6 @@ public sealed class CommandDeskBuilderTests
             projects ?? Array.Empty<CommandDeskProjectInput>(),
             directions ?? Array.Empty<CommandDeskDirectionInput>(),
             tasks ?? Array.Empty<CommandDeskTaskInput>(),
-            returned ?? Array.Empty<CommandDeskReturnedInput>(),
             registers ?? Array.Empty<CommandDeskRegisterInput>(),
             viewer));
 

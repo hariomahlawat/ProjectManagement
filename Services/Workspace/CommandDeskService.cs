@@ -77,7 +77,6 @@ public sealed class CommandDeskService
             projects.Select(project => project.Input).ToList(),
             await LoadDirectionsAsync(userId, ct),
             await LoadTasksAsync(today, ct),
-            await LoadReturnedAsync(projects, ct),
             await LoadRegistersAsync(today, ct),
             userId);
 
@@ -463,73 +462,6 @@ public sealed class CommandDeskService
                 blocks.TryGetValue(task.Id, out var since)
                     ? new DateTimeOffset(DateTime.SpecifyKind(since.At, DateTimeKind.Utc))
                     : null))
-            .ToList();
-    }
-
-    // SECTION: Returned and not yet corrected
-    // Command-wide form of the Project Officer desk's returned items: a returned plan, stage
-    // update or project-details request stays open until a newer request is pending or approved.
-    private async Task<IReadOnlyList<CommandDeskReturnedInput>> LoadReturnedAsync(IReadOnlyList<ProjectFacts> projects, CancellationToken ct)
-    {
-        if (projects.Count == 0)
-        {
-            return Array.Empty<CommandDeskReturnedInput>();
-        }
-
-        var byProject = projects.ToDictionary(project => project.Input.ProjectId, project => project.Input);
-        var projectIds = byProject.Keys.ToArray();
-        var cutoff = _clock.UtcNow.AddDays(-ProjectOfficerWorkspaceService.DeskReturnedHorizonDays);
-        var returnedProjectIds = new List<int>();
-
-        var rejectedPlans = await _db.PlanVersions
-            .AsNoTracking()
-            .Where(plan => projectIds.Contains(plan.ProjectId) && plan.RejectedOn >= cutoff)
-            .Select(plan => new { plan.ProjectId, RejectedOn = plan.RejectedOn!.Value })
-            .ToListAsync(ct);
-        var laterPlans = await _db.PlanVersions
-            .AsNoTracking()
-            .Where(plan => projectIds.Contains(plan.ProjectId)
-                && (plan.Status == PlanVersionStatus.PendingApproval || plan.Status == PlanVersionStatus.Approved))
-            .Select(plan => new { plan.ProjectId, EventAt = plan.SubmittedOn ?? plan.ApprovedOn ?? plan.CreatedOn })
-            .ToListAsync(ct);
-        returnedProjectIds.AddRange(rejectedPlans
-            .GroupBy(plan => plan.ProjectId)
-            .Where(group => !laterPlans.Any(later => later.ProjectId == group.Key && later.EventAt > group.Max(plan => plan.RejectedOn)))
-            .Select(group => group.Key));
-
-        var rejectedStages = await _db.StageChangeRequests
-            .AsNoTracking()
-            .Where(request => projectIds.Contains(request.ProjectId) && request.DecisionStatus == "Rejected" && request.DecidedOn >= cutoff)
-            .Select(request => new { request.ProjectId, request.StageCode, DecidedOn = request.DecidedOn!.Value })
-            .ToListAsync(ct);
-        var laterStages = await _db.StageChangeRequests
-            .AsNoTracking()
-            .Where(request => projectIds.Contains(request.ProjectId) && (request.DecisionStatus == "Pending" || request.DecisionStatus == "Approved"))
-            .Select(request => new { request.ProjectId, request.StageCode, EventAt = request.DecidedOn ?? request.RequestedOn })
-            .ToListAsync(ct);
-        returnedProjectIds.AddRange(rejectedStages
-            .Where(request => !laterStages.Any(later => later.ProjectId == request.ProjectId
-                && string.Equals(later.StageCode, request.StageCode, StringComparison.OrdinalIgnoreCase)
-                && later.EventAt > request.DecidedOn))
-            .Select(request => request.ProjectId));
-
-        var rejectedMeta = await _db.ProjectMetaChangeRequests
-            .AsNoTracking()
-            .Where(request => projectIds.Contains(request.ProjectId) && request.DecisionStatus == "Rejected" && request.DecidedOnUtc >= cutoff)
-            .Select(request => new { request.ProjectId, DecidedOn = request.DecidedOnUtc!.Value })
-            .ToListAsync(ct);
-        var laterMeta = await _db.ProjectMetaChangeRequests
-            .AsNoTracking()
-            .Where(request => projectIds.Contains(request.ProjectId) && (request.DecisionStatus == "Pending" || request.DecisionStatus == "Approved"))
-            .Select(request => new { request.ProjectId, EventAt = request.DecidedOnUtc ?? request.RequestedOnUtc })
-            .ToListAsync(ct);
-        returnedProjectIds.AddRange(rejectedMeta
-            .Where(request => !laterMeta.Any(later => later.ProjectId == request.ProjectId && later.EventAt > request.DecidedOn))
-            .Select(request => request.ProjectId));
-
-        return returnedProjectIds
-            .Select(projectId => byProject[projectId])
-            .Select(project => new CommandDeskReturnedInput(project.ProjectId, project.OfficerUserId, project.OfficerName))
             .ToList();
     }
 

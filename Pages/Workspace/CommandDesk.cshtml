@@ -217,7 +217,7 @@
                     </div>
                 }
 
-                @if (desk.Attention.Count > 0 || !desk.NothingReturned)
+                @if (desk.Attention.Count > 0)
                 {
                     <div class="cd-block" aria-labelledby="cd-attention-title">
                         <div class="cd-block__head">
@@ -268,10 +268,6 @@
                                 </li>
                             }
                         </ul>
-                        @if (desk.NothingReturned)
-                        {
-                            <p class="cd-quiet-note"><i class="bi bi-check2" aria-hidden="true"></i> Nothing returned by the HoD is left uncorrected.</p>
-                        }
                     </div>
                 }
             </section>

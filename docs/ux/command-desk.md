@@ -39,7 +39,6 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
    - **Tasks**: blocked or overdue tasks first, showing the latest blocking reason from the task audit log. Tasks due within 7 days follow.
      - Submitted, closed and backlog tasks are left out.
    - **Needs attention**: counts with a by-officer breakdown. Each officer links to their conference review, lists the projects behind the count (each opens its Overview) and, when chat is on, offers **Message**.
-     - Items returned by the HoD and not yet corrected: a plan, stage update or project-details request. This is the command-wide form of the PO desk rule, with the same 180-day horizon.
      - Projects with no PDC on their current stage. A project whose plan is waiting for approval is not counted: the plan is the officer's answer, as on the officer's own desk, and it is under Waiting on you.
      - Projects with no update (any remark) from their officer for 10+ days.
    - Each list shows 8 rows. Any more sit under **Show all**.
