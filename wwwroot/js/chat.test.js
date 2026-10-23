@@ -2252,3 +2252,45 @@ test('New group checks the name and the people before sending, and points at the
     window.close();
   }
 });
+
+test('muting in another tab applies here, and a change here keeps what the other tab stored', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    let alerts = 0;
+    app.alert = () => { alerts += 1; };
+
+    // Another tab of the same user mutes group 5 and also group 9.
+    window.localStorage.setItem('prism.chat.muted.me', JSON.stringify([5, 9]));
+    window.dispatchEvent(new window.StorageEvent('storage', { key: 'prism.chat.muted.me' }));
+    assert.equal(app.isMuted(5), true);
+    app.onMessage(groupMessage(70, 'peer', 'Hush'));
+    assert.equal(alerts, 0);
+    assert.equal(app.windows.has('g:5'), false);
+
+    // Unmuting 5 here must not drop the 9 the other tab stored.
+    app.setMuted(5, false);
+    assert.deepEqual(JSON.parse(window.localStorage.getItem('prism.chat.muted.me')), [9]);
+  } finally {
+    window.close();
+  }
+});
+
+test('the people panel follows presence changes while it is open', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    Object.assign(app.contacts.get('third'), { isOnline: false, isAway: false });
+    const { panel } = await openDeskPanel(window);
+    const thirdRow = () => Array.from(panel.querySelectorAll('.pm-chat__members-list li')).find((r) => r.textContent.includes('Third Officer'));
+    assert.match(thirdRow().textContent, /Offline/);
+
+    app.onPresence({ userId: 'third', isOnline: true, isAway: false });
+    assert.match(thirdRow().textContent, /Online/);
+    assert.ok(thirdRow().querySelector('.pm-chat__presence.is-online'));
+  } finally {
+    window.close();
+  }
+});

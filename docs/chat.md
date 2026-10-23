@@ -85,8 +85,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
     - **Mute this group on this computer**: its messages still count as unread, but do not
       chime, flash the tab title, pop the window open or get announced unless you are in it.
       Remembered per browser and per user in `localStorage` key `prism.chat.muted.{userId}`
-      (group ids only), like the sound setting. Muted groups show a bell-slash in the list and
-      "Muted" in their window.
+      (group ids only), like the sound setting, and applied at once in the user's other open
+      tabs. Muted groups show a bell-slash in the list and "Muted" in their window.
     Ticked people, a half-typed name and an armed button survive changes other members make
     while the panel is open. New group checks for a name and at least one person before
     sending, and puts focus on what is missing.

@@ -448,6 +448,10 @@
     this.buildDock();
     this.launchers.forEach((button) => button.addEventListener('click', () => this.toggleBuddy()));
     global.addEventListener('resize', () => this.enforceCapacity());
+    // Muting a group in another tab of this user applies here too.
+    global.addEventListener('storage', (event) => {
+      if (event.key === this.muteKey) this.applyMutedChange(this.readMuted());
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this.noteActivity();
@@ -546,12 +550,23 @@
   };
 
   ChatApp.prototype.setMuted = function (groupId, muted) {
-    if (muted) this.muted.add(groupId); else this.muted.delete(groupId);
+    // Start from what is stored, not this tab's copy: another tab may have changed it since.
+    const next = this.readMuted();
+    if (muted) next.add(groupId); else next.delete(groupId);
     try {
-      global.localStorage.setItem(this.muteKey, JSON.stringify(Array.from(this.muted)));
+      global.localStorage.setItem(this.muteKey, JSON.stringify(Array.from(next)));
     } catch (_) { /* this page only */ }
-    const win = this.windows.get(groupKey(groupId));
-    if (win) this.renderWindowState(win);
+    this.applyMutedChange(next);
+  };
+
+  /** Takes a new set of muted groups and shows it: contact list, group windows and panels. */
+  ChatApp.prototype.applyMutedChange = function (muted) {
+    this.muted = muted;
+    this.windows.forEach((win) => {
+      if (!win.groupId) return;
+      this.renderWindowState(win);
+      if (win.panelOpen) this.renderMembersPanel(win);
+    });
     this.renderContacts();
   };
 
@@ -951,6 +966,16 @@
     this.renderContacts();
     const win = this.windows.get(presence.userId);
     if (win) this.renderWindowState(win);
+    this.refreshMemberPanels(presence.userId);
+  };
+
+  /** Open people panels show presence and status: redraw those that list userId (or all). */
+  ChatApp.prototype.refreshMemberPanels = function (userId) {
+    this.windows.forEach((win) => {
+      if (!win.groupId || !win.panelOpen) return;
+      if (userId && !(win.members || []).some((m) => m.userId === userId)) return;
+      this.renderMembersPanel(win);
+    });
   };
 
   /** A message was unsent (by this user in another tab, or by the other person). */
@@ -1352,6 +1377,7 @@
       const fresh = new Map(contacts.map((c) => [c.userId, c]));
       this.contacts = fresh;
       this.renderContacts();
+      this.refreshMemberPanels();
       this.windows.forEach((w) => {
         // A window restored on a new page still flags messages that arrived before it.
         const contact = fresh.get(w.peerId);
