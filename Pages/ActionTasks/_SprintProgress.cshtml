@@ -1,0 +1,17 @@
+@model (int Closed, int Total)
+@using ProjectManagement.Services.ActionTasks
+@* How far the sprint has got: closed tasks out of all its tasks. *@
+@{
+    var percent = ActionSprintSchedule.PercentClosed(Model.Closed, Model.Total);
+}
+@if (Model.Total > 0)
+{
+    <div class="at-sprint-progress">
+        <div class="at-sprint-progress__bar" role="progressbar" aria-label="Sprint progress"
+             aria-valuemin="0" aria-valuemax="@Model.Total" aria-valuenow="@Model.Closed"
+             aria-valuetext="@Model.Closed of @Model.Total closed">
+            <span style="width: @percent%"></span>
+        </div>
+        <span class="at-sprint-progress__label">@Model.Closed of @Model.Total closed</span>
+    </div>
+}

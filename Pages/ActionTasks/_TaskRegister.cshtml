@@ -149,7 +149,7 @@
                     @foreach (var task in Model.Tasks)
                     {
                         <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
-                            <td><a class="at-task-id-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register" asp-route-TaskScope="@Model.ResolvedTaskScope">AT-@task.Id</a></td>
+                            <td class="at-register-id-cell"><a class="at-task-id-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register" asp-route-TaskScope="@Model.ResolvedTaskScope">AT-@task.Id</a></td>
                             <td class="at-register-task-cell">
                                 <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register" asp-route-TaskScope="@Model.ResolvedTaskScope">@task.Title</a>
                                 <div class="at-task-desc-preview">@task.Description</div>
@@ -175,8 +175,8 @@
                                     <span class="at-overdue-marker at-register-overdue">@daysOverdue @(daysOverdue == 1 ? "day" : "days") overdue</span>
                                 }
                             </td>
-                            <td><span class="@Model.GetStatusBadgeClass(task.Status)">@(task.Status == "Submitted" ? "Awaiting Closure" : task.Status)</span></td>
-                            <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
+                            <td class="at-register-status-cell"><span class="@Model.GetStatusBadgeClass(task.Status)">@(task.Status == "Submitted" ? "Awaiting Closure" : task.Status)</span></td>
+                            <td class="at-register-priority-cell"><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
                         </tr>
                     }
                 </tbody>

@@ -21,11 +21,14 @@
     else
     {
         <div class="at-planning-command-main">
+            @{ var boardTiming = Model.SprintTiming(Model.SelectedSprint); }
             <div class="at-planning-command-title">
                 <span class="at-section-eyebrow">Sprint</span>
-                <h2>@Model.SelectedSprint.StartDate.ToString("dd")–@Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</h2>
+                <h2>@Model.SelectedSprint.Name</h2>
                 <span class="at-sprint-status-pill">@Model.SelectedSprint.Status</span>
             </div>
+            <p class="at-sprint-when">@Model.SprintDateRange(Model.SelectedSprint)@if (boardTiming is not null) { <span class="at-sprint-timing">· @boardTiming</span> }</p>
+            <partial name="_SprintProgress" model="(Model.SprintSummary.ClosedCount, Model.SprintSummary.OpenCount + Model.SprintSummary.ClosedCount)" />
             <p class="at-planning-command-summary" aria-label="Sprint summary">
                 @Model.SprintSummary.OpenCount open · @Model.SprintSummary.ClosedCount closed · @Model.SelectedSprintOverdueCount overdue · @Model.SprintSummary.BlockedCount blocked · @Model.SprintAttentionSubmittedTaskDisplays.Count awaiting closure
             </p>

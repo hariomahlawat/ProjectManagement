@@ -54,10 +54,22 @@
 {
     <section class="at-panel at-sprint-glance" aria-label="Active sprint">
         <div class="at-sprint-glance-main">
+            @{
+                var sprint = Model.ActiveSprint;
+                var sprintTiming = Model.SprintTiming(sprint);
+                var sprintTotal = Model.ActiveSprintMetrics.TotalTasks;
+                var sprintClosed = Model.ActiveSprintMetrics.CompletedTasks;
+            }
             <div class="at-sprint-glance-title">
                 <span class="at-label">Active sprint</span>
-                <h2>@Model.ActiveSprint.StartDate.ToString("dd")–@Model.ActiveSprint.EndDate.ToString("dd MMM yyyy")</h2>
+                <h2>@sprint.Name</h2>
                 <span class="at-sprint-status-pill">Active</span>
+                <p class="at-sprint-when">@Model.SprintDateRange(sprint)@if (sprintTiming is not null) { <span class="at-sprint-timing">· @sprintTiming</span> }</p>
+                @if (!string.IsNullOrWhiteSpace(sprint.Goal))
+                {
+                    <p class="at-sprint-goal" title="@sprint.Goal">@sprint.Goal</p>
+                }
+                <partial name="_SprintProgress" model="(sprintClosed, sprintTotal)" />
             </div>
             <div class="at-sprint-glance-counts" aria-label="Active sprint summary">
                 <span><strong>@Model.ActiveSprintMetrics.TotalTasks</strong> tasks</span>

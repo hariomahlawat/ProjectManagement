@@ -830,6 +830,43 @@ html {
     white-space: nowrap;
 }
 
+/* SECTION: Register on phones: one card per task instead of a table wider than the screen.
+   ID, status and priority on top, then the task, then who has it, when it is due and its group. */
+@media (max-width: 640px) {
+    .at-register-table-scroll { overflow-x: visible; border: 0; }
+    .at-register-table { min-width: 0; }
+    .at-register-table,
+    .at-register-table tbody { display: block; }
+    .at-register-table thead { display: none; }
+    .at-register-table tbody tr {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas:
+            "id     status priority"
+            "task   task   task"
+            "person person person"
+            "date   date   group";
+        align-items: center;
+        gap: .35rem .5rem;
+        margin-bottom: .6rem;
+        padding: .7rem .8rem;
+        border: 1px solid var(--at-border);
+        border-radius: var(--at-radius-md);
+        background: var(--pm-card);
+    }
+    .at-register-table tbody td { display: block; min-width: 0; max-width: none; padding: 0; border: 0; background: transparent; }
+    .at-register-table tbody tr:hover td,
+    .at-register-table tbody tr.is-selected td { background: transparent; }
+    .at-register-table tbody tr.is-selected { border-color: var(--pm-primary); }
+    .at-register-id-cell { grid-area: id; }
+    .at-register-status-cell { grid-area: status; }
+    .at-register-priority-cell { grid-area: priority; justify-self: end; }
+    .at-register-task-cell { grid-area: task; }
+    .at-register-person-cell { grid-area: person; white-space: normal; }
+    .at-register-date-cell { grid-area: date; white-space: normal; }
+    .at-register-sprint-cell { grid-area: group; justify-self: end; max-width: 11rem; }
+}
+
 .at-register-sprint-cell .at-scope-badge {
     max-width: 100%;
     overflow: hidden;
@@ -4436,6 +4473,18 @@ html {
 }
 .at-sprint-glance-title .at-label { flex-basis: 100%; }
 .at-sprint-glance-title h2 { margin: 0; }
+
+/* SECTION: Sprint header facts (Overview and Board): dates and days left, goal, progress. */
+.at-sprint-glance-title .at-sprint-when,
+.at-sprint-glance-title .at-sprint-goal,
+.at-sprint-glance-title .at-sprint-progress { flex-basis: 100%; }
+.at-sprint-when { margin: .1rem 0 0; color: var(--pm-text-secondary); font-size: .8rem; }
+.at-sprint-timing { margin-left: .3rem; color: var(--pm-text-strong, var(--pm-text)); font-weight: 650; }
+.at-sprint-goal { max-width: 46rem; margin: .15rem 0 0; overflow: hidden; color: var(--pm-text-secondary); font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+.at-sprint-progress { display: flex; align-items: center; gap: .55rem; margin-top: .35rem; }
+.at-sprint-progress__bar { width: 10rem; height: .4rem; overflow: hidden; border-radius: 999px; background: var(--pm-border); }
+.at-sprint-progress__bar > span { display: block; height: 100%; border-radius: inherit; background: var(--pm-success); }
+.at-sprint-progress__label { color: var(--pm-text-secondary); font-size: .76rem; font-weight: 650; }
 .at-sprint-glance-counts .is-danger { color: #b42318; }
 .at-sprint-glance-counts .is-warning { color: #9a6700; }
 
