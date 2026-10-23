@@ -10,6 +10,7 @@ using ProjectManagement.Models.Activities;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.Approvals;
 using ProjectManagement.Services.Authorization;
 using ProjectManagement.Services.Plans;
@@ -261,14 +262,18 @@ public sealed class CommandDeskService
                 CommandDeskRoutes.Approval(item.ApprovalType.ToString(), item.RequestId))));
         }
 
-        // A task submitted for closure waits on whoever assigned it.
-        var submitted = await _db.ActionTasks
+        // A task submitted for closure waits on whoever assigned it to its current assignee: the
+        // creator, or whoever later assigned it from the backlog or reassigned it (ActionTaskAssigners).
+        var submittedTasks = await _db.ActionTasks
             .AsNoTracking()
-            .Where(task => !task.IsDeleted
-                && task.Status == ActionTaskStatuses.Submitted
-                && task.CreatedByUserId == userId)
-            .Select(task => new { task.Id, task.Title, task.AssignedToUserId, task.SubmittedOn, task.AssignedOn })
+            .Where(task => !task.IsDeleted && task.Status == ActionTaskStatuses.Submitted)
+            .Select(task => new { task.Id, task.Title, task.AssignedToUserId, task.CreatedByUserId, task.SubmittedOn, task.AssignedOn })
             .ToListAsync(ct);
+        var submittedAssigners = await ActionTaskAssigners.ResolveAsync(
+            _db, submittedTasks.Select(task => (task.Id, task.CreatedByUserId)).ToList(), ct);
+        var submitted = submittedTasks
+            .Where(task => string.Equals(submittedAssigners.GetValueOrDefault(task.Id), userId, StringComparison.Ordinal))
+            .ToList();
         var names = await LoadNamesAsync(submitted.Select(task => task.AssignedToUserId), ct);
         decisions.AddRange(submitted.Select(task => new CommandDeskDecisionInput(
             task.Title,
@@ -427,40 +432,27 @@ public sealed class CommandDeskService
             return Array.Empty<CommandDeskTaskInput>();
         }
 
-        var names = await LoadNamesAsync(tasks.SelectMany(task => new[] { task.AssignedToUserId, task.CreatedByUserId }), ct);
+        // Who gave each task to its current assignee: the creator, or whoever later assigned it
+        // from the backlog or reassigned it (one rule with Task Management).
+        var assigners = await ActionTaskAssigners.ResolveAsync(_db, tasks.Select(task => (task.Id, task.CreatedByUserId)).ToList(), ct);
+        var names = await LoadNamesAsync(tasks.Select(task => task.AssignedToUserId).Concat(assigners.Values), ct);
         var blockedIds = tasks.Where(task => task.Status == ActionTaskStatuses.Blocked).Select(task => task.Id).ToArray();
         // The latest move to Blocked: its reason, and since when the task has been blocked.
-        var blocks = blockedIds.Length == 0
-            ? new Dictionary<int, (string? Reason, DateTime At)>()
-            : (await _db.ActionTaskAuditLogs
-                    .AsNoTracking()
-                    .Where(log => blockedIds.Contains(log.TaskId)
-                        && log.ActionType == "StatusUpdated"
-                        && log.NewValue == ActionTaskStatuses.Blocked)
-                    .Select(log => new { log.TaskId, log.PerformedAt, log.Id, log.Remarks })
-                    .ToListAsync(ct))
-                .GroupBy(log => log.TaskId)
-                .ToDictionary(
-                    group => group.Key,
-                    group =>
-                    {
-                        var latest = group.OrderByDescending(log => log.PerformedAt).ThenByDescending(log => log.Id).First();
-                        return (Reason: latest.Remarks, At: latest.PerformedAt);
-                    });
+        var blocks = await ActionTaskBlocks.LatestAsync(_db, blockedIds, ct);
 
         return tasks
             .Select(task => new CommandDeskTaskInput(
                 task.Id,
                 task.Title,
                 names.GetValueOrDefault(task.AssignedToUserId) ?? "Unassigned",
-                names.GetValueOrDefault(task.CreatedByUserId) ?? "Unknown",
+                names.GetValueOrDefault(assigners.GetValueOrDefault(task.Id) ?? string.Empty) ?? "Unknown",
                 task.Priority,
                 task.Status,
                 DateOnly.FromDateTime(task.DueDate),
                 blocks.TryGetValue(task.Id, out var block) ? block.Reason : null,
-                task.CreatedByUserId,
+                assigners.GetValueOrDefault(task.Id),
                 blocks.TryGetValue(task.Id, out var since)
-                    ? new DateTimeOffset(DateTime.SpecifyKind(since.At, DateTimeKind.Utc))
+                    ? new DateTimeOffset(since.BlockedAtUtc)
                     : null))
             .ToList();
     }

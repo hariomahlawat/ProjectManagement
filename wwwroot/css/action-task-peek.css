@@ -43,6 +43,7 @@
     letter-spacing: -.015em;
 }
 .at-task-peek-assignee { margin-top: .16rem; color: var(--at-text); font-size: .82rem; font-weight: 650; }
+.at-task-peek-assigner { color: var(--at-muted); font-weight: 500; }
 .at-task-peek-badges { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin-top: .36rem; }
 .at-task-peek-header-actions { display: flex; align-items: flex-start; gap: .28rem; flex: 0 0 auto; }
 .at-task-peek-header-actions .btn { width: 2rem; height: 2rem; display: inline-grid; place-items: center; padding: 0; border-radius: .55rem; }

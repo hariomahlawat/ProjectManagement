@@ -111,7 +111,16 @@
                     <h2>AT-@(task?.Id.ToString() ?? Model.TaskId?.ToString() ?? "—") · @(task?.Title ?? "Task")</h2>
                     @if (task is not null && !isBacklog)
                     {
-                        <div class="at-task-peek-assignee">@Model.ResolveAssigneeName(task.AssignedToUserId)</div>
+                        var peekAssignee = Model.ResolveAssigneeName(task.AssignedToUserId);
+                        var peekAssigner = Model.ResolveAssignerName(task);
+                        @* Who has it and who gave it; the chat scripts add a chat button after each name. *@
+                        <div class="at-task-peek-assignee">
+                            <span data-chat-user="@task.AssignedToUserId" data-chat-name="@peekAssignee">@peekAssignee</span>
+                            @if (peekAssigner is not null)
+                            {
+                                <span class="at-task-peek-assigner">· assigned by <span data-chat-user="@Model.ResolveAssignerUserId(task)" data-chat-name="@peekAssigner">@peekAssigner</span></span>
+                            }
+                        </div>
                     }
                     @if (task is not null)
                     {

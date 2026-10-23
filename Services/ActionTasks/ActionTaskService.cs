@@ -71,6 +71,12 @@ public class ActionTaskService : IActionTaskService
     }
 
 
+    public Task<IReadOnlyDictionary<int, ActionTaskBlock>> GetLatestBlocksAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default)
+        => ActionTaskBlocks.LatestAsync(_context, taskIds, cancellationToken);
+
+    public Task<IReadOnlyDictionary<int, string>> GetAssignerUserIdsAsync(IReadOnlyCollection<ActionTaskItem> tasks, CancellationToken cancellationToken = default)
+        => ActionTaskAssigners.ResolveAsync(_context, tasks, cancellationToken);
+
     public async Task<Dictionary<int, DateTime?>> GetLastActivityUtcByTaskIdsAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default)
     {
         if (taskIds.Count == 0)

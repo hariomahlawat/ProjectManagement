@@ -823,6 +823,13 @@ html {
     max-width: 13.5rem;
 }
 
+.at-register-overdue {
+    display: block;
+    width: fit-content;
+    margin-top: .25rem;
+    white-space: nowrap;
+}
+
 .at-register-sprint-cell .at-scope-badge {
     max-width: 100%;
     overflow: hidden;
@@ -1376,10 +1383,11 @@ html {
     border-color: #cbd5e1;
 }
 
+/* A normal state for assigned work, so a quiet neutral badge rather than a warning colour. */
 .at-scope-badge-outside-sprint {
-    color: #7c2d12;
-    background: #ffedd5;
-    border-color: #fed7aa;
+    color: var(--pm-text-secondary);
+    background: var(--pm-surface-ghost);
+    border-color: var(--pm-border);
 }
 
 .at-scope-badge-closed {
@@ -4453,7 +4461,11 @@ html {
 .at-unified-attention-row.is-warning { border-left-color: #d49a00; }
 .at-unified-attention-row.is-info { border-left-color: #3b67d9; }
 .at-attention-reason { font-size: .74rem; font-weight: 700; color: #475467; text-transform: uppercase; letter-spacing: .035em; }
-.at-attention-task { font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.at-attention-task { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+/* Title on one line; under it what to act on (the blocking reason, or how long a submission has waited). */
+.at-attention-title { font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.at-attention-detail { min-width: 0; overflow: hidden; color: var(--pm-text-secondary); font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+.at-attention-late { display: block; color: var(--pm-danger); font-weight: 650; }
 .at-attention-owner, .at-attention-date { color: #667085; font-size: .79rem; }
 
 .at-execute-board-header { padding: .7rem .85rem; }
@@ -4533,7 +4545,7 @@ html {
     .at-unified-attention-row { grid-template-columns: 1fr auto; gap: .2rem .5rem; }
     .at-attention-reason, .at-attention-task, .at-attention-owner, .at-attention-date { grid-column: 1; }
     .at-unified-attention-row > i { grid-column: 2; grid-row: 1 / span 4; }
-    .at-attention-task { white-space: normal; }
+    .at-attention-title, .at-attention-detail { white-space: normal; }
     .at-closure-task-row { grid-template-columns: 1fr !important; }
 }
 
@@ -4992,11 +5004,6 @@ details[open] > summary .at-disclosure-chevron {
     border-color: #3a3f45;
 }
 
-:where([data-bs-theme="dark"]) .at-scope-badge-outside-sprint {
-    color: #ec9679;
-    background: color-mix(in srgb, #fbbf24 14%, #16181b);
-    border-color: color-mix(in srgb, #fbbf24 30%, #16181b);
-}
 
 :where([data-bs-theme="dark"]) .at-scope-badge-closed {
     color: #e6e8eb;

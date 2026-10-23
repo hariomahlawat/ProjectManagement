@@ -39,6 +39,30 @@ public sealed class CommandDeskServiceTests
     }
 
     [Fact]
+    public async Task SubmittedTask_WaitsOnWhoeverReassignedIt_NotItsCreator()
+    {
+        await using var db = NewDb();
+        db.ActionTasks.Add(NewTask(1, "Reassigned by the HoD", ActionTaskStatuses.Submitted, createdBy: ComdtId, dueInDays: 2));
+        db.ActionTaskAuditLogs.Add(new ActionTaskAuditLog
+        {
+            TaskId = 1,
+            ActionType = "TaskReassigned",
+            PerformedByUserId = HodId,
+            PerformedByRole = RoleNames.HoD,
+            PerformedAt = new DateTime(2026, 10, 10, 5, 0, 0, DateTimeKind.Utc),
+            OldValue = "someone-else",
+            NewValue = OfficerId
+        });
+        await db.SaveChangesAsync();
+
+        var comdtDesk = await NewService(db).GetAsync(User(RoleNames.Comdt), ComdtId, null, CancellationToken.None);
+        var hodDesk = await NewService(db).GetAsync(User(RoleNames.HoD), HodId, null, CancellationToken.None);
+
+        Assert.Empty(comdtDesk.WaitingOnYou);
+        Assert.Equal("Reassigned by the HoD", Assert.Single(hodDesk.WaitingOnYou, item => item.ActionLabel == "Close or return").Title);
+    }
+
+    [Fact]
     public async Task Hod_SeesTheDecisionCentreQueue()
     {
         await using var db = NewDb();

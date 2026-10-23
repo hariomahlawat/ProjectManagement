@@ -25,4 +25,8 @@ public interface IActionTaskService
     Task<ActionTaskItem?> GetTaskAsync(int taskId, CancellationToken cancellationToken = default);
     Task<List<ActionTaskAuditLog>> GetTaskLogsAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default);
     Task<Dictionary<int, DateTime?>> GetLastActivityUtcByTaskIdsAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default);
+    /// <summary>Why each task was blocked and since when (<see cref="ActionTaskBlocks"/>).</summary>
+    Task<IReadOnlyDictionary<int, ActionTaskBlock>> GetLatestBlocksAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default);
+    /// <summary>Who assigned each task to its current assignee (<see cref="ActionTaskAssigners"/>).</summary>
+    Task<IReadOnlyDictionary<int, string>> GetAssignerUserIdsAsync(IReadOnlyCollection<ActionTaskItem> tasks, CancellationToken cancellationToken = default);
 }
