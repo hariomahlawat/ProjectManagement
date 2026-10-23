@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -19,8 +21,15 @@ namespace ProjectManagement.Hubs;
 public sealed class ChatHub : Hub<IChatClient>
 {
     private const string PresenceItemKey = "chat.presence";
-    private const string TypingItemPrefix = "chat.typing.";
+    private const string TypingItemKey = "chat.typing";
     private static readonly TimeSpan TypingInterval = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Conversations one connection may signal typing to within <see cref="TypingInterval"/>. A real
+    /// tab types into one or two; the cap keeps a misbehaving client from growing the connection's
+    /// state (and, for groups, its membership lookups) without bound.
+    /// </summary>
+    internal const int MaxTypingTargets = 16;
 
     private readonly ChatPresenceTracker _presence;
     private readonly IOptionsMonitor<ChatOptions> _options;
@@ -88,14 +97,11 @@ public sealed class ChatHub : Hub<IChatClient>
             return;
         }
 
-        var key = TypingItemPrefix + peerUserId;
-        var now = DateTimeOffset.UtcNow;
-        if (Context.Items.TryGetValue(key, out var last) && last is DateTimeOffset previous && now - previous < TypingInterval)
+        if (!TryClaimTypingSignal(peerUserId))
         {
             return;
         }
 
-        Context.Items[key] = now;
         await Clients.User(peerUserId).Typing(new ChatTypingDto(userId));
     }
 
@@ -111,19 +117,52 @@ public sealed class ChatHub : Hub<IChatClient>
             return;
         }
 
-        var key = TypingItemPrefix + "g:" + groupId;
-        var now = DateTimeOffset.UtcNow;
-        if (Context.Items.TryGetValue(key, out var last) && last is DateTimeOffset previous && now - previous < TypingInterval)
+        if (!TryClaimTypingSignal("g:" + groupId))
         {
             return;
         }
 
-        Context.Items[key] = now;
         var others = await _groups.OtherMembersAsync(userId, groupId, Context.ConnectionAborted);
         if (others is { Count: > 0 })
         {
             await Clients.Users(others).GroupTyping(new ChatGroupTypingDto(groupId, userId));
         }
+    }
+
+    /// <summary>
+    /// True when this connection may signal typing to <paramref name="target"/> now: at most once per
+    /// <see cref="TypingInterval"/> per target, and to at most <see cref="MaxTypingTargets"/> targets
+    /// within that interval.
+    /// </summary>
+    private bool TryClaimTypingSignal(string target)
+    {
+        if (!Context.Items.TryGetValue(TypingItemKey, out var stored) || stored is not Dictionary<string, DateTimeOffset> signals)
+        {
+            signals = new Dictionary<string, DateTimeOffset>(StringComparer.Ordinal);
+            Context.Items[TypingItemKey] = signals;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (signals.TryGetValue(target, out var previous) && now - previous < TypingInterval)
+        {
+            return false;
+        }
+
+        if (!signals.ContainsKey(target) && signals.Count >= MaxTypingTargets)
+        {
+            foreach (var stale in signals.Where(pair => now - pair.Value >= TypingInterval).Select(pair => pair.Key).ToList())
+            {
+                signals.Remove(stale);
+            }
+
+            if (signals.Count >= MaxTypingTargets)
+            {
+                return false;
+            }
+        }
+
+        signals[target] = now;
+        return true;
     }
 
     private Task BroadcastIfChanged(string userId, (ChatPresence Before, ChatPresence After) change)

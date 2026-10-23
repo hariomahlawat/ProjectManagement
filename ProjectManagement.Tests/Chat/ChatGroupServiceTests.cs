@@ -261,6 +261,59 @@ public sealed class ChatGroupServiceTests
         Assert.Equal(ChatUnsendStatus.NotFound, (await scope.Chat.UnsendAsync("alice", created.Events[0].Id)).Status);
     }
 
+    [Fact]
+    public async Task AnAddedMember_SeesTheGroupOnlyFromWhenTheyJoined()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        await scope.Groups.SendAsync("alice", id, Send("before carol: budget figures"));
+        await scope.Groups.SendAsync("bob", id, Send("before carol: noted"));
+
+        var added = await scope.Groups.AddMembersAsync("bob", id, new[] { "carol" });
+        await scope.Groups.SendAsync("alice", id, Send("welcome carol"));
+
+        var history = await scope.Groups.GetHistoryAsync("carol", id, null, 40);
+        Assert.Equal(new[] { "welcome carol" }, history!.Messages.Where(m => m.EventKind is null).Select(m => m.Body));
+        Assert.Contains(history.Messages, m => m.EventKind == ChatGroupEvent.Added); // the notice of joining
+        Assert.False(history.HasMore);
+        Assert.Equal(1, (await scope.Groups.ListGroupsAsync("carol")).Single().UnreadCount);
+        Assert.Empty(await scope.Chat.SearchAsync("carol", "before carol", 50, includeGroups: true));
+        Assert.Single(await scope.Chat.SearchAsync("carol", "welcome", 50, includeGroups: true));
+
+        // Paging back from the first visible message finds nothing earlier.
+        var first = history.Messages.Min(m => m.Id);
+        Assert.Empty((await scope.Groups.GetHistoryAsync("carol", id, first, 40))!.Messages);
+
+        // The people already there keep the whole history.
+        Assert.Equal(3, (await scope.Groups.GetHistoryAsync("alice", id, null, 40))!.Messages.Count(m => m.EventKind is null));
+
+        // Members carry when they joined, for "Seen by".
+        var carol = added.Group!.Members.Single(m => m.UserId == "carol");
+        var alice = added.Group.Members.Single(m => m.UserId == "alice");
+        Assert.NotNull(carol.JoinedUtc);
+        Assert.True(carol.JoinedUtc > alice.JoinedUtc);
+    }
+
+    [Fact]
+    public async Task SomeoneAddedBack_DoesNotSeeWhatWasSaidWhileTheyWereOut()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob", "carol" })).Group!.Id;
+        await scope.Groups.SendAsync("alice", id, Send("while carol was in"));
+        await scope.Groups.RemoveMemberAsync("alice", id, "carol");
+        await scope.Groups.SendAsync("alice", id, Send("while carol was out"));
+        // Each change is its own web request (its own context): removal deletes in the database
+        // directly, so the membership loaded at creation must not linger in this shared context.
+        scope.Db.ChangeTracker.Clear();
+        await scope.Groups.AddMembersAsync("alice", id, new[] { "carol" });
+        await scope.Groups.SendAsync("bob", id, Send("carol is back"));
+
+        var history = await scope.Groups.GetHistoryAsync("carol", id, null, 40);
+
+        Assert.Equal(new[] { "carol is back" }, history!.Messages.Where(m => m.EventKind is null).Select(m => m.Body));
+        Assert.Equal(1, (await scope.Groups.ListGroupsAsync("carol")).Single().UnreadCount);
+    }
+
     private static ChatGroupSendRequest Send(string body) => new(Guid.NewGuid(), body);
 
     private sealed class GroupScope : IAsyncDisposable

@@ -250,7 +250,7 @@
     border-bottom: 0;
 }
 
-.pm-chat__window.is-minimized .pm-chat__window-body,
+.pm-chat__window.is-minimized .pm-chat__window-stage,
 .pm-chat__window.is-minimized .pm-chat__compose,
 .pm-chat__window.is-minimized .pm-chat__notice {
     display: none !important;
@@ -840,8 +840,14 @@
     text-align: center;
 }
 
-.pm-chat__window-body {
+/* The people panel covers the conversation, not the scrolled messages: it is positioned against
+   this non-scrolling stage, so it always fills the visible area whatever the scroll position. */
+.pm-chat__window-stage {
     position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .pm-chat__members {

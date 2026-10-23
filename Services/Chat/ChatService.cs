@@ -273,6 +273,8 @@ public sealed class ChatService
                     on mine.ConversationId equals m.ConversationId
                 where m.UnsentUtc == null && m.EventKind == null && m.Body.ToLower().Contains(needle)
                     && (includeGroups || mine.Conversation!.Kind == ChatConversation.DirectKind)
+                    // A group member only ever sees messages from when they (last) joined.
+                    && (mine.Conversation!.Kind == ChatConversation.DirectKind || m.SentUtc >= mine.JoinedUtc)
                 orderby m.Id descending
                 select new { m.Id, m.ConversationId, mine.Conversation!.Kind, mine.Conversation.Title, m.SenderUserId, m.Body, m.SentUtc })
             .Take(size)
