@@ -1482,6 +1482,9 @@ test('"Seen" in a group waits only for members who can read the message', () => 
     { userId: 'late', isActive: true, lastReadMessageId: null, joinedUtc: '2026-10-22T10:00:00Z' }, // joined after it
   ];
   assert.equal(PMChatInternals.seenByEveryone(members, 'me', message), true);
+  // The label never names someone who joined after the message, however far they have read.
+  members[3].lastReadMessageId = 40;
+  assert.deepEqual(Array.from(PMChatInternals.seenBy(members, 'me', message), (m) => m.userId), ['peer']);
   members[1].lastReadMessageId = 11;
   assert.equal(PMChatInternals.seenByEveryone(members, 'me', message), false);
   assert.equal(PMChatInternals.seenByEveryone([{ userId: 'me', isActive: true }], 'me', message), false, 'nobody else');

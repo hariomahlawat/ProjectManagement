@@ -226,21 +226,26 @@
     return id ? groupKey(id) : '';
   }
 
-  /** The other members who have read up to messageId (group read receipts). */
-  function seenBy(members, me, messageId) {
-    return (members || []).filter((m) => m.userId !== me && (m.lastReadMessageId || 0) >= messageId);
+  /**
+   * The other members who could see a group message: those who had joined by the time it was
+   * sent. Someone added later never sees it, however far their read marker has moved.
+   */
+  function couldSee(members, me, message) {
+    const sent = Date.parse(message.sentUtc) || 0;
+    return (members || []).filter((m) => m.userId !== me && !(m.joinedUtc && Date.parse(m.joinedUtc) > sent));
+  }
+
+  /** The other members who have read a group message ("Seen by"). */
+  function seenBy(members, me, message) {
+    return couldSee(members, me, message).filter((m) => (m.lastReadMessageId || 0) >= message.id);
   }
 
   /**
-   * Whether a group message counts as seen (two ticks): every other member who can read it has.
-   * Members with inactive accounts never will, and members who joined after it was sent never
-   * see it, so neither holds the ticks back.
+   * Whether a group message counts as seen (two ticks): every other member who could see it has
+   * read it. Members with inactive accounts never will, so they do not hold the ticks back.
    */
   function seenByEveryone(members, me, message) {
-    const sent = Date.parse(message.sentUtc) || 0;
-    const expected = (members || []).filter((m) => m.userId !== me
-      && m.isActive !== false
-      && !(m.joinedUtc && Date.parse(m.joinedUtc) > sent));
+    const expected = couldSee(members, me, message).filter((m) => m.isActive !== false);
     return expected.length > 0 && expected.every((m) => (m.lastReadMessageId || 0) >= message.id);
   }
 
@@ -2167,7 +2172,7 @@
           let seen;
           let label;
           if (win.groupId) {
-            const readers = seenBy(win.members, this.me, message.id);
+            const readers = seenBy(win.members, this.me, message);
             seen = seenByEveryone(win.members, this.me, message);
             label = readers.length ? `Seen by ${readers.map((m) => m.displayName).join(', ')}` : 'Sent';
           } else {
