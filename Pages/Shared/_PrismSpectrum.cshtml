@@ -1,0 +1,119 @@
+@model bool
+@*
+    The PRISM refraction mark: one beam (the project record) enters the prism and leaves as
+    six coloured rays, one per area of the platform. Inline SVG so it ships with the app (no
+    network), follows the Light/Dark tokens in landing.css and stays sharp at any size.
+    Model: true draws the ray labels (landing hero), false draws the bare artwork (sign-in).
+    Gradient ids are fixed, so render it at most once per page.
+*@
+@{
+    var showLabels = Model;
+    // Each ray leaves the prism's right face (between Start and the next ray's start) and
+    // fans out to a 14-unit band centred on Y at x = 520. The bare artwork carries the rays on
+    // to x = 1000, past the SVG box, so on the sign-in page they run behind the glass card.
+    var labels = new[]
+    {
+        (Y: 120, Name: "Teamwork", Detail: "Chat, tasks, notebook, calendar"),
+        (Y: 190, Name: "Office records", Detail: "Visits, training, IPR, ToT, FFC"),
+        (Y: 260, Name: "Media", Detail: "Photos, videos, publications"),
+        (Y: 330, Name: "Documents", Detail: "Repository, AOTS, OCR search"),
+        (Y: 400, Name: "Projects", Detail: "Stages, plans and facts"),
+        (Y: 470, Name: "Desks", Detail: "Command and briefing desks"),
+    };
+    var rayEndX = showLabels ? 520.0 : 1000.0;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var rays = labels.Select((label, i) =>
+    {
+        // Exit points step evenly down the right face from (345.6, 219.2).
+        double sx0 = 345.6 + 4.8 * i, sy0 = 219.2 + 13.6 * i;
+        double sx1 = sx0 + 4.8, sy1 = sy0 + 13.6;
+        double t0 = (rayEndX - sx0) / (520 - sx0), t1 = (rayEndX - sx1) / (520 - sx1);
+        double ey0 = sy0 + (label.Y - 7 - sy0) * t0, ey1 = sy1 + (label.Y + 7 - sy1) * t1;
+        var points = string.Format(inv, "{0:0.#},{1:0.#} {2:0.#},{3:0.#} {2:0.#},{4:0.#} {5:0.#},{6:0.#}",
+            sx0, sy0, rayEndX, ey0, ey1, sx1, sy1);
+        return (Points: points, label.Y, label.Name, label.Detail);
+    }).ToArray();
+}
+<svg class="lp-prism @(showLabels ? "lp-prism--labelled" : "lp-prism--art")"
+     viewBox="@(showLabels ? "0 0 760 520" : "0 0 540 520")"
+     role="img"
+     aria-labelledby="lpPrismTitle lpPrismDesc"
+     focusable="false">
+    <title id="lpPrismTitle">PRISM: one record, every view</title>
+    <desc id="lpPrismDesc">A single beam of light, the project record, enters a prism and leaves as six coloured rays: teamwork, office records, media, documents, projects and the command and briefing desks.</desc>
+    <defs>
+        <radialGradient id="lpPrismAura" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" class="lp-stop lp-stop--aura" stop-opacity="0.55" />
+            <stop offset="1" class="lp-stop lp-stop--aura" stop-opacity="0" />
+        </radialGradient>
+        <linearGradient id="lpPrismGlass" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" class="lp-stop lp-stop--glass-hi" />
+            <stop offset="1" class="lp-stop lp-stop--glass-lo" />
+        </linearGradient>
+        <linearGradient id="lpPrismBeam" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="226" y2="0">
+            <stop offset="0" class="lp-stop lp-stop--beam" stop-opacity="0" />
+            <stop offset="0.35" class="lp-stop lp-stop--beam" stop-opacity="0.85" />
+            <stop offset="1" class="lp-stop lp-stop--beam" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="lpPrismFan" gradientUnits="userSpaceOnUse" x1="226" y1="0" x2="375" y2="0">
+            <stop offset="0" class="lp-stop lp-stop--fan" />
+            <stop offset="1" class="lp-stop lp-stop--fan lp-stop--fan-end" />
+        </linearGradient>
+        <filter id="lpPrismBlur" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="7" />
+        </filter>
+        @for (var i = 0; i < rays.Length; i++)
+        {
+            <linearGradient id="lpPrismRay@(i)" gradientUnits="userSpaceOnUse" x1="350" y1="0" x2="@(showLabels ? "520" : "1000")" y2="0">
+                <stop offset="0" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0.95" />
+                <stop offset="1" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="@(showLabels ? "0.6" : "0.05")" />
+            </linearGradient>
+        }
+    </defs>
+
+    <circle class="lp-prism__aura" cx="350" cy="280" r="250" fill="url(#lpPrismAura)" />
+
+    @* The incoming beam, its soft glow and a travelling pulse. *@
+    <line class="lp-prism__beam-glow" x1="-10" y1="360" x2="226" y2="301" />
+    <line class="lp-prism__beam" x1="-10" y1="360" x2="226" y2="301" stroke="url(#lpPrismBeam)" />
+    <line class="lp-prism__pulse" x1="-10" y1="360" x2="226" y2="301" />
+    @if (showLabels)
+    {
+        <g class="lp-prism__beam-label-wrap">
+            <text class="lp-prism__beam-label" x="22" y="338" transform="rotate(-14 22 338)">One project record</text>
+        </g>
+    }
+
+    <g class="lp-prism__rays-glow" filter="url(#lpPrismBlur)" aria-hidden="true">
+        @for (var i = 0; i < rays.Length; i++)
+        {
+            <polygon points="@rays[i].Points" fill="url(#lpPrismRay@(i))" />
+        }
+    </g>
+    <g class="lp-prism__rays">
+        @for (var i = 0; i < rays.Length; i++)
+        {
+            <polygon class="lp-prism__ray lp-prism__ray--@(i + 1)" points="@rays[i].Points" fill="url(#lpPrismRay@(i))" />
+        }
+    </g>
+
+    @* The glass body, the light spreading inside it, and an edge highlight. *@
+    <polygon class="lp-prism__glass" points="300,90 180,430 420,430" fill="url(#lpPrismGlass)" />
+    <polygon class="lp-prism__fan" points="226,301 345.6,219.2 374.4,300.8" fill="url(#lpPrismFan)" />
+    <line class="lp-prism__shine" x1="295" y1="108" x2="194" y2="396" />
+    <line class="lp-prism__shine lp-prism__shine--base" x1="200" y1="424" x2="330" y2="424" />
+
+    @if (showLabels)
+    {
+        <g class="lp-prism__labels">
+            @for (var i = 0; i < rays.Length; i++)
+            {
+                <g class="lp-prism__label">
+                    <circle class="lp-prism__dot lp-prism__dot--@(i + 1)" cx="531" cy="@rays[i].Y" r="5" />
+                    <text class="lp-prism__name" x="548" y="@(rays[i].Y + 6)">@rays[i].Name</text>
+                    <text class="lp-prism__detail" x="548" y="@(rays[i].Y + 26)">@rays[i].Detail</text>
+                </g>
+            }
+        </g>
+    }
+</svg>

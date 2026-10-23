@@ -1,0 +1,197 @@
+/* =============================================================
+   PUBLIC SHELL: the signed-out top bar and footer (_Layout.cshtml).
+   Loaded for every signed-out page, so it uses only site tokens:
+   Light and Dark both follow the token block in site.css.
+   ============================================================= */
+
+.public-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    background: color-mix(in srgb, var(--pm-page-bg) 78%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--pm-border) 70%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+}
+
+.public-topbar__inner,
+.public-footer__inner {
+    width: min(76rem, calc(100% - 2rem));
+    margin-inline: auto;
+}
+
+.public-topbar__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 64px;
+}
+
+.public-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--pm-text-strong);
+    text-decoration: none;
+}
+
+.public-brand:hover {
+    color: var(--pm-text-strong);
+}
+
+.public-brand img {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+}
+
+.public-brand__name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.public-brand__name span {
+    color: var(--pm-text-muted);
+    font-weight: 600;
+}
+
+.public-topbar__nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.public-topbar__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 38px;
+    padding: 0 0.8rem;
+    border-radius: 999px;
+    color: var(--pm-text-secondary);
+    font-size: 0.92rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.public-topbar__link:hover,
+.public-topbar__link:focus-visible {
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-strong);
+}
+
+.public-theme {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-inline: 0.5rem;
+    padding: 3px;
+    border: 1px solid var(--pm-border);
+    border-radius: 999px;
+    background: var(--pm-card);
+}
+
+.public-theme__option {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--pm-text-muted);
+    font-size: 0.9rem;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.public-theme__option:hover {
+    color: var(--pm-text-strong);
+}
+
+.public-theme__option[aria-pressed="true"] {
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-strong);
+    box-shadow: inset 0 0 0 1px var(--pm-border);
+}
+
+.public-theme__option:focus-visible,
+.public-topbar__link:focus-visible,
+.public-topbar__signin:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+}
+
+.public-topbar__signin {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 0 1.1rem;
+    border-radius: 999px;
+    background: var(--pm-text-strong);
+    color: var(--pm-page-bg);
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.public-topbar__signin:hover {
+    color: var(--pm-page-bg);
+    opacity: 0.9;
+}
+
+.public-footer {
+    margin-top: auto;
+    border-top: 1px solid var(--pm-border);
+    background: var(--pm-page-bg);
+    color: var(--pm-text-muted);
+    font-size: 0.85rem;
+}
+
+.public-footer__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    padding: 1.1rem 0;
+}
+
+.public-footer__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--pm-text-secondary);
+    font-weight: 600;
+}
+
+.public-footer__brand img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+@media (max-width: 760px) {
+    .public-topbar__link--section {
+        display: none;
+    }
+
+    .public-theme {
+        margin-inline: 0.25rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .public-brand__name span {
+        display: none;
+    }
+
+    .public-theme__option {
+        width: 28px;
+        height: 28px;
+    }
+}

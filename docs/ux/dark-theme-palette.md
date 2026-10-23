@@ -48,8 +48,9 @@ while a form field has focus, and never to someone who has already used the swit
   Account settings, Developer and Sign-in. The FFC footprint map reads its country colours
   from `--ffc-map-*` custom properties (Light keeps its built-in values); Leaflet's own
   controls and tooltips are themed centrally. `tasks.css` no longer follows
-  `prefers-color-scheme`. Not seen: the signed-out landing page (signed-in users are sent
-  to the Dashboard) and action-task detail pages (no tasks in the dev data).
+  `prefers-color-scheme`. Not seen: action-task detail pages (no tasks in the dev data).
+  The signed-out landing and sign-in pages were redesigned for both themes (2026-10-24, see
+  [public pages](public-pages.md)) and have their own Light / Dark / System switch in the top bar.
 - **Coverage now:** 71 dark gaps site-wide, down from 8,567 before the theme work; all are
   deliberate (print proofs, the Procurement Process page's own always-dark journey, solid
   danger/warning button fills, keyframe glows). See [theme coverage](theme-coverage.md).
