@@ -11,6 +11,12 @@ exists and where to change it: Try Dark, Use Windows setting (System) or Not now
 per browser on up to three page loads until answered, never over an open dialog or panel or
 while a form field has focus, and never to someone who has already used the switch.
 
+- **Light text contrast.** Text in Light meets 4.5:1 on the page background (#f4f6fb), not
+  just on white cards: links and outline buttons use `--pm-link` (#0b5ed7) and
+  `--pm-muted-strong` (#5c636a) through Bootstrap's own variables, scoped to
+  `:root:not([data-bs-theme="dark"])`; the shared greys (`--pm-text-muted`, `--pm-text-tertiary`,
+  `--pm-accent-slate-mid` and friends) are 5:1 or better. Dark keeps its own values. For muted
+  text use these tokens, not pale literals such as #98a2b3.
 - **Switch.** User menu → Theme → Light / Dark / System. The choice is stored per browser
   in `localStorage` (`prism.theme`) and applied before first paint by
   `wwwroot/js/core/theme-preference.js`, loaded in `<head>` of `_Layout.cshtml` (no inline

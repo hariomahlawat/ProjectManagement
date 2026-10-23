@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **7567** stylesheet literals in 84 files, **6** in inline view styles.
+Totals: **7554** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -24,19 +24,19 @@ Totals: **7567** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 1: Dashboard, My Workspace, Projects lists, Calendar, shared site.css
 
-1880 literals.
+1869 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 405 | 300 |
-| `command-workspace.css` | 231 | 164 |
+| `site.css` | 405 | 303 |
+| `command-workspace.css` | 228 | 164 |
 | `officer-conference.css` | 202 | 139 |
 | `pages/projects-completed-summary.css` | 186 | 140 |
 | `calendar.css` | 184 | 113 |
 | `workspace.css` | 148 | 100 |
-| `pages/dashboard.css` | 144 | 86 |
+| `pages/dashboard.css` | 141 | 86 |
 | `projects/ongoing-conference.css` | 87 | 50 |
-| `projects/index.css` | 79 | 67 |
+| `projects/index.css` | 74 | 67 |
 | `widgets/project-pulse.css` | 46 | 24 |
 | `projects/create.css` | 44 | 24 |
 | `todo-widget.css` | 39 | 22 |
@@ -94,11 +94,11 @@ Totals: **7567** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 4: Action tracker, tasks, office reports, admin and the rest
 
-1447 literals.
+1445 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `action-tracker.css` | 225 | 152 |
+| `action-tracker.css` | 223 | 152 |
 | `admin.css` | 176 | 136 |
 | `pages/approvals.css` | 157 | 98 |
 | `social-media.css` | 113 | 91 |
