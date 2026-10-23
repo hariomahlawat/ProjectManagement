@@ -303,7 +303,7 @@
 .cw-local-rail__identity > div { min-width:0; display:grid; }
 .cw-local-rail__identity-copy { gap:1px; }
 .cw-local-rail__identity small {
-    color:#8290a4;
+    color:var(--pm-text-muted);
     font-size:.58rem;
     font-weight:900;
     letter-spacing:.09em;
@@ -318,7 +318,7 @@
 }
 .cw-local-rail__access {
     overflow:hidden;
-    color:#6d7b91;
+    color:var(--pm-text-muted);
     font-size:.62rem;
     font-weight:700;
     line-height:1.25;
@@ -387,7 +387,7 @@
     align-items:center;
     gap:6px;
     padding:2px 9px 3px;
-    color:#8794a6;
+    color:var(--pm-text-muted);
     font-size:.58rem;
     font-weight:900;
     letter-spacing:.085em;

@@ -3,8 +3,8 @@
 :root {
     --pm-theme-name: light;
     /* -- SECTION: Brand & core palette -- */
-    --pm-primary: #2d6cdf;
-    --pm-primary-hover: #2558c6;
+    --pm-primary: #2563d6; /* 5.07:1 on the page background; was #2d6cdf (4.49:1) */
+    --pm-primary-hover: #1f54b8;
     --pm-primary-soft: #e0edff;
     --pm-primary-strong: #1d4ed8;
     /* -- SECTION: Neutrals & surfaces -- */
@@ -38,19 +38,19 @@
     /* -- SECTION: Text -- */
     --pm-text: #0b1220;
     --pm-text-secondary: #4b5563;
-    --pm-text-muted: #6b7280;
+    --pm-text-muted: #5f6673; /* 5.3:1 on the page background; was #6b7280 (4.47:1) */
     --pm-muted: var(--pm-text-muted);
     --pm-text-contrast: #0f172a;
     --pm-text-strong: #0f172a; /* headings and key values; matches every existing fallback */
     --pm-text-inverted: #ffffff;
-    --pm-text-tertiary: #6c757d;
+    --pm-text-tertiary: #5c636a; /* was #6c757d (4.34:1) */
     --pm-text-muted-strong: #5c7080;
     --pm-text-dim: #555555;
     --pm-text-true: #000000;
-    --pm-text-gray-soft: #7b8794;
+    --pm-text-gray-soft: #636d79; /* was #7b8794 (3.39:1) */
     --pm-text-slate: #374151;
     --pm-text-project: #1f1b38;
-    --pm-text-project-muted: #6c7093;
+    --pm-text-project-muted: #5d6182; /* was #6c7093 (4.44:1) */
     /* -- SECTION: Borders & dividers -- */
     --pm-border: #e5e7eb;
     --pm-border-subtle: #f3f4f6;
@@ -125,7 +125,7 @@
     --pm-accent-amber-soft: #ffe9b0;
     --pm-accent-slate: #94a3b8;
     --pm-accent-slate-strong: #475569;
-    --pm-accent-slate-mid: #64748b;
+    --pm-accent-slate-mid: #5a6a80; /* was #64748b (4.40:1) */
     --pm-accent-ffc: #5b21b6;
     --pm-accent-highlight-soft: #ffffcc;
     --pm-accent-info-muted: #cff4fc;
@@ -209,6 +209,39 @@
     --bs-body-color: var(--pm-text);
     --bs-border-color: var(--pm-border);
     --bs-card-bg: var(--pm-card);
+}
+
+/* -- SECTION: Light text contrast --
+   Bootstrap's link and outline-button colours (#0d6efd, #6c757d) fall just under 4.5:1 on
+   PRISM's page background (4.16:1 and 4.34:1). Light only: Dark keeps Bootstrap's own dark values. */
+:root:not([data-bs-theme="dark"]) {
+    --pm-link: #0b5ed7; /* 5.40:1 on #f4f6fb, 5.84:1 on white */
+    --pm-link-hover: #0a4fb3;
+    --pm-muted-strong: #5c636a; /* 5.63:1 on #f4f6fb */
+    --bs-link-color: var(--pm-link);
+    --bs-link-color-rgb: 11, 94, 215;
+    --bs-link-hover-color: var(--pm-link-hover);
+    --bs-link-hover-color-rgb: 10, 79, 179;
+}
+
+:root:not([data-bs-theme="dark"]) .btn-outline-primary {
+    --bs-btn-color: var(--pm-link);
+    --bs-btn-border-color: var(--pm-link);
+    --bs-btn-hover-bg: var(--pm-link);
+    --bs-btn-hover-border-color: var(--pm-link);
+    --bs-btn-active-bg: var(--pm-link-hover);
+    --bs-btn-active-border-color: var(--pm-link-hover);
+    --bs-btn-disabled-color: var(--pm-link);
+    --bs-btn-disabled-border-color: var(--pm-link);
+}
+
+:root:not([data-bs-theme="dark"]) .btn-outline-secondary {
+    --bs-btn-color: var(--pm-muted-strong);
+    --bs-btn-hover-bg: var(--pm-muted-strong);
+    --bs-btn-hover-border-color: var(--pm-muted-strong);
+    --bs-btn-active-bg: var(--pm-muted-strong);
+    --bs-btn-active-border-color: var(--pm-muted-strong);
+    --bs-btn-disabled-color: var(--pm-muted-strong);
 }
 
 /* -- SECTION: Dark theme tokens (neutral graphite) --
