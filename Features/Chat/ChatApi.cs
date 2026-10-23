@@ -90,6 +90,7 @@ public static class ChatApi
             });
         files.MapPost("/", UploadAttachmentAsync).RequireRateLimiting(UploadRateLimitPolicy);
         files.MapGet("/usage", GetAttachmentUsageAsync);
+        files.MapGet("/removed", GetRemovedAttachmentsSinceAsync);
         files.MapGet("/totals", GetAttachmentTotalsAsync).RequireAuthorization(policy => policy.RequireRole(RoleNames.Admin));
         files.MapGet("/{attachmentId:long}", DownloadAttachmentAsync);
         files.MapPost("/{attachmentId:long}/remove", RemoveAttachmentAsync).RequireRateLimiting(ChangeRateLimitPolicy);
@@ -325,6 +326,28 @@ public static class ChatApi
 
         SetNoStoreHeaders(httpContext.Response);
         return Results.Ok(await attachments.GetUsageAsync(userId, cancellationToken));
+    }
+
+    /// <summary>Removal catch-up after the live connection was down (like /unsent).</summary>
+    private static async Task<IResult> GetRemovedAttachmentsSinceAsync(
+        [FromQuery(Name = "since")] DateTimeOffset? since,
+        [FromQuery(Name = "before")] long? beforeAttachmentId,
+        HttpContext httpContext,
+        ChatAttachmentService attachments,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (since is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid request", detail: "since is required.");
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await attachments.ListRemovedSinceAsync(userId, since.Value, beforeAttachmentId, cancellationToken));
     }
 
     /// <summary>Administrators: storage totals only, never names of files or conversations (D8).</summary>

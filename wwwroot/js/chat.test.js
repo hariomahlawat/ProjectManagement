@@ -2640,6 +2640,38 @@ test('I can remove a file from my own message with a second click, and others se
   }
 });
 
+test('files removed while the connection was down are marked on catch-up', async () => {
+  const asked = [];
+  const window = fileApp(async (url) => {
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/attachments/removed?since=')) {
+      asked.push(url);
+      return url.includes('before=')
+        ? { files: [{ attachmentId: 42, messageId: 97, groupId: null }], hasMore: false }
+        : { files: [{ attachmentId: 43, messageId: 98, groupId: null }], hasMore: true };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.acceptSaved(win, [{
+      id: 97, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-97', body: 'Old', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 42, fileName: 'old.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }],
+    }]);
+    app.offlineSince = new Date();
+    await app.syncUnsent(true);
+    assert.equal(asked.length, 2, 'reads every page');
+    assert.match(asked[1], /before=43/);
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 1);
+    assert.equal(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/42"]'), null);
+  } finally {
+    window.close();
+  }
+});
+
 test('a removed file stays removed when a stale copy of its message arrives later', async () => {
   const window = fileApp();
   try {

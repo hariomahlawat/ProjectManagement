@@ -58,6 +58,9 @@ public sealed record ChatAttachmentPersonUsageDto(string DisplayName, long UsedB
 /// <summary>A sender removed a file from a message (the message itself stays).</summary>
 public sealed record ChatAttachmentRemovedDto(long AttachmentId, long MessageId, long? GroupId);
 
+/// <summary>Files removed from messages since a time, for a page that missed the live events.</summary>
+public sealed record ChatRemovedFilesPageDto(IReadOnlyList<ChatAttachmentRemovedDto> Files, bool HasMore);
+
 /// <summary>
 /// A page of one conversation, oldest first. HasMore: older messages exist before this page.
 /// HasNewer: newer messages exist after it (only for pages asked for with "after" or "before"

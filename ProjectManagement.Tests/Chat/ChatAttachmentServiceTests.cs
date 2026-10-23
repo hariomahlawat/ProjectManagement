@@ -205,6 +205,30 @@ public sealed class ChatAttachmentServiceTests
     }
 
     [Fact]
+    public async Task RemovedSince_ListsRemovalsInMessagesTheCallerMayRead()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var since = scope.Clock.UtcNow.AddMinutes(-5);
+        var upload = (await scope.Files.UploadAsync("alice", Content("pdf"), "plan.pdf")).Attachment!;
+        var groupId = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        await scope.Groups.SendAsync("alice", groupId, new ChatGroupSendRequest(Guid.NewGuid(), "plan", new[] { upload.Id }));
+        await scope.Groups.AddMembersAsync("alice", groupId, new[] { "carol" });
+        var unsent = (await scope.Files.UploadAsync("alice", Content("pdf"), "draft.pdf")).Attachment!;
+
+        Assert.Empty((await scope.Files.ListRemovedSinceAsync("bob", since)).Files);
+        await scope.Files.RemoveAsync("alice", upload.Id);
+        await scope.Files.RemoveAsync("alice", unsent.Id); // never sent: nobody else saw it
+
+        var forBob = Assert.Single((await scope.Files.ListRemovedSinceAsync("bob", since)).Files);
+        Assert.Equal(upload.Id, forBob.AttachmentId);
+        Assert.Equal(groupId, forBob.GroupId);
+        Assert.Empty((await scope.Files.ListRemovedSinceAsync("carol", since)).Files); // joined after it was sent
+        Assert.Empty((await scope.Files.ListRemovedSinceAsync("dave", since)).Files);
+        Assert.Empty((await scope.Files.ListRemovedSinceAsync("bob", scope.Clock.UtcNow.AddHours(1))).Files);
+        Assert.Empty((await scope.Files.ListRemovedSinceAsync("bob", since, beforeAttachmentId: upload.Id)).Files);
+    }
+
+    [Fact]
     public async Task ASenderWhoLeftAGroup_LosesItsFilesToo_EvenAfterRejoining()
     {
         await using var scope = await FileScope.CreateAsync();
