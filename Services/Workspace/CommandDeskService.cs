@@ -12,6 +12,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Approvals;
 using ProjectManagement.Services.Authorization;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
 using ProjectManagement.ViewModels.Workspace;
@@ -327,9 +328,11 @@ public sealed class CommandDeskService
             stage => (stage.ProjectId, stage.StageCode.ToUpperInvariant()),
             stage => stage.PlannedDue);
 
-        var withHod = (await _db.PlanVersions
+        // Only a plan the HoD can still act on: the same rule as the Decision Centre's queue, so an
+        // older pending version left behind by a later rejected or withdrawn one does not count.
+        var withHod = (await PlanRevisionConsistency.ActionablePending(_db)
                 .AsNoTracking()
-                .Where(plan => projectIds.Contains(plan.ProjectId) && plan.Status == PlanVersionStatus.PendingApproval)
+                .Where(plan => projectIds.Contains(plan.ProjectId))
                 .Select(plan => plan.ProjectId)
                 .ToListAsync(ct))
             .ToHashSet();

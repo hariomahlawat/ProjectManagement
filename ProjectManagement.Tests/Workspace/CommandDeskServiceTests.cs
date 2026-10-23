@@ -54,6 +54,28 @@ public sealed class CommandDeskServiceTests
     }
 
     [Fact]
+    public async Task NoPdc_IgnoresAPendingPlanThatIsNoLongerActionable()
+    {
+        await using var db = NewDb();
+        // Project 50: an old pending version, then a newer one that was rejected. The old one is
+        // no longer actionable (not in the Decision Centre), so the project still lacks a PDC.
+        // Project 51: a plan genuinely waiting for approval, so it is not counted.
+        db.PlanVersions.AddRange(
+            new ProjectManagement.Models.Plans.PlanVersion { Id = 1, ProjectId = 50, VersionNo = 1, Status = ProjectManagement.Models.Plans.PlanVersionStatus.PendingApproval, CreatedByUserId = OfficerId },
+            new ProjectManagement.Models.Plans.PlanVersion { Id = 2, ProjectId = 50, VersionNo = 2, Status = ProjectManagement.Models.Plans.PlanVersionStatus.Rejected, CreatedByUserId = OfficerId, RejectedOn = DateTimeOffset.UtcNow },
+            new ProjectManagement.Models.Plans.PlanVersion { Id = 3, ProjectId = 51, VersionNo = 1, Status = ProjectManagement.Models.Plans.PlanVersionStatus.PendingApproval, CreatedByUserId = OfficerId });
+        await db.SaveChangesAsync();
+        var workload = new FakeWorkload(
+            new CommandOfficerProjectVm(50, "Stale pending", "AON", "Acceptance of Necessity", "/Projects/Overview/50"),
+            new CommandOfficerProjectVm(51, "Waiting on the HoD", "AON", "Acceptance of Necessity", "/Projects/Overview/51"));
+
+        var desk = await NewService(db, workload: workload).GetAsync(User(RoleNames.Comdt), ComdtId, null, CancellationToken.None);
+
+        var noPdc = desk.Attention.Single(reason => reason.Key == "no-pdc");
+        Assert.Equal("Stale pending", Assert.Single(Assert.Single(noPdc.ByOfficer).Projects!).Name);
+    }
+
+    [Fact]
     public async Task BlockedTask_CarriesTheLatestBlockingReason()
     {
         await using var db = NewDb();
@@ -155,11 +177,11 @@ public sealed class CommandDeskServiceTests
         return db;
     }
 
-    private static CommandDeskService NewService(ApplicationDbContext db, FakeConference? conference = null)
+    private static CommandDeskService NewService(ApplicationDbContext db, FakeConference? conference = null, FakeWorkload? workload = null)
         => new(
             db,
             FakeClock.ForIstDate(Today.Year, Today.Month, Today.Day, 12),
-            new FakeWorkload(),
+            workload ?? new FakeWorkload(),
             conference ?? new FakeConference(),
             new FakeApprovals());
 
@@ -195,8 +217,17 @@ public sealed class CommandDeskServiceTests
 
     private sealed class FakeWorkload : IOfficerWorkloadReadService
     {
+        private readonly IReadOnlyList<CommandOfficerWorkloadVm> _officers;
+
+        public FakeWorkload(params CommandOfficerProjectVm[] projects)
+        {
+            _officers = projects.Length == 0
+                ? Array.Empty<CommandOfficerWorkloadVm>()
+                : new[] { new CommandOfficerWorkloadVm { UserId = OfficerId, OfficerName = "K Srinath", Projects = projects } };
+        }
+
         public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllAsync(string requestingUserId, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<CommandOfficerWorkloadVm>>(Array.Empty<CommandOfficerWorkloadVm>());
+            => Task.FromResult(_officers);
 
         public Task<CommandOfficerWorkloadVm?> GetOfficerAsync(string officerUserId, CancellationToken cancellationToken = default)
             => Task.FromResult<CommandOfficerWorkloadVm?>(null);
