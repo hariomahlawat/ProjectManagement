@@ -205,6 +205,10 @@
 .cw-avatar { width:32px; height:32px; display:grid; place-items:center; border-radius:8px; background:var(--officer-accent); color:#fff; font-size:.84rem; font-weight:900; }
 .cw-officer-identity { min-width:0; }
 .cw-officer-card h3 { margin:0; font-size:.86rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* The name truncates on its own so the chat button after it always stays visible. */
+.cw-officer-card h3.cw-officer-name { display:flex; align-items:center; min-width:0; text-overflow:clip; }
+.cw-officer-name__text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cw-officer-name .pm-chat-person { flex:0 0 auto; }
 .cw-officer-identity p { display:flex; flex-wrap:wrap; gap:3px 8px; margin:2px 0 0; color:#718096; font-size:.64rem; }
 .cw-officer-identity p strong { color:#3d5270; }
 .cw-work-sections { padding:0; }
