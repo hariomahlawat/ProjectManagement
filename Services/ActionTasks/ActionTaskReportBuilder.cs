@@ -101,7 +101,8 @@ public sealed class ActionTaskReportBuilder
             BacklogItems = backlogTasks.Count
         };
 
-    // SECTION: Official bucket distribution uses shared bucket rules and hides Invalid State when no records exist.
+    // SECTION: Official bucket distribution uses shared bucket rules and hides the inconsistent-data
+    // bucket ("Needs data correction") when no records exist.
     private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildBucketDistribution(IReadOnlyList<ActionTaskItem> tasks)
     {
         var bucketCounts = tasks
@@ -119,7 +120,7 @@ public sealed class ActionTaskReportBuilder
         var invalidCount = bucketCounts.GetValueOrDefault(ActionTaskBucket.Invalid);
         if (invalidCount > 0)
         {
-            buckets.Add(new ActionTaskQueryService.CountSummary("Invalid State", invalidCount));
+            buckets.Add(new ActionTaskQueryService.CountSummary("Needs data correction", invalidCount));
         }
 
         return buckets;
@@ -132,11 +133,14 @@ public sealed class ActionTaskReportBuilder
         IReadOnlyDictionary<string, string> assigneeNames)
     {
         var overdueIds = overdueAssignedTasks.Select(t => t.Id).ToHashSet();
+        // Grouped by user id so two people with the same name stay apart and each row can link
+        // to that person's tasks.
         return assignedOpenTasks
-            .GroupBy(t => Assignee(t.AssignedToUserId, assigneeNames))
+            .GroupBy(t => t.AssignedToUserId ?? string.Empty, StringComparer.Ordinal)
             .Select(g => new ActionTaskQueryService.ResponsiblePersonWorkloadSummary
             {
-                ResponsiblePerson = g.Key,
+                ResponsiblePerson = Assignee(g.Key, assigneeNames),
+                ResponsiblePersonUserId = string.IsNullOrWhiteSpace(g.Key) ? null : g.Key,
                 Open = g.Count(),
                 Overdue = g.Count(t => overdueIds.Contains(t.Id)),
                 Blocked = g.Count(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)),

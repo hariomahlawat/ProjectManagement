@@ -823,6 +823,29 @@ html {
     max-width: 13.5rem;
 }
 
+/* SECTION: Task actions: the More menu holds sprint and backlog moves. */
+.at-task-action-more { position: relative; display: inline-block; }
+.at-task-action-more > summary { list-style: none; cursor: pointer; }
+.at-task-action-more > summary::-webkit-details-marker { display: none; }
+.at-task-action-more[open] > summary .bi { transform: rotate(180deg); }
+.at-task-action-menu {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + .25rem);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 12rem;
+    padding: .3rem;
+    border: 1px solid var(--pm-border);
+    border-radius: .6rem;
+    background: var(--pm-card);
+    box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--pm-text-strong) 45%, transparent);
+}
+.at-task-action-menu .at-task-action { justify-content: flex-start; width: 100%; text-align: left; }
+.at-board-outside-note a { font-weight: 650; }
+
 .at-register-overdue {
     display: block;
     width: fit-content;

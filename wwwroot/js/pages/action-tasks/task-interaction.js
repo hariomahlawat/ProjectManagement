@@ -32,9 +32,16 @@
                 if (!root) return;
                 event.preventDefault();
                 const name = opener.getAttribute('data-at-v22-open') || opener.getAttribute('data-at-v2-open');
+                // An action chosen from the More menu closes the menu behind it.
+                opener.closest('[data-at-task-action-more]')?.removeAttribute('open');
                 openActionPanel(root, name);
                 return;
             }
+
+            // A click anywhere else closes an open More menu.
+            document.querySelectorAll('[data-at-task-action-more][open]').forEach((menu) => {
+                if (!menu.contains(event.target)) menu.removeAttribute('open');
+            });
 
             const cancel = event.target.closest('[data-at-v22-cancel], [data-at-v2-cancel]');
             if (!cancel) return;
@@ -46,6 +53,7 @@
 
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') return;
+            document.querySelectorAll('[data-at-task-action-more][open]').forEach((menu) => menu.removeAttribute('open'));
             roots().forEach(closeActionPanels);
         });
     }
