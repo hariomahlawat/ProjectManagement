@@ -74,9 +74,22 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
     keeps what it showed, with the reply box closed. If they are added back, the group starts
     again from that moment, so they never see what was said while they were out.
   - Groups are listed above people in the buddy list, with unread counts, and on the Messages
-    page. The people button in a group window shows members, Add people, Rename (manager) and
-    Leave group (two clicks). The panel covers the conversation; ticked people, a half-typed
-    name and an armed Leave survive changes other members make meanwhile.
+    page. The people button in a group window opens the people panel, over the conversation:
+    - each member with their presence dot and status ("Inactive account" for deactivated ones),
+      who manages the group, and a chat button that opens a direct chat with them;
+    - **Add people** (a full group says so instead of offering a list; the list shows at most
+      200 people at once, and says to search for the rest), **Rename** (manager), **Remove**
+      (manager) and **Leave group**. Remove and Leave each ask for a second click, and the
+      confirmation disarms itself after five seconds. A change that worked says so in the
+      panel ("Added Sita.", "Renamed to …", "Removed Ravi.") and to screen readers;
+    - **Mute this group on this computer**: its messages still count as unread, but do not
+      chime, flash the tab title, pop the window open or get announced unless you are in it.
+      Remembered per browser and per user in `localStorage` key `prism.chat.muted.{userId}`
+      (group ids only), like the sound setting, and applied at once in the user's other open
+      tabs. Muted groups show a bell-slash in the list and "Muted" in their window.
+    Ticked people, a half-typed name and an armed button survive changes other members make
+    while the panel is open. New group checks for a name and at least one person before
+    sending, and puts focus on what is missing.
   - Notices appear in the conversation ("Ravi added Sita", "Sita left", "… renamed the group
     to …"); they are not counted as unread and do not chime.
   - Each message shows who sent it; typing shows names ("Ravi and Sita are typing…"); read

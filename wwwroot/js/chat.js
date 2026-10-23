@@ -41,6 +41,8 @@
   const SEARCH_DELAY_MS = 300;
   const UNSENT_RETRY_MS = 15000;
   const GROUP_LIMIT = 50; // people in a group, the creator included (ChatConversation.MaxGroupMembers)
+  const ARM_MS = 5000; // how long a "click again to confirm" button stays armed
+  const PICKER_MAX = 200; // people listed in a picker at once; the search narrows the rest
   const SERVER_TIMEOUT_MS = 90000; // how long a silent drop can go unnoticed
   // Catch-up looks back this far before the moment a drop was noticed: the whole detection
   // window, plus a minute for clock differences between browser and server.
@@ -420,6 +422,7 @@
     this.storageKey = `prism.chat.dock.${this.me}`;
     this.soundKey = `prism.chat.sound.${this.me}`;
     this.dingKey = `prism.chat.ding.${this.me}`;
+    this.muteKey = `prism.chat.muted.${this.me}`;
     this.contacts = new Map();
     this.groups = new Map(); // groupId -> { id, title, managerUserId, memberCount, unreadCount, lastMessageUtc }
     this.windows = new Map(); // conversation key -> window state (docked, or embedded in the Messages page)
@@ -435,6 +438,7 @@
     this.lastActivity = Date.now();
     this.chime = new Chime();
     this.soundOn = this.readSoundPreference();
+    this.muted = this.readMuted();
     this.title = new TitleFlasher(document, global.setInterval.bind(global), global.clearInterval.bind(global));
     this.page = null;
     this.launchers = Array.from(document.querySelectorAll('[data-chat-launcher]'));
@@ -444,6 +448,10 @@
     this.buildDock();
     this.launchers.forEach((button) => button.addEventListener('click', () => this.toggleBuddy()));
     global.addEventListener('resize', () => this.enforceCapacity());
+    // Muting a group in another tab of this user applies here too.
+    global.addEventListener('storage', (event) => {
+      if (event.key === this.muteKey) this.applyMutedChange(this.readMuted());
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this.noteActivity();
@@ -522,6 +530,44 @@
       this.chime.play();
     }
     this.renderSoundToggle();
+  };
+
+  /**
+   * Groups muted in this browser (like the sound setting): their messages still count as unread,
+   * but do not chime, flash the tab title or pop the group's window open. Group ids only.
+   */
+  ChatApp.prototype.readMuted = function () {
+    try {
+      const ids = JSON.parse(global.localStorage.getItem(this.muteKey) || '[]');
+      return new Set(Array.isArray(ids) ? ids.filter((id) => Number.isSafeInteger(id) && id > 0) : []);
+    } catch (_) {
+      return new Set();
+    }
+  };
+
+  ChatApp.prototype.isMuted = function (groupId) {
+    return !!groupId && this.muted.has(groupId);
+  };
+
+  ChatApp.prototype.setMuted = function (groupId, muted) {
+    // Start from what is stored, not this tab's copy: another tab may have changed it since.
+    const next = this.readMuted();
+    if (muted) next.add(groupId); else next.delete(groupId);
+    try {
+      global.localStorage.setItem(this.muteKey, JSON.stringify(Array.from(next)));
+    } catch (_) { /* this page only */ }
+    this.applyMutedChange(next);
+  };
+
+  /** Takes a new set of muted groups and shows it: contact list, group windows and panels. */
+  ChatApp.prototype.applyMutedChange = function (muted) {
+    this.muted = muted;
+    this.windows.forEach((win) => {
+      if (!win.groupId) return;
+      this.renderWindowState(win);
+      if (win.panelOpen) this.renderMembersPanel(win);
+    });
+    this.renderContacts();
   };
 
   // ----- HTTP ------------------------------------------------------------------
@@ -789,9 +835,10 @@
     }
     const counter = group || contact;
 
+    const muted = this.isMuted(message.groupId);
     let win = this.windows.get(key);
-    if (!win && countable) {
-      // Classic behaviour: a new message pops its conversation open.
+    if (!win && countable && !muted) {
+      // Classic behaviour: a new message pops its conversation open (not for a muted group).
       win = this.openWindow(key, { focus: false, pop: true });
     }
 
@@ -817,10 +864,11 @@
       counter.unreadCount += 1;
     }
 
-    if (fresh && !(win && this.isAttended(win))) {
+    if (fresh && !muted && !(win && this.isAttended(win))) {
       this.alert(message, contact, group);
     }
-    if (fresh) this.announceMessage(message, win, group);
+    // A muted group is announced only while the person is in it.
+    if (fresh && (!muted || (win && this.isAttended(win)))) this.announceMessage(message, win, group);
 
     this.renderContacts();
   };
@@ -843,7 +891,7 @@
   /** Announces messages that came in through a fetch: one is read like a pushed message. */
   ChatApp.prototype.announceFetched = function (win, messages) {
     const incoming = messages.filter((m) => m.senderUserId !== this.me && !m.eventKind && !m.isUnsent);
-    if (!incoming.length) return;
+    if (!incoming.length || (this.isMuted(win.groupId) && !this.isAttended(win))) return;
     const group = win.groupId ? this.groups.get(win.groupId) : null;
     if (incoming.length === 1) {
       this.announceMessage(incoming[0], win, group);
@@ -918,6 +966,16 @@
     this.renderContacts();
     const win = this.windows.get(presence.userId);
     if (win) this.renderWindowState(win);
+    this.refreshMemberPanels(presence.userId);
+  };
+
+  /** Open people panels show presence and status: redraw those that list userId (or all). */
+  ChatApp.prototype.refreshMemberPanels = function (userId) {
+    this.windows.forEach((win) => {
+      if (!win.groupId || !win.panelOpen) return;
+      if (userId && !(win.members || []).some((m) => m.userId === userId)) return;
+      this.renderMembersPanel(win);
+    });
   };
 
   /** A message was unsent (by this user in another tab, or by the other person). */
@@ -1319,6 +1377,7 @@
       const fresh = new Map(contacts.map((c) => [c.userId, c]));
       this.contacts = fresh;
       this.renderContacts();
+      this.refreshMemberPanels();
       this.windows.forEach((w) => {
         // A window restored on a new page still flags messages that arrived before it.
         const contact = fresh.get(w.peerId);
@@ -1390,7 +1449,14 @@
       if (group.unreadCount > 0) {
         button.append(el('span', 'badge rounded-pill pm-chat__unread', group.unreadCount > 99 ? '99+' : String(group.unreadCount)));
       }
-      button.setAttribute('aria-label', `Group ${group.title}, ${peopleCount(group.memberCount)}${group.unreadCount ? `, ${group.unreadCount} unread` : ''}`);
+      const muted = this.isMuted(group.id);
+      if (muted) {
+        const bell = icon('bell-slash');
+        bell.classList.add('pm-chat__muted');
+        bell.title = 'Muted';
+        button.append(bell);
+      }
+      button.setAttribute('aria-label', `Group ${group.title}, ${peopleCount(group.memberCount)}${muted ? ', muted' : ''}${group.unreadCount ? `, ${group.unreadCount} unread` : ''}`);
       button.addEventListener('click', () => this.openWindow(groupKey(group.id), { focus: true }));
       item.append(button);
       return item;
@@ -1406,7 +1472,7 @@
    * string }), when given, holds the ticks and the search text, so a redraw of the surrounding
    * panel does not lose them.
    */
-  ChatApp.prototype.peoplePicker = function (exclude, limit, state) {
+  ChatApp.prototype.peoplePicker = function (exclude, limit, state, onChange) {
     const node = el('div', 'pm-chat__picker');
     const filter = el('input', 'form-control form-control-sm');
     filter.type = 'search';
@@ -1422,12 +1488,21 @@
     if (state) filter.value = state.filter || '';
     const note = el('p', 'pm-chat__picker-note');
     note.setAttribute('aria-live', 'polite'); // "3 selected", and the 50-people limit
+    const more = el('p', 'pm-chat__picker-note');
+    if (limit <= 0) {
+      // Full: nothing to tick. Say so instead of offering boxes that each refuse.
+      note.textContent = `This group is full (${GROUP_LIMIT} people).`;
+      node.append(note);
+      return { node, selected: () => [], focus: () => {} };
+    }
     const draw = () => {
       const needle = filter.value.trim().toLowerCase();
-      const people = sortContacts(Array.from(this.contacts.values()))
+      const matches = sortContacts(Array.from(this.contacts.values()))
         .filter((c) => c.isActive && !exclude.has(c.userId))
-        .filter((c) => !needle || c.displayName.toLowerCase().includes(needle) || (c.rank || '').toLowerCase().includes(needle))
-        .slice(0, 200);
+        .filter((c) => !needle || c.displayName.toLowerCase().includes(needle) || (c.rank || '').toLowerCase().includes(needle));
+      const people = matches.slice(0, PICKER_MAX);
+      more.textContent = matches.length > PICKER_MAX ? `Showing the first ${PICKER_MAX} of ${matches.length}. Search to find others.` : '';
+      more.hidden = !more.textContent;
       list.replaceChildren(...people.map((c) => {
         const item = el('li');
         const label = el('label', 'pm-chat__picker-item');
@@ -1443,6 +1518,7 @@
           }
           if (box.checked) chosen.add(c.userId); else chosen.delete(c.userId);
           note.textContent = chosen.size ? `${chosen.size} selected` : '';
+          if (onChange) onChange();
         });
         label.append(box, el('span', null, c.rank ? `${c.displayName} · ${c.rank}` : c.displayName));
         item.append(label);
@@ -1455,7 +1531,7 @@
     });
     draw();
     if (chosen.size) note.textContent = `${chosen.size} selected`;
-    node.append(filter, list, note);
+    node.append(filter, list, more, note);
     return { node, selected: () => Array.from(chosen), focus: () => filter.focus() };
   };
 
@@ -1486,6 +1562,17 @@
     form.replaceChildren(el('h3', 'pm-chat__section', 'New group'), title, picker.node, error, actions);
     form.onsubmit = async (event) => {
       event.preventDefault();
+      // The server checks these too; checking here first puts focus where the fix is.
+      if (!title.value.trim()) {
+        error.textContent = 'Give the group a name.';
+        title.focus();
+        return;
+      }
+      if (!picker.selected().length) {
+        error.textContent = 'Tick at least one other person.';
+        picker.focus();
+        return;
+      }
       create.disabled = true;
       error.textContent = '';
       try {
@@ -1840,7 +1927,7 @@
     const count = group ? group.memberCount : (win.members || []).length;
     setText(win.status, typers.length
       ? typingLine(typers)
-      : (win.attention ? 'New message' : (win.removed ? 'You are not in this group' : peopleCount(count))));
+      : (win.attention ? 'New message' : (win.removed ? 'You are not in this group' : peopleCount(count) + (this.isMuted(win.groupId) ? ' · Muted' : ''))));
     win.status.title = '';
     win.people.hidden = win.removed;
 
@@ -1863,7 +1950,8 @@
     win.people.setAttribute('aria-expanded', String(!panel.hidden));
     if (panel.hidden) return;
     const state = win.panelState || (win.panelState = {
-      chosen: new Set(), filter: '', addOpen: false, rename: null, leaveArmed: false, error: '',
+      chosen: new Set(), filter: '', addOpen: false, rename: null, leaveArmed: false, armedRemove: '',
+      armTimer: null, error: '', notice: '',
     });
     const focusKey = focusKeyIn(panel);
     const group = this.groups.get(win.groupId);
@@ -1884,16 +1972,37 @@
 
     const list = el('ul', 'pm-chat__members-list');
     for (const member of win.members || []) {
+      const me = member.userId === this.me;
+      const contact = this.contacts.get(member.userId);
       const item = el('li');
-      const label = member.userId === this.me ? `${member.displayName} (you)` : member.displayName;
-      item.append(el('span', member.isActive ? null : 'is-inactive', label));
+      const face = avatar(member);
+      setPresence(face, me ? { isOnline: true, isActive: true } : (contact || { isActive: member.isActive }));
+      const text = el('span', 'pm-chat__member-text');
+      text.append(el('span', member.isActive ? 'pm-chat__member-name' : 'pm-chat__member-name is-inactive', me ? `${member.displayName} (you)` : member.displayName));
+      const meta = member.isActive ? (me ? '' : statusText(contact)) : 'Inactive account';
+      if (meta) text.append(el('span', 'pm-chat__member-meta', meta));
+      item.append(face, text);
       if (member.userId === manager) item.append(el('span', 'pm-chat__badge-soft', 'manages'));
-      if (iManage && member.userId !== this.me) {
-        const remove = el('button', 'btn btn-link btn-sm p-0', 'Remove');
+      if (!me && member.isActive) {
+        const chat = iconButton('chat-dots', `Chat with ${member.displayName}`);
+        chat.dataset.focusKey = `chat:${member.userId}`;
+        chat.addEventListener('click', () => this.openWindow(member.userId, { focus: true }));
+        item.append(chat);
+      }
+      if (iManage && !me) {
+        // Two steps, like Leave: the first click asks, the second removes; it disarms itself.
+        const armed = state.armedRemove === member.userId;
+        const remove = el('button', `btn btn-link btn-sm p-0${armed ? ' text-danger' : ''}`, armed ? 'Confirm remove' : 'Remove');
         remove.type = 'button';
-        remove.setAttribute('aria-label', `Remove ${member.displayName}`);
+        remove.setAttribute('aria-label', armed ? `Confirm removing ${member.displayName}` : `Remove ${member.displayName}`);
         remove.dataset.focusKey = `remove:${member.userId}`;
-        remove.addEventListener('click', () => this.groupAction(win, `/members/${encodeURIComponent(member.userId)}/remove`, {}));
+        remove.addEventListener('click', () => {
+          if (!armed) {
+            this.armPanel(win, { armedRemove: member.userId });
+            return;
+          }
+          this.groupAction(win, `/members/${encodeURIComponent(member.userId)}/remove`, {}, `Removed ${member.displayName}.`);
+        });
         item.append(remove);
       }
       list.append(item);
@@ -1901,7 +2010,19 @@
 
     const error = el('p', 'pm-chat__form-error', state.error);
     win.panelError = error;
-    const parts = [head, list];
+    const notice = el('p', 'pm-chat__form-notice', state.notice);
+    notice.setAttribute('aria-live', 'polite');
+
+    const mute = el('label', 'form-check form-switch pm-chat__mute');
+    const muteBox = el('input', 'form-check-input');
+    muteBox.type = 'checkbox';
+    muteBox.setAttribute('role', 'switch');
+    muteBox.checked = this.isMuted(win.groupId);
+    muteBox.dataset.focusKey = 'mute';
+    muteBox.addEventListener('change', () => this.setMuted(win.groupId, muteBox.checked));
+    mute.append(muteBox, el('span', 'form-check-label', 'Mute this group on this computer'));
+
+    const parts = [head, notice, list, mute];
 
     const add = el('details', 'pm-chat__members-add');
     add.open = state.addOpen;
@@ -1916,7 +2037,13 @@
     addButton.dataset.focusKey = 'add';
     addButton.addEventListener('click', () => {
       const ids = picker.selected();
-      if (ids.length) this.groupAction(win, '/members', { userIds: ids });
+      if (!ids.length) {
+        state.notice = 'Tick the people to add first.';
+        this.renderMembersPanel(win);
+        return;
+      }
+      const names = ids.map((id) => this.nameOf(id, win));
+      this.groupAction(win, '/members', { userIds: ids }, `Added ${names.join(', ')}.`);
     });
     add.append(picker.node, addButton);
     parts.push(add);
@@ -1936,7 +2063,8 @@
       rename.append(input, save);
       rename.addEventListener('submit', (event) => {
         event.preventDefault();
-        this.groupAction(win, '/rename', { title: input.value });
+        const title = input.value.replace(/\s+/g, ' ').trim();
+        this.groupAction(win, '/rename', { title: input.value }, `Renamed to “${title}”.`);
       });
       parts.push(rename);
     }
@@ -1948,8 +2076,7 @@
     leave.addEventListener('click', () => {
       // A second click confirms, so a stray click cannot remove you from the group.
       if (!state.leaveArmed) {
-        state.leaveArmed = true;
-        leave.textContent = armedText;
+        this.armPanel(win, { leaveArmed: true });
         return;
       }
       this.groupAction(win, '/leave', {});
@@ -1961,20 +2088,49 @@
 
   /** Closes the people panel, forgets what was in progress there, and hands focus back. */
   ChatApp.prototype.closeMembersPanel = function (win) {
+    if (win.panelState && win.panelState.armTimer) global.clearTimeout(win.panelState.armTimer);
     win.panelOpen = false;
     win.panelState = null;
     this.renderMembersPanel(win);
     win.people.focus();
   };
 
-  /** Runs a group change; the pushed GroupChanged/GroupRemoved events update every view. */
-  ChatApp.prototype.groupAction = async function (win, path, body) {
+  /**
+   * Arms one two-step button (Leave, or Remove for one person) and disarms it again after a few
+   * seconds, so a confirmation left showing cannot be clicked by accident much later.
+   */
+  ChatApp.prototype.armPanel = function (win, armed) {
+    const state = win.panelState;
+    if (!state) return;
+    if (state.armTimer) global.clearTimeout(state.armTimer);
+    state.leaveArmed = !!armed.leaveArmed;
+    state.armedRemove = armed.armedRemove || '';
+    state.armTimer = global.setTimeout(() => {
+      if (win.panelState !== state) return;
+      state.leaveArmed = false;
+      state.armedRemove = '';
+      state.armTimer = null;
+      this.renderMembersPanel(win);
+    }, ARM_MS);
+    this.renderMembersPanel(win);
+  };
+
+  /**
+   * Runs a group change; the pushed GroupChanged/GroupRemoved events update every view.
+   * doneText, when given, is shown in the panel and announced once the server has accepted it.
+   */
+  ChatApp.prototype.groupAction = async function (win, path, body, doneText) {
     const state = win.panelState;
     try {
       const group = await this.request('POST', `/groups/${win.groupId}${path}`, body);
       if (state) {
         // Done: what was being added or typed is spent.
+        if (state.armTimer) global.clearTimeout(state.armTimer);
+        state.armTimer = null;
+        state.armedRemove = '';
+        state.leaveArmed = false;
         state.error = '';
+        state.notice = doneText || '';
         if (path === '/members') {
           state.chosen.clear();
           state.filter = '';
@@ -1987,11 +2143,15 @@
       } else if (group) {
         this.onGroupChanged(group);
       }
+      if (doneText) this.announce(doneText);
     } catch (error) {
       if (error.status === 410) {
         this.onGroupRemoved(win.groupId);
       } else {
-        if (state) state.error = error.message;
+        if (state) {
+          state.error = error.message;
+          state.notice = '';
+        }
         if (win.panelError) win.panelError.textContent = error.message;
         this.announce(error.message);
       }
