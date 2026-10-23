@@ -23,6 +23,15 @@
                 <div class="at-execute-board-title">
                     <h2>Current sprint</h2>
                     <p class="at-panel-note">Track work in the current sprint.</p>
+                    @if (Model.OutsideSprintTasks.Count > 0)
+                    {
+                        var outsideCount = Model.OutsideSprintTasks.Count;
+                        @* The board shows sprint work only; the rest of the open, assigned work is a click away. *@
+                        <p class="at-panel-note at-board-outside-note">
+                            @outsideCount open @(outsideCount == 1 ? "task is" : "tasks are") assigned outside this sprint.
+                            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" asp-route-FilterBucket="OutsideSprint">View @(outsideCount == 1 ? "it" : "them")</a>
+                        </p>
+                    }
                 </div>
                 <div class="at-execute-board-summary" aria-label="Sprint completion summary">
                     <strong>@Model.SprintSummary.OpenCount</strong><span>open</span>

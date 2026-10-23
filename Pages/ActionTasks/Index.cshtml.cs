@@ -283,8 +283,26 @@ public class IndexModel : PageModel
         (Value: "OutsideSprint", Label: "Assigned, not in sprint"),
         (Value: "Sprint", Label: "Sprint"),
         (Value: "Closed", Label: "Closed"),
-        (Value: "Invalid", Label: "Invalid State")
-    }.Where(bucket => !IsOpenTaskScope || !string.Equals(bucket.Value, "Closed", StringComparison.OrdinalIgnoreCase)).ToList();
+        (Value: "Invalid", Label: InvalidBucketLabel)
+    }.Where(bucket => !IsOpenTaskScope || !string.Equals(bucket.Value, "Closed", StringComparison.OrdinalIgnoreCase))
+     .Where(bucket => bucket.Value != "Invalid" || ShowInvalidBucketOption(FilterBucket))
+     .ToList();
+
+    // SECTION: The inconsistent-data bucket is a data-quality check, not a working group: it is
+    // offered only while such tasks exist (or it is the current filter), in plain words.
+    public const string InvalidBucketLabel = "Needs data correction";
+
+    public IReadOnlyList<(string Value, string Label)> ReportBucketOptions => new[]
+    {
+        (Value: "Backlog", Label: "Backlog"),
+        (Value: "OutsideSprint", Label: "Assigned, not in sprint"),
+        (Value: "Sprint", Label: "Sprint"),
+        (Value: "Closed", Label: "Closed"),
+        (Value: "Invalid", Label: InvalidBucketLabel)
+    }.Where(bucket => bucket.Value != "Invalid" || ShowInvalidBucketOption(ReportBucket)).ToList();
+
+    private bool ShowInvalidBucketOption(string? currentFilter)
+        => InvalidStateRows.Any() || string.Equals(currentFilter, "Invalid", StringComparison.OrdinalIgnoreCase);
     public IReadOnlyList<string> ReportStatusOptions => new[]
     {
         ActionTaskStatuses.Backlog,
@@ -327,7 +345,7 @@ public class IndexModel : PageModel
             "OutsideSprint" => "Assigned, not in sprint",
             "Sprint" => "Sprint",
             "Closed" => "Closed",
-            "Invalid" => "Invalid State",
+            "Invalid" => InvalidBucketLabel,
             _ => bucket
         };
     public bool CanMoveTaskToBacklog(ActionTaskItem task)
@@ -596,7 +614,7 @@ public class IndexModel : PageModel
             ActionTaskWorkCategory.Sprint => ResolveSprintName(task.SprintId),
             ActionTaskWorkCategory.OutsideSprint => "Assigned, not in sprint",
             ActionTaskWorkCategory.Closed => "Closed",
-            ActionTaskWorkCategory.Invalid => "Invalid State",
+            ActionTaskWorkCategory.Invalid => InvalidBucketLabel,
             _ => "Backlog"
         };
 
@@ -1574,7 +1592,7 @@ public class IndexModel : PageModel
         BacklogAgeingBuckets = readModel.Reports.BacklogAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         AssignedTaskAgeingBuckets = readModel.Reports.AssignedTaskAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         BucketDistribution = readModel.Reports.BucketDistribution.Select(x => new CountSummary(x.Name, x.Count)).ToList();
-        ResponsiblePersonWorkloads = readModel.Reports.ResponsiblePersonWorkloads.Select(x => new ResponsibleWorkloadSummary(x.ResponsiblePerson, x.Open, x.Overdue, x.Blocked, x.InProgress, x.Submitted, x.Critical)).ToList();
+        ResponsiblePersonWorkloads = readModel.Reports.ResponsiblePersonWorkloads.Select(x => new ResponsibleWorkloadSummary(x.ResponsiblePerson, x.Open, x.Overdue, x.Blocked, x.InProgress, x.Submitted, x.Critical, x.ResponsiblePersonUserId)).ToList();
         OutsideSprintWorkloadCounts = readModel.Reports.OutsideSprintWorkloadCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         SprintPerformanceRows = readModel.Reports.SprintPerformanceRows.Select(x => new SprintPerformanceSummary(x.Sprint, x.Status, x.Open, x.Closed, x.OverdueNow, x.Unfinished, x.ClosedLate)).ToList();
         InvalidStateRows = readModel.Reports.InvalidStateRows.Select(x => new InvalidTaskStateSummary(x.Task, x.Issue, x.SuggestedCorrection)).ToList();
@@ -2300,7 +2318,7 @@ public class IndexModel : PageModel
 
     public sealed record CountSummary(string Name, int Count);
     public sealed record ActionTaskReportSummary(int OpenTasks = 0, int Overdue = 0, int Blocked = 0, int PendingClosure = 0, int BacklogItems = 0);
-    public sealed record ResponsibleWorkloadSummary(string ResponsiblePerson, int Open, int Overdue, int Blocked, int InProgress, int Submitted, int Critical);
+    public sealed record ResponsibleWorkloadSummary(string ResponsiblePerson, int Open, int Overdue, int Blocked, int InProgress, int Submitted, int Critical, string? ResponsiblePersonUserId = null);
     public sealed record SprintPerformanceSummary(string Sprint, string Status, int Open, int Closed, int OverdueNow, int Unfinished, int ClosedLate);
     public sealed record InvalidTaskStateSummary(string Task, string Issue, string SuggestedCorrection);
     public sealed class TaskDisplayItem

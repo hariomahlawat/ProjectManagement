@@ -11,8 +11,11 @@
     var hasManagementActions = Model.Capabilities.CanEditTaskDetails
         || Model.Capabilities.CanReassignTask
         || Model.Capabilities.CanChangePriority
-        || Model.Capabilities.CanChangeDate
-        || Model.HasBacklogAssign
+        || Model.Capabilities.CanChangeDate;
+
+    // Sprint and backlog moves are planning actions, used less often than editing the task, so
+    // they sit under More; edit, reassign, priority and date stay one click away (V2.3).
+    var hasPlanningActions = Model.HasBacklogAssign
         || Model.HasSprintAdd
         || Model.CanRemoveFromSprint
         || Model.CanMoveToBacklog;
@@ -92,27 +95,36 @@
                             title="Change @(Model.IsBacklog ? "target" : "due") date"
                             aria-label="Change @(Model.IsBacklog ? "target" : "due") date">@(Model.IsBacklog ? "Target date" : "Due date")</button>
                 }
-                @if (Model.HasBacklogAssign)
-                {
-                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="assign-sprint">Assign to sprint</button>
-                }
-                @if (Model.HasSprintAdd)
-                {
-                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="add-sprint">Add to sprint</button>
-                }
-                @if (Model.CanRemoveFromSprint)
-                {
-                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="remove-sprint">Remove from sprint</button>
-                }
-                @if (Model.CanMoveToBacklog)
-                {
-                    <button type="button"
-                            class="btn at-task-action at-task-action-quiet"
-                            data-at-v22-open="backlog"
-                            title="Return to backlog"
-                            aria-label="Return to backlog">To backlog</button>
-                }
             </div>
+        }
+
+        @if (hasPlanningActions)
+        {
+            <details class="at-task-action-more" data-at-task-action-more>
+                <summary class="btn at-task-action at-task-action-quiet">More <i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+                <div class="at-task-action-menu" role="group" aria-label="Sprint and backlog actions">
+                    @if (Model.HasBacklogAssign)
+                    {
+                        <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="assign-sprint">Assign to sprint</button>
+                    }
+                    @if (Model.HasSprintAdd)
+                    {
+                        <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="add-sprint">Add to sprint</button>
+                    }
+                    @if (Model.CanRemoveFromSprint)
+                    {
+                        <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="remove-sprint">Remove from sprint</button>
+                    }
+                    @if (Model.CanMoveToBacklog)
+                    {
+                        <button type="button"
+                                class="btn at-task-action at-task-action-quiet"
+                                data-at-v22-open="backlog"
+                                title="Return to backlog"
+                                aria-label="Return to backlog">To backlog</button>
+                    }
+                </div>
+            </details>
         }
 
         @if (hasOverrideActions)

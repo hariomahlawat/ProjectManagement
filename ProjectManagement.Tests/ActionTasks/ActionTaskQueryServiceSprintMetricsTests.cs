@@ -232,9 +232,9 @@ public class ActionTaskQueryServiceSprintMetricsTests
         var invalidModel = service.BuildReadModel(invalidTasks, request, new Dictionary<string, string> { ["assignee"] = "Assignee" }, new Dictionary<int, DateTime?>());
 
         // SECTION: Assert
-        Assert.DoesNotContain(validModel.Reports.BucketDistribution, item => item.Name == "Invalid State");
+        Assert.DoesNotContain(validModel.Reports.BucketDistribution, item => item.Name == "Needs data correction");
         Assert.Empty(validModel.Reports.InvalidStateRows);
-        Assert.Contains(invalidModel.Reports.BucketDistribution, item => item.Name == "Invalid State" && item.Count == 1);
+        Assert.Contains(invalidModel.Reports.BucketDistribution, item => item.Name == "Needs data correction" && item.Count == 1);
         var invalidRow = Assert.Single(invalidModel.Reports.InvalidStateRows);
         Assert.Contains("SprintId exists", invalidRow.Issue, StringComparison.Ordinal);
         Assert.Contains("Assign responsible person", invalidRow.SuggestedCorrection, StringComparison.Ordinal);

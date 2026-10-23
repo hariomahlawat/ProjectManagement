@@ -17,7 +17,7 @@
                 <span>Bucket</span>
                 <select class="form-select form-select-sm" name="ReportBucket" data-at-reports-filter-control="true">
                     <option value="">All buckets</option>
-                    @foreach (var bucket in new[] { (Value: "Backlog", Label: "Backlog"), (Value: "OutsideSprint", Label: "Outside Sprint"), (Value: "Sprint", Label: "Sprint"), (Value: "Closed", Label: "Closed"), (Value: "Invalid", Label: "Invalid State") })
+                    @foreach (var bucket in Model.ReportBucketOptions)
                     {
                         @if (string.Equals(Model.ReportBucket, bucket.Value, StringComparison.OrdinalIgnoreCase))
                         {
@@ -181,7 +181,20 @@
                         @foreach (var item in Model.ResponsiblePersonWorkloads)
                         {
                             <tr>
-                                <td>@item.ResponsiblePerson</td>
+                                <td>
+                                    @if (Model.CanFilterByAssignee && item.ResponsiblePersonUserId is not null)
+                                    {
+                                        <a asp-page="/ActionTasks/Index"
+                                           asp-route-viewMode="Register"
+                                           asp-route-TaskScope="Open"
+                                           asp-route-FilterAssigneeUserId="@item.ResponsiblePersonUserId"
+                                           title="Open @item.ResponsiblePerson's tasks">@item.ResponsiblePerson</a>
+                                    }
+                                    else
+                                    {
+                                        @item.ResponsiblePerson
+                                    }
+                                </td>
                                 <td class="at-report-number">@item.Open</td>
                                 <td class="at-report-number @(item.Overdue > 0 ? "at-risk-count" : string.Empty)">@item.Overdue</td>
                                 <td class="at-report-number">@item.Blocked</td>

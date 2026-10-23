@@ -454,6 +454,8 @@ public sealed class ActionTaskQueryService
     public sealed class ResponsiblePersonWorkloadSummary
     {
         public string ResponsiblePerson { get; init; } = string.Empty;
+        /// <summary>The assignee's user id, so the row can open their tasks.</summary>
+        public string? ResponsiblePersonUserId { get; init; }
         public int Open { get; init; }
         public int Overdue { get; init; }
         public int Blocked { get; init; }
