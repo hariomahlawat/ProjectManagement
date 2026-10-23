@@ -1,3 +1,5 @@
+using System;
+
 namespace ProjectManagement.Configuration;
 
 /// <summary>
@@ -35,4 +37,38 @@ public sealed class ChatOptions
 
     /// <summary>How long after sending a message its sender may still unsend it.</summary>
     public int UnsendWindowMinutes { get; set; } = 5;
+
+    /// <summary>File attachments (docs/chat-attachments.md). Off until switched on.</summary>
+    public ChatAttachmentOptions Attachments { get; set; } = new();
+}
+
+/// <summary>Chat:Attachments. Owner decisions of 2026-10-23 (docs/chat-attachments.md).</summary>
+public sealed class ChatAttachmentOptions
+{
+    /// <summary>Off by default: the attach button, upload and download endpoints appear only when on.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Total size of the files one person has sent that are still kept.</summary>
+    public int AllowanceMb { get; set; } = 1024;
+
+    public int MaxFileMb { get; set; } = 100;
+
+    /// <summary>Uploads are refused while the upload disk has less than this free.</summary>
+    public int MinimumFreeDiskGb { get; set; } = 20;
+
+    public int MaxFilesPerMessage { get; set; } = 5;
+
+    /// <summary>An upload not sent with a message within this time is removed by the clean-up job.</summary>
+    public int UnusedUploadMinutes { get; set; } = 60;
+
+    /// <summary>Uploads one user may start in <see cref="UploadWindowSeconds"/>.</summary>
+    public int UploadPermitLimit { get; set; } = 30;
+
+    public int UploadWindowSeconds { get; set; } = 60;
+
+    public long AllowanceBytes => Math.Max(0, AllowanceMb) * 1024L * 1024L;
+
+    public long MaxFileBytes => Math.Max(1, MaxFileMb) * 1024L * 1024L;
+
+    public long MinimumFreeDiskBytes => Math.Max(0, MinimumFreeDiskGb) * 1024L * 1024L * 1024L;
 }

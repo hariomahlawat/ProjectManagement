@@ -2,13 +2,14 @@
  * PRISM chat: buddy list and docked one-to-one chat windows (bottom-right, Gmail-style), plus
  * the full Messages page (/Chat) when it is on screen.
  *
- * Seven plain scripts, loaded in this order by Pages/Shared/_ChatScripts.cshtml (no build step):
+ * Eight plain scripts, loaded in this order by Pages/Shared/_ChatScripts.cshtml (no build step):
  *   core.js          constants, pure helpers, DOM helpers, the chime; hands them on as PMChatParts
  *   app.js           ChatApp: state, browser storage, HTTP, the live connection, polling, away
  *   events.js        what arrives: messages, reads, presence, unsends, status, groups
  *   dock.js          the contact list, New group, chat buttons next to names, the launcher badge
  *   windows.js       conversation windows and the group people panel
  *   conversation.js  one conversation: reading, history paging, drawing messages, sending
+ *   files.js         file attachments: upload, waiting files, files in messages, removing
  *   page.js          the Messages page, and start-up (window.PMChat)
  * Each later file adds methods to ChatApp.prototype; nothing runs until page.js starts it.
  *

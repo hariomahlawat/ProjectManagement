@@ -1,8 +1,8 @@
 # Chat attachments: design
 
-Status: **decided, not built yet** (owner decisions 2026-10-23). This is the design the build
-follows; `docs/chat.md` describes chat as built and will absorb this note when attachments
-ship.
+Status: **decided and built, switched off by default** (owner decisions 2026-10-23). This note
+records the design and its reasons; `docs/chat.md` describes how attachments work as built.
+They appear only once `Chat:Attachments:Enabled` is set to `true`.
 
 Earlier owner decisions (2026-10-22): people may attach files to chat messages, with an
 allowance of 1 GB per person. Messages are kept indefinitely; administrators cannot read chats.
@@ -29,13 +29,13 @@ allowance of 1 GB per person. Messages are kept indefinitely; administrators can
 | Backup | `ops/backup-files.*` mirrors the data root; `docs/production-readiness-backup.md` asks that every upload lives under it |
 | Streaming validation | `DocumentService` pattern: stream to a temporary file, count bytes against the limit, check the file signature (`DocumentTypeValidation`: PDF, OOXML) |
 | Image thumbnails | `MediaDerivativeService` (SkiaSharp: EXIF orientation applied, WebP output, pixel cap) |
-| Downloads | `IProtectedFileUrlBuilder` + `FileAccessTokenService` + `FilesController` (`/files?t=…`): 30-minute tokens bound to the user, `private, no-store`, ranges, `nosniff` |
 | Two-step delete | `FileSystemQuarantine` (stage, restore, finalise) |
 | Request size | `UploadRequestLimitResolver` (largest configured limit + 8 MiB) feeding Kestrel/IIS/form limits; `web.config` allows 256 MiB |
 | Rate limiting | per-user policies like `DocumentUploadRateLimiting` |
 
-**A download token is the whole authorisation**: `FilesController` checks only that the token
-belongs to the caller. Chat therefore checks conversation access *before* it issues a token.
+Downloads do **not** use the shared `/files` tokens: a token is its own authorisation for 30
+minutes, whatever happens to the conversation meanwhile. Chat serves its files itself and checks
+who may read the message on **every** request (D6).
 
 ## D1. Storage
 
@@ -124,20 +124,23 @@ largest allowances in use by size (no file names, no conversations), to manage d
 - Upload progress in the window, with Cancel; a failed upload can be retried like a failed
   message.
 
-## Build outline
+## As built
 
-- **Schema** (one additive migration): `ChatAttachments` (id, message id, uploader, relative
-  storage key, original name, content type, size, SHA-256, image width/height, thumbnail key,
-  created, removed). Allowance = sum of sizes of a person's kept attachments, checked under a
-  per-user lock so two uploads at once cannot both slip under the limit.
-- **Upload first, then send:** `POST /api/chat/attachments` streams one file to a temporary
-  area, validates it and returns an attachment id; sending a message lists the ids. Uploads not
-  used by a message within an hour are deleted by the purge job.
-- **Download:** `GET /api/chat/attachments/{id}` checks conversation access (D6), then
-  redirects to a short-lived `/files` token; image thumbnails inline, files as downloads.
-- **Limits:** a new per-user `chat-upload` rate limit, the per-file limit in
-  `UploadRequestLimitResolver`, the free-disk floor, the allowance.
-- **Switch:** `Chat:Attachments:Enabled` (default **off**), so the code can ship and be tried
-  before it is switched on in production.
-- **Checklist:** `docs/storage-hardening.md` (new upload features), backups, and
-  `docs/chat.md` updated in the same change.
+- **Schema** (additive migration `AddChatAttachments`): `ChatAttachments` (id, message id,
+  uploader, relative storage key, uploaded name, content type, size, SHA-256, image size,
+  thumbnail key, created, removed, purged). The allowance is the sum of a person's kept files,
+  checked under a per-person PostgreSQL advisory lock so two uploads at once cannot both slip
+  under it.
+- **Upload first, then send:** `POST /api/chat/attachments` streams one file to
+  `chat/tmp`, counting bytes against the limit, checks it (`ChatAttachmentInspector`), moves it
+  to `chat/{yyyy}/{MM}/{random}.{ext}` and returns its id; a message lists the ids
+  (`attachmentIds`) and the files are linked in the same save as the message.
+- **Download:** `GET /api/chat/attachments/{id}` (and `?thumbnail=true`) checks who may read the
+  message on every request; thumbnails may be kept by the browser (`private, max-age=86400`),
+  files are not (`private, no-store`); images are shown, everything else is a download.
+- **Clean-up:** `ChatAttachmentCleanupWorker` (every 15 minutes, while attachments are on)
+  removes uploads not sent within an hour and deletes the files of removed attachments; each
+  sweep only does what is still to do.
+- **Limits:** per-user `chat-upload` rate limit, the per-file limit (also counted in
+  `UploadRequestLimitResolver` while attachments are on), the free-disk floor, the allowance.
+- **Switch:** `Chat:Attachments:Enabled`, default **off**.

@@ -3492,6 +3492,81 @@ namespace ProjectManagement.Migrations
                     b.ToTable("Celebrations");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatAttachment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("PurgedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RemovedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("ThumbnailKey")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("UploaderUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique();
+
+                    b.HasIndex("RemovedUtc", "PurgedUtc");
+
+                    b.HasIndex("UploaderUserId", "RemovedUtc");
+
+                    b.ToTable("ChatAttachments", t =>
+                        {
+                            t.HasCheckConstraint("CK_ChatAttachments_Size", "\"SizeBytes\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Chat.ChatConversation", b =>
                 {
                     b.Property<long>("Id")
@@ -10759,6 +10834,16 @@ namespace ProjectManagement.Migrations
                 {
                     b.Navigation("Items");
                     b.Navigation("SystemItems");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatAttachment", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Chat.ChatMessage", "Message")
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Message");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Chat.ChatMessage", b =>

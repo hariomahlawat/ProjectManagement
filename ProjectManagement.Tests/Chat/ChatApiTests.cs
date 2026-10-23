@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -23,6 +24,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Contracts.Chat;
 using ProjectManagement.Data;
 using ProjectManagement.Hubs;
+using ProjectManagement.Services.Chat;
 using ProjectManagement.Models;
 using ProjectManagement.Tests.Infrastructure;
 using Xunit;
@@ -49,7 +51,7 @@ public sealed class ChatApiTests
             .ToList();
 
         Assert.Equal(
-            new[] { "core", "app", "events", "dock", "windows", "conversation", "page" }.Select(n => $"/js/chat/{n}.js"),
+            new[] { "core", "app", "events", "dock", "windows", "conversation", "files", "page" }.Select(n => $"/js/chat/{n}.js"),
             scripts);
         Assert.DoesNotContain("/js/chat.js", html);
         foreach (var src in scripts)
@@ -85,6 +87,71 @@ public sealed class ChatApiTests
 
         var tooMany = "/api/chat/previews?" + string.Join("&", Enumerable.Range(1, 11).Select(i => "link=%2FProjects%2FOverview%2F" + i));
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(tooMany)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Attachments_AreAbsentWhileSwitchedOff()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        using var client = host.ClientFor("alice");
+
+        var response = await client.GetAsync("/api/chat/attachments/usage");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.False(response.Headers.Contains("X-Chat-Disabled"), "chat itself is on");
+        Assert.Contains("data-attachments=\"off\"", await client.GetStringAsync("/Chat"));
+    }
+
+    [Fact]
+    public async Task Attachments_UploadSendAndDownload_WithEachDownloadChecked()
+    {
+        await using var host = await ChatHost.CreateAsync(new Dictionary<string, string?> { ["Chat:Attachments:Enabled"] = "true" });
+        using var alice = host.ClientFor("alice");
+        var token = await host.TokenAsync(alice);
+        Assert.Contains("data-attachments=\"on\"", await alice.GetStringAsync("/Chat"));
+
+        // Without the antiforgery token, nothing is stored.
+        using (var anonymousForm = PdfForm("minutes.pdf"))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await alice.PostAsync("/api/chat/attachments", anonymousForm)).StatusCode);
+        }
+
+        using var form = PdfForm("minutes.pdf");
+        using var upload = new HttpRequestMessage(HttpMethod.Post, "/api/chat/attachments") { Content = form };
+        upload.Headers.Add("X-CSRF-TOKEN", token);
+        var uploaded = await alice.SendAsync(upload);
+        Assert.Equal(HttpStatusCode.OK, uploaded.StatusCode);
+        var file = (await uploaded.Content.ReadFromJsonAsync<ChatAttachmentDto>())!;
+        Assert.Equal("minutes.pdf", file.FileName);
+
+        var sent = await host.PostAsync(alice, token, "/api/chat/messages", new ChatSendRequest("bob", Guid.NewGuid(), "", new[] { file.Id }));
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        var push = Assert.Single(host.Hub.Pushes, p => p.Method == nameof(IChatClient.ReceiveMessage));
+        Assert.Equal("minutes.pdf", Assert.Single(((ChatMessageDto)push.Payload!).Attachments!).FileName);
+
+        using var bob = host.ClientFor("bob");
+        var download = await bob.GetAsync($"/api/chat/attachments/{file.Id}");
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        Assert.Equal("application/pdf", download.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("attachment", download.Content.Headers.ContentDisposition!.DispositionType);
+        Assert.Equal("minutes.pdf", download.Content.Headers.ContentDisposition.FileNameStar ?? download.Content.Headers.ContentDisposition.FileName);
+        Assert.Contains("no-store", download.Headers.CacheControl!.ToString());
+        Assert.StartsWith("%PDF-", await download.Content.ReadAsStringAsync());
+
+        using var carol = host.ClientFor("carol");
+        Assert.Equal(HttpStatusCode.Gone, (await carol.GetAsync($"/api/chat/attachments/{file.Id}")).StatusCode);
+
+        // Only administrators see storage totals.
+        Assert.Equal(HttpStatusCode.Forbidden, (await alice.GetAsync("/api/chat/attachments/totals")).StatusCode);
+    }
+
+    private static MultipartFormDataContent PdfForm(string name)
+    {
+        var form = new MultipartFormDataContent();
+        var bytes = new ByteArrayContent(System.Text.Encoding.ASCII.GetBytes("%PDF-1.4\n%%EOF"));
+        bytes.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        form.Add(bytes, "file", name);
+        return form;
     }
 
     [Fact]
@@ -246,9 +313,12 @@ public sealed class ChatApiTests
 
             var hub = new RecordingHubContext();
             var started = new StartupGate();
+            var uploadRoot = Path.Combine(Path.GetTempPath(), "prism-chat-api-" + Guid.NewGuid().ToString("N"));
             var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             {
                 builder.UsePrismTestInfrastructure("chat-api");
+                builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?> { ["ProjectPhotos:StorageRoot"] = uploadRoot }));
                 if (settings is not null)
                 {
                     builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
@@ -274,6 +344,8 @@ public sealed class ChatApiTests
                 {
                     services.RemoveAll<IHubContext<ChatHub, IChatClient>>();
                     services.AddSingleton<IHubContext<ChatHub, IChatClient>>(hub);
+                    services.RemoveAll<IChatDiskSpace>();
+                    services.AddSingleton<IChatDiskSpace>(new PlentyOfDisk());
                     services.AddAuthentication(options =>
                         {
                             options.DefaultAuthenticateScheme = "ChatTest";
@@ -336,6 +408,11 @@ public sealed class ChatApiTests
             MustChangePassword = false,
             SecurityStamp = Guid.NewGuid().ToString(),
         };
+
+        private sealed class PlentyOfDisk : IChatDiskSpace
+        {
+            public long? AvailableBytes(string path) => 500L * 1024 * 1024 * 1024;
+        }
 
         private sealed class StartupGate
         {

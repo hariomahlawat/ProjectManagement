@@ -30,7 +30,33 @@ public sealed record ChatMessageDto(
     bool IsUnsent = false,
     long? GroupId = null,
     string? EventKind = null,
-    string? EventData = null);
+    string? EventData = null,
+    IReadOnlyList<ChatAttachmentDto>? Attachments = null);
+
+/// <summary>
+/// A file sent with a message. IsRemoved: removed by its sender or unsent with its message; the
+/// name is then withheld and the file can no longer be downloaded.
+/// </summary>
+public sealed record ChatAttachmentDto(
+    long Id,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    bool IsImage,
+    int? Width,
+    int? Height,
+    bool IsRemoved = false);
+
+/// <summary>A person's own use of their attachment allowance, and the limits that apply.</summary>
+public sealed record ChatAttachmentUsageDto(long UsedBytes, long AllowanceBytes, long MaxFileBytes, int MaxFilesPerMessage);
+
+/// <summary>Storage totals for administrators: sizes only, never names or conversations.</summary>
+public sealed record ChatAttachmentTotalsDto(int Files, long TotalBytes, long? FreeDiskBytes, IReadOnlyList<ChatAttachmentPersonUsageDto> LargestUse);
+
+public sealed record ChatAttachmentPersonUsageDto(string DisplayName, long UsedBytes);
+
+/// <summary>A sender removed a file from a message (the message itself stays).</summary>
+public sealed record ChatAttachmentRemovedDto(long AttachmentId, long MessageId, long? GroupId);
 
 /// <summary>
 /// A page of one conversation, oldest first. HasMore: older messages exist before this page.
@@ -44,7 +70,8 @@ public sealed record ChatHistoryDto(
     bool HasNewer = false,
     long? PeerLastReadMessageId = null);
 
-public sealed record ChatSendRequest(string? RecipientUserId, Guid ClientMessageId, string? Body);
+/// <summary>AttachmentIds: files uploaded first (POST /api/chat/attachments), sent with this message.</summary>
+public sealed record ChatSendRequest(string? RecipientUserId, Guid ClientMessageId, string? Body, IReadOnlyList<long>? AttachmentIds = null);
 
 public sealed record ChatMarkReadRequest(long UpToMessageId);
 
@@ -125,7 +152,7 @@ public sealed record ChatGroupMembersRequest(IReadOnlyList<string>? UserIds);
 
 public sealed record ChatGroupRenameRequest(string? Title);
 
-public sealed record ChatGroupSendRequest(Guid ClientMessageId, string? Body);
+public sealed record ChatGroupSendRequest(Guid ClientMessageId, string? Body, IReadOnlyList<long>? AttachmentIds = null);
 
 /// <summary>Someone in a group read up to a message (for "Seen by").</summary>
 public sealed record ChatGroupReadDto(long GroupId, string UserId, long UpToMessageId);

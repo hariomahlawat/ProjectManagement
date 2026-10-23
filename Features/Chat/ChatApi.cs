@@ -32,6 +32,8 @@ public static class ChatApi
 
     public const string PreviewRateLimitPolicy = "chat-preview";
 
+    public const string UploadRateLimitPolicy = "chat-upload";
+
     /// <summary>
     /// Set on the 404 that every endpoint answers while chat is switched off, so the browser can
     /// tell "chat is off" (stand down) from an ordinary missing resource (show an error).
@@ -79,6 +81,19 @@ public static class ChatApi
         group.MapPost("/messages", SendAsync).RequireRateLimiting(SendRateLimitPolicy);
         group.MapPost("/with/{peerUserId}/read", MarkReadAsync);
 
+        // File attachments (docs/chat-attachments.md): only while Chat:Attachments:Enabled is on.
+        var files = group.MapGroup("/attachments")
+            .AddEndpointFilter(async (context, next) =>
+            {
+                var options = context.HttpContext.RequestServices.GetRequiredService<IOptionsMonitor<ChatOptions>>();
+                return options.CurrentValue.Attachments.Enabled ? await next(context) : Results.NotFound();
+            });
+        files.MapPost("/", UploadAttachmentAsync).RequireRateLimiting(UploadRateLimitPolicy);
+        files.MapGet("/usage", GetAttachmentUsageAsync);
+        files.MapGet("/totals", GetAttachmentTotalsAsync).RequireAuthorization(policy => policy.RequireRole(RoleNames.Admin));
+        files.MapGet("/{attachmentId:long}", DownloadAttachmentAsync);
+        files.MapPost("/{attachmentId:long}/remove", RemoveAttachmentAsync).RequireRateLimiting(ChangeRateLimitPolicy);
+
         return endpoints;
     }
 
@@ -94,6 +109,9 @@ public static class ChatApi
 
     public static RateLimitPartition<string> GetPreviewPartition(HttpContext context, ChatOptions options)
         => GetUserPartition(context, options.PreviewPermitLimit, options.PreviewWindowSeconds);
+
+    public static RateLimitPartition<string> GetUploadPartition(HttpContext context, ChatOptions options)
+        => GetUserPartition(context, options.Attachments.UploadPermitLimit, options.Attachments.UploadWindowSeconds);
 
     /// <summary>Any throttled chat request (sends, changes, searches) answers 429.</summary>
     public static bool IsChatRequest(HttpContext context)
@@ -250,6 +268,134 @@ public static class ChatApi
                     title: "Cannot unsend",
                     detail: "Only your own messages can be unsent.");
         }
+    }
+
+    /// <summary>
+    /// Uploads one file (multipart field "file") before it is sent with a message. Checked and
+    /// counted against the allowance here; antiforgery is validated explicitly, as for every
+    /// chat write.
+    /// </summary>
+    private static async Task<IResult> UploadAttachmentAsync(
+        HttpContext httpContext,
+        ChatAttachmentService attachments,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!httpContext.Request.HasFormContentType)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "File not sent", detail: "Choose a file to send.");
+        }
+
+        var form = await httpContext.Request.ReadFormAsync(cancellationToken);
+        var file = form.Files.GetFile("file");
+        if (file is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "File not sent", detail: "Choose a file to send.");
+        }
+
+        await using var content = file.OpenReadStream();
+        var result = await attachments.UploadAsync(userId, content, file.FileName, cancellationToken);
+        return result.Status switch
+        {
+            ChatAttachmentUploadStatus.Uploaded => Results.Ok(result.Attachment),
+            ChatAttachmentUploadStatus.TooLarge => Results.Problem(statusCode: StatusCodes.Status413PayloadTooLarge, title: "File not sent", detail: result.Error),
+            ChatAttachmentUploadStatus.AllowanceFull => Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "File not sent", detail: result.Error),
+            ChatAttachmentUploadStatus.StorageFull => Results.Problem(statusCode: StatusCodes.Status507InsufficientStorage, title: "File not sent", detail: result.Error),
+            _ => Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "File not sent", detail: result.Error),
+        };
+    }
+
+    private static async Task<IResult> GetAttachmentUsageAsync(HttpContext httpContext, ChatAttachmentService attachments, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await attachments.GetUsageAsync(userId, cancellationToken));
+    }
+
+    /// <summary>Administrators: storage totals only, never names of files or conversations (D8).</summary>
+    private static async Task<IResult> GetAttachmentTotalsAsync(HttpContext httpContext, ChatAttachmentService attachments, CancellationToken cancellationToken)
+    {
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await attachments.GetTotalsAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// A file, or its thumbnail (?thumbnail=true), checked on every request against who may read
+    /// its message. Images and thumbnails are shown in the page; every other file is a download.
+    /// Not found and not allowed are the same answer.
+    /// </summary>
+    private static async Task<IResult> DownloadAttachmentAsync(
+        long attachmentId,
+        [FromQuery(Name = "thumbnail")] bool? thumbnail,
+        HttpContext httpContext,
+        ChatAttachmentService attachments,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var file = await attachments.OpenAsync(userId, attachmentId, thumbnail == true, cancellationToken);
+        if (file is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status410Gone, title: "File not available", detail: "This file is not available. It may have been removed.");
+        }
+
+        // A thumbnail never changes, so the browser may keep it; files are fetched afresh.
+        httpContext.Response.Headers["Cache-Control"] = file.IsThumbnail ? "private, max-age=86400" : "private, no-store";
+        httpContext.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return file.IsThumbnail || file.IsImage
+            ? Results.File(file.AbsolutePath, file.ContentType, enableRangeProcessing: !file.IsThumbnail)
+            : Results.File(file.AbsolutePath, file.ContentType, fileDownloadName: file.FileName, enableRangeProcessing: true);
+    }
+
+    private static async Task<IResult> RemoveAttachmentAsync(
+        long attachmentId,
+        HttpContext httpContext,
+        ChatAttachmentService attachments,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var removal = await attachments.RemoveAsync(userId, attachmentId, cancellationToken);
+        if (removal is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "File not removed", detail: "Only your own files can be removed.");
+        }
+
+        if (removal.Removed.MessageId > 0)
+        {
+            await hub.Clients.Users(removal.NotifyUserIds).AttachmentRemoved(removal.Removed);
+        }
+
+        return Results.Ok(removal.Removed);
     }
 
     /// <summary>

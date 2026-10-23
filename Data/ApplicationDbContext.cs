@@ -129,6 +129,7 @@ namespace ProjectManagement.Data
         public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
         public DbSet<ChatParticipant> ChatParticipants => Set<ChatParticipant>();
         public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+        public DbSet<ChatAttachment> ChatAttachments => Set<ChatAttachment>();
         public DbSet<ChatUserStatus> ChatUserStatuses => Set<ChatUserStatus>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
@@ -4352,6 +4353,28 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Conversation)
                     .WithMany()
                     .HasForeignKey(x => x.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ChatAttachment>(e =>
+            {
+                e.Property(x => x.UploaderUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                e.Property(x => x.ThumbnailKey).HasMaxLength(260);
+                e.Property(x => x.FileName).HasMaxLength(ChatAttachment.MaxFileNameLength).IsRequired();
+                e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                e.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+                e.Ignore(x => x.IsImage);
+                // The allowance: the sizes of a person's kept files.
+                e.HasIndex(x => new { x.UploaderUserId, x.RemovedUtc });
+                e.HasIndex(x => x.MessageId);
+                // The clean-up job: removed files not yet deleted, uploads never sent.
+                e.HasIndex(x => new { x.RemovedUtc, x.PurgedUtc });
+                e.HasIndex(x => x.StorageKey).IsUnique();
+                e.ToTable(t => t.HasCheckConstraint("CK_ChatAttachments_Size", "\"SizeBytes\" > 0"));
+                e.HasOne(x => x.Message)
+                    .WithMany()
+                    .HasForeignKey(x => x.MessageId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

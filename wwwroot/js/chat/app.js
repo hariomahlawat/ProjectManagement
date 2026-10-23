@@ -24,6 +24,12 @@
     this.messagesUrl = root.dataset.messagesUrl || '';
     this.maxLength = Number(root.dataset.maxLength) || 4000;
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
+    // File attachments (chat/files.js), when switched on for this server.
+    this.attachments = {
+      enabled: root.dataset.attachments === 'on',
+      maxBytes: (Number(root.dataset.attachMaxMb) || 100) * 1024 * 1024,
+      maxFiles: Number(root.dataset.attachMaxFiles) || 5,
+    };
     this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
     // When live events stopped arriving (or, until the first connection, when this page started
     // loading history), so unsends in between can be caught up on once connected.
@@ -276,6 +282,7 @@
     connection.on('GroupRemoved', (groupId) => this.onGroupRemoved(groupId));
     connection.on('GroupRead', (read) => this.onGroupRead(read));
     connection.on('GroupTyping', (typing) => this.onGroupTyping(typing));
+    connection.on('AttachmentRemoved', (removed) => this.onAttachmentRemoved(removed));
     connection.onreconnecting(() => {
       this.markOffline();
       this.startPolling();

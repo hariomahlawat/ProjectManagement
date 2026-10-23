@@ -114,6 +114,15 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   tasks and repository documents, unpublished or archived project documents, and other
   people's tasks (unless the viewer may see all tasks) get no card, and the answer is the same
   as for a record that does not exist. The link itself still works as any link does.
+- **File attachments** (when `Chat:Attachments:Enabled` is on; design and owner decisions in
+  [`chat-attachments.md`](chat-attachments.md)): a paperclip button beside the message box
+  adds up to 5 files per message. Each uploads at once, with progress, Cancel, Remove and
+  Retry; the message (text optional) is sent when they are all up. Allowed: PDF, `.docx`,
+  `.xlsx`, `.pptx`, `.jpg`/`.png`/`.webp`, `.txt`/`.csv`, checked by content as well as name, at
+  most 100 MB each. Each person may keep 1 GB of sent files; removing a file from one of your
+  messages (Remove, then Remove? within five seconds) or unsending the message frees the space.
+  Images show as thumbnails that open the full image; other files show as cards that download
+  them. There is no malware scanning (owner decision).
 - **Messages page** (`/Chat`, also linked from the buddy list): every conversation, most recent
   first, with a large conversation view, and **search across all your messages** (at least two
   characters, case-insensitive, newest 50 matches). A search hit opens the conversation at
@@ -203,6 +212,13 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   answer (card or none) for the page's lifetime. Previews read records directly and never go
   through the record pages, so opening a card's record is what records a view (for example an
   AOTS document), not the preview.
+- **Attachments** (`/api/chat/attachments…`, 404 while switched off): upload (`POST`,
+  multipart `file`), download (`GET {id}`, `?thumbnail=true`), remove (`POST {id}/remove`),
+  your usage (`GET usage`) and, for administrators, totals by size only (`GET totals`). Files
+  live under the upload root in `chat/`, with random names; who may download follows who may
+  read the message, checked on every request. Removals are pushed as `AttachmentRemoved`.
+  `Services/Chat/ChatAttachmentService.cs`, `ChatAttachmentInspector.cs`,
+  `Hosted/ChatAttachmentCleanupWorker.cs`, `wwwroot/js/chat/files.js`.
 - **Search** (`GET /api/chat/search?q=`) joins through the caller's own participant rows, so it
   can only ever match the caller's conversations. The term is matched as plain text (`%` and
   `_` are not wildcards). It is a substring scan without a full-text index, which is fine at
@@ -231,6 +247,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   - `chat-search`: message searches, 60 per minute by default (the page searches 300 ms after
     typing stops).
   - `chat-preview`: link-preview requests, 120 per minute by default.
+  - `chat-upload`: file uploads, 30 per minute by default.
 
 ## Privacy
 
@@ -242,6 +259,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - Messages are **not end-to-end encrypted**. Anyone with direct access to the PostgreSQL
   database or its backups can read them, as with every other table. Treat chat accordingly and
   do not describe it to users as secret.
+- Attached files are stored as they were sent, unencrypted, in the upload folder and its
+  backups; anyone with access to the server's disk can read them, as with the database.
 - Messages are not written to the audit log.
 
 ## Configuration
@@ -257,6 +276,13 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 | `Chat:SearchWindowSeconds` | `60` | Length of that window. |
 | `Chat:PreviewPermitLimit` | `120` | Link-preview requests one user may make per window (each asks for up to 10 links). |
 | `Chat:PreviewWindowSeconds` | `60` | Length of that window. |
+| `Chat:Attachments:Enabled` | `false` | File attachments. Off hides the attach button and answers 404 on `/api/chat/attachments*`; files already sent stay stored. |
+| `Chat:Attachments:AllowanceMb` | `1024` | Total size of the files one person has sent that are still kept. |
+| `Chat:Attachments:MaxFileMb` | `100` | Largest single file. |
+| `Chat:Attachments:MinimumFreeDiskGb` | `20` | Uploads are refused while the upload disk has less free. |
+| `Chat:Attachments:MaxFilesPerMessage` | `5` | Files one message may carry. |
+| `Chat:Attachments:UnusedUploadMinutes` | `60` | An upload not sent within this time is removed by the clean-up job. |
+| `Chat:Attachments:UploadPermitLimit` / `UploadWindowSeconds` | `30` / `60` | Uploads one person may start per window. |
 | `Chat:UnsendWindowMinutes` | `5` | How long after sending a message its sender may unsend it. `0` turns unsend off. |
 
 ## Deployment notes
@@ -283,6 +309,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 
 ## Not yet built
 
-File attachments (1 GB per person) are being built next; the decided design is in
-[`chat-attachments.md`](chat-attachments.md). Project-linked conversations were dropped (owner
-decision, 2026-10-22).
+File attachments are built but **switched off** (`Chat:Attachments:Enabled`); before switching
+them on in production, check that the data disk has about 50 GB free beyond the 20 GB floor
+(see [`chat-attachments.md`](chat-attachments.md)). Project-linked conversations were dropped
+(owner decision, 2026-10-22).

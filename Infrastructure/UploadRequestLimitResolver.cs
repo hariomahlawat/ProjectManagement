@@ -32,7 +32,8 @@ internal static class UploadRequestLimitResolver
             ReadPositiveInt64(configuration, "IprAttachments:MaxFileSizeBytes"),
             ReadPositiveInt64(configuration, "FfcAttachments:MaxFileSizeBytes"),
             ReadPositiveInt64(configuration, "DocRepo:MaxFileSizeBytes"),
-            ReadPositiveInt64(configuration, "MediaLibrary:Processing:MaxImageFileSizeBytes")
+            ReadPositiveInt64(configuration, "MediaLibrary:Processing:MaxImageFileSizeBytes"),
+            ChatAttachmentLimit(configuration)
         };
 
         var largestConfiguredUpload = configuredLimits.Max();
@@ -45,6 +46,18 @@ internal static class UploadRequestLimitResolver
             Math.Max(
                 MinimumRequestBodyBytes,
                 largestConfiguredUpload + MultipartOverheadBytes));
+    }
+
+    /// <summary>Chat attachments count only while switched on (Chat:Attachments:Enabled).</summary>
+    private static long ChatAttachmentLimit(IConfiguration configuration)
+    {
+        if (!configuration.GetValue<bool>("Chat:Attachments:Enabled"))
+        {
+            return 0;
+        }
+
+        var megabytes = configuration.GetValue<int?>("Chat:Attachments:MaxFileMb") ?? 100;
+        return Math.Max(0, megabytes) * OneMebibyte;
     }
 
     private static long ReadPositiveInt64(IConfiguration configuration, string key)

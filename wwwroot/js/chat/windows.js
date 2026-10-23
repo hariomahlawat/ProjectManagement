@@ -186,6 +186,7 @@
       typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0, unsendTimer: null,
       groupId, members: [], removed: false, typers: new Map(), panel, panelOpen: false, people,
     };
+    this.buildAttach(win); // chat/files.js: attach button and waiting files, when attachments are on
 
     people.addEventListener('click', () => {
       if (win.panelOpen) {

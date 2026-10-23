@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Contracts.Chat;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Chat;
@@ -49,12 +51,16 @@ public sealed class ChatGroupService
 {
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IOptionsMonitor<ChatOptions>? _options;
 
-    public ChatGroupService(ApplicationDbContext db, IClock clock)
+    public ChatGroupService(ApplicationDbContext db, IClock clock, IOptionsMonitor<ChatOptions>? options = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _options = options;
     }
+
+    private ChatAttachmentOptions AttachmentSettings => _options?.CurrentValue.Attachments ?? new ChatAttachmentOptions();
 
     public async Task<IReadOnlyList<ChatGroupSummaryDto>> ListGroupsAsync(string userId, CancellationToken cancellationToken = default)
     {
@@ -382,7 +388,8 @@ public sealed class ChatGroupService
         var all = _db.ChatMessages.AsNoTracking().Where(m => m.ConversationId == group.Id && m.SentUtc >= joined.Value);
         var (page, hasMore, hasNewer) = await ChatService.PageAsync(all, beforeMessageId, afterMessageId, limit, cancellationToken);
         var dto = await BuildGroupDtoAsync(group, cancellationToken);
-        return new ChatGroupHistoryDto(group.Id, page.Select(m => ToDto(m, group.Id)).ToList(), hasMore, hasNewer, dto.Members);
+        var messages = await ChatAttachmentService.WithAttachmentsAsync(_db, page.Select(m => ToDto(m, group.Id)).ToList(), cancellationToken);
+        return new ChatGroupHistoryDto(group.Id, messages, hasMore, hasNewer, dto.Members);
     }
 
     public async Task<ChatGroupSendResult> SendAsync(
@@ -399,7 +406,7 @@ public sealed class ChatGroupService
         }
 
         var body = ChatService.NormalizeBody(request.Body);
-        if (body.Length == 0)
+        if (body.Length == 0 && request.AttachmentIds is not { Count: > 0 })
         {
             return Invalid("Type a message before sending.");
         }
@@ -454,7 +461,7 @@ public sealed class ChatGroupService
         if (existing is not null)
         {
             return existing.ConversationId == group.Id
-                ? new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken))
+                ? new ChatGroupSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, ToDto(existing, group.Id), cancellationToken), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken))
                 : Invalid("This message identifier was already used for a different conversation.");
         }
 
@@ -470,6 +477,13 @@ public sealed class ChatGroupService
         _db.ChatMessages.Add(message);
         group.LastMessageUtc = now;
 
+        // Files uploaded first are saved with the message, in the same save.
+        var fileError = await ChatAttachmentService.AttachAsync(_db, AttachmentSettings, userId, request.AttachmentIds, message, cancellationToken);
+        if (fileError is not null)
+        {
+            return Invalid(fileError);
+        }
+
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -484,10 +498,10 @@ public sealed class ChatGroupService
                 throw;
             }
 
-            return new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken));
+            return new ChatGroupSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, ToDto(existing, group.Id), cancellationToken), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken));
         }
 
-        return new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(message, group.Id), null, members);
+        return new ChatGroupSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, ToDto(message, group.Id), cancellationToken), null, members);
     }
 
     /// <returns>The stored marker, or null when the caller is not in the group.</returns>
