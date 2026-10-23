@@ -29,6 +29,7 @@ public sealed class SearchIndexWorker : BackgroundService
     private readonly TimeProvider _time;
 
     private DateTimeOffset _nextAutomaticRebuildUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset _nextRebuildRequestRecoveryUtc = DateTimeOffset.MinValue;
     private int _consecutiveRebuildFailures;
     private int? _passiveForVersion;
 
@@ -119,27 +120,38 @@ public sealed class SearchIndexWorker : BackgroundService
             return false;
         }
 
+        var recoveryHealthy = await TryStepAsync("abandoned rebuild request recovery", () => RecoverAbandonedRebuildRequestsIfDueAsync(cancellationToken), cancellationToken);
+
         if (IsNewerThanOwn(state))
         {
             EnterPassive(state);
             // An administrator's explicit rebuild request is still honoured: it is the
             // recovery path after rolling back to an older build of PRISM.
-            return await TryStepAsync("explicit rebuild request", () => ProcessExplicitRebuildRequestWhilePassiveAsync(cancellationToken), cancellationToken);
+            return recoveryHealthy
+                   & await TryStepAsync("explicit rebuild request", () => ProcessExplicitRebuildRequestAsync(allowDowngrade: true, cancellationToken), cancellationToken);
         }
 
         LeavePassiveIfNeeded();
 
         if (!state.HasActiveGeneration || state.IndexVersion < _options.ProjectionVersion)
         {
-            return await TryStepAsync(
-                "initial full rebuild",
-                () => RunAutomaticFullRebuildAsync(
-                    current => !current.HasActiveGeneration || current.IndexVersion < _options.ProjectionVersion,
-                    cancellationToken),
-                cancellationToken);
+            // An administrator's request must bypass the automatic-rebuild backoff even
+            // while the initial or upgrade rebuild is failing.
+            return recoveryHealthy
+                   & await TryStepAsync(
+                       "initial full rebuild",
+                       async () =>
+                       {
+                           if (await ProcessExplicitRebuildRequestAsync(allowDowngrade: false, cancellationToken)) return;
+                           await RunAutomaticFullRebuildAsync(
+                               current => !current.HasActiveGeneration || current.IndexVersion < _options.ProjectionVersion,
+                               cancellationToken);
+                       },
+                       cancellationToken);
         }
 
-        var healthy = await TryStepAsync("stale lease recovery", () => RecoverAbandonedWorkAsync(cancellationToken), cancellationToken);
+        var healthy = recoveryHealthy;
+        healthy &= await TryStepAsync("stale lease recovery", () => RecoverAbandonedWorkAsync(cancellationToken), cancellationToken);
         healthy &= await TryStepAsync("incremental indexing", () => ProcessIncrementalQueueAsync(cancellationToken), cancellationToken);
         healthy &= await TryStepAsync("scheduled reconciliation", () => ReconcileIfDueAsync(state, cancellationToken), cancellationToken);
         return healthy;
@@ -252,7 +264,8 @@ public sealed class SearchIndexWorker : BackgroundService
         }
     }
 
-    private async Task ProcessExplicitRebuildRequestWhilePassiveAsync(CancellationToken cancellationToken)
+    /// <summary>Processes one pending administrator rebuild request. Returns false when none was pending.</summary>
+    private async Task<bool> ProcessExplicitRebuildRequestAsync(bool allowDowngrade, CancellationToken cancellationToken)
     {
         SearchIndexWorkItem? item;
         using (var scope = _scopeFactory.CreateScope())
@@ -261,9 +274,33 @@ public sealed class SearchIndexWorker : BackgroundService
             item = await store.DequeueAsync(cancellationToken, SearchIndexStore.FullRebuildEntityType);
         }
 
-        if (item is not null)
+        if (item is null) return false;
+        await ProcessRebuildRequestAsync(item, allowDowngrade, cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// A process that dies mid-rebuild leaves its request leased. Ordinary lease recovery
+    /// skips rebuild requests, so at most once per lease timeout (in every mode, including
+    /// passive) briefly take the exclusive lock — proving nobody is still rebuilding — and
+    /// return abandoned rebuild requests to the queue.
+    /// </summary>
+    private async Task RecoverAbandonedRebuildRequestsIfDueAsync(CancellationToken cancellationToken)
+    {
+        if (_time.GetUtcNow() < _nextRebuildRequestRecoveryUtc) return;
+        _nextRebuildRequestRecoveryUtc = _time.GetUtcNow() + LeaseTimeout;
+
+        using var lockScope = _scopeFactory.CreateScope();
+        var coordinator = lockScope.ServiceProvider.GetRequiredService<ISearchIndexCoordinator>();
+        await using var lease = await coordinator.TryAcquireFullRebuildAsync(cancellationToken);
+        if (lease is null) return;
+
+        using var scope = _scopeFactory.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<ISearchIndexStore>();
+        var recovered = await store.RecoverStaleWorkItemsAsync(LeaseTimeout, cancellationToken, includeFullRebuildRequests: true);
+        if (recovered > 0)
         {
-            await ProcessRebuildRequestAsync(item, allowDowngrade: true, cancellationToken);
+            _logger.LogWarning("Search V2 recovered {Count} abandoned indexing work item(s), including rebuild requests.", recovered);
         }
     }
 

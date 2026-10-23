@@ -210,6 +210,47 @@ public sealed class SearchIndexWorkerTests
     }
 
     [Fact]
+    public async Task RequestedRebuild_BypassesBackoff_WhileTheInitialRebuildIsFailing()
+    {
+        var harness = new Harness();
+        harness.Builder.Failure = new InvalidOperationException("projection failed");
+        await harness.Worker.RunOnceAsync(CancellationToken.None);
+        Assert.True(harness.Worker.NextAutomaticRebuildUtc > harness.Time.Now);
+        Assert.False(harness.Store.State.HasActiveGeneration);
+
+        harness.Builder.Failure = null;
+        harness.Store.Queue.Enqueue(new SearchIndexWorkItem(5, SearchIndexStore.FullRebuildEntityType, "active", 0));
+
+        await harness.Worker.RunOnceAsync(CancellationToken.None);
+
+        Assert.Equal(2, harness.Builder.BuildAllCalls);
+        Assert.Equal(new long[] { 5 }, harness.Store.Completed);
+        Assert.Equal(OwnVersion, harness.Store.State.IndexVersion);
+    }
+
+    [Fact]
+    public async Task AbandonedRebuildRequests_AreRecoveredUnderTheLock_EvenWhilePassive()
+    {
+        var harness = new Harness();
+        harness.Store.State = new SearchIndexActiveState(9, OwnVersion + 1, harness.Time.Now);
+
+        await harness.Worker.RunOnceAsync(CancellationToken.None);
+        Assert.Equal(1, harness.Store.FullRebuildRecoveryCalls);
+
+        await harness.Worker.RunOnceAsync(CancellationToken.None);
+        Assert.Equal(1, harness.Store.FullRebuildRecoveryCalls);
+
+        harness.Time.Now = harness.Time.Now.AddMinutes(11);
+        await harness.Worker.RunOnceAsync(CancellationToken.None);
+        Assert.Equal(2, harness.Store.FullRebuildRecoveryCalls);
+
+        harness.Coordinator.RebuildAvailable = false;
+        harness.Time.Now = harness.Time.Now.AddMinutes(11);
+        await harness.Worker.RunOnceAsync(CancellationToken.None);
+        Assert.Equal(2, harness.Store.FullRebuildRecoveryCalls);
+    }
+
+    [Fact]
     public async Task PassiveProcess_HonoursAnExplicitRebuildRequest_AsTheRollbackRecoveryPath()
     {
         var harness = new Harness();
@@ -308,6 +349,7 @@ public sealed class SearchIndexWorkerTests
         public bool SupersedeNextActivation { get; set; }
         public bool LastAllowDowngrade { get; private set; }
         public bool RecoveredFullRebuildLeases { get; private set; }
+        public int FullRebuildRecoveryCalls { get; private set; }
         public Queue<SearchIndexWorkItem> Queue { get; } = new();
         public List<long> Completed { get; } = new();
         public List<long> Failed { get; } = new();
@@ -349,6 +391,7 @@ public sealed class SearchIndexWorkerTests
         public Task<int> RecoverStaleWorkItemsAsync(TimeSpan leaseTimeout, CancellationToken cancellationToken, bool includeFullRebuildRequests = false)
         {
             RecoveredFullRebuildLeases |= includeFullRebuildRequests;
+            if (includeFullRebuildRequests) FullRebuildRecoveryCalls++;
             return Task.FromResult(0);
         }
 
