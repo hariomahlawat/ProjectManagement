@@ -76,6 +76,24 @@ public sealed class CommandDeskServiceTests
     }
 
     [Fact]
+    public async Task Activities_CountOnlyOnceTheyHaveHappened()
+    {
+        await using var db = NewDb();
+        // The clock is at noon IST on Today (06:30 UTC).
+        var noonUtc = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 6, 30, 0, TimeSpan.Zero);
+        db.Activities.AddRange(
+            new ProjectManagement.Models.Activities.Activity { Id = 1, Title = "This morning", ActivityTypeId = 4, CreatedByUserId = HodId, ScheduledStartUtc = noonUtc.AddHours(-3), CreatedAtUtc = noonUtc.AddHours(-2) },
+            new ProjectManagement.Models.Activities.Activity { Id = 2, Title = "This evening", ActivityTypeId = 3, CreatedByUserId = HodId, ScheduledStartUtc = noonUtc.AddHours(5), CreatedAtUtc = noonUtc.AddHours(-1) },
+            new ProjectManagement.Models.Activities.Activity { Id = 3, Title = "Deleted", ActivityTypeId = 4, CreatedByUserId = HodId, ScheduledStartUtc = noonUtc.AddDays(-2), IsDeleted = true });
+        await db.SaveChangesAsync();
+
+        var desk = await NewService(db).GetAsync(User(RoleNames.Comdt), ComdtId, null, CancellationToken.None);
+
+        var activities = Assert.Single(desk.MovedForward, count => count.Label is "activity" or "activities");
+        Assert.Equal((1, "activity"), (activities.Count, activities.Label));
+    }
+
+    [Fact]
     public async Task BlockedTask_CarriesTheLatestBlockingReason()
     {
         await using var db = NewDb();

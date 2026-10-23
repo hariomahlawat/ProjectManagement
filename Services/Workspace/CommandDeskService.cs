@@ -222,10 +222,10 @@ public sealed class CommandDeskService
             }
         }
 
-        var untilUtc = IstClock.ExclusiveEndOfDayIstToUtc(today).AddTicks(-1);
+        // Up to now, as on the Dashboard: an activity scheduled later today has not happened yet.
         var activities = await _db.Activities
             .AsNoTracking()
-            .Where(ActivityOccurrence.Between(fromUtc, untilUtc))
+            .Where(ActivityOccurrence.Between(fromUtc, _clock.UtcNow))
             .Select(activity => activity.ScheduledStartUtc ?? activity.CreatedAtUtc)
             .ToListAsync(ct);
         events.AddRange(activities.Select(at => new CommandDeskProgressEvent(CommandDeskProgressKind.Activity, IstDate(at))));
