@@ -5,7 +5,12 @@ const path = require('node:path');
 const { webcrypto } = require('node:crypto');
 const { JSDOM } = require('jsdom');
 
-const script = fs.readFileSync(path.join(__dirname, 'chat.js'), 'utf8');
+// The chat scripts, in the order the layout loads them (Pages/Shared/_ChatScripts.cshtml).
+const chatScripts = Array.from(
+  fs.readFileSync(path.join(__dirname, '..', '..', 'Pages', 'Shared', '_ChatScripts.cshtml'), 'utf8')
+    .matchAll(/src="~\/js\/(chat\/[\w-]+\.js)"/g),
+  (m) => m[1]);
+const script = chatScripts.map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join(';\n');
 
 function load(body = '') {
   const dom = new JSDOM(`<!doctype html><html><body>${body}</body></html>`, {

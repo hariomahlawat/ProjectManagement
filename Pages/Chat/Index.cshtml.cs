@@ -9,7 +9,7 @@ namespace ProjectManagement.Pages.Chat;
 
 /// <summary>
 /// Full-page chat ("Messages"): every conversation, message search, and a large conversation
-/// view. All data comes from /api/chat through wwwroot/js/chat.js; this page only renders the shell.
+/// view. All data comes from /api/chat through the chat scripts (wwwroot/js/chat/); this page only renders the shell.
 /// </summary>
 [Authorize]
 public sealed class IndexModel : PageModel

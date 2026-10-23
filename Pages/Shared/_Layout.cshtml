@@ -413,7 +413,7 @@
              data-messages-url="@Url.Page("/Chat/Index")"
              data-max-length="@ProjectManagement.Models.Chat.ChatMessage.MaxBodyLength"
              data-unsend-minutes="@ChatConfiguration.CurrentValue.UnsendWindowMinutes"></div>
-        <script src="~/js/chat.js" asp-append-version="true" defer></script>
+        <partial name="_ChatScripts" />
     }
     @await RenderSectionAsync("Scripts", required: false)
     <script src="~/js/init.js" data-todo-src="@Url.Content("~/js/todo.js")" asp-append-version="true" defer></script>

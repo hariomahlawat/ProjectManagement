@@ -60,7 +60,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **Chat buttons next to names**: a small chat icon after a person's name opens a chat with
   them. Present on the Project Overview header (PO and HoD) and the Ongoing projects list
   (PO). To add it elsewhere, mark the element `data-chat-user="{userId}"` (and optionally
-  `data-chat-name`); `chat.js` adds the button, never for the signed-in user, and also for
+  `data-chat-name`); the chat scripts add the button, never for the signed-in user, and also for
   content added to the page later.
 - **Group chats** (owner decisions, 2026-10-22): "New group" under the people search in the
   buddy list. A group has a name and up to 50 people (active accounts only).
@@ -138,8 +138,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 | Online status | `Services/Chat/ChatPresenceTracker.cs` (in-memory, per process) |
 | HTTP API | `Features/Chat/ChatApi.cs`, under `/api/chat` |
 | Live updates | `Hubs/ChatHub.cs`, at `/hubs/chat` |
-| Browser | `Pages/Shared/_ChatLauncher.cshtml`, the `#pmChat` root in `_Layout.cshtml`, `wwwroot/js/chat.js`, `wwwroot/css/chat.css` |
-| Messages page | `Pages/Chat/Index.cshtml` (a shell; `chat.js` fills it) |
+| Browser | `Pages/Shared/_ChatLauncher.cshtml`, the `#pmChat` root in `_Layout.cshtml`, the scripts in `wwwroot/js/chat/` (listed, in load order, in `Pages/Shared/_ChatScripts.cshtml`; `core.js` describes each), `wwwroot/css/chat.css` |
+| Messages page | `Pages/Chat/Index.cshtml` (a shell; `chat/page.js` fills it) |
 
 - **Everything that writes data is an antiforgery-protected POST** (send, mark read), like the
   notification API. After the database save the API pushes `ReceiveMessage` to both people's
@@ -245,6 +245,11 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   and each tab repeats its away state on reconnect.
 - Phase 2 needs no migration. During a rolling restart an old page talking to the new server,
   or the reverse, keeps working: new fields are optional, and a hub method one side does not know fails harmlessly.
+- `wwwroot/js/chat.js` was split into the seven scripts in `wwwroot/js/chat/` (2026-10-23), with
+  no change in behaviour. A page already open keeps the script it loaded; a page rendered by
+  the old build that asks for `/js/chat.js` after the new build is serving gets a 404 and shows
+  no chat until it is reloaded. Add any new chat script to `Pages/Shared/_ChatScripts.cshtml`
+  (the browser tests and `ChatApiTests` load and check that list).
 - The review fixes of 2026-10-23 need no migration (`JoinedUtc` already exists). Changes in
   behaviour on deployment: members added to a group after it started no longer see the
   messages from before they joined, and the new rate limits apply. A new page talking to an
