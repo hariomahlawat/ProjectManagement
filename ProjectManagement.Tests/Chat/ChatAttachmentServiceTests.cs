@@ -494,6 +494,8 @@ public sealed class ChatAttachmentServiceTests
         Assert.NotNull(await scope.Files.OpenAsync("bob", alicesNew.Id, thumbnail: false));
         var shown = (await scope.Chat.GetHistoryAsync("bob", "alice", null, 40)).Messages.SelectMany(m => m.Attachments ?? Array.Empty<ChatAttachmentDto>()).Single(f => f.Id == alicesOld.Id);
         Assert.Equal("Admin", shown.RemovalReason);
+        var caughtUp = (await scope.Files.ListRemovedSinceAsync("bob", scope.Clock.UtcNow.AddMinutes(-1))).Files.Single(f => f.AttachmentId == alicesOld.Id);
+        Assert.Equal("Admin", caughtUp.RemovalReason); // a page that was offline learns who removed it too
 
         // The owner cannot restore an administrator's removal; an administrator can, within the day.
         Assert.NotNull((await scope.Storage.RestoreMineAsync("alice", new[] { alicesOld.Id })).Change.Error);

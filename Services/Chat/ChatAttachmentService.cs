@@ -567,13 +567,13 @@ public sealed class ChatAttachmentService
                 where p.UserId == userId
                     && (p.Conversation!.Kind == ChatConversation.DirectKind || p.JoinedUtc <= m.SentUtc)
                 orderby a.Id descending
-                select new { a.Id, MessageId = m.Id, m.ConversationId, p.Conversation!.Kind })
+                select new { a.Id, MessageId = m.Id, m.ConversationId, p.Conversation!.Kind, a.RemovalReason })
             .Take(ChatService.MaxUnsentSync + 1)
             .ToListAsync(cancellationToken);
 
         var files = page
             .Take(ChatService.MaxUnsentSync)
-            .Select(f => new ChatAttachmentRemovedDto(f.Id, f.MessageId, f.Kind == ChatConversation.GroupKind ? f.ConversationId : null))
+            .Select(f => new ChatAttachmentRemovedDto(f.Id, f.MessageId, f.Kind == ChatConversation.GroupKind ? f.ConversationId : null, f.RemovalReason))
             .ToList();
         return new ChatRemovedFilesPageDto(files, page.Count > ChatService.MaxUnsentSync);
     }

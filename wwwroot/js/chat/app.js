@@ -368,7 +368,7 @@
       }
       ids.forEach((id) => this.unsentIds.add(id));
       const removed = this.attachments.enabled ? await this.removedFilesSince(since) : [];
-      removed.forEach((file) => this.removedFiles.set(file.attachmentId, { id: file.attachmentId, isRemoved: true }));
+      removed.forEach((file) => this.removedFiles.set(file.attachmentId, { id: file.attachmentId, isRemoved: true, removalReason: file.removalReason || null }));
       if (ids.length || removed.length) {
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
         if (this.page) this.page.refreshResults();
