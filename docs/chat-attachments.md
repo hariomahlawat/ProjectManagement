@@ -1,8 +1,9 @@
 # Chat attachments: design
 
-Status: **decided and built, switched off by default** (owner decisions 2026-10-23). This note
-records the design and its reasons; `docs/chat.md` describes how attachments work as built.
-They appear only once `Chat:Attachments:Enabled` is set to `true`.
+Status: **decided, built and switched on** (owner decisions 2026-10-23; switched on by default
+in `appsettings.json` on 2026-10-23). This note records the design and its reasons;
+`docs/chat.md` describes how attachments work as built. Setting `Chat:Attachments:Enabled` to
+`false` hides them again; files already sent stay stored.
 
 Earlier owner decisions (2026-10-22): people may attach files to chat messages, with an
 allowance of 1 GB per person. Messages are kept indefinitely; administrators cannot read chats.
@@ -156,7 +157,7 @@ The messages stay: a removed file shows "File removed", "File removed by an admi
   sweep only does what is still to do.
 - **Limits:** per-user `chat-upload` rate limit, the per-file limit (also counted in
   `UploadRequestLimitResolver` while attachments are on), the free-disk floor, the allowance.
-- **Switch:** `Chat:Attachments:Enabled`, default **off**.
+- **Switch:** `Chat:Attachments:Enabled`, **on** in `appsettings.json` (the options class defaults to off).
 - **Storage management** (`ChatStorageService`): removals record their reason, who made them
   and a batch id (migration `AddChatAttachmentRemovalDetails`); `/api/chat/attachments/mine…`
   for My files; the admin page **Admin › Recovery › Chat storage**
