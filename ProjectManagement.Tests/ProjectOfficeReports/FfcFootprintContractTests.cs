@@ -10,8 +10,16 @@ public sealed class FfcFootprintContractTests
     public void Overview_ExposesOneFootprintActionAndNoDuplicateCreateAction()
     {
         var overview = Read("Index.cshtml");
+        var header = Read("Partials/_FfcViewHeader.cshtml");
 
-        Assert.Contains("/FFC/Footprint", overview, StringComparison.Ordinal);
+        // The three views link to each other through one shared header with tabs.
+        Assert.Contains("_FfcViewHeader.cshtml", overview, StringComparison.Ordinal);
+        Assert.Contains("FfcView.Overview", overview, StringComparison.Ordinal);
+        Assert.Contains("\"/FFC/Index\"", header, StringComparison.Ordinal);
+        Assert.Contains("\"/FFC/Footprint\"", header, StringComparison.Ordinal);
+        Assert.Contains("\"/FFC/MapTableDetailed\"", header, StringComparison.Ordinal);
+        Assert.Contains("aria-current", header, StringComparison.Ordinal);
+        Assert.Contains("\"FFC Projects\"", Read("FfcViewHeader.cs"), StringComparison.Ordinal);
         Assert.DoesNotContain("World footprint", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Country board", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Create record", overview, StringComparison.Ordinal);
@@ -36,7 +44,8 @@ public sealed class FfcFootprintContractTests
         Assert.Contains("data-ffc-country-trigger", cards, StringComparison.Ordinal);
         Assert.Contains("offcanvas", panel, StringComparison.Ordinal);
         Assert.Contains("aria-labelledby=\"ffcCountryPanelTitle\"", panel, StringComparison.Ordinal);
-        Assert.Contains("simulator quantity status", page, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Simulator quantities by country and year", page, StringComparison.Ordinal);
+        Assert.Contains("FfcView.Footprint", page, StringComparison.Ordinal);
         Assert.Contains("<small>Qty</small>", cards, StringComparison.Ordinal);
         Assert.Contains("Total quantity", Read("ffc-footprint.js"), StringComparison.Ordinal);
         Assert.DoesNotContain("Total units", Read("ffc-footprint.js"), StringComparison.Ordinal);

@@ -49,7 +49,7 @@ public class ManageModel : FfcRecordListPageModel
     {
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", Url?.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("FFC Projects", Url?.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
             ("Manage records", null));
     }
 

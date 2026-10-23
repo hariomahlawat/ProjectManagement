@@ -1,8 +1,9 @@
 @page
 @using System
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
 @{
-    ViewData["Title"] = "FFC Proposals";
+    ViewData["Title"] = FfcViewHeader.PageTitle(FfcView.Overview);
     ViewData["UseFullWidth"] = true;
     var request = ViewContext.HttpContext.Request;
     var currentReturnUrl = $"{request.PathBase}{request.Path}{request.QueryString}";
@@ -10,86 +11,68 @@
 
 @section Styles {
     <link rel="stylesheet"
+          href="~/css/project-office-reports/ffc-views.css"
+          asp-append-version="true" />
+    <link rel="stylesheet"
           href="~/css/project-office-reports/ffc-portfolio.css"
           asp-append-version="true" />
 }
 
 <div class="container-fluid px-3 px-lg-4 py-1 ffc-portfolio">
-    <header class="ffc-portfolio-header">
-        <div class="ffc-portfolio-header__copy">
-            <div class="ffc-portfolio-header__eyebrow">FFC Proposals</div>
-            <div class="ffc-portfolio-header__title-line">
-                <h1>FFC Portfolio Overview</h1>
-                @if (Model.TotalCount > 0)
-                {
-                    <span class="ffc-portfolio-header__result-count" role="status" aria-live="polite">
-                        Showing @Model.Portfolio.FirstItemNumber–@Model.Portfolio.LastItemNumber of @Model.TotalCount
-                    </span>
-                }
-            </div>
-            <p>Monitor milestones, project quantities, delivery and installation progress across the complete FFC portfolio.</p>
-        </div>
-
-        <div class="ffc-portfolio-header__actions">
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/FFC/MapTableDetailed"
-               class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2">
-                <span class="bi bi-table" aria-hidden="true"></span>
-                <span>Detailed table</span>
-            </a>
-
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/FFC/Footprint"
-               class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2">
-                <span class="bi bi-geo-alt" aria-hidden="true"></span>
-                <span>Footprint</span>
-            </a>
-
-            @if (Model.CanManageRecords)
-            {
-                <a asp-area="ProjectOfficeReports"
-                   asp-page="/FFC/Records/Create"
-                   asp-route-returnUrl="@currentReturnUrl"
-                   class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2">
-                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
-                    <span>New record</span>
-                </a>
-            }
-
-            @if (Model.CanManageRecords)
-            {
-                <div class="dropdown">
-                    <button type="button"
-                            class="btn btn-light btn-sm d-inline-flex align-items-center gap-2"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false">
-                        <span>More</span>
-                        <span class="bi bi-chevron-down" aria-hidden="true"></span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li class="dropdown-header">Administration</li>
-                        <li>
-                            <a asp-area="ProjectOfficeReports"
-                               asp-page="/FFC/Records/Archived"
-                               asp-route-returnUrl="@currentReturnUrl"
-                               class="dropdown-item">
-                                <span class="bi bi-archive" aria-hidden="true"></span>
-                                Archived records
-                            </a>
-                        </li>
-                        <li>
-                            <a asp-area="ProjectOfficeReports"
-                               asp-page="/FFC/Countries/Manage"
-                               class="dropdown-item">
-                                <span class="bi bi-globe2" aria-hidden="true"></span>
-                                Country settings
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            }
-        </div>
-    </header>
+    @{
+        Func<object?, object>? headerActions = null;
+        if (Model.CanManageRecords)
+        {
+            headerActions = @<text>
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/FFC/Records/Create"
+                       asp-route-returnUrl="@currentReturnUrl"
+                       class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2">
+                        <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                        <span>New record</span>
+                    </a>
+                    <div class="dropdown">
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">
+                            <span>More</span>
+                            <span class="bi bi-chevron-down" aria-hidden="true"></span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li class="dropdown-header">Administration</li>
+                            <li>
+                                <a asp-area="ProjectOfficeReports"
+                                   asp-page="/FFC/Records/Archived"
+                                   asp-route-returnUrl="@currentReturnUrl"
+                                   class="dropdown-item">
+                                    <span class="bi bi-archive" aria-hidden="true"></span>
+                                    Archived records
+                                </a>
+                            </li>
+                            <li>
+                                <a asp-area="ProjectOfficeReports"
+                                   asp-page="/FFC/Countries/Manage"
+                                   class="dropdown-item">
+                                    <span class="bi bi-globe2" aria-hidden="true"></span>
+                                    Country settings
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </text>;
+        }
+        var header = new FfcViewHeader(
+            FfcView.Overview,
+            "Country-year records with milestones, quantities, and delivery and installation progress.",
+            Model.Year,
+            Model.CountryId,
+            Model.Query)
+        {
+            Actions = headerActions
+        };
+    }
+    <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Partials/_FfcViewHeader.cshtml" model="header" />
 
     <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Partials/_PortfolioSummary.cshtml"
              model="Model.Summary" />

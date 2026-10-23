@@ -177,7 +177,7 @@ public class UploadModel(
 
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", dashboardUrl),
+            ("FFC Projects", dashboardUrl),
             ("Manage records", manageUrl),
             (recordSegmentText, recordSegmentUrl),
             ("Attachments", null));

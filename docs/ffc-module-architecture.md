@@ -1,7 +1,7 @@
-# FFC Proposals Module Architecture
+# FFC Projects Module Architecture
 
 ## 1. Purpose and High-Level Responsibilities
-The FFC Proposals area under `Areas/ProjectOfficeReports/FFC` lets authorised staff track project-unit delivery milestones, supporting dashboards, drill-down views, and exported reports. Key responsibilities include:
+The FFC Projects area (formerly "FFC Proposals") under `Areas/ProjectOfficeReports/FFC` lets authorised staff track project-unit delivery milestones, supporting dashboards, drill-down views, and exported reports. Key responsibilities include:
 
 - Persisting per-country/year records, linked projects (with per-project quantities), and attachments.
 - Surfacing milestone progress cards, filters, and search integration.
@@ -24,7 +24,8 @@ The FFC Proposals area under `Areas/ProjectOfficeReports/FFC` lets authorised st
 
 ## 3. Security, Navigation & Routing
 - Razor Pages under `/ProjectOfficeReports/FFC` are decorated with `[Authorize]`, with admin-specific pages (`Records/Manage`, `Countries/Manage`) restricted to the `Admin` or `HoD` roles, while listing pages require any authenticated user.
-- Left-hand navigation includes a "FFC Proposals" item, wiring the `/ProjectOfficeReports/FFC/Index` page into the broader reports menu so eligible users can reach the module easily.
+- The module is named **FFC Projects** in titles and breadcrumbs. Overview, Footprint and Detailed table share one header (`Partials/_FfcViewHeader.cshtml`, `FfcViewHeader.cs`, `ffc-views.css`) with tabs that keep the `year` and `countryId` filters (and `q` between Overview and Footprint) when switching views. Each page passes its own actions (New record, Download PowerPoint, Export).
+- Left-hand navigation includes an "FFC" item, wiring the `/ProjectOfficeReports/FFC/Index` page into the broader reports menu so eligible users can reach the module easily.
 - `UrlBuilder` centralises deep links (record edit, attachment view) so services like global search can point users to the correct page with `editId` pre-selected.
 
 ## 4. Backend Features by Area
@@ -55,10 +56,10 @@ The admin `Records/Manage` page combines the list view with a form sidebar. It b
 All geographic views rely on `FfcCountryRollupDataSource`, which aggregates per-project quantities per active country by grouping `FfcProject` rows (linked or stand-alone). It classifies each row as Installed/Delivered/Planned based on per-project flags, multiplies counts by `Quantity`, and returns ISO3-coded DTOs that represent total project units rather than project counts.
 
 - `/FFC/Map` serves the Leaflet map and exposes a JSON handler returning the rollup DTOs. Popups show ISO3 codes, status totals, and deep links into the detailed table filtered by country/year.
-- `/FFC/MapTableDetailed` expands to project-level rows by combining `FfcProject`, linked `Project` snapshots (names + stage history), per-project quantities, and latest external remarks. It buckets rows (Installed/Delivered/Planned), preserves complete progress and overall-status narratives, and renders linked country-year headers server-side. The page provides a compact export menu for a native editable Word report and a filterable Excel register. Both exports use the formal title **FFC Projects Update** and share one detailed-table export context.
+- `/FFC/MapTableDetailed` has a year and country filter bar and a totals strip built from `FfcDetailedTableExportSummary` (the same figures the Word and Excel exports report), both hidden in print. Status is shown as a coloured chip; on phones each country-year becomes a card (overall status first, then a labelled block per project) instead of a sideways-scrolling table. It expands to project-level rows by combining `FfcProject`, linked `Project` snapshots (names + stage history), per-project quantities, and latest external remarks. It buckets rows (Installed/Delivered/Planned), preserves complete progress and overall-status narratives, and renders linked country-year headers server-side. The page provides a compact export menu for a native editable Word report and a filterable Excel register. Both exports use the formal title **FFC Projects Update** and share one detailed-table export context.
 - `/FFC/MapBoard` is a fullscreen board built entirely from the rollup JSON. It supports server-provided sort defaults, “Sort by” UI (total units or country name), screenshot/full-width toggles, and PNG export.
 
-> **Note:** The former `/FFC/MapTable` country summary view now redirects to the board because the map, detailed table, and board cover the required use cases.
+> **Note:** The former `/FFC/MapTable` country summary view now redirects to the Footprint country cards because the map, detailed table, and board cover the required use cases.
 
 ### 4.8 Dashboard Widget Integration
 The home dashboard loads `FfcCountryRollupDataSource`, filters for countries with any completed work, and builds a `FfcSimulatorMapVm` summarising totals. The `_Widget` partial renders totals, the interactive mini-map, and the top countries strip, delegating front-end behaviour to `wwwroot/js/widgets/ffc-simulator-map.js`.

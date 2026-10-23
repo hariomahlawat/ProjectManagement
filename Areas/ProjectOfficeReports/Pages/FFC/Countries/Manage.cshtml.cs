@@ -90,7 +90,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     {
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", Url?.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("FFC Projects", Url?.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
             ("Manage countries", null));
     }
 

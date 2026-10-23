@@ -75,6 +75,16 @@ public class MapTableDetailedModel : PageModel
     // SECTION: View model
     public IReadOnlyList<FfcDetailedGroupVm> Groups { get; private set; } = Array.Empty<FfcDetailedGroupVm>();
 
+    /// <summary>Totals for the rows on screen, the same figures the Word and Excel exports report.</summary>
+    public FfcDetailedTableExportSummary Summary { get; private set; } = FfcDetailedTableExportSummary.Create(null);
+
+    /// <summary>Years and countries that have FFC records, for the filter bar.</summary>
+    public IReadOnlyList<short> YearOptions { get; private set; } = Array.Empty<short>();
+
+    public IReadOnlyList<FfcCountryOption> CountryOptions { get; private set; } = Array.Empty<FfcCountryOption>();
+
+    public sealed record FfcCountryOption(long Id, string Name, string IsoCode);
+
     [BindProperty]
     public WordExportInputModel WordExport { get; set; } = new();
 
@@ -277,11 +287,13 @@ public class MapTableDetailedModel : PageModel
         var generatedAtIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneHelper.GetIst());
         GeneratedAtIstDisplay = generatedAtIst.ToString("dd MMM yyyy, HH:mm 'IST'", CultureInfo.InvariantCulture);
         Groups = await LoadGroupsAsync(cancellationToken);
+        Summary = FfcDetailedTableExportSummary.Create(Groups);
+        await LoadFilterOptionsAsync(cancellationToken);
 
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
-            ("Detailed Table", null));
+            (FfcViewHeader.ModuleName, Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("Detailed table", null));
     }
 
     private async Task ResolveScopeAsync(
@@ -310,6 +322,24 @@ public class MapTableDetailedModel : PageModel
 
         FilterSummary = BuildFilterSummary();
         ExportScopeLabel = string.IsNullOrWhiteSpace(FilterSummary) ? "Complete portfolio" : FilterSummary!;
+    }
+
+    private async Task LoadFilterOptionsAsync(CancellationToken cancellationToken)
+    {
+        var records = _db.FfcRecords.AsNoTracking().Where(record => !record.IsDeleted);
+
+        YearOptions = await records
+            .Select(record => record.Year)
+            .Distinct()
+            .OrderByDescending(year => year)
+            .ToListAsync(cancellationToken);
+
+        CountryOptions = await records
+            .Select(record => new { record.Country.Id, record.Country.Name, record.Country.IsoCode })
+            .Distinct()
+            .OrderBy(country => country.Name)
+            .Select(country => new FfcCountryOption(country.Id, country.Name, country.IsoCode))
+            .ToListAsync(cancellationToken);
     }
 
     private async Task<IReadOnlyList<FfcDetailedGroupVm>> LoadGroupsAsync(CancellationToken cancellationToken)

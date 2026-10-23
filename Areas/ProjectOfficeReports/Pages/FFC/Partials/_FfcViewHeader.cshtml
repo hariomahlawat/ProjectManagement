@@ -1,0 +1,42 @@
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
+@model FfcViewHeader
+@{
+    // The detailed table has no text search; the other two views keep it.
+    object RouteFor(FfcView view) => view == FfcView.DetailedTable
+        ? new { area = "ProjectOfficeReports", year = Model.Year, countryId = Model.CountryId }
+        : new { area = "ProjectOfficeReports", year = Model.Year, countryId = Model.CountryId, q = Model.Query };
+
+    var tabs = new[]
+    {
+        (View: FfcView.Overview, Page: "/FFC/Index", Icon: "bi-list-ul"),
+        (View: FfcView.Footprint, Page: "/FFC/Footprint", Icon: "bi-globe-americas"),
+        (View: FfcView.DetailedTable, Page: "/FFC/MapTableDetailed", Icon: "bi-table")
+    };
+}
+
+<header class="ffc-view-header" data-hide-in-print>
+    <div class="ffc-view-header__top">
+        <div class="ffc-view-header__copy">
+            <h1 class="ffc-view-header__title">@FfcViewHeader.ModuleName</h1>
+            <p class="ffc-view-header__description">@Model.Description</p>
+        </div>
+        @if (Model.Actions is not null)
+        {
+            <div class="ffc-view-header__actions">
+                @Model.Actions(null)
+            </div>
+        }
+    </div>
+    <nav class="ffc-view-tabs" aria-label="FFC Projects views">
+        @foreach (var tab in tabs)
+        {
+            var active = tab.View == Model.ActiveView;
+            <a class="ffc-view-tabs__tab@(active ? " is-active" : string.Empty)"
+               href="@Url.Page(tab.Page, RouteFor(tab.View))"
+               aria-current="@(active ? "page" : null)">
+                <span class="bi @tab.Icon" aria-hidden="true"></span>
+                <span>@FfcViewHeader.ViewLabel(tab.View)</span>
+            </a>
+        }
+    </nav>
+</header>

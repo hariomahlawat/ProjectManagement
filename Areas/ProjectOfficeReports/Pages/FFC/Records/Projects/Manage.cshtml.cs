@@ -243,7 +243,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", dashboardUrl),
+            ("FFC Projects", dashboardUrl),
             ("Manage records", manageUrl),
             (recordSegmentText, recordSegmentUrl),
             (leaf, null));
