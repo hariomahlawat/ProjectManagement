@@ -24,7 +24,14 @@
     this.messagesUrl = root.dataset.messagesUrl || '';
     this.maxLength = Number(root.dataset.maxLength) || 4000;
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
+    // File attachments (chat/files.js), when switched on for this server.
+    this.attachments = {
+      enabled: root.dataset.attachments === 'on',
+      maxBytes: (Number(root.dataset.attachMaxMb) || 100) * 1024 * 1024,
+      maxFiles: Number(root.dataset.attachMaxFiles) || 5,
+    };
     this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
+    this.removedFiles = new Map(); // attachment id -> its removed card, the same for file removals
     // When live events stopped arriving (or, until the first connection, when this page started
     // loading history), so unsends in between can be caught up on once connected.
     this.offlineSince = new Date();
@@ -276,6 +283,7 @@
     connection.on('GroupRemoved', (groupId) => this.onGroupRemoved(groupId));
     connection.on('GroupRead', (read) => this.onGroupRead(read));
     connection.on('GroupTyping', (typing) => this.onGroupTyping(typing));
+    connection.on('AttachmentRemoved', (removed) => this.onAttachmentRemoved(removed));
     connection.onreconnecting(() => {
       this.markOffline();
       this.startPolling();
@@ -334,8 +342,9 @@
   };
 
   /**
-   * Unsends that happened while no live event could arrive: history catch-up only fetches newer
-   * messages, so an already-loaded message that was unsent meanwhile would keep its text.
+   * Unsends (and file removals) that happened while no live event could arrive: history catch-up
+   * only fetches newer messages, so an already-loaded message that was unsent meanwhile would keep
+   * its text, and a removed file its card.
    */
   ChatApp.prototype.syncUnsent = async function (done) {
     if (!this.offlineSince || this.stopped) return;
@@ -357,7 +366,9 @@
         before = Math.min(...page.ids);
       }
       ids.forEach((id) => this.unsentIds.add(id));
-      if (ids.length) {
+      const removed = this.attachments.enabled ? await this.removedFilesSince(since) : [];
+      removed.forEach((file) => this.removedFiles.set(file.attachmentId, { id: file.attachmentId, isRemoved: true }));
+      if (ids.length || removed.length) {
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
         if (this.page) this.page.refreshResults();
       }
@@ -372,6 +383,20 @@
         this.unsentRetry = global.setTimeout(() => this.syncUnsent(true), UNSENT_RETRY_MS);
       }
     }
+  };
+
+  /** Every page of files removed since a time (see syncUnsent). */
+  ChatApp.prototype.removedFilesSince = async function (since) {
+    const base = `/attachments/removed?since=${encodeURIComponent(since.toISOString())}`;
+    const files = [];
+    let before = null;
+    for (let guard = 0; guard < 200; guard += 1) {
+      const page = await this.request('GET', before ? `${base}&before=${before}` : base);
+      files.push(...page.files);
+      if (!page.hasMore || !page.files.length) break;
+      before = Math.min(...page.files.map((f) => f.attachmentId));
+    }
+    return files;
   };
 
   ChatApp.prototype.resync = function () {

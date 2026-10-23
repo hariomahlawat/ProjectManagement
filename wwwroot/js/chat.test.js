@@ -119,11 +119,11 @@ test('catch-up reports no overlap when the page cap runs out', async () => {
   assert.equal(result.messages.length, 6);
 });
 
-function bootApp(handler, extraBody = '') {
+function bootApp(handler, extraBody = '', rootAttributes = '') {
   const dom = new JSDOM(`<!doctype html><html><head><meta name="csrf-token" content="t"></head><body>
     <button data-chat-launcher></button>
     ${extraBody}
-    <div data-chat-root data-current-user-id="me" data-api-base="/api/chat" data-max-length="4000"></div>
+    <div data-chat-root data-current-user-id="me" data-api-base="/api/chat" data-max-length="4000" ${rootAttributes}></div>
   </body></html>`, { runScripts: 'outside-only', url: 'https://prism.local/', pretendToBeVisual: true });
   const { window } = dom;
   Object.defineProperty(window, 'crypto', { value: webcrypto, configurable: true });
@@ -2402,6 +2402,342 @@ test('a failed preview request leaves plain links and is not repeated', async ()
     assert.equal(win.log.querySelectorAll('.pm-chat__card').length, 0);
     assert.ok(win.log.querySelector('a.pm-chat__link'));
     assert.notEqual(app.stopped, true, 'a plain 404 does not switch chat off');
+  } finally {
+    window.close();
+  }
+});
+
+// --- File attachments (chat/files.js) --------------------------------------------------------------
+
+/** A stand-in for XMLHttpRequest: each upload waits until the test answers it. */
+function fakeUploads(window) {
+  const uploads = [];
+  function FakeXhr() {
+    this.upload = {};
+    this.headers = {};
+    this.status = 0;
+    this.responseText = '';
+    uploads.push(this);
+  }
+  FakeXhr.prototype.open = function (method, url) { this.method = method; this.url = url; };
+  FakeXhr.prototype.setRequestHeader = function (name, value) { this.headers[name] = value; };
+  FakeXhr.prototype.getResponseHeader = function () { return null; };
+  FakeXhr.prototype.send = function (data) { this.data = data; };
+  FakeXhr.prototype.abort = function () { this.aborted = true; };
+  FakeXhr.prototype.progress = function (loaded, total) { this.upload.onprogress({ lengthComputable: true, loaded, total }); };
+  FakeXhr.prototype.answer = function (status, body) {
+    this.status = status;
+    this.responseText = JSON.stringify(body);
+    this.onload();
+  };
+  window.XMLHttpRequest = FakeXhr;
+  return uploads;
+}
+
+const attachmentsOn = 'data-attachments="on" data-attach-max-mb="1" data-attach-max-files="2"';
+
+function fileApp(extra) {
+  return bootApp(async (url, init) => {
+    if (extra) {
+      const answer = await extra(url, init);
+      if (answer !== undefined) return answer;
+    }
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  }, '', attachmentsOn);
+}
+
+function pick(window, win, files) {
+  const input = win.form.querySelector('input[type="file"]');
+  Object.defineProperty(input, 'files', { value: files, configurable: true });
+  input.dispatchEvent(new window.Event('change'));
+}
+
+test('with attachments off there is no attach button', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    assert.equal(win.form.querySelector('.pm-chat__attach'), null);
+  } finally {
+    window.close();
+  }
+});
+
+test('attached files upload with progress, then go with the message (text optional)', async () => {
+  const posts = [];
+  const window = fileApp(async (url, init) => {
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      posts.push(body);
+      return { status: 200, body: { id: 90, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: body.clientMessageId, body: '', sentUtc: new Date().toISOString(), attachments: [{ id: 7, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 2048, isImage: false }] } };
+    }
+    return undefined;
+  });
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.ok(win.form.querySelector('.pm-chat__attach'));
+
+    pick(window, win, [new window.File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' })]);
+    assert.equal(uploads.length, 1);
+    assert.equal(uploads[0].url, '/api/chat/attachments');
+    assert.equal(uploads[0].headers['X-CSRF-TOKEN'], 't');
+    uploads[0].progress(50, 100);
+    assert.match(win.pendingList.textContent, /Uploading… 50%/);
+
+    // Sending while it uploads waits, and says why.
+    win.input.value = '';
+    app.send(win);
+    assert.equal(posts.length, 0);
+    assert.match(win.pendingNote.textContent, /finish uploading/);
+
+    uploads[0].answer(200, { id: 7, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 2048, isImage: false });
+    app.send(win);
+    await tick(); await tick();
+    assert.equal(posts.length, 1);
+    assert.deepEqual(posts[0].attachmentIds, [7]);
+    assert.equal(posts[0].body, '');
+    assert.equal(win.pendingList.hidden, true, 'the list empties once sent');
+
+    const card = win.log.querySelector('.pm-chat__file-card');
+    assert.equal(card.getAttribute('href'), '/api/chat/attachments/7');
+    assert.equal(card.getAttribute('aria-label'), 'Download plan.pdf, 2 KB');
+    assert.equal(win.log.querySelector('.pm-chat__msg:last-child .pm-chat__bubble').hidden, true, 'no empty text bubble');
+  } finally {
+    window.close();
+  }
+});
+
+test('too many or too large files are refused before uploading; a failed upload offers Retry', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+
+    const big = new window.File(['x'], 'huge.pdf');
+    Object.defineProperty(big, 'size', { value: 2 * 1024 * 1024 });
+    pick(window, win, [big, new window.File(['a'], 'a.txt'), new window.File(['b'], 'b.txt')]);
+    assert.equal(uploads.length, 1, 'only a.txt uploads: huge.pdf is too large, b.txt is one too many');
+    assert.match(win.pendingList.textContent, /Larger than 1\.0 MB/);
+    assert.match(win.pendingNote.textContent, /at most 2 files/);
+
+    uploads[0].answer(400, { detail: 'Only PDF, Word … files can be sent.' });
+    await wait(50);
+    assert.match(win.pendingList.textContent, /Only PDF/);
+    assert.match(app.announcer.textContent, /a\.txt not sent/);
+    const retry = win.pendingList.querySelector('[aria-label="Retry a.txt"]');
+    retry.click();
+    assert.equal(uploads.length, 2);
+  } finally {
+    window.close();
+  }
+});
+
+test('removing a waiting file cancels it, or frees its space if it already uploaded', async () => {
+  const removed = [];
+  const window = fileApp(async (url, init) => {
+    if (url.includes('/attachments/') && url.endsWith('/remove')) {
+      removed.push(url);
+      return { status: 200, body: {} };
+    }
+    return undefined;
+  });
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    pick(window, win, [new window.File(['a'], 'a.txt'), new window.File(['b'], 'b.txt')]);
+    uploads[1].answer(200, { id: 12, fileName: 'b.txt', contentType: 'text/plain', sizeBytes: 1, isImage: false });
+
+    win.pendingList.querySelector('[aria-label="Cancel a.txt"]').click();
+    assert.equal(uploads[0].aborted, true);
+    win.pendingList.querySelector('[aria-label="Remove b.txt"]').click();
+    await tick();
+    assert.deepEqual(removed, ['/api/chat/attachments/12/remove']);
+    assert.equal(win.pending.length, 0);
+  } finally {
+    window.close();
+  }
+});
+
+test('images show as thumbnails, removed files say so, and unsent messages show no files', async () => {
+  const window = fileApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.onMessage({
+      id: 91, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-91', body: 'Site photos', sentUtc: new Date().toISOString(),
+      attachments: [
+        { id: 20, fileName: 'gate.jpg', contentType: 'image/jpeg', sizeBytes: 900000, isImage: true, width: 1600, height: 1200 },
+        { id: 21, isRemoved: true },
+      ],
+    });
+    const image = win.log.querySelector('.pm-chat__thumb img');
+    assert.equal(image.getAttribute('src'), '/api/chat/attachments/20?thumbnail=true');
+    assert.equal(image.alt, 'gate.jpg');
+    assert.equal(image.getAttribute('width'), '220');
+    assert.equal(image.getAttribute('height'), '165');
+    assert.equal(win.log.querySelector('.pm-chat__thumb').getAttribute('href'), '/api/chat/attachments/20');
+    assert.match(win.log.querySelector('.pm-chat__file-removed').textContent, /File removed/);
+    assert.equal(win.log.querySelector('.pm-chat__file-remove'), null, 'not my message: no Remove');
+
+    app.onUnsent({ id: 91, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-91', body: '', sentUtc: new Date().toISOString(), isUnsent: true });
+    assert.equal(win.log.querySelector('.pm-chat__files'), null);
+  } finally {
+    window.close();
+  }
+});
+
+test('I can remove a file from my own message with a second click, and others see it go', async () => {
+  const removed = [];
+  const window = fileApp(async (url, init) => {
+    if (url.endsWith('/attachments/30/remove') && init.method === 'POST') {
+      removed.push(url);
+      return { status: 200, body: { attachmentId: 30, messageId: 92 } };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.acceptSaved(win, [{
+      id: 92, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-92', body: 'Report', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 30, fileName: 'report.pdf', contentType: 'application/pdf', sizeBytes: 5000, isImage: false }],
+    }]);
+    const button = () => win.log.querySelector('.pm-chat__file-remove');
+    button().click();
+    assert.equal(button().textContent, 'Remove?');
+    assert.deepEqual(removed, []);
+    button().click();
+    await tick(); await tick();
+    assert.equal(removed.length, 1);
+    assert.match(win.log.querySelector('.pm-chat__file-removed').textContent, /File removed/);
+    assert.match(win.log.textContent, /Report/, 'the message itself stays');
+
+    // A removal from elsewhere (pushed) shows too.
+    app.acceptSaved(win, [{
+      id: 93, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-93', body: '', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 31, fileName: 'x.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }],
+    }]);
+    app.onAttachmentRemoved({ attachmentId: 31, messageId: 93 });
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 2);
+  } finally {
+    window.close();
+  }
+});
+
+test('files removed while the connection was down are marked on catch-up', async () => {
+  const asked = [];
+  const window = fileApp(async (url) => {
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/attachments/removed?since=')) {
+      asked.push(url);
+      return url.includes('before=')
+        ? { files: [{ attachmentId: 42, messageId: 97, groupId: null }], hasMore: false }
+        : { files: [{ attachmentId: 43, messageId: 98, groupId: null }], hasMore: true };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.acceptSaved(win, [{
+      id: 97, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-97', body: 'Old', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 42, fileName: 'old.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }],
+    }]);
+    app.offlineSince = new Date();
+    await app.syncUnsent(true);
+    assert.equal(asked.length, 2, 'reads every page');
+    assert.match(asked[1], /before=43/);
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 1);
+    assert.equal(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/42"]'), null);
+  } finally {
+    window.close();
+  }
+});
+
+test('a removed file stays removed when a stale copy of its message arrives later', async () => {
+  const window = fileApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const message = () => ({
+      id: 94, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-94', body: 'Plan', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 40, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }],
+    });
+    app.acceptSaved(win, [message()]);
+    app.onAttachmentRemoved({ attachmentId: 40, messageId: 94 });
+
+    // A history page or send response that was in flight when the removal arrived.
+    app.acceptSaved(win, [message()]);
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 1);
+    assert.equal(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/40"]'), null);
+
+    // A message held back while history loads.
+    win.heldLive.push({ ...message(), id: 95, clientMessageId: 'c-95', attachments: [{ id: 41, fileName: 'b.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }] });
+    app.onAttachmentRemoved({ attachmentId: 41, messageId: 95 });
+    assert.equal(win.heldLive[0].attachments[0].isRemoved, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('file sizes read naturally', () => {
+  const { PMChatParts } = load();
+  assert.equal(PMChatParts.formatSize(512), '512 B');
+  assert.equal(PMChatParts.formatSize(2048), '2 KB');
+  assert.equal(PMChatParts.formatSize(1.5 * 1024 * 1024), '1.5 MB');
+  assert.equal(PMChatParts.formatSize(100 * 1024 * 1024), '100 MB');
+});
+
+test('files waiting to be sent keep a window from being closed to make room, and survive closing', async () => {
+  const window = fileApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      return [{ ...contact, unreadCount: 0 }, { ...contact, userId: 'third', displayName: 'Third Officer', initials: 'TO', unreadCount: 0 }];
+    }
+    return undefined;
+  });
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true }); // one window fits
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    pick(window, win, [new window.File(['%PDF-'], 'plan.pdf')]);
+    uploads[0].answer(200, { id: 40, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false });
+    win.input.blur();
+
+    // A message from someone else does not push this window aside.
+    app.onMessage({ id: 95, senderUserId: 'third', recipientUserId: 'me', clientMessageId: 'c-95', body: 'Hi', sentUtc: new Date().toISOString() });
+    assert.equal(app.windows.get('peer'), win);
+    assert.equal(app.windows.has('third'), false);
+
+    // Opening another chat on purpose closes it, but the uploaded file comes back with it.
+    app.openWindow('third', { focus: true });
+    await tick(); await tick();
+    assert.equal(app.windows.has('peer'), false);
+    const again = app.openWindow('peer', { focus: true });
+    assert.deepEqual(Array.from(again.pending, (p) => p.attachment && p.attachment.id), [40]);
+    assert.match(again.pendingList.textContent, /plan\.pdf/);
   } finally {
     window.close();
   }

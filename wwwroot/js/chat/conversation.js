@@ -422,7 +422,10 @@
           }
         }
       }
-      item.append(bubble, ...cards, meta);
+      const files = this.attachmentNodes(win, message, mine);
+      // A message of files only has no text bubble.
+      if (!message.isUnsent && !message.body && files.length) bubble.hidden = true;
+      item.append(bubble, ...files, ...cards, meta);
       items.push(item);
     }
 
@@ -459,7 +462,12 @@
 
   ChatApp.prototype.send = function (win) {
     const text = win.input.value.replace(/\r\n?/g, '\n').trim();
-    if (!text) return;
+    const files = this.readyFiles(win);
+    if (files.busy) {
+      this.composeNote(win, 'Wait for the files to finish uploading, then send.');
+      return;
+    }
+    if (!text && !files.attachments.length) return;
     if (text.length > this.maxLength) return;
 
     const message = {
@@ -470,7 +478,10 @@
       groupId: win.groupId || null,
       body: text,
       sentUtc: new Date().toISOString(),
+      attachments: files.attachments,
+      attachmentIds: files.attachments.map((a) => a.id),
     };
+    this.clearSentFiles(win, files.attachments);
     win.input.value = '';
     win.input.style.height = 'auto';
     win.typingSentAt = 0;
@@ -495,11 +506,13 @@
         ? await this.request('POST', `/groups/${win.groupId}/messages`, {
           clientMessageId: message.clientMessageId,
           body: message.body,
+          attachmentIds: message.attachmentIds || [],
         })
         : await this.request('POST', '/messages', {
           recipientUserId: win.peerId,
           clientMessageId: message.clientMessageId,
           body: message.body,
+          attachmentIds: message.attachmentIds || [],
         });
       // Checked now, not when sending: the person may have opened an older slice meanwhile,
       // or the conversation may have moved to another view (dock to Messages page).
