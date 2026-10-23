@@ -248,6 +248,30 @@
     authorityReference: entry?.authorityReference ?? entry?.AuthorityReference ?? null
   });
 
+  // One reading of a holiday-feed item for every holiday renderer (day tints and badges, List
+  // rows). A pre-classification server returns only date and name; that is read as a gazetted,
+  // office-closed holiday, so rolling deployments keep showing it.
+  const holidayMetaFromItem = (item) => {
+    const iso = getIsoDate(item?.date || item?.Date);
+    if (!iso) return null;
+    const entries = (item?.entries || item?.Entries || []).map(normaliseHolidayEntry);
+    if (entries.length === 0 && (item?.name || item?.Name)) {
+      entries.push(normaliseHolidayEntry({
+        name: item?.name || item?.Name,
+        type: 'Gazetted',
+        isObservedAsOfficeHoliday: true,
+        affectsSchedule: true
+      }));
+    }
+    if (entries.length === 0) return null;
+    return {
+      date: iso,
+      isOfficeClosed: item?.isOfficeClosed ?? item?.IsOfficeClosed ?? entries.some(entry => entry.affectsSchedule),
+      closureType: item?.closureType ?? item?.ClosureType ?? (entries.some(entry => entry.type === 'Gazetted') ? 'Gazetted' : null),
+      entries
+    };
+  };
+
   const holidayVisualState = (meta) => {
     if (!meta) return null;
     if (meta.closureType === 'Gazetted' || meta.entries?.some(entry => entry.type === 'Gazetted')) return 'gazetted';
@@ -1254,24 +1278,8 @@
       if (controller.signal.aborted) return;
       holidayMap.clear();
       items.forEach(item => {
-        const iso = getIsoDate(item?.date || item?.Date);
-        if (!iso) return;
-        const entries = (item?.entries || item?.Entries || []).map(normaliseHolidayEntry);
-        // Compatibility with the pre-classification endpoint during rolling deployments.
-        if (entries.length === 0 && (item?.name || item?.Name)) {
-          entries.push(normaliseHolidayEntry({
-            name: item?.name || item?.Name,
-            type: 'Gazetted',
-            isObservedAsOfficeHoliday: true,
-            affectsSchedule: true
-          }));
-        }
-        holidayMap.set(iso, {
-          date: iso,
-          isOfficeClosed: item?.isOfficeClosed ?? item?.IsOfficeClosed ?? entries.some(entry => entry.affectsSchedule),
-          closureType: item?.closureType ?? item?.ClosureType ?? (entries.some(entry => entry.type === 'Gazetted') ? 'Gazetted' : null),
-          entries
-        });
+        const meta = holidayMetaFromItem(item);
+        if (meta) holidayMap.set(meta.date, meta);
       });
       holidayRangeKey = key;
       refreshHolidayHighlights();
@@ -1341,19 +1349,13 @@
     : state === 'rh-observed' ? 'RH · office holiday' : 'RH';
 
   function toHolidayListEvent(item) {
-    const iso = getIsoDate(item?.date || item?.Date);
-    const entries = (item?.entries || item?.Entries || []).map(normaliseHolidayEntry);
-    if (!iso || entries.length === 0) return null;
-    const meta = {
-      date: iso,
-      isOfficeClosed: item?.isOfficeClosed ?? item?.IsOfficeClosed ?? entries.some(entry => entry.affectsSchedule),
-      entries
-    };
+    const meta = holidayMetaFromItem(item);
+    if (!meta) return null;
     const state = holidayVisualState(meta) || 'rh-info';
     return {
-      id: `holiday-${iso}`,
-      title: entries.map(entry => entry.name).join(' · '),
-      start: iso,
+      id: `holiday-${meta.date}`,
+      title: meta.entries.map(entry => entry.name).join(' · '),
+      start: meta.date,
       allDay: true,
       editable: false,
       startEditable: false,

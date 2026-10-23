@@ -646,3 +646,18 @@ test('Week and Day time columns are tinted for a holiday but carry no second bad
     assert.ok(col.classList.contains('pm-holiday--gazetted'));
     assert.equal(window.document.querySelectorAll('.pm-holiday-badge').length, 0);
 });
+
+test('List holiday rows also read the pre-classification payload (date and name only)', async () => {
+    loadCalendar('', [{ date: '2024-12-25', name: 'Founders Day' }]);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const calendar = FakeCalendar.lastInstance;
+    const source = calendar._sources.find(s => s.id === 'holidays-list');
+    calendar.view.type = 'listMonth';
+
+    const rows = await new Promise(resolve => source.events(
+        { startStr: '2024-12-01T00:00:00.000Z', endStr: '2024-12-31T23:59:59.999Z' }, resolve, resolve));
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].title, 'Founders Day');
+    assert.equal(rows[0].extendedProps.holidayLabel, 'Gazetted holiday');
+});
