@@ -5,7 +5,11 @@ mature work tools: near-black surfaces with the faintest cool tint, depth from l
 surfaces rather than shadows, and blue used only as an accent.
 
 Status: owner-approved direction (2026-10-21). The site-wide foundation is built and
-**opt-in**: Light stays the default, so nobody sees dark unless they choose it.
+**opt-in**: Light stays the default, so nobody sees dark unless they choose it. A one-time card
+(`wwwroot/js/core/theme-intro.js`, markup in `_Layout.cshtml`) tells signed-in users the theme
+exists and where to change it: Try Dark, Use Windows setting (System) or Not now. It is shown
+per browser on up to three page loads until answered, never over an open dialog or panel or
+while a form field has focus, and never to someone who has already used the switch.
 
 - **Switch.** User menu → Theme → Light / Dark / System. The choice is stored per browser
   in `localStorage` (`prism.theme`) and applied before first paint by

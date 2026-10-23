@@ -843,6 +843,98 @@ body.pm-drawer-open {
     box-shadow: 0 1px 2px rgba(15, 23, 42, .12);
 }
 
+/* One-time Dark theme introduction (theme-intro.js) ---------------------- */
+.pm-theme-intro {
+    position: fixed;
+    top: 4.75rem;
+    right: 1rem;
+    z-index: 1035; /* above sticky headers, below the chat dock, offcanvas and modals */
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    width: min(23rem, calc(100vw - 2rem));
+    padding: .9rem .9rem 1rem 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    background: var(--pm-card);
+    color: var(--bs-body-color);
+    box-shadow: var(--pm-shadow-lg, var(--pm-shadow));
+    animation: pm-theme-intro-in .2s ease-out;
+}
+
+.pm-theme-intro[hidden] {
+    display: none;
+}
+
+.pm-theme-intro.is-stepped-aside {
+    visibility: hidden;
+}
+
+.pm-theme-intro__icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 10px;
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary);
+    font-size: 1.05rem;
+}
+
+.pm-theme-intro__body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pm-theme-intro__title {
+    margin: .1rem 0 .3rem;
+    font-size: .95rem;
+    font-weight: 700;
+}
+
+.pm-theme-intro__text,
+.pm-theme-intro__hint {
+    margin: 0 0 .35rem;
+    font-size: .84rem;
+    line-height: 1.45;
+}
+
+.pm-theme-intro__hint {
+    color: var(--bs-secondary-color);
+}
+
+.pm-theme-intro__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .65rem;
+}
+
+.pm-theme-intro__actions[hidden] {
+    display: none;
+}
+
+.pm-theme-intro__close {
+    flex: 0 0 auto;
+    font-size: .7rem;
+}
+
+@keyframes pm-theme-intro-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pm-theme-intro { animation: none; }
+}
+
+@media print {
+    .pm-theme-intro { display: none !important; }
+}
+
 /* ============================================================
    Dark theme (neutral graphite). The shell above is drawn with literal
    light colours, so it is remapped here. See docs/ux/dark-theme-palette.md.
