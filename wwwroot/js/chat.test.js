@@ -2640,6 +2640,44 @@ test('I can remove a file from my own message with a second click, and others se
   }
 });
 
+test('a live restore that arrives during catch-up is not undone by its older answer', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const window = fileApp(async (url) => {
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/attachments/removed?since=')) {
+      await gate; // read before the restore, answered after it
+      return { files: [{ attachmentId: 46, messageId: 101, groupId: null, removalReason: 'Sender' }], hasMore: false };
+    }
+    if (url.includes('/attachments/current?ids=')) return [];
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const file = { id: 46, fileName: 'live.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false };
+    app.acceptSaved(win, [{
+      id: 101, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-101', body: 'File', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 46, fileName: '', contentType: '', sizeBytes: 0, isImage: false, isRemoved: true }],
+    }]);
+
+    app.offlineSince = new Date();
+    const catchUp = app.syncUnsent(true);
+    await tick();
+    app.onAttachmentRestored({ messageId: 101, attachment: file });
+    release();
+    await catchUp;
+
+    assert.ok(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/46"]'));
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 0);
+    assert.equal(app.removedFiles.has(46), false);
+  } finally {
+    window.close();
+  }
+});
+
 test('a file restored while the connection was down comes back on catch-up', async () => {
   const asked = [];
   const window = fileApp(async (url) => {

@@ -33,6 +33,10 @@
     this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
     this.removedFiles = new Map(); // attachment id -> its removed card, the same for file removals
     this.restoredFiles = new Map(); // attachment id -> the file, for restores (undo) of removals
+    // Live removals and restores in arrival order, so a catch-up answer read before one of them
+    // never overrides it (attachment id -> the event's number).
+    this.fileEventSeq = 0;
+    this.fileEventAt = new Map();
     // When live events stopped arriving (or, until the first connection, when this page started
     // loading history), so unsends in between can be caught up on once connected.
     this.offlineSince = new Date();
@@ -355,6 +359,8 @@
       this.unsentRetry = null;
     }
     const generation = this.offlineGeneration;
+    const fileEventsBefore = this.fileEventSeq;
+    const changedSince = (id) => (this.fileEventAt.get(id) || 0) > fileEventsBefore;
     const since = new Date(this.offlineSince.getTime() - UNSENT_LOOKBACK_MS);
     const base = `/unsent?since=${encodeURIComponent(since.toISOString())}`;
     try {
@@ -368,7 +374,9 @@
         before = Math.min(...page.ids);
       }
       ids.forEach((id) => this.unsentIds.add(id));
-      const removed = this.attachments.enabled ? await this.removedFilesSince(since) : [];
+      // A file removed or restored live while these answers were on their way keeps that state.
+      const removed = (this.attachments.enabled ? await this.removedFilesSince(since) : [])
+        .filter((file) => !changedSince(file.attachmentId));
       removed.forEach((file) => {
         this.restoredFiles.delete(file.attachmentId);
         this.removedFiles.set(file.attachmentId, { id: file.attachmentId, isRemoved: true, removalReason: file.removalReason || null });
@@ -379,7 +387,9 @@
       const remembered = Array.from(this.removedFiles.keys()).filter((id) => !fresh.has(id));
       for (let start = 0; start < remembered.length; start += 500) {
         const states = await this.request('GET', `/attachments/current?ids=${remembered.slice(start, start + 500).join(',')}`);
-        states.filter((state) => !state.attachment.isRemoved).forEach((state) => this.onAttachmentRestored(state));
+        states
+          .filter((state) => !state.attachment.isRemoved && !changedSince(state.attachment.id))
+          .forEach((state) => this.onAttachmentRestored(state));
       }
       if (ids.length || removed.length) {
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
