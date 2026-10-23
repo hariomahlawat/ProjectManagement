@@ -248,6 +248,30 @@
     authorityReference: entry?.authorityReference ?? entry?.AuthorityReference ?? null
   });
 
+  // One reading of a holiday-feed item for every holiday renderer (day tints and badges, List
+  // rows). A pre-classification server returns only date and name; that is read as a gazetted,
+  // office-closed holiday, so rolling deployments keep showing it.
+  const holidayMetaFromItem = (item) => {
+    const iso = getIsoDate(item?.date || item?.Date);
+    if (!iso) return null;
+    const entries = (item?.entries || item?.Entries || []).map(normaliseHolidayEntry);
+    if (entries.length === 0 && (item?.name || item?.Name)) {
+      entries.push(normaliseHolidayEntry({
+        name: item?.name || item?.Name,
+        type: 'Gazetted',
+        isObservedAsOfficeHoliday: true,
+        affectsSchedule: true
+      }));
+    }
+    if (entries.length === 0) return null;
+    return {
+      date: iso,
+      isOfficeClosed: item?.isOfficeClosed ?? item?.IsOfficeClosed ?? entries.some(entry => entry.affectsSchedule),
+      closureType: item?.closureType ?? item?.ClosureType ?? (entries.some(entry => entry.type === 'Gazetted') ? 'Gazetted' : null),
+      entries
+    };
+  };
+
   const holidayVisualState = (meta) => {
     if (!meta) return null;
     if (meta.closureType === 'Gazetted' || meta.entries?.some(entry => entry.type === 'Gazetted')) return 'gazetted';
@@ -396,6 +420,9 @@
   const decorateDayCellElement = (el, iso) => {
     if (!el || !iso) return;
     decorateHolidayCell(el, iso);
+    // FullCalendar also mounts Week and Day time columns as day cells: those are tinted only,
+    // and the badge stays in the all-day row above them.
+    if (el.classList?.contains('fc-timegrid-col')) return;
     decorateHolidayLabelElement(el, iso);
     const numberEl = el.querySelector?.('.fc-daygrid-day-number');
     if (numberEl) decorateHolidayLabelElement(numberEl, iso);
@@ -426,8 +453,10 @@
         decorateHolidayLabelElement(cushion, iso);
         const textEl = cushion.querySelector('.fc-list-day-text');
         if (textEl) decorateHolidayLabelElement(textEl, iso);
+        // Holidays are rows of their own in List view (holiday list source), so the day
+        // header carries no badge.
         syncHolidayBadge(cushion, iso, {
-          shouldDisplay: () => isListView && !!meta
+          shouldDisplay: () => false
         });
       }
     });
@@ -443,8 +472,8 @@
       decorateHolidayCell(col, iso);
       const frame = col.querySelector('.fc-timegrid-col-frame');
       if (frame) decorateHolidayCell(frame, iso);
-      const badgeTarget = frame?.querySelector?.('.fc-timegrid-col-top') || frame || col;
-      syncHolidayBadge(badgeTarget, iso);
+      // The column is tinted; the badge itself sits in the all-day row (a day-grid cell) only,
+      // so a holiday is not named twice in Week and Day views.
     });
     calendarEl.querySelectorAll('.fc-col-header-cell[data-date]').forEach(cell => {
       const iso = getIsoDate(cell.getAttribute('data-date'));
@@ -1023,6 +1052,22 @@
   const opts = {
     initialView: 'dayGridMonth',
     headerToolbar: false,
+    // Dates read as elsewhere in PRISM ("19 Oct 2026", "Mon 19 Oct"), not US month/day.
+    locale: 'en-GB',
+    views: {
+      timeGridWeek: {
+        titleFormat: { day: 'numeric', month: 'short', year: 'numeric' },
+        dayHeaderFormat: { weekday: 'short', day: 'numeric', month: 'short' }
+      },
+      timeGridDay: {
+        titleFormat: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
+        dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'long' }
+      },
+      listMonth: {
+        listDayFormat: { day: 'numeric', month: 'long', year: 'numeric' },
+        listDaySideFormat: { weekday: 'long' }
+      }
+    },
     firstDay: 1,
     height: 'auto',
     fixedWeekCount: false,
@@ -1065,11 +1110,20 @@
       failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
     eventContent(info) {
+      if (info.event.extendedProps?.isHoliday) {
+        return buildHolidayListContent(info.event);
+      }
       return info.event.extendedProps?.isCelebration
         ? buildCelebrationEventContent(info.event)
         : buildStandardEventContent(info);
     },
     eventDidMount(info) {
+      if (info.event.extendedProps.isHoliday) {
+        const tooltip = info.event.extendedProps.tooltip || info.event.title;
+        info.el.setAttribute('title', tooltip);
+        info.el.setAttribute('aria-label', tooltip.replace(/\n/g, '. '));
+        return;
+      }
       const isCelebration = !!info.event.extendedProps.isCelebration;
       const celebrationPresentation = isCelebration
         ? getCelebrationPresentation(info.event)
@@ -1224,24 +1278,8 @@
       if (controller.signal.aborted) return;
       holidayMap.clear();
       items.forEach(item => {
-        const iso = getIsoDate(item?.date || item?.Date);
-        if (!iso) return;
-        const entries = (item?.entries || item?.Entries || []).map(normaliseHolidayEntry);
-        // Compatibility with the pre-classification endpoint during rolling deployments.
-        if (entries.length === 0 && (item?.name || item?.Name)) {
-          entries.push(normaliseHolidayEntry({
-            name: item?.name || item?.Name,
-            type: 'Gazetted',
-            isObservedAsOfficeHoliday: true,
-            affectsSchedule: true
-          }));
-        }
-        holidayMap.set(iso, {
-          date: iso,
-          isOfficeClosed: item?.isOfficeClosed ?? item?.IsOfficeClosed ?? entries.some(entry => entry.affectsSchedule),
-          closureType: item?.closureType ?? item?.ClosureType ?? (entries.some(entry => entry.type === 'Gazetted') ? 'Gazetted' : null),
-          entries
-        });
+        const meta = holidayMetaFromItem(item);
+        if (meta) holidayMap.set(meta.date, meta);
       });
       holidayRangeKey = key;
       refreshHolidayHighlights();
@@ -1302,6 +1340,71 @@
   }
 
   setCelebrationsStateLocal(showCelebrations);
+
+  // SECTION: Holidays as rows in List view. List view shows only days that have events, so a
+  // holiday on an otherwise empty day (often a gazetted, office-closed one) would not appear.
+  // Other views keep showing holidays as tinted cells with a badge.
+  const holidayLabel = (state) => state === 'gazetted'
+    ? 'Gazetted holiday'
+    : state === 'rh-observed' ? 'RH · office holiday' : 'RH';
+
+  function toHolidayListEvent(item) {
+    const meta = holidayMetaFromItem(item);
+    if (!meta) return null;
+    const state = holidayVisualState(meta) || 'rh-info';
+    return {
+      id: `holiday-${meta.date}`,
+      title: meta.entries.map(entry => entry.name).join(' · '),
+      start: meta.date,
+      allDay: true,
+      editable: false,
+      startEditable: false,
+      durationEditable: false,
+      classNames: ['pm-list-holiday', `pm-list-holiday--${state}`],
+      extendedProps: { isHoliday: true, holidayLabel: holidayLabel(state), tooltip: buildHolidayTooltip(meta) }
+    };
+  }
+
+  function buildHolidayListContent(event) {
+    const wrap = document.createElement('span');
+    wrap.className = 'pm-list-holiday__content';
+    const label = document.createElement('span');
+    label.className = 'pm-list-holiday__label';
+    label.textContent = event.extendedProps.holidayLabel || 'Holiday';
+    const name = document.createElement('span');
+    name.className = 'pm-list-holiday__name';
+    name.textContent = event.title;
+    wrap.append(label, name);
+    return { domNodes: [wrap] };
+  }
+
+  const holidayListSource = calendar.addEventSource({
+    id: 'holidays-list',
+    events(info, successCallback) {
+      if (!(calendar.view?.type || '').startsWith('list')) {
+        successCallback([]);
+        return;
+      }
+      loadHolidayEvents(info)
+        .then(items => successCallback(items.map(toHolidayListEvent).filter(Boolean)))
+        .catch(err => {
+          // The day tints and badges still show holidays; the list simply lacks the rows.
+          console.error('Holiday list rows failed', err);
+          successCallback([]);
+        });
+    }
+  });
+
+  // Switching between List and another view keeps the same dates, so FullCalendar does not
+  // fetch again; refetch the holiday rows whenever the kind of view changes.
+  let holidayListViewKind = null;
+  calendar.on('datesSet', (info) => {
+    const kind = (info.view?.type || '').startsWith('list') ? 'list' : 'grid';
+    if (kind !== holidayListViewKind) {
+      holidayListViewKind = kind;
+      holidayListSource.refetch();
+    }
+  });
 
   // title handling
   const lblTitle = document.getElementById('calTitle');
@@ -1393,6 +1496,7 @@
     const baseCategories = ['Visit', 'Insp', 'Conference', 'Other', 'Birthday', 'Anniversary'];
     const counts = Object.fromEntries(baseCategories.map(cat => [cat, 0]));
     calendar.getEvents().forEach(ev => {
+      if (ev.extendedProps.isHoliday) return;
       const key = canon(ev.extendedProps.category);
       counts[key] = (counts[key] || 0) + 1;
     });
@@ -1566,6 +1670,7 @@
     let editingOriginal = null;
 
     calendar.setOption('eventClick', async (arg) => {
+      if (arg.event.extendedProps?.isHoliday) return;
       if (!form) return;
       const ev = arg.event;
 
@@ -1860,6 +1965,7 @@
   } else {
     // Read-only event details for non-editors
     calendar.setOption('eventClick', async (arg) => {
+      if (arg.event.extendedProps?.isHoliday) return;
       const ev = arg.event;
 
       if (ev.extendedProps.isCelebration) {

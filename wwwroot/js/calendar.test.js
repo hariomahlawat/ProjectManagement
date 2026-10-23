@@ -560,3 +560,104 @@ test('celebration details show one date, annual recurrence, and no task action',
     assert.ok(window.document.getElementById('eventDetailsIcon').classList.contains('is-birthday'));
     assert.ok(shown, 'details offcanvas should open');
 });
+
+function loadCalendar(bodyHtml, holidays) {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false">${bodyHtml}</div>
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+    window.fetch = async (url) => ({
+        ok: true,
+        status: 200,
+        json: async () => (url.toString().includes('/holidays') ? holidays : [])
+    });
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    return window;
+}
+
+const gazettedHoliday = [{
+    date: '2024-12-25',
+    isOfficeClosed: true,
+    closureType: 'Gazetted',
+    entries: [{ id: 1, name: 'Founders Day', type: 'Gazetted', isObservedAsOfficeHoliday: true, affectsSchedule: true }]
+}];
+
+test('dates read as elsewhere in PRISM, not US month/day', async () => {
+    loadCalendar('', []);
+    await new Promise(resolve => setTimeout(resolve, 25));
+
+    const options = FakeCalendar.lastInstance.opts;
+    assert.equal(options.locale, 'en-GB');
+    assert.equal(JSON.stringify(options.views.timeGridWeek.dayHeaderFormat), JSON.stringify({ weekday: 'short', day: 'numeric', month: 'short' }));
+    assert.equal(JSON.stringify(options.views.listMonth.listDayFormat), JSON.stringify({ day: 'numeric', month: 'long', year: 'numeric' }));
+});
+
+test('holidays are rows of their own in List view only, and never open the editor', async () => {
+    const window = loadCalendar('', gazettedHoliday);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const calendar = FakeCalendar.lastInstance;
+    const source = calendar._sources.find(s => s.id === 'holidays-list');
+    assert.ok(source, 'a holiday list source is registered');
+    const fetchRows = () => new Promise(resolve => source.events(
+        { startStr: '2024-12-01T00:00:00.000Z', endStr: '2024-12-31T23:59:59.999Z' }, resolve, resolve));
+
+    calendar.view.type = 'dayGridMonth';
+    assert.equal((await fetchRows()).length, 0, 'grid views keep holidays as tinted cells only');
+
+    calendar.view.type = 'listMonth';
+    const rows = await fetchRows();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].title, 'Founders Day');
+    assert.equal(rows[0].start, '2024-12-25');
+    assert.equal(rows[0].allDay, true);
+    assert.equal(rows[0].editable, false);
+    assert.equal(rows[0].extendedProps.isHoliday, true);
+    assert.equal(rows[0].extendedProps.holidayLabel, 'Gazetted holiday');
+
+    const content = calendar.opts.eventContent({ event: { title: 'Founders Day', extendedProps: rows[0].extendedProps } });
+    assert.equal(content.domNodes[0].querySelector('.pm-list-holiday__label').textContent, 'Gazetted holiday');
+
+    // The click handler ignores holiday rows (read-only or editor variant, whichever is set).
+    let opened = false;
+    window.bootstrap = { Offcanvas: { getOrCreateInstance: () => ({ show: () => { opened = true; } }) } };
+    await calendar.opts.eventClick?.({ event: { title: 'Founders Day', extendedProps: { isHoliday: true } }, jsEvent: { preventDefault() {} } });
+    assert.equal(opened, false);
+});
+
+test('Week and Day time columns are tinted for a holiday but carry no second badge', async () => {
+    const window = loadCalendar(`
+        <div class="fc-timegrid-col fc-day" data-date="2024-12-25"><div class="fc-timegrid-col-frame"></div></div>`, gazettedHoliday);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const calendar = FakeCalendar.lastInstance;
+    const col = window.document.querySelector('.fc-timegrid-col');
+    calendar.opts.dayCellDidMount({ el: col, date: new Date('2024-12-25T00:00:00Z'), dateStr: '2024-12-25' });
+
+    assert.ok(col.classList.contains('pm-holiday--gazetted'));
+    assert.equal(window.document.querySelectorAll('.pm-holiday-badge').length, 0);
+});
+
+test('List holiday rows also read the pre-classification payload (date and name only)', async () => {
+    loadCalendar('', [{ date: '2024-12-25', name: 'Founders Day' }]);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const calendar = FakeCalendar.lastInstance;
+    const source = calendar._sources.find(s => s.id === 'holidays-list');
+    calendar.view.type = 'listMonth';
+
+    const rows = await new Promise(resolve => source.events(
+        { startStr: '2024-12-01T00:00:00.000Z', endStr: '2024-12-31T23:59:59.999Z' }, resolve, resolve));
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].title, 'Founders Day');
+    assert.equal(rows[0].extendedProps.holidayLabel, 'Gazetted holiday');
+});

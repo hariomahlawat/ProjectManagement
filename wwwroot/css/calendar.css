@@ -664,6 +664,18 @@
 .pm-holiday-badge--rh-observed { border-color: rgba(245, 158, 11, .55); border-style: dashed; background: rgba(254, 243, 199, .92); color: #92400e; }
 .pm-holiday-badge--rh-info { border-color: rgba(124, 58, 237, .55); background: var(--pm-card, #fff); color: #6d28d9; }
 
+/* SECTION: Holiday rows in List view: a label in the holiday's colour, then its name. */
+.fc .fc-list-event.pm-list-holiday { cursor: default; }
+.fc .fc-list-event.pm-list-holiday:hover td { background: transparent; }
+.fc .fc-list-event.pm-list-holiday .fc-list-event-dot { border-color: var(--pm-border); }
+.fc .pm-list-holiday--gazetted .fc-list-event-dot { border-color: var(--pm-danger); }
+.fc .pm-list-holiday--rh-observed .fc-list-event-dot { border-color: var(--pm-warning); }
+.pm-list-holiday__content { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .5rem; }
+.pm-list-holiday__label { font-size: .72rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--pm-text-secondary); }
+.pm-list-holiday--gazetted .pm-list-holiday__label { color: var(--pm-danger); }
+.pm-list-holiday--rh-observed .pm-list-holiday__label { color: var(--pm-status-warning-text); }
+.pm-list-holiday__name { font-weight: 600; color: var(--pm-text-strong, var(--pm-text)); }
+
 .fc .fc-daygrid-day-top {
   display: flex;
   align-items: center;
@@ -1951,14 +1963,21 @@
     box-shadow: 0 0 0 2px rgba(133, 170, 224, 0.27);
 }
 
+/* Dark: a light tint and a coloured edge mark the day; the badge carries the readable text. */
 :where([data-bs-theme="dark"]) .fc .pm-holiday--gazetted {
-    background-image: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(248, 113, 113, 0.17));
-    box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.6);
+    background-image: linear-gradient(135deg, rgba(248, 113, 113, 0.1), rgba(248, 113, 113, 0.06));
+    box-shadow: inset 3px 0 0 rgba(248, 113, 113, 0.6);
 }
 
 :where([data-bs-theme="dark"]) .fc .pm-holiday--rh-observed {
-    background-image: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.17));
-    box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.6);
+    background-image: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(251, 191, 36, 0.06));
+    box-shadow: inset 3px 0 0 rgba(251, 191, 36, 0.6);
+}
+
+/* The month cell and its inner frame both carry the holiday class; tint once, not twice. */
+:where([data-bs-theme="dark"]) .fc .fc-daygrid-day.pm-holiday .fc-daygrid-day-frame.pm-holiday {
+    background-image: none;
+    box-shadow: none;
 }
 
 :where([data-bs-theme="dark"]) .fc .fc-timegrid-col.pm-holiday--gazetted .fc-timegrid-col-frame,
@@ -1972,31 +1991,32 @@
 }
 
 :where([data-bs-theme="dark"]) .fc .pm-holiday--gazetted .fc-daygrid-day-number {
-    color: #f87171;
-    background: rgba(248, 113, 113, 0.3);
-    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.45);
+    color: #fecaca;
+    background: var(--pm-card);
+    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.6);
 }
 
 :where([data-bs-theme="dark"]) .fc .pm-holiday--rh-observed .fc-daygrid-day-number {
-    color: #f2a373;
-    background: rgba(251, 191, 36, 0.3);
-    box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45);
+    color: #fde68a;
+    background: var(--pm-card);
+    box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.6);
 }
 
 :where([data-bs-theme="dark"]) .fc .pm-holiday--rh-info .fc-daygrid-day-number {
     color: #a77de8;
 }
 
+/* Solid dark badges with light text, so the label stays readable over the tinted cell. */
 :where([data-bs-theme="dark"]) .pm-holiday-badge--gazetted {
-    border-color: rgba(248, 113, 113, 0.45);
-    background: rgba(248, 113, 113, 0.3);
-    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.6);
+    background: var(--pm-card);
+    color: #fecaca;
 }
 
 :where([data-bs-theme="dark"]) .pm-holiday-badge--rh-observed {
-    border-color: rgba(251, 191, 36, 0.45);
-    background: rgba(251, 191, 36, 0.3);
-    color: #f2a373;
+    border-color: rgba(251, 191, 36, 0.6);
+    background: var(--pm-card);
+    color: #fde68a;
 }
 
 :where([data-bs-theme="dark"]) .pm-holiday-badge--rh-info {
