@@ -27,7 +27,10 @@ public sealed record ChatMessageDto(
     Guid ClientMessageId,
     string Body,
     DateTimeOffset SentUtc,
-    bool IsUnsent = false);
+    bool IsUnsent = false,
+    long? GroupId = null,
+    string? EventKind = null,
+    string? EventData = null);
 
 /// <summary>
 /// A page of one conversation, oldest first. HasMore: older messages exist before this page.
@@ -65,11 +68,49 @@ public sealed record ChatStatusRequest(string? Message);
 /// </summary>
 public sealed record ChatUnsentPageDto(IReadOnlyList<long> Ids, bool HasMore);
 
-/// <summary>One search hit: the message and who the conversation is with.</summary>
+/// <summary>
+/// One search hit: the message and its conversation (PeerUserId for a direct one, GroupId for a
+/// group; PeerDisplayName carries the person's or the group's name).
+/// </summary>
 public sealed record ChatSearchHitDto(
     long MessageId,
     string PeerUserId,
     string PeerDisplayName,
     string SenderUserId,
     string Body,
-    DateTimeOffset SentUtc);
+    DateTimeOffset SentUtc,
+    long? GroupId = null);
+
+// ---------------- Groups
+
+public sealed record ChatGroupSummaryDto(
+    long Id,
+    string Title,
+    string ManagerUserId,
+    int MemberCount,
+    int UnreadCount,
+    DateTimeOffset? LastMessageUtc);
+
+public sealed record ChatGroupMemberDto(string UserId, string DisplayName, string Initials, bool IsActive, long? LastReadMessageId);
+
+public sealed record ChatGroupDto(long Id, string Title, string ManagerUserId, IReadOnlyList<ChatGroupMemberDto> Members);
+
+public sealed record ChatGroupHistoryDto(
+    long GroupId,
+    IReadOnlyList<ChatMessageDto> Messages,
+    bool HasMore,
+    bool HasNewer,
+    IReadOnlyList<ChatGroupMemberDto> Members);
+
+public sealed record ChatGroupCreateRequest(string? Title, IReadOnlyList<string>? MemberUserIds);
+
+public sealed record ChatGroupMembersRequest(IReadOnlyList<string>? UserIds);
+
+public sealed record ChatGroupRenameRequest(string? Title);
+
+public sealed record ChatGroupSendRequest(Guid ClientMessageId, string? Body);
+
+/// <summary>Someone in a group read up to a message (for "Seen by").</summary>
+public sealed record ChatGroupReadDto(long GroupId, string UserId, long UpToMessageId);
+
+public sealed record ChatGroupTypingDto(long GroupId, string UserId);

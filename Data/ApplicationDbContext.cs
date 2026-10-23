@@ -4297,9 +4297,18 @@ namespace ProjectManagement.Data
             builder.Entity<ChatConversation>(e =>
             {
                 e.ToTable("ChatConversations", t =>
-                    t.HasCheckConstraint("CK_ChatConversations_Kind", "\"Kind\" IN ('Direct')"));
+                {
+                    t.HasCheckConstraint("CK_ChatConversations_Kind", "\"Kind\" IN ('Direct','Group')");
+                    // A direct conversation is keyed by its pair; a group has a name and a manager.
+                    t.HasCheckConstraint(
+                        "CK_ChatConversations_Shape",
+                        "(\"Kind\" = 'Direct' AND \"DirectKey\" IS NOT NULL AND \"Title\" IS NULL) OR " +
+                        "(\"Kind\" = 'Group' AND \"DirectKey\" IS NULL AND \"Title\" IS NOT NULL)");
+                });
                 e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
                 e.Property(x => x.DirectKey).HasMaxLength(901);
+                e.Property(x => x.Title).HasMaxLength(ChatConversation.MaxTitleLength);
+                e.Property(x => x.ManagerUserId).HasMaxLength(450);
                 e.HasIndex(x => x.DirectKey).IsUnique();
             });
 
@@ -4329,9 +4338,17 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.SenderUserId, x.ClientMessageId }).IsUnique();
                 // An unsent message keeps its row (so ids, read markers and ticks stay consistent)
                 // but loses its text.
-                e.ToTable(t => t.HasCheckConstraint(
-                    "CK_ChatMessages_UnsentHasNoBody",
-                    "\"UnsentUtc\" IS NULL OR \"Body\" = ''"));
+                e.ToTable(t =>
+                {
+                    t.HasCheckConstraint(
+                        "CK_ChatMessages_UnsentHasNoBody",
+                        "\"UnsentUtc\" IS NULL OR \"Body\" = ''");
+                    t.HasCheckConstraint(
+                        "CK_ChatMessages_Event",
+                        "\"EventKind\" IS NULL OR (\"EventKind\" IN ('Created','Added','Removed','Left','Renamed') AND \"Body\" = '')");
+                });
+                e.Property(x => x.EventKind).HasMaxLength(16);
+                e.Property(x => x.EventData).HasMaxLength(ChatGroupEvent.MaxDataLength);
                 e.HasOne(x => x.Conversation)
                     .WithMany()
                     .HasForeignKey(x => x.ConversationId)

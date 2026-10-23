@@ -5,14 +5,20 @@
  * Server contract (Features/Chat/ChatApi.cs, Hubs/ChatHub.cs):
  *   GET  {api}/contacts                         buddy list with presence and unread counts
  *   GET  {api}/with/{peer}/messages?before=&after=&limit=
- *   GET  {api}/search?q=                        message search across the user's conversations
+ *   GET  {api}/search?q=&groups=true            message search across the user's conversations
  *   POST {api}/messages                         { recipientUserId, clientMessageId, body }
  *   POST {api}/with/{peer}/read                 { upToMessageId }
  *   GET/POST {api}/status                       { message } (own status message)
  *   POST {api}/messages/{id}/unsend             own message, shortly after sending
  *   GET  {api}/unsent?since=                    ids unsent while this page was not listening
+ *   GET/POST {api}/groups, GET {api}/groups/{id}, …/messages, …/read, …/members,
+ *            …/members/{user}/remove, …/leave, …/rename      group chats (410 = not in the group)
  *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing /
- *             MessageUnsent / StatusChanged
+ *             MessageUnsent / StatusChanged / ReceiveGroupMessage / GroupMessageUnsent /
+ *             GroupChanged / GroupRemoved / GroupRead / GroupTyping
+ *   hub  out: also TypingInGroup(groupId)
+ *
+ * Conversations are keyed by the other person's user id (direct) or "g:{groupId}" (group).
  *   hub  out: Typing(peerUserId), SetAway(bool)  (ephemeral signals only; nothing is stored)
  *
  * Every piece of user text is written with textContent; nothing from the server is parsed as HTML.
@@ -34,6 +40,7 @@
   const IDLE_CHECK_MS = 30000;
   const SEARCH_DELAY_MS = 300;
   const UNSENT_RETRY_MS = 15000;
+  const GROUP_LIMIT = 50; // people in a group, the creator included (ChatConversation.MaxGroupMembers)
   const SERVER_TIMEOUT_MS = 90000; // how long a silent drop can go unnoticed
   // Catch-up looks back this far before the moment a drop was noticed: the whole detection
   // window, plus a minute for clock differences between browser and server.
@@ -194,7 +201,36 @@
     return this.timer !== null;
   };
 
+  const GROUP_PREFIX = 'g:';
+
+  function groupKey(id) {
+    return `${GROUP_PREFIX}${id}`;
+  }
+
+  /** The group id in a conversation key, or 0 for a direct conversation. */
+  function groupIdOf(key) {
+    return typeof key === 'string' && key.startsWith(GROUP_PREFIX) ? Number(key.slice(GROUP_PREFIX.length)) || 0 : 0;
+  }
+
+  /** The other members who have read up to messageId (group read receipts). */
+  function seenBy(members, me, messageId) {
+    return (members || []).filter((m) => m.userId !== me && (m.lastReadMessageId || 0) >= messageId);
+  }
+
+  function peopleCount(n) {
+    return `${n} ${n === 1 ? 'person' : 'people'}`;
+  }
+
+  /** "Ravi is typing…", "Ravi and Sita are typing…", "3 people are typing…". */
+  function typingLine(names) {
+    if (!names.length) return '';
+    if (names.length === 1) return `${names[0]} is typing…`;
+    if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
+    return `${names.length} people are typing…`;
+  }
+
   global.PMChatInternals = {
+    groupKey, groupIdOf, seenBy, typingLine, peopleCount,
     newClientId, dayLabel, shortStamp, sortContacts, filterContacts, conversationList,
     windowCapacity, mergeMessages, fetchSince, highlightParts, TitleFlasher,
   };
@@ -233,7 +269,15 @@
     return wrap;
   }
 
+  function groupAvatar(title) {
+    const wrap = el('span', 'pm-chat__avatar is-group');
+    wrap.append(icon('people-fill'));
+    wrap.title = title || '';
+    return wrap;
+  }
+
   function setPresence(avatarNode, contact) {
+    if (avatarNode.classList.contains('is-group')) return;
     const dot = avatarNode.querySelector('.pm-chat__presence');
     const online = !!(contact && contact.isOnline);
     dot.classList.toggle('is-online', online && !contact.isAway);
@@ -318,7 +362,8 @@
     this.soundKey = `prism.chat.sound.${this.me}`;
     this.dingKey = `prism.chat.ding.${this.me}`;
     this.contacts = new Map();
-    this.windows = new Map(); // peerId -> window state (docked, or the one embedded in the Messages page)
+    this.groups = new Map(); // groupId -> { id, title, managerUserId, memberCount, unreadCount, lastMessageUtc }
+    this.windows = new Map(); // conversation key -> window state (docked, or embedded in the Messages page)
     this.order = []; // docked peer ids, most recently opened first
     this.buddyOpen = false;
     this.connection = null;
@@ -363,9 +408,11 @@
     this.buddyOpen = !!saved.buddyOpen;
     this.renderBuddyVisibility();
 
-    this.refreshContacts().then(() => {
+    Promise.all([this.refreshContacts(), this.refreshGroups()]).then(() => {
       (saved.open || []).slice().reverse().forEach((entry) => {
-        if (this.contacts.has(entry.id)) this.openWindow(entry.id, { minimized: !!entry.minimized, focus: false, restore: true });
+        const gid = groupIdOf(entry.id);
+        const known = gid ? this.groups.has(gid) : this.contacts.has(entry.id);
+        if (known) this.openWindow(entry.id, { minimized: !!entry.minimized, focus: false, restore: true });
       });
       if (this.page) this.page.start();
     });
@@ -497,6 +544,13 @@
     connection.on('Typing', (typing) => this.onTyping(typing));
     connection.on('MessageUnsent', (message) => this.onUnsent(message));
     connection.on('StatusChanged', (status) => this.onStatus(status));
+    // Group messages come on their own events, so pages from before group chats never see them.
+    connection.on('ReceiveGroupMessage', (message) => this.onMessage(message));
+    connection.on('GroupMessageUnsent', (message) => this.onUnsent(message));
+    connection.on('GroupChanged', (group) => this.onGroupChanged(group));
+    connection.on('GroupRemoved', (groupId) => this.onGroupRemoved(groupId));
+    connection.on('GroupRead', (read) => this.onGroupRead(read));
+    connection.on('GroupTyping', (typing) => this.onGroupTyping(typing));
     connection.onreconnecting(() => {
       this.markOffline();
       this.startPolling();
@@ -548,6 +602,7 @@
     this.markOffline();
     this.pollTimer = global.setInterval(() => {
       this.refreshContacts();
+      this.refreshGroups();
       this.windows.forEach((w) => this.loadLatest(w));
       this.syncUnsent();
     }, POLL_MS);
@@ -603,6 +658,7 @@
     if (this.away) this.signal('SetAway', true);
     this.syncUnsent(true);
     this.refreshContacts();
+    this.refreshGroups();
     this.windows.forEach((w) => this.loadLatest(w));
   };
 
@@ -641,31 +697,50 @@
 
   // ----- incoming ----------------------------------------------------------------------
 
+  /** The conversation a message belongs to: "g:{id}" for a group, else the other person's id. */
+  ChatApp.prototype.keyOfMessage = function (message) {
+    if (message.groupId) return groupKey(message.groupId);
+    return message.senderUserId === this.me ? message.recipientUserId : message.senderUserId;
+  };
+
   ChatApp.prototype.onMessage = function (message) {
-    const peerId = message.senderUserId === this.me ? message.recipientUserId : message.senderUserId;
+    const key = this.keyOfMessage(message);
     const incoming = message.senderUserId !== this.me;
-    const contact = this.contacts.get(peerId);
-    if (contact) {
-      contact.lastMessageUtc = message.sentUtc;
+    // Group notices ("Ravi added Sita") are shown but neither counted nor announced.
+    const countable = incoming && !message.eventKind;
+    const group = message.groupId ? this.groups.get(message.groupId) : null;
+    const contact = message.groupId ? null : this.contacts.get(key);
+    if (message.groupId) {
+      if (group) group.lastMessageUtc = message.sentUtc;
+      else this.refreshGroups(); // a group this tab does not know yet (just added to it)
+    } else {
+      if (contact) {
+        contact.lastMessageUtc = message.sentUtc;
+      }
+      if (!contact || (incoming && !contact.isActive)) {
+        // Someone this tab has not seen yet, or still holds as inactive, is writing: the account
+        // was created or reactivated since. Fetch their details so the window shows their name
+        // and lets the user reply. The refresh replaces unread counts with the server's.
+        this.refreshContacts();
+      }
     }
-    if (!contact || (incoming && !contact.isActive)) {
-      // Someone this tab has not seen yet, or still holds as inactive, is writing: the account
-      // was created or reactivated since. Fetch their details so the window shows their name
-      // and lets the user reply. The refresh replaces unread counts with the server's.
-      this.refreshContacts();
-    }
+    const counter = group || contact;
 
-    let win = this.windows.get(peerId);
-    if (!win && incoming) {
+    let win = this.windows.get(key);
+    if (!win && countable) {
       // Classic behaviour: a new message pops its conversation open.
-      win = this.openWindow(peerId, { focus: false });
+      win = this.openWindow(key, { focus: false });
     }
 
-    let fresh = incoming;
+    let fresh = countable;
     if (win) {
       const known = win.messages.some((m) => m.id === message.id);
-      fresh = incoming && !known;
-      if (incoming) win.typingUntil = 0; // the message they were typing has arrived
+      fresh = countable && !known;
+      if (incoming) {
+        // The message they were typing has arrived.
+        win.typingUntil = 0;
+        win.typers.delete(message.senderUserId);
+      }
       // A conversation opened at an old message (from search) shows a slice of history; the
       // newest message is reached with "Show newer messages", so don't paste it below a gap.
       this.acceptSaved(win, [message]);
@@ -673,22 +748,24 @@
         win.attention = true;
       }
       this.renderWindowState(win);
-      if (fresh && contact) contact.unreadCount += 1;
+      if (fresh && counter) counter.unreadCount += 1;
       this.maybeMarkRead(win);
-    } else if (incoming && contact) {
-      contact.unreadCount += 1;
+    } else if (countable && counter) {
+      counter.unreadCount += 1;
     }
 
     if (fresh && !(win && this.isAttended(win))) {
-      this.alert(message, contact);
+      this.alert(message, contact, group);
     }
 
     this.renderContacts();
   };
 
   /** Sound and title flash for a message the person is not looking at. */
-  ChatApp.prototype.alert = function (message, contact) {
-    const name = contact ? contact.displayName : 'Someone';
+  ChatApp.prototype.alert = function (message, contact, group) {
+    const name = group
+      ? `${this.nameOf(message.senderUserId)} in ${group.title}`
+      : (contact ? contact.displayName : 'Someone');
     if (document.visibilityState === 'hidden' || !document.hasFocus()) {
       this.title.start(`${name} says…`);
     }
@@ -726,9 +803,7 @@
     }
     this.renderContacts();
     // Read in another tab: nothing left to call attention to here.
-    let total = 0;
-    this.contacts.forEach((c) => { total += c.unreadCount; });
-    if (total === 0) this.title.stop();
+    if (this.unreadTotal() === 0) this.title.stop();
   };
 
   /** The other person has read up to a message: tick our messages as seen. */
@@ -755,13 +830,14 @@
 
   /** A message was unsent (by this user in another tab, or by the other person). */
   ChatApp.prototype.onUnsent = function (message) {
-    const peerId = message.senderUserId === this.me ? message.recipientUserId : message.senderUserId;
     this.unsentIds.add(message.id); // also for a window opened later, or one still loading
-    const win = this.windows.get(peerId);
+    const win = this.windows.get(this.keyOfMessage(message));
     if (win) this.applyUnsent(win, message);
     if (this.page) this.page.refreshResults();
     // An unread message that was unsent no longer counts; the server has the exact number.
-    if (message.senderUserId !== this.me) this.refreshContacts();
+    if (message.senderUserId !== this.me) {
+      if (message.groupId) this.refreshGroups(); else this.refreshContacts();
+    }
   };
 
   ChatApp.prototype.applyUnsent = function (win, message) {
@@ -793,6 +869,134 @@
     this.renderContacts();
     const win = this.windows.get(status.userId);
     if (win) this.renderWindowState(win);
+  };
+
+  // ----- groups ------------------------------------------------------------------------
+
+  /** Overlapping calls share one request, plus at most one follow-up (like refreshContacts). */
+  ChatApp.prototype.refreshGroups = function () {
+    if (this.groupsRequest) {
+      this.groupsAgain = true;
+      return this.groupsRequest;
+    }
+    this.groupsRequest = this.loadGroups().finally(() => {
+      this.groupsRequest = null;
+      if (this.groupsAgain) {
+        this.groupsAgain = false;
+        this.refreshGroups();
+      }
+    });
+    return this.groupsRequest;
+  };
+
+  ChatApp.prototype.loadGroups = async function () {
+    if (this.stopped) return;
+    try {
+      const groups = await this.request('GET', '/groups');
+      this.groups = new Map(groups.map((g) => [g.id, g]));
+      this.windows.forEach((w) => {
+        if (!w.groupId) return;
+        const g = this.groups.get(w.groupId);
+        w.removed = !g;
+        if (g && g.unreadCount > 0 && !this.isAttended(w)) w.attention = true;
+        this.renderWindowState(w);
+      });
+      this.renderContacts();
+    } catch (_) { /* the list keeps what it had */ }
+  };
+
+  /** A group this user is in was created or changed: name, manager, members. */
+  ChatApp.prototype.onGroupChanged = function (group) {
+    const summary = this.groups.get(group.id) || { id: group.id, unreadCount: 0, lastMessageUtc: null };
+    summary.title = group.title;
+    summary.managerUserId = group.managerUserId;
+    summary.memberCount = group.members.length;
+    this.groups.set(group.id, summary);
+    const win = this.windows.get(groupKey(group.id));
+    if (win) {
+      win.members = group.members;
+      win.removed = false;
+      this.renderWindowState(win);
+      this.renderMessages(win, { stickToBottom: false });
+      if (win.panelOpen) this.renderMembersPanel(win);
+    }
+    this.renderContacts();
+  };
+
+  /** Left, or removed: the group is gone for this user, its window keeps what it showed. */
+  ChatApp.prototype.onGroupRemoved = function (groupId) {
+    this.groups.delete(groupId);
+    const win = this.windows.get(groupKey(groupId));
+    if (win) {
+      win.removed = true;
+      win.panelOpen = false;
+      this.renderWindowState(win);
+    }
+    this.renderContacts();
+  };
+
+  ChatApp.prototype.onGroupRead = function (read) {
+    const win = this.windows.get(groupKey(read.groupId));
+    const group = this.groups.get(read.groupId);
+    if (win) {
+      const member = (win.members || []).find((m) => m.userId === read.userId);
+      if (member) member.lastReadMessageId = Math.max(member.lastReadMessageId || 0, read.upToMessageId);
+    }
+    if (read.userId === this.me) {
+      // Read in another tab of this user.
+      if (win) {
+        win.lastReadId = Math.max(win.lastReadId || 0, read.upToMessageId);
+        win.attention = false;
+        this.renderWindowState(win);
+      }
+      if (group && win && win.hasNewer) {
+        this.refreshGroups();
+      } else if (group) {
+        group.unreadCount = win
+          ? win.messages.filter((m) => m.id && m.senderUserId !== this.me && !m.eventKind && m.id > win.lastReadId).length
+          : 0;
+      }
+      this.renderContacts();
+      if (this.unreadTotal() === 0) this.title.stop();
+    }
+    if (win) this.renderMessages(win, { stickToBottom: false });
+  };
+
+  ChatApp.prototype.onGroupTyping = function (typing) {
+    const win = this.windows.get(groupKey(typing.groupId));
+    if (!win) return;
+    win.typers.set(typing.userId, Date.now() + TYPING_SHOW_MS);
+    this.renderWindowState(win);
+    if (win.typingTimer) global.clearTimeout(win.typingTimer);
+    win.typingTimer = global.setTimeout(() => this.renderWindowState(win), TYPING_SHOW_MS + 50);
+  };
+
+  /** A person's name as this page knows it: "You", a contact, or a member of the window's group. */
+  ChatApp.prototype.nameOf = function (userId, win) {
+    if (userId === this.me) return 'You';
+    const contact = this.contacts.get(userId);
+    if (contact) return contact.displayName;
+    const member = win && (win.members || []).find((m) => m.userId === userId);
+    return member ? member.displayName : 'Someone';
+  };
+
+  ChatApp.prototype.describeEvent = function (win, message) {
+    const actor = this.nameOf(message.senderUserId, win);
+    switch (message.eventKind) {
+      case 'Created': return `${actor} created the group “${message.eventData}”`;
+      case 'Added': return `${actor} added ${this.nameOf(message.eventData, win)}`;
+      case 'Removed': return `${actor} removed ${this.nameOf(message.eventData, win)}`;
+      case 'Left': return `${actor} left the group`;
+      case 'Renamed': return `${actor} renamed the group to “${message.eventData}”`;
+      default: return '';
+    }
+  };
+
+  ChatApp.prototype.unreadTotal = function () {
+    let total = 0;
+    this.contacts.forEach((c) => { total += c.unreadCount; });
+    this.groups.forEach((g) => { total += g.unreadCount || 0; });
+    return total;
   };
 
   ChatApp.prototype.onTyping = function (typing) {
@@ -867,11 +1071,26 @@
     searchWrap.append(search);
     this.search = search;
 
+    const newGroup = el('button', 'btn btn-link btn-sm pm-chat__new-group');
+    newGroup.type = 'button';
+    newGroup.append(icon('people'), ' New group');
+    newGroup.addEventListener('click', () => this.openGroupForm());
+    searchWrap.append(newGroup);
+
+    this.groupForm = el('form', 'pm-chat__group-form');
+    this.groupForm.hidden = true;
+
+    const scroller = el('div', 'pm-chat__scroller');
+    this.groupHeading = el('h3', 'pm-chat__section', 'Groups');
+    this.groupList = el('ul', 'pm-chat__contacts pm-chat__groups');
+    this.groupList.setAttribute('role', 'list');
+    this.peopleHeading = el('h3', 'pm-chat__section', 'People');
     this.list = el('ul', 'pm-chat__contacts');
     this.list.setAttribute('role', 'list');
     this.emptyNote = el('p', 'pm-chat__empty', 'Loading…');
+    scroller.append(this.groupHeading, this.groupList, this.peopleHeading, this.list, this.emptyNote);
 
-    buddy.append(header, statusWrap, searchWrap, this.list, this.emptyNote);
+    buddy.append(header, statusWrap, searchWrap, this.groupForm, scroller);
     this.buddy = buddy;
 
     this.windowRow = el('div', 'pm-chat__windows');
@@ -996,8 +1215,124 @@
 
     this.emptyNote.hidden = shown.length > 0;
     this.emptyNote.textContent = all.length ? 'No one matches that search.' : 'No other users yet.';
+    this.renderGroupList();
     this.renderLauncherBadge();
     if (this.page) this.page.renderConversations();
+  };
+
+  ChatApp.prototype.sortedGroups = function () {
+    return Array.from(this.groups.values()).sort((a, b) =>
+      (Number((b.unreadCount || 0) > 0) - Number((a.unreadCount || 0) > 0))
+      || ((Date.parse(b.lastMessageUtc) || 0) - (Date.parse(a.lastMessageUtc) || 0))
+      || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+  };
+
+  ChatApp.prototype.renderGroupList = function () {
+    const needle = (this.search.value || '').trim().toLowerCase();
+    const groups = this.sortedGroups().filter((g) => !needle || g.title.toLowerCase().includes(needle));
+    this.groupList.replaceChildren(...groups.map((group) => {
+      const item = el('li');
+      const button = el('button', 'pm-chat__contact');
+      button.type = 'button';
+      const text = el('span', 'pm-chat__contact-text');
+      text.append(el('span', 'pm-chat__contact-name', group.title));
+      text.append(el('span', 'pm-chat__contact-meta', peopleCount(group.memberCount)));
+      button.append(groupAvatar(group.title), text);
+      if (group.unreadCount > 0) {
+        button.append(el('span', 'badge rounded-pill pm-chat__unread', group.unreadCount > 99 ? '99+' : String(group.unreadCount)));
+      }
+      button.setAttribute('aria-label', `Group ${group.title}, ${peopleCount(group.memberCount)}${group.unreadCount ? `, ${group.unreadCount} unread` : ''}`);
+      button.addEventListener('click', () => this.openWindow(groupKey(group.id), { focus: true }));
+      item.append(button);
+      return item;
+    }));
+    this.groupHeading.hidden = groups.length === 0;
+    this.peopleHeading.hidden = groups.length === 0;
+  };
+
+  /**
+   * People picker shared by "New group" and "Add people": active contacts, filtered by a search
+   * box, as checkboxes. Returns { node, selected() }.
+   */
+  ChatApp.prototype.peoplePicker = function (exclude, limit) {
+    const node = el('div', 'pm-chat__picker');
+    const filter = el('input', 'form-control form-control-sm');
+    filter.type = 'search';
+    filter.placeholder = 'Find people';
+    filter.setAttribute('aria-label', 'Find people to add');
+    const list = el('ul', 'pm-chat__picker-list');
+    const chosen = new Set();
+    const note = el('p', 'pm-chat__picker-note');
+    const draw = () => {
+      const needle = filter.value.trim().toLowerCase();
+      const people = sortContacts(Array.from(this.contacts.values()))
+        .filter((c) => c.isActive && !exclude.has(c.userId))
+        .filter((c) => !needle || c.displayName.toLowerCase().includes(needle) || (c.rank || '').toLowerCase().includes(needle))
+        .slice(0, 200);
+      list.replaceChildren(...people.map((c) => {
+        const item = el('li');
+        const label = el('label', 'pm-chat__picker-item');
+        const box = el('input', 'form-check-input');
+        box.type = 'checkbox';
+        box.checked = chosen.has(c.userId);
+        box.addEventListener('change', () => {
+          if (box.checked && chosen.size >= limit) {
+            box.checked = false;
+            note.textContent = `A group can have at most ${limit + exclude.size} people.`;
+            return;
+          }
+          if (box.checked) chosen.add(c.userId); else chosen.delete(c.userId);
+          note.textContent = chosen.size ? `${chosen.size} selected` : '';
+        });
+        label.append(box, el('span', null, c.rank ? `${c.displayName} · ${c.rank}` : c.displayName));
+        item.append(label);
+        return item;
+      }));
+    };
+    filter.addEventListener('input', draw);
+    draw();
+    node.append(filter, list, note);
+    return { node, selected: () => Array.from(chosen), focus: () => filter.focus() };
+  };
+
+  ChatApp.prototype.openGroupForm = function () {
+    const form = this.groupForm;
+    if (!form.hidden) {
+      form.hidden = true;
+      return;
+    }
+    const title = el('input', 'form-control form-control-sm');
+    title.type = 'text';
+    title.maxLength = 100;
+    title.placeholder = 'Group name';
+    title.setAttribute('aria-label', 'Group name');
+    const picker = this.peoplePicker(new Set([this.me]), GROUP_LIMIT - 1);
+    const error = el('p', 'pm-chat__form-error');
+    const actions = el('div', 'pm-chat__form-actions');
+    const create = el('button', 'btn btn-primary btn-sm', 'Create group');
+    create.type = 'submit';
+    const cancel = el('button', 'btn btn-link btn-sm', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', () => { form.hidden = true; });
+    actions.append(create, cancel);
+    form.replaceChildren(el('h3', 'pm-chat__section', 'New group'), title, picker.node, error, actions);
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      create.disabled = true;
+      error.textContent = '';
+      try {
+        const group = await this.request('POST', '/groups', { title: title.value, memberUserIds: picker.selected() });
+        form.hidden = true;
+        this.onGroupChanged(group);
+        this.openWindow(groupKey(group.id), { focus: true });
+      } catch (failure) {
+        error.textContent = failure.message;
+      } finally {
+        create.disabled = false;
+      }
+    };
+    form.hidden = false;
+    title.focus();
   };
 
   /**
@@ -1025,8 +1360,7 @@
   };
 
   ChatApp.prototype.renderLauncherBadge = function () {
-    let total = 0;
-    this.contacts.forEach((c) => { total += c.unreadCount; });
+    const total = this.unreadTotal();
     document.querySelectorAll('[data-chat-unread]').forEach((badge) => {
       badge.hidden = total === 0;
       const count = badge.querySelector('[data-chat-unread-count]');
@@ -1105,7 +1439,9 @@
    */
   ChatApp.prototype.createWindow = function (peerId, options) {
     const embedded = !!(options && options.embedded);
-    const contact = this.contacts.get(peerId);
+    const groupId = groupIdOf(peerId);
+    const group = groupId ? this.groups.get(groupId) : null;
+    const contact = groupId ? null : this.contacts.get(peerId);
     const node = el('section', `pm-chat__window${embedded ? ' is-embedded' : ''}`);
     node.setAttribute('role', embedded ? 'region' : 'dialog');
     if (!embedded) node.setAttribute('aria-modal', 'false');
@@ -1113,16 +1449,18 @@
     const head = el('header', 'pm-chat__window-head');
     const toggle = el(embedded ? 'div' : 'button', 'pm-chat__window-title');
     if (!embedded) toggle.type = 'button';
-    const face = avatar(contact);
+    const face = groupId ? groupAvatar(group && group.title) : avatar(contact);
     const names = el('span', 'pm-chat__window-names');
-    const name = el('span', 'pm-chat__window-name', contact ? contact.displayName : 'Chat');
+    const name = el('span', 'pm-chat__window-name', group ? group.title : (contact ? contact.displayName : 'Chat'));
     const status = el('span', 'pm-chat__window-status');
     status.setAttribute('aria-live', 'polite');
     names.append(name, status);
     toggle.append(face, names);
     const minimize = iconButton('dash-lg', 'Minimise');
     const close = iconButton('x-lg', 'Close chat');
+    const people = iconButton('people', 'People in this group');
     head.append(toggle);
+    if (groupId) head.append(people);
     if (!embedded) head.append(minimize, close);
 
     const body = el('div', 'pm-chat__window-body');
@@ -1140,12 +1478,16 @@
     const notice = el('p', 'pm-chat__notice');
     notice.hidden = true;
 
+    const panel = el('div', 'pm-chat__members');
+    panel.hidden = true;
+    body.append(panel);
+
     const form = el('form', 'pm-chat__compose');
     const input = el('textarea', 'form-control form-control-sm pm-chat__input');
     input.rows = embedded ? 2 : 1;
     input.maxLength = this.maxLength;
     input.placeholder = 'Type a message';
-    input.setAttribute('aria-label', `Message ${contact ? contact.displayName : ''}`.trim());
+    input.setAttribute('aria-label', `Message ${group ? group.title : (contact ? contact.displayName : '')}`.trim());
     const send = iconButton('send', 'Send', 'pm-chat__send');
     send.type = 'submit';
     form.append(input, send);
@@ -1157,7 +1499,13 @@
       messages: [], hasMore: false, hasNewer: false, historyLoaded: false, syncing: false, syncAgain: false,
       loading: false, minimized: false, attention: false, lastReadId: 0, readSending: 0, peerReadId: 0,
       typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0, unsendTimer: null,
+      groupId, members: [], removed: false, typers: new Map(), panel, panelOpen: false, people,
     };
+
+    people.addEventListener('click', () => {
+      win.panelOpen = !win.panelOpen;
+      this.renderMembersPanel(win);
+    });
 
     if (!embedded) {
       toggle.addEventListener('click', () => {
@@ -1211,14 +1559,19 @@
     const now = Date.now();
     if (now - win.typingSentAt < TYPING_SEND_MS) return;
     win.typingSentAt = now;
-    this.signal('Typing', win.peerId);
+    if (win.groupId) this.signal('TypingInGroup', win.groupId);
+    else this.signal('Typing', win.peerId);
   };
 
   ChatApp.prototype.renderWindowState = function (win) {
-    const contact = this.contacts.get(win.peerId);
     win.node.classList.toggle('is-minimized', win.minimized);
     win.node.classList.toggle('needs-attention', win.attention);
     win.minimize.hidden = win.minimized;
+    if (win.groupId) {
+      this.renderGroupWindowState(win);
+      return;
+    }
+    const contact = this.contacts.get(win.peerId);
     if (contact) {
       win.name.textContent = contact.displayName;
       win.face.querySelector('.pm-chat__initials').textContent = contact.initials;
@@ -1235,6 +1588,126 @@
     win.form.hidden = !canSend;
     win.notice.hidden = canSend;
     win.notice.textContent = canSend ? '' : 'This account is inactive. You can read past messages but cannot send new ones.';
+  };
+
+  ChatApp.prototype.renderGroupWindowState = function (win) {
+    const group = this.groups.get(win.groupId);
+    const title = group ? group.title : (win.name.textContent || 'Group');
+    win.name.textContent = title;
+    win.face.title = title;
+    win.node.setAttribute('aria-label', `Group chat ${title}`);
+    const now = Date.now();
+    const typers = Array.from(win.typers.entries())
+      .filter(([, until]) => until > now)
+      .map(([userId]) => this.nameOf(userId, win));
+    win.node.classList.toggle('is-typing', typers.length > 0);
+    const count = group ? group.memberCount : (win.members || []).length;
+    win.status.textContent = typers.length
+      ? typingLine(typers)
+      : (win.attention ? 'New message' : (win.removed ? 'You are not in this group' : peopleCount(count)));
+    win.status.title = '';
+    win.people.hidden = win.removed;
+
+    const canSend = !!group && !win.removed;
+    win.form.hidden = !canSend;
+    win.notice.hidden = canSend;
+    win.notice.textContent = canSend ? '' : 'You are no longer in this group. Earlier messages stay here until you close it.';
+  };
+
+  /** Members, add people, rename, leave: shown over the conversation, from the people button. */
+  ChatApp.prototype.renderMembersPanel = function (win) {
+    const panel = win.panel;
+    panel.hidden = !win.panelOpen || win.removed;
+    win.people.setAttribute('aria-expanded', String(!panel.hidden));
+    if (panel.hidden) return;
+    const group = this.groups.get(win.groupId);
+    const manager = group ? group.managerUserId : '';
+    const iManage = manager === this.me;
+
+    const head = el('div', 'pm-chat__members-head');
+    head.append(el('strong', null, 'People in this group'));
+    const close = iconButton('x-lg', 'Close');
+    close.addEventListener('click', () => { win.panelOpen = false; this.renderMembersPanel(win); });
+    head.append(close);
+
+    const list = el('ul', 'pm-chat__members-list');
+    for (const member of win.members || []) {
+      const item = el('li');
+      const label = member.userId === this.me ? `${member.displayName} (you)` : member.displayName;
+      item.append(el('span', member.isActive ? null : 'is-inactive', label));
+      if (member.userId === manager) item.append(el('span', 'pm-chat__badge-soft', 'manages'));
+      if (iManage && member.userId !== this.me) {
+        const remove = el('button', 'btn btn-link btn-sm p-0', 'Remove');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', `Remove ${member.displayName}`);
+        remove.addEventListener('click', () => this.groupAction(win, `/members/${encodeURIComponent(member.userId)}/remove`, {}));
+        item.append(remove);
+      }
+      list.append(item);
+    }
+
+    const error = el('p', 'pm-chat__form-error');
+    win.panelError = error;
+    const parts = [head, list];
+
+    const add = el('details', 'pm-chat__members-add');
+    add.append(el('summary', null, 'Add people'));
+    const existing = new Set((win.members || []).map((m) => m.userId));
+    const picker = this.peoplePicker(existing, Math.max(0, GROUP_LIMIT - existing.size));
+    const addButton = el('button', 'btn btn-primary btn-sm', 'Add');
+    addButton.type = 'button';
+    addButton.addEventListener('click', () => {
+      const ids = picker.selected();
+      if (ids.length) this.groupAction(win, '/members', { userIds: ids });
+    });
+    add.append(picker.node, addButton);
+    parts.push(add);
+
+    if (iManage) {
+      const rename = el('form', 'pm-chat__members-rename');
+      const input = el('input', 'form-control form-control-sm');
+      input.type = 'text';
+      input.maxLength = 100;
+      input.value = group ? group.title : '';
+      input.setAttribute('aria-label', 'Group name');
+      const save = el('button', 'btn btn-outline-secondary btn-sm', 'Rename');
+      save.type = 'submit';
+      rename.append(input, save);
+      rename.addEventListener('submit', (event) => {
+        event.preventDefault();
+        this.groupAction(win, '/rename', { title: input.value });
+      });
+      parts.push(rename);
+    }
+
+    const leave = el('button', 'btn btn-outline-danger btn-sm pm-chat__leave', 'Leave group');
+    leave.type = 'button';
+    leave.addEventListener('click', () => {
+      // A second click confirms, so a stray click cannot remove you from the group.
+      if (leave.dataset.confirm !== 'yes') {
+        leave.dataset.confirm = 'yes';
+        leave.textContent = iManage ? 'Leave? Someone else will manage it' : 'Click again to leave';
+        return;
+      }
+      this.groupAction(win, '/leave', {});
+    });
+    parts.push(error, leave);
+    panel.replaceChildren(...parts);
+  };
+
+  /** Runs a group change; the pushed GroupChanged/GroupRemoved events update every view. */
+  ChatApp.prototype.groupAction = async function (win, path, body) {
+    try {
+      const group = await this.request('POST', `/groups/${win.groupId}${path}`, body);
+      if (path === '/leave') {
+        this.onGroupRemoved(win.groupId);
+      } else if (group) {
+        this.onGroupChanged(group);
+      }
+    } catch (error) {
+      if (error.status === 410) this.onGroupRemoved(win.groupId);
+      else if (win.panelError) win.panelError.textContent = error.message;
+    }
   };
 
   /**
@@ -1258,25 +1731,40 @@
     // the next focus or refresh; readSending stops duplicate requests while one is in flight.
     if (newest <= Math.max(win.lastReadId || 0, win.readSending || 0)) return;
     win.readSending = newest;
-    this.request('POST', `/with/${encodeURIComponent(win.peerId)}/read`, { upToMessageId: newest })
+    const readPath = win.groupId ? `/groups/${win.groupId}/read` : `/with/${encodeURIComponent(win.peerId)}/read`;
+    this.request('POST', readPath, { upToMessageId: newest })
       .then(() => { win.lastReadId = Math.max(win.lastReadId || 0, newest); })
       .catch(() => {})
       .finally(() => { if (win.readSending === newest) win.readSending = 0; });
-    const contact = this.contacts.get(win.peerId);
-    if (contact && !win.hasNewer) {
-      contact.unreadCount = 0;
+    const counter = win.groupId ? this.groups.get(win.groupId) : this.contacts.get(win.peerId);
+    if (counter && !win.hasNewer) {
+      counter.unreadCount = 0;
       this.renderContacts();
     }
   };
 
   ChatApp.prototype.historyPath = function (win, query) {
-    return `/with/${encodeURIComponent(win.peerId)}/messages?limit=${HISTORY_PAGE}${query || ''}`;
+    const base = win.groupId ? `/groups/${win.groupId}` : `/with/${encodeURIComponent(win.peerId)}`;
+    return `${base}/messages?limit=${HISTORY_PAGE}${query || ''}`;
   };
 
   ChatApp.prototype.applyPeerRead = function (win, history) {
     if (history && history.peerLastReadMessageId) {
       win.peerReadId = Math.max(win.peerReadId || 0, history.peerLastReadMessageId);
     }
+    if (history && history.members) {
+      // Group: who is in it and how far each has read ("Seen by"); markers only move forward.
+      const known = new Map((win.members || []).map((m) => [m.userId, m.lastReadMessageId || 0]));
+      win.members = history.members.map((m) => ({
+        ...m,
+        lastReadMessageId: Math.max(m.lastReadMessageId || 0, known.get(m.userId) || 0),
+      }));
+    }
+  };
+
+  /** 410 from a group endpoint: this user is no longer in the group. */
+  ChatApp.prototype.checkGone = function (win, error) {
+    if (win.groupId && error && error.status === 410) this.onGroupRemoved(win.groupId);
   };
 
   /**
@@ -1324,7 +1812,8 @@
       }
       this.renderMessages(win, { stickToBottom: true });
       this.maybeMarkRead(win);
-    } catch (_) {
+    } catch (error) {
+      this.checkGone(win, error);
       if (seq === win.loadSeq && !win.messages.length) {
         win.log.replaceChildren(el('li', 'pm-chat__system', 'Messages could not be loaded.'));
       }
@@ -1483,15 +1972,28 @@
       items.push(el('li', 'pm-chat__system', 'No messages yet. Say hello.'));
     }
 
+    const others = (win.members || []).filter((m) => m.userId !== this.me).length;
+    let lastSender = null;
     for (const message of win.messages) {
       const sent = new Date(message.sentUtc || Date.now());
       const key = dayKey(sent);
       if (key !== lastDay) {
         items.push(el('li', 'pm-chat__day', dayLabel(sent, now)));
         lastDay = key;
+        lastSender = null;
+      }
+      if (message.eventKind) {
+        items.push(el('li', 'pm-chat__system pm-chat__event', this.describeEvent(win, message)));
+        lastSender = null;
+        continue;
       }
       const mine = message.senderUserId === this.me;
       const item = el('li', `pm-chat__msg ${mine ? 'is-mine' : 'is-theirs'}`);
+      if (win.groupId && !mine && message.senderUserId !== lastSender) {
+        // In a group, say who is talking at the start of each run of their messages.
+        item.append(el('span', 'pm-chat__sender', this.nameOf(message.senderUserId, win)));
+      }
+      lastSender = message.senderUserId;
       if (message.id && message.id === win.highlightId) {
         item.classList.add('is-highlight');
         highlighted = item;
@@ -1512,15 +2014,25 @@
       } else {
         meta.textContent = timeFormat.format(sent);
         if (mine) {
-          // Read ticks: one tick once stored, two (coloured) once the other person has read it.
-          const seen = message.id <= (win.peerReadId || 0);
+          // Read ticks: one tick once stored, two (coloured) once read. In a group, two ticks
+          // once everyone has read it; the label says who has.
+          let seen;
+          let label;
+          if (win.groupId) {
+            const readers = seenBy(win.members, this.me, message.id);
+            seen = others > 0 && readers.length === others;
+            label = readers.length ? `Seen by ${readers.map((m) => m.displayName).join(', ')}` : 'Sent';
+          } else {
+            seen = message.id <= (win.peerReadId || 0);
+            label = seen ? 'Seen' : 'Sent';
+          }
           const tick = icon(seen ? 'check2-all' : 'check2');
           tick.classList.add('pm-chat__tick');
           if (seen) tick.classList.add('is-seen');
           tick.removeAttribute('aria-hidden');
           tick.setAttribute('role', 'img');
-          tick.setAttribute('aria-label', seen ? 'Seen' : 'Sent');
-          tick.title = seen ? 'Seen' : 'Sent';
+          tick.setAttribute('aria-label', label);
+          tick.title = label;
           meta.append(' ', tick);
           const left = this.unsendMs - (Date.now() - Date.parse(message.sentUtc));
           if (!message.isUnsent && left > 0) {
@@ -1574,7 +2086,8 @@
       id: 0,
       clientMessageId: newClientId(),
       senderUserId: this.me,
-      recipientUserId: win.peerId,
+      recipientUserId: win.groupId ? '' : win.peerId,
+      groupId: win.groupId || null,
       body: text,
       sentUtc: new Date().toISOString(),
     };
@@ -1598,11 +2111,16 @@
     message.error = null;
     this.renderMessages(win, { stickToBottom: true });
     try {
-      const saved = await this.request('POST', '/messages', {
-        recipientUserId: win.peerId,
-        clientMessageId: message.clientMessageId,
-        body: message.body,
-      });
+      const saved = win.groupId
+        ? await this.request('POST', `/groups/${win.groupId}/messages`, {
+          clientMessageId: message.clientMessageId,
+          body: message.body,
+        })
+        : await this.request('POST', '/messages', {
+          recipientUserId: win.peerId,
+          clientMessageId: message.clientMessageId,
+          body: message.body,
+        });
       // Checked now, not when sending: the person may have opened an older slice meanwhile,
       // or the conversation may have moved to another view (dock to Messages page).
       this.acceptSaved(this.viewFor(win), [saved]);
@@ -1610,6 +2128,7 @@
     } catch (error) {
       message.failed = true;
       message.error = error.message;
+      this.checkGone(win, error);
     }
     this.renderMessages(this.viewFor(win), { stickToBottom: true });
   };
@@ -1707,26 +2226,41 @@
   };
 
   MessagesPage.prototype.renderConversations = function () {
-    const conversations = conversationList(Array.from(this.app.contacts.values()));
+    const direct = conversationList(Array.from(this.app.contacts.values())).map((contact) => ({
+      key: contact.userId, contact, last: contact.lastMessageUtc, unread: contact.unreadCount,
+    }));
+    const groups = Array.from(this.app.groups.values()).map((group) => ({
+      key: groupKey(group.id), group, last: group.lastMessageUtc, unread: group.unreadCount || 0,
+    }));
+    const conversations = direct.concat(groups)
+      .sort((a, b) => (Date.parse(b.last) || 0) - (Date.parse(a.last) || 0));
     const now = new Date();
-    this.list.replaceChildren(...conversations.map((contact) => {
+    this.list.replaceChildren(...conversations.map((entry) => {
       const item = el('li');
       const button = el('button', 'pm-chat-page__item');
       button.type = 'button';
-      if (this.current && this.current.peerId === contact.userId) button.setAttribute('aria-current', 'true');
-      if (!contact.isActive) button.classList.add('is-inactive');
-      const face = avatar(contact);
-      setPresence(face, contact);
+      if (this.current && this.current.peerId === entry.key) button.setAttribute('aria-current', 'true');
       const text = el('span', 'pm-chat__contact-text');
-      text.append(el('span', 'pm-chat__contact-name', contact.displayName));
-      text.append(el('span', 'pm-chat__contact-meta', contact.rank ? `${contact.rank} · ${statusText(contact)}` : statusText(contact)));
+      let face;
+      if (entry.group) {
+        face = groupAvatar(entry.group.title);
+        text.append(el('span', 'pm-chat__contact-name', entry.group.title));
+        text.append(el('span', 'pm-chat__contact-meta', `Group · ${peopleCount(entry.group.memberCount)}`));
+      } else {
+        const contact = entry.contact;
+        if (!contact.isActive) button.classList.add('is-inactive');
+        face = avatar(contact);
+        setPresence(face, contact);
+        text.append(el('span', 'pm-chat__contact-name', contact.displayName));
+        text.append(el('span', 'pm-chat__contact-meta', contact.rank ? `${contact.rank} · ${statusText(contact)}` : statusText(contact)));
+      }
       const side = el('span', 'pm-chat-page__item-side');
-      side.append(el('span', 'pm-chat-page__stamp', shortStamp(new Date(contact.lastMessageUtc), now)));
-      if (contact.unreadCount > 0) {
-        side.append(el('span', 'badge rounded-pill pm-chat__unread', contact.unreadCount > 99 ? '99+' : String(contact.unreadCount)));
+      if (entry.last) side.append(el('span', 'pm-chat-page__stamp', shortStamp(new Date(entry.last), now)));
+      if (entry.unread > 0) {
+        side.append(el('span', 'badge rounded-pill pm-chat__unread', entry.unread > 99 ? '99+' : String(entry.unread)));
       }
       button.append(face, text, side);
-      button.addEventListener('click', () => this.open(contact.userId, 0));
+      button.addEventListener('click', () => this.open(entry.key, 0));
       item.append(button);
       return item;
     }));
@@ -1815,7 +2349,9 @@
     this.results.hidden = false;
     this.results.replaceChildren(el('p', 'pm-chat-page__empty', 'Searching…'));
     try {
-      const hits = await this.app.request('GET', `/search?q=${encodeURIComponent(term)}`);
+      // groups=true: this page can open group hits (older pages get direct hits only). The
+      // endpoint binds a bool, so it must be true/false, not 1/0.
+      const hits = await this.app.request('GET', `/search?q=${encodeURIComponent(term)}&groups=true`);
       if (seq !== this.searchSeq) return; // a newer search has started
       this.lastHits = hits;
       this.lastTerm = term;
@@ -1847,13 +2383,14 @@
       const button = el('button', 'pm-chat-page__hit');
       button.type = 'button';
       const head = el('span', 'pm-chat-page__hit-head');
-      head.append(el('span', 'pm-chat__contact-name', hit.peerDisplayName));
+      head.append(el('span', 'pm-chat__contact-name', hit.groupId ? `${hit.peerDisplayName} (group)` : hit.peerDisplayName));
       head.append(el('span', 'pm-chat-page__stamp', shortStamp(new Date(hit.sentUtc), now)));
       const snippet = el('span', 'pm-chat-page__snippet');
       if (hit.senderUserId === this.app.me) snippet.append(el('span', 'pm-chat-page__you', 'You: '));
+      else if (hit.groupId) snippet.append(el('span', 'pm-chat-page__you', `${this.app.nameOf(hit.senderUserId)}: `));
       appendHighlighted(snippet, hit.body, term);
       button.append(head, snippet);
-      button.addEventListener('click', () => this.open(hit.peerUserId, hit.messageId));
+      button.addEventListener('click', () => this.open(hit.groupId ? groupKey(hit.groupId) : hit.peerUserId, hit.messageId));
       item.append(button);
       list.append(item);
     }

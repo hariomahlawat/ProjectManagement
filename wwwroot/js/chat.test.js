@@ -1118,3 +1118,316 @@ test('a drop during catch-up keeps the watermark for the next catch-up', async (
     window.close();
   }
 });
+
+// --- Group chats ------------------------------------------------------------------------------
+
+const desk = { id: 5, title: 'TEC desk', managerUserId: 'me', memberCount: 3, unreadCount: 2, lastMessageUtc: '2026-10-22T09:00:00Z' };
+const deskMembers = [
+  { userId: 'me', displayName: 'Me Myself', initials: 'MM', isActive: true, lastReadMessageId: 12 },
+  { userId: 'peer', displayName: 'Peer Person', initials: 'PP', isActive: true, lastReadMessageId: 11 },
+  { userId: 'third', displayName: 'Third Officer', initials: 'TO', isActive: true, lastReadMessageId: 10 },
+];
+
+function groupMessage(id, sender, body, extra) {
+  return { id, senderUserId: sender, recipientUserId: '', clientMessageId: `c-${id}`, body, sentUtc: new Date().toISOString(), groupId: 5, ...extra };
+}
+
+function groupApp(extra, extraBody) {
+  return bootApp(async (url, init) => {
+    if (extra) {
+      const answer = await extra(url, init);
+      if (answer !== undefined) return answer;
+    }
+    // Fresh copies: the app mutates what it is given (unread counts), and other tests share these.
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }, { ...contact, userId: 'third', displayName: 'Third Officer', initials: 'TO', unreadCount: 0 }];
+    if (url.endsWith('/groups')) return [{ ...desk }];
+    if (url.includes('/groups/5/messages')) {
+      return {
+        groupId: 5,
+        messages: [
+          groupMessage(10, 'me', '', { eventKind: 'Created', eventData: 'TEC desk' }),
+          groupMessage(11, 'peer', 'Minutes attached'),
+          groupMessage(12, 'me', 'Thanks'),
+        ],
+        hasMore: false,
+        hasNewer: false,
+        members: deskMembers.map((m) => ({ ...m })),
+      };
+    }
+    return { status: 204, body: null };
+  }, extraBody);
+}
+
+test('groups are listed with their unread count, which joins the launcher total', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const row = app.groupList.querySelector('.pm-chat__contact');
+    assert.match(row.textContent, /TEC desk/);
+    assert.match(row.textContent, /3 people/);
+    assert.equal(app.unreadTotal(), 2);
+    assert.equal(window.document.querySelector('[data-chat-launcher]').getAttribute('aria-label'), 'Open chat, 2 unread');
+  } finally {
+    window.close();
+  }
+});
+
+test('a group window shows notices, who said what, and "Seen by" ticks', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow(window.PMChatInternals.groupKey(5), { focus: false });
+    await tick(); await tick();
+    assert.equal(win.name.textContent, 'TEC desk');
+    assert.equal(win.log.querySelector('.pm-chat__event').textContent, 'You created the group “TEC desk”');
+    assert.equal(win.log.querySelector('.pm-chat__sender').textContent, 'Peer Person');
+    const tick12 = win.log.querySelector('.is-mine .pm-chat__tick');
+    assert.equal(tick12.getAttribute('aria-label'), 'Sent'); // nobody else has read message 12 yet
+
+    app.onGroupRead({ groupId: 5, userId: 'peer', upToMessageId: 12 });
+    assert.equal(win.log.querySelector('.is-mine .pm-chat__tick').getAttribute('aria-label'), 'Seen by Peer Person');
+    assert.equal(win.log.querySelector('.is-mine .pm-chat__tick').classList.contains('is-seen'), false);
+
+    app.onGroupRead({ groupId: 5, userId: 'third', upToMessageId: 12 });
+    const both = win.log.querySelector('.is-mine .pm-chat__tick');
+    assert.equal(both.getAttribute('aria-label'), 'Seen by Peer Person, Third Officer');
+    assert.equal(both.classList.contains('is-seen'), true);
+  } finally {
+    window.close();
+  }
+});
+
+test('a group message pops the group open and counts as unread; notices do not', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.onMessage(groupMessage(20, 'peer', '', { eventKind: 'Added', eventData: 'third' }));
+    assert.equal(app.windows.has('g:5'), false, 'a notice does not pop a window');
+    assert.equal(app.groups.get(5).unreadCount, 2);
+
+    app.onMessage(groupMessage(21, 'peer', 'Agenda for Friday'));
+    assert.ok(app.windows.has('g:5'));
+    assert.equal(app.groups.get(5).unreadCount, 3);
+  } finally {
+    window.close();
+  }
+});
+
+test('typing in a group names who is typing and signals TypingInGroup', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const calls = fakeHub(app);
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    app.onGroupTyping({ groupId: 5, userId: 'peer' });
+    assert.equal(win.status.textContent, 'Peer Person is typing…');
+    app.onGroupTyping({ groupId: 5, userId: 'third' });
+    assert.equal(win.status.textContent, 'Peer Person and Third Officer are typing…');
+
+    win.input.value = 'x';
+    win.input.dispatchEvent(new window.Event('input'));
+    assert.deepEqual(calls.filter(([m]) => m === 'TypingInGroup'), [['TypingInGroup', 5]]);
+  } finally {
+    window.close();
+  }
+});
+
+test('sending in a group posts to the group and shows the saved message', async () => {
+  const posts = [];
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/groups/5/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      posts.push(body);
+      return { status: 200, body: groupMessage(30, 'me', body.body, { clientMessageId: body.clientMessageId }) };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    win.input.value = 'Noted';
+    app.send(win);
+    await tick(); await tick();
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].body, 'Noted');
+    assert.equal(posts[0].recipientUserId, undefined);
+    assert.ok(win.messages.some((m) => m.id === 30));
+  } finally {
+    window.close();
+  }
+});
+
+test('being removed from a group closes its reply box and drops it from the list', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    app.onGroupRemoved(5);
+    assert.equal(win.form.hidden, true);
+    assert.match(win.notice.textContent, /no longer in this group/);
+    assert.equal(app.groupList.children.length, 0);
+    assert.equal(app.unreadTotal(), 0);
+  } finally {
+    window.close();
+  }
+});
+
+test('a 410 from a group means the user was removed meanwhile', async () => {
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/groups/5/messages') && init.method === 'POST') return { status: 410, body: { detail: 'You are not in this group.' } };
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    win.input.value = 'Hello?';
+    app.send(win);
+    await tick(); await tick(); await tick();
+    assert.equal(app.groups.has(5), false);
+    assert.equal(win.form.hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('the manager sees Remove and Rename; leaving needs a second click', async () => {
+  const actions = [];
+  const window = groupApp(async (url, init) => {
+    if (url.includes('/groups/5/') && init.method === 'POST' && !url.endsWith('/read') && !url.endsWith('/messages')) {
+      actions.push(url.replace(/^.*\/groups\/5/, ''));
+      return { status: 200, body: { id: 5, title: 'TEC desk', managerUserId: 'peer', members: deskMembers.filter((m) => m.userId !== 'me') } };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: false });
+    await tick(); await tick();
+    win.people.click();
+    const panel = win.panel;
+    assert.equal(panel.hidden, false);
+    assert.equal(panel.querySelectorAll('.pm-chat__members-list button').length, 2, 'remove buttons for the two others');
+    assert.ok(panel.querySelector('.pm-chat__members-rename'));
+
+    const leave = panel.querySelector('.pm-chat__leave');
+    leave.click();
+    assert.deepEqual(actions, []);
+    leave.click();
+    await tick(); await tick();
+    assert.deepEqual(actions, ['/leave']);
+    assert.equal(app.groups.has(5), false);
+
+    // Someone who does not manage the group gets neither Remove nor Rename.
+    app.onGroupChanged({ id: 5, title: 'TEC desk', managerUserId: 'peer', members: deskMembers });
+    win.panelOpen = true;
+    app.renderMembersPanel(win);
+    assert.equal(panel.querySelectorAll('.pm-chat__members-list button').length, 0);
+    assert.equal(panel.querySelector('.pm-chat__members-rename'), null);
+  } finally {
+    window.close();
+  }
+});
+
+test('New group posts the name and the chosen people, then opens the group', async () => {
+  const created = [];
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/groups') && init.method === 'POST') {
+      created.push(JSON.parse(init.body));
+      return { status: 200, body: { id: 9, title: 'Night shift', managerUserId: 'me', members: deskMembers } };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.openGroupForm();
+    const form = app.groupForm;
+    form.querySelector('input[type="text"]').value = 'Night shift';
+    form.querySelector('.pm-chat__picker-list input').click();
+    form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+    await tick(); await tick();
+    assert.equal(created.length, 1);
+    assert.equal(created[0].title, 'Night shift');
+    assert.equal(created[0].memberUserIds.length, 1);
+    assert.ok(app.windows.has('g:9'));
+    assert.equal(form.hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('the Messages page lists groups and opens a group search hit', async () => {
+  const window = groupApp(async (url) => {
+    if (url.includes('/search')) {
+      assert.ok(url.includes('groups=true'), 'the page asks for group hits (a bool the endpoint can bind)');
+      return [{ messageId: 11, peerUserId: '', peerDisplayName: 'TEC desk', senderUserId: 'peer', body: 'Minutes attached', sentUtc: '2026-10-22T08:00:00Z', groupId: 5 }];
+    }
+    if (url.includes('/groups/5/messages') && url.includes('before=12')) {
+      return { groupId: 5, messages: [groupMessage(11, 'peer', 'Minutes attached')], hasMore: true, hasNewer: true, members: deskMembers };
+    }
+    return undefined;
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick(); await tick();
+    const page = window.PMChat.page;
+    assert.match(page.list.textContent, /TEC desk/);
+    page.searchInput.value = 'minutes';
+    await page.runSearch();
+    const hit = page.results.querySelector('.pm-chat-page__hit');
+    assert.match(hit.textContent, /TEC desk \(group\)/);
+    assert.match(hit.textContent, /Peer Person: /);
+    hit.click();
+    await tick(); await tick();
+    assert.equal(page.current.groupId, 5);
+    assert.equal(page.current.highlightId, 11);
+  } finally {
+    window.close();
+  }
+});
+
+test('member counts read naturally', () => {
+  const { PMChatInternals } = load();
+  assert.equal(PMChatInternals.peopleCount(1), '1 person');
+  assert.equal(PMChatInternals.peopleCount(3), '3 people');
+});
+
+test('group messages arrive on their own hub events, never on ReceiveMessage', async () => {
+  const handlers = {};
+  const window = groupApp();
+  try {
+    await tick();
+    function Builder() {}
+    Builder.prototype.withUrl = function () { return this; };
+    Builder.prototype.withAutomaticReconnect = function () { return this; };
+    Builder.prototype.build = function () {
+      return {
+        on: (name, fn) => { handlers[name] = fn; },
+        onreconnecting() {}, onreconnected() {}, onclose() {},
+        start: () => new Promise(() => {}),
+        state: 'Disconnected',
+      };
+    };
+    window.signalR = { HubConnectionBuilder: Builder };
+    window.PMChat.hubUrl = '/hubs/chat';
+    window.PMChat.connect();
+    assert.ok(handlers.ReceiveGroupMessage, 'listens for ReceiveGroupMessage');
+    assert.ok(handlers.GroupMessageUnsent, 'listens for GroupMessageUnsent');
+    await tick();
+    handlers.ReceiveGroupMessage(groupMessage(40, 'peer', 'On the group channel'));
+    assert.ok(window.PMChat.windows.get('g:5').messages.some((m) => m.id === 40));
+  } finally {
+    window.close();
+  }
+});

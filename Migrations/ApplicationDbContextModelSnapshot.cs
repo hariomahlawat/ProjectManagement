@@ -3515,6 +3515,14 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset?>("LastMessageUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ManagerUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DirectKey")
@@ -3522,7 +3530,9 @@ namespace ProjectManagement.Migrations
 
                     b.ToTable("ChatConversations", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ChatConversations_Kind", "\"Kind\" IN ('Direct')");
+                            t.HasCheckConstraint("CK_ChatConversations_Kind", "\"Kind\" IN ('Direct','Group')");
+
+                            t.HasCheckConstraint("CK_ChatConversations_Shape", "(\"Kind\" = 'Direct' AND \"DirectKey\" IS NOT NULL AND \"Title\" IS NULL) OR (\"Kind\" = 'Group' AND \"DirectKey\" IS NULL AND \"Title\" IS NOT NULL)");
                         });
                 });
 
@@ -3545,6 +3555,14 @@ namespace ProjectManagement.Migrations
                     b.Property<long>("ConversationId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("EventData")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("EventKind")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("SenderUserId")
                         .IsRequired()
                         .HasMaxLength(450)
@@ -3565,6 +3583,8 @@ namespace ProjectManagement.Migrations
 
                     b.ToTable("ChatMessages", t =>
                         {
+                            t.HasCheckConstraint("CK_ChatMessages_Event", "\"EventKind\" IS NULL OR (\"EventKind\" IN ('Created','Added','Removed','Left','Renamed') AND \"Body\" = '')");
+
                             t.HasCheckConstraint("CK_ChatMessages_UnsentHasNoBody", "\"UnsentUtc\" IS NULL OR \"Body\" = ''");
                         });
                 });

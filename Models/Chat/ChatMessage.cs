@@ -29,5 +29,14 @@ public sealed class ChatMessage
     /// </summary>
     public DateTimeOffset? UnsentUtc { get; set; }
 
+    /// <summary>
+    /// For a group notice ("Ravi added Sita") instead of a message: one of the
+    /// <see cref="ChatGroupEvent"/> kinds, with an empty body. SenderUserId is who did it.
+    /// </summary>
+    public string? EventKind { get; set; }
+
+    /// <summary>The notice's subject: the added/removed user id, or the new group name.</summary>
+    public string? EventData { get; set; }
+
     public ChatConversation? Conversation { get; set; }
 }
