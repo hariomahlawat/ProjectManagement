@@ -1,6 +1,7 @@
 @page "/Workspace/CommandDesk"
 @model ProjectManagement.Pages.Workspace.CommandDeskModel
 @using ProjectManagement.ViewModels.Workspace
+@inject Microsoft.Extensions.Options.IOptionsMonitor<ProjectManagement.Configuration.ChatOptions> ChatConfiguration
 @{
     ViewData["Title"] = "Command Desk | Comdt / HoD Workspace";
     ViewData["UseFullWidth"] = true;
@@ -216,7 +217,7 @@
                     </div>
                 }
 
-                @if (desk.Attention.Count > 0 || !desk.NothingReturned)
+                @if (desk.Attention.Count > 0)
                 {
                     <div class="cd-block" aria-labelledby="cd-attention-title">
                         <div class="cd-block__head">
@@ -231,17 +232,34 @@
                                             <span><strong>@reason.Count</strong> @reason.Label</span>
                                             <span class="cd-attention__cta">By officer</span>
                                         </summary>
-                                        <ul class="cd-officers" role="list">
+                                        @* Each officer with the projects behind the count, so one can be opened
+                                           directly, and a message to the officer when chat is on. *@
+                                        <ul class="cd-officers cd-officers--detailed" role="list">
                                             @foreach (var officer in reason.ByOfficer)
                                             {
-                                                <li>
-                                                    @if (string.IsNullOrWhiteSpace(officer.Url))
+                                                <li class="cd-officer-row">
+                                                    <span class="cd-officer-row__head">
+                                                        @if (string.IsNullOrWhiteSpace(officer.Url))
+                                                        {
+                                                            <span class="cd-officer">@officer.OfficerName · @officer.Count</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <a class="cd-officer" href="@officer.Url" title="Open @officer.OfficerName's conference review">@officer.OfficerName · @officer.Count</a>
+                                                        }
+                                                        @if (ChatConfiguration.CurrentValue.Enabled && !string.IsNullOrWhiteSpace(officer.MessageUrl))
+                                                        {
+                                                            <a class="cd-row__message" href="@officer.MessageUrl"><i class="bi bi-chat-dots" aria-hidden="true"></i> Message<span class="visually-hidden"> @officer.OfficerName</span></a>
+                                                        }
+                                                    </span>
+                                                    @if (officer.Projects is { Count: > 0 } projectsBehind)
                                                     {
-                                                        <span class="cd-officer">@officer.OfficerName · @officer.Count</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <a class="cd-officer" href="@officer.Url" title="Open @officer.OfficerName's conference review">@officer.OfficerName · @officer.Count</a>
+                                                        <span class="cd-officer-row__projects">
+                                                            @for (var index = 0; index < projectsBehind.Count; index++)
+                                                            {
+                                                                <a href="@projectsBehind[index].Url">@projectsBehind[index].Name</a>@(index < projectsBehind.Count - 1 ? "," : string.Empty)
+                                                            }
+                                                        </span>
                                                     }
                                                 </li>
                                             }
@@ -250,10 +268,6 @@
                                 </li>
                             }
                         </ul>
-                        @if (desk.NothingReturned)
-                        {
-                            <p class="cd-quiet-note"><i class="bi bi-check2" aria-hidden="true"></i> Nothing returned by the HoD is left uncorrected.</p>
-                        }
                     </div>
                 }
             </section>

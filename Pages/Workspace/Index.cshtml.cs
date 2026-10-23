@@ -74,6 +74,14 @@ public class IndexModel : PageModel
         CanViewDocuments = (await _authorization.AuthorizeAsync(User, "DocRepo.View")).Succeeded;
         IsCommandMode = hasCommandRole && (!string.Equals(Mode, "project-officer", StringComparison.OrdinalIgnoreCase) || !hasProjectOfficerRole);
 
+        // The HoD's and the Comdt's workspace opens on the Command desk (owner decision,
+        // 23 Oct 2026). A link that asks for a view (Officer workload, Project portfolio, …) still
+        // opens it.
+        if (IsCommandMode && !Request.Query.ContainsKey("view"))
+        {
+            return RedirectToPage("/Workspace/CommandDesk");
+        }
+
         if (IsCommandMode)
         {
             View = View?.Trim().ToLowerInvariant() switch

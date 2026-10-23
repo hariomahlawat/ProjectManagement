@@ -53,12 +53,10 @@
                 <i class="bi bi-person" aria-hidden="true"></i>
                 <span>Personal</span>
             </a>
-            <a asp-page="/Workspace/Index"
-               asp-route-mode="command"
-               asp-route-view="officers"
+            <a asp-page="/Workspace/CommandDesk"
                class="@(activeLens == "command" ? "is-active" : null)"
                aria-current="@(activeLens == "command" ? "true" : null)"
-               title="Open command workspace landing">
+               title="Open the Command desk">
                 <i class="bi bi-shield-check" aria-hidden="true"></i>
                 <span>Command</span>
             </a>

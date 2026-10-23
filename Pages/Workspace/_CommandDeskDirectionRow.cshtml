@@ -1,9 +1,16 @@
 @model ProjectManagement.ViewModels.Workspace.CommandDeskDirectionVm
+@inject Microsoft.Extensions.Options.IOptionsMonitor<ProjectManagement.Configuration.ChatOptions> ChatConfiguration
 <li class="cd-row cd-row--direction">
     <span class="cd-row__main">
         <span><a class="cd-row__title" href="@Model.Url" title="Open the officer's conference review">@Model.Title</a><span class="cd-row__sub"> · @Model.KindLabel · @Model.OfficerName</span></span>
         <q class="cd-row__quote cd-row__quote--clamp" title="@Model.DirectionText">@Model.DirectionText</q>
-        <span class="cd-row__sub">@Model.IssuedBy · @Model.IssuedOn.ToString("dd MMM yyyy")</span>
+        <span class="cd-row__sub">
+            @Model.IssuedBy · @Model.IssuedOn.ToString("dd MMM yyyy")
+            @if (ChatConfiguration.CurrentValue.Enabled && !string.IsNullOrWhiteSpace(Model.MessageUrl))
+            {
+                <span aria-hidden="true"> · </span><a class="cd-row__message" href="@Model.MessageUrl"><i class="bi bi-chat-dots" aria-hidden="true"></i> Message @Model.OfficerName</a>
+            }
+        </span>
     </span>
     <span class="cd-pill @(Model.IsOlderThanWeek ? "cd-pill--danger" : "cd-pill--muted")">@Model.AgeLabel</span>
 </li>

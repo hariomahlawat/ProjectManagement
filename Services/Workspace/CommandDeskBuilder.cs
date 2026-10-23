@@ -14,23 +14,28 @@ public sealed record CommandDeskInput(
     IReadOnlyList<CommandDeskProjectInput> Projects,
     IReadOnlyList<CommandDeskDirectionInput> Directions,
     IReadOnlyList<CommandDeskTaskInput> Tasks,
-    IReadOnlyList<CommandDeskReturnedInput> Returned,
-    IReadOnlyList<CommandDeskRegisterInput> Registers);
+    IReadOnlyList<CommandDeskRegisterInput> Registers,
+    string? ViewerUserId = null);
 
 public enum CommandDeskProgressKind
 {
     StageCompleted,
     ProjectCompleted,
-    TaskClosed,
     TotCompleted,
     IprFiled,
     IprGranted,
     UnitsProliferated,
     FfcDelivered,
-    FfcInstalled
+    FfcInstalled,
+    Visit,
+    PeopleTrained,
+    Activity
 }
 
-/// <summary>One dated piece of good news. Quantity is the number of units for proliferation, else 1.</summary>
+/// <summary>
+/// One dated piece of good news. Quantity is the number of units for proliferation and the number
+/// of people for a training, else 1.
+/// </summary>
 public sealed record CommandDeskProgressEvent(
     CommandDeskProgressKind Kind,
     DateOnly On,
@@ -47,7 +52,10 @@ public sealed record CommandDeskDecisionInput(
     string ActionLabel,
     string Url);
 
-/// <summary>An active project with its assigned officer and current stage.</summary>
+/// <summary>
+/// An active project with its assigned officer and current stage. PlanReviewUrl is set when the
+/// viewer can decide the plan waiting for approval.
+/// </summary>
 public sealed record CommandDeskProjectInput(
     int ProjectId,
     string Name,
@@ -56,7 +64,8 @@ public sealed record CommandDeskProjectInput(
     string StageName,
     DateOnly? Pdc,
     bool PlanWithHod,
-    DateOnly? LastOfficerUpdate);
+    DateOnly? LastOfficerUpdate,
+    string? PlanReviewUrl = null);
 
 public sealed record CommandDeskDirectionInput(
     ConferenceItemKind Kind,
@@ -66,7 +75,8 @@ public sealed record CommandDeskDirectionInput(
     string IssuedBy,
     DateOnly IssuedOn,
     bool Answered,
-    string Url);
+    string Url,
+    string? OfficerUserId = null);
 
 public sealed record CommandDeskTaskInput(
     int TaskId,
@@ -76,9 +86,9 @@ public sealed record CommandDeskTaskInput(
     string Priority,
     string Status,
     DateOnly Due,
-    string? BlockedReason);
-
-public sealed record CommandDeskReturnedInput(int ProjectId, string OfficerUserId, string OfficerName);
+    string? BlockedReason,
+    string? AssignerUserId = null,
+    DateTimeOffset? BlockedSinceUtc = null);
 
 public sealed record CommandDeskRegisterInput(string Label, DateOnly? LastOn, int ExpectedDays, string Url);
 
@@ -97,9 +107,10 @@ public static class CommandDeskBuilder
         var today = input.Today;
         var windowDays = NormaliseWindow(input.WindowDays);
         var pdc = BuildPdcWatch(input.Projects, today);
-        var directions = BuildDirections(input.Directions, today);
+        var directions = BuildDirections(input.Directions, today, input.ViewerUserId);
         var tasks = BuildTasks(input.Tasks, today);
         var decisions = input.Decisions
+            .Concat(BlockedForViewer(input.Tasks, input.ViewerUserId, today))
             .OrderBy(item => item.RequestedAtUtc)
             .Select(item => new CommandDeskDecisionVm(
                 item.Title,
@@ -141,8 +152,7 @@ public static class CommandDeskBuilder
             TasksBlockedCount = input.Tasks.Count(task => IsOpenForLag(task) && IsBlocked(task)),
             TasksOverdueCount = input.Tasks.Count(task => IsOpenForLag(task) && !IsBlocked(task) && task.Due < today),
             TasksDueSoonCount = input.Tasks.Count(task => IsOpenForLag(task) && !IsBlocked(task) && task.Due >= today && task.Due.DayNumber - today.DayNumber <= TaskDueSoonDays),
-            Attention = BuildAttention(input.Projects, input.Returned, today),
-            NothingReturned = input.Returned.Count == 0,
+            Attention = BuildAttention(input.Projects, today, input.ViewerUserId),
             QuietRegisters = quietRegisters,
             CurrentRegisterCount = quiet.Count - quietRegisters.Count
         };
@@ -167,13 +177,15 @@ public static class CommandDeskBuilder
 
         Add(CommandDeskProgressKind.StageCompleted, "stage completed", "stages completed", null);
         Add(CommandDeskProgressKind.ProjectCompleted, "project completed", "projects completed", "/Projects?Lifecycle=Completed");
-        Add(CommandDeskProgressKind.TaskClosed, "task closed", "tasks closed", "/ActionTasks");
         Add(CommandDeskProgressKind.TotCompleted, "ToT completed", "ToTs completed", CommandDeskRoutes.Tot);
         Add(CommandDeskProgressKind.IprFiled, "IPR filed", "IPRs filed", CommandDeskRoutes.Ipr);
         Add(CommandDeskProgressKind.IprGranted, "IPR granted", "IPRs granted", CommandDeskRoutes.Ipr);
         Add(CommandDeskProgressKind.UnitsProliferated, "unit proliferated", "units proliferated", CommandDeskRoutes.Proliferation);
         Add(CommandDeskProgressKind.FfcDelivered, "FFC delivery", "FFC deliveries", CommandDeskRoutes.Ffc);
         Add(CommandDeskProgressKind.FfcInstalled, "FFC installation", "FFC installations", CommandDeskRoutes.Ffc);
+        Add(CommandDeskProgressKind.Visit, "visit", "visits", CommandDeskRoutes.Visits);
+        Add(CommandDeskProgressKind.PeopleTrained, "person trained", "people trained", CommandDeskRoutes.Training);
+        Add(CommandDeskProgressKind.Activity, "activity", "activities", CommandDeskRoutes.Activities);
         return counts;
     }
 
@@ -215,13 +227,18 @@ public static class CommandDeskBuilder
                     days,
                     DueLabel(days),
                     days < 0,
-                    project.PlanWithHod ? "Revised plan with HoD" : null,
-                    WorkspaceRouteHelper.ProjectOverview(project.ProjectId));
+                    !project.PlanWithHod ? null
+                        : project.PlanReviewUrl is null ? "Revised plan with HoD" : "Revised plan · waiting on you",
+                    WorkspaceRouteHelper.ProjectOverview(project.ProjectId),
+                    project.PlanWithHod ? project.PlanReviewUrl : null);
             })
             .ToList();
 
     // SECTION: Directions awaiting progress
-    private static IReadOnlyList<CommandDeskDirectionVm> BuildDirections(IReadOnlyList<CommandDeskDirectionInput> directions, DateOnly today)
+    private static IReadOnlyList<CommandDeskDirectionVm> BuildDirections(
+        IReadOnlyList<CommandDeskDirectionInput> directions,
+        DateOnly today,
+        string? viewerUserId = null)
         => directions
             .Where(direction => !direction.Answered)
             .OrderBy(direction => direction.IssuedOn)
@@ -244,7 +261,8 @@ public static class CommandDeskBuilder
                     age,
                     age == 0 ? "Issued today" : $"{age} {Days(age)}, no reply",
                     age > DirectionHighlightDays,
-                    direction.Url);
+                    direction.Url,
+                    MessageUrl(direction.OfficerUserId, viewerUserId));
             })
             .ToList();
 
@@ -258,6 +276,33 @@ public static class CommandDeskBuilder
 
     private static bool IsBlocked(CommandDeskTaskInput task)
         => string.Equals(task.Status, Models.ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
+
+    // A blocked task usually needs its assigner (the reason often says "escalated"), so a task
+    // the viewer assigned that is blocked also waits on the viewer. It stays under Tasks as well,
+    // which everyone sees.
+    private static IEnumerable<CommandDeskDecisionInput> BlockedForViewer(
+        IReadOnlyList<CommandDeskTaskInput> tasks,
+        string? viewerUserId,
+        DateOnly today)
+    {
+        if (string.IsNullOrWhiteSpace(viewerUserId))
+        {
+            return Array.Empty<CommandDeskDecisionInput>();
+        }
+
+        return tasks
+            .Where(task => IsOpenForLag(task) && IsBlocked(task)
+                && string.Equals(task.AssignerUserId, viewerUserId, StringComparison.Ordinal))
+            .Select(task => new CommandDeskDecisionInput(
+                task.Title,
+                string.IsNullOrWhiteSpace(task.BlockedReason) ? "Task blocked" : $"Task blocked: “{Clip(task.BlockedReason!.Trim(), 120)}”",
+                task.AssigneeName,
+                task.BlockedSinceUtc ?? new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero),
+                "Open task",
+                CommandDeskRoutes.Task(task.TaskId)));
+    }
+
+    private static string Clip(string text, int max) => text.Length <= max ? text : text[..(max - 1)].TrimEnd() + "…";
 
     private static IReadOnlyList<CommandDeskTaskVm> BuildTasks(IReadOnlyList<CommandDeskTaskInput> tasks, DateOnly today)
         => tasks
@@ -291,22 +336,35 @@ public static class CommandDeskBuilder
             .ToList();
 
     // SECTION: Needs attention
+    // Each reason lists, by officer, the projects behind the count, so the HoD can open one
+    // directly or message the officer, not only read a number.
     private static IReadOnlyList<CommandDeskAttentionVm> BuildAttention(
         IReadOnlyList<CommandDeskProjectInput> projects,
-        IReadOnlyList<CommandDeskReturnedInput> returned,
-        DateOnly today)
+        DateOnly today,
+        string? viewerUserId = null)
     {
         var staleBefore = today.AddDays(-StaleUpdateDays);
+        var names = projects
+            .GroupBy(project => project.ProjectId)
+            .ToDictionary(group => group.Key, group => group.First().Name);
         var result = new List<CommandDeskAttentionVm>();
 
-        void Add(string key, string singular, string plural, IEnumerable<(string UserId, string Name)> officers)
+        void Add(string key, string singular, string plural, IEnumerable<(string UserId, string Name, int ProjectId)> items)
         {
-            var byOfficer = officers
-                .GroupBy(officer => officer.UserId, StringComparer.Ordinal)
+            var byOfficer = items
+                .GroupBy(item => item.UserId, StringComparer.Ordinal)
                 .Select(group => new CommandDeskOfficerCountVm(
                     group.First().Name,
                     group.Count(),
-                    string.IsNullOrWhiteSpace(group.Key) ? null : CommandDeskRoutes.Conference(group.Key)))
+                    string.IsNullOrWhiteSpace(group.Key) ? null : CommandDeskRoutes.Conference(group.Key),
+                    group
+                        .GroupBy(item => item.ProjectId)
+                        .Select(project => new CommandDeskAttentionProjectVm(
+                            names.GetValueOrDefault(project.Key) ?? "Project",
+                            WorkspaceRouteHelper.ProjectOverview(project.Key)))
+                        .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                    MessageUrl(group.Key, viewerUserId)))
                 .OrderByDescending(officer => officer.Count)
                 .ThenBy(officer => officer.OfficerName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -317,15 +375,22 @@ public static class CommandDeskBuilder
             }
         }
 
-        Add("returned", "item returned by the HoD and not yet corrected", "items returned by the HoD and not yet corrected",
-            returned.Select(item => (item.OfficerUserId, item.OfficerName)));
+        // A plan waiting for approval is the officer's answer to a missing PDC (as on the officer's
+        // own desk), so those projects are not counted here; the plan is under Waiting on you.
         Add("no-pdc", "project with no PDC on its current stage", "projects with no PDC on their current stage",
-            projects.Where(project => !project.Pdc.HasValue).Select(project => (project.OfficerUserId, project.OfficerName)));
+            projects.Where(project => !project.Pdc.HasValue && !project.PlanWithHod)
+                .Select(project => (project.OfficerUserId, project.OfficerName, project.ProjectId)));
         Add("no-update", $"project with no update from its officer for {StaleUpdateDays}+ days", $"projects with no update from their officer for {StaleUpdateDays}+ days",
             projects.Where(project => !project.LastOfficerUpdate.HasValue || project.LastOfficerUpdate.Value <= staleBefore)
-                .Select(project => (project.OfficerUserId, project.OfficerName)));
+                .Select(project => (project.OfficerUserId, project.OfficerName, project.ProjectId)));
         return result;
     }
+
+    /// <summary>A chat with the officer; none for the viewer themselves or an unknown officer.</summary>
+    private static string? MessageUrl(string? officerUserId, string? viewerUserId)
+        => string.IsNullOrWhiteSpace(officerUserId) || string.Equals(officerUserId, viewerUserId, StringComparison.Ordinal)
+            ? null
+            : CommandDeskRoutes.Message(officerUserId);
 
     // SECTION: Labels
     public static string DueLabel(int days) => days switch
@@ -360,6 +425,8 @@ internal static class CommandDeskRoutes
     public static string Task(int taskId) => $"/ActionTasks/Details/{taskId}";
 
     public static string Conference(string officerUserId) => $"/Workspace/Conference/{Uri.EscapeDataString(officerUserId)}";
+
+    public static string Message(string userId) => $"/Chat?with={Uri.EscapeDataString(userId)}";
 
     public static string Approval(string type, string requestId)
         => $"/Approvals/Pending/{Uri.EscapeDataString(type)}/{Uri.EscapeDataString(requestId)}?returnUrl={Uri.EscapeDataString(Desk)}";

@@ -1,3 +1,4 @@
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -49,8 +50,6 @@ public sealed class OpsSignalsService : IOpsSignalsService
         // SECTION: Range + cache setup
         var end = to ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
         var start = from ?? end.AddMonths(-11).AddDays(1 - end.Day);
-        var startMonthIndex = start.Year * 12 + start.Month;
-        var endMonthIndex = end.Year * 12 + end.Month;
         var startOfDay = start.ToDateTime(TimeOnly.MinValue);
         var endOfDay = end.ToDateTime(TimeOnly.MaxValue);
         var startOfDayOffset = new DateTimeOffset(startOfDay, TimeSpan.Zero);
@@ -104,33 +103,14 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // SECTION: Training aggregation
             var trainingCandidates = await _db.Trainings
                 .AsNoTracking()
-                .Where(t =>
-                    (t.StartDate.HasValue && t.StartDate.Value >= start && t.StartDate.Value <= end)
-                    || (t.EndDate.HasValue && t.EndDate.Value >= start && t.EndDate.Value <= end)
-                    || (!t.StartDate.HasValue && !t.EndDate.HasValue
-                        && t.TrainingYear.HasValue && t.TrainingMonth.HasValue
-                        && (t.TrainingYear.Value * 12 + t.TrainingMonth.Value) >= startMonthIndex
-                        && (t.TrainingYear.Value * 12 + t.TrainingMonth.Value) <= endMonthIndex))
-                .Select(t => new
-                {
-                    t.StartDate,
-                    t.EndDate,
-                    t.TrainingYear,
-                    t.TrainingMonth,
-                    Total = t.Counters != null
-                        ? t.Counters.Total
-                        : t.LegacyOfficerCount + t.LegacyJcoCount + t.LegacyOrCount
-                })
+                .Where(TrainingReach.MayFallBetween(start, end))
+                .Select(TrainingReach.Row)
                 .ToListAsync(ct);
 
             var trainingByMonth = trainingCandidates
                 .Select(candidate =>
                 {
-                    var referenceDate = candidate.StartDate
-                        ?? candidate.EndDate
-                        ?? (candidate.TrainingYear.HasValue && candidate.TrainingMonth.HasValue
-                            ? new DateOnly(candidate.TrainingYear.Value, candidate.TrainingMonth.Value, 1)
-                            : (DateOnly?)null);
+                    var referenceDate = TrainingReach.ReferenceDate(candidate);
 
                     return referenceDate is { } reference && reference >= start && reference <= end
                         ? new { Date = reference, candidate.Total }
@@ -147,11 +127,9 @@ public sealed class OpsSignalsService : IOpsSignalsService
                                .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
 
-            var trainingTotal = await _db.Trainings.SumAsync(
-                t => (long)(t.Counters != null
-                    ? t.Counters.Total
-                    : t.LegacyOfficerCount + t.LegacyJcoCount + t.LegacyOrCount),
-                ct);
+            var trainingTotal = await _db.Trainings
+                .Select(TrainingReach.HeadCount)
+                .SumAsync(headCount => (long)headCount, ct);
             // END SECTION
 
             // SECTION: ToT aggregation (completed projects)
