@@ -4336,7 +4336,7 @@ html {
 .at-sprint-glance-main { display: flex; align-items: center; gap: 28px; min-width: 0; }
 .at-sprint-glance .at-label { display: block; color: #60708a; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
 .at-sprint-glance h2 { font-size: 17px; margin: 2px 0 0; }
-.at-sprint-glance p { margin: 2px 0 0; color: #6c7b93; font-size: 12px; }
+.at-sprint-glance p { margin: 2px 0 0; color: var(--pm-text-secondary); font-size: 12px; }
 .at-sprint-glance-counts { display: flex; flex-wrap: wrap; gap: 7px; }
 .at-sprint-glance-counts span { padding: 5px 9px; border-radius: 999px; background: #f2f5fa; color: #53627a; font-size: 12px; }
 .at-sprint-glance-counts strong { color: #14213d; }
@@ -4509,7 +4509,7 @@ html {
 .at-sprint-progress__bar > span { display: block; height: 100%; border-radius: inherit; background: var(--pm-success); }
 .at-sprint-progress__label { color: var(--pm-text-secondary); font-size: .76rem; font-weight: 650; }
 .at-sprint-glance-counts .is-danger { color: #b42318; }
-.at-sprint-glance-counts .is-warning { color: #9a6700; }
+.at-sprint-glance-counts .is-warning { color: var(--pm-warning-soft-text); }
 
 .at-unified-attention-list {
     display: grid;

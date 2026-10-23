@@ -5,7 +5,7 @@
     --db-border: #dbe4f0;
     --db-border-soft: #e9eef6;
     --db-text: #10213b;
-    --db-muted: #687890;
+    --db-muted: #5a6a80; /* 5.1:1 on the page background; #687890 was 4.15:1 */
     --db-primary: #3164dc;
     --db-primary-dark: #1f4aa7;
     --db-primary-soft: #edf3ff;
@@ -216,7 +216,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 .db-output-card__chart canvas { width:100%!important; height:100%!important; }
 .db-output-card__chart.is-empty canvas { opacity:.25; }
 .db-chart-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#7b8798; font-size:.61rem; font-weight:650; text-align:center; }
-.db-output-card__foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; margin-top:auto; padding-top:8px; color:#8794a6; font-size:.59rem; }
+.db-output-card__foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; margin-top:auto; padding-top:8px; color:var(--db-muted); font-size:.59rem; }
 /* The change and what it compares ("vs previous 3 months"); the exact months are in its tooltip. */
 .db-output-card__delta { display:inline-flex; align-items:baseline; gap:4px; }
 .db-output-card__delta small { color:var(--db-muted); font-size:inherit; white-space:nowrap; }
@@ -253,7 +253,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 .db-idea-summary { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; padding:14px 16px; }
 .db-idea-summary__primary { background:linear-gradient(135deg,#f0edff,#faf9ff)!important; }
 .db-idea-list { padding:0 16px 12px; }
-.db-idea-row>div:last-child { display:flex; gap:9px; color:#7888a1; font-size:.62rem; }
+.db-idea-row>div:last-child { display:flex; gap:9px; color:var(--db-muted); font-size:.62rem; }
 
 /* FFC analytical panel */
 .db-ffc-layout {
@@ -467,7 +467,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
     font-variant-numeric:tabular-nums;
 }
 .db-country-row__metrics em {
-    color:var(--db-amber);
+    color:var(--pm-warning-soft-text); /* amber text; --db-amber is for fills (3.35:1 as text) */
     font-size:.53rem;
     font-style:normal;
     font-weight:720;
@@ -503,7 +503,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 .db-processing-action:hover i { transform:translateX(3px); }
 .db-processing-note { max-width:150px; color:var(--db-muted); font-size:.58rem; text-align:right; }
 
-.db-footer { display:flex; justify-content:flex-end; gap:16px; padding:10px 2px 0; color:#8491a4; font-size:.62rem; }
+.db-footer { display:flex; justify-content:flex-end; gap:16px; padding:10px 2px 0; color:var(--db-muted); font-size:.62rem; }
 .db-empty { padding:28px; color:var(--db-muted); text-align:center; font-size:.73rem; }
 .db-empty--compact { padding:12px 0; text-align:left; }
 

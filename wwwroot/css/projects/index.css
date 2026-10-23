@@ -139,13 +139,14 @@
     place-items: center;
     border-radius: 999px;
     background: rgba(71, 84, 103, 0.09);
-    color: inherit;
+    color: var(--pm-text-slate);
     font-size: 0.73rem;
     font-weight: 750;
 }
 
 .projects-lifecycle__tab.is-active .projects-lifecycle__count {
     background: rgba(53, 104, 232, 0.13);
+    color: var(--pm-primary-strong); /* 5.7:1 on the tinted pill */
 }
 
 .projects-archive-filter {
@@ -359,7 +360,7 @@
 }
 
 .projects-filter-choice small {
-    color: #98a2b3;
+    color: var(--pm-text-muted);
     font-size: 0.7rem;
 }
 
@@ -605,7 +606,7 @@
 }
 
 .project-card__metadata dt {
-    color: #98a2b3;
+    color: var(--pm-text-muted);
     font-weight: 600;
 }
 
@@ -867,7 +868,7 @@
 }
 
 .project-card__metadata dt {
-    color: #a0a9b8;
+    color: var(--pm-text-muted);
     font-size: 0.7rem;
     font-weight: 650;
 }
@@ -896,7 +897,7 @@
 }
 
 .project-card__stage small {
-    color: #7b879a;
+    color: var(--pm-text-muted);
     font-size: 0.68rem;
     line-height: 1.35;
 }
@@ -908,7 +909,7 @@
 .project-card__stage.is-missing strong,
 .project-card__stage.is-missing small,
 .project-card__stage.is-missing i {
-    color: #7b879a;
+    color: var(--pm-text-muted);
 }
 
 .projects-table__row {
