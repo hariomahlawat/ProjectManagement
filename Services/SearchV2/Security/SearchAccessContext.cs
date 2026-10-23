@@ -1,7 +1,5 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using ProjectManagement.Areas.ProjectOfficeReports.Application;
-using ProjectManagement.Configuration;
 
 namespace ProjectManagement.Services.SearchV2.Security;
 
@@ -17,16 +15,8 @@ public interface ISearchAccessContextFactory
 
 public sealed class SearchAccessContextFactory : ISearchAccessContextFactory
 {
-    private static readonly string[] SearchPolicies =
-    [
-        Policies.Documents.View,
-        Policies.Ipr.View,
-        ProjectOfficeReportsPolicies.ViewVisits,
-        ProjectOfficeReportsPolicies.ViewTotTracker,
-        ProjectOfficeReportsPolicies.ViewTrainingTracker,
-        ProjectOfficeReportsPolicies.ViewProliferationTracker,
-        ProjectOfficeReportsPolicies.ViewArpp
-    ];
+    // Exactly the policies any search source can require (see SearchSourcePolicies).
+    private static readonly IReadOnlyList<string> SearchPolicies = SearchSourcePolicies.AllPolicies;
 
     private readonly IAuthorizationService _authorizationService;
 
@@ -47,7 +37,7 @@ public sealed class SearchAccessContextFactory : ISearchAccessContextFactory
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var allowed = new List<string>(SearchPolicies.Length);
+        var allowed = new List<string>(SearchPolicies.Count);
         foreach (var policy in SearchPolicies)
         {
             cancellationToken.ThrowIfCancellationRequested();

@@ -12,6 +12,15 @@ public sealed class SearchV2Options
     public string[] ServeV2Users { get; set; } = Array.Empty<string>();
     public string[] ServeV2Roles { get; set; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Fraction (0–1) of eligible first-page searches that also run the other engine in the
+    /// background and record a shadow comparison. Shadow work never delays the response.
+    /// When unset, the default is 0 while V2 serves the user (comparison is opt-in) and 1
+    /// while Legacy serves (the original shadow-measurement rollout).
+    /// </summary>
+    [Range(0.0, 1.0)]
+    public double? ShadowSampleRate { get; set; }
+
     [Range(5, 100)]
     public int PageSize { get; set; } = 20;
 
@@ -79,7 +88,7 @@ public sealed class SearchV2Options
     /// index generation is rebuilt atomically when this value changes.
     /// </summary>
     [Range(1, int.MaxValue)]
-    public int ProjectionVersion { get; set; } = 4;
+    public int ProjectionVersion { get; set; } = 5;
 
     [Range(5, 3600)]
     public int WorkerIntervalSeconds { get; set; } = 15;
@@ -89,6 +98,14 @@ public sealed class SearchV2Options
 
     [Range(1, 10080)]
     public int FullReconciliationMinutes { get; set; } = 1440;
+
+    /// <summary>
+    /// Wait after a failed automatic full rebuild before trying again. Consecutive
+    /// failures double the wait, up to four times this value. The previous active
+    /// generation keeps serving meanwhile.
+    /// </summary>
+    [Range(1, 1440)]
+    public int FullRebuildRetryMinutes { get; set; } = 15;
 
     [Range(1, 3650)]
     public int QueryLogRetentionDays { get; set; } = 90;

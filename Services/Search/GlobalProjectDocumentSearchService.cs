@@ -47,6 +47,7 @@ public sealed class GlobalProjectDocumentSearchService : IGlobalProjectDocumentS
         var rows = await _dbContext.ProjectDocuments
             .AsNoTracking()
             .Where(document => document.Status == ProjectDocumentStatus.Published && !document.IsArchived)
+            .Where(document => !document.Project.IsDeleted && !document.Project.IsArchived)
             .Where(document => document.SearchVector != null &&
                 document.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("english", trimmed)))
             .OrderByDescending(document => ApplicationDbContext.TsRankCd(

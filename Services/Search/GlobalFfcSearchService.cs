@@ -119,6 +119,7 @@ namespace ProjectManagement.Services.Search
                 .Include(attachment => attachment.Record)
                     .ThenInclude(record => record.Country)
                 .Where(attachment =>
+                    !attachment.Record.IsDeleted &&
                     // EF-translatable check, no StringComparison
                     attachment.ContentType == "application/pdf" &&
                     (

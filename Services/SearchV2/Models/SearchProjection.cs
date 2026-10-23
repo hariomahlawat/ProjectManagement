@@ -75,3 +75,32 @@ public sealed record SearchIndexHealth(
     DateTimeOffset? LastFullRebuildUtc,
     DateTimeOffset? LastReconciliationUtc,
     string? LastError);
+
+/// <summary>
+/// The lightweight active-index pointer the indexing worker reads every tick.
+/// </summary>
+public sealed record SearchIndexActiveState(
+    long ActiveGeneration,
+    int IndexVersion,
+    DateTimeOffset? LastFullRebuildUtc)
+{
+    public static SearchIndexActiveState None { get; } = new(0, 0, null);
+
+    public bool HasActiveGeneration => ActiveGeneration > 0;
+}
+
+/// <summary>
+/// Thrown when a full rebuild would replace an active index generation that was
+/// built by a newer projection version (for example by a newer process during a
+/// rolling deployment). The rebuild transaction is rolled back.
+/// </summary>
+public sealed class SearchIndexSupersededException : InvalidOperationException
+{
+    public SearchIndexSupersededException(int attemptedVersion)
+        : base($"Search V2 index is already at a newer projection version than {attemptedVersion}; the rebuild was not activated.")
+    {
+        AttemptedVersion = attemptedVersion;
+    }
+
+    public int AttemptedVersion { get; }
+}

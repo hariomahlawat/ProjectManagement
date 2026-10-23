@@ -18,6 +18,7 @@ using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.SearchV2.Models;
 using ProjectManagement.Services.SearchV2.Query;
+using ProjectManagement.Services.SearchV2.Security;
 
 namespace ProjectManagement.Services.SearchV2.Indexing;
 
@@ -232,7 +233,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 null,
                 updatedAt,
                 updatedAt,
-                null,
                 terms,
                 new
                 {
@@ -267,8 +267,11 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         int? projectId,
         CancellationToken cancellationToken)
     {
+        // Documents of trashed or archived projects are hidden with their project; the
+        // project page itself is unreachable, so the document must not be discoverable.
         var query = _db.ProjectDocuments.AsNoTracking()
-            .Where(document => document.Status == ProjectDocumentStatus.Published && !document.IsArchived);
+            .Where(document => document.Status == ProjectDocumentStatus.Published && !document.IsArchived)
+            .Where(document => !document.Project.IsDeleted && !document.Project.IsArchived);
         if (documentId.HasValue) query = query.Where(document => document.Id == documentId.Value);
         if (projectId.HasValue) query = query.Where(document => document.ProjectId == projectId.Value);
 
@@ -336,7 +339,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 FileType(row.OriginalFileName, row.ContentType),
                 row.UploadedAtUtc,
                 updated,
-                null,
                 terms,
                 new
                 {
@@ -407,7 +409,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 FileType(row.OriginalFileName, row.MimeType),
                 eventDate,
                 updated,
-                Policies.Documents.View,
                 terms,
                 new
                 {
@@ -476,7 +477,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 null,
                 row.UpdatedAt,
                 row.UpdatedAt,
-                null,
                 terms,
                 new
                 {
@@ -549,7 +549,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 null,
                 row.GrantedAtUtc ?? row.FiledAtUtc,
                 updated,
-                Policies.Ipr.View,
                 BuildTerms(
                     identifiers: identifiers,
                     names: Values(row.ProjectName),
@@ -608,7 +607,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             null,
             row.ScheduledStartUtc ?? row.CreatedAtUtc,
             row.LastModifiedAtUtc ?? row.CreatedAtUtc,
-            null,
             BuildTerms(locations: Values(row.Location), contexts: Values(row.Type)),
             new
             {
@@ -660,7 +658,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 null,
                 eventDate,
                 row.LastModifiedAtUtc ?? row.CreatedAtUtc,
-                ProjectOfficeReportsPolicies.ViewVisits,
                 BuildTerms(people: Values(row.VisitorName), contexts: Values(row.Type)),
                 new
                 {
@@ -699,7 +696,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 "Social media", "Trackers", row.Title, JoinNonEmpty(row.Platform, row.EventType),
                 _urls.ProjectOfficeSocialMediaDetails(row.Id), null, null,
                 JoinNonEmpty(row.Platform, row.EventType), row.Description, null, null, date,
-                row.LastModifiedAtUtc ?? row.CreatedAtUtc, null,
+                row.LastModifiedAtUtc ?? row.CreatedAtUtc,
                 BuildTerms(contexts: Values(row.Platform, row.EventType)),
                 new
                 {
@@ -748,7 +745,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 _urls.ProjectOfficeTrainingView(row.Id), null, null,
                 JoinNonEmpty(row.Type, year, string.Join(" · ", row.Projects), string.Join(" · ", row.Trainees), string.Join(" · ", stages!)), row.Notes,
                 null, null, eventDate, row.LastModifiedAtUtc ?? row.CreatedAtUtc,
-                ProjectOfficeReportsPolicies.ViewTrainingTracker,
                 BuildTerms(names: row.Projects, people: row.Trainees, contexts: Values(row.Type, year).Concat(stages!)),
                 new
                 {
@@ -804,7 +800,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 "ToT", "Trackers", $"{row.ProjectName} — Transfer of Technology", row.Status.ToString(),
                 _urls.ProjectOfficeTotTracker(row.ProjectId), null, string.Join(' ', genuineAliases),
                 JoinNonEmpty(row.ProjectName, row.ProjectCase, row.Status.ToString(), "Transfer of Technology", projectContext?.Category, projectContext?.TechnicalCategory, projectContext?.CurrentStage), row.MetDetails,
-                row.Status.ToString(), null, eventDate, updated, ProjectOfficeReportsPolicies.ViewTotTracker,
+                row.Status.ToString(), null, eventDate, updated,
                 BuildTerms(
                     aliases: genuineAliases,
                     names: Values(row.ProjectName),
@@ -827,7 +823,10 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
 
     private async Task<IReadOnlyList<SearchProjection>> BuildProliferationAsync(Guid? recordId, CancellationToken cancellationToken)
     {
-        var query = _db.ProliferationGranularEntries.AsNoTracking();
+        // ViewProliferationTracker readers only ever see Approved entries; pending and
+        // rejected entries belong to the submit/approve workflow (ProliferationController).
+        var query = _db.ProliferationGranularEntries.AsNoTracking()
+            .Where(row => row.ApprovalStatus == ApprovalStatus.Approved);
         if (recordId.HasValue) query = query.Where(row => row.Id == recordId.Value);
         var rows = await query.Select(row => new
         {
@@ -857,7 +856,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 null, null,
                 JoinNonEmpty(projectName, row.UnitName, row.Source.ToString(), row.Quantity.ToString(CultureInfo.InvariantCulture), projectContext?.Category, projectContext?.TechnicalCategory, projectContext?.CurrentStage),
                 row.Remarks, row.ApprovalStatus.ToString(), null, date, updated,
-                ProjectOfficeReportsPolicies.ViewProliferationTracker,
                 BuildTerms(
                     names: Values(projectName),
                     organisations: Values(row.UnitName),
@@ -941,7 +939,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 string.Join(' ', identifiers), null,
                 JoinNonEmpty(fy, row.Kind.ToString(), string.Join(" · ", details), string.Join(" · ", stages!)), row.VerificationNote,
                 row.IsVerified ? "Verified" : "Working", null, eventDate, row.UpdatedAtUtc,
-                ProjectOfficeReportsPolicies.ViewArpp,
                 BuildTerms(identifiers: identifiers, names: contexts, contexts: Values(fy, row.Kind.ToString()).Concat(stages!)),
                 new
                 {
@@ -1029,7 +1026,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         string? fileType,
         DateTimeOffset? eventDate,
         DateTimeOffset updatedAt,
-        string? requiredPolicy,
         IReadOnlyList<SearchProjectionTerm> terms,
         object metadata)
     {
@@ -1058,7 +1054,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             eventDate,
             updatedAt,
             SearchVisibilityMode.Authenticated,
-            requiredPolicy,
+            SearchSourcePolicies.RequiredPolicyFor(sourceModule),
             null,
             _options.ProjectionVersion,
             terms,
