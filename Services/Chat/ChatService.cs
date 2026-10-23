@@ -532,6 +532,8 @@ public sealed class ChatService
             foreach (var file in await _db.ChatAttachments.Where(a => a.MessageId == message.Id && a.RemovedUtc == null).ToListAsync(cancellationToken))
             {
                 file.RemovedUtc = message.UnsentUtc;
+                file.RemovalReason = ChatAttachmentRemovalReason.Unsent;
+                file.RemovedByUserId = userId;
             }
 
             await _db.SaveChangesAsync(cancellationToken);

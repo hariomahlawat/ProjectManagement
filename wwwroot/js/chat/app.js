@@ -283,6 +283,7 @@
     connection.on('GroupRead', (read) => this.onGroupRead(read));
     connection.on('GroupTyping', (typing) => this.onGroupTyping(typing));
     connection.on('AttachmentRemoved', (removed) => this.onAttachmentRemoved(removed));
+    connection.on('AttachmentRestored', (restored) => this.onAttachmentRestored(restored));
     connection.onreconnecting(() => {
       this.markOffline();
       this.startPolling();

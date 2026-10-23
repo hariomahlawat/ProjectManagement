@@ -124,6 +124,19 @@ largest allowances in use by size (no file names, no conversations), to manage d
 - Upload progress in the window, with Cancel; a failed upload can be retried like a failed
   message.
 
+## Storage management (owner decisions, 2026-10-23)
+
+| Decision | |
+| --- | --- |
+| Administrators can empty chat storage | Everything, one person's files, files older than an age, or a person's files older than an age. They see sizes, people and dates only, never file names or conversations. A clean-up is previewed, confirmed by typing REMOVE, and audited (scope and counts). |
+| People manage their own storage | **My files** (`/Chat?view=files`): the files they sent, usage against the allowance, sort by date or size, remove a selection or everything older than an age, restore. |
+| Automatic retention | Sent files older than **1 year** are removed once a day (`Chat:Attachments:RetentionDays`, 0 = off). |
+| People are told | A notification when an administrator or retention removes their files, with how many, how much, and until when they can be restored. |
+| Undo for 1 day | Every removal can be undone for 24 hours (`Chat:Attachments:UndoHours`) by whoever made it: people restore their own removals and retention's from My files; administrators undo their clean-ups and retention runs from the admin page. Unsending a message stays final. Files are deleted from disk only after the window. |
+
+The messages stay: a removed file shows "File removed", "File removed by an administrator" or
+"File removed automatically (old)".
+
 ## As built
 
 - **Schema** (additive migration `AddChatAttachments`): `ChatAttachments` (id, message id,
@@ -144,3 +157,10 @@ largest allowances in use by size (no file names, no conversations), to manage d
 - **Limits:** per-user `chat-upload` rate limit, the per-file limit (also counted in
   `UploadRequestLimitResolver` while attachments are on), the free-disk floor, the allowance.
 - **Switch:** `Chat:Attachments:Enabled`, default **off**.
+- **Storage management** (`ChatStorageService`): removals record their reason, who made them
+  and a batch id (migration `AddChatAttachmentRemovalDetails`); `/api/chat/attachments/mine…`
+  for My files; the admin page **Admin › Recovery › Chat storage**
+  (`Areas/Admin/Pages/Chat/Storage`, policy `Admin.Recovery.Manage`); retention runs once a day
+  in the clean-up worker; notifications (`ChatFilesRemoved`) are queued in the same transaction
+  as the removal; live `AttachmentRemoved` / `AttachmentRestored` events update open chats
+  (up to 500 files per clean-up; others on reload).

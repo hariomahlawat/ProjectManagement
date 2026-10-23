@@ -217,4 +217,7 @@ public interface IChatClient
 
     /// <summary>A sender removed a file from a message (docs/chat-attachments.md, D3).</summary>
     Task AttachmentRemoved(ChatAttachmentRemovedDto removed);
+
+    /// <summary>A removed file was restored within the undo window.</summary>
+    Task AttachmentRestored(ChatAttachmentRestoredDto restored);
 }

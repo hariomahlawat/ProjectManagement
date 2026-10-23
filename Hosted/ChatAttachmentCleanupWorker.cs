@@ -1,4 +1,7 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Features.Chat;
+using ProjectManagement.Hubs;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Chat;
@@ -6,20 +9,22 @@ using ProjectManagement.Services.Chat;
 namespace ProjectManagement.Hosted;
 
 /// <summary>
-/// Chat attachments clean-up (docs/chat-attachments.md): uploads never sent are removed, and
-/// the files of removed attachments (removed by their sender, or unsent with their message) are
-/// deleted from disk. Each sweep only acts on what is still to do, so a sweep that runs twice,
+/// Chat attachments clean-up (docs/chat-attachments.md): once a day, retention removes sent
+/// files older than the retention age; every sweep removes uploads never sent and deletes the
+/// files of removed attachments once they can no longer be restored. Each sweep only acts on what is still to do, so a sweep that runs twice,
 /// or overlaps another during a restart, does no harm.
 /// </summary>
 public sealed class ChatAttachmentCleanupWorker : BackgroundService
 {
     private const string WorkerKey = "chat-attachment-cleanup";
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan RetentionInterval = TimeSpan.FromHours(24);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptionsMonitor<ChatOptions> _options;
     private readonly ILogger<ChatAttachmentCleanupWorker> _logger;
     private readonly IAdminWorkerStatusRegistry? _status;
+    private DateTimeOffset _lastRetention = DateTimeOffset.MinValue;
 
     public ChatAttachmentCleanupWorker(
         IServiceScopeFactory scopeFactory,
@@ -46,6 +51,15 @@ public sealed class ChatAttachmentCleanupWorker : BackgroundService
                 {
                     _status?.MarkStarted(WorkerKey);
                     using var scope = _scopeFactory.CreateScope();
+                    // Retention once a day (and once after each start): files older than the
+                    // retention age are removed as one batch, undoable for a day, owners told.
+                    if (DateTimeOffset.UtcNow - _lastRetention >= RetentionInterval)
+                    {
+                        var retention = await scope.ServiceProvider.GetRequiredService<ChatStorageService>().ApplyRetentionAsync(stoppingToken);
+                        await ChatApi.PushFileChangesAsync(scope.ServiceProvider.GetRequiredService<IHubContext<ChatHub, IChatClient>>(), retention.Updates);
+                        _lastRetention = DateTimeOffset.UtcNow;
+                    }
+
                     var deleted = await scope.ServiceProvider.GetRequiredService<ChatAttachmentService>().CleanUpAsync(stoppingToken);
                     if (deleted > 0)
                     {

@@ -94,6 +94,12 @@ public static class ChatApi
         files.MapGet("/{attachmentId:long}", DownloadAttachmentAsync);
         files.MapPost("/{attachmentId:long}/remove", RemoveAttachmentAsync).RequireRateLimiting(ChangeRateLimitPolicy);
 
+        // My files: the files I sent (docs/chat-attachments.md, storage management).
+        files.MapGet("/mine", GetMyFilesAsync);
+        files.MapPost("/mine/remove", RemoveMyFilesAsync).RequireRateLimiting(ChangeRateLimitPolicy);
+        files.MapPost("/mine/remove-older", RemoveMyOlderFilesAsync).RequireRateLimiting(ChangeRateLimitPolicy);
+        files.MapPost("/mine/restore", RestoreMyFilesAsync).RequireRateLimiting(ChangeRateLimitPolicy);
+
         return endpoints;
     }
 
@@ -396,6 +402,70 @@ public static class ChatApi
         }
 
         return Results.Ok(removal.Removed);
+    }
+
+    private static async Task<IResult> GetMyFilesAsync(HttpContext httpContext, ChatStorageService storage, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await storage.ListMineAsync(userId, cancellationToken));
+    }
+
+    private static Task<IResult> RemoveMyFilesAsync(ChatFileIdsRequest? request, HttpContext httpContext, ChatStorageService storage, IHubContext<ChatHub, IChatClient> hub, IAntiforgery antiforgery, CancellationToken cancellationToken)
+        => ChangeMyFilesAsync(httpContext, hub, antiforgery, userId => storage.RemoveMineAsync(userId, request?.Ids, cancellationToken));
+
+    private static Task<IResult> RemoveMyOlderFilesAsync(ChatRemoveOlderRequest? request, HttpContext httpContext, ChatStorageService storage, IHubContext<ChatHub, IChatClient> hub, IAntiforgery antiforgery, CancellationToken cancellationToken)
+        => ChangeMyFilesAsync(httpContext, hub, antiforgery, userId => storage.RemoveMineOlderThanAsync(userId, request?.Days ?? 0, cancellationToken));
+
+    private static Task<IResult> RestoreMyFilesAsync(ChatFileIdsRequest? request, HttpContext httpContext, ChatStorageService storage, IHubContext<ChatHub, IChatClient> hub, IAntiforgery antiforgery, CancellationToken cancellationToken)
+        => ChangeMyFilesAsync(httpContext, hub, antiforgery, userId => storage.RestoreMineAsync(userId, request?.Ids, cancellationToken));
+
+    private static async Task<IResult> ChangeMyFilesAsync(
+        HttpContext httpContext,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        Func<string, Task<ChatStorageResult>> change)
+    {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await change(userId);
+        if (result.Change.Error is not null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Files not changed", detail: result.Change.Error);
+        }
+
+        await PushFileChangesAsync(hub, result.Updates);
+        return Results.Ok(result.Change);
+    }
+
+    /// <summary>Tells everyone who can see each message that one of its files was removed or restored.</summary>
+    internal static async Task PushFileChangesAsync(IHubContext<ChatHub, IChatClient> hub, IReadOnlyList<ChatFileChange> updates)
+    {
+        foreach (var update in updates)
+        {
+            var clients = hub.Clients.Users(update.NotifyUserIds);
+            if (update.Restored is { } restored)
+            {
+                await clients.AttachmentRestored(new ChatAttachmentRestoredDto(update.MessageId, update.GroupId, restored));
+            }
+            else
+            {
+                await clients.AttachmentRemoved(new ChatAttachmentRemovedDto(update.AttachmentId, update.MessageId, update.GroupId, update.RemovalReason));
+            }
+        }
     }
 
     /// <summary>

@@ -61,6 +61,14 @@ public sealed class ChatAttachmentOptions
     /// <summary>An upload not sent with a message within this time is removed by the clean-up job.</summary>
     public int UnusedUploadMinutes { get; set; } = 60;
 
+    /// <summary>Sent files older than this are removed automatically (owner decision: 1 year). 0 turns it off.</summary>
+    public int RetentionDays { get; set; } = 365;
+
+    /// <summary>How long a removal can be undone before the file is deleted from disk (unsending is final).</summary>
+    public int UndoHours { get; set; } = 24;
+
+    public TimeSpan UndoWindow => TimeSpan.FromHours(Math.Max(0, UndoHours));
+
     /// <summary>Uploads one user may start in <see cref="UploadWindowSeconds"/>.</summary>
     public int UploadPermitLimit { get; set; } = 30;
 

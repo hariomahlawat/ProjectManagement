@@ -444,7 +444,7 @@ public sealed class ChatAttachmentService
     internal static ChatAttachmentDto ToDto(ChatAttachment a)
         => a.RemovedUtc is null
             ? new ChatAttachmentDto(a.Id, a.FileName, a.ContentType, a.SizeBytes, a.IsImage, a.Width, a.Height)
-            : new ChatAttachmentDto(a.Id, string.Empty, string.Empty, 0, false, null, null, IsRemoved: true);
+            : new ChatAttachmentDto(a.Id, string.Empty, string.Empty, 0, false, null, null, IsRemoved: true, RemovalReason: a.RemovalReason);
 
     // ------------------------------------------------------------------ download
 
@@ -525,6 +525,9 @@ public sealed class ChatAttachmentService
         }
 
         attachment.RemovedUtc = _clock.UtcNow;
+        attachment.RemovalReason = ChatAttachmentRemovalReason.Sender;
+        attachment.RemovedByUserId = userId;
+        attachment.RemovalBatchId = Guid.NewGuid();
         await _db.SaveChangesAsync(cancellationToken);
 
         var message = attachment.Message;
@@ -540,7 +543,7 @@ public sealed class ChatAttachmentService
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
         return new ChatAttachmentRemoval(
-            new ChatAttachmentRemovedDto(attachment.Id, message.Id, isGroup ? message.ConversationId : null),
+            new ChatAttachmentRemovedDto(attachment.Id, message.Id, isGroup ? message.ConversationId : null, ChatAttachmentRemovalReason.Sender),
             notify);
     }
 
@@ -557,11 +560,22 @@ public sealed class ChatAttachmentService
         var unusedBefore = now.AddMinutes(-Math.Max(1, Settings.UnusedUploadMinutes));
         await _db.ChatAttachments
             .Where(a => a.MessageId == null && a.RemovedUtc == null && a.CreatedUtc < unusedBefore)
-            .ExecuteUpdateAsync(set => set.SetProperty(a => a.RemovedUtc, now), cancellationToken);
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(a => a.RemovedUtc, now)
+                    .SetProperty(a => a.RemovalReason, ChatAttachmentRemovalReason.Unused),
+                cancellationToken);
+
+        // A removal that can still be undone waits out the undo window before its file goes.
+        var undoableBefore = now - Settings.UndoWindow;
 
         var deleted = 0;
         var batch = await _db.ChatAttachments
             .Where(a => a.RemovedUtc != null && a.PurgedUtc == null)
+            .Where(a => (a.RemovalReason != ChatAttachmentRemovalReason.Sender
+                        && a.RemovalReason != ChatAttachmentRemovalReason.Administrator
+                        && a.RemovalReason != ChatAttachmentRemovalReason.Retention)
+                    || a.RemovedUtc < undoableBefore)
             .OrderBy(a => a.Id)
             .Take(500)
             .ToListAsync(cancellationToken);
@@ -627,8 +641,26 @@ public sealed class ChatAttachmentService
         }
     }
 
+    /// <summary>"512 B", "840 KB", "12.5 MB", "1 GB", "2.4 GB".</summary>
     internal static string FormatSize(long bytes)
-        => bytes >= 1024L * 1024 * 1024 && bytes % (1024L * 1024 * 1024) == 0
-            ? $"{bytes / (1024L * 1024 * 1024)} GB"
-            : $"{Math.Round(bytes / (1024d * 1024), 1)} MB";
+    {
+        const double Kb = 1024, Mb = Kb * 1024, Gb = Mb * 1024;
+        if (bytes < Kb)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < Mb)
+        {
+            return $"{Math.Max(1, Math.Round(bytes / Kb))} KB";
+        }
+
+        if (bytes < Gb)
+        {
+            var mb = bytes / Mb;
+            return mb < 10 ? $"{mb:0.#} MB" : $"{Math.Round(mb)} MB";
+        }
+
+        return $"{bytes / Gb:0.#} GB";
+    }
 }

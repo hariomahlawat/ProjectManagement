@@ -50,5 +50,41 @@ public sealed class ChatAttachment
     /// <summary>When the clean-up job deleted the file (and thumbnail) from disk.</summary>
     public DateTimeOffset? PurgedUtc { get; set; }
 
+    /// <summary>Why it was removed (<see cref="ChatAttachmentRemovalReason"/>); null while kept.</summary>
+    public string? RemovalReason { get; set; }
+
+    /// <summary>Who removed it (the sender, or an administrator); null for automatic removals.</summary>
+    public string? RemovedByUserId { get; set; }
+
+    /// <summary>
+    /// Removals made together (one administrator clean-up, one retention run, one "remove
+    /// selected") share an id, so they can be undone together within the undo window.
+    /// </summary>
+    public Guid? RemovalBatchId { get; set; }
+
     public bool IsImage => ContentType.StartsWith("image/", StringComparison.Ordinal);
+}
+
+/// <summary>Why a chat attachment was removed. Undo is possible for a day, except after unsending.</summary>
+public static class ChatAttachmentRemovalReason
+{
+    /// <summary>Its sender removed it.</summary>
+    public const string Sender = "Sender";
+
+    /// <summary>An administrator's storage clean-up.</summary>
+    public const string Administrator = "Admin";
+
+    /// <summary>Automatic retention (older than Chat:Attachments:RetentionDays).</summary>
+    public const string Retention = "Retention";
+
+    /// <summary>Its message was unsent; final, no undo.</summary>
+    public const string Unsent = "Unsent";
+
+    /// <summary>Uploaded but never sent with a message; final.</summary>
+    public const string Unused = "Unused";
+
+    public const int MaxLength = 16;
+
+    /// <summary>Removals that can still be undone within the undo window.</summary>
+    public static bool CanUndo(string? reason) => reason is Sender or Administrator or Retention;
 }

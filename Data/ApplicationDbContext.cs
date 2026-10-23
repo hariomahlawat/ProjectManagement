@@ -4364,6 +4364,9 @@ namespace ProjectManagement.Data
                 e.Property(x => x.FileName).HasMaxLength(ChatAttachment.MaxFileNameLength).IsRequired();
                 e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
                 e.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+                e.Property(x => x.RemovalReason).HasMaxLength(ChatAttachmentRemovalReason.MaxLength);
+                e.Property(x => x.RemovedByUserId).HasMaxLength(450);
+                e.HasIndex(x => x.RemovalBatchId);
                 e.Ignore(x => x.IsImage);
                 // The allowance: the sizes of a person's kept files.
                 e.HasIndex(x => new { x.UploaderUserId, x.RemovedUtc });
