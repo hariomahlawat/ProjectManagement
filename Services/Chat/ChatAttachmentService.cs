@@ -313,20 +313,21 @@ public sealed class ChatAttachmentService
 
     // ------------------------------------------------------------------ sending
 
+    internal const string FileGoneError = "One of the files is no longer available. Attach it again.";
+
     /// <summary>
-    /// Links the sender's uploads to a message being sent (saved by the caller, in the same save).
-    /// Each id must be the sender's own upload, not yet sent and not removed.
+    /// Before a message with files is saved: the switch, the count, and that each id is the
+    /// sender's own upload, not yet sent and not removed. A friendly early answer only; the
+    /// files are taken by <see cref="ClaimAsync"/>, which is what guarantees it.
     /// </summary>
-    /// <returns>An error for the sender, or null when the files are attached.</returns>
-    internal static async Task<string?> AttachAsync(
+    /// <returns>An error for the sender, or null.</returns>
+    internal static async Task<string?> CheckAsync(
         ApplicationDbContext db,
         ChatAttachmentOptions settings,
         string senderUserId,
-        IReadOnlyList<long>? attachmentIds,
-        ChatMessage message,
+        IReadOnlyList<long> ids,
         CancellationToken cancellationToken)
     {
-        var ids = (attachmentIds ?? Array.Empty<long>()).Distinct().ToList();
         if (ids.Count == 0)
         {
             return null;
@@ -342,21 +343,46 @@ public sealed class ChatAttachmentService
             return $"A message can carry at most {settings.MaxFilesPerMessage} files.";
         }
 
-        var uploads = await db.ChatAttachments
-            .Where(a => ids.Contains(a.Id) && a.UploaderUserId == senderUserId && a.MessageId == null && a.RemovedUtc == null)
-            .ToListAsync(cancellationToken);
-        if (uploads.Count != ids.Count)
-        {
-            return "One of the files is no longer available. Attach it again.";
-        }
-
-        foreach (var upload in uploads)
-        {
-            upload.Message = message;
-        }
-
-        return null;
+        var available = await db.ChatAttachments
+            .CountAsync(a => ids.Contains(a.Id) && a.UploaderUserId == senderUserId && a.MessageId == null && a.RemovedUtc == null, cancellationToken);
+        return available == ids.Count ? null : FileGoneError;
     }
+
+    /// <summary>
+    /// Takes the uploads for a saved message in one conditional UPDATE: only uploads that are
+    /// still the sender's, unsent and not removed are linked. A clean-up sweep or a second send
+    /// that got there first leaves fewer rows to take, and the caller rolls the message back.
+    /// Run inside the message's transaction.
+    /// </summary>
+    /// <returns>An error for the sender, or null when every file was taken.</returns>
+    internal static async Task<string?> ClaimAsync(
+        ApplicationDbContext db,
+        string senderUserId,
+        IReadOnlyList<long> ids,
+        long messageId,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return null;
+        }
+
+        var claimed = await db.ChatAttachments
+            .Where(a => ids.Contains(a.Id) && a.UploaderUserId == senderUserId && a.MessageId == null && a.RemovedUtc == null)
+            .ExecuteUpdateAsync(set => set.SetProperty(a => a.MessageId, messageId), cancellationToken);
+
+        // The UPDATE bypassed the change tracker: drop any copies it holds, so later reads in
+        // this context see the files as sent.
+        foreach (var entry in db.ChangeTracker.Entries<ChatAttachment>().Where(e => ids.Contains(e.Entity.Id)).ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+
+        return claimed == ids.Count ? null : FileGoneError;
+    }
+
+    internal static IReadOnlyList<long> DistinctIds(IReadOnlyList<long>? ids)
+        => (ids ?? Array.Empty<long>()).Distinct().ToList();
 
     /// <summary>The messages, each with its files (in upload order).</summary>
     internal static async Task<IReadOnlyList<ChatMessageDto>> WithAttachmentsAsync(
@@ -423,9 +449,12 @@ public sealed class ChatAttachmentService
         }
 
         var attachment = found.Attachment;
-        var allowed = attachment.UploaderUserId == userId
-            || (found.Message is { UnsentUtc: null } message
-                && await CanReadAsync(userId, message.ConversationId, message.SentUtc, cancellationToken));
+        // Before it is sent, a file is its sender's alone. Once sent, it follows its message for
+        // everyone, its sender included: someone who left a group loses its files with its history.
+        var allowed = found.Message is null
+            ? attachment.UploaderUserId == userId
+            : found.Message.UnsentUtc is null
+                && await CanReadAsync(userId, found.Message.ConversationId, found.Message.SentUtc, cancellationToken);
         if (!allowed)
         {
             return null;
@@ -512,14 +541,14 @@ public sealed class ChatAttachmentService
             .ToListAsync(cancellationToken);
         foreach (var attachment in batch)
         {
-            DeleteQuietly(_paths.ToAbsolute(attachment.StorageKey));
-            if (attachment.ThumbnailKey is not null)
+            var fileGone = DeleteQuietly(_paths.ToAbsolute(attachment.StorageKey));
+            var thumbnailGone = attachment.ThumbnailKey is null || DeleteQuietly(_paths.ToAbsolute(attachment.ThumbnailKey));
+            // A file still on disk (held open, access denied) stays due, for the next sweep.
+            if (fileGone && thumbnailGone)
             {
-                DeleteQuietly(_paths.ToAbsolute(attachment.ThumbnailKey));
+                attachment.PurgedUtc = now;
+                deleted++;
             }
-
-            attachment.PurgedUtc = now;
-            deleted++;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -552,20 +581,23 @@ public sealed class ChatAttachmentService
         }
     }
 
-    private void DeleteQuietly(string? path)
+    /// <returns>True when the file is gone (deleted now, or already missing).</returns>
+    private bool DeleteQuietly(string? path)
     {
         if (string.IsNullOrEmpty(path))
         {
-            return;
+            return true;
         }
 
         try
         {
             File.Delete(path);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "Chat attachment file {Path} could not be deleted; the clean-up job will retry.", path);
+            return false;
         }
     }
 

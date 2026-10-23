@@ -477,8 +477,10 @@ public sealed class ChatGroupService
         _db.ChatMessages.Add(message);
         group.LastMessageUtc = now;
 
-        // Files uploaded first are saved with the message, in the same save.
-        var fileError = await ChatAttachmentService.AttachAsync(_db, AttachmentSettings, userId, request.AttachmentIds, message, cancellationToken);
+        // Files uploaded first go with the message: checked now, taken atomically once the
+        // message is saved, inside this send's transaction (rolled back if any is gone).
+        var fileIds = ChatAttachmentService.DistinctIds(request.AttachmentIds);
+        var fileError = await ChatAttachmentService.CheckAsync(_db, AttachmentSettings, userId, fileIds, cancellationToken);
         if (fileError is not null)
         {
             return Invalid(fileError);
@@ -499,6 +501,12 @@ public sealed class ChatGroupService
             }
 
             return new ChatGroupSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, ToDto(existing, group.Id), cancellationToken), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken));
+        }
+
+        fileError = await ChatAttachmentService.ClaimAsync(_db, userId, fileIds, message.Id, cancellationToken);
+        if (fileError is not null)
+        {
+            return Invalid(fileError);
         }
 
         return new ChatGroupSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, ToDto(message, group.Id), cancellationToken), null, members);

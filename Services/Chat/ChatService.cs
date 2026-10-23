@@ -385,14 +385,19 @@ public sealed class ChatService
         _db.ChatMessages.Add(message);
         conversation.LastMessageUtc = now;
 
-        // Files uploaded first are saved with the message, in the same save.
-        var fileError = await ChatAttachmentService.AttachAsync(_db, _options.CurrentValue.Attachments, senderUserId, request.AttachmentIds, message, cancellationToken);
+        // Files uploaded first go with the message: checked now, taken atomically once the
+        // message is saved, all in one transaction (docs/chat-attachments.md).
+        var fileIds = ChatAttachmentService.DistinctIds(request.AttachmentIds);
+        var fileError = await ChatAttachmentService.CheckAsync(_db, _options.CurrentValue.Attachments, senderUserId, fileIds, cancellationToken);
         if (fileError is not null)
         {
             _db.ChangeTracker.Clear();
             return ChatSendResult.Invalid(fileError);
         }
 
+        await using var transaction = fileIds.Count > 0 && _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -400,6 +405,11 @@ public sealed class ChatService
         catch (DbUpdateException)
         {
             // Two tabs retried the same message at once; the other request stored it.
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
             _db.ChangeTracker.Clear();
             existing = await FindExistingAsync(senderUserId, request.ClientMessageId, cancellationToken);
             if (existing is null)
@@ -408,6 +418,23 @@ public sealed class ChatService
             }
 
             return new ChatSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, existing, cancellationToken), null);
+        }
+
+        fileError = await ChatAttachmentService.ClaimAsync(_db, senderUserId, fileIds, message.Id, cancellationToken);
+        if (fileError is not null)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
+            _db.ChangeTracker.Clear();
+            return ChatSendResult.Invalid(fileError);
+        }
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
         }
 
         return new ChatSendResult(

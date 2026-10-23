@@ -205,6 +205,65 @@ public sealed class ChatAttachmentServiceTests
     }
 
     [Fact]
+    public async Task ASenderWhoLeftAGroup_LosesItsFilesToo_EvenAfterRejoining()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var groupId = (await scope.Groups.CreateAsync("bob", "Desk", new[] { "alice" })).Group!.Id;
+        var upload = (await scope.Files.UploadAsync("alice", Content("pdf"), "mine.pdf")).Attachment!;
+        await scope.Groups.SendAsync("alice", groupId, new ChatGroupSendRequest(Guid.NewGuid(), "file", new[] { upload.Id }));
+        Assert.NotNull(await scope.Files.OpenAsync("alice", upload.Id, thumbnail: false));
+
+        await scope.Groups.LeaveAsync("alice", groupId);
+        Assert.Null(await scope.Files.OpenAsync("alice", upload.Id, thumbnail: false));
+
+        scope.Db.ChangeTracker.Clear(); // separate requests (leaving deletes the membership directly)
+        await scope.Groups.AddMembersAsync("bob", groupId, new[] { "alice" });
+        Assert.Null(await scope.Files.OpenAsync("alice", upload.Id, thumbnail: false)); // sent before she rejoined
+        Assert.NotNull(await scope.Files.OpenAsync("bob", upload.Id, thumbnail: false));
+    }
+
+    [Fact]
+    public async Task Claiming_TakesOnlyUploadsStillAvailable()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var first = (await scope.Files.UploadAsync("alice", Content("pdf"), "a.pdf")).Attachment!;
+        var second = (await scope.Files.UploadAsync("alice", Content("pdf"), "b.pdf")).Attachment!;
+        var sent = await scope.Chat.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "one", new[] { first.Id }));
+
+        // As if a clean-up sweep (or another send) took a file between the check and the claim.
+        Assert.Equal(ChatAttachmentService.FileGoneError, await ChatAttachmentService.ClaimAsync(scope.Db, "alice", new[] { first.Id }, sent.Message!.Id + 1, default));
+        DateTimeOffset? removedAt = DateTimeOffset.UtcNow;
+        await scope.Db.ChatAttachments.Where(a => a.Id == second.Id).ExecuteUpdateAsync(s => s.SetProperty(a => a.RemovedUtc, removedAt));
+        Assert.Equal(ChatAttachmentService.FileGoneError, await ChatAttachmentService.ClaimAsync(scope.Db, "alice", new[] { second.Id }, sent.Message.Id, default));
+
+        // The first file still belongs to the first message only.
+        Assert.Equal(sent.Message.Id, (await scope.Db.ChatAttachments.AsNoTracking().SingleAsync(a => a.Id == first.Id)).MessageId);
+    }
+
+    [Fact]
+    public async Task CleanUp_RetriesAFileItCouldNotDelete()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return; // an open file can be deleted on Linux, so there is nothing to retry there
+        }
+
+        await using var scope = await FileScope.CreateAsync();
+        var upload = (await scope.Files.UploadAsync("alice", Content("pdf"), "busy.pdf")).Attachment!;
+        await scope.Files.RemoveAsync("alice", upload.Id);
+        var key = (await scope.Db.ChatAttachments.AsNoTracking().SingleAsync()).StorageKey;
+
+        using (new FileStream(scope.PathOf(key), FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            Assert.Equal(0, await scope.Files.CleanUpAsync()); // held open: not deleted, not marked done
+        }
+
+        Assert.Null((await scope.Db.ChatAttachments.AsNoTracking().SingleAsync()).PurgedUtc);
+        Assert.Equal(1, await scope.Files.CleanUpAsync());
+        Assert.False(File.Exists(scope.PathOf(key)));
+    }
+
+    [Fact]
     public async Task Unsending_RemovesTheFiles_AndGivesTheSpaceBack()
     {
         await using var scope = await FileScope.CreateAsync();
