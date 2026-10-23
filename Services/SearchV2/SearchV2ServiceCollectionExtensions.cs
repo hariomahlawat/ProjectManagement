@@ -24,9 +24,12 @@ public static class SearchV2ServiceCollectionExtensions
         services.AddScoped<ISearchAliasProvider, SearchAliasProvider>();
         services.AddScoped<ISearchCorrectionService, SearchCorrectionService>();
         services.AddSingleton<ISearchCursorCodec, SearchCursorCodec>();
+        services.AddSingleton<ISearchEngineLatencyRecorder, SearchEngineLatencyRecorder>();
+        services.AddSingleton<ISearchShadowDispatcher, SearchShadowDispatcher>();
         services.AddScoped<ISearchHighlightService, SearchHighlightService>();
         services.AddScoped<ISearchAccessContextFactory, SearchAccessContextFactory>();
         services.AddScoped<ISearchIndexStore, SearchIndexStore>();
+        services.AddScoped<ISearchIndexCoordinator, SearchIndexCoordinator>();
         services.AddScoped<ISearchProjectionBuilder, SearchProjectionBuilder>();
         services.AddScoped<ISearchV2Engine, SearchEngine>();
         services.AddScoped<ISearchAnalyticsService, SearchAnalyticsService>();

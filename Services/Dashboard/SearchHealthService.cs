@@ -10,6 +10,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Models;
 using ProjectManagement.ViewModels.Dashboard;
+using ProjectManagement.Services.SearchV2.Analytics;
 using ProjectManagement.Services.SearchV2.Indexing;
 
 namespace ProjectManagement.Services.Dashboard;
@@ -27,11 +28,16 @@ public sealed class SearchHealthService : ISearchHealthService
 
     private readonly ApplicationDbContext _db;
     private readonly ISearchIndexStore _searchIndexStore;
+    private readonly ISearchEngineLatencyRecorder _engineLatency;
 
-    public SearchHealthService(ApplicationDbContext db, ISearchIndexStore searchIndexStore)
+    public SearchHealthService(
+        ApplicationDbContext db,
+        ISearchIndexStore searchIndexStore,
+        ISearchEngineLatencyRecorder engineLatency)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _searchIndexStore = searchIndexStore ?? throw new ArgumentNullException(nameof(searchIndexStore));
+        _engineLatency = engineLatency ?? throw new ArgumentNullException(nameof(engineLatency));
     }
 
     public async Task<SearchHealthVm> GetAsync(CancellationToken cancellationToken)
@@ -161,7 +167,7 @@ public sealed class SearchHealthService : ISearchHealthService
         var lastAttempt = MaxNonNull(docRepoLastAttempt, projectDocLastAttempt);
         var searchIndexHealth = await _searchIndexStore.GetHealthAsync(cancellationToken).ConfigureAwait(false);
         var searchQueryHealth = await ReadPercentileContMetricsAsync("V2", cancellationToken).ConfigureAwait(false);
-        var engineQueryHealth = await ReadPercentileContMetricsAsync("V2-Engine", cancellationToken).ConfigureAwait(false);
+        var engineQueryHealth = await ReadEngineLatencyAsync(cancellationToken).ConfigureAwait(false);
         var suggestionHealth = await ReadPercentileContMetricsAsync("V2-Suggest", cancellationToken).ConfigureAwait(false);
         // END SECTION
 
@@ -199,6 +205,20 @@ public sealed class SearchHealthService : ISearchHealthService
         };
     }
 
+
+    private async Task<SearchQueryHealthMetrics> ReadEngineLatencyAsync(CancellationToken cancellationToken)
+    {
+        // Engine-only latency is now held in process (one query-log row per search).
+        // Rows logged as "V2-Engine" by earlier builds still cover the first 24 hours
+        // after an upgrade or restart.
+        var snapshot = _engineLatency.Snapshot(TimeSpan.FromHours(24));
+        if (snapshot.Count > 0)
+        {
+            return new SearchQueryHealthMetrics(snapshot.Count, snapshot.P50Ms, snapshot.P95Ms, null);
+        }
+
+        return await ReadPercentileContMetricsAsync("V2-Engine", cancellationToken).ConfigureAwait(false);
+    }
 
     private async Task<SearchQueryHealthMetrics> ReadPercentileContMetricsAsync(string engine, CancellationToken cancellationToken)
     {

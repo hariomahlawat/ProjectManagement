@@ -196,7 +196,20 @@ public sealed class SearchEngine : ISearchV2Engine
             if (!request.FacetsOnly && string.IsNullOrWhiteSpace(request.Cursor) && ShouldOfferCorrection(normalized, rows))
             {
                 var correctionStopwatch = Stopwatch.StartNew();
-                correctedQuery = await _corrections.TryCorrectAsync(_db.Database.GetDbConnection(), normalized, access, cancellationToken);
+                // Spelling assistance is optional: its failure must not discard the
+                // valid results already read (and push the gateway to Legacy fallback).
+                try
+                {
+                    correctedQuery = await _corrections.TryCorrectAsync(_db.Database.GetDbConnection(), normalized, access, cancellationToken);
+                }
+                catch (Exception correctionEx) when (!cancellationToken.IsCancellationRequested)
+                {
+                    correctedQuery = null;
+                    _logger.LogWarning(
+                        correctionEx,
+                        "Search V2 spelling assistance failed; results are served without a correction. QueryFingerprint={QueryFingerprint}.",
+                        Fingerprint(normalized.Exact));
+                }
                 correctionStopwatch.Stop();
                 correctionMilliseconds = correctionStopwatch.ElapsedMilliseconds;
                 if (string.Equals(correctedQuery, normalized.Exact, StringComparison.OrdinalIgnoreCase)) correctedQuery = null;
