@@ -9,6 +9,8 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
     ViewData["Title"] = Model.Portfolio.PageTitle;
+    // 1600px: room for the details column and a Timeline column wide enough for its stage rows.
+    ViewData["PageShell"] = "wide";
 }
 
 <div class="project-portfolio project-portfolio-shell">

@@ -260,6 +260,24 @@ public sealed class ProjectOverviewPresentationContractTests
         Assert.Matches(@"if \(isActiveLifecycle\)\s*\{\s*<partial name=""_TimelineSubmissionStatus""", workspace);
     }
 
+    [Fact]
+    public void Overview_UsesTheWideShell()
+    {
+        var overview = ReadRepoFile("Pages", "Projects", "Overview.cshtml");
+
+        Assert.Contains("ViewData[\"PageShell\"] = \"wide\"", overview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TimelineHeader_StacksTheSwitchOnPhones()
+    {
+        var workspace = ReadRepoFile("Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml");
+
+        // A plain flex-row (Bootstrap, !important) kept the switch beside the title on phones
+        // and pushed the page wider than the screen.
+        Assert.Contains("d-flex flex-column flex-sm-row align-items-start gap-3 justify-content-between pm-panel-header-row", workspace, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

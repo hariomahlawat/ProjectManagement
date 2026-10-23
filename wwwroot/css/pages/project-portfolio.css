@@ -2236,14 +2236,16 @@ button.project-intelligence-card:hover {
 .pm-timeline-facts__item.is-attention strong { color: var(--bs-danger-text-emphasis, #b02a37); }
 
 /* The Timeline/Remarks switch sits in the title row's top-right corner, so the facts, status
-   and actions below use the panel's full width. On phones it stacks under the title. */
+   and actions below use the panel's full width. On phones it drops below the header, full
+   width, just above the list it switches: the row is flex-column below the sm breakpoint in the
+   markup (a Bootstrap flex-row there would win over a rule here and push the switch off the
+   right edge of the screen). */
 @media (min-width: 576px) {
     .project-lifecycle-panel .pm-panel-header-row { position: relative; }
     .project-lifecycle-panel .pm-panel-switch-slot { position: absolute; top: 0; right: 0; }
     .project-lifecycle-panel .pm-panel-header-main > [data-panel-section] > :first-child { padding-right: 11rem; }
 }
 @media (max-width: 575.98px) {
-    .project-lifecycle-panel .pm-panel-header-row { flex-direction: column; }
     .project-lifecycle-panel .pm-panel-switch-slot { align-self: stretch; }
 }
 
