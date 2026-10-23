@@ -27,28 +27,30 @@
         resource: null,
         policyName: ProjectOfficeReportsPolicies.ViewArpp)).Succeeded;
 
-    // SECTION: Lead with the stage that needs action (PO Timeline discovery C6.1)
-    // Settled stages (completed or skipped, nothing outstanding) collapse into one
-    // group above the rest, so the current stage, stages needing a date and pending
-    // updates are near the top. Workflow order is kept inside the group.
+    // SECTION: Finished stages (PO Timeline discovery C6.1)
+    // Stages are always shown in workflow order. The finished stages at the start of the
+    // workflow (completed or skipped, up to the first stage that is not) fold into one group,
+    // so the current stage is near the top. A finished stage that still needs something (a
+    // completion date, an ARPP start date, a pending update) keeps its place in the group and
+    // says so on its card; the group's title counts them.
     var orderedStages = timeline.Items.OrderBy(item => item.SortOrder).ToList();
     var settledStages = isActiveLifecycle
-        ? orderedStages.Where(item => item.IsSettled).ToList()
+        ? orderedStages.TakeWhile(item => item.Status is StageStatus.Completed or StageStatus.Skipped).ToList()
         : new List<ProjectManagement.ViewModels.TimelineItemVm>();
     if (settledStages.Count < 2)
     {
         settledStages.Clear();
     }
     var settledCodes = new HashSet<string>(settledStages.Select(item => item.Code), StringComparer.OrdinalIgnoreCase);
-    var renderOrder = settledStages
-        .Concat(orderedStages.Where(item => !settledCodes.Contains(item.Code)))
-        .ToList();
+    var renderOrder = orderedStages;
     var settledCompletedCount = settledStages.Count(item => item.Status == StageStatus.Completed);
     var settledSkippedCount = settledStages.Count - settledCompletedCount;
+    var settledAttentionCount = settledStages.Count(item => !item.IsSettled);
     var settledGroupTitle = string.Join(" · ", new[]
     {
         settledCompletedCount > 0 ? $"{settledCompletedCount} completed stage{(settledCompletedCount == 1 ? string.Empty : "s")}" : null,
-        settledSkippedCount > 0 ? $"{settledSkippedCount} skipped" : null
+        settledSkippedCount > 0 ? $"{settledSkippedCount} skipped" : null,
+        settledAttentionCount > 0 ? $"{settledAttentionCount} need{(settledAttentionCount == 1 ? "s" : string.Empty)} attention" : null
     }.Where(part => part is not null));
     var latestSettledCompletion = settledStages
         .Where(item => item.Status == StageStatus.Completed && item.CompletedOn.HasValue)
@@ -272,6 +274,14 @@
                 <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle"
                       title="IPA status and completion date are controlled by the published ARPP record.">
                   ARPP-derived
+                </span>
+              }
+              @if (needsArppActualStartAttention)
+              {
+                @* Visible on the folded card too, so a stage that needs a date says why (its
+                   action is in the ARPP section below). *@
+                <span class="pm-pill pm-pill-warning" data-stage-start-attention>
+                  @(s.HasActualStartDataQualityIssue ? "Start date needs correction" : "Start date missing")
                 </span>
               }
               @if (isActiveLifecycle)
