@@ -64,3 +64,14 @@ jobs:
           -c Release
           --no-build
           --filter FullyQualifiedName~PostgresMigrationIntegrationTests
+
+      - name: Run Search V2 PostgreSQL integration tests
+        env:
+          # The tests create, migrate and drop their own prism_test_searchv2_* database
+          # on this server, so they do not depend on the migration test's database state.
+          PRISM_SEARCHV2_TEST_CONNECTION: "Host=localhost;Port=5432;Database=prism_test_migrations;Username=prism;Password=prism_test_password;Include Error Detail=true"
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~SearchV2PostgresIntegrationTests

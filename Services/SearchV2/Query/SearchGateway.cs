@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.Extensions.Options;
-using ProjectManagement.Areas.ProjectOfficeReports.Application;
-using ProjectManagement.Configuration;
 using ProjectManagement.Services.Search;
 using ProjectManagement.Services.SearchV2.Analytics;
 using ProjectManagement.Services.SearchV2.Models;
@@ -19,9 +17,10 @@ public interface ISearchGateway
 
 /// <summary>
 /// Stable application boundary between the legacy fan-out engine and Search V2.
-/// Search V2 is deliberately shadow-first: while ServeV2 is false the legacy
-/// result remains authoritative, but both engines are launched concurrently so
-/// shadow measurement does not add serial query latency.
+/// Only the engine that serves the user is on the request path: when V2 serves, Legacy
+/// runs only as the fallback for a V2 failure. Shadow comparison with the other engine is
+/// sampled (<see cref="SearchV2Options.ShadowSampleRate"/>), limited to first pages and
+/// dispatched off the request path, so it never adds latency to the response.
 /// </summary>
 public sealed class SearchGateway : ISearchGateway
 {
@@ -31,6 +30,8 @@ public sealed class SearchGateway : ISearchGateway
     private readonly ISearchHighlightService _highlight;
     private readonly ISearchAnalyticsService _analytics;
     private readonly ISearchAccessContextFactory _accessFactory;
+    private readonly ISearchShadowDispatcher _shadow;
+    private readonly ISearchEngineLatencyRecorder _engineLatency;
     private readonly SearchV2Options _options;
     private readonly ILogger<SearchGateway> _logger;
 
@@ -41,6 +42,8 @@ public sealed class SearchGateway : ISearchGateway
         ISearchHighlightService highlight,
         ISearchAnalyticsService analytics,
         ISearchAccessContextFactory accessFactory,
+        ISearchShadowDispatcher shadow,
+        ISearchEngineLatencyRecorder engineLatency,
         IOptions<SearchV2Options> options,
         ILogger<SearchGateway> logger)
     {
@@ -50,6 +53,8 @@ public sealed class SearchGateway : ISearchGateway
         _highlight = highlight ?? throw new ArgumentNullException(nameof(highlight));
         _analytics = analytics ?? throw new ArgumentNullException(nameof(analytics));
         _accessFactory = accessFactory ?? throw new ArgumentNullException(nameof(accessFactory));
+        _shadow = shadow ?? throw new ArgumentNullException(nameof(shadow));
+        _engineLatency = engineLatency ?? throw new ArgumentNullException(nameof(engineLatency));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -71,91 +76,45 @@ public sealed class SearchGateway : ISearchGateway
         var stopwatch = Stopwatch.StartNew();
         var serveV2ToUser = ShouldServeV2(user);
 
-        // Run V2 only when it can serve this user or when shadow comparison is explicitly enabled.
-        // When both paths are needed they are still started before either is awaited.
-        var runV2 = _options.Enabled && (serveV2ToUser || (!request.FacetsOnly && _options.ShadowMode));
-        var v2Task = runV2
-            ? _v2.SearchAsync(request, user, cancellationToken)
-            : null;
-
-        var legacyRequired = !request.FacetsOnly && (!_options.Enabled || !serveV2ToUser || _options.ShadowMode);
-        var legacyTask = legacyRequired
-            ? ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken)
-            : null;
-
         SearchResponse? v2Response = null;
-        if (v2Task is not null)
+        if (serveV2ToUser)
         {
-            try
+            v2Response = await RunV2SafelyAsync(request, user, normalized, cancellationToken);
+            if (v2Response.IsReady)
             {
-                v2Response = await v2Task;
-            }
-            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-            {
-                var diagnosticId = CreateDiagnosticId();
-                _logger.LogError(
-                    ex,
-                    "Search V2 escaped its engine boundary. Falling back safely. DiagnosticId={DiagnosticId}, ProjectionVersion={ProjectionVersion}.",
-                    diagnosticId,
-                    _options.ProjectionVersion);
-                v2Response = SearchResponse.NotReady(
-                    normalized.Original,
-                    SearchV2ExecutionStatus.QueryFailed,
-                    diagnosticId);
-            }
-        }
+                stopwatch.Stop();
+                var gatewayLatencyMs = stopwatch.ElapsedMilliseconds;
+                if (!request.FacetsOnly)
+                {
+                    // One query-log row per search. Engine-only time goes to the
+                    // in-process recorder that feeds the search health dashboard.
+                    _engineLatency.Record(v2Response.QueryTimeMilliseconds);
+                    await SafeQueryLogAsync(
+                        normalized.Original,
+                        user,
+                        v2Response.FilteredHits,
+                        gatewayLatencyMs,
+                        "V2",
+                        v2Response.CorrectedQuery,
+                        cancellationToken);
+                    MaybeDispatchShadow(request, normalized.Original, user, servedByV2: true, legacyResults: null, v2Results: v2Response.Results);
+                }
 
-        LegacyRead? legacyRead = null;
-        if (legacyTask is not null)
-        {
-            legacyRead = await legacyTask;
-        }
-
-        var legacyResults = legacyRead?.Hits;
-
-        if (_options.ShadowMode && v2Response is { IsReady: true } && legacyResults is not null)
-        {
-            await SafeShadowLogAsync(normalized.Original, legacyResults, v2Response.Results, cancellationToken);
-        }
-
-        if (serveV2ToUser && v2Response is { IsReady: true })
-        {
-            stopwatch.Stop();
-            var gatewayLatencyMs = stopwatch.ElapsedMilliseconds;
-            if (!request.FacetsOnly)
-            {
-                await SafeQueryLogAsync(
-                    normalized.Original,
-                    user,
+                return new SearchGatewayResponse(
+                    v2Response.Query,
+                    v2Response.Results,
+                    v2Response.TotalHits,
                     v2Response.FilteredHits,
-                    v2Response.QueryTimeMilliseconds,
-                    "V2-Engine",
-                    v2Response.CorrectedQuery,
-                    cancellationToken);
-                await SafeQueryLogAsync(
-                    normalized.Original,
-                    user,
-                    v2Response.FilteredHits,
+                    v2Response.Facets,
+                    v2Response.NextCursor,
                     gatewayLatencyMs,
-                    "V2",
+                    true,
+                    v2Response.IsPartial,
                     v2Response.CorrectedQuery,
-                    cancellationToken);
+                    false,
+                    v2Response.ExecutionStatus,
+                    v2Response.DiagnosticId);
             }
-
-            return new SearchGatewayResponse(
-                v2Response.Query,
-                v2Response.Results,
-                v2Response.TotalHits,
-                v2Response.FilteredHits,
-                v2Response.Facets,
-                v2Response.NextCursor,
-                gatewayLatencyMs,
-                true,
-                v2Response.IsPartial,
-                v2Response.CorrectedQuery,
-                false,
-                v2Response.ExecutionStatus,
-                v2Response.DiagnosticId);
         }
 
         if (request.FacetsOnly)
@@ -177,11 +136,11 @@ public sealed class SearchGateway : ISearchGateway
                 v2Response?.DiagnosticId);
         }
 
-        // V2 may be enabled without Legacy having been started (for example,
-        // ServeV2=true but the index is temporarily unavailable). Fall back
-        // safely and apply source-module authorization before adapting results.
-        legacyRead ??= await ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken);
-        legacyResults = legacyRead.Hits;
+        // Legacy serves: V2 is not enabled for this user, or V2 could not serve (for
+        // example, the index is temporarily unavailable). Source-module authorization
+        // is applied before adapting results.
+        var legacyRead = await ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken);
+        var legacyResults = legacyRead.Hits;
 
         var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };
         var v2Status = v2Response?.ExecutionStatus
@@ -216,6 +175,11 @@ public sealed class SearchGateway : ISearchGateway
             fellBackToLegacy ? "Legacy-Fallback" : "Legacy",
             null,
             cancellationToken);
+
+        if (!fellBackToLegacy)
+        {
+            MaybeDispatchShadow(request, normalized.Original, user, servedByV2: false, legacyResults: legacyResults, v2Results: null);
+        }
 
         return new SearchGatewayResponse(
             normalized.Original,
@@ -299,6 +263,68 @@ public sealed class SearchGateway : ISearchGateway
         }
     }
 
+    /// <summary>
+    /// Effective shadow sample rate. Unset means 0 while V2 serves (comparison is opt-in)
+    /// and 1 while Legacy serves (the original shadow-measurement rollout).
+    /// </summary>
+    internal double EffectiveShadowSampleRate(bool servedByV2) =>
+        Math.Clamp(_options.ShadowSampleRate ?? (servedByV2 ? 0.0 : 1.0), 0.0, 1.0);
+
+    private async Task<SearchResponse> RunV2SafelyAsync(
+        SearchRequest request,
+        ClaimsPrincipal user,
+        NormalizedSearchQuery normalized,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _v2.SearchAsync(request, user, cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            var diagnosticId = CreateDiagnosticId();
+            _logger.LogError(
+                ex,
+                "Search V2 escaped its engine boundary. Falling back safely. DiagnosticId={DiagnosticId}, ProjectionVersion={ProjectionVersion}.",
+                diagnosticId,
+                _options.ProjectionVersion);
+            return SearchResponse.NotReady(
+                normalized.Original,
+                SearchV2ExecutionStatus.QueryFailed,
+                diagnosticId);
+        }
+    }
+
+    private void MaybeDispatchShadow(
+        SearchRequest request,
+        string query,
+        ClaimsPrincipal user,
+        bool servedByV2,
+        IReadOnlyList<GlobalSearchHit>? legacyResults,
+        IReadOnlyList<SearchResult>? v2Results)
+    {
+        // Comparisons are only meaningful, and only cheap enough, for first pages.
+        if (!_options.Enabled || !_options.ShadowMode || request.FacetsOnly || !string.IsNullOrWhiteSpace(request.Cursor))
+        {
+            return;
+        }
+
+        var rate = EffectiveShadowSampleRate(servedByV2);
+        if (rate <= 0 || (rate < 1 && Random.Shared.NextDouble() >= rate))
+        {
+            return;
+        }
+
+        try
+        {
+            _shadow.TryDispatch(new SearchShadowJob(query, request, user, legacyResults, v2Results));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Search shadow comparison could not be dispatched.");
+        }
+    }
+
     private bool ShouldServeV2(ClaimsPrincipal user)
     {
         if (!_options.Enabled) return false;
@@ -373,21 +399,16 @@ public sealed class SearchGateway : ISearchGateway
             null);
     }
 
-    private static IReadOnlyList<GlobalSearchHit> FilterLegacyByAccess(
+    /// <summary>
+    /// Deny-by-default Legacy authorization through the map shared with the V2
+    /// projection builder: a source label without an entry is never shown.
+    /// </summary>
+    internal static IReadOnlyList<GlobalSearchHit> FilterLegacyByAccess(
         IReadOnlyList<GlobalSearchHit> hits,
         SearchAccessContext access)
     {
         var policies = new HashSet<string>(access.AllowedPolicies, StringComparer.Ordinal);
-        return hits.Where(hit => hit.Source switch
-        {
-            "Document Repository" => policies.Contains(Policies.Documents.View),
-            "IPR" => policies.Contains(Policies.Ipr.View),
-            "Visits tracker" => policies.Contains(ProjectOfficeReportsPolicies.ViewVisits),
-            "Training tracker" => policies.Contains(ProjectOfficeReportsPolicies.ViewTrainingTracker),
-            "TOT tracker" => policies.Contains(ProjectOfficeReportsPolicies.ViewTotTracker),
-            "Proliferation survey" => policies.Contains(ProjectOfficeReportsPolicies.ViewProliferationTracker),
-            _ => true
-        }).ToArray();
+        return hits.Where(hit => SearchSourcePolicies.IsVisible(hit.Source, policies)).ToArray();
     }
 
     private static IReadOnlyList<GlobalSearchHit> ApplyLegacyFilters(
@@ -462,22 +483,6 @@ public sealed class SearchGateway : ISearchGateway
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogDebug(ex, "Search query telemetry write failed.");
-        }
-    }
-
-    private async Task SafeShadowLogAsync(
-        string query,
-        IReadOnlyList<GlobalSearchHit> legacy,
-        IReadOnlyList<SearchResult> v2,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _analytics.LogShadowAsync(query, legacy, v2, cancellationToken);
-        }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogDebug(ex, "Search shadow telemetry write failed.");
         }
     }
 }

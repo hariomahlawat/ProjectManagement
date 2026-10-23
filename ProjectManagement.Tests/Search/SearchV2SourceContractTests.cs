@@ -53,8 +53,10 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("public bool ServeV2 { get; set; } = false;", options, StringComparison.Ordinal);
         Assert.Contains("ServeV2Users", options, StringComparison.Ordinal);
         Assert.Contains("ServeV2Roles", options, StringComparison.Ordinal);
-        Assert.Contains("if (_options.ShadowMode && v2Response is { IsReady: true } && legacyResults is not null)", gateway, StringComparison.Ordinal);
-        Assert.Contains("var runV2 = _options.Enabled && (serveV2ToUser || (!request.FacetsOnly && _options.ShadowMode));", gateway, StringComparison.Ordinal);
+        Assert.Contains("ShadowSampleRate", options, StringComparison.Ordinal);
+        Assert.Contains("if (!_options.Enabled || !_options.ShadowMode || request.FacetsOnly || !string.IsNullOrWhiteSpace(request.Cursor))", gateway, StringComparison.Ordinal);
+        Assert.Contains("_shadow.TryDispatch(", gateway, StringComparison.Ordinal);
+        Assert.DoesNotContain("V2-Engine", gateway, StringComparison.Ordinal);
         Assert.Contains("!ShouldServeV2(user)", gateway, StringComparison.Ordinal);
         Assert.Contains("WorkItemLeaseMinutes", options, StringComparison.Ordinal);
         Assert.Contains("_options.WorkItemLeaseMinutes", worker, StringComparison.Ordinal);
@@ -98,7 +100,7 @@ public sealed class SearchV2SourceContractTests
         var gateway = ReadRepoFile("Services", "SearchV2", "Query", "SearchGateway.cs");
         var engine = ReadRepoFile("Services", "SearchV2", "Query", "SearchEngine.cs");
 
-        Assert.Contains("var v2Task = runV2", gateway, StringComparison.Ordinal);
+        Assert.Contains("v2Response = await RunV2SafelyAsync(request, user, normalized, cancellationToken);", gateway, StringComparison.Ordinal);
         Assert.Contains("ApplyLegacyFilters(legacyResults, request.Categories, request.Sources)", gateway, StringComparison.Ordinal);
         Assert.Contains("!ShouldServeV2(user)", gateway, StringComparison.Ordinal);
         Assert.Contains("request.ProjectIds", engine, StringComparison.Ordinal);
@@ -133,7 +135,7 @@ public sealed class SearchV2SourceContractTests
         var adminPage = ReadRepoFile("Areas", "Admin", "Pages", "Diagnostics", "SearchIndex.cshtml.cs");
 
         Assert.Contains("ProjectionVersion", options, StringComparison.Ordinal);
-        Assert.Contains("IsReadyAsync(_options.ProjectionVersion", worker, StringComparison.Ordinal);
+        Assert.Contains("state.IndexVersion < _options.ProjectionVersion", worker, StringComparison.Ordinal);
         Assert.Contains("ReplaceFullGenerationAsync(projections, _options.ProjectionVersion", worker, StringComparison.Ordinal);
         Assert.Contains("RequestFullRebuildAsync", store, StringComparison.Ordinal);
         Assert.Contains("GetFailedItemsAsync", store, StringComparison.Ordinal);
@@ -194,7 +196,7 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("5 AS tier", engine, StringComparison.Ordinal);
         Assert.Contains("searchTextQuality", engine, StringComparison.Ordinal);
         Assert.Contains("searchTextQuality", projection, StringComparison.Ordinal);
-        Assert.Contains("public int ProjectionVersion { get; set; } = 4;", options, StringComparison.Ordinal);
+        Assert.Contains("public int ProjectionVersion { get; set; } = 5;", options, StringComparison.Ordinal);
     }
 
     [Fact]

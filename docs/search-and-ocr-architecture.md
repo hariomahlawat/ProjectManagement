@@ -96,6 +96,43 @@ This document explains how the application performs OCR and full-text search (FT
 ### 4.3 Final order and tie-breakers
 - After deduplication, results are globally sorted by **Score descending** then **Date descending**, preserving module-neutral ranking.[F:Services/Search/GlobalSearchService.csL84-L93]
 
+### 4.4 Search V2 gateway (`Services/SearchV2/Query/SearchGateway.cs`)
+- **One engine on the request path.** When V2 serves the user (`ServeV2`, `ServeV2Users`, `ServeV2Roles`), only V2 runs; the Legacy fan-out above runs only as the fallback when V2 is not ready or fails (`Legacy-Fallback`). When Legacy serves, V2 is not awaited.
+- **Shadow comparison is sampled and non-blocking.** With `ShadowMode=true`, a sample of first-page searches (no cursor, not facets-only) runs the *other* engine in the background through `SearchShadowDispatcher` and writes a `SearchShadowComparisons` row. The dispatcher uses its own DI scope, a 30 s timeout and at most two concurrent jobs; extra samples are dropped, never queued.
+- **Query log.** One `SearchQueryLogs` row per search: `V2` (gateway latency), `Legacy` or `Legacy-Fallback`; `V2-Suggest` for suggestions. Engine-only V2 time is kept in process by `SearchEngineLatencyRecorder` and shown on the search-health dashboard (rows logged as `V2-Engine` by earlier builds are used until the process has its own samples).
+- **Spelling assistance is optional.** A `TryCorrectAsync` failure is logged and the V2 results are served without a correction.
+
+### 4.5 Search V2 indexing worker (`Services/SearchV2/Indexing/SearchIndexWorker.cs`)
+- **Failure isolation.** Every tick step (read state, stale-lease recovery, incremental queue, reconciliation) has its own catch-all. A failed tick backs off exponentially from `WorkerIntervalSeconds` up to 5 minutes. The worker never stops the host, whatever the .NET `BackgroundServiceExceptionBehavior`.
+- **Rebuild backoff.** A failed automatic full rebuild (missing/older index or scheduled reconciliation) is not retried for `FullRebuildRetryMinutes`, doubling per consecutive failure up to 4×. The previous active generation keeps serving. An administrator's rebuild request (Admin › Diagnostics › Search index) bypasses this backoff.
+- **Rolling deployments.** A process rebuilds only when there is no active generation or the active `IndexVersion` is *older* than its own `ProjectionVersion`. When it is *newer*, the process goes passive: no rebuilds, no incremental work, and its own searches fall back to Legacy until it is replaced. `ReplaceFullGenerationAsync` also refuses, inside its transaction, to replace a newer generation.
+- **Cross-process lock.** Full rebuilds hold a PostgreSQL session advisory lock exclusively and incremental passes hold it shared (`SearchIndexCoordinator`, key `PRISMSV2`, dedicated unpooled connection). Only one process rebuilds at a time, and no incremental item is processed while a rebuild is reading its snapshot.
+- **Rebuild requests.** `__FullRebuild__` work items are excluded from ordinary stale-lease recovery (a rebuild can legitimately exceed `WorkItemLeaseMinutes`); instead, once per lease timeout (in every mode, including passive), each worker briefly tries the exclusive lock and, if it gets it, recovers abandoned ones. A pending request is honoured even while the initial or upgrade rebuild is backing off. A request that meets a rebuild already running elsewhere is released back to the queue without counting a retry.
+- **Rollback to an older build.** A passive process still honours an explicit administrator rebuild request and rebuilds at its own (older) version. After rolling back to a build older than the active index, request a rebuild once from Admin › Diagnostics › Search index. Rolling back to a build that predates this worker needs nothing: those builds rebuild on any version mismatch.
+- **Retention.** `SearchTelemetryRetentionWorker` prunes query, click and shadow rows after `QueryLogRetentionDays` even when `Search:V2:Enabled=false`, because the gateway still logs Legacy queries.
+
+### 4.6 Search visibility rules
+- **One source→policy map.** `Services/SearchV2/Security/SearchSourcePolicies.cs` maps each V2 `SourceModule` and each Legacy source label to the policy its pages require (`null` = any signed-in user). The projection builder stamps `RequiredPolicy` from it, the access context evaluates exactly its policies, and the Legacy fallback filters with it. It is deny-by-default: an unmapped Legacy source is hidden and an unmapped V2 source cannot be indexed.
+- **Hidden with their parent.** Project documents of trashed (`IsDeleted`) or archived projects are not indexed and not returned by Legacy search. FFC attachments of deleted FFC records are not returned by Legacy search.
+- **Proliferation.** Only `Approved` granular entries are searchable, matching the `ViewProliferationTracker` read paths in `ProliferationController`; pending and rejected entries belong to the submit/approve workflow.
+
+### 4.7 Search V2 configuration (`Search:V2`)
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `Enabled` | `true` | `false` serves Legacy only and stops the indexing worker. Retention still runs. |
+| `ServeV2`, `ServeV2Users`, `ServeV2Roles` | `false`, empty | Who V2 serves. Everyone else gets Legacy. |
+| `ShadowMode` | `true` | Allows sampled background comparison. |
+| `ShadowSampleRate` | unset | 0–1. Unset means `0` while V2 serves the user and `1` while Legacy serves. |
+| `ProjectionVersion` | `5` | Bump when indexed fields, categories, metadata or visibility rules change; the index is rebuilt atomically. Version 5 removes trashed/archived project documents and unapproved proliferation entries. |
+| `WorkerIntervalSeconds` | `15` | Healthy tick interval. |
+| `WorkItemLeaseMinutes` | `10` | Stale-lease timeout for entity work items. |
+| `FullReconciliationMinutes` | `1440` | Scheduled full rebuild interval. |
+| `FullRebuildRetryMinutes` | `15` | Wait after a failed automatic rebuild (doubles, capped at 4×). |
+| `QueryLogRetentionDays` | `90` | Applies to query, click and shadow rows. |
+
+- **Integration tests.** `ProjectManagement.Tests/Search/SearchV2PostgresIntegrationTests.cs` runs only when `PRISM_SEARCHV2_TEST_CONNECTION` names a PostgreSQL server; it then creates, migrates and drops a disposable `prism_test_searchv2_*` database. Without the variable the tests are reported as skipped. CI runs them in the `Production Database Migration Gate` workflow.
+
 ## 5. Operational Notes
 - **Worker cadence**: Both OCR workers poll every **2 minutes** when idle and process small batches (DocRepo: 3, Project Documents: 5), so latency depends on queue depth and OCR runtime.[F:Hosted/DocRepoOcrWorker.csL34-L45][F:Hosted/ProjectDocumentOcrWorker.csL35-L46]
 - **Admin visibility**: Failure reasons are capped at **1000 characters**; statuses transition Pending -> Succeeded/Failed with `OcrLastTriedUtc` updated per attempt.[F:Hosted/DocRepoOcrWorker.csL49-L98][F:Hosted/ProjectDocumentOcrWorker.csL49-L142]

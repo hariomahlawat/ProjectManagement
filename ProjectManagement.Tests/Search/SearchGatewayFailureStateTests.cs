@@ -77,6 +77,8 @@ public sealed class SearchGatewayFailureStateTests
             new SearchHighlightService(options),
             new NoopAnalytics(),
             new StubAccess(),
+            new NoShadow(),
+            new NoLatency(),
             options,
             NullLogger<SearchGateway>.Instance);
     }
@@ -109,6 +111,20 @@ public sealed class SearchGatewayFailureStateTests
     {
         public Task<SearchAccessContext> CreateAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
             => Task.FromResult(new SearchAccessContext("user-1", Array.Empty<string>(), Array.Empty<string>()));
+    }
+
+    private sealed class NoShadow : ISearchShadowDispatcher
+    {
+        public bool TryDispatch(SearchShadowJob job) => true;
+    }
+
+    private sealed class NoLatency : ISearchEngineLatencyRecorder
+    {
+        public void Record(long milliseconds)
+        {
+        }
+
+        public SearchLatencySnapshot Snapshot(TimeSpan window) => SearchLatencySnapshot.Empty;
     }
 
     private sealed class NoopAnalytics : ISearchAnalyticsService
