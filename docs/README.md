@@ -45,6 +45,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Phase D release runbook](phase-d-release-runbook.md) | Coordinated D-2 + D-3 release: topology and writer inventory (K-12), migration-execution decision record (K-13), runbook, staging acceptance and recovery, rollback, blocker register and go/no-go. |
 | [Phase D release readiness](phase-d-release-readiness.md) | D-3e acceptance evidence, release-blocker register (#2683, K-12, K-13), UX observations and remaining steps before the coordinated D-2 + D-3 release. |
 | [Search and OCR architecture](search-and-ocr-architecture.md) | Search/OCR implementation notes. |
+| [Search V2 ranking](search-v2-ranking.md) | Normalisation, retrieval tiers, clustering, keyset paging, autocomplete/did-you-mean and how to measure relevance. |
 | [Extending the platform](extending.md) | Older extension patterns and conventions. |
 | [Action Tracker development note](action-tracker-development-note.md) | Action Tracker implementation detail. |
 | [User guide](user-guide/README.md) | Operator-facing guidance. |

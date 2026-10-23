@@ -21,8 +21,16 @@ public sealed class SearchV2Options
     [Range(5, 20)]
     public int SuggestionLimit { get; set; } = 6;
 
+    /// <summary>pg_trgm similarity() floor for whole-title fuzzy matches (applied with SET LOCAL).</summary>
     [Range(0.05, 0.95)]
     public double FuzzyThreshold { get; set; } = 0.28;
+
+    /// <summary>
+    /// pg_trgm word_similarity() floor for each query token against a title or the fuzzy
+    /// text. Word similarity is length-independent, so it is meaningful for long records.
+    /// </summary>
+    [Range(0.2, 0.95)]
+    public double FuzzyWordSimilarityThreshold { get; set; } = 0.5;
 
     [Range(1, 500)]
     public int ReciprocalRankK { get; set; } = 60;
@@ -79,7 +87,7 @@ public sealed class SearchV2Options
     /// index generation is rebuilt atomically when this value changes.
     /// </summary>
     [Range(1, int.MaxValue)]
-    public int ProjectionVersion { get; set; } = 4;
+    public int ProjectionVersion { get; set; } = 5;
 
     [Range(5, 3600)]
     public int WorkerIntervalSeconds { get; set; } = 15;

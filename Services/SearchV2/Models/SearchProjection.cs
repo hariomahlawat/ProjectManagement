@@ -10,6 +10,8 @@ public enum SearchVisibilityMode : short
 public static class SearchTermKinds
 {
     public const string Identifier = "Identifier";
+    /// <summary>Separator-insensitive companion of an Identifier (see SearchQueryNormalizer.IdentifierKey).</summary>
+    public const string IdentifierKey = "IdentifierKey";
     public const string Alias = "Alias";
     public const string Name = "Name";
     public const string Organisation = "Organisation";

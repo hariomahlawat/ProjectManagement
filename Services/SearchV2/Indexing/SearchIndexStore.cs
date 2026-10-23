@@ -8,6 +8,12 @@ namespace ProjectManagement.Services.SearchV2.Indexing;
 public interface ISearchIndexStore
 {
     Task<bool> IsReadyAsync(int indexVersion, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Cheap per-query readiness probe: the active generation when the index is built for
+    /// <paramref name="indexVersion"/>, otherwise 0. Unlike GetHealthAsync it counts nothing.
+    /// </summary>
+    Task<long> GetActiveGenerationAsync(int indexVersion, CancellationToken cancellationToken);
     Task<SearchIndexHealth> GetHealthAsync(CancellationToken cancellationToken);
     Task ReplaceFullGenerationAsync(IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken);
     Task ReplaceEntityAsync(string requestedEntityType, string requestedEntityKey, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken);
@@ -50,6 +56,31 @@ public sealed class SearchIndexStore : ISearchIndexStore
         catch (Exception ex) when (IsSchemaUnavailable(ex))
         {
             return false;
+        }
+        finally
+        {
+            await SafeCloseAsync();
+        }
+    }
+
+    public async Task<long> GetActiveGenerationAsync(int indexVersion, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _db.Database.OpenConnectionAsync(cancellationToken);
+            await using var command = _db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = """
+                SELECT COALESCE("ActiveGeneration", 0)
+                FROM "SearchIndexState"
+                WHERE "Id" = 1 AND "IndexVersion" = @version;
+                """;
+            Add(command, "version", indexVersion);
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return result is null or DBNull ? 0 : Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (IsSchemaUnavailable(ex))
+        {
+            return 0;
         }
         finally
         {

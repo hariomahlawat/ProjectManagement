@@ -15,39 +15,27 @@ internal static class SearchAuthorizationSql
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(access);
 
-        var policyParts = new List<string> { "e.\"RequiredPolicy\" IS NULL" };
-        for (var index = 0; index < access.AllowedPolicies.Count; index++)
-        {
-            var name = $"allowedPolicy{index}";
-            Add(command, name, access.AllowedPolicies[index]);
-            policyParts.Add($"e.\"RequiredPolicy\" = @{name}");
-        }
+        // Array parameters keep the predicate one fixed shape whatever the number of
+        // policies/roles. The search statement repeats it once per retrieval channel, so a
+        // compact predicate also keeps PostgreSQL planning time down.
+        Add(command, "allowedPolicies", access.AllowedPolicies.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray());
 
-        var principalParts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(access.UserId))
-        {
-            Add(command, "currentUserId", access.UserId);
-            principalParts.Add("(p.\"PrincipalType\" = 'User' AND p.\"PrincipalValue\" = @currentUserId)");
-        }
+        var hasUser = !string.IsNullOrWhiteSpace(access.UserId);
+        if (hasUser) Add(command, "currentUserId", access.UserId);
+        Add(command, "roles", access.Roles.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray());
 
-        for (var index = 0; index < access.Roles.Count; index++)
-        {
-            var name = $"role{index}";
-            Add(command, name, access.Roles[index]);
-            principalParts.Add($"(p.\"PrincipalType\" = 'Role' AND p.\"PrincipalValue\" = @{name})");
-        }
-
-        var principalSql = principalParts.Count == 0 ? "FALSE" : string.Join(" OR ", principalParts);
-        var ownerSql = string.IsNullOrWhiteSpace(access.UserId) ? "FALSE" : "e.\"OwnerUserId\" = @currentUserId";
+        var ownerSql = hasUser ? "e.\"OwnerUserId\" = @currentUserId" : "FALSE";
+        var userPrincipalSql = hasUser ? "(p.\"PrincipalType\" = 'User' AND p.\"PrincipalValue\" = @currentUserId) OR " : string.Empty;
 
         return $"""
-            AND ({string.Join(" OR ", policyParts)})
+            AND (e."RequiredPolicy" IS NULL OR e."RequiredPolicy" = ANY(@allowedPolicies))
             AND (
                 e."VisibilityMode" = 0
                 OR (e."VisibilityMode" = 1 AND {ownerSql})
                 OR (e."VisibilityMode" = 2 AND EXISTS (
                     SELECT 1 FROM "SearchEntryPrincipals" p
-                    WHERE p."SearchEntryId" = e."Id" AND ({principalSql})
+                    WHERE p."SearchEntryId" = e."Id"
+                      AND ({userPrincipalSql}(p."PrincipalType" = 'Role' AND p."PrincipalValue" = ANY(@roles)))
                 ))
             )
             """;

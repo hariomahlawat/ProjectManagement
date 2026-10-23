@@ -738,13 +738,21 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         return rows.Select(row =>
         {
             var year = row.TrainingYear?.ToString(CultureInfo.InvariantCulture);
-            var title = JoinNonEmpty(row.Type, year) ?? "Training record";
             var linked = row.ProjectIds.Where(projectContexts.ContainsKey).Select(id => projectContexts[id]).ToArray();
+            var title = TrainingTitle(row.Projects, row.Type, year);
+            var subtitle = JoinNonEmpty(
+                row.Type is null ? null : $"{row.Type} training",
+                year,
+                row.Trainees.Length == 0 ? null : row.Trainees.Length == 1 ? "1 trainee" : $"{row.Trainees.Length} trainees");
             var stages = linked.Select(context => context.CurrentStage).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var eventDate = row.StartDate.HasValue ? new DateTimeOffset(row.StartDate.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) : row.CreatedAtUtc;
+            // A training for exactly one Project belongs to that Project's result cluster, as
+            // ToT and Proliferation rows already do; multi-project trainings stand alone.
+            var canonicalType = linked.Length == 1 ? "Project" : "Training";
+            var canonicalKey = linked.Length == 1 ? linked[0].Id.ToString(CultureInfo.InvariantCulture) : row.Id.ToString();
             return Project(
-                "Training", row.Id.ToString(), "Training", row.Id.ToString(), linked.Length == 1 ? linked[0].Id : null,
-                "Training tracker", "Trackers", title, string.Join(" · ", row.Projects),
+                "Training", row.Id.ToString(), canonicalType, canonicalKey, linked.Length == 1 ? linked[0].Id : null,
+                "Training tracker", "Trackers", title, subtitle,
                 _urls.ProjectOfficeTrainingView(row.Id), null, null,
                 JoinNonEmpty(row.Type, year, string.Join(" · ", row.Projects), string.Join(" · ", row.Trainees), string.Join(" · ", stages!)), row.Notes,
                 null, null, eventDate, row.LastModifiedAtUtc ?? row.CreatedAtUtc,
@@ -1094,8 +1102,37 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         if (values is null) return;
         foreach (var value in values.Where(value => !string.IsNullOrWhiteSpace(value)))
         {
-            target.Add(new SearchProjectionTerm(value, _normalizer.NormalizeExact(value), kind));
+            var normalized = _normalizer.NormalizeExact(value);
+            target.Add(new SearchProjectionTerm(value, normalized, kind));
+
+            // Separator-insensitive companion key so PRJ0042, "prj 42" and PRJ-0042 meet.
+            if (kind == SearchTermKinds.Identifier)
+            {
+                var key = SearchQueryNormalizer.IdentifierKey(value);
+                if (key.Length >= 2) target.Add(new SearchProjectionTerm(value, key, SearchTermKinds.IdentifierKey));
+            }
         }
+    }
+
+    /// <summary>
+    /// Training records are identified by what was trained on, not by the generic training
+    /// type (hundreds of rows titled just "Simulator" drown the Projects they relate to).
+    /// </summary>
+    internal static string TrainingTitle(IReadOnlyList<string> projectNames, string? trainingType, string? year)
+    {
+        var projects = projectNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return projects.Length switch
+        {
+            0 => JoinNonEmpty(trainingType is null ? "Training" : $"{trainingType} training", year)?.Replace(" · ", " ", StringComparison.Ordinal) ?? "Training record",
+            1 => $"{projects[0]} — Training",
+            _ => $"{projects[0]} (+{projects.Length - 1} more) — Training"
+        };
     }
 
     private static string[] Values(params string?[] values) => values
