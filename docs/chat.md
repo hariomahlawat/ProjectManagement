@@ -30,8 +30,11 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   window that merely popped open stays unread.
 - A window stays where the person has scrolled: new messages and the 30-second refresh scroll
   to the newest message only when the view is already at the bottom.
-- **Enter** sends, **Shift+Enter** adds a line, **Esc** minimises. Messages are plain text, up
-  to 4,000 characters. A failed send stays in the window with a Retry link.
+- **Enter** sends, **Shift+Enter** adds a line. **Esc** steps back one level: in a window it
+  closes the people panel, then minimises the window (focus stays on its title bar); in the
+  contact list it cancels a status edit, clears the search, closes New group, then closes the
+  list. Messages are plain text, up to 4,000 characters. A failed send stays in the window with
+  a Retry link.
 - A conversation with a **deactivated** account stays readable but cannot be replied to.
 - **Typing indicator**: the other person's window header shows "typing…" while they type, for
   about six seconds after the last keystroke, and clears when their message arrives.
@@ -89,6 +92,27 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   that message, highlighted, with "Show earlier" and "Show newer" to read around it. Links
   take the form `/Chat?with={userId}&at={messageId}`. Opening a conversation there closes its
   docked window, so each conversation has one view.
+
+## Accessibility
+
+- **Focus survives updates.** The contact list, the Messages page list and conversation logs
+  are redrawn whole on every presence, unread or read-tick change. Every control that can hold
+  focus there carries `data-focus-key` (`contact:{id}`, `group:{id}`, `conv:{key}`,
+  `retry:{clientMessageId}`, `unsend:{id}`, and the people panel's controls), and the redraw puts
+  focus back on the same control. If it is gone (sent after Retry, Unsend expired), focus goes
+  to the message box instead of falling out of the window.
+- **Focus returns** where it came from: closing a window or the contact list goes back to the
+  chat button, minimising to the window's title bar, closing the people panel to its button.
+  Opening the people panel moves focus into it (`role=region`, `aria-controls`/`aria-expanded`
+  on the button).
+- **What a screen reader hears**: every message starts with a visually hidden "Name: " (or
+  "You: "), including group messages after the first of a run. Conversation logs are
+  `role=log` with `aria-live=off`, because a redraw would read them out again; instead one
+  polite live region (`ChatApp.announce`) says each new message once (the text when the person
+  is in that conversation, otherwise "New message from …"), group-change errors, and how many
+  messages a search found. Window status lines only change their text when it really changes.
+- Inactive people are shown with a muted name and faded avatar, not a faded row, so their text
+  keeps its contrast; the row says "Inactive account".
 
 ## How it works
 
