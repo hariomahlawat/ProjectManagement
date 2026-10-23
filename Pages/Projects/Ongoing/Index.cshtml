@@ -33,7 +33,22 @@
             pattern,
             m => $"<span class=\"badge remark-pill\">{m.Groups[1].Value}</span>");
 
-        return replaced;
+        // Remark text keeps its line breaks (pre-line), so mentions written one per line would
+        // stack; consecutive mentions share one line instead.
+        return Regex.Replace(replaced, @"</span>\s+(?=<span class=""badge remark-pill"">)", "</span> ");
+    }
+
+    // SECTION: Dates
+    // One format across the page, as on the Project Overview: 16 Oct 2026, and with a time 16 Oct 2026, 14:05.
+    const string dateFormat = "dd MMM yyyy";
+    const string dateTimeFormat = "dd MMM yyyy, HH:mm";
+
+    // SECTION: Table column header with a sort link
+    void SortHeader(string column, string label)
+    {
+        var aria = Model.AriaSort(column);
+        var icon = aria switch { "ascending" => "bi-arrow-up", "descending" => "bi-arrow-down", _ => "bi-arrow-down-up" };
+        <a class="ongoing-sort @(aria == "none" ? null : "is-active")" href="@Model.SortUrl(column)">@label<i class="bi @icon ongoing-sort__icon" aria-hidden="true"></i></a>
     }
 
     // SECTION: Table helpers
@@ -85,6 +100,11 @@
     @if (isTableView)
     {
         <input type="hidden" asp-for="StageFlow" />
+        @if (Model.Sort is not null)
+        {
+            <input type="hidden" asp-for="Sort" />
+            <input type="hidden" asp-for="SortDir" />
+        }
     }
     @foreach (var bucket in Model.SelectedStageBuckets)
     {
@@ -165,28 +185,54 @@
     </div>
 
     <!-- SECTION: Row 2 - search, officer, exact stage, view and actions -->
-    <div class="ongoing-head__row ongoing-head__row--tools">
-        <input asp-for="Search"
-               type="search"
-               class="form-control form-control-sm ongoing-head__search"
-               placeholder="Search project name"
-               aria-label="Search by project name"
-               autocomplete="off" />
-        <select asp-for="ProjectOfficerId"
-                asp-items="Model.ProjectOfficerOptions"
-                class="form-select form-select-sm ongoing-head__select"
-                aria-label="Project officer"></select>
-        <select asp-for="PresentStageCode"
-                asp-items="Model.PresentStageOptions"
-                class="form-select form-select-sm ongoing-head__select"
-                aria-label="Exact stage"></select>
-        @if (Model.HasSubCategories)
+    @{
+        // On a phone these fields fold behind a Filters button (open while any is in use) so the
+        // first project shows without scrolling past the whole toolbar.
+        var activeFieldFilters = new[]
         {
-            <select asp-for="SubCategory"
-                    asp-items="Model.SubCategoryOptions"
+            !string.IsNullOrWhiteSpace(Model.Search),
+            !string.IsNullOrWhiteSpace(Model.ProjectOfficerId),
+            !string.IsNullOrWhiteSpace(Model.PresentStageCode),
+            Model.SubCategory.HasValue
+        }.Count(isSet => isSet);
+    }
+    <div class="ongoing-head__row ongoing-head__row--tools">
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary ongoing-head__filters-toggle"
+                aria-expanded="@(activeFieldFilters > 0 ? "true" : "false")"
+                aria-controls="ongoingFieldFilters"
+                data-ongoing-filters-toggle>
+            <i class="bi bi-funnel" aria-hidden="true"></i> Filters
+            @if (activeFieldFilters > 0)
+            {
+                <span class="ongoing-head__filters-count">@activeFieldFilters</span>
+            }
+        </button>
+        <div id="ongoingFieldFilters"
+             class="ongoing-head__filters @(activeFieldFilters > 0 ? "is-open" : null)"
+             data-ongoing-filters>
+            <input asp-for="Search"
+                   type="search"
+                   class="form-control form-control-sm ongoing-head__search"
+                   placeholder="Search project name"
+                   aria-label="Search by project name"
+                   autocomplete="off" />
+            <select asp-for="ProjectOfficerId"
+                    asp-items="Model.ProjectOfficerOptions"
                     class="form-select form-select-sm ongoing-head__select"
-                    aria-label="Sub-category"></select>
-        }
+                    aria-label="Project officer"></select>
+            <select asp-for="PresentStageCode"
+                    asp-items="Model.PresentStageOptions"
+                    class="form-select form-select-sm ongoing-head__select"
+                    aria-label="Exact stage"></select>
+            @if (Model.HasSubCategories)
+            {
+                <select asp-for="SubCategory"
+                        asp-items="Model.SubCategoryOptions"
+                        class="form-select form-select-sm ongoing-head__select"
+                        aria-label="Sub-category"></select>
+            }
+        </div>
 
         <span class="ongoing-head__divider" aria-hidden="true"></span>
 
@@ -320,7 +366,7 @@ else
                                             <span class="ongoing-card__current-value">@cur.Name</span>
                                             @if (cur.ActualCompletedOn.HasValue)
                                             {
-                                                @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
+                                                @: (@cur.ActualCompletedOn.Value.ToString(dateFormat))
                                             }
                                             else
                                             {
@@ -332,7 +378,7 @@ else
                                             <span class="ongoing-card__current-value">@cur.Name</span>
                                             @if (cur.PlannedDue.HasValue)
                                             {
-                                                @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
+                                                @: (PDC: @cur.PlannedDue.Value.ToString(dateFormat))
                                             }
                                         }
 
@@ -392,7 +438,7 @@ else
                                         <span class="ongoing-card__lc-value">@item.LastCompletedStageName</span>
                                         if (item.LastCompletedStageDate.HasValue)
                                         {
-                                            @: (@item.LastCompletedStageDate.Value.ToString("dd-MMM-yy"))
+                                            @: (@item.LastCompletedStageDate.Value.ToString(dateFormat))
                                         }
                                         else
                                         {
@@ -464,7 +510,7 @@ else
                                             }
                                             else if (isCompleted)
                                             {
-                                                <span class="briefing-stage__date">@(stage.ActualCompletedOn?.ToString("dd MMM yyyy") ?? "Date not recorded")</span>
+                                                <span class="briefing-stage__date">@(stage.ActualCompletedOn?.ToString(dateFormat) ?? "Date not recorded")</span>
                                             }
                                             else if (isPastMissing)
                                             {
@@ -482,7 +528,7 @@ else
                                                         @("Stage age not recorded")
                                                     }
                                                 </span>
-                                                <span class="briefing-stage__pdc">@(stage.PlannedDue.HasValue ? $"PDC {stage.PlannedDue.Value:dd MMM yyyy}" : "PDC not set")</span>
+                                                <span class="briefing-stage__pdc">@(stage.PlannedDue.HasValue ? $"PDC {stage.PlannedDue.Value.ToString(dateFormat)}" : "PDC not set")</span>
                                             }
                                         </div>
                                     </div>
@@ -553,7 +599,7 @@ else
                                                     <div class="ongoing-remarks__meta">
                                                         <span class="ongoing-remarks__author">@r.AuthorDisplayName</span>
                                                         <span class="ongoing-remarks__meta-sep">·</span>
-                                                        <span>@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                        <span>@r.CreatedAtUtc.ToLocalTime().ToString(dateTimeFormat)</span>
                                                         @{ var internalAge = UpdateAge(r.CreatedAtUtc); }
                                                         <span class="ongoing-remarks__meta-sep">·</span>
                                                         <span class="ongoing-remarks__age @(internalAge.IsStale ? "is-stale" : null)">@internalAge.Label</span>
@@ -574,7 +620,7 @@ else
                                                         <div class="ongoing-remarks__meta">
                                                             <span class="ongoing-remarks__author">@r.AuthorDisplayName</span>
                                                             <span class="ongoing-remarks__meta-sep">·</span>
-                                                            <span>@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                            <span>@r.CreatedAtUtc.ToLocalTime().ToString(dateTimeFormat)</span>
                                                             @{ var olderAge = UpdateAge(r.CreatedAtUtc); }
                                                             <span class="ongoing-remarks__meta-sep">·</span>
                                                             <span class="ongoing-remarks__age @(olderAge.IsStale ? "is-stale" : null)">@olderAge.Label</span>
@@ -604,9 +650,9 @@ else
                                             <div class="ongoing-remarks__meta">
                                                 <span class="ongoing-remarks__author">@externalRemark.AuthorDisplayName</span>
                                                 <span class="ongoing-remarks__meta-sep">·</span>
-                                                <span>@externalRemark.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                <span>@externalRemark.CreatedAtUtc.ToLocalTime().ToString(dateTimeFormat)</span>
                                                 <span class="ongoing-remarks__meta-sep">·</span>
-                                                <span>Event: @externalRemark.EventDate.ToString("dd-MMM-yyyy")</span>
+                                                <span>Event: @externalRemark.EventDate.ToString(dateFormat)</span>
                                                 @{ var externalAge = UpdateAge(externalRemark.CreatedAtUtc); }
                                                 <span class="ongoing-remarks__meta-sep">·</span>
                                                 <span class="ongoing-remarks__age @(externalAge.IsStale ? "is-stale" : null)">@externalAge.Label</span>
@@ -654,12 +700,12 @@ else
                     </colgroup>
                     <thead>
                         <tr>
-                            <th class="col-project">Project</th>
-                            <th class="col-stage">Current stage</th>
-                            <th class="col-age">Stage age</th>
-                            <th class="col-pdc">PDC</th>
-                            <th class="col-internal">Internal update</th>
-                            <th class="col-remarks">External status</th>
+                            <th class="col-project" scope="col" aria-sort="@Model.AriaSort("name")">@{ SortHeader("name", "Project"); }</th>
+                            <th class="col-stage" scope="col" aria-sort="@Model.AriaSort("stage")">@{ SortHeader("stage", "Current stage"); }</th>
+                            <th class="col-age" scope="col" aria-sort="@Model.AriaSort("age")">@{ SortHeader("age", "Stage age"); }</th>
+                            <th class="col-pdc" scope="col" aria-sort="@Model.AriaSort("pdc")">@{ SortHeader("pdc", "PDC"); }</th>
+                            <th class="col-internal" scope="col" aria-sort="@Model.AriaSort("update")">@{ SortHeader("update", "Internal update"); }</th>
+                            <th class="col-remarks" scope="col">External status</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -734,13 +780,26 @@ else
                                         <span class="text-muted">Not recorded</span>
                                     }
                                 </td>
-                                <td class="col-pdc">@(row.PresentStagePdc.HasValue ? row.PresentStagePdc.Value.ToString("dd MMM yyyy") : "Not set")</td>
+                                <td class="col-pdc">
+                                    @if (row.PresentStagePdc.HasValue)
+                                    {
+                                        @row.PresentStagePdc.Value.ToString(dateFormat)
+                                        @if (row.DaysPastPdc is int daysPast)
+                                        {
+                                            <span class="stage-age is-danger ongoing-table__overdue">overdue @daysPast d</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Not set</span>
+                                    }
+                                </td>
                                 <td class="col-internal">
                                     @if (row.RecentInternalRemarks.Count > 0)
                                     {
                                         var latestInternal = row.RecentInternalRemarks[0];
                                         <div class="pm-remark-text">@Html.Raw(RenderRemark(latestInternal.Text))</div>
-                                        <span class="ongoing-table__secondary">@latestInternal.AuthorDisplayName · @latestInternal.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                        <span class="ongoing-table__secondary">@latestInternal.AuthorDisplayName · @latestInternal.CreatedAtUtc.ToLocalTime().ToString(dateFormat)</span>
                                     }
                                     else
                                     {

@@ -1151,3 +1151,81 @@ table.ongoing-table td.col-remarks .pm-remark-text {
         display: none;
     }
 }
+
+/* SECTION: Phone filters -------------------------------------------------
+   The search and select fields sit in the toolbar as usual; on a phone they fold behind a
+   Filters button (open while any is in use) so the first project shows without scrolling. */
+.ongoing-head__filters {
+    display: contents;
+}
+
+.ongoing-head__filters-toggle {
+    display: none;
+}
+
+.ongoing-head__filters-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 .3rem;
+    border-radius: 999px;
+    color: var(--pm-card);
+    background: var(--pm-primary);
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+@media (max-width: 640px) {
+    .ongoing-head__filters-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        min-height: 2.5rem;
+    }
+
+    .ongoing-head__filters {
+        display: none;
+        flex-basis: 100%;
+        flex-wrap: wrap;
+        gap: .6rem;
+    }
+
+    .ongoing-head__filters.is-open {
+        display: flex;
+    }
+}
+
+/* SECTION: Table column sort and overdue PDC ------------------------------ */
+.ongoing-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    color: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.ongoing-sort:hover,
+.ongoing-sort:focus-visible,
+.ongoing-sort.is-active {
+    color: var(--pm-primary);
+}
+
+.ongoing-sort__icon {
+    font-size: .8em;
+    opacity: .45;
+}
+
+.ongoing-sort.is-active .ongoing-sort__icon {
+    opacity: 1;
+}
+
+/* Under the date: the PDC column is too narrow for both on one line. */
+.ongoing-table__overdue {
+    display: block;
+    width: fit-content;
+    margin-top: .25rem;
+    white-space: nowrap;
+}
