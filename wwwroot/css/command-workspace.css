@@ -554,19 +554,17 @@
         border-bottom:0;
         border-right:1px solid var(--cw-line);
     }
-    .command-workspace .cw-local-rail:not(.is-expanded) nav,
-    .command-workspace .cw-local-rail:not(.is-expanded) .cw-local-rail__group {
+    /* One evenly wrapping set of icons: the groups' own boxes and dividers are dropped here
+       (a Command user has four groups, which wrapped into ragged rows). */
+    .command-workspace .cw-local-rail:not(.is-expanded) nav {
         display:flex;
+        flex:1 1 auto;
         flex-wrap:wrap;
         gap:2px;
+        min-width:0;
         padding-top:0;
     }
-    .command-workspace .cw-local-rail:not(.is-expanded) .cw-local-rail__group + .cw-local-rail__group {
-        padding:0 0 0 4px;
-        border-top:0;
-        border-left:1px solid var(--cw-line);
-    }
-    .command-workspace .cw-local-rail:not(.is-expanded) nav { flex:1 1 auto; min-width:0; }
+    .command-workspace .cw-local-rail:not(.is-expanded) .cw-local-rail__group { display:contents; }
     .command-workspace .cw-local-rail:not(.is-expanded) nav a { width:40px; min-height:36px; }
 }
 }
