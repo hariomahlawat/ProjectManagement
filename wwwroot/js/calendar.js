@@ -152,24 +152,52 @@
       return value.slice(0, 10);
     }
     const d = value instanceof Date ? value : new Date(value);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   };
+
+  // SECTION: Times are IST. The server records and repeats events in IST (IstClock), so the
+  // calendar shows and edits IST whatever time zone the browser is set to. FullCalendar runs in
+  // UTC and every date this script handles is an IST "wall clock": its UTC fields (getUTCHours,
+  // getUTCDate…) read the IST time. Dates become real UTC instants only at the server boundary.
+  // IST has had no daylight saving since 1945, so the fixed offset is exact.
+  const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+  const fromUtc = (value) => new Date(new Date(value).getTime() + IST_OFFSET_MS);
+  const toUtc = (wall) => new Date(new Date(wall).getTime() - IST_OFFSET_MS);
+  const nowWall = () => fromUtc(Date.now());
+
+  // A server event (UTC instants) as the calendar shows it (IST wall clock).
+  const toWallEvent = (event) => ({
+    ...event,
+    start: event?.start ? fromUtc(event.start) : event?.start,
+    end: event?.end ? fromUtc(event.end) : event?.end
+  });
+
+  // The visible range as the server reads it: real UTC instants.
+  const wallParamToUtc = (value) => {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? value : toUtc(d).toISOString();
+  };
+  const rangeParams = (info, extra = {}) => new URLSearchParams({
+    start: wallParamToUtc(info.startStr),
+    end: wallParamToUtc(info.endStr),
+    ...extra
+  });
 
   // helpers
   const pad = (n) => String(n).padStart(2,'0');
   const toLocalDateInputValue = (d) => {
     const dt = new Date(d);
-    return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth()+1)}-${pad(dt.getUTCDate())}`;
   };
 
   const toLocalTimeInputValue = (d) => {
     const dt = new Date(d);
-    return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    return `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`;
   };
 
   const combineLocalDateTime = (datePart, timePart) => {
     if (!datePart || !timePart) return null;
-    return new Date(`${datePart}T${timePart}`);
+    return new Date(`${datePart}T${timePart}Z`);
   };
 
   const roundUpToInterval = (date, minutes = 15) => {
@@ -187,18 +215,18 @@
   const isValidDate = (value) => value instanceof Date && !Number.isNaN(value.getTime());
 
   const isSameLocalDate = (left, right) =>
-    left.getFullYear() === right.getFullYear()
-    && left.getMonth() === right.getMonth()
-    && left.getDate() === right.getDate();
+    left.getUTCFullYear() === right.getUTCFullYear()
+    && left.getUTCMonth() === right.getUTCMonth()
+    && left.getUTCDate() === right.getUTCDate();
 
   const atLocalTime = (date, hours, minutes = 0) => {
     const value = new Date(date);
-    value.setHours(hours, minutes, 0, 0);
+    value.setUTCHours(hours, minutes, 0, 0);
     return value;
   };
 
   const getDefaultTimedStart = (selectedDate = null) => {
-    const now = new Date();
+    const now = nowWall();
     const selected = selectedDate ? new Date(selectedDate) : null;
 
     if (selected && !isSameLocalDate(selected, now)) {
@@ -206,38 +234,78 @@
     }
 
     let candidate = roundUpToInterval(now, 15);
-    if (candidate.getHours() < 8) {
+    if (candidate.getUTCHours() < 8) {
       candidate = atLocalTime(candidate, 8, 0);
-    } else if (candidate.getHours() >= 18) {
-      candidate.setDate(candidate.getDate() + 1);
+    } else if (candidate.getUTCHours() >= 18) {
+      candidate.setUTCDate(candidate.getUTCDate() + 1);
       candidate = atLocalTime(candidate, 9, 0);
     }
 
     if (selected) {
-      candidate.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+      candidate.setUTCFullYear(selected.getUTCFullYear(), selected.getUTCMonth(), selected.getUTCDate());
     }
 
     return candidate;
   };
 
-  const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+  const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
   const longDateFormatter = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'long',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: 'UTC'
   });
   const formatDisplayDate = (date) => {
     const d = date instanceof Date ? date : new Date(date);
-    return `${pad(d.getDate())} ${monthFormatter.format(d)} ${d.getFullYear()}`;
+    return `${pad(d.getUTCDate())} ${monthFormatter.format(d)} ${d.getUTCFullYear()}`;
   };
   const formatLongDisplayDate = (date) => {
     const d = date instanceof Date ? date : new Date(date);
     return longDateFormatter.format(d);
   };
+  const formatClockTime = (date) => `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
   const formatDisplayDateTime = (date) => {
     const d = date instanceof Date ? date : new Date(date);
-    return `${formatDisplayDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${formatDisplayDate(d)} ${formatClockTime(d)}`;
   };
+  // "23 Oct 2026, 10:00–11:30 IST", or both dates when the event runs past midnight.
+  const formatTimedRange = (start, end) => isSameLocalDate(start, end)
+    ? `${formatDisplayDate(start)}, ${formatClockTime(start)}–${formatClockTime(end)} IST`
+    : `${formatDisplayDateTime(start)} – ${formatDisplayDateTime(end)} IST`;
+
+  // One reading of a stored RRULE, for the editor and the details panel.
+  const parseRRule = (rrule) => Object.fromEntries((rrule || '').split(';').filter(Boolean).map(part => {
+    const separator = part.indexOf('=');
+    return separator > 0
+      ? [part.slice(0, separator).trim().toUpperCase(), part.slice(separator + 1).trim()]
+      : [part.trim().toUpperCase(), ''];
+  }));
+
+  const WEEKDAY_SHORT = { MO: 'Mon', TU: 'Tue', WE: 'Wed', TH: 'Thu', FR: 'Fri', SA: 'Sat', SU: 'Sun' };
+
+  // "Repeats weekly on Mon, Thu until 30 Nov 2026"; empty for a one-off event.
+  function describeRecurrence(rrule, recurrenceUntilUtc) {
+    if (!rrule) return '';
+    const m = parseRRule(rrule);
+    const frequency = (m.FREQ || '').toUpperCase();
+    const interval = parseInt(m.INTERVAL, 10) > 1 ? parseInt(m.INTERVAL, 10) : 1;
+    let text;
+    if (frequency === 'WEEKLY') {
+      text = interval > 1 ? `Repeats every ${interval} weeks` : 'Repeats weekly';
+      const days = (m.BYDAY || '').toUpperCase().split(',').map(code => WEEKDAY_SHORT[code.trim()]).filter(Boolean);
+      if (days.length) text += ` on ${days.join(', ')}`;
+    } else if (frequency === 'MONTHLY') {
+      text = interval > 1 ? `Repeats every ${interval} months` : 'Repeats monthly';
+      if (m.BYMONTHDAY) text += ` on day ${m.BYMONTHDAY}`;
+    } else {
+      text = 'Repeats';
+    }
+    const until = m.UNTIL && /^\d{8}/.test(m.UNTIL)
+      ? new Date(`${m.UNTIL.slice(0, 4)}-${m.UNTIL.slice(4, 6)}-${m.UNTIL.slice(6, 8)}T00:00:00Z`)
+      : recurrenceUntilUtc ? fromUtc(recurrenceUntilUtc) : null;
+    if (isValidDate(until)) text += ` until ${formatDisplayDate(until)}`;
+    return text;
+  }
 
   const normaliseHolidayEntry = (entry) => ({
     id: entry?.id ?? entry?.Id ?? null,
@@ -720,8 +788,8 @@
 
     if (isAllDayBox.checked) {
       if (!startDateAllDayBox?.value || !endDateAllDayBox?.value) return true;
-      const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
-      const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
+      const start = new Date(`${startDateAllDayBox.value}T00:00:00Z`);
+      const end = new Date(`${endDateAllDayBox.value}T00:00:00Z`);
       if (!isValidDate(start) || !isValidDate(end)) return true;
       if (end < start) {
         showDateRangeError('End date cannot be before the start date.', endDateAllDayBox);
@@ -747,8 +815,8 @@
 
     if (isAllDayBox.checked) {
       if (!startDateAllDayBox?.value || !endDateAllDayBox?.value) return;
-      const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
-      const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
+      const start = new Date(`${startDateAllDayBox.value}T00:00:00Z`);
+      const end = new Date(`${endDateAllDayBox.value}T00:00:00Z`);
       if (!isValidDate(start) || !isValidDate(end) || end < start) return;
       const days = Math.round((end - start) / 86400000) + 1;
       durationHint.textContent = days === 1 ? '1 all-day event' : `${days} calendar days`;
@@ -852,12 +920,7 @@
 
     let ruleUntil = null;
     if (rrule) {
-      const m = Object.fromEntries(rrule.split(';').map(part => {
-        const separator = part.indexOf('=');
-        return separator > 0
-          ? [part.slice(0, separator).toUpperCase(), part.slice(separator + 1)]
-          : [part.toUpperCase(), ''];
-      }));
+      const m = parseRRule(rrule);
       const frequency = (m.FREQ || '').toUpperCase();
       if (frequency === 'WEEKLY') {
         repeatFreq.value = 'WEEKLY';
@@ -878,7 +941,7 @@
       if (ruleUntil) {
         repeatUntil.value = ruleUntil;
       } else if (recurrenceUntilUtc) {
-        const until = new Date(recurrenceUntilUtc);
+        const until = fromUtc(recurrenceUntilUtc);
         if (isValidDate(until)) repeatUntil.value = toLocalDateInputValue(until);
       }
     }
@@ -1016,8 +1079,8 @@
       category: info.event.extendedProps.category,
       location: info.event.extendedProps.location || null,
       isAllDay: info.event.allDay,
-      startUtc: info.event.start.toISOString(),
-      endUtc: info.event.end.toISOString()
+      startUtc: toUtc(info.event.start).toISOString(),
+      endUtc: toUtc(info.event.end).toISOString()
       // do not send description here to avoid wiping it
     };
     const prev = info.oldEvent;
@@ -1026,8 +1089,8 @@
       category: prev.extendedProps.category,
       location: prev.extendedProps.location || null,
       isAllDay: prev.allDay,
-      startUtc: prev.start.toISOString(),
-      endUtc: prev.end.toISOString()
+      startUtc: toUtc(prev.start).toISOString(),
+      endUtc: toUtc(prev.end).toISOString()
     };
     const res = await fetch(`/calendar/events/${id}`, {
       method: 'PUT',
@@ -1054,6 +1117,9 @@
     headerToolbar: false,
     // Dates read as elsewhere in PRISM ("19 Oct 2026", "Mon 19 Oct"), not US month/day.
     locale: 'en-GB',
+    // IST wall clock (see "Times are IST"): FullCalendar in UTC, with "now" in IST.
+    timeZone: 'UTC',
+    now: () => nowWall(),
     views: {
       timeGridWeek: {
         titleFormat: { day: 'numeric', month: 'short', year: 'numeric' },
@@ -1104,10 +1170,19 @@
     },
     eventSources: [{
       id: 'primary',
-      url: '/calendar/events',
-      method: 'GET',
-      extraParams: () => ({ includeCelebrations: 'false' }),
-      failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
+      events(info, successCallback, failureCallback) {
+        fetch(`/calendar/events?${rangeParams(info, { includeCelebrations: 'false' })}`)
+          .then(res => {
+            if (!res.ok) throw new Error(`Events feed failed: ${res.status}`);
+            return res.json();
+          })
+          .then(data => successCallback((Array.isArray(data) ? data : []).map(toWallEvent)))
+          .catch(e => {
+            console.error('Events feed failed', e);
+            failureCallback?.(e);
+            alert('Couldn\u2019t load events. See console/Network.');
+          });
+      }
     }],
     eventContent(info) {
       if (info.event.extendedProps?.isHoliday) {
@@ -1193,11 +1268,7 @@
   let celebrationSource = null;
 
   async function loadCelebrationEvents(info) {
-    const params = new URLSearchParams({
-      start: info.startStr,
-      end: info.endStr,
-      includeCelebrations: 'true'
-    });
+    const params = rangeParams(info, { includeCelebrations: 'true' });
 
     const res = await fetch(`/calendar/events?${params}`);
     if (!res.ok) {
@@ -1207,14 +1278,11 @@
     }
 
     const data = await res.json().catch(() => []);
-    return Array.isArray(data) ? data.filter(event => event?.isCelebration) : [];
+    return Array.isArray(data) ? data.filter(event => event?.isCelebration).map(toWallEvent) : [];
   }
 
   async function loadHolidayEvents(info, signal) {
-    const params = new URLSearchParams({
-      start: info.startStr,
-      end: info.endStr
-    });
+    const params = rangeParams(info);
     const res = await fetch(`${HOLIDAYS_ENDPOINT}?${params}`, { signal });
     if (!res.ok) {
       const error = new Error(`Holidays feed failed: ${res.status}`);
@@ -1528,6 +1596,9 @@
   const viewIcon = document.getElementById('eventDetailsIcon');
   const viewTime = document.getElementById('eventDetailsTime');
   const viewRepeat = document.getElementById('eventDetailsRepeat');
+  const viewRepeatText = document.getElementById('eventDetailsRepeatText') || viewRepeat?.querySelector('span');
+  const btnEditEvent = document.getElementById('btnEditEvent');
+  let currentEditHandler = null;
   const viewCategoryRow = document.getElementById('eventDetailsCategoryRow');
   const viewCategory = document.getElementById('eventDetailsCategory');
   const viewLocationRow = document.getElementById('eventDetailsLocationRow');
@@ -1556,7 +1627,7 @@
           extendedProps: { celebrationType: category }
         })
       : null;
-    const start = toDate(payload.start) || new Date();
+    const start = toDate(payload.start) || nowWall();
     const endRaw = toDate(payload.end);
     const end = endRaw || start;
 
@@ -1617,7 +1688,7 @@
       if (payload.allDay) {
         const endInclusive = new Date(end);
         if (payload.end) {
-          endInclusive.setDate(endInclusive.getDate() - 1);
+          endInclusive.setUTCDate(endInclusive.getUTCDate() - 1);
         }
         const isSingleDay = isSameLocalDate(start, endInclusive);
 
@@ -1629,12 +1700,22 @@
           viewTime.textContent = `${formatDisplayDate(start)} – ${formatDisplayDate(endInclusive)}`;
         }
       } else {
-        viewTime.textContent = `${formatDisplayDateTime(start)} – ${formatDisplayDateTime(end)}`;
+        viewTime.textContent = formatTimedRange(start, end);
       }
     }
 
-    if (viewRepeat) {
-      viewRepeat.classList.toggle('d-none', !isCelebration);
+    const repeatText = isCelebration
+      ? 'Repeats annually'
+      : describeRecurrence(payload.recurrenceRule, payload.recurrenceUntilUtc);
+    if (viewRepeatText && repeatText) viewRepeatText.textContent = repeatText;
+    viewRepeat?.classList.toggle('d-none', !repeatText);
+
+    // Editors read the event first and choose to edit it; the editor changes the whole series.
+    currentEditHandler = typeof payload.onEdit === 'function' ? payload.onEdit : null;
+    if (btnEditEvent) {
+      btnEditEvent.classList.toggle('d-none', !currentEditHandler);
+      const editLabel = btnEditEvent.querySelector('[data-edit-label]') || btnEditEvent;
+      editLabel.textContent = payload.recurrenceRule ? 'Edit series' : 'Edit event';
     }
 
     currentTaskUrl = isCelebration ? null : payload.taskUrl || null;
@@ -1646,6 +1727,32 @@
 
     bootstrap.Offcanvas.getOrCreateInstance(viewCanvas).show();
   }
+
+  btnEditEvent?.addEventListener('click', () => {
+    const handler = currentEditHandler;
+    if (!handler) return;
+    // Open the editor once the details panel has closed, so only one panel is ever open.
+    if (viewCanvas?.classList.contains('show')) {
+      viewCanvas.addEventListener('hidden.bs.offcanvas', () => handler(), { once: true });
+      bootstrap.Offcanvas.getOrCreateInstance(viewCanvas).hide();
+    } else {
+      handler();
+    }
+  });
+
+  // The details shown for a stored event: the clicked occurrence's own times, the series' text.
+  const detailsFromStoredEvent = (ev, data, seriesId) => ({
+    title: data.title,
+    start: ev.start || fromUtc(data.start),
+    end: ev.end || fromUtc(data.end),
+    allDay: data.allDay,
+    category: data.category,
+    location: data.location || '',
+    descriptionHtml: data.description || '',
+    recurrenceRule: data.recurrenceRule || null,
+    recurrenceUntilUtc: data.recurrenceUntilUtc || null,
+    taskUrl: ev.extendedProps?.taskUrl || `/calendar/events/${seriesId}/task`
+  });
 
   btnAddToTasks && btnAddToTasks.addEventListener('click', async () => {
     if (!currentTaskUrl) return;
@@ -1698,6 +1805,13 @@
       }
 
       const data = await res.json();
+      showEventDetails({
+        ...detailsFromStoredEvent(ev, data, seriesId),
+        onEdit: () => openEventEditor(data)
+      });
+    });
+
+    function openEventEditor(data) {
       form.reset();
       resetEditorValidation();
       setEditorMode(true);
@@ -1713,8 +1827,8 @@
       hydrateRepeatUI(data.recurrenceRule, data.recurrenceUntilUtc);
       setAdvancedOptionsOpen(!!(data.recurrenceRule || data.recurrenceUntilUtc || data.rawDescription));
 
-      const start = new Date(data.start);
-      const end = new Date(data.end);
+      const start = fromUtc(data.start);
+      const end = fromUtc(data.end);
       if (!isValidDate(start) || !isValidDate(end)) {
         alert('The stored event contains an invalid date range and cannot be edited safely.');
         return;
@@ -1722,7 +1836,7 @@
 
       if (isAllDayBox.checked) {
         const endInclusive = new Date(end);
-        endInclusive.setDate(endInclusive.getDate() - 1);
+        endInclusive.setUTCDate(endInclusive.getUTCDate() - 1);
         setAllDayValues(start, endInclusive);
         const timedStart = atLocalTime(start, 9, 0);
         setTimedValues(timedStart, new Date(timedStart.getTime() + 60 * 60 * 1000));
@@ -1737,7 +1851,7 @@
       btnDelete?.classList.remove('d-none');
       bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
       window.setTimeout(() => titleBox?.focus(), 250);
-    });
+    }
 
     const btnNew = document.getElementById('btnNewEvent');
 
@@ -1755,10 +1869,10 @@
       btnDelete?.classList.add('d-none');
 
       if (allDay) {
-        const startValue = start ? new Date(start) : new Date();
+        const startValue = start ? new Date(start) : nowWall();
         const endExclusive = end ? new Date(end) : new Date(startValue.getTime() + 24 * 60 * 60 * 1000);
         const inclusiveEnd = new Date(endExclusive);
-        inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
+        inclusiveEnd.setUTCDate(inclusiveEnd.getUTCDate() - 1);
         setAllDayValues(startValue, inclusiveEnd);
         const timedStart = atLocalTime(startValue, 9, 0);
         setTimedValues(timedStart, new Date(timedStart.getTime() + 60 * 60 * 1000));
@@ -1820,15 +1934,15 @@
       let startLocalIso;
 
       if (isAllDay) {
-        const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
-        const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
+        const start = new Date(`${startDateAllDayBox.value}T00:00:00Z`);
+        const end = new Date(`${endDateAllDayBox.value}T00:00:00Z`);
         if (!isValidDate(start) || !isValidDate(end)) {
           showFormAlert('Select a valid all-day date range.');
           return;
         }
-        end.setDate(end.getDate() + 1); // API uses an exclusive all-day end.
-        startUtc = start.toISOString();
-        endUtc = end.toISOString();
+        end.setUTCDate(end.getUTCDate() + 1); // API uses an exclusive all-day end.
+        startUtc = toUtc(start).toISOString();
+        endUtc = toUtc(end).toISOString();
         startLocalIso = `${startDateAllDayBox.value}T00:00`;
       } else {
         const start = getTimedStart();
@@ -1837,13 +1951,13 @@
           showFormAlert('Select a valid start and end date/time.');
           return;
         }
-        startUtc = start.toISOString();
-        endUtc = end.toISOString();
+        startUtc = toUtc(start).toISOString();
+        endUtc = toUtc(end).toISOString();
         startLocalIso = `${startDateTimedBox.value}T${startTimeTimedBox.value}`;
       }
       const rrule = buildRRule(startLocalIso);
       const recurrenceUntilUtc = rrule && repeatEndOn?.checked && repeatUntil?.value
-        ? new Date(`${repeatUntil.value}T23:59:59`).toISOString()
+        ? toUtc(new Date(`${repeatUntil.value}T23:59:59Z`)).toISOString()
         : null;
 
       const dto = {
@@ -1987,16 +2101,7 @@
       const res = await fetch(`/calendar/events/${seriesId}`);
       if (!res.ok) { console.error('Failed to load event'); return; }
       const data = await res.json();
-      showEventDetails({
-        title: data.title,
-        start: data.start,
-        end: data.end,
-        allDay: data.allDay,
-        category: data.category,
-        location: data.location || '',
-        descriptionHtml: data.description || '',
-        taskUrl: ev.extendedProps.taskUrl || `/calendar/events/${seriesId}/task`
-      });
+      showEventDetails(detailsFromStoredEvent(ev, data, seriesId));
     });
   }
 })();

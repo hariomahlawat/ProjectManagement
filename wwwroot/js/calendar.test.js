@@ -538,8 +538,8 @@ test('celebration details show one date, annual recurrence, and no task action',
     const event = {
         id: 'birthday-1',
         title: 'Birthday: Hariom Ahlawat',
-        start: new Date('2026-09-21T00:00:00'),
-        end: new Date('2026-09-22T00:00:00'),
+        start: new Date('2026-09-21T00:00:00Z'),
+        end: new Date('2026-09-22T00:00:00Z'),
         allDay: true,
         extendedProps: {
             category: 'Birthday',
@@ -660,4 +660,183 @@ test('List holiday rows also read the pre-classification payload (date and name 
     assert.equal(rows.length, 1);
     assert.equal(rows[0].title, 'Founders Day');
     assert.equal(rows[0].extendedProps.holidayLabel, 'Gazetted holiday');
+});
+
+const DETAILS_HTML = `
+    <div id="eventDetailsCanvas" class="offcanvas">
+        <span id="eventDetailsIcon"><i></i></span>
+        <div id="eventDetailsEyebrow"></div>
+        <h5 id="eventDetailsLabel"></h5>
+        <div id="eventDetailsTime"></div>
+        <div id="eventDetailsRepeat" class="d-none"><span id="eventDetailsRepeatText">Repeats annually</span></div>
+        <div id="eventDetailsCategoryRow"><span id="eventDetailsCategory"></span></div>
+        <div id="eventDetailsLocationRow"><span id="eventDetailsLocation"></span></div>
+        <div id="eventDetailsDescriptionRow"><span id="eventDetailsDescription"></span></div>
+        <button id="btnEditEvent" class="d-none"><span data-edit-label>Edit event</span></button>
+        <button id="btnAddToTasks"></button>
+    </div>`;
+
+const EDITOR_HTML = `
+    <div id="eventFormCanvas">
+        <form id="eventForm">
+            <input name="id" /><input name="title" /><input name="category" />
+            <input name="location" /><textarea name="description"></textarea>
+            <input type="checkbox" id="toggleAllDay" />
+            <div id="timedDateTimeFields">
+                <input type="date" id="eventStartDateTimed" /><input type="time" id="eventStartTimeTimed" />
+                <input type="date" id="eventEndDateTimed" /><input type="time" id="eventEndTimeTimed" />
+            </div>
+            <div id="allDayDateFields">
+                <input type="date" id="eventStartDateAllDay" /><input type="date" id="eventEndDateAllDay" />
+            </div>
+            <button id="btnDeleteEvent" class="d-none"></button>
+        </form>
+    </div>`;
+
+function loadEditorCalendar(storedEvent, requests = []) {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false" data-can-edit="true"></div>
+        ${DETAILS_HTML}${EDITOR_HTML}
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+    const { window } = dom;
+    const shown = [];
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.bootstrap = {
+        Offcanvas: {
+            getOrCreateInstance: (el) => ({
+                show: () => { shown.push(el?.id); },
+                hide: () => {}
+            })
+        }
+    };
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+    window.fetch = async (url, init) => {
+        requests.push({ url: url.toString(), init });
+        if (url.toString().includes('/holidays')) return { ok: true, status: 200, json: async () => [] };
+        if (/\/calendar\/events\/[\w-]+$/.test(url.toString())) return { ok: true, status: 200, json: async () => storedEvent };
+        return { ok: true, status: 200, json: async () => [] };
+    };
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    return { window, shown };
+}
+
+// A weekly Monday meeting, 10:00–11:00 IST, stored as UTC instants by the server.
+const weeklyMeeting = {
+    id: 'series-1',
+    title: 'Demo · Weekly review',
+    start: '2026-10-05T04:30:00Z',
+    end: '2026-10-05T05:30:00Z',
+    allDay: false,
+    category: 'Meeting',
+    location: 'Conference room',
+    description: '<p>Agenda</p>',
+    rawDescription: 'Agenda',
+    recurrenceRule: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO',
+    recurrenceUntilUtc: '2026-11-30T18:29:59Z'
+};
+
+test('editors see an event before editing it; Edit opens the editor in IST', async () => {
+    const { window, shown } = loadEditorCalendar(weeklyMeeting);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const calendar = FakeCalendar.lastInstance;
+    const doc = window.document;
+
+    // The clicked occurrence (19 Oct) as FullCalendar hands it over: IST wall clock.
+    await calendar.opts.eventClick({
+        event: {
+            id: 'series-1_20261019T043000Z',
+            title: weeklyMeeting.title,
+            start: new Date('2026-10-19T10:00:00Z'),
+            end: new Date('2026-10-19T11:00:00Z'),
+            allDay: false,
+            extendedProps: { seriesId: 'series-1', category: 'Meeting', isRecurring: true }
+        }
+    });
+
+    assert.deepEqual(shown, ['eventDetailsCanvas'], 'details open, not the editor');
+    assert.equal(doc.getElementById('eventDetailsTime').textContent, '19 Oct 2026, 10:00–11:00 IST');
+    assert.equal(doc.getElementById('eventDetailsRepeatText').textContent, 'Repeats weekly on Mon until 30 Nov 2026');
+    assert.ok(!doc.getElementById('eventDetailsRepeat').classList.contains('d-none'));
+    const edit = doc.getElementById('btnEditEvent');
+    assert.ok(!edit.classList.contains('d-none'), 'editors get an Edit button');
+    assert.equal(edit.textContent.trim(), 'Edit series');
+
+    edit.click();
+    assert.equal(shown[shown.length - 1], 'eventFormCanvas');
+    assert.equal(doc.getElementById('eventStartDateTimed').value, '2026-10-05');
+    assert.equal(doc.getElementById('eventStartTimeTimed').value, '10:00');
+    assert.equal(doc.getElementById('eventEndTimeTimed').value, '11:00');
+    assert.equal(doc.querySelector('[name="title"]').value, weeklyMeeting.title);
+});
+
+test('readers get no Edit button', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false"></div>${DETAILS_HTML}
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.bootstrap = { Offcanvas: { getOrCreateInstance: () => ({ show() {}, hide() {} }) } };
+    window.FullCalendar = { Calendar: FakeCalendar, dayGrid: () => ({}), timeGrid: () => ({}), list: () => ({}), interaction: () => ({}) };
+    window.fetch = async (url) => ({ ok: true, status: 200, json: async () => (url.toString().includes('/holidays') ? [] : { ...weeklyMeeting, recurrenceRule: null, recurrenceUntilUtc: null }) });
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 25));
+
+    await FakeCalendar.lastInstance.opts.eventClick({
+        event: {
+            id: 'series-1', title: weeklyMeeting.title,
+            start: new Date('2026-10-05T10:00:00Z'), end: new Date('2026-10-05T11:00:00Z'),
+            allDay: false, extendedProps: { category: 'Meeting' }
+        }
+    });
+
+    assert.ok(window.document.getElementById('btnEditEvent').classList.contains('d-none'));
+    assert.ok(window.document.getElementById('eventDetailsRepeat').classList.contains('d-none'), 'a one-off event does not say it repeats');
+    assert.equal(window.document.getElementById('eventDetailsTime').textContent, '05 Oct 2026, 10:00–11:00 IST');
+});
+
+test('times are IST whatever the browser zone: feed in, range out, moves saved as UTC', async () => {
+    const requests = [];
+    const { window } = loadEditorCalendar(weeklyMeeting, requests);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const calendar = FakeCalendar.lastInstance;
+
+    assert.equal(calendar.opts.timeZone, 'UTC');
+    const now = calendar.opts.now();
+    assert.ok(Math.abs(now.getTime() - (Date.now() + 330 * 60000)) < 5000, '"now" is IST wall clock');
+
+    // The month grid starts at IST midnight on 28 Sep; the server is asked from that instant.
+    const primary = calendar.opts.eventSources.find(source => source.id === 'primary');
+    window.fetch = async (url) => {
+        requests.push({ url: url.toString() });
+        return { ok: true, status: 200, json: async () => [{ id: 'a', title: 'Demo', start: '2026-10-05T04:30:00Z', end: '2026-10-05T05:30:00Z' }] };
+    };
+    const events = await new Promise((resolve, reject) => primary.events(
+        { startStr: '2026-09-28T00:00:00Z', endStr: '2026-11-09T00:00:00Z' }, resolve, reject));
+    const feedUrl = new URL(requests[requests.length - 1].url, 'https://example.test');
+    assert.equal(feedUrl.searchParams.get('start'), '2026-09-27T18:30:00.000Z');
+    assert.equal(feedUrl.searchParams.get('end'), '2026-11-08T18:30:00.000Z');
+    assert.equal(events[0].start.toISOString(), '2026-10-05T10:00:00.000Z', '04:30 UTC shows as 10:00 IST');
+
+    // Dragging the 10:00 IST meeting to 14:00 IST saves 08:30 UTC.
+    let body = null;
+    window.fetch = async (url, init) => { body = JSON.parse(init.body); return { ok: true, status: 200, json: async () => ({}) }; };
+    await calendar.opts.eventDrop({
+        event: { id: 'a', title: 'Demo', allDay: false, start: new Date('2026-10-05T14:00:00Z'), end: new Date('2026-10-05T15:00:00Z'), extendedProps: { category: 'Meeting' } },
+        oldEvent: { title: 'Demo', allDay: false, start: new Date('2026-10-05T10:00:00Z'), end: new Date('2026-10-05T11:00:00Z'), extendedProps: { category: 'Meeting' } },
+        revert() {}
+    });
+    assert.equal(body.startUtc, '2026-10-05T08:30:00.000Z');
+    assert.equal(body.endUtc, '2026-10-05T09:30:00.000Z');
 });
