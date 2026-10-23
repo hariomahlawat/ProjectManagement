@@ -808,9 +808,18 @@
 }
 
 .pm-chat__picker-note,
-.pm-chat__form-error {
+.pm-chat__form-error,
+.pm-chat__form-notice {
     margin: 0;
     font-size: .72rem;
+}
+
+.pm-chat__form-notice {
+    color: var(--pm-success-strong);
+}
+
+.pm-chat__form-notice:empty {
+    display: none;
 }
 
 .pm-chat__picker-note {
@@ -893,12 +902,43 @@
     font-size: .82rem;
 }
 
-.pm-chat__members-list li > :first-child {
-    flex: 1;
+.pm-chat__members-list .pm-chat__avatar {
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: .62rem;
 }
 
-.pm-chat__members-list .is-inactive {
+.pm-chat__member-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pm-chat__member-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-chat__member-name.is-inactive,
+.pm-chat__member-meta {
     color: var(--pm-text-muted);
+}
+
+.pm-chat__member-meta {
+    font-size: .72rem;
+}
+
+.pm-chat__mute {
+    margin: 0;
+    font-size: .82rem;
+}
+
+/* A muted group: a small bell-slash in its contact row. */
+.pm-chat__muted {
+    color: var(--pm-text-muted);
+    font-size: .8rem;
 }
 
 .pm-chat__badge-soft {

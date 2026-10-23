@@ -1319,13 +1319,13 @@ test('the manager sees Remove and Rename; leaving needs a second click', async (
     win.people.click();
     const panel = win.panel;
     assert.equal(panel.hidden, false);
-    assert.equal(panel.querySelectorAll('.pm-chat__members-list button').length, 2, 'remove buttons for the two others');
+    assert.equal(panel.querySelectorAll('[data-focus-key^="remove:"]').length, 2, 'remove buttons for the two others');
+    assert.equal(panel.querySelectorAll('[data-focus-key^="chat:"]').length, 2, 'a chat button for each of the others');
     assert.ok(panel.querySelector('.pm-chat__members-rename'));
 
-    const leave = panel.querySelector('.pm-chat__leave');
-    leave.click();
+    panel.querySelector('.pm-chat__leave').click();
     assert.deepEqual(actions, []);
-    leave.click();
+    panel.querySelector('.pm-chat__leave').click(); // the armed button is a fresh one after the redraw
     await tick(); await tick();
     assert.deepEqual(actions, ['/leave']);
     assert.equal(app.groups.has(5), false);
@@ -1334,7 +1334,7 @@ test('the manager sees Remove and Rename; leaving needs a second click', async (
     app.onGroupChanged({ id: 5, title: 'TEC desk', managerUserId: 'peer', members: deskMembers });
     win.panelOpen = true;
     app.renderMembersPanel(win);
-    assert.equal(panel.querySelectorAll('.pm-chat__members-list button').length, 0);
+    assert.equal(panel.querySelectorAll('[data-focus-key^="remove:"]').length, 0);
     assert.equal(panel.querySelector('.pm-chat__members-rename'), null);
   } finally {
     window.close();
@@ -1510,7 +1510,7 @@ test('the people panel covers the window, not the scrolled messages, and keeps w
     rename.value = 'TEC desk (Nov)';
     rename.dispatchEvent(new window.Event('input'));
     panel.querySelector('.pm-chat__leave').click();
-    rename.focus();
+    panel.querySelector('.pm-chat__members-rename input').focus();
 
     app.onGroupChanged({ id: 5, title: 'TEC desk', managerUserId: 'me', members: deskMembers.map((m) => ({ ...m })) });
 
@@ -2048,6 +2048,206 @@ test('a message that could not be sent is announced', async () => {
     await wait(50);
     assert.equal(app.announcer.textContent, 'Message not sent. The server is busy.');
     assert.ok(win.log.querySelector('.pm-chat__retry'));
+  } finally {
+    window.close();
+  }
+});
+
+// --- Group management: confirmations, feedback, member list, mute -----------------------------
+
+/** Runs the app's timers by hand: returns run(), which fires those scheduled so far. */
+function manualTimers(window) {
+  const pending = [];
+  const real = window.setTimeout;
+  window.setTimeout = (fn, ms) => {
+    if (ms >= 1000) {
+      pending.push(fn);
+      return pending.length;
+    }
+    return real(fn, ms);
+  };
+  return () => pending.splice(0).forEach((fn) => fn());
+}
+
+async function openDeskPanel(window) {
+  const app = window.PMChat;
+  const win = app.openWindow('g:5', { focus: false });
+  await tick(); await tick();
+  win.people.click();
+  return { app, win, panel: win.panel };
+}
+
+test('Remove asks for confirmation, and both confirmations disarm themselves', async () => {
+  const actions = [];
+  const window = groupApp(async (url, init) => {
+    if (url.includes('/remove') && init.method === 'POST') {
+      actions.push(url.replace(/^.*\/groups\/5/, ''));
+      return { status: 200, body: { id: 5, title: 'TEC desk', managerUserId: 'me', members: deskMembers.filter((m) => m.userId !== 'third') } };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const runTimers = manualTimers(window);
+    const { panel } = await openDeskPanel(window);
+    const removeThird = () => panel.querySelector('[data-focus-key="remove:third"]');
+
+    removeThird().click();
+    assert.deepEqual(actions, []);
+    assert.equal(removeThird().textContent, 'Confirm remove');
+    assert.equal(removeThird().getAttribute('aria-label'), 'Confirm removing Third Officer');
+
+    runTimers(); // five seconds later
+    assert.equal(removeThird().textContent, 'Remove');
+
+    panel.querySelector('.pm-chat__leave').click();
+    assert.match(panel.querySelector('.pm-chat__leave').textContent, /Leave\?/);
+    runTimers();
+    assert.equal(panel.querySelector('.pm-chat__leave').textContent, 'Leave group');
+
+    removeThird().click();
+    removeThird().click();
+    await tick(); await tick();
+    assert.deepEqual(actions, ['/members/third/remove']);
+    assert.equal(panel.querySelector('.pm-chat__form-notice').textContent, 'Removed Third Officer.');
+  } finally {
+    window.close();
+  }
+});
+
+test('adding people confirms who was added, and says so to screen readers', async () => {
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/contacts')) {
+      return ['peer', 'third', 'fourth'].map((id) => ({ ...contact, userId: id, displayName: id === 'peer' ? 'Peer Person' : id === 'third' ? 'Third Officer' : 'Fourth Officer', unreadCount: 0 }));
+    }
+    if (url.endsWith('/groups/5/members') && init.method === 'POST') {
+      return { status: 200, body: { id: 5, title: 'TEC desk', managerUserId: 'me', members: deskMembers.concat([{ userId: 'fourth', displayName: 'Fourth Officer', initials: 'FO', isActive: true, lastReadMessageId: null }]) } };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const { app, panel } = await openDeskPanel(window);
+
+    panel.querySelector('.pm-chat__members-add .btn-primary').click(); // nothing ticked
+    assert.equal(panel.querySelector('.pm-chat__form-notice').textContent, 'Tick the people to add first.');
+
+    panel.querySelector('[data-focus-key="pick:fourth"]').click();
+    panel.querySelector('.pm-chat__members-add .btn-primary').click();
+    await tick(); await tick();
+    await wait(50);
+    assert.equal(panel.querySelector('.pm-chat__form-notice').textContent, 'Added Fourth Officer.');
+    assert.equal(app.announcer.textContent, 'Added Fourth Officer.');
+    assert.equal(panel.querySelector('.pm-chat__members-add').open, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('the member list shows who is online and offers a direct chat', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    // Set here: other tests change the shared contact fixture's presence.
+    Object.assign(window.PMChat.contacts.get('peer'), { isOnline: true, isAway: false });
+    const { app, panel } = await openDeskPanel(window);
+    const rows = Array.from(panel.querySelectorAll('.pm-chat__members-list li'));
+    const peerRow = rows.find((r) => r.textContent.includes('Peer Person'));
+    assert.ok(peerRow.querySelector('.pm-chat__presence.is-online'));
+    assert.match(peerRow.textContent, /Online/);
+    assert.equal(rows.find((r) => r.textContent.includes('(you)')).querySelector('[data-focus-key^="chat:"]'), null, 'no chat with yourself');
+
+    peerRow.querySelector('[data-focus-key="chat:peer"]').click();
+    assert.ok(app.windows.has('peer'));
+  } finally {
+    window.close();
+  }
+});
+
+test('a muted group counts unread but neither pops open nor alerts, and stays muted on the next page', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    let alerts = 0;
+    app.alert = () => { alerts += 1; };
+    app.setMuted(5, true);
+    const row = app.groupList.querySelector('[data-focus-key="group:5"]');
+    assert.match(row.getAttribute('aria-label'), /muted/);
+    assert.ok(row.querySelector('.pm-chat__muted'));
+
+    app.onMessage(groupMessage(60, 'peer', 'Quiet please'));
+    assert.equal(app.windows.has('g:5'), false);
+    assert.equal(alerts, 0);
+    assert.equal(app.groups.get(5).unreadCount, 3);
+
+    assert.deepEqual(JSON.parse(window.localStorage.getItem('prism.chat.muted.me')), [5]);
+    assert.equal(app.readMuted().has(5), true);
+
+    app.setMuted(5, false);
+    app.onMessage(groupMessage(61, 'peer', 'Back to normal'));
+    assert.ok(app.windows.has('g:5'));
+    assert.equal(alerts, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test('the mute switch in the people panel mutes the group and says so in the window', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const { app, win, panel } = await openDeskPanel(window);
+    const box = panel.querySelector('[data-focus-key="mute"]');
+    assert.equal(box.checked, false);
+    box.click();
+    assert.equal(app.isMuted(5), true);
+    assert.match(win.status.textContent, /Muted/);
+  } finally {
+    window.close();
+  }
+});
+
+test('a full group says it is full instead of offering people to add', async () => {
+  const many = Array.from({ length: 50 }, (_, i) => ({ userId: i === 0 ? 'me' : 'u' + i, displayName: 'User ' + i, initials: 'U', isActive: true, lastReadMessageId: 0 }));
+  const window = groupApp(async (url) => {
+    if (url.includes('/groups/5/messages')) {
+      return { groupId: 5, messages: [], hasMore: false, hasNewer: false, members: many };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const { panel } = await openDeskPanel(window);
+    panel.querySelector('.pm-chat__members-add').open = true;
+    assert.match(panel.querySelector('.pm-chat__members-add').textContent, /This group is full \(50 people\)/);
+    assert.equal(panel.querySelectorAll('.pm-chat__picker-list').length, 0);
+  } finally {
+    window.close();
+  }
+});
+
+test('New group checks the name and the people before sending, and points at the fix', async () => {
+  let posted = 0;
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/groups') && init.method === 'POST') posted += 1;
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.toggleBuddy(true);
+    app.openGroupForm();
+    const form = app.groupForm;
+    form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+    assert.equal(form.querySelector('.pm-chat__form-error').textContent, 'Give the group a name.');
+    assert.equal(window.document.activeElement, form.querySelector('input[type="text"]'));
+
+    form.querySelector('input[type="text"]').value = 'Desk';
+    form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+    assert.equal(form.querySelector('.pm-chat__form-error').textContent, 'Tick at least one other person.');
+    assert.equal(window.document.activeElement, form.querySelector('input[type="search"]'));
+    assert.equal(posted, 0);
   } finally {
     window.close();
   }
