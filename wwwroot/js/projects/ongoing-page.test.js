@@ -107,3 +107,38 @@ test('stage and category chips add and remove their own hidden values, then subm
     assert.deepEqual(values('Category'), ['3']);
     assert.equal(submits, 3);
 });
+
+test('a table thumbnail that fails to load is replaced by the table placeholder', () => {
+    const window = createDom(`<div class="projcell"><img class="projcell__thumb" alt=""></div>`);
+    const img = window.document.querySelector('img.projcell__thumb');
+    Object.defineProperty(img, 'complete', { value: false });
+
+    run(window);
+    img.dispatchEvent(new window.Event('error'));
+
+    assert.equal(window.document.querySelector('img.projcell__thumb'), null);
+    const placeholder = window.document.querySelector('.projcell__thumb.projcell__thumb--placeholder');
+    assert.ok(placeholder);
+    assert.ok(placeholder.querySelector('span.bi.bi-image'));
+});
+
+test('the phone Filters button opens and closes the filter fields', () => {
+    const window = createDom('');
+    const form = window.document.getElementById('ongoingProjectsFilterForm');
+    form.insertAdjacentHTML('beforeend', `
+<button type="button" aria-expanded="false" data-ongoing-filters-toggle>Filters</button>
+<div class="ongoing-head__filters" data-ongoing-filters><input type="search" name="Search"></div>`);
+
+    run(window);
+    const toggle = form.querySelector('[data-ongoing-filters-toggle]');
+    const panel = form.querySelector('[data-ongoing-filters]');
+
+    toggle.click();
+    assert.ok(panel.classList.contains('is-open'));
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(window.document.activeElement, panel.querySelector('input'));
+
+    toggle.click();
+    assert.ok(!panel.classList.contains('is-open'));
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+});

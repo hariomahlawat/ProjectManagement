@@ -105,6 +105,13 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         [BindProperty(SupportsGet = true)]
         public string StageFlow { get; set; } = "reverse";
 
+        // SECTION: Table column sort (OngoingProjectSort); none keeps the operational order
+        [BindProperty(SupportsGet = true)]
+        public string? Sort { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? SortDir { get; set; }
+
         public IReadOnlyList<SelectListItem> ProjectCategoryOptions { get; private set; }
             = Array.Empty<SelectListItem>();
 
@@ -152,6 +159,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         {
             View = NormalizeView(View);
             StageFlow = NormalizeStageFlow(StageFlow);
+            NormalizeSort();
             await LoadCategoriesAsync(cancellationToken);
             ResolveFilters();
 
@@ -170,6 +178,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 SelectedStageBuckets,
                 StageFlow,
                 cancellationToken);
+            Items = OngoingProjectSort.Apply(Items, Sort, SortDir);
 
             // Each chip group counts with every filter except its own, so a count says
             // what selecting that chip would show.
@@ -195,7 +204,9 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
         public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
         {
+            View = NormalizeView(View);
             StageFlow = NormalizeStageFlow(StageFlow);
+            NormalizeSort();
             await LoadCategoriesAsync(cancellationToken);
             ResolveFilters();
             var officerId = Normalize(ProjectOfficerId);
@@ -209,6 +220,8 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 SelectedStageBuckets,
                 StageFlow,
                 cancellationToken);
+            // The export follows the order on screen, including a table column sort.
+            items = OngoingProjectSort.Apply(items, Sort, SortDir);
 
             var now = _clock.UtcNow;
 
@@ -415,7 +428,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         };
 
         /// <summary>This page's address with the filters in effect, optionally for a handler or another view.</summary>
-        public string FilterUrl(string? handler = null, string? view = null)
+        public string FilterUrl(string? handler = null, string? view = null, string? sort = null, string? sortDir = null)
         {
             var query = new QueryBuilder();
             if (!string.IsNullOrWhiteSpace(handler)) query.Add("handler", handler);
@@ -425,10 +438,35 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             if (!string.IsNullOrWhiteSpace(PresentStageCode)) query.Add(nameof(PresentStageCode), PresentStageCode);
             if (!string.IsNullOrWhiteSpace(ProjectOfficerId)) query.Add(nameof(ProjectOfficerId), ProjectOfficerId.Trim());
             if (!string.IsNullOrWhiteSpace(Search)) query.Add(nameof(Search), Search.Trim());
-            query.Add(nameof(View), view ?? View ?? "timeline");
+            var targetView = view ?? View ?? "timeline";
+            query.Add(nameof(View), targetView);
             query.Add(nameof(StageFlow), StageFlow);
+            // A column sort belongs to the table; switching to the timeline drops it.
+            var sortKey = sort ?? (targetView == "table" ? Sort : null);
+            if (sortKey is not null)
+            {
+                query.Add(nameof(Sort), sortKey);
+                query.Add(nameof(SortDir), sortDir ?? SortDir ?? OngoingProjectSort.NormalizeDirection(sortKey, null));
+            }
 
             return (Url.Page("./Index") ?? "/Projects/Ongoing") + query.ToQueryString();
+        }
+
+        // SECTION: Table column sort links
+        public string SortUrl(string column)
+            => FilterUrl(view: "table", sort: column, sortDir: OngoingProjectSort.NextDirection(column, Sort, SortDir));
+
+        /// <summary>The header's aria-sort value: ascending, descending or none.</summary>
+        public string AriaSort(string column)
+            => !string.Equals(Sort, column, StringComparison.Ordinal)
+                ? "none"
+                : SortDir == OngoingProjectSort.Descending ? "descending" : "ascending";
+
+        private void NormalizeSort()
+        {
+            // Only the table sorts by column; the timeline keeps its stage order.
+            Sort = View == "table" ? OngoingProjectSort.NormalizeKey(Sort) : null;
+            SortDir = Sort is null ? null : OngoingProjectSort.NormalizeDirection(Sort, SortDir);
         }
 
         // SECTION: Present stage normalization

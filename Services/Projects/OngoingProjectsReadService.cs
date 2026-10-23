@@ -445,6 +445,9 @@ namespace ProjectManagement.Services.Projects
                     IpaDate = ipaDate,
                     AonDate = aonDate,
                     PresentStagePdc = presentStagePdc,
+                    DaysPastPdc = presentStagePdc.HasValue && presentStagePdc.Value < today
+                        ? today.DayNumber - presentStagePdc.Value.DayNumber
+                        : null,
                     Stages = stageDtos,
                     RecentInternalRemarks = recentInternal,
                     LatestExternalRemark = latestExternalDto,
@@ -857,6 +860,9 @@ namespace ProjectManagement.Services.Projects
         public DateOnly? IpaDate { get; init; }
         public DateOnly? AonDate { get; init; }
         public DateOnly? PresentStagePdc { get; init; }
+
+        /// <summary>Days the current stage's PDC has passed (IST), or null when it is not set or not yet due.</summary>
+        public int? DaysPastPdc { get; init; }
 
         public IReadOnlyList<OngoingProjectStageDto> Stages { get; init; } = Array.Empty<OngoingProjectStageDto>();
 

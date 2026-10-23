@@ -104,13 +104,29 @@
 
 
 
+  // SECTION: Phone filters. The fields fold behind a Filters button on narrow screens.
+  const filtersToggle = form.querySelector('[data-ongoing-filters-toggle]');
+  const filtersPanel = form.querySelector('[data-ongoing-filters]');
+  filtersToggle?.addEventListener('click', () => {
+    const open = !filtersPanel.classList.contains('is-open');
+    filtersPanel.classList.toggle('is-open', open);
+    filtersToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+      filtersPanel.querySelector('input, select')?.focus();
+    }
+  });
+
   // SECTION: Fall back to the placeholder when a cover photo cannot be loaded
-  document.querySelectorAll('.ongoing-card__thumb-img').forEach((img) => {
+  // (cards and table rows alike, so a missing file never shows a broken image).
+  document.querySelectorAll('.ongoing-card__thumb-img, img.projcell__thumb').forEach((img) => {
     const showPlaceholder = () => {
       const placeholder = document.createElement('div');
-      placeholder.className = 'ongoing-card__thumb-placeholder';
+      const inTable = img.classList.contains('projcell__thumb');
+      placeholder.className = inTable
+        ? 'projcell__thumb projcell__thumb--placeholder'
+        : 'ongoing-card__thumb-placeholder';
       placeholder.setAttribute('aria-hidden', 'true');
-      const icon = document.createElement('i');
+      const icon = document.createElement(inTable ? 'span' : 'i');
       icon.className = 'bi bi-image';
       placeholder.appendChild(icon);
       img.replaceWith(placeholder);
