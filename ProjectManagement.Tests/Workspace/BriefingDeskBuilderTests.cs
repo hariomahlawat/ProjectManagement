@@ -86,6 +86,23 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_WithAPlanWithTheHod_SaysSoInTheHeader_InsteadOfAnAlarm()
+    {
+        var since = new DateTimeOffset(2026, 10, 19, 6, 0, 0, TimeSpan.Zero);
+        var overdue = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) with { PendingPlanSinceUtc = since } }));
+        var missing = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: null) with { PendingPlanSinceUtc = since } }));
+
+        var overdueFact = Assert.Single(overdue.Facts, fact => fact.Text.Contains("PDC"));
+        Assert.Equal("Revised PDC with HoD since 19 Oct 2026", overdueFact.Text);
+        Assert.Equal(BriefingDeskTone.Neutral, overdueFact.Tone);
+        Assert.DoesNotContain(overdue.Facts, fact => fact.Tone == BriefingDeskTone.Danger && fact.Text.Contains("overdue"));
+
+        var missingFact = Assert.Single(missing.Facts, fact => fact.Text.Contains("PDC"));
+        Assert.Equal("PDC with HoD since 19 Oct 2026", missingFact.Text);
+        Assert.Equal(BriefingDeskTone.Neutral, missingFact.Tone);
+    }
+
+    [Fact]
     public void Project_WithOverduePdcAndNoPlan_AsksForARevisedDate()
     {
         var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) }));

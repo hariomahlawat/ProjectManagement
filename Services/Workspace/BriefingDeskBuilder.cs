@@ -184,7 +184,7 @@ public static class BriefingDeskBuilder
             ItemId = row.ProjectId,
             Title = row.ProjectName,
             OpenUrl = row.OpenUrl,
-            Facts = ProjectFacts(row, hasStage),
+            Facts = ProjectFacts(row, hasStage, input.PendingPlanSinceUtc),
             Strip = ProjectStrip(input.Stages, row.CurrentStageCode),
             Direction = conference?.LatestDirection,
             DirectionAwaitingProgress = directionAwaitingProgress,
@@ -493,7 +493,10 @@ public static class BriefingDeskBuilder
         _ => $"{component.ToLowerInvariant()} items missing"
     };
 
-    private static IReadOnlyList<BriefingDeskFactVm> ProjectFacts(WorkspaceProjectMatrixRowVm row, bool hasStage)
+    private static IReadOnlyList<BriefingDeskFactVm> ProjectFacts(
+        WorkspaceProjectMatrixRowVm row,
+        bool hasStage,
+        DateTimeOffset? pendingPlanSinceUtc = null)
     {
         var facts = new List<BriefingDeskFactVm>();
         if (!hasStage)
@@ -513,9 +516,22 @@ public static class BriefingDeskBuilder
             facts.Add(new BriefingDeskFactVm(row.CurrentStageCode, BriefingDeskTone.Neutral));
         }
 
+        // A revised plan with the HoD is the PO's answer to a missing or overdue PDC (the PDC
+        // check counts it as done), so the header says so instead of raising an alarm.
+        var planWithHod = pendingPlanSinceUtc is DateTimeOffset since
+            && (row.HasOverdueCurrentStage || row.CurrentStagePdc is null)
+            ? $"with HoD since {FormatDay(since)}"
+            : null;
+
         if (hasStage)
         {
-            if (row.HasOverdueCurrentStage && row.CurrentStagePdc is DateOnly overdue)
+            if (planWithHod is not null)
+            {
+                facts.Add(new BriefingDeskFactVm(
+                    row.CurrentStagePdc is null ? $"PDC {planWithHod}" : $"Revised PDC {planWithHod}",
+                    BriefingDeskTone.Neutral));
+            }
+            else if (row.HasOverdueCurrentStage && row.CurrentStagePdc is DateOnly overdue)
             {
                 var overdueDays = Math.Max(0, -(row.DaysUntilCurrentStagePdc ?? 0));
                 facts.Add(new BriefingDeskFactVm($"PDC {FormatDay(overdue)} · overdue {overdueDays} day{Plural(overdueDays)}", BriefingDeskTone.Danger));

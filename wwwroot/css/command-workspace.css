@@ -526,6 +526,51 @@
     .cw-local-rail:not(.is-expanded) nav a > i { width:100%; }
 }
 
+/* Phones: the folded rail is a row of the same icons above the page instead of a column
+   beside it, so the page gets the full width. Expanding it still opens the overlay. Scoped to
+   .command-workspace so it also wins over the Project Officer workspace's own layout rules. */
+@media (max-width:575.98px) {
+    .command-workspace,
+    .command-workspace.is-nav-expanded,
+    .command-workspace:not(.is-nav-expanded),
+    .command-workspace.project-officer-workspace,
+    .command-workspace.project-officer-workspace.is-nav-expanded {
+        grid-template-columns:minmax(0,1fr);
+    }
+    .command-workspace .cw-local-rail:not(.is-expanded) {
+        position:static;
+        display:flex;
+        align-items:center;
+        gap:4px;
+        width:auto;
+        max-height:none;
+        padding:4px 6px;
+        overflow:hidden;
+    }
+    .command-workspace .cw-local-rail:not(.is-expanded) .cw-local-rail__identity {
+        display:flex;
+        min-height:0;
+        padding:0 4px 0 0;
+        border-bottom:0;
+        border-right:1px solid var(--cw-line);
+    }
+    .command-workspace .cw-local-rail:not(.is-expanded) nav,
+    .command-workspace .cw-local-rail:not(.is-expanded) .cw-local-rail__group {
+        display:flex;
+        flex-wrap:wrap;
+        gap:2px;
+        padding-top:0;
+    }
+    .command-workspace .cw-local-rail:not(.is-expanded) .cw-local-rail__group + .cw-local-rail__group {
+        padding:0 0 0 4px;
+        border-top:0;
+        border-left:1px solid var(--cw-line);
+    }
+    .command-workspace .cw-local-rail:not(.is-expanded) nav { flex:1 1 auto; min-width:0; }
+    .command-workspace .cw-local-rail:not(.is-expanded) nav a { width:40px; min-height:36px; }
+}
+}
+
 /* SECTION: Officer cards remain fully readable and reorderable */
 .cw-officer-panel { margin-top:0; }
 .cw-officer-grid { position:relative; }

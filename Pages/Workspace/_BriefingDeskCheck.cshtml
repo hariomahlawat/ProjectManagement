@@ -14,6 +14,9 @@
         BriefingDeskCheckState.Waiting => "Waiting",
         _ => check.IsRequired ? "To do" : "Optional"
     };
+    // What is needed before the brief stands out; optional record improvements stay quiet. The
+    // small line under the button says who completes it (here, or with the HoD).
+    var buttonClass = check.IsRequired ? "bd-btn--required" : "bd-btn--optional";
     var icon = check.State switch
     {
         BriefingDeskCheckState.Done => "bi-check-lg",
@@ -41,7 +44,7 @@
                 if (!string.IsNullOrWhiteSpace(check.PanelId) && !string.IsNullOrWhiteSpace(check.ActionText))
                 {
                     <button type="button"
-                            class="bd-btn @(check.Route == BriefingDeskRoute.Direct ? "bd-btn--direct" : "bd-btn--approval")"
+                            class="bd-btn @buttonClass"
                             data-bs-toggle="offcanvas"
                             data-bs-target="#@check.PanelId"
                             aria-controls="@check.PanelId">@check.ActionText<span class="visually-hidden">: @check.Label</span></button>
@@ -49,7 +52,7 @@
                 }
                 else if (!string.IsNullOrWhiteSpace(check.ActionUrl) && !string.IsNullOrWhiteSpace(check.ActionText))
                 {
-                    <a class="bd-btn @(check.Route == BriefingDeskRoute.Direct ? "bd-btn--direct" : "bd-btn--approval")" href="@check.ActionUrl">@check.ActionText<span class="visually-hidden">: @check.Label</span></a>
+                    <a class="bd-btn @buttonClass" href="@check.ActionUrl">@check.ActionText<span class="visually-hidden">: @check.Label</span></a>
                     <small class="bd-check__route">@(check.Route == BriefingDeskRoute.Direct ? "You complete it" : "Needs HoD approval")</small>
                 }
                 else if (check.Route == BriefingDeskRoute.Update)
