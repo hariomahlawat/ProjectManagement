@@ -679,7 +679,11 @@ public sealed class DetailsModel : PageModel
         ActorNames = model.ActorNames;
         LastActivityAtUtc = model.LastActivityAtUtc;
         AssigneeNames = await _userLookup.LoadTaskAssigneeNamesAsync(new[] { TaskItem });
-        AssignerUserId = (await _service.GetAssignerUserIdsAsync(new[] { TaskItem })).GetValueOrDefault(TaskItem.Id);
+        // A backlog item has no assignee, so the row names its creator; an assigned task names
+        // whoever gave it to its current assignee (ActionTaskAssigners).
+        AssignerUserId = IsBacklog
+            ? (string.IsNullOrWhiteSpace(TaskItem.CreatedByUserId) ? null : TaskItem.CreatedByUserId)
+            : (await _service.GetAssignerUserIdsAsync(new[] { TaskItem })).GetValueOrDefault(TaskItem.Id);
         AssignerNames = await _userLookup.LoadTaskAssignerNamesAsync(AssignerUserId is null ? Array.Empty<string>() : new[] { AssignerUserId });
         Sprints = await _sprintService.GetSprintsAsync();
         if (CanManagePlanning || Capabilities.CanReassignTask)

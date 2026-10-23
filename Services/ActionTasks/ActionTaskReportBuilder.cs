@@ -183,9 +183,9 @@ public sealed class ActionTaskReportBuilder
     private IReadOnlyList<ActionTaskQueryService.CountSummary> BuildSubmittedPendingClosureAgeingBuckets(IReadOnlyList<ActionTaskItem> submittedTasks, DateTime istToday)
         => new[]
         {
-            new ActionTaskQueryService.CountSummary("0-1 day pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, istToday) is >= 0 and <= 1)),
-            new ActionTaskQueryService.CountSummary("2-3 days pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, istToday) is >= 2 and <= 3)),
-            new ActionTaskQueryService.CountSummary("4+ days pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, istToday) >= 4))
+            new ActionTaskQueryService.CountSummary("0-1 day pending closure", submittedTasks.Count(t => ActionTaskAttention.DaysAwaitingClosure(t, istToday) is >= 0 and <= 1)),
+            new ActionTaskQueryService.CountSummary("2-3 days pending closure", submittedTasks.Count(t => ActionTaskAttention.DaysAwaitingClosure(t, istToday) is >= 2 and <= 3)),
+            new ActionTaskQueryService.CountSummary("4+ days pending closure", submittedTasks.Count(t => ActionTaskAttention.DaysAwaitingClosure(t, istToday) >= 4))
         };
 
     // SECTION: Sprint performance is compact trend-style summary, not a Sprint Board duplicate.
@@ -290,7 +290,7 @@ public sealed class ActionTaskReportBuilder
         return (int)(istToday.Date - istDate).TotalDays;
     }
 
-    private static int DaysOverdue(ActionTaskItem task, DateTime istToday) => (int)(istToday - task.DueDate.Date).TotalDays;
+    private static int DaysOverdue(ActionTaskItem task, DateTime istToday) => ActionTaskAttention.DaysPastDue(task, istToday);
 
     private static string BuildInvalidIssue(ActionTaskItem task)
     {

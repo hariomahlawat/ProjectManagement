@@ -548,7 +548,7 @@ public class IndexModel : PageModel
     // SECTION: Attention details, on the same IST calendar and overdue rule as the counts.
     /// <summary>Days past due for an overdue task (see <see cref="IsTaskOverdue"/>), else null.</summary>
     public int? DaysOverdue(ActionTaskItem task)
-        => IsTaskOverdue(task) ? (int)(_clock.IstToday - task.DueDate.Date).TotalDays : null;
+        => IsTaskOverdue(task) ? ActionTaskAttention.DaysPastDue(task, _clock.IstToday) : null;
 
     /// <summary>Whole days a submitted task has waited for closure (IST), else null.</summary>
     public int? DaysAwaitingClosure(ActionTaskItem task)

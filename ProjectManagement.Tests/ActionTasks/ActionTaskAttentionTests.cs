@@ -26,10 +26,22 @@ public sealed class ActionTaskAttentionTests
     }
 
     [Fact]
-    public void DaysAwaitingClosure_IsNullUnlessAwaitingClosure()
+    public void DaysAwaitingClosure_IsNullUnlessAwaitingClosure_AndFallsBackToTheAssignmentDate()
     {
         Assert.Null(ActionTaskAttention.DaysAwaitingClosure(new ActionTaskItem { Status = ActionTaskStatuses.InProgress, SubmittedOn = IstToday }, IstToday));
-        Assert.Null(ActionTaskAttention.DaysAwaitingClosure(new ActionTaskItem { Status = ActionTaskStatuses.Submitted, SubmittedOn = null }, IstToday));
+        // No submission time recorded: counted from the assignment, as Reports' pending-closure ageing does.
+        Assert.Equal(5, ActionTaskAttention.DaysAwaitingClosure(
+            new ActionTaskItem { Status = ActionTaskStatuses.Submitted, SubmittedOn = null, AssignedOn = new DateTime(2026, 10, 18, 5, 0, 0) },
+            IstToday));
+    }
+
+    [Theory]
+    [InlineData("2026-10-11", 12)]
+    [InlineData("2026-10-23", 0)]
+    [InlineData("2026-10-25", -2)]
+    public void DaysPastDue_CountsFromTheDueDate(string due, int expected)
+    {
+        Assert.Equal(expected, ActionTaskAttention.DaysPastDue(new ActionTaskItem { DueDate = DateTime.Parse(due) }, IstToday));
     }
 
     [Fact]
