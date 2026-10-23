@@ -45,6 +45,25 @@ public sealed class CommandDeskBuilderTests
             count => Assert.Equal((1, "FFC delivery"), (count.Count, count.Label)));
     }
 
+    [Fact]
+    public void MovedForward_CountsVisits_PeopleTrained_AndActivities()
+    {
+        var desk = Build(progress: new[]
+        {
+            new CommandDeskProgressEvent(CommandDeskProgressKind.Visit, Today.AddDays(-3)),
+            new CommandDeskProgressEvent(CommandDeskProgressKind.Visit, Today.AddDays(-12)),
+            new CommandDeskProgressEvent(CommandDeskProgressKind.PeopleTrained, Today.AddDays(-5), 40),
+            new CommandDeskProgressEvent(CommandDeskProgressKind.PeopleTrained, Today.AddDays(-20), 25),
+            new CommandDeskProgressEvent(CommandDeskProgressKind.Activity, Today.AddDays(-1)),
+            new CommandDeskProgressEvent(CommandDeskProgressKind.Activity, Today.AddDays(-40)) // outside the window
+        });
+
+        Assert.Collection(desk.MovedForward,
+            count => Assert.Equal((2, "visits", "/ProjectOfficeReports/Visits"), (count.Count, count.Label, count.Url)),
+            count => Assert.Equal((65, "people trained", "/ProjectOfficeReports/Training"), (count.Count, count.Label, count.Url)),
+            count => Assert.Equal((1, "activity", "/Activities"), (count.Count, count.Label, count.Url)));
+    }
+
     [Theory]
     [InlineData(null, 30)]
     [InlineData(7, 30)]

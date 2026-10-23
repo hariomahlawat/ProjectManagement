@@ -20,7 +20,8 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
 ## Sections, in order
 
 1. **What moved forward**: the last 15 or 30 days (`?window=15`; the default is 30).
-   - Counts of stages completed, projects completed, ToT completed, IPR filed or granted, approved proliferation units, and FFC deliveries and installations.
+   - Counts of stages completed, projects completed, ToT completed, IPR filed or granted, approved proliferation units, FFC deliveries and installations, visits, people trained and activities (all activity types, including industry and academia interactions).
+   - Visits, people trained and activities use the Dashboard's own rules, shared in code so the two pages agree: a visit by its date; a training's headcount and reference date (`TrainingReach`); an activity's occurrence, excluding deleted and future ones (`ActivityOccurrence`).
    - Up to five recent highlights.
    - Auto-completed (backfilled) stages and future-dated events do not count.
 2. **Waiting on you**: hidden when nothing waits on the viewer.

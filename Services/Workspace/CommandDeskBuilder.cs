@@ -27,10 +27,16 @@ public enum CommandDeskProgressKind
     IprGranted,
     UnitsProliferated,
     FfcDelivered,
-    FfcInstalled
+    FfcInstalled,
+    Visit,
+    PeopleTrained,
+    Activity
 }
 
-/// <summary>One dated piece of good news. Quantity is the number of units for proliferation, else 1.</summary>
+/// <summary>
+/// One dated piece of good news. Quantity is the number of units for proliferation and the number
+/// of people for a training, else 1.
+/// </summary>
 public sealed record CommandDeskProgressEvent(
     CommandDeskProgressKind Kind,
     DateOnly On,
@@ -181,6 +187,9 @@ public static class CommandDeskBuilder
         Add(CommandDeskProgressKind.UnitsProliferated, "unit proliferated", "units proliferated", CommandDeskRoutes.Proliferation);
         Add(CommandDeskProgressKind.FfcDelivered, "FFC delivery", "FFC deliveries", CommandDeskRoutes.Ffc);
         Add(CommandDeskProgressKind.FfcInstalled, "FFC installation", "FFC installations", CommandDeskRoutes.Ffc);
+        Add(CommandDeskProgressKind.Visit, "visit", "visits", CommandDeskRoutes.Visits);
+        Add(CommandDeskProgressKind.PeopleTrained, "person trained", "people trained", CommandDeskRoutes.Training);
+        Add(CommandDeskProgressKind.Activity, "activity", "activities", CommandDeskRoutes.Activities);
         return counts;
     }
 

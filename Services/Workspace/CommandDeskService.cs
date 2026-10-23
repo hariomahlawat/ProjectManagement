@@ -6,6 +6,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Activities;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
@@ -196,6 +197,37 @@ public sealed class CommandDeskService
                 events.Add(new CommandDeskProgressEvent(CommandDeskProgressKind.FfcInstalled, record.InstallationDate!.Value));
             }
         }
+
+        // Institutional outputs, by the same rules as the Dashboard's (visit date; a training's
+        // headcount and reference date; an activity's occurrence, including industry and academia
+        // interactions).
+        var visits = await _db.Visits
+            .AsNoTracking()
+            .Where(visit => visit.DateOfVisit >= from && visit.DateOfVisit <= today)
+            .Select(visit => visit.DateOfVisit)
+            .ToListAsync(ct);
+        events.AddRange(visits.Select(on => new CommandDeskProgressEvent(CommandDeskProgressKind.Visit, on)));
+
+        var trainings = await _db.Trainings
+            .AsNoTracking()
+            .Where(TrainingReach.MayFallBetween(from, today))
+            .Select(TrainingReach.Row)
+            .ToListAsync(ct);
+        foreach (var training in trainings)
+        {
+            if (training.Total > 0 && TrainingReach.ReferenceDate(training) is DateOnly on)
+            {
+                events.Add(new CommandDeskProgressEvent(CommandDeskProgressKind.PeopleTrained, on, training.Total));
+            }
+        }
+
+        var untilUtc = IstClock.ExclusiveEndOfDayIstToUtc(today).AddTicks(-1);
+        var activities = await _db.Activities
+            .AsNoTracking()
+            .Where(ActivityOccurrence.Between(fromUtc, untilUtc))
+            .Select(activity => activity.ScheduledStartUtc ?? activity.CreatedAtUtc)
+            .ToListAsync(ct);
+        events.AddRange(activities.Select(at => new CommandDeskProgressEvent(CommandDeskProgressKind.Activity, IstDate(at))));
 
         return events;
     }

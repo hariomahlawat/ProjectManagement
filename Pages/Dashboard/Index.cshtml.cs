@@ -1,3 +1,4 @@
+using ProjectManagement.Models.Activities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -397,7 +398,7 @@ namespace ProjectManagement.Pages.Dashboard
                 // Activities represent completed/occurred institutional engagements. Future scheduled records are excluded.
                 var activityBase = _db.Activities
                     .AsNoTracking()
-                    .Where(a => !a.IsDeleted && (a.ScheduledStartUtc ?? a.CreatedAtUtc) <= now);
+                    .Where(ActivityOccurrence.Between(null, now));
 
                 // EF Core DbContext does not support concurrent operations; keep these compact aggregates sequential.
                 var totalActivities = await activityBase.CountAsync(cancellationToken);
