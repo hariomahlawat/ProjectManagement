@@ -454,7 +454,7 @@ public sealed class ChatGroupService
         if (existing is not null)
         {
             return existing.ConversationId == group.Id
-                ? new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, members)
+                ? new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken))
                 : Invalid("This message identifier was already used for a different conversation.");
         }
 
@@ -484,7 +484,7 @@ public sealed class ChatGroupService
                 throw;
             }
 
-            return new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, members);
+            return new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(existing, group.Id), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken));
         }
 
         return new ChatGroupSendResult(ChatSendStatus.Sent, ToDto(message, group.Id), null, members);
@@ -627,6 +627,17 @@ public sealed class ChatGroupService
             && c.Participants.Any(p => p.UserId == userId));
         return await (track ? query : query.AsNoTracking()).SingleOrDefaultAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// The members a stored message may be (re)delivered to: those who had joined by the time it was
+    /// sent. A retry can arrive after someone new joined, and they must not receive an earlier message.
+    /// </summary>
+    internal async Task<IReadOnlyList<string>> MembersWhoCanSeeAsync(long groupId, DateTimeOffset sentUtc, CancellationToken cancellationToken)
+        => await _db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => p.ConversationId == groupId && p.JoinedUtc <= sentUtc)
+            .Select(p => p.UserId)
+            .ToListAsync(cancellationToken);
 
     private async Task<HashSet<string>> MemberIdsAsync(long groupId, CancellationToken cancellationToken)
         => (await _db.ChatParticipants

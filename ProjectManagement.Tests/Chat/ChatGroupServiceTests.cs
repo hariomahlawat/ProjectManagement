@@ -314,6 +314,25 @@ public sealed class ChatGroupServiceTests
         Assert.Equal(1, (await scope.Groups.ListGroupsAsync("carol")).Single().UnreadCount);
     }
 
+    [Fact]
+    public async Task ARetryOrUnsendAfterSomeoneJoined_IsNotDeliveredToTheNewcomer()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        var request = Send("before carol");
+        var first = await scope.Groups.SendAsync("alice", id, request);
+        await scope.Groups.AddMembersAsync("bob", id, new[] { "carol" });
+
+        // The response to the first send was lost; the browser retries after carol joined.
+        var retry = await scope.Groups.SendAsync("alice", id, request);
+
+        Assert.Equal(first.Message!.Id, retry.Message!.Id);
+        Assert.Equal(new[] { "alice", "bob" }, retry.MemberUserIds.OrderBy(m => m));
+
+        var unsent = await scope.Chat.UnsendAsync("alice", first.Message.Id);
+        Assert.Equal(new[] { "alice", "bob" }, unsent.NotifyUserIds!.OrderBy(m => m));
+    }
+
     private static ChatGroupSendRequest Send(string body) => new(Guid.NewGuid(), body);
 
     private sealed class GroupScope : IAsyncDisposable
