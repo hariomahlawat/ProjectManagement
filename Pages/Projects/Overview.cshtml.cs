@@ -126,6 +126,9 @@ namespace ProjectManagement.Pages.Projects
         public IReadOnlyList<ProjectVideo> Videos { get; private set; } = Array.Empty<ProjectVideo>();
         public int VideoCount { get; private set; }
         public IReadOnlyList<ProjectMediaVideoViewModel> VideoPreviewItems { get; private set; } = Array.Empty<ProjectMediaVideoViewModel>();
+        /// <summary>Every project photo and video, for the full-screen viewer on the media cards.</summary>
+        public IReadOnlyList<MediaViewerItemViewModel> PhotoViewerItems { get; private set; } = Array.Empty<MediaViewerItemViewModel>();
+        public IReadOnlyList<MediaViewerItemViewModel> VideoViewerItems { get; private set; } = Array.Empty<MediaViewerItemViewModel>();
         public ProjectPhoto? CoverPhoto { get; private set; }
         public int? CoverPhotoVersion { get; private set; }
         public string? CoverPhotoUrl { get; private set; }
@@ -338,13 +341,15 @@ namespace ProjectManagement.Pages.Projects
                 .AsNoTracking()
                 .CountAsync(photo => photo.ProjectId == project.Id, ct);
 
-            var photoPreview = await _db.ProjectPhotos
+            // Every photo row (metadata only): the card previews the first eight, and the
+            // full-screen viewer steps through all of them.
+            var allPhotos = await _db.ProjectPhotos
                 .AsNoTracking()
                 .Where(photo => photo.ProjectId == project.Id)
                 .OrderBy(photo => photo.Ordinal)
                 .ThenBy(photo => photo.Id)
-                .Take(8)
                 .ToListAsync(ct);
+            var photoPreview = allPhotos.Take(8).ToList();
 
             if (project.CoverPhotoId.HasValue)
             {
@@ -385,13 +390,13 @@ namespace ProjectManagement.Pages.Projects
                 .AsNoTracking()
                 .CountAsync(video => video.ProjectId == project.Id, ct);
 
-            var videoPreview = await _db.ProjectVideos
+            var allVideos = await _db.ProjectVideos
                 .AsNoTracking()
                 .Where(video => video.ProjectId == project.Id)
                 .OrderBy(video => video.Ordinal)
                 .ThenBy(video => video.Id)
-                .Take(2)
                 .ToListAsync(ct);
+            var videoPreview = allVideos.Take(2).ToList();
 
             if (project.FeaturedVideoId.HasValue)
             {
@@ -426,6 +431,13 @@ namespace ProjectManagement.Pages.Projects
                 .Select(group => group.First())
                 .Take(2)
                 .ToList();
+
+            PhotoViewerItems = ProjectMediaViewerItems.ForPhotos(
+                Url, project.Id, project.Name, ProjectMediaViewerItems.InGalleryOrder(allPhotos, CoverPhoto?.Id));
+            // The Videos card lists the featured video first, then by position; so does the viewer.
+            VideoViewerItems = ProjectMediaViewerItems.ForVideos(
+                Url, project.Id, project.Name,
+                allVideos.OrderBy(video => video.Id == FeaturedVideo?.Id ? 0 : 1).ThenBy(video => video.Ordinal).ThenBy(video => video.Id));
 
             var connectionHash = ConnectionStringHasher.Hash(
                 _db.Database.IsRelational() ? _db.Database.GetConnectionString() : null);

@@ -1,0 +1,31 @@
+@* Full-screen photo and video viewer for project pages (js/widgets/media-viewer.js,
+   css/widgets/media-viewer.css). Render once per page; thumbnails open it with
+   data-media-viewer-open="<group>" data-media-viewer-key="<key>". The Photos gallery has its
+   own copy of this markup with an information panel. *@
+<div class="photos-viewer" data-media-viewer data-media-viewer-auto hidden aria-hidden="true">
+    <div class="photos-viewer__backdrop" data-viewer-close></div>
+    <div class="photos-viewer__dialog" role="dialog" aria-modal="true" aria-labelledby="mediaViewerTitle">
+        <header class="photos-viewer__header">
+            <div class="photos-viewer__heading">
+                <span data-viewer-context></span>
+                <div class="photos-viewer__title-line">
+                    <strong id="mediaViewerTitle" data-viewer-title></strong>
+                    <span class="photos-viewer__position" data-viewer-position></span>
+                </div>
+            </div>
+            <div class="photos-viewer__actions">
+                <button type="button" data-viewer-zoom-out title="Zoom out" aria-label="Zoom out"><i class="bi bi-dash-lg" aria-hidden="true"></i></button>
+                <button type="button" data-viewer-zoom-reset title="Reset zoom" aria-label="Reset zoom"><span data-viewer-zoom-label>100%</span></button>
+                <button type="button" data-viewer-zoom-in title="Zoom in" aria-label="Zoom in"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+                <a href="#" data-viewer-original target="_blank" rel="noopener" title="Open in a new tab" aria-label="Open in a new tab"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+                <a href="#" data-viewer-download title="Download" aria-label="Download"><i class="bi bi-download" aria-hidden="true"></i></a>
+                <button type="button" data-viewer-close title="Close (Esc)" aria-label="Close"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+            </div>
+        </header>
+        <main class="photos-viewer__stage">
+            <button type="button" class="photos-viewer__nav photos-viewer__nav--prev" data-viewer-prev aria-label="Previous"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+            <div class="photos-viewer__media" data-viewer-media></div>
+            <button type="button" class="photos-viewer__nav photos-viewer__nav--next" data-viewer-next aria-label="Next"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+        </main>
+    </div>
+</div>

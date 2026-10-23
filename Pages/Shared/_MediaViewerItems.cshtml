@@ -1,0 +1,6 @@
+@model ProjectManagement.ViewModels.MediaViewerItemsGroup
+@* The items the media viewer steps through for one group (see _MediaViewer.cshtml). *@
+@if (Model.Items.Count > 0)
+{
+    <script type="application/json" data-media-viewer-items="@Model.Group">@Html.Raw(Model.ToJson())</script>
+}

@@ -1,6 +1,7 @@
 @page "/Projects/{id:int}/Photos"
 @model ProjectManagement.Pages.Projects.Photos.IndexModel
 @using System.Linq
+@using ProjectManagement.ViewModels
 @{
     ViewData["Title"] = $"Photos – {Model.Project.Name}";
 }
@@ -114,6 +115,7 @@
                                 var accessibleCaption = string.IsNullOrWhiteSpace(photo.Caption) ? $"Photo {index + 1}" : photo.Caption;
                                 var photoUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "xl", v = photo.Version });
                                 var previewUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "sm", v = photo.Version });
+                                var viewerItem = ProjectMediaViewerItems.ForPhoto(Url, Model.Project.Id, Model.Project.Name, photo);
                                 var isCover = photo.IsCover || Model.Project.CoverPhotoId == photo.Id;
                                 var removeTitle = isCover ? "Remove cover photo?" : "Remove photo?";
                                 var removeMessage = isCover
@@ -125,7 +127,21 @@
                                     data-photo-id="@photo.Id"
                                     data-photo-caption="@accessibleCaption">
                                     <div class="project-photo-management-card__media">
-                                        <a href="@photoUrl" target="_blank" rel="noopener" aria-label="Open @accessibleCaption in a new tab">
+                                        @* Opens the full-screen viewer in the current order (after any drag);
+                                           without JavaScript, the full image in a new tab. *@
+                                        <a href="@photoUrl" target="_blank" rel="noopener" aria-label="View @accessibleCaption"
+                                           data-media-viewer-item
+                                           data-media-viewer-group="project-photos"
+                                           data-media-viewer-open="project-photos"
+                                           data-media-viewer-key="@viewerItem.Key"
+                                           data-kind="@viewerItem.Kind"
+                                           data-display-url="@viewerItem.DisplayUrl"
+                                           data-title="@viewerItem.Title"
+                                           data-alt="@viewerItem.Alt"
+                                           data-context="@viewerItem.Context"
+                                           data-date="@viewerItem.Date"
+                                           data-original-url="@viewerItem.OriginalUrl"
+                                           data-download-url="@viewerItem.DownloadUrl">
                                             <img src="@previewUrl" alt="@accessibleCaption" loading="lazy" />
                                         </a>
                                         @if (isCover)
@@ -237,7 +253,7 @@
             <div class="card-header project-photo-gallery-card__header">
                 <div>
                     <h2>Photo gallery</h2>
-                    <p>Select a photograph to open the full image.</p>
+                    <p>Select a photograph to view it full screen.</p>
                 </div>
             </div>
             <div class="card-body">
@@ -248,10 +264,23 @@
                         var accessibleCaption = string.IsNullOrWhiteSpace(photo.Caption) ? $"Photo {index + 1}" : photo.Caption;
                         var photoUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "xl", v = photo.Version });
                         var previewUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "sm", v = photo.Version });
+                        var viewerItem = ProjectMediaViewerItems.ForPhoto(Url, Model.Project.Id, Model.Project.Name, photo);
                         var isCover = photo.IsCover || Model.Project.CoverPhotoId == photo.Id;
                         <li class="pm-photo-grid-item project-photo-management-card">
                             <div class="project-photo-management-card__media">
-                                <a href="@photoUrl" target="_blank" rel="noopener" aria-label="Open @accessibleCaption in a new tab">
+                                <a href="@photoUrl" target="_blank" rel="noopener" aria-label="View @accessibleCaption"
+                                   data-media-viewer-item
+                                   data-media-viewer-group="project-photos"
+                                   data-media-viewer-open="project-photos"
+                                   data-media-viewer-key="@viewerItem.Key"
+                                   data-kind="@viewerItem.Kind"
+                                   data-display-url="@viewerItem.DisplayUrl"
+                                   data-title="@viewerItem.Title"
+                                   data-alt="@viewerItem.Alt"
+                                   data-context="@viewerItem.Context"
+                                   data-date="@viewerItem.Date"
+                                   data-original-url="@viewerItem.OriginalUrl"
+                                   data-download-url="@viewerItem.DownloadUrl">
                                     <img src="@previewUrl" alt="@accessibleCaption" loading="lazy" />
                                 </a>
                                 @if (isCover)
@@ -270,10 +299,14 @@
     }
 </div>
 
+<partial name="_MediaViewer" />
+
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/project-photos.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/widgets/media-viewer.css" asp-append-version="true" />
 }
 
 @section Scripts {
     <script src="~/js/widgets/project-photo-reorder.js" asp-append-version="true"></script>
+    <script src="~/js/widgets/media-viewer.js" asp-append-version="true"></script>
 }
