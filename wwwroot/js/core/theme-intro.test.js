@@ -23,7 +23,7 @@ const card = `
   <button id="menuDark" data-theme-preference-value="dark"></button>
   <input id="field" />`;
 
-async function load({ intro, theme, storageThrows = false, focusField = false, modalOpen = false } = {}) {
+async function load({ intro, theme, storageThrows = false, focusField = false, modalOpen = false, beforeShow } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body>${card}${modalOpen ? '<div class="modal show"></div>' : ''}</body></html>`, {
     runScripts: 'outside-only',
     url: 'https://prism.local/',
@@ -42,6 +42,7 @@ async function load({ intro, theme, storageThrows = false, focusField = false, m
   window.eval(preferenceScript);
   if (focusField) window.document.getElementById('field').focus();
   window.eval(introScript);
+  if (beforeShow) beforeShow(window);
   await new Promise((resolve) => setTimeout(resolve, 1300));
   const doc = window.document;
   return {
@@ -137,4 +138,13 @@ test('steps aside while a dropdown is open', async () => {
   assert.ok(cardEl.classList.contains('is-stepped-aside'));
   doc.dispatchEvent(new window.Event('hidden.bs.dropdown'));
   assert.ok(!cardEl.classList.contains('is-stepped-aside'));
+});
+
+test('a theme chosen in the profile menu before the card appears keeps it away', async () => {
+  const { cardEl, stored } = await load({
+    beforeShow: (window) => window.document.getElementById('menuDark').click(),
+  });
+  assert.equal(cardEl.hidden, true);
+  assert.equal(stored('prism.themeIntro'), 'done');
+  assert.equal(stored('prism.theme'), 'dark');
 });

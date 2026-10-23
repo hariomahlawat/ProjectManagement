@@ -127,6 +127,8 @@
 
     setup(card, theme);
     global.setTimeout(function () {
+      // Answered during the delay (the profile menu's theme switch, another tab): stay away.
+      if (read(INTRO_KEY) === DONE || read(THEME_KEY)) return;
       // Busy now: try again on a later page.
       if (isBusy()) return;
       if (!write(String(shows + 1))) return;
