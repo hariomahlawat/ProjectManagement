@@ -56,3 +56,9 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
 
 Project scope, officer assignment and current stage come from `IOfficerWorkloadReadService`, the
 same source as the Officer workload view. Dates are IST.
+
+## Layout and screen width
+
+- All My Workspace pages (the two desks, Conference review, Briefing decks and the workspace views) use the `desk` page shell: at most 1840px wide (`--pm-shell-desk`) and centred. On these pages the top bar, sub-nav and footer use the same width (`pm-chrome-shell--desk`), so the side rail lines up with the menu button above it. Other modules that set the `workspace` shell (Process, Reports, Publications, Completed summary) stay full width.
+- The Command desk reads as one column, at most 72rem wide. When the desk area is at least 84rem wide (a window about 1660px wide or more, with the rail open), What's lagging moves to a second column beside the other three sections. The reading order in the page does not change.
+- The Conference review officer list sits in the same 72rem column, aligned with the rail, not centred.

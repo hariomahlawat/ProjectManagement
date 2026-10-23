@@ -1526,9 +1526,11 @@
     content: none;
 }
 
+/* Aligned with the Command desk's column (72rem, left edge beside the rail) so the two pages
+   sit in the same place rather than this one floating in the middle of a wide screen. */
 .oc-landing {
-    max-width: 1120px;
-    margin: 24px auto 0;
+    max-width: 72rem;
+    margin: 0;
     overflow: hidden;
     border: 1px solid var(--oc-line);
     border-radius: 12px;
