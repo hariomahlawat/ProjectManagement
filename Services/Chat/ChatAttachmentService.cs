@@ -49,13 +49,39 @@ public sealed class ChatDiskSpace : IChatDiskSpace
     {
         try
         {
-            var root = Path.GetPathRoot(Path.GetFullPath(path));
-            return string.IsNullOrEmpty(root) ? null : new DriveInfo(root).AvailableFreeSpace;
+            var drives = DriveInfo.GetDrives().Where(d => d.IsReady).ToList();
+            var mount = MountFor(Path.GetFullPath(path), drives.Select(d => d.RootDirectory.FullName), OperatingSystem.IsWindows());
+            return mount is null ? null : drives.First(d => d.RootDirectory.FullName == mount).AvailableFreeSpace;
         }
         catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// The mount point holding <paramref name="path"/>: the longest one it lies under. On Linux the
+    /// upload folder may be on its own volume (/mnt/prism-data), not on "/".
+    /// </summary>
+    internal static string? MountFor(string path, IEnumerable<string> mountPoints, bool ignoreCase)
+    {
+        var comparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return mountPoints
+            .Where(mount => Contains(mount, path, comparison))
+            .OrderByDescending(mount => mount.Length)
+            .FirstOrDefault();
+    }
+
+    private static bool Contains(string mount, string path, StringComparison comparison)
+    {
+        var root = mount.TrimEnd('/', '\\');
+        if (root.Length == 0)
+        {
+            return path.StartsWith(mount, comparison); // "/" holds everything
+        }
+
+        return path.Equals(root, comparison)
+            || (path.StartsWith(root, comparison) && path.Length > root.Length && (path[root.Length] == '/' || path[root.Length] == '\\'));
     }
 }
 

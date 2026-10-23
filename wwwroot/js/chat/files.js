@@ -94,7 +94,9 @@
   };
 
   /** One upload, with progress (XMLHttpRequest: fetch cannot report upload progress). */
-  ChatApp.prototype.uploadFile = function (win, item) {
+  ChatApp.prototype.uploadFile = function (startedIn, item) {
+    // The window may close (to make room) and reopen while this runs; report to the current one.
+    const view = () => this.windows.get(startedIn.peerId) || startedIn;
     const xhr = new global.XMLHttpRequest();
     item.xhr = xhr;
     item.error = null;
@@ -106,7 +108,7 @@
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         item.progress = event.loaded / event.total;
-        this.renderPending(win);
+        this.renderPending(view());
       }
     };
     xhr.onload = () => {
@@ -124,17 +126,17 @@
         item.error = (body && body.detail) || (xhr.status === 404 ? 'Files cannot be sent at the moment.' : 'The file could not be sent.');
         this.announce(`${item.name} not sent. ${item.error}`);
       }
-      this.renderPending(win);
+      this.renderPending(view());
     };
     xhr.onerror = () => {
       item.xhr = null;
       item.error = 'The file could not be uploaded. Check the connection and try again.';
-      this.renderPending(win);
+      this.renderPending(view());
     };
     const data = new global.FormData();
     data.append('file', item.file, item.name);
     xhr.send(data);
-    this.renderPending(win);
+    this.renderPending(view());
   };
 
   /** Takes a file off the list; one already uploaded is removed on the server, freeing the space. */

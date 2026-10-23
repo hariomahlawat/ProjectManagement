@@ -73,10 +73,12 @@
     if (win.typingTimer) global.clearTimeout(win.typingTimer);
     if (win.unsendTimer) global.clearTimeout(win.unsendTimer);
     // Failed messages are kept with the draft; ones still sending are stored on the server and
-    // come back with the history.
+    // come back with the history. Files waiting to be sent (chat/files.js) are kept too: they
+    // are uploaded already and count against the sender's allowance.
     const unsent = win.messages.filter((m) => !m.id && m.failed);
-    if (win.input.value.trim() || unsent.length) {
-      this.kept.set(peerId, { draft: win.input.value, unsent });
+    const pending = win.pending || [];
+    if (win.input.value.trim() || unsent.length || pending.length) {
+      this.kept.set(peerId, { draft: win.input.value, unsent, pending });
     }
     this.windows.delete(peerId);
     this.order = this.order.filter((id) => id !== peerId);
@@ -87,6 +89,7 @@
   ChatApp.prototype.isBusy = function (win) {
     return !!win.input.value.trim()
       || win.messages.some((m) => !m.id)
+      || (win.pending || []).length > 0
       || win.node.contains(document.activeElement);
   };
 
@@ -261,6 +264,10 @@
       this.kept.delete(peerId);
       input.value = kept.draft;
       win.messages = kept.unsent;
+      if (kept.pending && kept.pending.length && win.pendingList) {
+        win.pending = kept.pending;
+        this.renderPending(win);
+      }
     }
 
     return win;

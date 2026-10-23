@@ -334,6 +334,22 @@ public sealed class ChatAttachmentServiceTests
     }
 
     [Theory]
+    [InlineData("/mnt/data/uploads/chat", "/mnt/data")]
+    [InlineData("/mnt/database/uploads", "/mnt/database")]
+    [InlineData("/mnt/datastore/x", "/")]
+    [InlineData("/var/pm/uploads", "/")]
+    public void FreeSpace_IsMeasuredOnTheMountHoldingTheUploads(string path, string expected)
+    {
+        Assert.Equal(expected, ChatDiskSpace.MountFor(path, new[] { "/", "/mnt/data", "/mnt/database" }, ignoreCase: false));
+    }
+
+    [Fact]
+    public void FreeSpace_OnWindows_UsesTheUploadDrive()
+    {
+        Assert.Equal("E:\\", ChatDiskSpace.MountFor("e:\\PrismData\\uploads", new[] { "C:\\", "E:\\" }, ignoreCase: true));
+    }
+
+    [Theory]
     [InlineData("C:\\Users\\a\\report.pdf", "report.pdf")]
     [InlineData("../../etc/report.pdf", "report.pdf")]
     [InlineData("  bad\u0001name.pdf ", "badname.pdf")]

@@ -2647,3 +2647,38 @@ test('file sizes read naturally', () => {
   assert.equal(PMChatParts.formatSize(1.5 * 1024 * 1024), '1.5 MB');
   assert.equal(PMChatParts.formatSize(100 * 1024 * 1024), '100 MB');
 });
+
+test('files waiting to be sent keep a window from being closed to make room, and survive closing', async () => {
+  const window = fileApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      return [{ ...contact, unreadCount: 0 }, { ...contact, userId: 'third', displayName: 'Third Officer', initials: 'TO', unreadCount: 0 }];
+    }
+    return undefined;
+  });
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true }); // one window fits
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    pick(window, win, [new window.File(['%PDF-'], 'plan.pdf')]);
+    uploads[0].answer(200, { id: 40, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false });
+    win.input.blur();
+
+    // A message from someone else does not push this window aside.
+    app.onMessage({ id: 95, senderUserId: 'third', recipientUserId: 'me', clientMessageId: 'c-95', body: 'Hi', sentUtc: new Date().toISOString() });
+    assert.equal(app.windows.get('peer'), win);
+    assert.equal(app.windows.has('third'), false);
+
+    // Opening another chat on purpose closes it, but the uploaded file comes back with it.
+    app.openWindow('third', { focus: true });
+    await tick(); await tick();
+    assert.equal(app.windows.has('peer'), false);
+    const again = app.openWindow('peer', { focus: true });
+    assert.deepEqual(Array.from(again.pending, (p) => p.attachment && p.attachment.id), [40]);
+    assert.match(again.pendingList.textContent, /plan\.pdf/);
+  } finally {
+    window.close();
+  }
+});
