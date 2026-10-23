@@ -8401,6 +8401,8 @@ body {
     --pm-shell-calendar: 115rem; /* 1840px */
     --pm-shell-analytics: 108rem;/* 1728px */
     --pm-shell-landing: 96rem;   /* 1536px */
+    --pm-shell-desk: 115rem;     /* 1840px: My Workspace pages */
+    --pm-shell-desk-gutter: clamp(.75rem, 1.2vw, 1.5rem);
     --pm-shell-gutter: clamp(1rem, 2.15vw, 2.5rem);
 }
 
@@ -8426,6 +8428,14 @@ body {
     max-width: none;
 }
 .pm-page-shell--analytics { --pm-page-shell-max: var(--pm-shell-analytics); }
+/* My Workspace pages: the side rail plus the desk, capped and centred so a wide monitor keeps
+   a readable column. The top bar, sub-nav and footer take the same width on these pages
+   (pm-chrome-shell--desk) so the rail lines up with the menu button above it. */
+.pm-page-shell--desk,
+.pm-chrome-shell--desk {
+    width: min(calc(100% - (2 * var(--pm-shell-desk-gutter))), var(--pm-shell-desk));
+    max-width: none;
+}
 .pm-page-shell--landing { max-width: none; width: 100%; }
 
 main[role="main"].analytics-main {

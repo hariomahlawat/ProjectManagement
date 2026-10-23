@@ -4,12 +4,58 @@
    ========================================================================== */
 
 .cd {
+    container: cd-desk / inline-size;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
-    max-width: 72rem;
     color: var(--pm-text);
     min-width: 0;
+}
+
+/* SECTION: Board ---------------------------------------------------------
+   One readable column up to 72rem. When the desk has room for two (a wide monitor), What's
+   lagging, the longest section, takes the second column and the others stack beside it, so
+   the extra width carries content instead of an empty margin. Reading order is unchanged. */
+.cd-header,
+.cd-board {
+    max-width: 72rem;
+}
+
+.cd-board {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+@container cd-desk (min-width: 84rem) {
+    .cd-header,
+    .cd-board {
+        max-width: none;
+    }
+
+    .cd-board {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto auto 1fr;
+        grid-template-areas:
+            "good    lagging"
+            "waiting lagging"
+            "quiet   lagging";
+        align-items: start;
+    }
+
+    .cd-board:not(:has(> .cd-section--waiting)) {
+        grid-template-rows: auto 1fr;
+        grid-template-areas:
+            "good  lagging"
+            "quiet lagging";
+    }
+
+    .cd-section--good { grid-area: good; }
+    .cd-section--waiting { grid-area: waiting; }
+    .cd-section--lagging { grid-area: lagging; }
+    .cd-section--quiet { grid-area: quiet; }
 }
 
 /* SECTION: Header ------------------------------------------------------- */
