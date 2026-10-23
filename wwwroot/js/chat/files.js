@@ -298,19 +298,19 @@
     return button;
   };
 
-  /** A file was removed from a message (by its sender, here or in another tab or browser). */
+  /**
+   * A file was removed from a message (by its sender, here or in another tab or browser). The
+   * removal is remembered and applied before every render (applyTombstones), so a history page or
+   * send response already in flight, or a message held back while history loads, cannot bring
+   * the file back.
+   */
   ChatApp.prototype.onAttachmentRemoved = function (removed) {
+    this.removedFiles.set(removed.attachmentId, { id: removed.attachmentId, isRemoved: true, removalReason: removed.removalReason || null });
+    const shows = (list) => list.some((m) => m.attachments && m.attachments.some((a) => a.id === removed.attachmentId && !a.isRemoved));
     this.windows.forEach((win) => {
-      let changed = false;
-      for (const message of win.messages) {
-        if (message.id !== removed.messageId || !message.attachments) continue;
-        message.attachments = message.attachments.map((a) => {
-          if (a.id !== removed.attachmentId || a.isRemoved) return a;
-          changed = true;
-          return { id: a.id, isRemoved: true, removalReason: removed.removalReason || null };
-        });
-      }
-      if (changed) this.renderMessages(win, { stickToBottom: false });
+      if (!shows(win.messages) && !shows(win.heldLive)) return;
+      this.applyTombstones(win);
+      this.renderMessages(win, { stickToBottom: false });
     });
     if (this.filesPanelOpen) this.filesPanelOpen.refresh();
   };
@@ -318,17 +318,24 @@
   /** A removed file came back (restored within the undo window). */
   ChatApp.prototype.onAttachmentRestored = function (restored) {
     const file = restored.attachment;
-    this.windows.forEach((win) => {
+    this.removedFiles.delete(file.id);
+    const bringBack = (list) => {
       let changed = false;
-      for (const message of win.messages) {
-        if (message.id !== restored.messageId || !message.attachments) continue;
-        message.attachments = message.attachments.map((a) => {
-          if (a.id !== file.id) return a;
-          changed = true;
-          return file;
-        });
-      }
-      if (changed) this.renderMessages(win, { stickToBottom: false });
+      const next = list.map((message) => {
+        if (message.id !== restored.messageId || !message.attachments) return message;
+        if (!message.attachments.some((a) => a.id === file.id)) return message;
+        changed = true;
+        return { ...message, attachments: message.attachments.map((a) => (a.id === file.id ? file : a)) };
+      });
+      return changed ? next : null;
+    };
+    this.windows.forEach((win) => {
+      const held = bringBack(win.heldLive);
+      if (held) win.heldLive = held;
+      const messages = bringBack(win.messages);
+      if (!messages) return;
+      win.messages = messages;
+      this.renderMessages(win, { stickToBottom: false });
     });
   };
 

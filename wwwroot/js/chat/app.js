@@ -31,6 +31,7 @@
       maxFiles: Number(root.dataset.attachMaxFiles) || 5,
     };
     this.unsentIds = new Set(); // every unsend seen by this page, applied to anything loaded later
+    this.removedFiles = new Map(); // attachment id -> its removed card, the same for file removals
     // When live events stopped arriving (or, until the first connection, when this page started
     // loading history), so unsends in between can be caught up on once connected.
     this.offlineSince = new Date();

@@ -2640,6 +2640,34 @@ test('I can remove a file from my own message with a second click, and others se
   }
 });
 
+test('a removed file stays removed when a stale copy of its message arrives later', async () => {
+  const window = fileApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const message = () => ({
+      id: 94, senderUserId: 'peer', recipientUserId: 'me', clientMessageId: 'c-94', body: 'Plan', sentUtc: new Date().toISOString(),
+      attachments: [{ id: 40, fileName: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }],
+    });
+    app.acceptSaved(win, [message()]);
+    app.onAttachmentRemoved({ attachmentId: 40, messageId: 94 });
+
+    // A history page or send response that was in flight when the removal arrived.
+    app.acceptSaved(win, [message()]);
+    assert.equal(win.log.querySelectorAll('.pm-chat__file-removed').length, 1);
+    assert.equal(win.log.querySelector('.pm-chat__file-card[href="/api/chat/attachments/40"]'), null);
+
+    // A message held back while history loads.
+    win.heldLive.push({ ...message(), id: 95, clientMessageId: 'c-95', attachments: [{ id: 41, fileName: 'b.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }] });
+    app.onAttachmentRemoved({ attachmentId: 41, messageId: 95 });
+    assert.equal(win.heldLive[0].attachments[0].isRemoved, true);
+  } finally {
+    window.close();
+  }
+});
+
 test('file sizes read naturally', () => {
   const { PMChatParts } = load();
   assert.equal(PMChatParts.formatSize(512), '512 B');
