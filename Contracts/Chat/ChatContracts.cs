@@ -115,6 +115,9 @@ public sealed record ChatStorageBatchDto(
 
 public sealed record ChatStoragePersonDto(string UserId, string DisplayName, int Files, long Bytes);
 
+/// <summary>Files removed from messages since a time, for a page that missed the live events.</summary>
+public sealed record ChatRemovedFilesPageDto(IReadOnlyList<ChatAttachmentRemovedDto> Files, bool HasMore);
+
 /// <summary>
 /// A page of one conversation, oldest first. HasMore: older messages exist before this page.
 /// HasNewer: newer messages exist after it (only for pages asked for with "after" or "before"

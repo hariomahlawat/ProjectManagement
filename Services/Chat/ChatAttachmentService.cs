@@ -547,6 +547,37 @@ public sealed class ChatAttachmentService
             notify);
     }
 
+    /// <summary>
+    /// Files removed at or after <paramref name="since"/> from messages the caller may read, so a
+    /// page that missed live removal events (connection down) can mark them. Paged by attachment
+    /// id, newest first; the caller keeps asking while HasMore is set.
+    /// </summary>
+    public async Task<ChatRemovedFilesPageDto> ListRemovedSinceAsync(
+        string userId,
+        DateTimeOffset since,
+        long? beforeAttachmentId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var page = await (
+                from a in _db.ChatAttachments.AsNoTracking()
+                where a.MessageId != null && a.RemovedUtc != null && a.RemovedUtc >= since
+                    && (beforeAttachmentId == null || a.Id < beforeAttachmentId)
+                join m in _db.ChatMessages.AsNoTracking() on a.MessageId equals m.Id
+                join p in _db.ChatParticipants.AsNoTracking() on m.ConversationId equals p.ConversationId
+                where p.UserId == userId
+                    && (p.Conversation!.Kind == ChatConversation.DirectKind || p.JoinedUtc <= m.SentUtc)
+                orderby a.Id descending
+                select new { a.Id, MessageId = m.Id, m.ConversationId, p.Conversation!.Kind })
+            .Take(ChatService.MaxUnsentSync + 1)
+            .ToListAsync(cancellationToken);
+
+        var files = page
+            .Take(ChatService.MaxUnsentSync)
+            .Select(f => new ChatAttachmentRemovedDto(f.Id, f.MessageId, f.Kind == ChatConversation.GroupKind ? f.ConversationId : null))
+            .ToList();
+        return new ChatRemovedFilesPageDto(files, page.Count > ChatService.MaxUnsentSync);
+    }
+
     // ------------------------------------------------------------------ clean-up
 
     /// <summary>

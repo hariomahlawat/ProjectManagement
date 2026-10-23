@@ -192,6 +192,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   A page that lost its live connection asks `GET /api/chat/unsent?since=` (its own
   conversations only) after reconnecting and while polling, so messages unsent meanwhile are
   blanked too, including older ones already on screen and search results.
+  With attachments on it also asks `GET /api/chat/attachments/removed?since=` (paged with
+  `before`, only messages the caller may read), so files removed meanwhile show as removed.
 - **Groups** (`/api/chat/groups…`): list, create, get, history (`before`/`after` like direct
   history, plus each member's read marker), send, read, add members, remove a member, leave,
   rename. Every call checks membership on the server; a non-member gets **410**, sending
