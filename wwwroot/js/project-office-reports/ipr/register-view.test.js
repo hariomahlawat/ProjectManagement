@@ -28,7 +28,7 @@ function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?
     return `<tr data-ipr-row data-id="${row.id}" data-type="${row.type}" data-status="${row.status}"
         data-counted="${row.counted}" data-closed="${row.closed}" data-files="${row.files}"
         data-project-id="${row.projectId}" data-project="${row.project}" data-filed-year="${row.filed}"
-        data-granted-year="${row.granted}" data-search="${record.Title} ${record.ApplicationNumber} ${row.project}">
+        data-granted-year="${row.granted}" data-search="${record.Title}&#10;${record.ApplicationNumber}&#10;${row.project}">
         <td><button type="button" data-ipr-open="${row.id}">${record.Title}</button></td></tr>`;
   }).join('');
   const stateJson = JSON.stringify(Object.assign({ query: '', types: [], statuses: [], year: '', dateBasis: 'Filed', linkage: 'All', evidence: 'All', projectId: '', group: '', selectedRecordId: '' }, state))
@@ -138,6 +138,17 @@ test('search matches title, filing number and project', async () => {
   await new Promise(resolve => setTimeout(resolve, 200));
   assert.deepEqual(visibleIds(dom), [2]);
   assert.equal(new URL(dom.window.location.href).searchParams.get('query'), 'drill');
+
+  // Like the server, a term must sit inside one field; it never spans title and number.
+  input.value = 'simulator P-001';
+  input.dispatchEvent(new dom.window.Event('input'));
+  await new Promise(resolve => setTimeout(resolve, 200));
+  assert.deepEqual(visibleIds(dom), []);
+
+  input.value = 'p-001';
+  input.dispatchEvent(new dom.window.Event('input'));
+  await new Promise(resolve => setTimeout(resolve, 200));
+  assert.deepEqual(visibleIds(dom), [1]);
 });
 
 test('group by project inserts one header per project, unlinked first', () => {

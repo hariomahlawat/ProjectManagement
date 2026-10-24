@@ -91,7 +91,12 @@ public sealed partial class IndexModel
         int? MedianAwaitingDays,
         int AwaitingOverThreeYears,
         int Unassigned,
-        int MissingAttachments);
+        int MissingAttachments,
+        int Total = 0,
+        IReadOnlyList<TypeBreakdownRow>? TypeBreakdown = null)
+    {
+        public IReadOnlyList<TypeBreakdownRow> TypeRows => TypeBreakdown ?? Array.Empty<TypeBreakdownRow>();
+    }
 
     public sealed class RecordInput
     {

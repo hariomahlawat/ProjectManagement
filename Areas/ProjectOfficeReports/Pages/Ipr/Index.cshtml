@@ -294,7 +294,8 @@
                         <tbody data-ipr-rows>
                             @foreach (var row in Model.Records)
                             {
-                                var searchText = string.Join(" ", row.Title, row.ApplicationNumber, row.ProjectId.HasValue ? row.ProjectName : string.Empty);
+                                // One field per line: the browser matches each field on its own, as IprQueryFilter does.
+                                var searchText = string.Join("\n", row.Title, row.ApplicationNumber, row.ProjectId.HasValue ? row.ProjectName : string.Empty);
                                 <tr data-ipr-row
                                     data-id="@row.Id"
                                     data-type="@row.TypeKey"
@@ -408,7 +409,7 @@
                     <p>Exceptions and long-pending cases that require administrative attention.</p>
                     <small>Each record is listed once under its highest-priority issue; all detected issues remain visible as labels.</small>
                 </div>
-                <span>@($"{Model.VisibleAttentionRecordCount} shown · {Model.AttentionRecordCount} total")</span>
+                <span>@($"{Model.VisibleAttentionRecordCount} shown · {Model.FollowUpTotalCount} total")</span>
             </div>
 
             <nav class="ipr-followup-filters" aria-label="Follow-up issue filters">
@@ -513,13 +514,14 @@
                 }
             </div>
             @{
-                var recordsWithEvidence = Math.Max(0, Model.Kpis.Total - Model.AnalyticsSummary.MissingAttachments);
-                var evidenceCoveragePercent = Model.Kpis.Total == 0
+                var analyticsTotal = Model.AnalyticsSummary.Total;
+                var recordsWithEvidence = Math.Max(0, analyticsTotal - Model.AnalyticsSummary.MissingAttachments);
+                var evidenceCoveragePercent = analyticsTotal == 0
                     ? 100
-                    : (int)Math.Round(recordsWithEvidence * 100d / Model.Kpis.Total, MidpointRounding.AwayFromZero);
+                    : (int)Math.Round(recordsWithEvidence * 100d / analyticsTotal, MidpointRounding.AwayFromZero);
             }
             <div class="ipr-analytics-insights">
-                <article><span>Evidence coverage</span><strong>@evidenceCoveragePercent%</strong><small>@recordsWithEvidence of @Model.Kpis.Total filings have supporting files</small></article>
+                <article><span>Evidence coverage</span><strong>@evidenceCoveragePercent%</strong><small>@recordsWithEvidence of @analyticsTotal filings have supporting files</small></article>
                 <article><span>Median time to grant</span><strong>@(Model.AnalyticsSummary.MedianGrantDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianGrantDays.Value) : "—")</strong><small>granted cases with both dates</small></article>
                 <article><span>Median pending age</span><strong>@(Model.AnalyticsSummary.MedianAwaitingDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianAwaitingDays.Value) : "—")</strong><small>currently pending</small></article>
                 <article class="@(Model.AnalyticsSummary.AwaitingOverThreeYears > 0 ? "has-warning" : string.Empty)"><span>Long pending</span><strong>@Model.AnalyticsSummary.AwaitingOverThreeYears</strong><small>pending beyond 3 years</small></article>
@@ -543,7 +545,7 @@
                     </div>
                     <div class="ipr-type-matrix ipr-type-matrix--compact">
                         <div class="ipr-type-matrix__head"><span>Category</span><span>Filed</span><span>Granted</span><span>Pending</span></div>
-                        @foreach (var item in Model.TypeBreakdown)
+                        @foreach (var item in Model.AnalyticsSummary.TypeRows)
                         {
                             <div class="ipr-type-matrix__row">
                                 <strong>@item.TypeLabel</strong>

@@ -315,16 +315,18 @@ public sealed partial class IndexModel
              filedOn.Date <= longPendingCutoff) ||
             (item.Status == IprStatus.Granted && !item.GrantedAtUtc.HasValue));
 
-        TypeBreakdown = new[] { IprType.Patent, IprType.Copyright }
-            .Select(type =>
-            {
-                var filed = snapshot.Count(item => item.Type == type);
-                var protectedByType = snapshot.Count(item => item.Type == type && item.Status == IprStatus.Granted);
-                var pendingByType = snapshot.Count(item => item.Type == type && item.Status == IprStatus.Filed);
-                return new TypeBreakdownRow(type, GetTypeLabel(type), filed, protectedByType, pendingByType);
-            })
-            .ToList();
+        TypeBreakdown = BuildTypeBreakdown(snapshot.Select(item => (item.Type, item.Status)).ToList());
     }
+
+    private static IReadOnlyList<TypeBreakdownRow> BuildTypeBreakdown(IReadOnlyList<(IprType Type, IprStatus Status)> records)
+        => new[] { IprType.Patent, IprType.Copyright }
+            .Select(type => new TypeBreakdownRow(
+                type,
+                GetTypeLabel(type),
+                records.Count(item => item.Type == type),
+                records.Count(item => item.Type == type && item.Status == IprStatus.Granted),
+                records.Count(item => item.Type == type && item.Status == IprStatus.Filed)))
+            .ToList();
 
     private async Task LoadAttentionAsync(CancellationToken cancellationToken)
     {
@@ -450,6 +452,7 @@ public sealed partial class IndexModel
             .ToList();
 
         VisibleAttentionRecordCount = AttentionGroups.Sum(group => group.Items.Count);
+        FollowUpTotalCount = attentionItems.Count;
     }
 
     private static AttentionGroup CreateAttentionGroup(
@@ -528,13 +531,17 @@ public sealed partial class IndexModel
         var waitingDurations = waitingRows.Select(item => item.WaitingDays).OrderBy(days => days).ToList();
         var overThreeYears = waitingRows.Count(item => item.FiledOn.HasValue && item.FiledOn.Value.Date <= todayIst.AddYears(-LongPendingYears));
 
+        // Analytics follows its filter scope; the summary strip above it stays register-wide.
+        var scopedGranted = snapshot.Count(item => item.Status == IprStatus.Granted);
         AnalyticsSummary = new AnalyticsSummaryModel(
-            GrantRatePercent,
+            snapshot.Count == 0 ? 0 : (int)Math.Round(scopedGranted * 100d / snapshot.Count, MidpointRounding.AwayFromZero),
             Median(grantDurations),
             Median(waitingDurations),
             overThreeYears,
             snapshot.Count(item => !item.ProjectId.HasValue),
-            snapshot.Count(item => item.AttachmentCount == 0));
+            snapshot.Count(item => item.AttachmentCount == 0),
+            snapshot.Count,
+            BuildTypeBreakdown(snapshot.Select(item => (item.Type, item.Status)).ToList()));
 
         AwaitingAgeBands = BuildAgeBands(waitingRows);
 

@@ -682,6 +682,39 @@ public sealed class IprIndexPageTests
         Assert.Equal(1, page.Kpis.Withdrawn);
     }
 
+    [Fact]
+    public async Task OnGetAsync_AnalyticsFollowsItsScopeWhileSummaryStaysWhole()
+    {
+        await using var db = CreateDbContext();
+        var project = new Project { Name = "Scoped project", CreatedByUserId = "creator" };
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+        db.IprRecords.AddRange(
+            new IprRecord { IprFilingNumber = "IPR-SC-1", Title = "In scope, no evidence", Type = IprType.Patent, Status = IprStatus.Filed, ProjectId = project.Id, FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-SC-2", Title = "Elsewhere", Type = IprType.Copyright, Status = IprStatus.Granted, FiledAtUtc = new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero), GrantedAtUtc = new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-SC-3", Title = "Elsewhere too", Type = IprType.Patent, Status = IprStatus.Granted, FiledAtUtc = new DateTimeOffset(2021, 1, 1, 0, 0, 0, TimeSpan.Zero), GrantedAtUtc = new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero) });
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+        {
+            Tab = "analytics",
+            ProjectId = project.Id
+        };
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(3, page.Kpis.Total);
+        Assert.Equal(1, page.AnalyticsSummary.Total);
+        Assert.Equal(1, page.AnalyticsSummary.MissingAttachments);
+        Assert.Equal(0, page.AnalyticsSummary.GrantRatePercent);
+        var patents = page.AnalyticsSummary.TypeRows.Single(row => row.Type == IprType.Patent);
+        Assert.Equal(1, patents.Filed);
+        Assert.Equal(0, patents.Protected);
+        Assert.Equal(0, page.AnalyticsSummary.TypeRows.Single(row => row.Type == IprType.Copyright).Filed);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

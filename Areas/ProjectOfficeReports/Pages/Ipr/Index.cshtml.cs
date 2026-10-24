@@ -176,6 +176,9 @@ public sealed partial class IndexModel : PageModel
 
     public int VisibleAttentionRecordCount { get; private set; }
 
+    // Follow-up records in the view's filter scope (the tab badge counts the whole register).
+    public int FollowUpTotalCount { get; private set; }
+
     public int OverdueAttentionCount { get; private set; }
 
     public int UnassignedCount { get; private set; }

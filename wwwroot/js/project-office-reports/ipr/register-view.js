@@ -42,13 +42,6 @@
     selectedId: initial.selectedRecordId || ''
   };
 
-  const normalize = value => (value || '')
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-
   const rowFacts = rows.map(row => ({
     row,
     id: row.dataset.id,
@@ -61,7 +54,8 @@
     project: row.dataset.project || '',
     filedYear: row.dataset.filedYear || '',
     grantedYear: row.dataset.grantedYear || '',
-    search: normalize(row.dataset.search)
+    // Title, filing number and project, one per line; matched separately like the server.
+    searchFields: (row.dataset.search || '').split('\n').map(field => field.toLowerCase())
   }));
 
   // ---- Filtering ---------------------------------------------------------------------------
@@ -100,7 +94,11 @@
       const year = filters.dateBasis === 'Protected' ? fact.grantedYear : fact.filedYear;
       if (year !== filters.year) return false;
     }
-    if (filters.query && !fact.search.includes(normalize(filters.query))) return false;
+    if (filters.query) {
+      // Same rule as IprQueryFilter: trimmed, lower-cased, contained in any single field.
+      const term = filters.query.trim().toLowerCase();
+      if (term && !fact.searchFields.some(field => field.includes(term))) return false;
+    }
     return true;
   };
 
