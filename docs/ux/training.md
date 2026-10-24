@@ -31,15 +31,24 @@ the technical categories, the trend and the first rows of the register are all i
 3. **By technical category**, beside the yearly trend on wide screens: a card per category (all of
    them, most trainees first) with trainees, trainings and the rank split. The cards follow every
    filter except the category and project themselves, so they stay a stable way to move between
-   categories. Choosing a card filters the register and shows that category's projects underneath,
-   each with its session count; choosing a project filters by it, and its icon opens the project.
-   Choosing the selected card or project again clears it.
-4. **Register**, with a one-line filter bar: search (notes or project name), training type (applies
-   at once), **More filters** (technical category, attended by, from, to; folded unless attended by
-   or a date is set, with a count of the folded filters in use), sort (newest, oldest, most trainees,
-   training type) and rows per page (25, 50, 100). Each active filter is a chip that removes just
-   that filter; **Clear all** removes all. In date order the rows sit under month headings whose
-   totals cover every matching training, not only this page.
+   categories. Choosing a card filters the register; choosing the selected card again clears it.
+4. **Projects in the chosen category**, full width below the cards and the trend: full project names
+   (they wrap, never truncate, because many share a long common start) in two columns (one on
+   phones), most sessions first, each with its session count. The first ten show; **Show all N
+   projects** opens the rest (it is already open when the selected project is among them).
+   Choosing a project filters the register by it, again clears it, and its icon opens the project.
+5. **Register**, with a one-line filter bar: search, training type (applies at once), **More
+   filters** (technical category, attended by, from, to; folded unless attended by or a date is
+   set, with a count of the folded filters in use), sort (newest, oldest, most trainees, training
+   type) and rows per page (25, 50, 100). Each active filter is a chip that removes just that
+   filter; **Clear all** removes all. In date order the rows sit under month headings whose totals
+   cover every matching training, not only this page.
+   - **Search** matches, case-insensitively and anywhere in the text: linked project names, units
+     and trainees on the roster (name or army number), notes and the training type. Legacy
+     trainings have no roster, so only their projects, notes and type are searchable. The export
+     dialog's search uses the same rule.
+   - The address keeps only the filters in use: blank filters and the default sort and rows are
+     left out, so a filtered view can be bookmarked or shared as a short link.
    - A training is filed under its **effective date**: its start, else its end, else the first of its
      month for month-only entries. Month-only entries sort with the rest; undated ones come last.
    - A row shows the date block (day, month and year, then "to 16 Oct · 5 days", "1 day" or "Month

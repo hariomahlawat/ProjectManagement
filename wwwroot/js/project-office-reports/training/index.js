@@ -625,10 +625,34 @@ function initRegisterRows() {
     });
 }
 
+// Keep the address short and shareable: blank filters and the default sort and
+// rows are not sent (the page treats a missing value as the default).
+const REGISTER_DEFAULTS = { Sort: 'newest', PageSize: '25' };
+
+function initCleanRegisterUrls() {
+    document.querySelectorAll('form.training-filter').forEach((form) => {
+        form.addEventListener('submit', () => {
+            Array.from(form.elements).forEach((field) => {
+                if (!field.name || field.disabled) return;
+                const value = (field.value ?? '').trim();
+                if (value === '' || REGISTER_DEFAULTS[field.name] === value) {
+                    field.disabled = true;
+                    // Re-enable after the browser has read the form, so Back shows it as it was.
+                    window.setTimeout(() => { field.disabled = false; }, 0);
+                }
+            });
+        });
+    });
+}
+
 function initAutoSubmitControls() {
     document.querySelectorAll('[data-training-autosubmit]').forEach((control) => {
         control.addEventListener('change', () => {
-            if (control.form) {
+            if (!control.form) return;
+            // requestSubmit fires the submit event, so the URL clean-up above still runs.
+            if (typeof control.form.requestSubmit === 'function') {
+                control.form.requestSubmit();
+            } else {
                 control.form.submit();
             }
         });
@@ -645,6 +669,7 @@ function init() {
     initTrainingYearChart();
     initDownloadButtons();
     initRegisterRows();
+    initCleanRegisterUrls();
     initAutoSubmitControls();
 }
 

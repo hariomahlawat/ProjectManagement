@@ -168,42 +168,6 @@ else
                             </a>
                         }
                     </div>
-
-                    @if (selectedCategoryId.HasValue)
-                    {
-                        <div class="training-category-projects">
-                            <div class="training-category-projects__head">
-                                <h3>Projects in @(Model.SelectedTechnicalCategoryLabel ?? "this category")</h3>
-                                <p>A session linked to more than one project counts under each.</p>
-                            </div>
-                            @if (Model.ProjectBreakdown.Count == 0)
-                            {
-                                <p class="training-category-projects__empty">No projects found for the current filters.</p>
-                            }
-                            else
-                            {
-                                <ul class="training-category-projects__list">
-                                    @foreach (var project in Model.ProjectBreakdown)
-                                    {
-                                        var isProject = Model.Filter.ProjectId == project.ProjectId;
-                                        var projectRouteValues = Model.RouteWith(overrides: new Dictionary<string, string?>
-                                        {
-                                            ["ProjectId"] = isProject ? null : project.ProjectId.ToString(inv)
-                                        });
-                                        <li class="@(isProject ? "is-selected" : null)">
-                                            <a asp-page="./Index" asp-all-route-data="projectRouteValues" class="training-category-projects__filter" aria-current="@(isProject ? "true" : null)">
-                                                <span class="training-category-projects__name">@project.ProjectName</span>
-                                                <span class="training-category-projects__count">@N(project.TrainingSessions) @Plural(project.TrainingSessions, "session", "sessions")</span>
-                                            </a>
-                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="training-category-projects__open" aria-label="Open project @project.ProjectName" title="Open project">
-                                                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-                                            </a>
-                                        </li>
-                                    }
-                                </ul>
-                            }
-                        </div>
-                    }
                 </div>
             }
 
@@ -243,6 +207,68 @@ else
         </section>
     }
 
+    @* SECTION: Projects in the chosen technical category — full width, full names *@
+    @if (Model.Filter.ProjectTechnicalCategoryId.HasValue)
+    {
+        const int projectPreviewCount = 10;
+        var previewProjects = Model.ProjectBreakdown.Take(projectPreviewCount).ToList();
+        var moreProjects = Model.ProjectBreakdown.Skip(projectPreviewCount).ToList();
+        var selectedIsHidden = moreProjects.Any(project => project.ProjectId == Model.Filter.ProjectId);
+
+        async Task ProjectItem(ProjectManagement.Areas.ProjectOfficeReports.Application.Training.Dtos.TechnicalCategoryProjectBreakdownDto project)
+        {
+            var isProject = Model.Filter.ProjectId == project.ProjectId;
+            var projectRouteValues = Model.RouteWith(overrides: new Dictionary<string, string?>
+            {
+                ["ProjectId"] = isProject ? null : project.ProjectId.ToString(inv)
+            });
+            <li class="@(isProject ? "is-selected" : null)">
+                <a asp-page="./Index" asp-all-route-data="projectRouteValues" class="training-category-projects__filter" aria-current="@(isProject ? "true" : null)" title="@(isProject ? "Showing this project's trainings. Choose again to show the whole category." : "Show this project's trainings")">
+                    <span class="training-category-projects__name">@project.ProjectName</span>
+                    <span class="training-category-projects__count">@N(project.TrainingSessions) @Plural(project.TrainingSessions, "session", "sessions")</span>
+                </a>
+                <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="training-category-projects__open" aria-label="Open project @project.ProjectName" title="Open project">
+                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                </a>
+            </li>
+        }
+
+        <section class="training-category-projects" aria-labelledby="training-category-projects-heading">
+            <div class="training-category-projects__head">
+                <h2 id="training-category-projects-heading">Projects in @(Model.SelectedTechnicalCategoryLabel ?? "this category")</h2>
+                <p>@N(Model.ProjectBreakdown.Count) @Plural(Model.ProjectBreakdown.Count, "project", "projects"), most sessions first. Choose one to filter the register. A session linked to more than one project counts under each.</p>
+            </div>
+            @if (Model.ProjectBreakdown.Count == 0)
+            {
+                <p class="training-category-projects__empty">No projects found for the current filters.</p>
+            }
+            else
+            {
+                <ul class="training-category-projects__list">
+                    @foreach (var project in previewProjects)
+                    {
+                        await ProjectItem(project);
+                    }
+                </ul>
+                @if (moreProjects.Count > 0)
+                {
+                    <details class="training-category-projects__more" open="@selectedIsHidden">
+                        <summary>
+                            <span class="training-category-projects__show">Show all @N(Model.ProjectBreakdown.Count) projects</span>
+                            <span class="training-category-projects__hide">Show fewer</span>
+                        </summary>
+                        <ul class="training-category-projects__list">
+                            @foreach (var project in moreProjects)
+                            {
+                                await ProjectItem(project);
+                            }
+                        </ul>
+                    </details>
+                }
+            }
+        </section>
+    }
+
     @* SECTION: Register, with its filter bar *@
     <section class="training-register__list" aria-labelledby="training-register-heading">
         <div class="training-toolbar">
@@ -263,7 +289,7 @@ else
             <div class="training-filter__bar">
                 <div class="training-filter__search">
                     <i class="bi bi-search" aria-hidden="true"></i>
-                    <input name="Search" value="@Model.Filter.Search" class="form-control form-control-sm" placeholder="Search notes or projects" aria-label="Search notes or projects" autocomplete="off" maxlength="200" />
+                    <input name="Search" value="@Model.Filter.Search" class="form-control form-control-sm" placeholder="Search projects, units, trainees or notes" aria-label="Search projects, units, trainees (name or army number) or notes" title="Matches linked project names, units and trainees (name or army number) on the roster, notes and the training type" autocomplete="off" maxlength="200" />
                 </div>
                 <select name="TypeId" class="form-select form-select-sm training-filter__type" asp-items="Model.TrainingTypes" aria-label="Training type" data-training-autosubmit></select>
                 <button type="button"
@@ -661,7 +687,7 @@ else
                             </div>
                             <div class="col-md-6">
                                 <label asp-for="Export.Search" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <input asp-for="Export.Search" class="form-control" placeholder="Search notes or projects" />
+                                <input asp-for="Export.Search" class="form-control" placeholder="Projects, units, trainees or notes" />
                                 <span asp-validation-for="Export.Search" class="text-danger small"></span>
                             </div>
 
