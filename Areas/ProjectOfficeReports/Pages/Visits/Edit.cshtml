@@ -2,23 +2,10 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.EditModel
 @{
     ViewData["Title"] = "Edit visit to SDD";
-    var toastMessages = new List<VisitToastMessage>();
-    if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
-    {
-        toastMessages.Add(new VisitToastMessage(toastMessage, "success"));
-    }
-
-    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
-    {
-        toastMessages.Add(new VisitToastMessage(toastError, "danger"));
-    }
-
     var visitDateDisplay = Model.Input.DateOfVisit?.ToString("dd MMM yyyy");
     var visitDayDisplay = Model.Input.DateOfVisit?.ToString("dddd");
     var totalPhotos = Model.PhotoGallery?.Photos.Count ?? 0;
 }
-
-<partial name="_ToastMessages" model="toastMessages" />
 
 @if (!Model.CanManage)
 {
@@ -223,6 +210,15 @@ else
             </div>
         </section>
     </div>
+
+    @if (totalPhotos > 0)
+    {
+        <partial name="_PhotoViewer" model="Model.Input.VisitorName ?? string.Empty" />
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
 }
 
 @section Scripts {

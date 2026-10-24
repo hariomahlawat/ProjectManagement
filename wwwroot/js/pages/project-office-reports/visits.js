@@ -1,7 +1,9 @@
 // wwwroot/js/pages/project-office-reports/visits.js
 
-const toastContainerId = 'visitsToastContainer';
-
+// SECTION: Client-side notices
+// Server messages come from the shared layout (_Toasts.cshtml, TempData "ToastSuccess" and
+// "ToastError"). This only covers checks made in the browser, such as an oversized photo,
+// and uses the same app-toast look so both kinds read as one system.
 function ensureBootstrap() {
     return typeof window !== 'undefined'
         && window.bootstrap
@@ -11,42 +13,50 @@ function ensureBootstrap() {
 }
 
 function ensureToastHost() {
-    let host = document.getElementById(toastContainerId);
+    let host = document.querySelector('.app-toast-container');
     if (host) {
         return host;
     }
 
     host = document.createElement('div');
-    host.id = toastContainerId;
-    host.className = 'toast-container position-fixed top-0 end-0 p-3';
+    host.className = 'toast-container position-fixed top-0 end-0 p-3 app-toast-container';
     host.setAttribute('aria-live', 'polite');
     host.setAttribute('aria-atomic', 'true');
     document.body.appendChild(host);
     return host;
 }
 
+const toastTitles = { success: 'Success', danger: 'Action required', warning: 'Attention' };
+
 function createToastElement(message, variant) {
     const toast = document.createElement('div');
-    toast.className = `toast align-items-center text-bg-${variant} border-0`;
-    toast.setAttribute('role', 'status');
-    toast.setAttribute('aria-live', 'polite');
+    toast.className = `toast app-toast app-toast-${variant}`;
+    toast.setAttribute('role', variant === 'danger' ? 'alert' : 'status');
     toast.setAttribute('aria-atomic', 'true');
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'd-flex';
+    const header = document.createElement('div');
+    header.className = 'toast-header';
+
+    const indicator = document.createElement('span');
+    indicator.className = 'app-toast-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+
+    const title = document.createElement('strong');
+    title.className = 'me-auto';
+    title.textContent = toastTitles[variant] || 'Update';
+
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'btn-close';
+    dismiss.setAttribute('data-bs-dismiss', 'toast');
+    dismiss.setAttribute('aria-label', 'Close');
 
     const body = document.createElement('div');
     body.className = 'toast-body';
     body.textContent = message;
 
-    const dismiss = document.createElement('button');
-    dismiss.type = 'button';
-    dismiss.className = 'btn-close btn-close-white me-2 m-auto';
-    dismiss.setAttribute('data-bs-dismiss', 'toast');
-    dismiss.setAttribute('aria-label', 'Dismiss notification');
-
-    wrapper.append(body, dismiss);
-    toast.append(wrapper);
+    header.append(indicator, title, dismiss);
+    toast.append(header, body);
     return toast;
 }
 
@@ -56,11 +66,10 @@ function showToast(message, variant) {
         return;
     }
 
-    const host = ensureToastHost();
     const toastEl = createToastElement(message, variant);
-    host.appendChild(toastEl);
+    ensureToastHost().appendChild(toastEl);
 
-    const toastInstance = bootstrap.Toast.getOrCreateInstance(toastEl, { autohide: true, delay: 5000 });
+    const toastInstance = bootstrap.Toast.getOrCreateInstance(toastEl, { autohide: true, delay: 6000 });
     toastEl.addEventListener(
         'hidden.bs.toast',
         () => {
@@ -71,23 +80,6 @@ function showToast(message, variant) {
     );
 
     toastInstance.show();
-}
-
-function initToasts() {
-    const containers = document.querySelectorAll('[data-visits-toast-container]');
-
-    containers.forEach(container => {
-        const items = container.querySelectorAll('[data-visits-toast]');
-        items.forEach(item => {
-            const message = item.textContent?.trim();
-            if (!message) {
-                return;
-            }
-
-            const variant = item.getAttribute('data-variant') || 'primary';
-            showToast(message, variant);
-        });
-    });
 }
 
 function updateButtonToBusyState(button) {
@@ -324,6 +316,40 @@ function initConfirmations() {
 // CHARTS
 // ----------------------------------------------------
 
+// SECTION: Chart colours
+// Charts read the site's chart tokens (--pm-chart-*) so they follow Light and Dark.
+function readChartTheme() {
+    const fallback = {
+        axisColor: '#4b5563',
+        gridColor: '#e5e7eb',
+        accents: ['#2563eb', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6']
+    };
+    const palette = window.PMTheme && typeof window.PMTheme.getChartPalette === 'function'
+        ? window.PMTheme.getChartPalette()
+        : null;
+    const styles = getComputedStyle(document.documentElement);
+    return {
+        axisColor: palette?.axisColor || fallback.axisColor,
+        gridColor: palette?.gridColor || fallback.gridColor,
+        accents: palette?.accents?.length ? palette.accents : fallback.accents,
+        surface: styles.getPropertyValue('--pm-card').trim() || '#ffffff'
+    };
+}
+
+function withAlpha(color, alpha) {
+    const hex = /^#([0-9a-f]{6})$/i.exec(color || '');
+    if (!hex) {
+        return color;
+    }
+    const value = parseInt(hex[1], 16);
+    return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
+function onThemeChange(callback) {
+    const observer = new MutationObserver(callback);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+}
+
 function initVisitsCharts() {
     const monthlyHost = document.getElementById('visits-monthly-chart');
     const typeHost = document.getElementById('visits-type-chart');
@@ -335,79 +361,11 @@ function initVisitsCharts() {
         return;
     }
 
-    // well hold the two chart instances here
-    let monthlyChart = null;
-    let typeChart = null;
-
-    // ----- MONTHLY CHART -----
     const monthlyData = JSON.parse(monthlyHost.dataset.monthly || '[]');
-    const monthlyCanvas = document.getElementById('visits-monthly-canvas');
-    const ctxMonthly = monthlyCanvas.getContext('2d');
-
-    const monthLabels = monthlyData.map(x => x.label);
-    const monthVisits = monthlyData.map(x => x.visits);
-    const monthStrength = monthlyData.map(x => x.strength);
-
-    monthlyChart = new Chart(ctxMonthly, {
-        type: 'bar',
-        data: {
-            labels: monthLabels,
-            datasets: [
-                {
-                    label: 'Visits',
-                    data: monthVisits,
-                    backgroundColor: 'rgba(59,130,246,0.4)',
-                    borderRadius: 6,
-                    maxBarThickness: 28
-                },
-                {
-                    label: 'People (strength)',
-                    data: monthStrength,
-                    type: 'line',
-                    borderColor: 'rgba(15,23,42,0.9)',
-                    borderWidth: 2,
-                    tension: 0.35,
-                    pointRadius: 3,
-                    yAxisID: 'y1'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            devicePixelRatio: 2,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { precision: 0 }
-                },
-                y1: {
-                    beginAtZero: true,
-                    position: 'right',
-                    grid: { drawOnChartArea: false },
-                    ticks: { precision: 0 }
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        usePointStyle: true,
-                        boxWidth: 6
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
-            }
-        }
-    });
-
-    // ----- TYPE PIE -----
     const typeData = JSON.parse(typeHost.dataset.types || '[]');
+    const monthlyCanvas = document.getElementById('visits-monthly-canvas');
     const typeCanvas = document.getElementById('visits-type-canvas');
-    const ctxType = typeCanvas.getContext('2d');
+    const typeEmpty = typeHost.querySelector('[data-visits-type-empty]');
     const rangeSelect = document.getElementById('visits-type-range');
 
     function buildTypeDataset(range) {
@@ -425,74 +383,162 @@ function initVisitsCharts() {
         return { labels, values };
     }
 
-    const initial = buildTypeDataset('lastYear');
+    function showTypeEmptyState(isEmpty) {
+        typeCanvas.hidden = isEmpty;
+        if (typeEmpty) {
+            typeEmpty.hidden = !isEmpty;
+        }
+    }
 
-    typeChart = new Chart(ctxType, {
-        type: 'pie',
-        data: {
-            labels: initial.labels,
-            datasets: [{
-                data: initial.values,
-                backgroundColor: [
-                    '#3b82f6',
-                    '#0ea5e9',
-                    '#22c55e',
-                    '#f97316',
-                    '#a855f7',
-                    '#f43f5e'
+    function typeColours(count) {
+        return Array.from({ length: count }, (_, index) => theme.accents[index % theme.accents.length]);
+    }
+
+    function buildMonthlyChart() {
+        return new Chart(monthlyCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: monthlyData.map(x => x.label),
+                datasets: [
+                    {
+                        label: 'Visits',
+                        data: monthlyData.map(x => x.visits),
+                        backgroundColor: withAlpha(theme.accents[0], 0.45),
+                        hoverBackgroundColor: withAlpha(theme.accents[0], 0.7),
+                        borderRadius: 6,
+                        maxBarThickness: 28,
+                        order: 2
+                    },
+                    {
+                        label: 'People',
+                        data: monthlyData.map(x => x.strength),
+                        type: 'line',
+                        borderColor: theme.accents[1],
+                        backgroundColor: theme.accents[1],
+                        borderWidth: 2,
+                        // Straight segments: a curve would suggest values between months.
+                        tension: 0,
+                        pointRadius: 3,
+                        pointBackgroundColor: theme.surface,
+                        yAxisID: 'y1',
+                        order: 1
+                    }
                 ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            devicePixelRatio: 2,
-            plugins: {
-                legend: {
-                    position: 'bottom'
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                devicePixelRatio: 2,
+                scales: {
+                    x: {
+                        ticks: { color: theme.axisColor },
+                        grid: { display: false },
+                        border: { color: theme.gridColor }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { precision: 0, color: theme.axisColor },
+                        grid: { color: theme.gridColor },
+                        border: { display: false },
+                        title: { display: true, text: 'Visits', color: theme.axisColor }
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        ticks: { precision: 0, color: theme.axisColor },
+                        border: { display: false },
+                        title: { display: true, text: 'People', color: theme.axisColor }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { usePointStyle: true, boxWidth: 8, color: theme.axisColor }
+                    },
+                    tooltip: { mode: 'index', intersect: false }
                 }
             }
-        }
-    });
+        });
+    }
+
+    function buildTypeChart(range) {
+        const dataset = buildTypeDataset(range);
+        showTypeEmptyState(dataset.values.length === 0);
+        return new Chart(typeCanvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: dataset.labels,
+                datasets: [{
+                    data: dataset.values,
+                    backgroundColor: typeColours(dataset.values.length),
+                    borderColor: theme.surface,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                devicePixelRatio: 2,
+                cutout: '58%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { usePointStyle: true, boxWidth: 8, color: theme.axisColor }
+                    }
+                }
+            }
+        });
+    }
+
+    let theme = readChartTheme();
+    let monthlyChart = buildMonthlyChart();
+    let typeChart = buildTypeChart(rangeSelect?.value || 'lastYear');
 
     if (rangeSelect) {
         rangeSelect.addEventListener('change', () => {
             const next = buildTypeDataset(rangeSelect.value);
+            showTypeEmptyState(next.values.length === 0);
             typeChart.data.labels = next.labels;
             typeChart.data.datasets[0].data = next.values;
+            typeChart.data.datasets[0].backgroundColor = typeColours(next.values.length);
             typeChart.update();
         });
     }
 
-    // ----- DOWNLOAD BUTTONS -----
-    // expects buttons in Razor like:
-    // <button data-chart-download="visits-monthly">...</button>
-    // <button data-chart-download="visits-type">...</button>
+    // Rebuild with the new colours when the user switches Light / Dark.
+    onThemeChange(() => {
+        theme = readChartTheme();
+        monthlyChart.destroy();
+        typeChart.destroy();
+        monthlyChart = buildMonthlyChart();
+        typeChart = buildTypeChart(rangeSelect?.value || 'lastYear');
+    });
+
+    // SECTION: Chart downloads
+    // A PNG on the card colour, so it reads the same when pasted into a document.
     document.querySelectorAll('[data-chart-download]').forEach(btn => {
         btn.addEventListener('click', () => {
             const target = btn.getAttribute('data-chart-download');
-            let chart = null;
-
-            if (target === 'visits-monthly') {
-                chart = monthlyChart;
-            } else if (target === 'visits-type') {
-                chart = typeChart;
-            }
-
+            const chart = target === 'visits-monthly' ? monthlyChart : target === 'visits-type' ? typeChart : null;
             if (!chart) {
                 return;
             }
 
-            const link = document.createElement('a');
-            // high-quality PNG
-            link.href = chart.toBase64Image('image/png', 1.0);
+            const source = chart.canvas;
+            const copy = document.createElement('canvas');
+            copy.width = source.width;
+            copy.height = source.height;
+            const context = copy.getContext('2d');
+            context.fillStyle = theme.surface;
+            context.fillRect(0, 0, copy.width, copy.height);
+            context.drawImage(source, 0, 0);
 
             const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const d = String(now.getDate()).padStart(2, '0');
-            link.download = `${target}-${y}${m}${d}.png`;
-
+            const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+            const link = document.createElement('a');
+            link.href = copy.toDataURL('image/png');
+            link.download = `${target}-${stamp}.png`;
             link.click();
         });
     });
@@ -781,16 +827,36 @@ function initVisitRegisterPageSize() {
     });
 }
 
+// SECTION: Missing photo files
+// If a stored photo cannot be served, show a quiet placeholder instead of a dark tile with alt text.
+function markMissingPhoto(img) {
+    const frame = img.closest('.visit-gallery-card__frame');
+    if (frame) {
+        frame.classList.add('is-missing');
+        frame.setAttribute('data-missing-label', 'Photo unavailable');
+    }
+}
+
+function initGalleryFallbacks() {
+    document.querySelectorAll('.visit-gallery-card__frame img').forEach(img => {
+        if (img.complete && img.naturalWidth === 0) {
+            markMissingPhoto(img);
+            return;
+        }
+        img.addEventListener('error', () => markMissingPhoto(img), { once: true });
+    });
+}
+
 // ----------------------------------------------------
 // INITIALISE EVERYTHING
 // ----------------------------------------------------
 
 function init() {
-    initToasts();
     initConfirmations();
     initDisableOnSubmit();
     initVisitsCharts();
     initVisitPhotoViewer();
+    initGalleryFallbacks();
     initPhotoUploadInputs();
     initVisitRegisterPageSize();
 }

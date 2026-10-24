@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -36,7 +37,10 @@ public class DetailsModel : PageModel
         Visit = await _visitService.GetDetailsAsync(id, cancellationToken);
         if (Visit == null)
         {
-            return NotFound();
+            // Keep the 404 status but show the module's own "Visit not found" screen,
+            // with a way back to the list, instead of the bare error page.
+            Response.StatusCode = StatusCodes.Status404NotFound;
+            return Page();
         }
 
         PhotoGallery = new VisitPhotosViewModel(id, Visit.Photos, Visit.Visit.CoverPhotoId, false);
@@ -62,7 +66,7 @@ public class DetailsModel : PageModel
         switch (result.Outcome)
         {
             case VisitDeletionOutcome.Success:
-                TempData["ToastMessage"] = "Visit deleted.";
+                TempData["ToastSuccess"] = "Visit deleted.";
                 return RedirectToPage("Index");
             case VisitDeletionOutcome.ConcurrencyConflict:
                 TempData["ToastError"] = "Another user updated this visit. Please try again.";

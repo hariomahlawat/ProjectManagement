@@ -49,7 +49,7 @@ public class IndexModel : PageModel
         var result = await _service.UpdateAsync(id, existing.Name, existing.Description, enable, bytes, userId, cancellationToken);
         if (result.Outcome == VisitTypeMutationOutcome.Success)
         {
-            TempData["ToastMessage"] = enable ? "Visit type enabled." : "Visit type disabled.";
+            TempData["ToastSuccess"] = enable ? "Visit type enabled." : "Visit type disabled.";
         }
         else if (result.Outcome == VisitTypeMutationOutcome.ConcurrencyConflict)
         {
@@ -81,7 +81,7 @@ public class IndexModel : PageModel
         switch (result.Outcome)
         {
             case VisitTypeDeletionOutcome.Success:
-                TempData["ToastMessage"] = "Visit type deleted.";
+                TempData["ToastSuccess"] = "Visit type deleted.";
                 break;
             case VisitTypeDeletionOutcome.InUse:
                 TempData["ToastError"] = "This visit type cannot be deleted because visits are using it.";

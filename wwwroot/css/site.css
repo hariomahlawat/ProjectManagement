@@ -5655,6 +5655,9 @@ body.has-project-photo-preview-dialog {
     background-color: var(--pm-surface);
     font-size: var(--pm-font-size-tight);
     color: var(--pm-text-secondary);
+    /* Keep the paragraphs and line breaks the officer typed. */
+    white-space: pre-line;
+    overflow-wrap: anywhere;
 }
 
 .visit-remarks__body--empty {

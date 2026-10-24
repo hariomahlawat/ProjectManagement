@@ -113,12 +113,9 @@ public class AllModel : PageModel
         var result = await _visitExportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
         {
-            if (result.Errors.Count > 0)
-            {
-                TempData["ToastError"] = result.Errors[0];
-            }
-
-            return Page();
+            // Go back to the list with the filters kept, so the page and its figures stay intact.
+            TempData["ToastError"] = result.Errors.Count > 0 ? result.Errors[0] : "The export could not be created. Please try again.";
+            return RedirectToPage(new { VisitTypeId, From, To, Q, PageNumber, PageSize });
         }
 
         return File(result.File.Content, result.File.ContentType, result.File.FileName);

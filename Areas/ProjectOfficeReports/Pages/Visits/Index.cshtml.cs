@@ -119,7 +119,7 @@ public class IndexModel : PageModel
         switch (result.Outcome)
         {
             case VisitDeletionOutcome.Success:
-                TempData["ToastMessage"] = "Visit deleted.";
+                TempData["ToastSuccess"] = "Visit deleted.";
                 break;
             case VisitDeletionOutcome.ConcurrencyConflict:
                 TempData["ToastError"] = "The visit was modified by someone else. Please reload the page.";
@@ -155,17 +155,9 @@ public class IndexModel : PageModel
         var result = await _visitExportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
         {
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError(string.Empty, error);
-            }
-
-            if (result.Errors.Count > 0)
-            {
-                TempData["ToastError"] = result.Errors[0];
-            }
-
-            return Page();
+            // Go back to the list with the filters kept, so the page and its figures stay intact.
+            TempData["ToastError"] = result.Errors.Count > 0 ? result.Errors[0] : "The export could not be created. Please try again.";
+            return RedirectToPage(new { VisitTypeId, From, To, Q });
         }
 
         return File(result.File.Content, result.File.ContentType, result.File.FileName);
@@ -193,17 +185,9 @@ public class IndexModel : PageModel
         var result = await _visitExportService.ExportPdfAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
         {
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError(string.Empty, error);
-            }
-
-            if (result.Errors.Count > 0)
-            {
-                TempData["ToastError"] = result.Errors[0];
-            }
-
-            return Page();
+            // Go back to the list with the filters kept, so the page and its figures stay intact.
+            TempData["ToastError"] = result.Errors.Count > 0 ? result.Errors[0] : "The export could not be created. Please try again.";
+            return RedirectToPage(new { VisitTypeId, From, To, Q });
         }
 
         return File(result.File.Content, result.File.ContentType, result.File.FileName);

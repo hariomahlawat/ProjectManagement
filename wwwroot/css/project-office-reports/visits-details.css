@@ -63,6 +63,25 @@
     opacity: 0.96;
 }
 
+/* A stored photo that cannot be served (set by visits.js): a quiet placeholder, not alt text on a dark tile. */
+.visit-gallery-card__frame.is-missing {
+    background: var(--pm-surface-muted);
+}
+
+.visit-gallery-card__frame.is-missing img {
+    visibility: hidden;
+}
+
+.visit-gallery-card__frame.is-missing::after {
+    content: attr(data-missing-label);
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--pm-text-muted);
+    font-size: var(--pm-font-size-sm);
+}
+
 .visit-gallery-card__zoom {
     position: absolute;
     right: 0.75rem;

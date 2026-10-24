@@ -43,17 +43,6 @@
     var today = DateOnly.FromDateTime(DateTime.Today);
     var lastYearFrom = today.AddYears(-1);
 
-    // toasts
-    var toastMessages = new List<VisitToastMessage>();
-    if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
-    {
-        toastMessages.Add(new VisitToastMessage(toastMessage, "success"));
-    }
-    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
-    {
-        toastMessages.Add(new VisitToastMessage(toastError, "danger"));
-    }
-
     // ===== chart data =====
     // monthly: last 12 months including current month
     var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
@@ -88,8 +77,6 @@
         })
         .ToList();
 }
-
-<partial name="_ToastMessages" model="toastMessages" />
 
 <div class="visit-shell visit-tracker visit-shell--tight">
     <!-- SECTION: Compact page header and actions -->
@@ -336,6 +323,7 @@
                          data-types='@System.Text.Json.JsonSerializer.Serialize(allVisitTypes, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
                          class="flex-grow-1 pm-util-minh-240">
                         <canvas id="visits-type-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-type-title"></canvas>
+                        <p class="visit-chart-empty" data-visits-type-empty hidden>No visits in this period.</p>
                     </div>
                 </div>
             </div>

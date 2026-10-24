@@ -289,6 +289,20 @@
         background-color: var(--pm-card, #ffffff) !important;
     }
 
+.visit-chart-empty {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    min-height: 200px;
+    margin: 0;
+    color: var(--pm-text-muted);
+    font-size: var(--pm-font-size-sm);
+}
+
+    .visit-chart-empty[hidden] {
+        display: none;
+    }
+
 /* Sometimes charts live directly in .card – normalise */
 .visit-shell canvas {
     background-color: var(--pm-card, #ffffff);
