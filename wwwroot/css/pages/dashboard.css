@@ -536,7 +536,8 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
     .db-dual-grid,.db-ffc-layout { grid-template-columns:1fr; }
     .db-ffc-map-wrap { min-height:310px; border-right:0; border-bottom:1px solid var(--db-border-soft); }
     .db-ffc-map,.db-ffc-map .ffc-simulator-map__canvas { min-height:286px!important; }
-    .db-ffc-insights { display:grid; grid-template-columns:minmax(270px,.8fr) minmax(320px,1.2fr); align-items:start; }
+    /* The country list spans both rows; the second row takes its extra height, so the breakdown sits right under the stats. */
+    .db-ffc-insights { display:grid; grid-template-columns:minmax(270px,.8fr) minmax(320px,1.2fr); grid-template-rows:auto 1fr; align-items:start; }
     .db-ffc-countries { grid-column:2; grid-row:1 / span 2; }
     .db-processing-alert { grid-template-columns:1fr; }
     .db-processing-action,.db-processing-note { justify-self:start; max-width:none; text-align:left; }
