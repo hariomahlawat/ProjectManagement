@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Models;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 
@@ -53,7 +54,16 @@ public class NewModel : PageModel
     public int VisitPhotoMaxMb => Math.Max(1, (int)Math.Floor(VisitPhotoMaxBytes / 1024d / 1024d));
 
     public string VisitPhotoHelpText =>
-        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each and {VisitPhotoMaxBatchMb} MB total. Selected photos will be uploaded after the visit is saved.";
+        $"JPEG, PNG or WebP · up to {VisitPhotoMaxFiles} photos, {VisitPhotoMaxMb} MB each, {VisitPhotoMaxBatchMb} MB in all";
+
+    public VisitPhotoPickerModel PhotoPicker => new(
+        "visit-photo",
+        VisitPhotoHelpText,
+        VisitPhotoMaxFiles,
+        VisitPhotoMaxBytes,
+        VisitPhotoMaxBatchBytes,
+        UploadCaption,
+        ModelState.TryGetValue(nameof(Uploads), out var entry) && entry.Errors.Count > 0 ? entry.Errors[0].ErrorMessage : null);
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -70,8 +80,6 @@ public class NewModel : PageModel
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public VisitPhotosViewModel EmptyPhotoGallery { get; } = new(Guid.Empty, Array.Empty<VisitPhoto>(), null, false);
-
     public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || IsProjectOfficeMember();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
@@ -81,6 +89,8 @@ public class NewModel : PageModel
             return Forbid();
         }
 
+        // Most visits are recorded on the day; start from today in IST.
+        Input.DateOfVisit ??= DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneHelper.GetIst()).DateTime);
         await LoadVisitTypesAsync(cancellationToken);
         return Page();
     }
@@ -127,7 +137,7 @@ public class NewModel : PageModel
         var result = await _visitService.CreateAsync(Input.VisitTypeId!.Value, Input.DateOfVisit!.Value, Input.VisitorName, Input.Strength, Input.Remarks, userId, cancellationToken);
         if (result.Outcome == VisitMutationOutcome.Success && result.Entity != null)
         {
-            var toastMessage = "Visit created.";
+            var toastMessage = "Visit recorded.";
 
             if (uploads.Count > 0)
             {
@@ -177,7 +187,7 @@ public class NewModel : PageModel
                 if (successfulUploads > 0)
                 {
                     var suffix = successfulUploads == 1 ? "photo" : "photos";
-                    toastMessage = $"Visit created and {successfulUploads} {suffix} uploaded.";
+                    toastMessage = $"Visit recorded with {successfulUploads} {suffix}.";
                 }
 
                 if (errors.Count > 0)
@@ -189,11 +199,12 @@ public class NewModel : PageModel
             TempData["ToastSuccess"] = toastMessage;
             if (string.Equals(SaveMode, "save-add-another", StringComparison.OrdinalIgnoreCase))
             {
-                TempData["ToastSuccess"] = $"{toastMessage} Add another visit to SDD.";
+                TempData["ToastSuccess"] = $"{toastMessage} Ready for the next one.";
                 return RedirectToPage("New");
             }
 
-            return RedirectToPage("Index");
+            // Show the visit just recorded, so the officer can check it and its photos.
+            return RedirectToPage("Details", new { id = result.Entity.Id });
         }
 
         if (result.Outcome == VisitMutationOutcome.VisitTypeInactive || result.Outcome == VisitMutationOutcome.VisitTypeNotFound)
@@ -239,28 +250,8 @@ public class NewModel : PageModel
         return User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
     }
 
-    public class InputModel
+    // The fields live in VisitFormInput, shared with Edit.
+    public class InputModel : VisitFormInput
     {
-        [Required]
-        [Display(Name = "Visit type")]
-        public Guid? VisitTypeId { get; set; }
-
-        [Required]
-        [DataType(DataType.Date)]
-        [Display(Name = "Date of visit")]
-        public DateOnly? DateOfVisit { get; set; }
-
-        [Required]
-        [StringLength(200)]
-        [Display(Name = "Visitor / course / delegation")]
-        public string VisitorName { get; set; } = string.Empty;
-
-        [Display(Name = "Strength")]
-        [Range(1, int.MaxValue, ErrorMessage = "Strength must be greater than zero.")]
-        public int Strength { get; set; } = 1;
-
-        [StringLength(2000)]
-        [Display(Name = "Remarks / key observations")]
-        public string? Remarks { get; set; }
     }
 }

@@ -13,8 +13,8 @@ photos. Everyone signed in can read it; Admin, HoD and Project Office record and
 | Photos (upload, cover, derivatives, serving) | `VisitPhotoService.cs`, `Pages/Visits/ViewPhoto.cshtml.cs` |
 | Excel and PDF exports | `VisitExportService.cs`, `Utilities/Reporting/Visit*Builder.cs` |
 | Register (the module's main page) | `Pages/Visits/Index.cshtml(.cs)`; `/Visits/All` redirects here with its filters |
-| Record page, editor | `Pages/Visits/Details`, `New`, `Edit`; photo viewer `_PhotoViewer.cshtml`, gallery `_PhotosPartial.cshtml` |
-| Styles | `wwwroot/css/project-office-reports/visits-register.css` (register), `visits-details.css` (record and gallery); site tokens only |
+| Record page, forms | `Pages/Visits/Details`, `New`, `Edit`; fields `_VisitFields` + `VisitFormInput`, photo chooser `_PhotoPicker`, viewer `_PhotoViewer`, gallery `_PhotosPartial` |
+| Styles | `wwwroot/css/project-office-reports/visits-register.css` (register, type tags), `visits-details.css` (record, gallery, viewer), `visits-editor.css` (forms); site tokens only |
 | Script | `wwwroot/js/pages/project-office-reports/visits.js` (charts, viewer, row clicks, upload checks) |
 
 ## The register (`/ProjectOfficeReports/Visits`)
@@ -60,6 +60,21 @@ photos. Everyone signed in can read it; Admin, HoD and Project Office record and
   edited it and when, in IST. An edit within two minutes of recording does not count as an edit.
 - A missing visit shows "Visit not found" with a way back, under a 404 status.
 - A photo or cover whose file cannot be served shows a quiet "unavailable" placeholder.
+
+## Record a visit and Edit visit
+
+- Both forms render the same fields from `VisitFormInput` through `_VisitFields.cshtml`, in the
+  same order: date, type and number of visitors on one row, then the visitor and the remarks
+  (with a character counter against the 2,000 limit). Record starts from today's date in IST.
+- Photos use `_PhotoPicker.cshtml`: previews of each chosen photo, its size, and a check against
+  the limits (count, size per photo, total) that stops the form being sent while the selection
+  breaks them. The server checks the same limits again.
+- **Record visit** opens the new visit's record page; **Record and add another** returns to an
+  empty form. Saving an edit returns to the record page. A rejected edit keeps what was typed.
+- On Edit, the photo manager (`#visit-photo-manager`) uploads more photos and sets the cover or
+  deletes a photo; each returns to the photo manager. Photos save on upload, separately from the
+  details form. Captions are set per upload batch; there is no per-photo caption editor yet.
+- The footer with the buttons stays in view on long forms, except on phones.
 
 ## Messages
 

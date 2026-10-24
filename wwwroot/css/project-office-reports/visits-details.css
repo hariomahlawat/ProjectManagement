@@ -191,6 +191,19 @@
     text-decoration: underline;
 }
 
+/* Inside a panel the gallery lines up with the panel text instead of adding its own inset. */
+.visit-panel .visit-form-card--gallery .visit-gallery,
+.visit-editor .visit-form-card--gallery .visit-gallery {
+    padding: 0;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+}
+
+.visit-panel .visit-gallery-card,
+.visit-editor .visit-gallery-card {
+    border-radius: 0.75rem;
+}
+
 /* Panels */
 .visit-panel {
     padding: 1.1rem 1.25rem 1.25rem;

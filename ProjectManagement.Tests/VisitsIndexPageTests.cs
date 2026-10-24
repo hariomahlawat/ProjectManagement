@@ -221,6 +221,79 @@ public sealed class VisitsIndexPageTests
         Assert.Null(redirect.RouteValues?["From"]);
     }
 
+    [Fact]
+    public async Task RecordPage_StartsFromTodayInIstAndOpensTheNewVisitAfterSaving()
+    {
+        await using var db = CreateDb();
+        var (_, courses) = await SeedTypesAsync(db);
+        using var userManager = CreateUserManager(db);
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var page = new NewModel(
+            new VisitService(db, clock, new RecordingAudit(), new StubVisitPhotoService()),
+            new VisitTypeService(db, clock, new RecordingAudit()),
+            new StubVisitPhotoService(),
+            userManager,
+            Options.Create(new VisitPhotoOptions()));
+        ConfigurePageContext(page, CreatePrincipal("officer", "Admin"));
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        var todayIst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ProjectManagement.Utilities.TimeZoneHelper.GetIst()).DateTime);
+        Assert.Equal(todayIst, page.Input.DateOfVisit);
+
+        page.Input = new NewModel.InputModel
+        {
+            DateOfVisit = todayIst,
+            VisitTypeId = courses.Id,
+            VisitorName = "Long Gunnery Staff Course 5003",
+            Strength = 48
+        };
+        page.SaveMode = "save";
+
+        var result = await page.OnPostAsync(CancellationToken.None);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("Details", redirect.PageName);
+        var saved = Assert.Single(db.Visits);
+        Assert.Equal(saved.Id, redirect.RouteValues?["id"]);
+        Assert.Equal("Visit recorded.", page.TempData["ToastSuccess"]);
+    }
+
+    [Fact]
+    public async Task EditPage_KeepsWhatWasTypedWhenTheSaveIsRejected()
+    {
+        await using var db = CreateDb();
+        var (_, courses) = await SeedTypesAsync(db);
+        var visit = NewVisit(courses, new DateOnly(2026, 5, 9), "Original name", 60);
+        db.Visits.Add(visit);
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var page = new EditModel(
+            new VisitService(db, clock, new RecordingAudit(), new StubVisitPhotoService()),
+            new VisitTypeService(db, clock, new RecordingAudit()),
+            new StubVisitPhotoService(),
+            userManager,
+            Options.Create(new VisitPhotoOptions()));
+        ConfigurePageContext(page, CreatePrincipal("officer", "Admin"));
+        page.Input = new EditModel.InputModel
+        {
+            DateOfVisit = new DateOnly(2026, 5, 10),
+            VisitTypeId = courses.Id,
+            VisitorName = "Corrected name",
+            Strength = 0
+        };
+        page.ModelState.AddModelError("Input.Strength", "Enter at least one visitor.");
+
+        var result = await page.OnPostAsync(visit.Id, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal("Corrected name", page.Input.VisitorName);
+        Assert.Equal(new DateOnly(2026, 5, 10), page.Input.DateOfVisit);
+        Assert.Equal("Original name", page.SavedVisitorName);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

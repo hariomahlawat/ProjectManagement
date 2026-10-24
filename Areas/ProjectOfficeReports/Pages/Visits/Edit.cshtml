@@ -1,224 +1,90 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.EditModel
+@using System.Globalization
 @{
-    ViewData["Title"] = "Edit visit to SDD";
-    var visitDateDisplay = Model.Input.DateOfVisit?.ToString("dd MMM yyyy");
-    var visitDayDisplay = Model.Input.DateOfVisit?.ToString("dddd");
-    var totalPhotos = Model.PhotoGallery?.Photos.Count ?? 0;
+    var visitorName = Model.SavedVisitorName ?? Model.Input.VisitorName;
+    ViewData["Title"] = $"Edit · {visitorName} · Visits to SDD";
+    ViewData["VisitTypeOptions"] = Model.VisitTypeOptions;
+    var totalPhotos = Model.Photos.Count;
 }
 
-@if (!Model.CanManage)
-{
-    <div class="visit-shell visit-tracker">
-        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Edit visit to SDD</li>
-            </ol>
-        </nav>
-        <div class="visit-access-card">
-            <div class="visit-empty text-center py-5">
-                <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-shield-lock"></i></div>
-                <h2 class="visit-empty__title">Access restricted</h2>
-                <p class="visit-empty__subtitle">You do not have permission to edit visits.</p>
-            </div>
-        </div>
-    </div>
-}
-else if (Model.PhotoGallery is null)
-{
-    <div class="visit-shell visit-tracker">
-        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Edit visit to SDD</li>
-            </ol>
-        </nav>
-        <div class="visit-access-card">
-            <div class="visit-empty text-center py-5">
-                <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-frown"></i></div>
-                <h2 class="visit-empty__title">Visit not found</h2>
-                <p class="visit-empty__subtitle">It may have been deleted or is no longer accessible.</p>
-            </div>
-        </div>
-    </div>
-}
-else
-{
-    <div class="visit-shell visit-tracker">
-        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Edit visit to SDD</li>
-            </ol>
-        </nav>
+<div class="visit-editor-page">
+    <nav aria-label="Breadcrumb" class="visit-record__crumbs">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
+            <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.VisitId">@visitorName</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Edit</li>
+        </ol>
+    </nav>
 
-        <section class="visit-hero visit-hero--form">
-            <div class="visit-hero__content">
-                <span class="visit-hero__eyebrow">Update oversight</span>
-                <h1 class="visit-hero__title">Edit visit to SDD</h1>
-                <p class="visit-hero__subtitle">Safely correct inbound visit details and manage photo evidence for this visit to SDD.</p>
-                <div class="visit-hero__meta">
-                    @if (!string.IsNullOrWhiteSpace(visitDateDisplay))
-                    {
-                        <span class="visit-hero__meta-item"><i class="bi bi-calendar-event" aria-hidden="true"></i> @visitDateDisplay (@visitDayDisplay).</span>
-                    }
-                    <span class="visit-hero__meta-item"><i class="bi bi-person" aria-hidden="true"></i> Visitor: @Model.Input.VisitorName</span>
-                    <span class="visit-hero__meta-item"><i class="bi bi-images" aria-hidden="true"></i> @totalPhotos photo@(totalPhotos == 1 ? string.Empty : "s") attached.</span>
-                </div>
-                <div class="visit-hero__actions">
-                    <a asp-page="Details" asp-route-id="@Model.PhotoGallery.VisitId" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
-                        <i class="bi bi-eye" aria-hidden="true"></i>
-                        <span>View visit details</span>
-                    </a>
-                </div>
-            </div>
+    <header class="visit-editor-page__head">
+        <h1>Edit visit</h1>
+        <p>@visitorName</p>
+    </header>
+
+    <form method="post" class="visit-editor" data-visits-disable-on-submit>
+        <input type="hidden" asp-for="RowVersion" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger visit-editor__summary" role="alert"></div>
+
+        <section class="visit-editor__section" aria-labelledby="visit-editor-details">
+            <h2 id="visit-editor-details" class="visit-editor__heading">The visit</h2>
+            <partial name="_VisitFields" for="Input" />
         </section>
 
-        <div class="visit-form-layout">
-            <div class="visit-form-layout__primary">
-                <div class="visit-form-card">
-                    <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Visit details</h2>
-                        <p class="visit-form-card__subtitle">Keep the date, type, visitor, strength, and remarks accurate for reporting fidelity.</p>
-                    </div>
-                    <form method="post" novalidate class="visit-form" data-visits-disable-on-submit>
-                        <input type="hidden" asp-for="RowVersion" />
-                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-                        <div class="visit-form-grid">
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.VisitTypeId" class="form-label"></label>
-                                <select asp-for="Input.VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
-                                <span asp-validation-for="Input.VisitTypeId" class="text-danger"></span>
-                            </div>
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.DateOfVisit" class="form-label"></label>
-                                <input asp-for="Input.DateOfVisit" class="form-control" type="date" />
-                                <span asp-validation-for="Input.DateOfVisit" class="text-danger"></span>
-                            </div>
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.VisitorName" class="form-label"></label>
-                                <input asp-for="Input.VisitorName" class="form-control" />
-                                <span asp-validation-for="Input.VisitorName" class="text-danger"></span>
-                            </div>
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.Strength" class="form-label"></label>
-                                <input asp-for="Input.Strength" class="form-control" type="number" min="1" step="1" />
-                                <span asp-validation-for="Input.Strength" class="text-danger"></span>
-                            </div>
-                            <div class="visit-form-grid__field visit-form-grid__field--full">
-                                <label asp-for="Input.Remarks" class="form-label"></label>
-                                <textarea asp-for="Input.Remarks" class="form-control" rows="5" placeholder="Optional remarks"></textarea>
-                                <span asp-validation-for="Input.Remarks" class="text-danger"></span>
-                            </div>
-                        </div>
-                        <div class="visit-form__footer">
-                            <a asp-page="Index" class="btn btn-outline-secondary">Back to visits</a>
-                            <button type="submit" class="btn btn-primary" data-visits-busy-label="Saving…">Save changes</button>
-                        </div>
-                    </form>
-                </div>
+        <footer class="visit-editor__footer">
+            <a asp-page="Details" asp-route-id="@Model.VisitId" class="btn btn-link visit-editor__cancel">Cancel</a>
+            <div class="visit-editor__submit">
+                <button type="submit" class="btn btn-primary" data-visits-busy-label="Saving…">
+                    <i class="bi bi-check2" aria-hidden="true"></i> Save changes
+                </button>
             </div>
-            <aside class="visit-form-layout__sidebar">
-                <div class="visit-intel-card">
-                    <h2 class="visit-intel-card__title">Quick summary</h2>
-                    <dl class="visit-intel-card__meta">
-                        <div>
-                            <dt>Visit type</dt>
-                            <dd>@Model.VisitTypeOptions.FirstOrDefault(option => option.Selected)?.Text</dd>
-                        </div>
-                        <div>
-                            <dt>Team strength</dt>
-                            <dd>@Model.Input.Strength</dd>
-                        </div>
-                        <div>
-                            <dt>Photos linked</dt>
-                            <dd>@totalPhotos</dd>
-                        </div>
-                    </dl>
-                </div>
-                <div class="visit-intel-card">
-                    <h2 class="visit-intel-card__title">Tips while editing</h2>
-                    <ul class="visit-intel-card__list">
-                        <li>Keep remarks action-oriented for quick follow-up.</li>
-                        <li>Use the gallery below to refresh cover photos.</li>
-                        <li>Upload new media in batches for faster documentation.</li>
-                    </ul>
-                </div>
-            </aside>
-        </div>
+        </footer>
+    </form>
 
-        <section class="visit-media">
-            <div class="visit-media__upload">
-                <div class="visit-form-card">
-                    <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Upload additional photos</h2>
-                        <p class="visit-form-card__subtitle">You may upload additional photos. Existing photos will not be removed.</p>
-                    </div>
-                    <form method="post"
-                          enctype="multipart/form-data"
-                          asp-page="./Edit"
-                          asp-page-handler="Upload"
-                          asp-route-id="@Model.PhotoGallery.VisitId"
-                          class="visit-form"
-                          data-visits-disable-on-submit>
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="id" value="@Model.PhotoGallery.VisitId" />
-                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-                        <div class="visit-form-grid visit-form-grid--single">
-                            <div class="visit-form-grid__field">
-                                <label class="form-label" for="visit-edit-photo">Photo evidence</label>
-                                <input id="visit-edit-photo"
-                                       class="form-control"
-                                       type="file"
-                                       asp-for="Uploads"
-                                       accept="image/*"
-                                       multiple
-                                       data-photo-upload-input
-                                       data-max-files="@Model.VisitPhotoMaxFiles"
-                                       data-max-bytes="@Model.VisitPhotoMaxBytes"
-                                       aria-describedby="visit-edit-photo-help visit-edit-photo-summary" />
-                                <span asp-validation-for="Uploads" class="text-danger"></span>
-                                <div class="form-text" id="visit-edit-photo-help">@Model.VisitPhotoHelpText</div>
-                                <div class="form-text" id="visit-edit-photo-summary" data-photo-upload-summary></div>
-                            </div>
-                            <div class="visit-form-grid__field">
-                                <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>
-                                <input asp-for="UploadCaption" class="form-control" placeholder="Optional batch caption" />
-                                <span asp-validation-for="UploadCaption" class="text-danger"></span>
-                            </div>
-                        </div>
-                        <div class="visit-form__footer visit-form__footer--compact">
-                            <button type="submit" class="btn btn-outline-primary" data-visits-busy-label="Uploading…">Upload photos</button>
-                        </div>
-                    </form>
+    @* SECTION: Photo manager *@
+    <section class="visit-editor visit-editor--photos" id="@EditModel.PhotoManagerAnchor" aria-labelledby="visit-editor-photos">
+        <div class="visit-editor__section">
+            <h2 id="visit-editor-photos" class="visit-editor__heading">
+                Photos <span class="visit-panel__count">@totalPhotos</span>
+            </h2>
+            <p class="visit-editor__hint">
+                Photos save as soon as you upload them; this does not change the details above.
+                @(totalPhotos > 0 ? "The cover photo leads the visit on the register and its record page." : string.Empty)
+            </p>
+
+            <form method="post"
+                  enctype="multipart/form-data"
+                  asp-page-handler="Upload"
+                  asp-route-id="@Model.VisitId"
+                  class="visit-editor__upload"
+                  data-visits-disable-on-submit>
+                <input type="hidden" name="id" value="@Model.VisitId" />
+                <partial name="_PhotoPicker" model="Model.PhotoPicker" />
+                <div class="visit-editor__upload-actions">
+                    <button type="submit" class="btn btn-outline-primary" data-visits-busy-label="Uploading…">
+                        <i class="bi bi-upload" aria-hidden="true"></i> Upload photos
+                    </button>
                 </div>
-            </div>
-            <div class="visit-media__gallery">
-                <div class="visit-form-card visit-form-card--gallery">
-                    <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Existing photo evidence</h2>
-                        <p class="visit-form-card__subtitle">@totalPhotos photo@(totalPhotos == 1 ? string.Empty : "s") uploaded. @(Model.CoverPhotoId.HasValue ? "Cover photo is set." : "No cover photo selected.")</p>
-                    </div>
-                    <div class="visit-form-card__body">
-                        <partial name="_PhotosPartial" model="Model.PhotoGallery" />
-                    </div>
+            </form>
+
+            @if (totalPhotos > 0)
+            {
+                <div class="visit-editor__gallery visit-form-card--gallery">
+                    <partial name="_PhotosPartial" model="Model.PhotoGallery" />
                 </div>
-            </div>
-        </section>
-    </div>
+            }
+        </div>
+    </section>
 
     @if (totalPhotos > 0)
     {
-        <partial name="_PhotoViewer" model="Model.Input.VisitorName ?? string.Empty" />
+        <partial name="_PhotoViewer" model="visitorName" />
     }
-}
+</div>
 
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-editor.css" asp-append-version="true" />
 }
 
 @section Scripts {

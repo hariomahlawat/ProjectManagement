@@ -1,0 +1,39 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.VisitFormInput
+@using Microsoft.AspNetCore.Mvc.Rendering
+@* The visit's fields, shared by Record and Edit. Render with <partial name="_VisitFields" for="Input" />
+   and the type list in ViewData["VisitTypeOptions"]. *@
+@{
+    var typeOptions = ViewData["VisitTypeOptions"] as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+}
+
+<div class="visit-editor__grid">
+    <div class="visit-editor__field visit-editor__field--date">
+        <label asp-for="DateOfVisit" class="form-label"></label>
+        <input asp-for="DateOfVisit" class="form-control" type="date" />
+        <span asp-validation-for="DateOfVisit" class="invalid-feedback d-block"></span>
+    </div>
+    <div class="visit-editor__field visit-editor__field--type">
+        <label asp-for="VisitTypeId" class="form-label"></label>
+        <select asp-for="VisitTypeId" asp-items="typeOptions" class="form-select"></select>
+        <span asp-validation-for="VisitTypeId" class="invalid-feedback d-block"></span>
+    </div>
+    <div class="visit-editor__field visit-editor__field--strength">
+        <label asp-for="Strength" class="form-label"></label>
+        <input asp-for="Strength" class="form-control" type="number" min="1" step="1" inputmode="numeric" />
+        <span asp-validation-for="Strength" class="invalid-feedback d-block"></span>
+    </div>
+    <div class="visit-editor__field visit-editor__field--full">
+        <label asp-for="VisitorName" class="form-label"></label>
+        <input asp-for="VisitorName" class="form-control" placeholder="e.g. Lt Gen A K Singh, AVSM" autocomplete="off" />
+        <div class="form-text">Name and appointment of the dignitary, or the course or delegation, as it should appear in reports.</div>
+        <span asp-validation-for="VisitorName" class="invalid-feedback d-block"></span>
+    </div>
+    <div class="visit-editor__field visit-editor__field--full">
+        <div class="visit-editor__label-row">
+            <label asp-for="Remarks" class="form-label"></label>
+            <span class="visit-editor__counter" data-char-counter-for="Input_Remarks" aria-live="polite"></span>
+        </div>
+        <textarea asp-for="Remarks" class="form-control" rows="7" maxlength="2000" placeholder="Who led the visit, what was shown or briefed, directions given and any follow-up."></textarea>
+        <span asp-validation-for="Remarks" class="invalid-feedback d-block"></span>
+    </div>
+</div>

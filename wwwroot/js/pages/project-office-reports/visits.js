@@ -774,43 +774,138 @@ function formatMb(bytes) {
     return (bytes / (1024 * 1024)).toFixed(1);
 }
 
+// A file size people can read: KB under a megabyte, otherwise MB to one decimal.
+function formatSize(bytes) {
+    return bytes < 1024 * 1024
+        ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+        : `${formatMb(bytes)} MB`;
+}
+
+// A configured limit, as the help text states it (20 MB, not 20.0 MB).
+function formatLimit(bytes) {
+    return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
 // SECTION: Photo upload interactions
 function initPhotoUploadInputs() {
     const inputs = document.querySelectorAll('[data-photo-upload-input]');
     inputs.forEach(input => {
-        const summaryId = input.getAttribute('aria-describedby')
-            ?.split(' ')
-            .map(id => id.trim())
-            .find(id => id.endsWith('photo-summary'));
-        const summaryEl = summaryId ? document.getElementById(summaryId) : null;
+        const picker = input.closest('[data-photo-picker]');
+        const summaryEl = picker?.querySelector('[data-photo-upload-summary]');
+        const previewEl = picker?.querySelector('[data-photo-upload-preview]');
+        const dropZone = input.closest('.visit-photo-picker__drop');
         const maxFiles = Number(input.getAttribute('data-max-files') || '0');
         const maxBytes = Number(input.getAttribute('data-max-bytes') || '0');
+        const maxBatchBytes = Number(input.getAttribute('data-max-batch-bytes') || '0');
+        let previewUrls = [];
+        let problem = null;
 
-        input.addEventListener('change', () => {
+        const clearPreviews = () => {
+            previewUrls.forEach(url => URL.revokeObjectURL(url));
+            previewUrls = [];
+            if (previewEl) {
+                previewEl.replaceChildren();
+            }
+        };
+
+        // SECTION: Selection check and previews
+        const render = () => {
             const files = Array.from(input.files || []);
-            if (!summaryEl) {
+            const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
+            const oversized = files.filter(file => maxBytes > 0 && (file.size || 0) > maxBytes);
+
+            problem = null;
+            if (maxFiles > 0 && files.length > maxFiles) {
+                problem = `Choose up to ${maxFiles} photos at a time; ${files.length} are selected.`;
+            } else if (oversized.length > 0) {
+                problem = oversized.length === 1
+                    ? `"${oversized[0].name}" is larger than ${formatLimit(maxBytes)}.`
+                    : `${oversized.length} photos are larger than ${formatLimit(maxBytes)} each.`;
+            } else if (maxBatchBytes > 0 && totalBytes > maxBatchBytes) {
+                problem = `Together these photos are ${formatSize(totalBytes)}; the limit is ${formatLimit(maxBatchBytes)}.`;
+            }
+
+            if (summaryEl) {
+                summaryEl.classList.toggle('is-invalid', problem !== null);
+                summaryEl.textContent = files.length === 0
+                    ? ''
+                    : problem ?? `${files.length} ${files.length === 1 ? 'photo' : 'photos'} selected · ${formatSize(totalBytes)}`;
+            }
+            input.setCustomValidity(problem ?? '');
+
+            clearPreviews();
+            if (!previewEl) {
                 return;
             }
 
-            // SECTION: Count guardrail
-            if (maxFiles > 0 && files.length > maxFiles) {
-                showToast(`You can upload up to ${maxFiles} photos at a time.`, 'danger');
-            }
-
-            // SECTION: Summary rendering
-            const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
-            summaryEl.textContent = files.length === 0
-                ? ''
-                : `Selected: ${files.length} file(s), total ${formatMb(totalBytes)} MB.`;
-
-            // SECTION: Size guardrail
-            if (maxBytes > 0) {
-                const oversized = files.find(file => (file.size || 0) > maxBytes);
-                if (oversized) {
-                    showToast(`\"${oversized.name}\" exceeds the per-photo limit. Please choose a smaller file.`, 'danger');
+            files.slice(0, 48).forEach(file => {
+                const item = document.createElement('li');
+                item.className = 'visit-photo-preview';
+                if (maxBytes > 0 && (file.size || 0) > maxBytes) {
+                    item.classList.add('is-too-large');
                 }
+
+                const img = document.createElement('img');
+                img.alt = '';
+                if (file.type && file.type.startsWith('image/')) {
+                    const url = URL.createObjectURL(file);
+                    previewUrls.push(url);
+                    img.src = url;
+                }
+
+                const name = document.createElement('span');
+                name.className = 'visit-photo-preview__name';
+                name.textContent = file.name;
+                name.title = file.name;
+
+                const size = document.createElement('span');
+                size.className = 'visit-photo-preview__size';
+                size.textContent = formatSize(file.size || 0);
+
+                item.append(img, name, size);
+                previewEl.append(item);
+            });
+        };
+
+        input.addEventListener('change', render);
+
+        // Stop the form being sent while the selection breaks the limits; the server checks again.
+        input.form?.addEventListener('submit', event => {
+            if (problem) {
+                event.preventDefault();
+                showToast(problem, 'danger');
+                input.focus();
             }
         });
+
+        // SECTION: Drag highlight
+        if (dropZone) {
+            ['dragenter', 'dragover'].forEach(type => input.addEventListener(type, () => dropZone.classList.add('is-dragging')));
+            ['dragleave', 'drop'].forEach(type => input.addEventListener(type, () => dropZone.classList.remove('is-dragging')));
+        }
+
+        window.addEventListener('pagehide', clearPreviews);
+    });
+}
+
+// SECTION: Character counters
+// <span data-char-counter-for="fieldId"> shows how much of a maxlength field is left.
+function initCharacterCounters() {
+    document.querySelectorAll('[data-char-counter-for]').forEach(counter => {
+        const field = document.getElementById(counter.getAttribute('data-char-counter-for') || '');
+        const limit = Number(field?.getAttribute('maxlength') || '0');
+        if (!field || limit <= 0) {
+            return;
+        }
+
+        const update = () => {
+            const used = field.value.length;
+            counter.textContent = `${used.toLocaleString()} / ${limit.toLocaleString()}`;
+            counter.classList.toggle('is-near-limit', used >= limit * 0.9);
+        };
+
+        field.addEventListener('input', update);
+        update();
     });
 }
 
@@ -935,6 +1030,7 @@ function init() {
     initRegisterRows();
     initCoverPhoto();
     initPhotoUploadInputs();
+    initCharacterCounters();
     initVisitRegisterPageSize();
 }
 

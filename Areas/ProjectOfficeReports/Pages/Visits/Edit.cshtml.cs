@@ -53,7 +53,21 @@ public class EditModel : PageModel
     public int VisitPhotoMaxMb => Math.Max(1, (int)Math.Floor(VisitPhotoMaxBytes / 1024d / 1024d));
 
     public string VisitPhotoHelpText =>
-        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each and {VisitPhotoMaxBatchMb} MB total. You may upload additional photos; existing photos will not be removed.";
+        $"JPEG, PNG or WebP · up to {VisitPhotoMaxFiles} photos, {VisitPhotoMaxMb} MB each, {VisitPhotoMaxBatchMb} MB in all";
+
+    public const string PhotoManagerAnchor = "visit-photo-manager";
+
+    public VisitPhotoPickerModel PhotoPicker => new(
+        "visit-edit-photo",
+        VisitPhotoHelpText,
+        VisitPhotoMaxFiles,
+        VisitPhotoMaxBytes,
+        VisitPhotoMaxBatchBytes,
+        UploadCaption,
+        ModelState.TryGetValue(nameof(Uploads), out var entry) && entry.Errors.Count > 0 ? entry.Errors[0].ErrorMessage : null);
+
+    // The visitor's name as saved, for the page header (the field itself may hold unsaved edits).
+    public string? SavedVisitorName { get; private set; }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -87,7 +101,8 @@ public class EditModel : PageModel
     {
         if (!await LoadAsync(id, cancellationToken))
         {
-            return NotFound();
+            // The record page has the "Visit not found" screen.
+            return RedirectToPage("Details", new { id });
         }
 
         if (!CanManage)
@@ -107,7 +122,7 @@ public class EditModel : PageModel
 
         if (!ModelState.IsValid)
         {
-            await LoadAsync(id, cancellationToken);
+            await LoadAsync(id, cancellationToken, keepInput: true);
             return Page();
         }
 
@@ -115,7 +130,7 @@ public class EditModel : PageModel
         if (rowVersionBytes == null)
         {
             ModelState.AddModelError(string.Empty, "We could not verify your request. Please reload and try again.");
-            await LoadAsync(id, cancellationToken);
+            await LoadAsync(id, cancellationToken, keepInput: true);
             return Page();
         }
 
@@ -123,7 +138,7 @@ public class EditModel : PageModel
         if (result.Outcome == VisitMutationOutcome.Success)
         {
             TempData["ToastSuccess"] = "Visit updated.";
-            return RedirectToPage(new { id });
+            return RedirectToPage("Details", new { id });
         }
 
         if (result.Outcome == VisitMutationOutcome.VisitTypeInactive || result.Outcome == VisitMutationOutcome.VisitTypeNotFound)
@@ -143,7 +158,7 @@ public class EditModel : PageModel
             ModelState.AddModelError(string.Empty, "Unable to update the visit.");
         }
 
-        await LoadAsync(id, cancellationToken);
+        await LoadAsync(id, cancellationToken, keepInput: true);
         return Page();
     }
 
@@ -255,19 +270,19 @@ public class EditModel : PageModel
             if (successfulUploads > 0)
             {
                 TempData["ToastError"] = string.Join(" ", errors);
-                return RedirectToPage(new { id = visitId });
+                return RedirectToPhotos(visitId);
             }
 
             foreach (var error in errors)
             {
-                ModelState.AddModelError(string.Empty, error);
+                ModelState.AddModelError(nameof(Uploads), error);
             }
 
             await LoadAsync(visitId, cancellationToken);
             return Page();
         }
 
-        return RedirectToPage(new { id = visitId });
+        return RedirectToPhotos(visitId);
     }
 
     public async Task<IActionResult> OnPostDeletePhotoAsync(Guid id, Guid photoId, CancellationToken cancellationToken)
@@ -298,7 +313,7 @@ public class EditModel : PageModel
             TempData["ToastError"] = "Unable to delete the photo.";
         }
 
-        return RedirectToPage(new { id = visitId });
+        return RedirectToPhotos(visitId);
     }
 
     public async Task<IActionResult> OnPostSetCoverAsync(Guid id, Guid photoId, CancellationToken cancellationToken)
@@ -329,8 +344,11 @@ public class EditModel : PageModel
             TempData["ToastError"] = "Unable to set cover photo.";
         }
 
-        return RedirectToPage(new { id = visitId });
+        return RedirectToPhotos(visitId);
     }
+
+    // Photo actions return to the photo manager, not the top of the page.
+    private IActionResult RedirectToPhotos(Guid visitId) => RedirectToPage(null, null, new { id = visitId }, PhotoManagerAnchor);
 
     // SECTION: Visit resolution helpers
     private Guid ResolveVisitId(Guid id)
@@ -358,7 +376,8 @@ public class EditModel : PageModel
     }
 
     // SECTION: Page data loading
-    private async Task<bool> LoadAsync(Guid id, CancellationToken cancellationToken)
+    // keepInput: re-showing the form after a failed save keeps what the officer typed.
+    private async Task<bool> LoadAsync(Guid id, CancellationToken cancellationToken, bool keepInput = false)
     {
         var details = await _visitService.GetDetailsAsync(id, cancellationToken);
         if (details == null)
@@ -366,18 +385,23 @@ public class EditModel : PageModel
             return false;
         }
 
-        Input = new InputModel
+        if (!keepInput)
         {
-            VisitTypeId = details.Visit.VisitTypeId,
-            DateOfVisit = details.Visit.DateOfVisit,
-            VisitorName = details.Visit.VisitorName,
-            Strength = details.Visit.Strength,
-            Remarks = details.Visit.Remarks
-        };
-        RowVersion = Convert.ToBase64String(details.Visit.RowVersion);
+            Input = new InputModel
+            {
+                VisitTypeId = details.Visit.VisitTypeId,
+                DateOfVisit = details.Visit.DateOfVisit,
+                VisitorName = details.Visit.VisitorName,
+                Strength = details.Visit.Strength,
+                Remarks = details.Visit.Remarks
+            };
+            RowVersion = Convert.ToBase64String(details.Visit.RowVersion);
+        }
+
         CoverPhotoId = details.Visit.CoverPhotoId;
         Photos = details.Photos;
         VisitId = details.Visit.Id;
+        SavedVisitorName = details.Visit.VisitorName;
 
         var visitTypes = await _visitTypeService.GetAllAsync(includeInactive: false, cancellationToken);
         var list = new List<SelectListItem>
@@ -390,7 +414,7 @@ public class EditModel : PageModel
         {
             list.Add(new SelectListItem(type.Name, type.Id.ToString())
             {
-                Selected = type.Id == details.Visit.VisitTypeId
+                Selected = type.Id == (Input.VisitTypeId ?? details.Visit.VisitTypeId)
             });
         }
 
@@ -453,29 +477,9 @@ public class EditModel : PageModel
         }
     }
 
-    public class InputModel
+    // The fields live in VisitFormInput, shared with Record.
+    public class InputModel : VisitFormInput
     {
-        [Required]
-        [Display(Name = "Visit type")]
-        public Guid? VisitTypeId { get; set; }
-
-        [Required]
-        [DataType(DataType.Date)]
-        [Display(Name = "Date of visit")]
-        public DateOnly? DateOfVisit { get; set; }
-
-        [Required]
-        [StringLength(200)]
-        [Display(Name = "Visitor / course / delegation")]
-        public string VisitorName { get; set; } = string.Empty;
-
-        [Display(Name = "Strength")]
-        [Range(1, int.MaxValue, ErrorMessage = "Strength must be greater than zero.")]
-        public int Strength { get; set; }
-
-        [StringLength(2000)]
-        [Display(Name = "Remarks / key observations")]
-        public string? Remarks { get; set; }
     }
 
     // SECTION: Upload helpers

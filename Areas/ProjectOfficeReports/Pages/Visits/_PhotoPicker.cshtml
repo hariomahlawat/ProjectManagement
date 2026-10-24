@@ -1,0 +1,34 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.VisitPhotoPickerModel
+@* Photo chooser with previews, shared by Record and Edit. visits.js ([data-photo-upload-input])
+   shows a preview of each chosen photo, flags any that are too large and stops the form from
+   being sent while the selection breaks the limits. *@
+
+<div class="visit-photo-picker" data-photo-picker>
+    <label class="visit-photo-picker__drop" for="@Model.InputId">
+        <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+        <span class="visit-photo-picker__prompt"><strong>Choose photos</strong> or drop them here</span>
+        <span class="visit-photo-picker__limits" id="@(Model.InputId)-help">@Model.HelpText</span>
+        <input id="@Model.InputId"
+               class="visit-photo-picker__input"
+               type="file"
+               name="Uploads"
+               accept="image/jpeg,image/png,image/webp"
+               multiple
+               data-photo-upload-input
+               data-max-files="@Model.MaxFiles"
+               data-max-bytes="@Model.MaxBytes"
+               data-max-batch-bytes="@Model.MaxBatchBytes"
+               aria-describedby="@(Model.InputId)-help @(Model.InputId)-summary" />
+    </label>
+    <div class="visit-photo-picker__summary" id="@(Model.InputId)-summary" data-photo-upload-summary aria-live="polite"></div>
+    <ul class="visit-photo-picker__previews" data-photo-upload-preview></ul>
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="invalid-feedback d-block">@Model.Error</div>
+    }
+    <div class="visit-photo-picker__caption">
+        <label for="@(Model.InputId)-caption" class="form-label">Caption <span class="visit-editor__optional">optional</span></label>
+        <input id="@(Model.InputId)-caption" name="UploadCaption" value="@Model.Caption" maxlength="512" class="form-control" placeholder="What these photos show, e.g. Briefing in the simulator hall" />
+        <div class="form-text">Applies to every photo in this batch.</div>
+    </div>
+</div>
