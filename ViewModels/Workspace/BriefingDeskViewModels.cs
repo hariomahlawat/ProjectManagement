@@ -16,7 +16,6 @@ public sealed class BriefingDeskVm
 
     public IReadOnlyList<BriefingDeskWaitingVm> WithOthers { get; init; } = Array.Empty<BriefingDeskWaitingVm>();
 
-    public IReadOnlyList<WorkspaceAttentionItemVm> Returned { get; init; } = Array.Empty<WorkspaceAttentionItemVm>();
 
     public int NotReadyCount => TotalCount - ReadyCount;
 }

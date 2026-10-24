@@ -26,7 +26,7 @@ Sections follow the Conference view order: Projects, Ideas, Tasks. Empty section
 
 | Item | Brief-ready when | Shown but never required |
 | --- | --- | --- |
-| Project | Nothing returned by the HoD left uncorrected; a PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set and not overdue, or a plan awaiting HoD approval; an in-progress stage has an actual start, or a date correction awaiting approval | Record-health gaps, grouped by the editor that fixes them, with the points each would add |
+| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set and not overdue, or a plan awaiting HoD approval; an in-progress stage has an actual start, or a date correction awaiting approval | Record-health gaps, grouped by the editor that fixes them, with the points each would add |
 | Idea | Activity within the existing 15-day idea rule; the latest direction answered with a note | — |
 | Task | Progress by the PO within 7 days; the latest direction answered; if overdue, submitted for closure or flagged blocked. A submitted task waits on the assigner and counts as ready | — |
 
@@ -81,10 +81,15 @@ A successful submission returns to the desk (`ReturnUrl`, local `/Workspace` onl
 keeps the editor's existing behaviour: the full editor reopens on Project Overview with the
 entry and the reasons. In every other state the check links to the full editor.
 
-**Returned items** (plan, actual-date correction, stage change, project details or document
-request sent back by the HoD) appear first on their project's card, with the HoD's note and a
-"Correct and resubmit" link. A returned item keeps the card from being brief-ready. They are
-still listed under **Returned to you**.
+**Returned items are not on the desk** (changed 2026-10-24). When the HoD returns a plan,
+actual-date correction, stage change, project details or document request, that decision is
+finished: the PO learns of it from the notification and from the HoD's note at the top of the
+editor. The desk lists only what is still pending, so a returned item neither appears on the
+card nor stops it being brief-ready, and there is no Returned to you panel. Before this change
+a return stayed listed until a newer submission was pending or approved, so it stuck when an
+Admin or HoD saved the plan directly, the PO discarded the correction draft or withdrew the
+resubmission, or the project was completed or handed to another PO.
+`tools/dev-data/returned-plans-demo-seed.sql` recreates those cases in a development database.
 
 Approval-routed work (plan dates, actual-date corrections, project details, documents) is
 linked to the exact editor. Plan links use `?oc=plan&stage=<code>`, which opens the plan
@@ -127,7 +132,7 @@ page. ERP activity stays under **My ERP activity**.
 
 ## Phones
 
-Below 576 px the three meters sit in one compact row and the With HoD / Returned counts form one
+Below 576 px the three meters sit in one compact row and the With HoD count forms one
 line under them, so the first card is on the first screen. Unread circulars are counted in the
 side column's Reading panel only. The workspace rail, folded, becomes a row of its icons above
 the page (`command-workspace.css`, all workspace pages); expanding it opens the usual overlay.

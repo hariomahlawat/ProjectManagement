@@ -209,40 +209,7 @@ public sealed class BriefingDeskBuilderTests
         Assert.Null(Assert.Single(item.Improvements).PanelId);
     }
 
-    // SECTION: Returned items and the current-stage plan form
-    [Fact]
-    public void Project_ReturnedItem_IsTheFirstCheck_WithTheHodNote_AndBlocksReadiness()
-    {
-        var returned = new WorkspaceAttentionItemVm
-        {
-            ProjectId = 1,
-            Type = "Timeline",
-            Detail = "Timeline plan returned for correction",
-            ActionText = "Correct",
-            ActionUrl = "/Projects/Overview/1?oc=plan#timeline",
-            DueOrEventDateUtc = new DateTime(2026, 10, 19, 6, 0, 0, DateTimeKind.Utc),
-            ReviewerNote = "  Align DEVP with the vendor schedule. "
-        };
-
-        var desk = BriefingDeskBuilder.Build(new BriefingDeskInput(
-            Today,
-            new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) },
-            Array.Empty<BriefingDeskIdeaInput>(),
-            Array.Empty<BriefingDeskTaskInput>(),
-            Array.Empty<WorkspaceConferenceDirectionActionVm>(),
-            null,
-            Array.Empty<BriefingDeskWaitingVm>(),
-            new[] { returned }));
-
-        var item = SingleItem(desk);
-        var first = item.Checks[0];
-        Assert.Equal("Timeline plan returned for correction", first.Label);
-        Assert.Equal("Returned on 19 Oct 2026. HoD: \u201cAlign DEVP with the vendor schedule.\u201d", first.Detail);
-        Assert.Equal("Correct and resubmit", first.ActionText);
-        Assert.Equal(BriefingDeskCheckState.Open, first.State);
-        Assert.False(item.IsBriefReady);
-    }
-
+    // SECTION: Current-stage plan form
     [Fact]
     public void Project_MissingPdc_OffersTheShortPlanForm_WhenThePlanIsClean()
     {
@@ -295,7 +262,6 @@ public sealed class BriefingDeskBuilderTests
             Array.Empty<WorkspaceConferenceDirectionActionVm>(),
             null,
             Array.Empty<BriefingDeskWaitingVm>(),
-            Array.Empty<WorkspaceAttentionItemVm>(),
             PlanDirectSaveRole: true));
 
         var item = SingleItem(desk);
@@ -303,35 +269,6 @@ public sealed class BriefingDeskBuilderTests
         var pdc = item.Checks.Single(check => check.Key == "pdc");
         Assert.Null(pdc.PanelId);
         Assert.Contains("oc=plan", pdc.ActionUrl);
-    }
-
-    [Fact]
-    public void Project_EveryReturnedItemForTheProject_BecomesACheck()
-    {
-        var returned = Enumerable.Range(1, 7)
-            .Select(index => new WorkspaceAttentionItemVm
-            {
-                ProjectId = 1,
-                Type = $"Type{index}",
-                Detail = $"Returned item {index}",
-                ActionUrl = "/Projects/Overview/1",
-                DueOrEventDateUtc = new DateTime(2026, 10, index, 6, 0, 0, DateTimeKind.Utc)
-            })
-            .ToList();
-
-        var desk = BriefingDeskBuilder.Build(new BriefingDeskInput(
-            Today,
-            new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) },
-            Array.Empty<BriefingDeskIdeaInput>(),
-            Array.Empty<BriefingDeskTaskInput>(),
-            Array.Empty<WorkspaceConferenceDirectionActionVm>(),
-            null,
-            Array.Empty<BriefingDeskWaitingVm>(),
-            returned));
-
-        var item = SingleItem(desk);
-        Assert.Equal(7, item.Checks.Count(check => check.Key.StartsWith("returned:", StringComparison.Ordinal)));
-        Assert.Equal("Returned item 7", item.Checks[0].Label);
     }
 
     [Fact]
@@ -591,8 +528,7 @@ public sealed class BriefingDeskBuilderTests
             tasks ?? Array.Empty<BriefingDeskTaskInput>(),
             pendingDirections ?? Array.Empty<WorkspaceConferenceDirectionActionVm>(),
             conference,
-            Array.Empty<BriefingDeskWaitingVm>(),
-            Array.Empty<WorkspaceAttentionItemVm>()));
+            Array.Empty<BriefingDeskWaitingVm>()));
 
     private static BriefingDeskItemVm SingleItem(BriefingDeskVm desk)
         => Assert.Single(Assert.Single(desk.Sections).Items);
