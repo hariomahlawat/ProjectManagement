@@ -76,7 +76,7 @@ public class EditModel : PageModel
         var result = await _service.UpdateAsync(id, Input.Name, Input.Description, Input.IsActive, bytes, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitTypeMutationOutcome.Success)
         {
-            TempData["ToastMessage"] = "Visit type updated.";
+            TempData["ToastSuccess"] = "Visit type updated.";
             return RedirectToPage("Index");
         }
 

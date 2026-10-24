@@ -47,7 +47,7 @@ public class NewModel : PageModel
         var result = await _service.CreateAsync(Input.Name, Input.Description, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitTypeMutationOutcome.Success)
         {
-            TempData["ToastMessage"] = "Visit type created.";
+            TempData["ToastSuccess"] = "Visit type created.";
             return RedirectToPage("Index");
         }
 

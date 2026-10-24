@@ -2,19 +2,7 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.NewModel
 @{
     ViewData["Title"] = "Record visit to SDD";
-    var toastMessages = new List<VisitToastMessage>();
-    if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
-    {
-        toastMessages.Add(new VisitToastMessage(toastMessage, "success"));
-    }
-
-    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
-    {
-        toastMessages.Add(new VisitToastMessage(toastError, "danger"));
-    }
 }
-
-<partial name="_ToastMessages" model="toastMessages" />
 
 @if (!Model.CanManage)
 {

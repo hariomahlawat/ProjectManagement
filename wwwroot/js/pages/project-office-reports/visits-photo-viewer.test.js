@@ -6,7 +6,9 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../../../..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
-const details = read('Areas/ProjectOfficeReports/Pages/Visits/Details.cshtml');
+const details = read('Areas/ProjectOfficeReports/Pages/Visits/Details.cshtml')
+  + read('Areas/ProjectOfficeReports/Pages/Visits/_PhotoViewer.cshtml');
+const edit = read('Areas/ProjectOfficeReports/Pages/Visits/Edit.cshtml');
 const photos = read('Areas/ProjectOfficeReports/Pages/Visits/_PhotosPartial.cshtml');
 const script = read('wwwroot/js/pages/project-office-reports/visits.js');
 const cssPath = path.join(root, 'wwwroot/css/project-office-reports/visits-details.css');
@@ -66,10 +68,15 @@ test('hero photo shortcut is a distinct accessible action and long viewer titles
   assert.match(details, /visit-hero__photo-action/);
   assert.match(details, /href="#visit-photo-gallery"[^>]*class="visit-hero__photo-action"/);
   assert.match(details, /aria-label="View @photoCount visit @photoLabel"/);
-  assert.match(details, /class="visit-photo-viewer__title"[^>]*title="@visit\?\.VisitorName"/);
+  assert.match(details, /class="visit-photo-viewer__title"[^>]*title="@Model"/);
 
   const css = fs.readFileSync(cssPath, 'utf8');
   assert.match(css, /\.visit-hero__photo-action/);
   assert.match(css, /background:\s*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
   assert.match(css, /\.visit-photo-viewer__title[\s\S]*text-overflow:\s*ellipsis/);
+});
+
+test('edit page opens photos in the same in-page viewer instead of leaving the page', () => {
+  assert.match(edit, /<partial name="_PhotoViewer"/);
+  assert.match(edit, /visits-details\.css/);
 });

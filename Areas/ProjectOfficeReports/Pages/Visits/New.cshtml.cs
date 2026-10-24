@@ -186,10 +186,10 @@ public class NewModel : PageModel
                 }
             }
 
-            TempData["ToastMessage"] = toastMessage;
+            TempData["ToastSuccess"] = toastMessage;
             if (string.Equals(SaveMode, "save-add-another", StringComparison.OrdinalIgnoreCase))
             {
-                TempData["ToastMessage"] = $"{toastMessage} Add another visit to SDD.";
+                TempData["ToastSuccess"] = $"{toastMessage} Add another visit to SDD.";
                 return RedirectToPage("New");
             }
 

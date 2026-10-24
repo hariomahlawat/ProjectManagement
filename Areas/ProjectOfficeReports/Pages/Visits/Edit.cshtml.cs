@@ -122,7 +122,7 @@ public class EditModel : PageModel
         var result = await _visitService.UpdateAsync(id, Input.VisitTypeId!.Value, Input.DateOfVisit!.Value, Input.VisitorName, Input.Strength, Input.Remarks, rowVersionBytes, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitMutationOutcome.Success)
         {
-            TempData["ToastMessage"] = "Visit updated.";
+            TempData["ToastSuccess"] = "Visit updated.";
             return RedirectToPage(new { id });
         }
 
@@ -247,7 +247,7 @@ public class EditModel : PageModel
         if (successfulUploads > 0)
         {
             var suffix = successfulUploads == 1 ? "photo" : "photos";
-            TempData["ToastMessage"] = $"{successfulUploads} {suffix} uploaded.";
+            TempData["ToastSuccess"] = $"{successfulUploads} {suffix} uploaded.";
         }
 
         if (errors.Count > 0)
@@ -287,7 +287,7 @@ public class EditModel : PageModel
         var result = await _photoService.RemoveAsync(visitId, photoId, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitPhotoDeletionOutcome.Success)
         {
-            TempData["ToastMessage"] = "Photo deleted.";
+            TempData["ToastSuccess"] = "Photo deleted.";
         }
         else if (result.Outcome == VisitPhotoDeletionOutcome.NotFound)
         {
@@ -318,7 +318,7 @@ public class EditModel : PageModel
         var result = await _photoService.SetCoverAsync(visitId, photoId, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitPhotoSetCoverOutcome.Success)
         {
-            TempData["ToastMessage"] = "Cover photo updated.";
+            TempData["ToastSuccess"] = "Cover photo updated.";
         }
         else if (result.Outcome == VisitPhotoSetCoverOutcome.NotFound)
         {
