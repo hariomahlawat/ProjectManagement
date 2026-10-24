@@ -1,0 +1,398 @@
+/* ================================================================
+   Training tracker — the record page (Pages/Training/View)
+   Same shape as the Visits record: plain header, main column, aside.
+   Site tokens only, so Light and Dark both work. Rules: docs/ux/training.md
+   ================================================================ */
+
+.training-record {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding-block: 0.25rem 2rem;
+}
+
+.training-record__crumbs .breadcrumb {
+    font-size: var(--pm-font-size-sm);
+}
+
+/* SECTION: Header */
+.training-record__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.training-record__identity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.training-record__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.training-record__identity h1 {
+    margin: 0;
+    font-family: var(--pm-font-heading);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    color: var(--pm-text-strong);
+    overflow-wrap: anywhere;
+}
+
+.training-record__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--pm-text-secondary);
+}
+
+.training-record__meta .bi {
+    margin-right: 0.3rem;
+    color: var(--pm-text-muted);
+}
+
+.training-record__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.training-record__actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* SECTION: Layout */
+.training-record__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+    gap: 1.25rem;
+}
+
+.training-record__main,
+.training-record__aside {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+.training-record__aside {
+    position: sticky;
+    top: 5rem;
+}
+
+/* SECTION: Panels */
+.training-panel {
+    padding: 1.1rem 1.25rem 1.25rem;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+}
+
+.training-panel__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.training-panel__title {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.training-panel__note {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+.training-panel__count {
+    margin-left: 0.25rem;
+    padding: 0 0.45rem;
+    border-radius: 999px;
+    background: var(--pm-surface-soft);
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+    vertical-align: middle;
+}
+
+.training-panel__empty {
+    margin: 0.75rem 0 0;
+    color: var(--pm-text-muted);
+}
+
+.training-record__strength {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+}
+
+.training-record__strength strong {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--pm-text-strong);
+    font-variant-numeric: tabular-nums;
+}
+
+.training-record__strength span {
+    color: var(--pm-text-secondary);
+}
+
+/* Roster: rank and name first, as people are read out. */
+.training-roster-table {
+    width: 100%;
+    margin-top: 1rem;
+    border-collapse: collapse;
+}
+
+.training-roster-table thead th {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--pm-divider);
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pm-text-muted);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.training-roster-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--pm-divider);
+    vertical-align: middle;
+}
+
+.training-roster-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.training-roster-table__who {
+    font-weight: 600;
+    color: var(--pm-text-strong);
+}
+
+.training-roster-table__rank {
+    margin-right: 0.25rem;
+    font-weight: 500;
+    color: var(--pm-text-secondary);
+}
+
+.training-roster-table__number {
+    font-family: var(--bs-font-monospace);
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-secondary);
+    white-space: nowrap;
+}
+
+.training-roster-table__unit {
+    color: var(--pm-text-secondary);
+}
+
+.training-roster-table__category {
+    white-space: nowrap;
+    color: var(--pm-text-secondary);
+}
+
+.training-roster-table__category .training-rank-dot {
+    display: inline-block;
+    margin-right: 0.4rem;
+}
+
+.training-record__projects {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.training-record__projects li {
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--pm-divider);
+}
+
+.training-record__projects li:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.training-record__projects a {
+    font-weight: 600;
+    color: var(--pm-link);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.training-record__projects a:hover,
+.training-record__projects a:focus-visible {
+    text-decoration: underline;
+}
+
+.training-record__notes {
+    margin: 0;
+    color: var(--pm-text);
+    line-height: 1.65;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+/* SECTION: Aside */
+.training-facts {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+.training-facts > div {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.55rem 0;
+    border-top: 1px solid var(--pm-divider);
+}
+
+.training-facts > div:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.training-facts dt {
+    font-size: var(--pm-font-size-sm);
+    font-weight: 500;
+    color: var(--pm-text-muted);
+}
+
+.training-facts dd {
+    margin: 0;
+    font-weight: 600;
+    color: var(--pm-text-strong);
+}
+
+.training-facts dd span {
+    display: block;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 400;
+    color: var(--pm-text-muted);
+}
+
+.training-history {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.training-history li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding-left: 0.85rem;
+    border-left: 2px solid var(--pm-border);
+}
+
+.training-history__what {
+    font-size: var(--pm-font-size-sm);
+    font-weight: 600;
+    color: var(--pm-text-strong);
+}
+
+.training-history__when {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.training-history__quiet {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+@media (max-width: 991.98px) {
+    .training-record__layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .training-record__aside {
+        position: static;
+    }
+}
+
+/* SECTION: Phones — each roster row reads as two lines; nothing scrolls sideways. */
+@media (max-width: 767.98px) {
+    .training-record__head {
+        align-items: stretch;
+    }
+
+    .training-record__actions,
+    .training-record__actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .training-record__identity h1 {
+        font-size: 1.35rem;
+    }
+
+    .training-roster-table thead {
+        display: none;
+    }
+
+    .training-roster-table,
+    .training-roster-table tbody,
+    .training-roster-table tr {
+        display: block;
+    }
+
+    .training-roster-table tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "who category"
+            "number unit";
+        gap: 0.15rem 0.75rem;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid var(--pm-divider);
+    }
+
+    .training-roster-table tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .training-roster-table td {
+        padding: 0;
+        border: 0;
+    }
+
+    .training-roster-table__who { grid-area: who; }
+    .training-roster-table__category { grid-area: category; text-align: right; }
+    .training-roster-table__number { grid-area: number; }
+    .training-roster-table__unit { grid-area: unit; text-align: right; font-size: var(--pm-font-size-sm); }
+}
+
+@media print {
+    .training-record__actions {
+        display: none !important;
+    }
+}

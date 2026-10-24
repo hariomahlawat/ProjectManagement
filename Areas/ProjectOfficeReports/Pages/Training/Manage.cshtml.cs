@@ -721,7 +721,7 @@ public class ManageModel : PageModel
         public int LegacyOrCount { get; set; }
 
         [MaxLength(2000)]
-        [Display(Name = "Notes/ Remarks")]
+        [Display(Name = "Notes")]
         public string? Notes { get; set; }
 
         public List<int>? ProjectIds { get; set; } = new();
