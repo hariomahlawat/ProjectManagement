@@ -780,28 +780,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ToList();
         }
 
+        // The workbook uses the same filing date as the register; undated trainings sort last.
         private static DateOnly GetExportSortDate(TrainingListItem item)
-        {
-            if (item.StartDate.HasValue)
-            {
-                return item.StartDate.Value;
-            }
-
-            if (item.EndDate.HasValue)
-            {
-                return item.EndDate.Value;
-            }
-
-            if (item.TrainingYear.HasValue
-                && item.TrainingMonth.HasValue
-                && item.TrainingMonth.Value is >= 1 and <= 12
-                && item.TrainingYear.Value is >= 1 and <= 9999)
-            {
-                return new DateOnly(item.TrainingYear.Value, item.TrainingMonth.Value, 1);
-            }
-
-            return DateOnly.MinValue;
-        }
+            => item.EffectiveDate ?? DateOnly.MinValue;
 
         private static string FormatProjectLifecycleStatus(ProjectLifecycleStatus status)
             => status switch
