@@ -24,7 +24,6 @@ public class StageProgressService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IAuditService _audit;
-    private readonly ProjectFactsReadService _factsRead;
     private readonly IStageNotificationService _stageNotifications;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
@@ -33,6 +32,8 @@ public class StageProgressService
         ApplicationDbContext db,
         IClock clock,
         IAuditService audit,
+        // Unused: stage completion no longer depends on procurement figures. Kept so
+        // existing registrations and callers keep compiling.
         ProjectFactsReadService factsRead,
         IStageNotificationService stageNotifications,
         IProjectStageWorkflowPolicy workflowPolicy,
@@ -42,7 +43,6 @@ public class StageProgressService
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
-        _factsRead = factsRead ?? throw new ArgumentNullException(nameof(factsRead));
         _stageNotifications = stageNotifications ?? throw new ArgumentNullException(nameof(stageNotifications));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
@@ -199,11 +199,6 @@ public class StageProgressService
         RelationalTransactionScope transaction,
         CancellationToken ct)
     {
-        if (!await _factsRead.HasRequiredFactsAsync(projectId, stage.StageCode, ct))
-        {
-            throw new InvalidOperationException($"Required information for stage {stage.StageCode} is missing and must be captured before completion.");
-        }
-
         var workflow = await _workflowPolicy.GetAsync(projectId, ct);
         var completionDate = explicitDate ?? stage.CompletedOn ?? resolvedDate;
 
@@ -379,9 +374,9 @@ public class StageProgressService
             // Completion of a successor does not establish either predecessor date.
             stage.IsAutoCompleted = true;
             stage.AutoCompletedFromCode = triggeredBy;
-
-            var hasFacts = await _factsRead.HasRequiredFactsAsync(projectId, stage.StageCode, ct);
-            stage.RequiresBackfill = !stage.CompletedOn.HasValue || !hasFacts;
+            // Only a missing completion date needs backfill; procurement figures are
+            // recorded separately and never hold up a stage.
+            stage.RequiresBackfill = !stage.CompletedOn.HasValue;
             autoCompleted.Add(stage);
         }
 

@@ -1,4 +1,5 @@
 @model ProjectManagement.ViewModels.ProcurementEditVm
+@using ProjectManagement.Services.Projects
 
 @{
     // Amounts are entered in rupees; the hint under each field reads the figure back in
@@ -46,18 +47,18 @@
     <div class="row g-3">
         @{
             CostField("IpaCost", "IPA cost", Model.Input.IpaCost, Model.CanEditIpaCost,
-                "Unlocks when In-Principle Approval is completed.",
+                ProcurementStageRules.LockedNote(ProcurementStageRules.StageForIpaCost),
                 Model.IsIpaManagedByArpp
                     ? Model.IpaManagementMessage ?? "Managed through ARPP. Update this value from the ARPP register."
                     : null);
             CostField("AonCost", "AoN cost", Model.Input.AonCost, Model.CanEditAonCost,
-                "Unlocks when Acceptance of Necessity is completed.");
+                ProcurementStageRules.LockedNote(ProcurementStageRules.StageForAonCost));
             CostField("BenchmarkCost", "Benchmark cost", Model.Input.BenchmarkCost, Model.CanEditBenchmarkCost,
-                "Unlocks when Benchmarking is completed.");
+                ProcurementStageRules.LockedNote(ProcurementStageRules.StageForBenchmarkCost));
             CostField("L1Cost", "L1 cost", Model.Input.L1Cost, Model.CanEditL1Cost,
-                "Unlocks when Commercial Bid Opening is completed.");
+                ProcurementStageRules.LockedNote(ProcurementStageRules.StageForL1Cost));
             CostField("PncCost", "PNC cost", Model.Input.PncCost, Model.CanEditPncCost,
-                "Unlocks when PNC is completed.");
+                ProcurementStageRules.LockedNote(ProcurementStageRules.StageForPncCost));
         }
 
         <div class="col-md-6">
@@ -71,7 +72,7 @@
             </div>
             @if (!Model.CanEditSupplyOrderDate)
             {
-                <div class="form-text" id="@(Model.IdPrefix)Input_SupplyOrderDate_Hint"><i class="bi bi-lock" aria-hidden="true"></i> Unlocks when Supply Order is completed.</div>
+                <div class="form-text" id="@(Model.IdPrefix)Input_SupplyOrderDate_Hint"><i class="bi bi-lock" aria-hidden="true"></i> @ProcurementStageRules.LockedNote(ProcurementStageRules.StageForSupplyOrder)</div>
             }
         </div>
     </div>

@@ -35,6 +35,7 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly IOfficerConferenceReadService _conference;
     private readonly ProjectProcurementReadService _procurement;
     private readonly ProjectManagement.Services.Stages.PlanReadService _planRead;
+    private readonly ProcurementFactAvailabilityService _procurementFactAvailability;
 
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
@@ -49,8 +50,10 @@ public sealed class ProjectOfficerWorkspaceService
         IMemoryCache cache,
         IOfficerConferenceReadService conference,
         ProjectProcurementReadService procurement,
-        ProjectManagement.Services.Stages.PlanReadService planRead)
+        ProjectManagement.Services.Stages.PlanReadService planRead,
+        ProcurementFactAvailabilityService? procurementFactAvailability = null)
     {
+        _procurementFactAvailability = procurementFactAvailability ?? ProcurementFactAvailabilityService.Create(db);
         _db = db;
         _users = users;
         _health = health;
@@ -277,15 +280,11 @@ public sealed class ProjectOfficerWorkspaceService
                 continue;
             }
 
-            var completed = project.ProjectStages
-                .Where(stage => stage.Status == StageStatus.Completed && !string.IsNullOrWhiteSpace(stage.StageCode))
-                .Select(stage => stage.StageCode)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var anchor = $"desk-{BriefingDeskLabels.KindKey(ConferenceItemKind.Project)}-{projectId}";
             editors[projectId] = ProcurementEditVmFactory.Create(
                 projectId,
                 procurement.GetValueOrDefault(projectId) ?? ProcurementAtAGlanceVm.Empty,
-                completed.Contains,
+                await _procurementFactAvailability.GetRecordableStagesAsync(projectId, ct),
                 returnUrl: WorkspaceRouteHelper.BriefingDeskItem(anchor),
                 idPrefix: $"{anchor}-");
         }

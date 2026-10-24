@@ -228,6 +228,28 @@ public class StageProgressServiceTests
         Assert.Contains("selected start date", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    // A procurement amount is never required to complete a stage.
+    [Fact]
+    public async Task UpdateStageStatusAsync_CompletesAStageWithoutItsProcurementAmount()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 3, 6, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(
+            db,
+            (StageCodes.FS, StageStatus.Completed),
+            (StageCodes.IPA, StageStatus.Completed),
+            (StageCodes.SOW, StageStatus.Completed),
+            (StageCodes.AON, StageStatus.InProgress));
+
+        await CreateService(db, clock).UpdateStageStatusAsync(1, StageCodes.AON, StageStatus.Completed, new DateOnly(2024, 3, 5), "tester");
+
+        var aon = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.AON);
+        Assert.Equal(StageStatus.Completed, aon.Status);
+        Assert.Equal(new DateOnly(2024, 3, 5), aon.CompletedOn);
+        Assert.False(aon.RequiresBackfill);
+        Assert.False(await db.ProjectAonFacts.AnyAsync());
+    }
+
     [Fact]
     public async Task UpdateStageStatusAsync_CompletingStageCascadesPredecessors()
     {
@@ -263,7 +285,7 @@ public class StageProgressServiceTests
         Assert.Equal(StageStatus.Completed, sow.Status);
         Assert.True(sow.IsAutoCompleted);
         Assert.Equal(StageCodes.AON, sow.AutoCompletedFromCode);
-        Assert.True(sow.RequiresBackfill); // no SOW facts captured
+        Assert.True(sow.RequiresBackfill); // no completion date recorded
         Assert.Null(sow.ActualStart);
         Assert.Null(sow.CompletedOn);
 
@@ -280,19 +302,6 @@ public class StageProgressServiceTests
         Assert.True(fs.RequiresBackfill);
         Assert.Null(fs.ActualStart);
         Assert.Null(fs.CompletedOn);
-    }
-
-    [Fact]
-    public async Task UpdateStageStatusAsync_ThrowsWhenFactsMissing()
-    {
-        var clock = new TestClock(new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero));
-        await using var db = CreateContext();
-        await SeedStagesAsync(db, (StageCodes.IPA, StageStatus.NotStarted));
-
-        var service = CreateService(db, clock);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.UpdateStageStatusAsync(1, StageCodes.IPA, StageStatus.Completed, null, "tester"));
     }
 
     [Fact]

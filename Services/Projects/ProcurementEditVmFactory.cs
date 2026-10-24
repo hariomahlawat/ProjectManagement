@@ -6,18 +6,19 @@ namespace ProjectManagement.Services.Projects;
 
 // SECTION: Procurement editor model
 // One place decides which procurement facts are editable, so the Project Overview panel and
-// the Project Officer briefing desk show the same form with the same locks.
+// the Project Officer briefing desk show the same form with the same locks. canRecordFact
+// comes from ProcurementFactAvailabilityService (ProcurementStageRules.CanRecordFact).
 public static class ProcurementEditVmFactory
 {
     public static ProcurementEditVm Create(
         int projectId,
         ProcurementAtAGlanceVm procurement,
-        Func<string, bool> isStageCompleted,
+        Func<string, bool> canRecordFact,
         string? returnUrl = null,
         string idPrefix = "")
     {
         ArgumentNullException.ThrowIfNull(procurement);
-        ArgumentNullException.ThrowIfNull(isStageCompleted);
+        ArgumentNullException.ThrowIfNull(canRecordFact);
 
         return new ProcurementEditVm
         {
@@ -32,15 +33,15 @@ public static class ProcurementEditVmFactory
                 SupplyOrderDate = procurement.SupplyOrderDate
             },
             CanEditIpaCost =
-                isStageCompleted(ProcurementStageRules.StageForIpaCost) &&
+                canRecordFact(ProcurementStageRules.StageForIpaCost) &&
                 !procurement.IsIpaManagedByArpp,
             IsIpaManagedByArpp = procurement.IsIpaManagedByArpp,
             IpaManagementMessage = BuildIpaManagementMessage(procurement),
-            CanEditAonCost = isStageCompleted(ProcurementStageRules.StageForAonCost),
-            CanEditBenchmarkCost = isStageCompleted(ProcurementStageRules.StageForBenchmarkCost),
-            CanEditL1Cost = isStageCompleted(ProcurementStageRules.StageForL1Cost),
-            CanEditPncCost = isStageCompleted(ProcurementStageRules.StageForPncCost),
-            CanEditSupplyOrderDate = isStageCompleted(ProcurementStageRules.StageForSupplyOrder),
+            CanEditAonCost = canRecordFact(ProcurementStageRules.StageForAonCost),
+            CanEditBenchmarkCost = canRecordFact(ProcurementStageRules.StageForBenchmarkCost),
+            CanEditL1Cost = canRecordFact(ProcurementStageRules.StageForL1Cost),
+            CanEditPncCost = canRecordFact(ProcurementStageRules.StageForPncCost),
+            CanEditSupplyOrderDate = canRecordFact(ProcurementStageRules.StageForSupplyOrder),
             ReturnUrl = returnUrl,
             IdPrefix = idPrefix
         };

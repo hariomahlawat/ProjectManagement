@@ -58,6 +58,7 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectProliferationProfileService _proliferationProfiles;
         private readonly IIndustryPartnerService _industryPartners;
         private readonly IProjectContentService _projectContentService;
+        private readonly ProcurementFactAvailabilityService _procurementFactAvailability;
 
         public PlanCompareService PlanCompare { get; }
 
@@ -78,9 +79,11 @@ namespace ProjectManagement.Pages.Projects
             ProjectProliferationProfileService proliferationProfiles,
             IIndustryPartnerService industryPartners,
             IProjectContentService projectContentService,
-            ActualCorrectionProposalService? actualProposals = null)
+            ActualCorrectionProposalService? actualProposals = null,
+            ProcurementFactAvailabilityService? procurementFactAvailability = null)
         {
             _actualProposals = actualProposals;
+            _procurementFactAvailability = procurementFactAvailability ?? ProcurementFactAvailabilityService.Create(db);
             _db = db;
             _procureRead = procureRead;
             _timelineRead = timelineRead;
@@ -517,12 +520,6 @@ namespace ProjectManagement.Pages.Projects
                 PartnerId = MultiJdpProfile.Partners.FirstOrDefault()?.Id
             };
 
-            var stageLookup = projectStages
-                .Where(s => s.StageCode is not null)
-                .ToDictionary(s => s.StageCode!, s => s.Status, StringComparer.OrdinalIgnoreCase);
-
-            bool Completed(string code) => stageLookup.TryGetValue(code, out var status) && status == StageStatus.Completed;
-
             var isAdmin = User.IsInRole("Admin");
             var isHoD = User.IsInRole("HoD");
             var isProjectOfficer = User.IsInRole("Project Officer");
@@ -637,7 +634,10 @@ namespace ProjectManagement.Pages.Projects
             }
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
-            ProcurementEdit = ProcurementEditVmFactory.Create(id, Procurement, Completed);
+            ProcurementEdit = ProcurementEditVmFactory.Create(
+                id,
+                Procurement,
+                await _procurementFactAvailability.GetRecordableStagesAsync(id, ct));
 
             AssignRoles = await BuildAssignRolesVmAsync(project);
 
