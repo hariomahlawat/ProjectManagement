@@ -52,7 +52,10 @@ while a form field has focus, and never to someone who has already used the swit
   media, Training, ToT, FFC proposals, detailed table, records, global footprint map, ARPP
   administration and reconciliation), Admin (every page in its menu), Notifications,
   Account settings, Developer and Sign-in. The FFC footprint map reads its country colours
-  from `--ffc-map-*` custom properties (Light keeps its built-in values); Leaflet's own
+  from `--ffc-map-*` custom properties (Light keeps its built-in values). In Dark, land
+  (`#2c3138`) sits clearly above the sea (`#121519`), and each metric has an opaque
+  four-step ramp (`--ffc-map-ramp-<metric>-1..4`) that gets lighter as quantity grows;
+  a see-through tint over a dark sea reads as faded (re-tuned 2026-10-24). Leaflet's own
   controls and tooltips are themed centrally. `tasks.css` no longer follows
   `prefers-color-scheme`. Not seen: action-task detail pages (no tasks in the dev data).
   The signed-out landing and sign-in pages were redesigned for both themes (2026-10-24, see
