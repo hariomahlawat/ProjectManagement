@@ -380,6 +380,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return BuildPagedResultAsync(prefetchedResults, pageNumber, pageSize, cancellationToken);
         }
 
+        public Task<PagedResult<TrainingListItem>> SearchPagedAsync(
+            IReadOnlyList<TrainingListItem> prefetchedResults,
+            int pageNumber,
+            int pageSize,
+            TrainingRegisterSort sort,
+            CancellationToken cancellationToken)
+        {
+            return BuildPagedResultAsync(prefetchedResults, pageNumber, pageSize, cancellationToken, sort);
+        }
+
         // ============================================================
         // PAGED LIST HELPERS
         // ============================================================
@@ -387,7 +397,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             IReadOnlyList<TrainingListItem> all,
             int pageNumber,
             int pageSize,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            TrainingRegisterSort sort = TrainingRegisterSort.Newest)
         {
             // ------------------------------------------------------------
             // normalize paging inputs
@@ -405,10 +416,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             // ------------------------------------------------------------
             // ordering
             // ------------------------------------------------------------
-            var ordered = all
-                .OrderByDescending(r => r.StartDate ?? r.EndDate) // recent first
-                .ThenByDescending(r => r.CounterTotal)
-                .ToList();
+            var ordered = OrderForRegister(all, sort);
 
             var total = ordered.Count;
             var skip = (pageNumber - 1) * pageSize;
@@ -441,6 +449,47 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             return new PagedResult<TrainingListItem>(items, total, pageNumber, pageSize);
+        }
+
+        // Register order. Dates use EffectiveDate, so month-only trainings sort with the rest;
+        // trainings with no date at all come last in date order.
+        public static List<TrainingListItem> OrderForRegister(IEnumerable<TrainingListItem> items, TrainingRegisterSort sort)
+        {
+            var newestFirst = items
+                .OrderByDescending(r => r.EffectiveDate.HasValue)
+                .ThenByDescending(r => r.EffectiveDate)
+                .ThenByDescending(r => r.CounterTotal);
+
+            return sort switch
+            {
+                TrainingRegisterSort.Oldest => items
+                    .OrderByDescending(r => r.EffectiveDate.HasValue)
+                    .ThenBy(r => r.EffectiveDate)
+                    .ThenByDescending(r => r.CounterTotal)
+                    .ToList(),
+                TrainingRegisterSort.Largest => newestFirst
+                    .OrderByDescending(r => r.CounterTotal)
+                    .ToList(),
+                TrainingRegisterSort.Type => newestFirst
+                    .OrderBy(r => r.TrainingTypeName, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList(),
+                _ => newestFirst.ToList()
+            };
+        }
+
+        // ============================================================
+        // TECHNICAL CATEGORY CARDS (same figures as the KPI build, any query)
+        // ============================================================
+        public async Task<IReadOnlyList<TrainingKpiByTechnicalCategoryDto>> GetTechnicalCategoryKpisAsync(
+            TrainingTrackerQuery? query,
+            CancellationToken cancellationToken)
+        {
+            var filtered = await GetFilteredTrainingsAsync(query, cancellationToken);
+            var trainingIds = filtered.Select(item => item.Id).ToArray();
+
+            return trainingIds.Length == 0
+                ? Array.Empty<TrainingKpiByTechnicalCategoryDto>()
+                : await BuildTechnicalCategoryKpisAsync(trainingIds, cancellationToken);
         }
 
         // ============================================================
@@ -646,15 +695,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var summaries = rows
                 .Select(item =>
                 {
-                    int? durationDays = null;
-                    if (item.StartDate is { } startDate)
-                    {
-                        var endDate = item.EndDate ?? startDate;
-                        if (endDate >= startDate)
-                        {
-                            durationDays = endDate.DayNumber - startDate.DayNumber + 1;
-                        }
-                    }
+                    var durationDays = item.DurationDays;
 
                     var trainingYearLabel = TryGetTrainingYearStart(item, out var startYear)
                         ? FormatTrainingYearLabel(startYear)
@@ -739,28 +780,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ToList();
         }
 
+        // The workbook uses the same filing date as the register; undated trainings sort last.
         private static DateOnly GetExportSortDate(TrainingListItem item)
-        {
-            if (item.StartDate.HasValue)
-            {
-                return item.StartDate.Value;
-            }
-
-            if (item.EndDate.HasValue)
-            {
-                return item.EndDate.Value;
-            }
-
-            if (item.TrainingYear.HasValue
-                && item.TrainingMonth.HasValue
-                && item.TrainingMonth.Value is >= 1 and <= 12
-                && item.TrainingYear.Value is >= 1 and <= 9999)
-            {
-                return new DateOnly(item.TrainingYear.Value, item.TrainingMonth.Value, 1);
-            }
-
-            return DateOnly.MinValue;
-        }
+            => item.EffectiveDate ?? DateOnly.MinValue;
 
         private static string FormatProjectLifecycleStatus(ProjectLifecycleStatus status)
             => status switch
@@ -1517,7 +1539,27 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         string UnitDisplay)
     {
         public IReadOnlyList<string> ProjectNames => Projects.Select(project => project.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList();
+
+        // Inclusive length in days (see TrainingDuration); null without a start date.
+        public int? DurationDays => TrainingDuration.InclusiveDays(StartDate, EndDate);
+
+        // The date a training is filed under: its start, else its end, else the first of its month.
+        public DateOnly? EffectiveDate =>
+            StartDate
+            ?? EndDate
+            ?? (TrainingYear is { } year && TrainingMonth is { } month && month is >= 1 and <= 12 && year is >= 1 and <= 9999
+                ? new DateOnly(year, month, 1)
+                : null);
     };
+
+    // Orders offered by the training register.
+    public enum TrainingRegisterSort
+    {
+        Newest,
+        Oldest,
+        Largest,
+        Type
+    }
 
     public sealed record TrainingExportRow(
         Guid Id,

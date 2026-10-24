@@ -1,0 +1,918 @@
+/* ================================================================
+   Training tracker — the register (Pages/Training/Index)
+   Order: one-row header, headline figures, technical categories and
+   the yearly trend, then the register with its one-line filter bar.
+   Site tokens only, so Light and Dark both work without extra rules.
+   Rules: docs/ux/training.md
+   ================================================================ */
+
+.training-register {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-block: 0 2rem;
+}
+
+/* SECTION: Header — one row */
+.training-register__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+}
+
+.training-register__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    min-width: 0;
+}
+
+.training-register__title h1 {
+    margin: 0;
+    font-family: var(--pm-font-heading);
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--pm-text-strong);
+}
+
+.training-register__title p {
+    margin: 0;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+.training-register__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.training-register__actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* SECTION: Headline figures — tighter than a standard card */
+.training-register__figures .card-body {
+    padding: 0.85rem 1rem;
+}
+
+.training-register__figures .kpi-label {
+    margin-bottom: 0.2rem;
+}
+
+.training-register__figures .kpi-value {
+    font-size: 1.65rem;
+    line-height: 1.15;
+}
+
+/* SECTION: Technical categories and trend */
+.training-insights {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    align-items: start;
+    gap: 1rem;
+}
+
+.training-insights__categories:only-child,
+.training-insights__trend:only-child {
+    grid-column: 1 / -1;
+}
+
+.training-section-title h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.training-section-title p {
+    margin: 0.1rem 0 0.6rem;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+.training-category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+    gap: 0.6rem;
+}
+
+.training-category-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.75rem;
+    background: var(--pm-card);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.training-category-card:hover,
+.training-category-card:focus-visible {
+    border-color: var(--pm-primary);
+    color: inherit;
+}
+
+.training-category-card.is-selected {
+    border-color: var(--pm-primary);
+    box-shadow: inset 0 0 0 1px var(--pm-primary);
+    background: var(--training-primary-veil);
+}
+
+.training-category-card__name {
+    overflow: hidden;
+    font-size: var(--pm-font-size-sm);
+    font-weight: 600;
+    color: var(--pm-text-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.training-category-card__figures {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 0.4rem;
+}
+
+.training-category-card__figures strong {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+    font-variant-numeric: tabular-nums;
+}
+
+.training-category-card__figures span {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.training-category-card .training-split--compact {
+    margin-top: 0.35rem;
+}
+
+/* Projects in the chosen category: each filters the register; the icon opens the project. */
+.training-category-projects {
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.75rem;
+    background: var(--pm-card);
+}
+
+.training-category-projects__head h3 {
+    margin: 0;
+    font-size: var(--pm-font-size-sm);
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.training-category-projects__head p,
+.training-category-projects__empty {
+    margin: 0.1rem 0 0.5rem;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.training-category-projects__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 0.25rem 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.training-category-projects__list li {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    border-bottom: 1px solid var(--pm-divider);
+}
+
+.training-category-projects__filter {
+    display: flex;
+    flex: 1;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.35rem 0.25rem;
+    color: var(--pm-text-strong);
+    text-decoration: none;
+}
+
+.training-category-projects__filter:hover,
+.training-category-projects__filter:focus-visible {
+    color: var(--pm-link);
+}
+
+.training-category-projects__list li.is-selected .training-category-projects__filter {
+    font-weight: 700;
+    color: var(--pm-primary);
+}
+
+.training-category-projects__name {
+    overflow: hidden;
+    font-size: var(--pm-font-size-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.training-category-projects__count {
+    flex: none;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.training-category-projects__open {
+    flex: none;
+    padding: 0.2rem 0.3rem;
+    color: var(--pm-text-muted);
+}
+
+.training-category-projects__open:hover,
+.training-category-projects__open:focus-visible {
+    color: var(--pm-link);
+}
+
+.training-chart-frame {
+    position: relative;
+    height: 15rem;
+}
+
+/* SECTION: Register heading */
+.training-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.training-toolbar__count {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.training-toolbar__meta {
+    font-size: var(--pm-font-size-sm);
+    font-weight: 400;
+    color: var(--pm-text-muted);
+}
+
+/* SECTION: Filter bar — one line; the rarer filters fold under it */
+.training-filter {
+    margin-bottom: 0.5rem;
+}
+
+.training-filter__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.training-filter__search {
+    position: relative;
+    flex: 1 1 16rem;
+    min-width: 0;
+}
+
+.training-filter__search .bi {
+    position: absolute;
+    top: 50%;
+    left: 0.7rem;
+    transform: translateY(-50%);
+    color: var(--pm-text-muted);
+    pointer-events: none;
+}
+
+.training-filter__search .form-control {
+    padding-left: 2rem;
+}
+
+.training-filter__type {
+    flex: 0 1 11rem;
+    width: auto;
+}
+
+.training-filter__more-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.training-filter__badge {
+    min-width: 1.15rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: var(--pm-primary);
+    color: var(--pm-text-inverted);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1.15rem;
+}
+
+.training-filter__view {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+}
+
+.training-filter__view label {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+.training-filter__view .form-select {
+    width: auto;
+}
+
+.training-filter__more-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.75rem;
+    background: var(--pm-card);
+}
+
+.training-filter__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.training-filter__field label {
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+}
+
+.training-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
+}
+
+.training-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+    padding: 0.2rem 0.5rem 0.2rem 0.7rem;
+    border: 1px solid var(--pm-chip-border);
+    border-radius: 999px;
+    background: var(--pm-chip-bg);
+    color: var(--pm-chip-text);
+    font-size: var(--pm-font-size-sm);
+    text-decoration: none;
+}
+
+.training-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.training-chip:hover,
+.training-chip:focus-visible {
+    border-color: var(--pm-primary);
+    color: var(--pm-text-strong);
+}
+
+.training-chips__clear {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-link);
+}
+
+/* SECTION: Register table */
+.training-table-card {
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+    overflow: hidden;
+}
+
+.training-register-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.training-register-table thead th {
+    padding: 0.6rem 1rem;
+    background: var(--pm-surface-soft);
+    border-bottom: 1px solid var(--pm-divider);
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pm-text-muted);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.training-register-table thead abbr {
+    text-decoration: none;
+    cursor: help;
+}
+
+.training-register-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--pm-divider);
+    vertical-align: middle;
+}
+
+.training-register-table tbody:last-child tr:last-child td {
+    border-bottom: 0;
+}
+
+.training-register-table__month th {
+    padding: 0.5rem 1rem;
+    background: var(--pm-surface-soft);
+    border-bottom: 1px solid var(--pm-divider);
+    font-size: var(--pm-font-size-sm);
+    font-weight: 700;
+    color: var(--pm-text-strong);
+    text-align: left;
+}
+
+.training-register-table__month-meta {
+    margin-left: 0.6rem;
+    font-weight: 400;
+    color: var(--pm-text-muted);
+}
+
+.training-register-table__date {
+    width: 10.5rem;
+}
+
+.training-register-table__type {
+    width: 9.5rem;
+}
+
+.training-register-table th.training-register-table__strength,
+.training-register-table td.training-register-table__strength {
+    width: 12rem;
+    text-align: right;
+}
+
+.training-register-table__actions {
+    width: 7rem;
+    text-align: right;
+}
+
+.training-row {
+    cursor: pointer;
+    transition: background-color 120ms ease;
+}
+
+.training-row:hover td,
+.training-row:focus-within td {
+    background: var(--pm-surface-contrast);
+}
+
+/* Date block: the day first, then month and year, then the span. */
+.training-date {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+        "lead month"
+        "lead note";
+    column-gap: 0.6rem;
+    align-items: center;
+}
+
+.training-date__lead {
+    grid-area: lead;
+    min-width: 2.1rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--pm-text-strong);
+    font-variant-numeric: tabular-nums;
+}
+
+.training-date__month {
+    grid-area: month;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+    white-space: nowrap;
+}
+
+.training-date__note {
+    grid-area: note;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+    white-space: nowrap;
+}
+
+/* Entry: the first linked project (the link to the record), then units. */
+.training-entry__name {
+    font-weight: 600;
+    color: var(--pm-text-strong);
+    text-decoration: none;
+}
+
+.training-entry__name:hover,
+.training-entry__name:focus-visible {
+    color: var(--pm-link);
+    text-decoration: underline;
+}
+
+.training-entry__name.is-empty {
+    font-weight: 500;
+    color: var(--pm-text-muted);
+}
+
+.training-entry__more {
+    margin-left: 0.4rem;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+    white-space: nowrap;
+}
+
+.training-entry__units {
+    max-width: 32rem;
+    margin: 0.2rem 0 0;
+    overflow: hidden;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.training-register-table__type .training-source-tag {
+    margin-left: 0.35rem;
+}
+
+.training-register-table__strength strong {
+    display: block;
+    font-size: 1.05rem;
+    color: var(--pm-text-strong);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Officers / JCOs / ORs under the total, each with its rank shade. */
+.training-row-split {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.1rem 0.55rem;
+    margin-top: 0.15rem;
+    font-size: var(--pm-font-size-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--pm-text-secondary);
+    white-space: nowrap;
+}
+
+.training-row-split > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.training-row-split abbr {
+    text-decoration: none;
+    color: var(--pm-text-muted);
+}
+
+.training-row__manage {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+/* SECTION: Empty state */
+.training-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 3rem 1.5rem;
+    border: 1px dashed var(--pm-border);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+    text-align: center;
+}
+
+.training-empty-state__icon {
+    font-size: 2rem;
+    color: var(--pm-text-muted);
+}
+
+.training-empty-state h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--pm-text-strong);
+}
+
+.training-empty-state p {
+    margin: 0 0 0.5rem;
+    color: var(--pm-text-muted);
+}
+
+/* SECTION: Pagination */
+.training-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.training-pagination__pages {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.training-pagination__page,
+.training-pagination__step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding: 0 0.65rem;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.5rem;
+    background: var(--pm-card);
+    color: var(--pm-text-secondary);
+    font-size: var(--pm-font-size-sm);
+    text-decoration: none;
+}
+
+.training-pagination__page:hover,
+.training-pagination__step:hover {
+    border-color: var(--pm-primary);
+    color: var(--pm-text-strong);
+}
+
+.training-pagination__page.is-current {
+    border-color: var(--pm-primary);
+    background: var(--pm-primary);
+    color: var(--pm-text-inverted);
+    font-weight: 600;
+}
+
+.training-pagination__step.is-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+.training-pagination__status {
+    display: none;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+@media (max-width: 1199.98px) {
+    .training-insights {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .training-filter__more-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* SECTION: Phones — compact figures, two-column categories, each training a card. */
+@media (max-width: 767.98px) {
+    .training-register {
+        gap: 0.85rem;
+    }
+
+    .training-register__actions {
+        width: 100%;
+    }
+
+    .training-register__actions .btn {
+        flex: 1 1 auto;
+        justify-content: center;
+        white-space: nowrap;
+    }
+
+    .training-register__figures .row {
+        --bs-gutter-y: 0.5rem;
+        --bs-gutter-x: 0.5rem;
+    }
+
+    .training-register__figures .card-body {
+        padding: 0.65rem 0.8rem;
+    }
+
+    .training-register__figures .kpi-label {
+        font-size: 0.6875rem;
+    }
+
+    .training-register__figures .kpi-value {
+        font-size: 1.35rem;
+    }
+
+    .training-register__figures .training-split {
+        margin-top: 0.4rem;
+    }
+
+    .training-register__figures .training-split__legend {
+        gap: 0.1rem 0.6rem;
+        margin-top: 0.35rem;
+        font-size: 0.75rem;
+    }
+
+    .training-register__figures .kpi-meta {
+        display: none;
+    }
+
+    .training-category-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .training-category-card {
+        padding: 0.6rem 0.7rem;
+    }
+
+    .training-category-card__figures strong {
+        font-size: 1.15rem;
+    }
+
+    .training-category-card .training-split__legend {
+        font-size: 0.6875rem;
+    }
+
+    .training-chart-frame {
+        height: 13rem;
+    }
+
+    .training-filter__search {
+        flex-basis: 100%;
+    }
+
+    .training-filter__type,
+    .training-filter__more-toggle {
+        flex: 1 1 0;
+    }
+
+    .training-filter__view {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .training-filter__view .form-select {
+        flex: 1;
+    }
+
+    .training-table-card {
+        border: 0;
+        background: transparent;
+        overflow: visible;
+    }
+
+    .training-register-table,
+    .training-register-table tbody {
+        display: block;
+    }
+
+    .training-register-table thead {
+        display: none;
+    }
+
+    .training-register-table__month,
+    .training-register-table__month th {
+        display: block;
+    }
+
+    .training-register-table__month th {
+        padding: 0.75rem 0.15rem 0.4rem;
+        background: transparent;
+        border: 0;
+    }
+
+    .training-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "date entry entry"
+            "type type strength"
+            "actions actions actions";
+        gap: 0.65rem 0.75rem;
+        margin-bottom: 0.75rem;
+        padding: 0.9rem;
+        border: 1px solid var(--pm-border-muted);
+        border-radius: 0.875rem;
+        background: var(--pm-card);
+    }
+
+    .training-row td {
+        display: block;
+        width: auto;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        text-align: left;
+    }
+
+    .training-row:hover td,
+    .training-row:focus-within td {
+        background: transparent;
+    }
+
+    .training-row td.training-register-table__date { grid-area: date; width: auto; }
+    .training-row td.training-register-table__entry { grid-area: entry; align-self: center; }
+    .training-row td.training-register-table__type { grid-area: type; align-self: center; }
+    .training-row td.training-register-table__strength { grid-area: strength; width: auto; text-align: right; align-self: center; }
+    .training-row td.training-register-table__actions { grid-area: actions; width: auto; }
+
+    .training-date {
+        grid-template-columns: auto;
+        grid-template-areas:
+            "lead"
+            "month";
+        justify-items: center;
+        min-width: 3.5rem;
+        padding: 0.4rem 0.3rem;
+        border-radius: 0.5rem;
+        background: var(--pm-surface-soft);
+        text-align: center;
+    }
+
+    .training-date__note {
+        display: none;
+    }
+
+    .training-entry__units {
+        max-width: none;
+        white-space: normal;
+    }
+
+    .training-register-table__strength strong {
+        display: inline;
+        margin-right: 0.35rem;
+    }
+
+    .training-row__manage {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .training-pagination__pages {
+        display: none;
+    }
+
+    .training-pagination {
+        justify-content: space-between;
+    }
+
+    .training-pagination__status {
+        display: inline;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .training-row,
+    .training-category-card {
+        transition: none;
+    }
+}
+
+@media print {
+    .training-register__actions,
+    .training-filter,
+    .training-pagination,
+    .training-register-table__actions {
+        display: none !important;
+    }
+}
