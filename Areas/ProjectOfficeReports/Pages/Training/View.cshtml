@@ -1,4 +1,5 @@
 @page
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.Training
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ViewModel
 @{
     // ------------------------------------------------------------
@@ -20,12 +21,19 @@
             </a>
             <div>
                 <p class="text-uppercase text-muted small mb-1">Project office reports</p>
-                <h1 class="h4 mb-0">@Model.Training.TrainingTypeName</h1>
+                <h1 class="h4 mb-0"><span class="training-type-dot training-type--@TrainingTypeAppearance.Modifier(Model.Training.TrainingTypeName)"></span>@Model.Training.TrainingTypeName</h1>
             </div>
         </div>
 
         <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-light text-dark">@Model.Training.SourceDisplay</span>
+            @if (Model.Training.SourceDisplay == "Legacy")
+            {
+                <span class="training-source-tag training-source-tag--legacy" title="Historical totals, no roster">Legacy</span>
+            }
+            else
+            {
+                <span class="training-source-tag">@Model.Training.SourceDisplay</span>
+            }
             @if (Model.CanManageTrainingTracker)
             {
                 <a asp-page="./Manage"
@@ -49,10 +57,10 @@
          ======================================================== -->
     <div class="row g-4">
         <div class="col-12 col-xl-8">
-            <div class="card shadow-sm border-0 h-100">
+            <div class="card shadow-sm border-0 mb-4">
                 <div class="card-body">
                     <!-- SECTION: At-a-glance metrics -->
-                    <div class="d-flex flex-wrap gap-3 mb-4">
+                    <div class="d-flex flex-wrap column-gap-5 row-gap-3 mb-4">
                         <div>
                             <div class="fw-semibold text-uppercase small text-muted">Period</div>
                             <div class="fw-semibold">
@@ -67,9 +75,11 @@
                             <div class="fw-semibold text-uppercase small text-muted">Total trainees</div>
                             <div class="fw-semibold">@Model.Training.TotalTrainees.ToString("N0")</div>
                         </div>
-                        <div>
-                            <div class="fw-semibold text-uppercase small text-muted">Strength (O – JCO – OR)</div>
-                            <div class="fw-semibold">@Model.Training.StrengthDisplay</div>
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold text-uppercase small text-muted">Strength</div>
+                            <partial name="~/Areas/ProjectOfficeReports/Pages/Training/_StrengthSplit.cshtml"
+                                     model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel.StrengthBreakdown(Model.Training.StrengthOfficers, Model.Training.StrengthJcos, Model.Training.StrengthOrs)"
+                                     view-data='new ViewDataDictionary(ViewData) { ["Compact"] = true }' />
                         </div>
                     </div>
 
@@ -106,7 +116,7 @@
                         }
                         else
                         {
-                            <p class="mb-0">@Model.Training.Notes</p>
+                            <p class="mb-0 training-notes">@Model.Training.Notes</p>
                         }
                     </div>
                 </div>
@@ -115,26 +125,15 @@
             <!-- SECTION: Roster -->
             <div class="card shadow-sm border-0">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div class="fw-semibold text-uppercase small">Roster</div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <h2 class="h6 mb-0">Roster</h2>
 
-                        <div class="d-flex flex-wrap align-items-center gap-2 small text-muted">
-                            <span class="badge bg-light text-dark">
-                                Officers: @Model.Training.OfficersCount
-                            </span>
-                            <span class="badge bg-light text-dark">
-                                JCOs: @Model.Training.JcosCount
-                            </span>
-                            <span class="badge bg-light text-dark">
-                                ORs: @Model.Training.OrsCount
-                            </span>
-                            <span class="badge bg-secondary-subtle text-dark">
-                                Total: @Model.Training.TotalCount
-                            </span>
-
-                            <span class="ms-2 text-muted">
-                                Source: @Model.Training.RosterSourceDisplay
-                            </span>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--o"></span>Officers <strong>@Model.Training.OfficersCount</strong></span>
+                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--j"></span>JCOs <strong>@Model.Training.JcosCount</strong></span>
+                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--r"></span>ORs <strong>@Model.Training.OrsCount</strong></span>
+                            <span class="training-rank-chip">Total <strong>@Model.Training.TotalCount</strong></span>
+                            <span class="small text-muted ms-1">Source: @Model.Training.RosterSourceDisplay</span>
                         </div>
                     </div>
 
@@ -177,7 +176,7 @@
         </div>
 
         <div class="col-12 col-xl-4">
-            <div class="card shadow-sm border-0 h-100">
+            <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <!-- SECTION: Metadata -->
                     <h2 class="h6 mb-3">Metadata</h2>
@@ -199,3 +198,8 @@
         </div>
     </div>
 </div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/components/pm-table.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/training/manage.css" asp-append-version="true" />
+}

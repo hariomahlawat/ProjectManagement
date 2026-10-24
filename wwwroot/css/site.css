@@ -10395,12 +10395,13 @@ main[role="main"].analytics-main > .pm-page-shell {
     --bs-btn-disabled-color: #38bdf8;
     --bs-btn-disabled-border-color: color-mix(in srgb, #38bdf8 40%, var(--pm-dark-card));
 }
+/* The border reaches 3:1 on cards; the hairline-strength border made these read as disabled. */
 [data-bs-theme="dark"] .btn-outline-secondary {
     --bs-btn-color: #b4b9bf;
-    --bs-btn-border-color: var(--pm-dark-strong-border);
+    --bs-btn-border-color: color-mix(in srgb, var(--pm-dark-text-muted) 60%, var(--pm-dark-card));
     --bs-btn-hover-color: var(--pm-dark-text);
     --bs-btn-hover-bg: var(--pm-dark-raised);
-    --bs-btn-hover-border-color: var(--pm-dark-strong-border);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--pm-dark-text-muted) 75%, var(--pm-dark-card));
     --bs-btn-active-color: var(--pm-dark-text);
     --bs-btn-active-bg: var(--pm-dark-raised);
     --bs-btn-active-border-color: var(--pm-dark-strong-border);
