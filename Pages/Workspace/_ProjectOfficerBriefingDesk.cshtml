@@ -97,7 +97,6 @@
             }
             <div class="bd-meter bd-meter--summary">
                 <div class="bd-meter__row"><span>With HoD / assigner</span><strong>@desk.WithOthers.Count</strong></div>
-                <div class="bd-meter__row"><span>Returned to you</span><strong class="@(desk.Returned.Count > 0 ? "bd-text-danger" : string.Empty)">@desk.Returned.Count</strong></div>
             </div>
         </div>
     }
@@ -170,22 +169,6 @@
         </div>
 
         <aside class="bd-rail" aria-label="Waiting, reading and the next 14 days">
-            @if (desk.Returned.Any())
-            {
-                <section class="bd-panel bd-panel--danger" aria-labelledby="bd-returned-title">
-                    <div class="bd-panel__head"><h2 id="bd-returned-title">Returned to you</h2><span class="bd-count bd-count--danger">@desk.Returned.Count</span></div>
-                    <ul class="bd-list">
-                        @foreach (var item in desk.Returned)
-                        {
-                            <li class="bd-list__item">
-                                <div class="bd-list__copy"><strong>@item.Title</strong><span>@item.Detail@(item.DueOrEventDateUtc is DateTime at ? $" · {IstClock.ToIst(at):dd MMM}" : string.Empty)</span></div>
-                                <a class="bd-btn bd-btn--danger-outline" href="@item.ActionUrl">@item.ActionText<span class="visually-hidden"> @item.Title</span></a>
-                            </li>
-                        }
-                    </ul>
-                </section>
-            }
-
             <section class="bd-panel" aria-labelledby="bd-waiting-title">
                 <div class="bd-panel__head"><h2 id="bd-waiting-title">With others</h2><span class="bd-panel__meta">@desk.WithOthers.Count waiting</span></div>
                 @if (!desk.WithOthers.Any())

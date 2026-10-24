@@ -18,7 +18,6 @@ public sealed record BriefingDeskInput(
     IReadOnlyList<WorkspaceConferenceDirectionActionVm> PendingDirections,
     OfficerConferenceVm? Conference,
     IReadOnlyList<BriefingDeskWaitingVm> WithOthers,
-    IReadOnlyList<WorkspaceAttentionItemVm> Returned,
     // HoD and Admin save plans directly; the plan editor refuses a Submit from them.
     bool PlanDirectSaveRole = false);
 
@@ -66,18 +65,12 @@ public static class BriefingDeskBuilder
         OfficerConferenceItemVm? ConferenceItem(ConferenceItemKind kind, int id)
             => conferenceItems.GetValueOrDefault((kind, id));
 
-        var returnedByProject = input.Returned
-            .Where(item => item.ProjectId.HasValue)
-            .GroupBy(item => item.ProjectId!.Value)
-            .ToDictionary(group => group.Key, group => (IReadOnlyList<WorkspaceAttentionItemVm>)group.ToList());
-
         var projects = input.Projects
             .Select(project => BuildProject(
                 project,
                 input.Today,
                 ConferenceItem(ConferenceItemKind.Project, project.Row.ProjectId),
                 pendingDirections.Contains((ConferenceItemKind.Project, project.Row.ProjectId)),
-                returnedByProject.GetValueOrDefault(project.Row.ProjectId) ?? Array.Empty<WorkspaceAttentionItemVm>(),
                 input.PlanDirectSaveRole))
             .ToList();
         var ideas = input.Ideas
@@ -121,8 +114,7 @@ public static class BriefingDeskBuilder
             RecentlyCompleted = recentlyCompleted,
             ReadyCount = all.Count(item => item.IsBriefReady),
             TotalCount = all.Count,
-            WithOthers = input.WithOthers.OrderBy(item => item.SinceUtc).ToList(),
-            Returned = input.Returned
+            WithOthers = input.WithOthers.OrderBy(item => item.SinceUtc).ToList()
         };
     }
 
@@ -145,25 +137,21 @@ public static class BriefingDeskBuilder
     // SECTION: Projects
     // Brief-ready = a PO update within the weekly window, the latest conference direction
     // answered, and a current-stage PDC that is set and not overdue (or submitted to the HoD).
-    // Record gaps are offered as improvements and never block readiness.
+    // Record gaps are offered as improvements and never block readiness. Work the HoD returned
+    // is not listed: a return is a finished decision, which the PO learns of from the
+    // notification and the editor's banner; the desk shows only what is still pending.
     private static BriefingDeskItemVm BuildProject(
         BriefingDeskProjectInput input,
         DateOnly today,
         OfficerConferenceItemVm? conference,
         bool directionAwaitingProgress,
-        IReadOnlyList<WorkspaceAttentionItemVm> returned,
         bool planDirectSaveRole)
     {
         var row = input.Row;
         var hasStage = !string.IsNullOrWhiteSpace(row.CurrentStageCode) && row.CurrentStageCode != "—";
         var anchor = $"desk-{BriefingDeskLabels.KindKey(ConferenceItemKind.Project)}-{row.ProjectId}";
 
-        // Anything the HoD sent back comes first: it blocks the brief until it is corrected.
-        var checks = returned
-            .OrderByDescending(item => item.DueOrEventDateUtc)
-            .Select(ReturnedCheck)
-            .ToList();
-        checks.Add(ProjectUpdateCheck(row, conference, directionAwaitingProgress));
+        var checks = new List<BriefingDeskCheckVm> { ProjectUpdateCheck(row, conference, directionAwaitingProgress) };
 
         var planPanel = hasStage && !planDirectSaveRole ? ShortPlanPanel(input, row, anchor) : null;
         if (hasStage)
@@ -239,26 +227,6 @@ public static class BriefingDeskBuilder
             },
             State = fresh ? BriefingDeskCheckState.Done : BriefingDeskCheckState.Open,
             Route = BriefingDeskRoute.Update
-        };
-    }
-
-    // SECTION: Returned items
-    private static BriefingDeskCheckVm ReturnedCheck(WorkspaceAttentionItemVm item)
-    {
-        var returnedOn = item.DueOrEventDateUtc is DateTime at
-            ? $" on {FormatDay(WorkspaceNudgeService.ToIstDate(at))}"
-            : string.Empty;
-        return new BriefingDeskCheckVm
-        {
-            Key = $"returned:{item.Type}",
-            Label = item.Detail,
-            Detail = string.IsNullOrWhiteSpace(item.ReviewerNote)
-                ? $"Returned{returnedOn}. No note was given."
-                : $"Returned{returnedOn}. HoD: “{item.ReviewerNote.Trim()}”",
-            State = BriefingDeskCheckState.Open,
-            Route = BriefingDeskRoute.Approval,
-            ActionText = "Correct and resubmit",
-            ActionUrl = item.ActionUrl
         };
     }
 
