@@ -40,6 +40,20 @@ public sealed class TrainingDetailsVm
     // metadata / notes
     // ------------------------------------------------------------
     public IReadOnlyList<string> ProjectNames { get; init; } = Array.Empty<string>();
+
+    // Linked projects with their ids, so the record page can link to each project.
+    public IReadOnlyList<TrainingProjectSnapshot> Projects { get; init; } = Array.Empty<TrainingProjectSnapshot>();
+
+    // The schedule as entered: exact dates, or month and year only.
+    public DateOnly? PeriodStart { get; init; }
+    public DateOnly? PeriodEnd { get; init; }
+    public int? TrainingMonth { get; init; }
+    public int? TrainingYear { get; init; }
+
+    // Inclusive length in days (TrainingDuration); null without a start date.
+    public int? DurationDays { get; init; }
+
+    public bool IsLegacy { get; init; }
     public string Notes { get; init; } = string.Empty;
 
     public string CreatedByDisplayName { get; init; } = string.Empty;

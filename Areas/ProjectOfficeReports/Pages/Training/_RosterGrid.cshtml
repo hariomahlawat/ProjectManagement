@@ -28,23 +28,23 @@
      data-training-id="@trainingId"
      data-row-version="@rowVersion"
      data-rows="@rosterBase64">
-    <div class="table-responsive mb-3">
-        <table class="table table-sm align-middle">
-            <thead>
-                <tr>
-                    <th class="pm-util-col-160">Army number</th>
-                    <th class="pm-util-col-140">Rank</th>
-                    <th>Name</th>
-                    <th>Unit</th>
-                    <th class="pm-util-col-140">Category</th>
-                    <th class="pm-util-col-80"></th>
-                </tr>
-            </thead>
-            <tbody id="rosterBody"></tbody>
-        </table>
-    </div>
+    <table class="training-roster-grid">
+        <thead>
+            <tr>
+                <th scope="col" class="training-roster-grid__number">Army number</th>
+                <th scope="col" class="training-roster-grid__rank">Rank</th>
+                <th scope="col" class="training-roster-grid__name">Name</th>
+                <th scope="col" class="training-roster-grid__unit">Unit</th>
+                <th scope="col" class="training-roster-grid__category">Category</th>
+                <th scope="col" class="training-roster-grid__remove"><span class="visually-hidden">Remove</span></th>
+            </tr>
+        </thead>
+        <tbody id="rosterBody"></tbody>
+    </table>
+    <p class="training-roster-grid__empty" id="rosterEmpty" hidden>No one listed yet. Add a row for each person who attended.</p>
 
-    <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-outline-secondary" id="btnAddRosterRow">Add row</button>
-    </div>
+    <button type="button" class="btn btn-outline-secondary training-roster-grid__add" id="btnAddRosterRow">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        <span>Add person</span>
+    </button>
 </div>

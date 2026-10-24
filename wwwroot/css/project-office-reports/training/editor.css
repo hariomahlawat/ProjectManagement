@@ -1,0 +1,344 @@
+/* ================================================================
+   Training tracker — record / edit a training (Pages/Training/Manage)
+   Same page width and header as the register and record page; each
+   part of the form is its own card; Save stays in view.
+   Site tokens only, so Light and Dark both work. Rules: docs/ux/training.md
+   ================================================================ */
+
+.training-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-block: 0.25rem 2rem;
+}
+
+.training-editor__crumbs .breadcrumb {
+    font-size: var(--pm-font-size-sm);
+}
+
+.training-editor__head h1 {
+    margin: 0;
+    font-family: var(--pm-font-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--pm-text-strong);
+}
+
+.training-editor__head p {
+    margin: 0.2rem 0 0;
+    color: var(--pm-text-muted);
+}
+
+.training-editor__notice {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--pm-warning-soft-border);
+    border-radius: 0.75rem;
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-warning-soft-text);
+}
+
+.training-editor__notice .bi {
+    font-size: 1.15rem;
+}
+
+.training-editor__notice p {
+    margin: 0.15rem 0 0;
+    font-size: var(--pm-font-size-sm);
+}
+
+.training-editor__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* SECTION: Cards — a visible edge in both themes (the card is not the page colour). */
+.training-form-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1.1rem 1.25rem 1.25rem;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+}
+
+.training-form-card__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+}
+
+.training-form-card__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.training-form-card__help {
+    margin: -0.35rem 0 0;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+.training-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.9rem 1rem;
+}
+
+.training-form-grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.training-field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.training-field .form-label,
+.training-field legend.form-label {
+    float: none;
+    width: auto;
+    margin-bottom: 0.35rem;
+    padding: 0;
+    font-size: var(--pm-font-size-sm);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+}
+
+/* "Dates known": two choices side by side, so the second one cannot go unseen. */
+.training-segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0;
+}
+
+.training-segmented .btn {
+    border-radius: 0;
+}
+
+.training-segmented .btn:first-of-type {
+    border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.training-segmented .btn:last-of-type {
+    margin-left: -1px;
+    border-radius: 0 0.5rem 0.5rem 0;
+}
+
+/* Switches, radios and checkboxes in this form get a 3:1 outline (the site default is faint on a white card). */
+.training-editor .form-check-input:not(:checked) {
+    border-color: color-mix(in srgb, var(--pm-text-muted) 75%, var(--pm-card));
+}
+
+.training-editor__legacy {
+    margin: 0;
+}
+
+.training-editor__legacy .form-check-label {
+    font-size: var(--pm-font-size-sm);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+}
+
+[data-legacy-roster] > .training-form-card__help {
+    margin-top: 0.75rem;
+}
+
+.training-editor__counters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+}
+
+/* SECTION: Roster grid */
+.training-roster-grid {
+    width: 100%;
+    margin-bottom: 0.75rem;
+    border-collapse: separate;
+    border-spacing: 0 0.35rem;
+}
+
+.training-roster-grid thead th {
+    padding: 0 0.35rem 0.15rem;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pm-text-muted);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.training-roster-grid td {
+    padding: 0 0.35rem;
+    vertical-align: middle;
+}
+
+.training-roster-grid__number { width: 11rem; }
+.training-roster-grid__rank { width: 8.5rem; }
+.training-roster-grid__category { width: 7.5rem; }
+.training-roster-grid__remove { width: 2.75rem; text-align: right; }
+
+.training-roster-grid__remove .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+}
+
+.training-roster-grid__empty {
+    margin: 0 0 0.75rem;
+    padding: 0.85rem;
+    border: 1px dashed var(--pm-border);
+    border-radius: 0.6rem;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+    text-align: center;
+}
+
+.training-roster-grid__add {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* SECTION: Footer — Save stays in view on long rosters (not on phones, where it would cover the form). */
+.training-editor__footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+    box-shadow: 0 -0.5rem 1.25rem -1rem var(--training-shadow-strong);
+}
+
+.training-editor__footer .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* SECTION: Delete request — set apart, below the form. */
+.training-danger {
+    border: 1px solid var(--pm-danger-soft-border);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+}
+
+.training-danger > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.85rem 1.25rem;
+    font-size: var(--pm-font-size-sm);
+    font-weight: 600;
+    color: var(--pm-danger);
+    cursor: pointer;
+    list-style: none;
+}
+
+.training-danger > summary::-webkit-details-marker {
+    display: none;
+}
+
+.training-danger__form {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0 1.25rem 1.25rem;
+}
+
+.training-danger__form p {
+    margin: 0;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+.training-danger__form .training-field {
+    width: 100%;
+}
+
+/* SECTION: Phones */
+@media (max-width: 767.98px) {
+    .training-form-grid,
+    .training-form-grid--three {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .training-segmented {
+        display: flex;
+    }
+
+    .training-segmented .btn {
+        flex: 1;
+    }
+
+    .training-editor__footer {
+        position: static;
+        justify-content: stretch;
+    }
+
+    .training-editor__footer .btn-primary {
+        flex: 1;
+        justify-content: center;
+    }
+
+    /* Each roster row becomes a small card of its own. */
+    .training-roster-grid thead {
+        display: none;
+    }
+
+    .training-roster-grid,
+    .training-roster-grid tbody {
+        display: block;
+    }
+
+    .training-roster-grid tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        grid-template-areas:
+            "rank name name"
+            "number unit unit"
+            "category category remove";
+        gap: 0.4rem;
+        margin-bottom: 0.6rem;
+        padding: 0.6rem;
+        border: 1px solid var(--pm-border-muted);
+        border-radius: 0.6rem;
+    }
+
+    .training-roster-grid td {
+        width: auto;
+        padding: 0;
+    }
+
+    .training-roster-grid__number { grid-area: number; }
+    .training-roster-grid__rank { grid-area: rank; }
+    .training-roster-grid__name { grid-area: name; }
+    .training-roster-grid__unit { grid-area: unit; }
+    .training-roster-grid__category { grid-area: category; }
+    .training-roster-grid__remove { grid-area: remove; }
+}

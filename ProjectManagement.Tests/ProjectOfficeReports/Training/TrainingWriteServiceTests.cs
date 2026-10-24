@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -260,6 +261,74 @@ public sealed class TrainingWriteServiceTests
         Assert.Equal(2, countersEntity.Total);
         Assert.Equal(TrainingCounterSource.Roster, countersEntity.Source);
     }
+
+    [Fact]
+    public async Task UpsertRosterAsync_StoresTidiedRanksNamesAndArmyNumbers()
+    {
+        var initialTimestamp = new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero);
+        var clock = FakeClock.AtUtc(initialTimestamp);
+        await using var db = CreateDbContext();
+        var sut = CreateService(db, clock);
+
+        var trainingType = new TrainingType { Id = Guid.NewGuid(), Name = "Simulator", IsActive = true, CreatedAtUtc = initialTimestamp, CreatedByUserId = "seed" };
+        db.TrainingTypes.Add(trainingType);
+        var training = new TrainingEntity
+        {
+            Id = Guid.NewGuid(),
+            TrainingTypeId = trainingType.Id,
+            StartDate = new DateOnly(2024, 2, 5),
+            EndDate = new DateOnly(2024, 2, 9),
+            CreatedAtUtc = initialTimestamp,
+            CreatedByUserId = "seed",
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+        db.Trainings.Add(training);
+        await db.SaveChangesAsync();
+
+        var rosterRows = new[]
+        {
+            new TrainingRosterRow { ArmyNumber = " 17032478k ", Rank = "cFN", Name = "sURYAMAN  sHUKLA", UnitName = "3  GUARDS", Category = 2 },
+            new TrainingRosterRow { ArmyNumber = "ic-12345", Rank = "LT COL", Name = "R K McGregor", UnitName = "475 Engr Bde", Category = 0 }
+        };
+
+        var result = await sut.UpsertRosterAsync(training.Id, rosterRows, training.RowVersion, "editor", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var stored = await db.TrainingTrainees.AsNoTracking().Where(x => x.TrainingId == training.Id).OrderBy(x => x.Category).ToListAsync();
+        Assert.Equal(("IC-12345", "Lt Col", "R K McGregor", "475 Engr Bde"), (stored[0].ArmyNumber, stored[0].Rank, stored[0].Name, stored[0].UnitName));
+        Assert.Equal(("17032478K", "Cfn", "Suryaman Shukla", "3 GUARDS"), (stored[1].ArmyNumber, stored[1].Rank, stored[1].Name, stored[1].UnitName));
+    }
+
+    [Theory]
+    [InlineData("cFN", "Cfn")]
+    [InlineData("LT COL", "Lt Col")]
+    [InlineData("nb sub", "Nb Sub")]
+    [InlineData("2/LT", "2/Lt")]
+    [InlineData("Hav", "Hav")]
+    [InlineData("  Sub   Maj ", "Sub Maj")]
+    public void RosterText_Rank(string typed, string stored)
+        => Assert.Equal(stored, TrainingRosterText.Rank(typed));
+
+    [Theory]
+    [InlineData("sURYAMAN sHUKLA", "Suryaman Shukla")]
+    [InlineData("ANIL KUMAR", "Anil Kumar")]
+    [InlineData("anil kumar", "Anil Kumar")]
+    [InlineData("D'SOUZA", "D'Souza")]
+    [InlineData("R K McGregor", "R K McGregor")]
+    [InlineData("राम कुमार", "राम कुमार")]
+    public void RosterText_Name(string typed, string stored)
+        => Assert.Equal(stored, TrainingRosterText.Name(typed));
+
+    [Theory]
+    [InlineData(" 17032478k ", "17032478K")]
+    [InlineData("JC 123 45", "JC12345")]
+    [InlineData("   ", null)]
+    public void RosterText_ArmyNumber(string typed, string? stored)
+        => Assert.Equal(stored, TrainingRosterText.ArmyNumber(typed));
+
+    [Fact]
+    public void RosterText_Unit_KeepsCaseAndTidiesSpaces()
+        => Assert.Equal("3 GUARDS", TrainingRosterText.Unit("  3   GUARDS "));
 
     [Fact]
     public async Task UpsertRosterAsync_ReturnsInvalidRequest_WhenRowMissingRequiredFields()

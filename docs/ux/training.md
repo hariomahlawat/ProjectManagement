@@ -11,11 +11,12 @@ delete requests.
 | --- | --- |
 | Register (the module's main page) | `Areas/ProjectOfficeReports/Pages/Training/Index.cshtml(.cs)`; `/Training/Records` redirects here with its filters and page |
 | Order and effective date | `TrainingTrackerReadService.OrderForRegister`, `TrainingListItem.EffectiveDate` |
-| Record page, editor | `Pages/Training/View`, `Manage` |
+| Record page, editor | `Pages/Training/View`, `Manage` (roster grid `_RosterGrid`) |
+| Roster text (ranks, names, army numbers) | `Application/TrainingRosterText.cs`, applied on save (`TrainingWriteService`) and on read |
 | Officers / JCOs / ORs split | `Pages/Training/_StrengthSplit.cshtml` (model `IndexModel.StrengthBreakdown`) |
 | Type colour key | `Pages/Training/TrainingTypeAppearance.cs` |
-| Styles | `wwwroot/css/project-office-reports/training/register.css` (register), `manage.css` (shared tokens, tags, split, editor); site tokens only |
-| Script | `wwwroot/js/project-office-reports/training/index.js` (trend chart, row clicks, sort/rows, export form) |
+| Styles | `wwwroot/css/project-office-reports/training/register.css` (register), `record.css` (record page), `editor.css` (editor), `manage.css` (shared tokens, tags, split, project picker); site tokens only |
+| Script | `wwwroot/js/project-office-reports/training/index.js` (register: trend chart, row clicks, sort/rows, export form); `manage.js` (editor: schedule and legacy switches, roster grid) |
 
 ## The register (`/ProjectOfficeReports/Training`)
 
@@ -73,8 +74,41 @@ Trainees per training year (April–March), Simulator and Drone stacked. Colours
 legend come from the tokens above and `--pm-chart-*`, and the chart redraws when the theme changes.
 The tooltip gives each type and the year's total. **Download** saves a PNG on the card colour.
 
-## Record page
+## Record page (`/Training/View?id=…`)
 
-Details (period, total trainees, strength split, linked projects, notes with line breaks kept) and
-the roster sit in separate cards with a gap between them; metadata sits beside them on wide screens.
-The roster counters count roster rows; the strength split shows the training's stored totals.
+Same shape as the Visits record page.
+
+- Breadcrumb back to the tracker, then a plain header: the type tag (and **Legacy totals** for
+  totals-only records), the title, and a line with the dates and length, the number of trainees and
+  the units. The title is what the training served: its project, "Project and N more" when it served
+  several, or "Simulator training" when no project is linked. **Edit training** for managers.
+- **Who attended**: the total, the Officers / JCOs / ORs split (the training's stored totals), then
+  the roster, rank and name first, with army number, unit and category. A totals-only record says
+  there is no roster and why. On phones each person reads as two lines.
+- **Projects**: each linked project, linking to its project page. **Notes** as typed, line breaks kept.
+- Beside them (below on narrow screens): **The training** (type, dates, length, trainees, recorded as
+  a roster or as totals) and **Record**: who recorded it and when, and who last edited it and when,
+  in IST. An edit within two minutes of recording does not count as an edit.
+
+## Recording and editing a training (`/Training/Manage`)
+
+- Same width and breadcrumb as the other pages; **Record a training** or **Edit training**.
+- Three cards: **What and when** (type, then "Dates known": exact dates or month and year only, as
+  two side-by-side choices, then the matching fields), **Projects and notes**, and **Who attended**.
+- **Who attended** holds either the roster (counts by category update as you type; **Add person**
+  puts the cursor in the new row) or, with **Totals only (legacy record)** switched on, three totals
+  for registers that have no names.
+- Roster text is tidied when it is saved and when it is shown (`TrainingRosterText`): ranks and names
+  are capitalised word by word unless already in ordinary mixed case ("LT COL" → "Lt Col", "sURYAMAN
+  sHUKLA" → "Suryaman Shukla", "McGregor" kept), army numbers lose inner spaces and are upper case,
+  units keep their case. Existing rows are shown tidied without a data migration and are stored
+  tidied on their next save.
+- The roster travels to the server as base64 of UTF-8 JSON, so names in any script (and curly
+  apostrophes) are kept.
+- **Save** sits in a bar that stays in view at the bottom of the screen on desktop; on phones it is
+  at the end of the form. **Cancel** returns to the record (or the tracker for a new one).
+- **Request deletion** is set apart below the form, folded until opened; it sends a request that an
+  approver decides, and a pending request is shown at the top of the editor with its reason and time
+  (IST).
+- Switches, radios and checkboxes in the editor have a 3:1 outline in both themes; each card has a
+  visible edge (cards are not the page colour).
