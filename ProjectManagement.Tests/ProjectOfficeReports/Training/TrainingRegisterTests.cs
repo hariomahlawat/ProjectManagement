@@ -46,6 +46,20 @@ public sealed class TrainingRegisterTests
         Assert.Equal(new[] { "b", "c", "a" }, TrainingTrackerReadService.OrderForRegister(items, TrainingRegisterSort.Type).Select(i => i.Notes));
     }
 
+    [Theory]
+    [InlineData("2026-10-12", "2026-10-16", 5)]
+    [InlineData("2026-10-12", "2026-10-12", 1)]
+    [InlineData("2026-10-12", null, 1)]
+    [InlineData("2026-10-16", "2026-10-12", null)]
+    [InlineData(null, "2026-10-12", null)]
+    public void TrainingDuration_CountsDaysInclusively(string? start, string? end, int? expected)
+    {
+        DateOnly? Parse(string? value) => value is null ? null : DateOnly.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+
+        Assert.Equal(expected, TrainingDuration.InclusiveDays(Parse(start), Parse(end)));
+        Assert.Equal(expected, Item(start: Parse(start), end: Parse(end)).DurationDays);
+    }
+
     [Fact]
     public void DateBlock_ShowsDayMonthAndSpan()
     {

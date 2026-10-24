@@ -695,15 +695,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var summaries = rows
                 .Select(item =>
                 {
-                    int? durationDays = null;
-                    if (item.StartDate is { } startDate)
-                    {
-                        var endDate = item.EndDate ?? startDate;
-                        if (endDate >= startDate)
-                        {
-                            durationDays = endDate.DayNumber - startDate.DayNumber + 1;
-                        }
-                    }
+                    var durationDays = item.DurationDays;
 
                     var trainingYearLabel = TryGetTrainingYearStart(item, out var startYear)
                         ? FormatTrainingYearLabel(startYear)
@@ -1566,6 +1558,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         string UnitDisplay)
     {
         public IReadOnlyList<string> ProjectNames => Projects.Select(project => project.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList();
+
+        // Inclusive length in days (see TrainingDuration); null without a start date.
+        public int? DurationDays => TrainingDuration.InclusiveDays(StartDate, EndDate);
 
         // The date a training is filed under: its start, else its end, else the first of its month.
         public DateOnly? EffectiveDate =>

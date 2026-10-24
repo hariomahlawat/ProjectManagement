@@ -694,15 +694,16 @@ public class IndexModel : PageModel
 
             if ((item.StartDate ?? item.EndDate) is { } start)
             {
+                // The length comes from the application layer (TrainingDuration); this only formats it.
                 var end = item.EndDate ?? start;
-                if (end <= start)
-                {
-                    return (start.ToString("dd", inv), start.ToString("MMM yyyy", inv), "1 day");
-                }
-
-                var days = end.DayNumber - start.DayNumber + 1;
                 var endText = end.Year == start.Year ? end.ToString("dd MMM", inv) : end.ToString("dd MMM yyyy", inv);
-                return (start.ToString("dd", inv), start.ToString("MMM yyyy", inv), $"to {endText} · {days} days");
+                var note = item.DurationDays switch
+                {
+                    1 => "1 day",
+                    { } days => $"to {endText} · {days} days",
+                    null => null
+                };
+                return (start.ToString("dd", inv), start.ToString("MMM yyyy", inv), note);
             }
 
             if (item.EffectiveDate is { } monthStart)
@@ -717,20 +718,11 @@ public class IndexModel : PageModel
         {
             if (item.StartDate.HasValue || item.EndDate.HasValue)
             {
-                var normalizedEnd = item.EndDate ?? item.StartDate;
-
                 var start = item.StartDate?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? "(not set)";
                 var end = item.EndDate?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? start;
                 var period = start == end ? start : $"{start} – {end}";
 
-                if (item.StartDate.HasValue && normalizedEnd.HasValue)
-                {
-                    var dayCount = normalizedEnd.Value.DayNumber - item.StartDate.Value.DayNumber + 1;
-                    var dayCountText = FormatDayCount(dayCount);
-                    return (period, dayCountText);
-                }
-
-                return (period, null);
+                return (period, item.DurationDays is { } dayCount ? FormatDayCount(dayCount) : null);
             }
 
             if (item.TrainingYear.HasValue && item.TrainingMonth.HasValue)
