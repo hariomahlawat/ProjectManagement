@@ -1,7 +1,11 @@
 @page
 @model ProjectManagement.Areas.Identity.Pages.Account.AccessDeniedModel
+@inject SignInManager<ApplicationUser> SignInManager
 @{
     ViewData["Title"] = "Access denied";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "focused";
+    ViewData["PublicHeaderMode"] = "Auth";
 }
 
 @{
@@ -13,18 +17,57 @@
     var message = (isFfcRecordsManagePage || isFfcCountriesManagePage)
         ? "Only authorised FFC managers can manage FFC records or countries. If you need access, please contact your administrator."
         : "You don't have permission to view this resource. If you believe this is an error, please contact your administrator.";
+    var signedIn = SignInManager.IsSignedIn(User);
+    var localReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : null;
 }
 
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h1 class="h4 mb-3">Access denied</h1>
-                    <p class="text-muted mb-4">@message</p>
-                    <a class="btn btn-primary" asp-page="/Index">Return to dashboard</a>
-                </div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/status-page.css" asp-append-version="true" />
+}
+
+<div class="lp status lp-hue-2@(signedIn ? " status--in-app" : string.Empty)">
+    <div class="lp-aurora lp-aurora--status" aria-hidden="true"></div>
+    <div class="status__dots" aria-hidden="true"></div>
+    <div class="status__beam" aria-hidden="true"></div>
+    <div class="status__fan" aria-hidden="true"></div>
+
+    <div class="lp-wrap">
+        <section class="status__card" data-glass-light aria-labelledby="status-title">
+            <span class="status__glyph" aria-hidden="true"><i class="bi bi-shield-lock"></i></span>
+            <p class="lp-eyebrow">Access denied</p>
+            <h1 id="status-title">This page is not open to your account</h1>
+            <p class="status__lead">@message</p>
+
+            <div class="status__actions">
+                @if (signedIn)
+                {
+                    <a class="lp-btn lp-btn--primary" asp-area="" asp-page="/Index">
+                        <span>Go to dashboard</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                }
+                else
+                {
+                    <a class="lp-btn lp-btn--primary" asp-area="Identity" asp-page="/Account/Login" asp-route-returnUrl="@localReturnUrl">
+                        <span>Sign in</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                    <a class="lp-btn lp-btn--ghost" asp-area="" asp-page="/Index">Back to home</a>
+                }
             </div>
-        </div>
+
+            <footer class="status__foot">
+                @if (localReturnUrl is not null)
+                {
+                    <p><span>Requested page</span> <code class="status__ref">@localReturnUrl</code></p>
+                }
+                <p><i class="bi bi-life-preserver" aria-hidden="true"></i> Access is granted by the PRISM administrator.</p>
+            </footer>
+        </section>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/pages/glass-light.js" asp-append-version="true" defer></script>
+}
