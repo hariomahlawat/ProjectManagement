@@ -109,28 +109,26 @@
 
   // ---- Grouping ----------------------------------------------------------------------------
 
-  const groupKey = fact => {
-    if (state.group === 'project') return fact.project || 'Not linked to a project';
-    if (state.group === 'status') {
-      if (fact.status === 'Filed') return 'Pending';
-      if (fact.status === 'Granted') return 'Granted';
-      return 'Closed';
+  // A group is keyed by what identifies it and shown by its label. Projects are keyed by id,
+  // because two projects may share a name; unlinked records sort first.
+  const groupOf = fact => {
+    if (state.group === 'project') {
+      return fact.projectId
+        ? { key: `project:${fact.projectId}`, label: fact.project, rank: 1 }
+        : { key: 'project:none', label: 'Not linked to a project', rank: 0 };
     }
-    if (state.group === 'year') return fact.filedYear || 'No filing date';
-    return '';
+    if (state.group === 'status') {
+      const label = fact.status === 'Filed' ? 'Pending' : fact.status === 'Granted' ? 'Granted' : 'Closed';
+      return { key: label, label, rank: ['Pending', 'Granted', 'Closed'].indexOf(label) };
+    }
+    const year = fact.filedYear || 'No filing date';
+    return { key: year, label: year, rank: 0 };
   };
 
   const groupOrder = (left, right) => {
-    if (state.group === 'project') {
-      if (left.startsWith('Not linked')) return -1;
-      if (right.startsWith('Not linked')) return 1;
-      return left.localeCompare(right);
-    }
-    if (state.group === 'status') {
-      const order = ['Pending', 'Granted', 'Closed'];
-      return order.indexOf(left) - order.indexOf(right);
-    }
-    return right.localeCompare(left);
+    if (left.rank !== right.rank) return left.rank - right.rank;
+    if (state.group === 'year') return right.label.localeCompare(left.label);
+    return left.label.localeCompare(right.label) || left.key.localeCompare(right.key);
   };
 
   const render = () => {
@@ -142,12 +140,12 @@
     if (state.group) {
       const groups = new Map();
       visible.forEach(fact => {
-        const key = groupKey(fact);
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(fact);
+        const group = groupOf(fact);
+        if (!groups.has(group.key)) groups.set(group.key, Object.assign(group, { members: [] }));
+        groups.get(group.key).members.push(fact);
       });
-      Array.from(groups.keys()).sort(groupOrder).forEach(key => {
-        const members = groups.get(key);
+      Array.from(groups.values()).sort(groupOrder).forEach(group => {
+        const members = group.members;
         const header = document.createElement('tr');
         header.className = 'ipr-table__group';
         header.dataset.iprGroupRow = '';
@@ -155,7 +153,7 @@
         cell.colSpan = 7;
         cell.scope = 'rowgroup';
         const label = document.createElement('span');
-        label.textContent = key;
+        label.textContent = group.label;
         const count = document.createElement('small');
         count.textContent = `${members.length} ${members.length === 1 ? 'filing' : 'filings'}`;
         cell.append(label, count);

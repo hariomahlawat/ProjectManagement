@@ -21,10 +21,13 @@ const ROWS = [
   { id: 3, type: 'Patent', status: 'Withdrawn', counted: false, closed: true, files: 0, projectId: 10, project: 'Tank Sml', filed: 2019, granted: '' },
   { id: 4, type: 'Patent', status: 'Filed', counted: true, closed: false, files: 0, projectId: '', project: '', filed: 2026, granted: '' }
 ];
+// A different project that happens to share a name with project 10.
+const NAMESAKE_ROW = { id: 5, type: 'Patent', status: 'Filed', counted: true, closed: false, files: 1, projectId: 12, project: 'Tank Sml', filed: 2024, granted: '' };
+const NAMESAKE_RECORD = { Id: 5, Title: 'Namesake filing', ApplicationNumber: 'P-005', IprType: 'Patent', Status: 'Patent pending', ProjectId: 12, ProjectName: 'Tank Sml', FiledBy: '', FiledOn: '2024-01-01T00:00:00', GrantedOn: null, ExternalRemark: null, Attachments: [] };
 
-function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?tab=records') {
-  const rows = ROWS.map(row => {
-    const record = RECORDS.find(item => item.Id === row.id);
+function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?tab=records', { rowsData = ROWS, recordsData = RECORDS } = {}) {
+  const rows = rowsData.map(row => {
+    const record = recordsData.find(item => item.Id === row.id);
     return `<tr data-ipr-row data-id="${row.id}" data-type="${row.type}" data-status="${row.status}"
         data-counted="${row.counted}" data-closed="${row.closed}" data-files="${row.files}"
         data-project-id="${row.projectId}" data-project="${row.project}" data-filed-year="${row.filed}"
@@ -69,7 +72,7 @@ function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?
         <li data-ipr-panel-progress-outcome><strong data-ipr-panel-outcome-title></strong><span data-ipr-panel-outcome-text></span></li>
         <div data-ipr-panel-files></div><p data-ipr-panel-notes></p>
       </aside>
-      <script type="application/json" id="iprRecordData">${JSON.stringify(RECORDS)}</script>
+      <script type="application/json" id="iprRecordData">${JSON.stringify(recordsData)}</script>
     </section>
   </body></html>`, { url, runScripts: 'outside-only', pretendToBeVisual: true });
   dom.window.HTMLElement.prototype.scrollIntoView = function scrollIntoView() {};
@@ -156,6 +159,13 @@ test('group by project inserts one header per project, unlinked first', () => {
   const headers = Array.from(dom.window.document.querySelectorAll('[data-ipr-group-row] span')).map(item => item.textContent);
   assert.deepEqual(headers, ['Not linked to a project', 'Drill App', 'Tank Sml']);
   assert.equal(new URL(dom.window.location.href).searchParams.get('group'), 'project');
+});
+
+test('group by project keeps same-named projects apart', () => {
+  const dom = createDom({ group: 'project' }, undefined, { rowsData: ROWS.concat(NAMESAKE_ROW), recordsData: RECORDS.concat(NAMESAKE_RECORD) });
+  const headers = Array.from(dom.window.document.querySelectorAll('[data-ipr-group-row]'))
+    .map(row => `${row.querySelector('span').textContent} (${row.querySelector('small').textContent})`);
+  assert.deepEqual(headers, ['Not linked to a project (1 filing)', 'Drill App (1 filing)', 'Tank Sml (1 filing)', 'Tank Sml (1 filing)']);
 });
 
 test('row click opens the record panel with escaped text; Escape closes it', () => {
