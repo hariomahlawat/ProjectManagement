@@ -63,16 +63,14 @@ test('visit details loads isolated viewer styling with a dark presentation stage
 });
 
 
-test('hero photo shortcut is a distinct accessible action and long viewer titles retain full text', () => {
-  assert.match(details, /visit-hero__photo-summary/);
-  assert.match(details, /visit-hero__photo-action/);
-  assert.match(details, /href="#visit-photo-gallery"[^>]*class="visit-hero__photo-action"/);
-  assert.match(details, /aria-label="View @photoCount visit @photoLabel"/);
+test('the cover photo opens the viewer and links to the gallery; long viewer titles keep their full text', () => {
+  assert.match(details, /data-visit-open-photo="@Model\.CoverPhotoIndex"/);
+  assert.match(details, /href="#visit-photo-gallery"[^>]*class="visit-cover__all"/);
   assert.match(details, /class="visit-photo-viewer__title"[^>]*title="@Model"/);
+  assert.match(script, /\[data-visit-open-photo\]/);
 
   const css = fs.readFileSync(cssPath, 'utf8');
-  assert.match(css, /\.visit-hero__photo-action/);
-  assert.match(css, /background:\s*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
+  assert.match(css, /\.visit-cover__open/);
   assert.match(css, /\.visit-photo-viewer__title[\s\S]*text-overflow:\s*ellipsis/);
 });
 

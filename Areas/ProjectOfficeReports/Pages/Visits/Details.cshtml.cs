@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -7,25 +8,43 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Models;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 
 [Authorize]
 public class DetailsModel : PageModel
 {
+    // An edit within this long of creation counts as part of recording the visit.
+    private static readonly TimeSpan EditGrace = TimeSpan.FromMinutes(2);
+
     private readonly VisitService _visitService;
+    private readonly VisitTypeService _visitTypeService;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public DetailsModel(VisitService visitService, UserManager<ApplicationUser> userManager)
+    public DetailsModel(VisitService visitService, VisitTypeService visitTypeService, UserManager<ApplicationUser> userManager)
     {
         _visitService = visitService;
+        _visitTypeService = visitTypeService;
         _userManager = userManager;
     }
 
     public VisitDetails? Visit { get; private set; }
 
     public VisitPhotosViewModel? PhotoGallery { get; private set; }
+
+    // The photo shown large at the top: the chosen cover, or the first photo when none is chosen.
+    public VisitPhoto? CoverPhoto { get; private set; }
+
+    public int CoverPhotoIndex { get; private set; }
+
+    public int TypeColourSlot { get; private set; } = 1;
+
+    public VisitRecordStamp? Recorded { get; private set; }
+
+    public VisitRecordStamp? LastEdited { get; private set; }
 
     [BindProperty]
     public string RowVersion { get; set; } = string.Empty;
@@ -43,8 +62,22 @@ public class DetailsModel : PageModel
             return Page();
         }
 
-        PhotoGallery = new VisitPhotosViewModel(id, Visit.Photos, Visit.Visit.CoverPhotoId, false);
-        RowVersion = Convert.ToBase64String(Visit.Visit.RowVersion);
+        var visit = Visit.Visit;
+        PhotoGallery = new VisitPhotosViewModel(id, Visit.Photos, visit.CoverPhotoId, false);
+        RowVersion = Convert.ToBase64String(visit.RowVersion);
+
+        CoverPhoto = Visit.Photos.FirstOrDefault(p => p.Id == visit.CoverPhotoId) ?? Visit.Photos.FirstOrDefault();
+        CoverPhotoIndex = CoverPhoto is null ? 0 : Visit.Photos.ToList().IndexOf(CoverPhoto);
+
+        var types = await _visitTypeService.GetAllAsync(includeInactive: true, cancellationToken);
+        TypeColourSlot = VisitTypeColours.SlotOf(VisitTypeColours.SlotsFor(types), visit.VisitTypeId);
+
+        Recorded = new VisitRecordStamp(await DisplayNameAsync(visit.CreatedByUserId), ToIst(visit.CreatedAtUtc));
+        if (visit.LastModifiedAtUtc is { } modified && modified - visit.CreatedAtUtc > EditGrace)
+        {
+            LastEdited = new VisitRecordStamp(await DisplayNameAsync(visit.LastModifiedByUserId), ToIst(modified));
+        }
+
         return Page();
     }
 
@@ -79,6 +112,24 @@ public class DetailsModel : PageModel
         return RedirectToPage(new { id });
     }
 
+    private async Task<string?> DisplayNameAsync(string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return null;
+        }
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName;
+    }
+
+    private static DateTimeOffset ToIst(DateTimeOffset value) => TimeZoneInfo.ConvertTime(value, TimeZoneHelper.GetIst());
+
     private bool IsProjectOfficeMember()
     {
         return User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
@@ -101,3 +152,6 @@ public class DetailsModel : PageModel
         }
     }
 }
+
+// Who did something to the record and when, in IST. The name is null when the account no longer exists.
+public sealed record VisitRecordStamp(string? By, DateTimeOffset AtIst);

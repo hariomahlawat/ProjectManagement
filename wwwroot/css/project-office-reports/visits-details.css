@@ -1,51 +1,349 @@
-/* Visit Details — focused gallery and in-page photo viewer */
+/* Visit Details — record page, gallery and in-page photo viewer */
 
-#visit-photo-gallery {
-    scroll-margin-top: 5.5rem;
+/* Visit record page (Pages/Visits/Details): plain header, cover photo, panels. Site tokens only. */
+.visit-record {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding-block: 0.25rem 2rem;
 }
 
-.visit-hero__photo-summary {
+.visit-record__crumbs .breadcrumb {
+    font-size: var(--pm-font-size-sm);
+}
+
+.visit-record__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.visit-record__identity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.visit-record__identity h1 {
+    margin: 0;
+    font-family: var(--pm-font-heading);
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--pm-text-strong);
+    overflow-wrap: anywhere;
+}
+
+.visit-record__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--pm-text-secondary);
+}
+
+.visit-record__meta .bi {
+    margin-right: 0.3rem;
+    color: var(--pm-text-muted);
+}
+
+.visit-record__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.visit-record__actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.visit-record__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+    gap: 1.25rem;
+}
+
+.visit-record__main,
+.visit-record__aside {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+.visit-record__aside {
+    position: sticky;
+    top: 5rem;
+}
+
+.visit-record__missing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 3.5rem 1.5rem;
+    border: 1px dashed var(--pm-border);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+    text-align: center;
+}
+
+.visit-record__missing .bi {
+    font-size: 2.25rem;
+    color: var(--pm-text-muted);
+}
+
+.visit-record__missing h1 {
+    margin: 0;
+    font-size: 1.35rem;
+    color: var(--pm-text-strong);
+}
+
+.visit-record__missing p {
+    margin: 0 0 0.5rem;
+    color: var(--pm-text-muted);
+}
+
+/* Cover photo: the visit at a glance. */
+.visit-cover {
+    margin: 0;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+    overflow: hidden;
+}
+
+.visit-cover__open {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--pm-surface-muted);
+    aspect-ratio: 16 / 9;
+    max-height: 30rem;
+    cursor: zoom-in;
+}
+
+.visit-cover__open img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.visit-cover__open:focus-visible {
+    outline: 3px solid var(--pm-primary);
+    outline-offset: -3px;
+}
+
+.visit-cover.is-missing .visit-cover__open {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 16 / 5;
+    color: var(--pm-text-muted);
+    cursor: default;
+}
+
+.visit-cover.is-missing .visit-cover__open img {
+    display: none;
+}
+
+.visit-cover.is-missing .visit-cover__open::after {
+    content: "Cover photo unavailable";
+    font-size: var(--pm-font-size-sm);
+}
+
+.visit-cover__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 0.65rem 1rem;
+    font-size: var(--pm-font-size-sm);
+}
+
+.visit-cover__caption {
+    min-width: 0;
+    color: var(--pm-text-secondary);
+}
+
+.visit-cover__all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 600;
+    color: var(--pm-link);
+    text-decoration: none;
     white-space: nowrap;
 }
 
-.visit-hero__photo-action {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.22rem;
-    padding: 0.22rem 0.55rem;
-    margin-left: -0.2rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+.visit-cover__all:hover {
+    text-decoration: underline;
+}
+
+/* Panels */
+.visit-panel {
+    padding: 1.1rem 1.25rem 1.25rem;
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+}
+
+.visit-panel__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.visit-panel__title {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.visit-panel__count {
+    margin-left: 0.25rem;
+    padding: 0 0.45rem;
     border-radius: 999px;
-    color: rgba(255, 255, 255, 0.94);
-    background: rgba(255, 255, 255, 0.08);
-    text-decoration: none;
-    font-size: 0.78rem;
-    font-weight: 650;
-    line-height: 1.35;
-    transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+    background: var(--pm-surface-soft);
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+    vertical-align: middle;
 }
 
-.visit-hero__photo-action:hover,
-.visit-hero__photo-action:focus-visible {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.14);
-    border-color: rgba(255, 255, 255, 0.34);
-    text-decoration: none;
-    outline: none;
+.visit-panel__link {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-link);
 }
 
-.visit-hero__photo-action:focus-visible {
-    box-shadow: 0 0 0 0.18rem rgba(255, 255, 255, 0.16);
+.visit-panel__empty {
+    margin: 0;
+    color: var(--pm-text-muted);
 }
 
-.visit-hero__photo-action i {
-    font-size: 0.95rem;
-    transition: transform 160ms ease;
+.visit-remarks-text {
+    color: var(--pm-text-primary);
+    line-height: 1.65;
+    /* Keep the paragraphs and line breaks the officer typed. */
+    white-space: pre-line;
+    overflow-wrap: anywhere;
 }
 
-.visit-hero__photo-action:hover i,
-.visit-hero__photo-action:focus-visible i {
-    transform: translateY(1px);
+.visit-facts {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+.visit-facts > div {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.55rem 0;
+    border-top: 1px solid var(--pm-divider);
+}
+
+.visit-facts > div:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.visit-facts dt {
+    font-size: var(--pm-font-size-sm);
+    font-weight: 500;
+    color: var(--pm-text-muted);
+}
+
+.visit-facts dd {
+    margin: 0;
+    font-weight: 600;
+    color: var(--pm-text-strong);
+}
+
+.visit-facts dd span {
+    display: block;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 400;
+    color: var(--pm-text-muted);
+}
+
+.visit-history {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.visit-history li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding-left: 0.85rem;
+    border-left: 2px solid var(--pm-border);
+}
+
+.visit-history__what {
+    font-size: var(--pm-font-size-sm);
+    font-weight: 600;
+    color: var(--pm-text-strong);
+}
+
+.visit-history__when {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.visit-history__quiet {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+@media (max-width: 991.98px) {
+    .visit-record__layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .visit-record__aside {
+        position: static;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    }
+}
+
+@media (max-width: 575.98px) {
+    .visit-record__identity h1 {
+        font-size: 1.4rem;
+    }
+
+    .visit-record__actions {
+        width: 100%;
+    }
+
+    .visit-record__actions .btn-primary {
+        flex: 1;
+        justify-content: center;
+    }
+}
+
+
+#visit-photo-gallery {
+    scroll-margin-top: 5.5rem;
 }
 
 .visit-form-card--gallery .visit-gallery-card__image {
@@ -378,11 +676,6 @@
 }
 
 @media (max-width: 575.98px) {
-    .visit-hero__photo-action {
-        padding-inline: 0.48rem;
-        font-size: 0.74rem;
-    }
-
     .visit-photo-viewer__body {
         grid-template-columns: 42px minmax(0, 1fr) 42px;
     }
@@ -402,8 +695,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .visit-hero__photo-action,
-    .visit-hero__photo-action i,
     .visit-form-card--gallery .visit-gallery-card__frame img,
     .visit-gallery-card__zoom,
     .visit-photo-viewer__image,
@@ -418,23 +709,6 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-:where([data-bs-theme="dark"]) .visit-hero__photo-action {
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.94);
-    background: rgba(255, 255, 255, 0.01);
-}
-
-:where([data-bs-theme="dark"]) .visit-hero__photo-action:hover,
-:where([data-bs-theme="dark"]) .visit-hero__photo-action:focus-visible {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.01);
-    border-color: rgba(255, 255, 255, 0.08);
-}
-
-:where([data-bs-theme="dark"]) .visit-hero__photo-action:focus-visible {
-    box-shadow: 0 0 0 0.18rem rgba(255, 255, 255, 0.05);
-}
-
 :where([data-bs-theme="dark"]) .visit-form-card--gallery .visit-gallery-card__image {
     background: #25282d;
 }

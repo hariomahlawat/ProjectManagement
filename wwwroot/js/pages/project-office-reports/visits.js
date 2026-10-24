@@ -896,6 +896,32 @@ function initRegisterRows() {
     });
 }
 
+// SECTION: Cover photo on the record page
+// The cover opens the same viewer as the gallery, at the cover's position.
+function initCoverPhoto() {
+    document.querySelectorAll('[data-visit-open-photo]').forEach(button => {
+        const cover = button.closest('.visit-cover');
+        const img = button.querySelector('img');
+        const markMissing = () => {
+            cover?.classList.add('is-missing');
+            button.disabled = true;
+        };
+        if (img) {
+            if (img.complete && img.naturalWidth === 0) {
+                markMissing();
+            } else {
+                img.addEventListener('error', markMissing, { once: true });
+            }
+        }
+
+        button.addEventListener('click', () => {
+            const index = button.getAttribute('data-visit-open-photo');
+            const item = document.querySelector(`[data-visit-gallery-item][data-photo-index="${index}"]`);
+            item?.click();
+        });
+    });
+}
+
 // ----------------------------------------------------
 // INITIALISE EVERYTHING
 // ----------------------------------------------------
@@ -907,6 +933,7 @@ function init() {
     initVisitPhotoViewer();
     initGalleryFallbacks();
     initRegisterRows();
+    initCoverPhoto();
     initPhotoUploadInputs();
     initVisitRegisterPageSize();
 }

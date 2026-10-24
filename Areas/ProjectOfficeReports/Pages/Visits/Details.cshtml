@@ -1,212 +1,196 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.DetailsModel
+@using System.Globalization
+@using Microsoft.AspNetCore.WebUtilities
 @{
-    ViewData["Title"] = "Visit to SDD details";
+    var inv = CultureInfo.InvariantCulture;
     var visit = Model.Visit?.Visit;
-    var visitTypeName = Model.Visit?.VisitType.Name;
+    ViewData["Title"] = visit is null ? "Visit not found" : $"{visit.VisitorName} · Visits to SDD";
     var photoCount = Model.PhotoGallery?.Photos.Count ?? 0;
-    var photoLabel = photoCount == 1 ? "photo" : "photos";
-    var createdOn = visit?.CreatedAtUtc.ToLocalTime();
-    var updatedOn = visit?.LastModifiedAtUtc?.ToLocalTime();
+    string Plural(int count, string one, string many) => count == 1 ? one : many;
+    string Stamp(DateTimeOffset value) => value.ToString("dd MMM yyyy, HH:mm", inv) + " IST";
+
+    string? coverUrl = null;
+    if (Model.CoverPhoto is { } cover && visit is not null)
+    {
+        coverUrl = Url.Page("./ViewPhoto", new { id = visit.Id, photoId = cover.Id, size = "lg" });
+        if (coverUrl is not null && !string.IsNullOrWhiteSpace(cover.VersionStamp))
+        {
+            coverUrl = QueryHelpers.AddQueryString(coverUrl, "v", cover.VersionStamp);
+        }
+    }
 }
 
-@if (Model.Visit is null)
-{
-    <div class="visit-shell visit-tracker">
-        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Details</li>
-            </ol>
-        </nav>
-        <div class="visit-access-card">
-            <div class="visit-empty text-center py-5">
-                <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-frown"></i></div>
-                <h2 class="visit-empty__title">Visit not found</h2>
-                <p class="visit-empty__subtitle">It may have been removed or you might not have access to it anymore.</p>
-            </div>
+<div class="visit-record">
+    <nav aria-label="Breadcrumb" class="visit-record__crumbs">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@(visit?.VisitorName ?? "Visit not found")</li>
+        </ol>
+    </nav>
+
+    @if (visit is null)
+    {
+        <div class="visit-record__missing">
+            <i class="bi bi-journal-x" aria-hidden="true"></i>
+            <h1>Visit not found</h1>
+            <p>It may have been deleted, or the link is incomplete.</p>
+            <a asp-page="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Visits to SDD</a>
         </div>
-    </div>
-}
-else
-{
-    <div class="visit-shell visit-tracker">
-        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Details</li>
-            </ol>
-        </nav>
+    }
+    else
+    {
+        @* SECTION: Header *@
+        <header class="visit-record__head">
+            <div class="visit-record__identity">
+                <span class="visit-type-tag visit-type-tag--@Model.TypeColourSlot">@Model.Visit!.VisitType.Name</span>
+                <h1>@visit.VisitorName</h1>
+                <ul class="visit-record__meta">
+                    <li><i class="bi bi-calendar3" aria-hidden="true"></i> @visit.DateOfVisit.ToString("dddd, d MMMM yyyy", inv)</li>
+                    <li><i class="bi bi-people" aria-hidden="true"></i> @visit.Strength.ToString("N0", inv) @Plural(visit.Strength, "visitor", "visitors")</li>
+                    <li><i class="bi bi-images" aria-hidden="true"></i> @(photoCount == 0 ? "No photos" : $"{photoCount} {Plural(photoCount, "photo", "photos")}")</li>
+                </ul>
+            </div>
+            @if (Model.CanManage)
+            {
+                <div class="visit-record__actions">
+                    <a asp-page="Edit" asp-route-id="@visit.Id" class="btn btn-primary">
+                        <i class="bi bi-pencil" aria-hidden="true"></i>
+                        <span>Edit visit</span>
+                    </a>
+                    <form method="post" asp-page-handler="Delete" data-visits-disable-on-submit data-page-handled data-confirm="Delete this visit to SDD? The record and all its photos will be removed. This cannot be undone.">
+                        <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
+                        <button type="submit" class="btn btn-outline-danger" data-visits-busy-label="Deleting…">
+                            <i class="bi bi-trash" aria-hidden="true"></i>
+                            <span>Delete</span>
+                        </button>
+                    </form>
+                </div>
+            }
+        </header>
 
-        <section class="visit-hero visit-hero--details">
-            <div class="visit-hero__content">
-                <span class="visit-hero__eyebrow">Visit to SDD summary</span>
-                <h1 class="visit-hero__title">@visit?.VisitorName&rsquo;s visit</h1>
-                <p class="visit-hero__subtitle">Recorded on @visit?.DateOfVisit.ToString("dddd, dd MMMM yyyy")</p>
-                <div class="visit-hero__meta">
-                    <span class="visit-hero__meta-item"><i class="bi bi-geo-alt" aria-hidden="true"></i> Type: @visitTypeName</span>
-                    <span class="visit-hero__meta-item"><i class="bi bi-people" aria-hidden="true"></i> Team size: @visit?.Strength</span>
-                    @if (photoCount > 0)
+        <div class="visit-record__layout">
+            <div class="visit-record__main">
+                @* SECTION: Cover photo *@
+                @if (coverUrl is not null)
+                {
+                    <figure class="visit-cover">
+                        <button type="button" class="visit-cover__open" data-visit-open-photo="@Model.CoverPhotoIndex" aria-label="Open the photos, starting with the cover photo">
+                            <img src="@coverUrl" alt="@(string.IsNullOrWhiteSpace(Model.CoverPhoto!.Caption) ? $"Cover photo of the visit by {visit.VisitorName}" : Model.CoverPhoto.Caption)" decoding="async" />
+                        </button>
+                        <figcaption class="visit-cover__bar">
+                            <span class="visit-cover__caption">@(string.IsNullOrWhiteSpace(Model.CoverPhoto!.Caption) ? "Cover photo" : Model.CoverPhoto.Caption)</span>
+                            <a href="#visit-photo-gallery" class="visit-cover__all">
+                                <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+                                @(photoCount == 1 ? "View photo" : $"All {photoCount} photos")
+                            </a>
+                        </figcaption>
+                    </figure>
+                }
+
+                @* SECTION: Remarks *@
+                <section class="visit-panel" aria-labelledby="visit-remarks-heading">
+                    <h2 id="visit-remarks-heading" class="visit-panel__title">Remarks</h2>
+                    @if (string.IsNullOrWhiteSpace(visit.Remarks))
                     {
-                        <span class="visit-hero__meta-item visit-hero__photo-summary">
-                            <i class="bi bi-images" aria-hidden="true"></i>
-                            <span>@photoCount @photoLabel captured</span>
-                        </span>
-                        <a href="#visit-photo-gallery"
-                           class="visit-hero__photo-action"
-                           aria-label="View @photoCount visit @photoLabel">
-                            <span>View photos</span>
-                            <i class="bi bi-arrow-down-short" aria-hidden="true"></i>
-                        </a>
+                        <p class="visit-panel__empty">No remarks were recorded for this visit.</p>
                     }
                     else
                     {
-                        <span class="visit-hero__meta-item"><i class="bi bi-images" aria-hidden="true"></i> No photos captured</span>
+                        <div class="visit-remarks-text">@visit.Remarks</div>
                     }
-                </div>
-                <div class="visit-hero__actions visit-hero__actions--wrap">
-                    <a asp-page="Index" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
-                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                        <span>Back to Visits to SDD</span>
-                    </a>
-                    @if (Model.CanManage)
-                    {
-                        <a asp-page="Edit" asp-route-id="@visit?.Id" class="btn btn-light d-inline-flex align-items-center gap-2">
-                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                            <span>Edit</span>
-                        </a>
-                        <form method="post" asp-page-handler="Delete" class="visit-hero__delete" data-visits-disable-on-submit data-page-handled data-confirm="Delete this visit to SDD? This action will remove the visit record and its uploaded photo evidence. This cannot be undone.">
-                            <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
-                            <button type="submit" class="btn btn-outline-danger d-inline-flex align-items-center gap-2" data-visits-busy-label="Deleting…">
-                                <i class="bi bi-trash" aria-hidden="true"></i>
-                                <span>Delete visit</span>
-                            </button>
-                        </form>
-                    }
-                </div>
-            </div>
-        </section>
+                </section>
 
-        <section class="visit-details">
-            <div class="visit-details__primary">
-                <div class="visit-form-card visit-form-card--surface">
-                    <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">About the visit</h2>
-                    </div>
-                    <div class="visit-summary-grid">
-                        <div class="visit-summary-grid__item">
-                            <span class="visit-summary__label">Visit type</span>
-                            <span class="visit-summary__value">@visitTypeName</span>
-                        </div>
-                        <div class="visit-summary-grid__item">
-                            <span class="visit-summary__label">Visitor</span>
-                            <span class="visit-summary__value">@visit?.VisitorName</span>
-                        </div>
-                        <div class="visit-summary-grid__item">
-                            <span class="visit-summary__label">Date of visit</span>
-                            <span class="visit-summary__value">@visit?.DateOfVisit.ToString("dd MMM yyyy") (@visit?.DateOfVisit.ToString("dddd"))</span>
-                        </div>
-                        <div class="visit-summary-grid__item">
-                            <span class="visit-summary__label">Report created on</span>
-                            <span class="visit-summary__value">@createdOn?.ToString("dd MMM yyyy, HH:mm")</span>
-                        </div>
-                    </div>
-                    <div class="visit-summary-metrics">
-                        <div class="visit-metric">
-                            <span class="visit-metric__value">@visit?.Strength</span>
-                            <span class="visit-metric__label">People present</span>
-                        </div>
-                        <div class="visit-metric visit-metric--subtle">
-                            <span class="visit-metric__value">@photoCount</span>
-                            <span class="visit-metric__label">Photos captured</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="visit-form-card visit-form-card--surface">
-                    <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Remarks</h2>
-                        <p class="visit-form-card__subtitle">Context, directions, and follow-up notes from the visit.</p>
-                    </div>
-                    <div class="visit-remarks">
-                        @if (string.IsNullOrWhiteSpace(visit?.Remarks))
+                @* SECTION: Photos *@
+                <section class="visit-panel" id="visit-photo-gallery" aria-labelledby="visit-photos-heading">
+                    <div class="visit-panel__head">
+                        <h2 id="visit-photos-heading" class="visit-panel__title">Photos <span class="visit-panel__count">@photoCount</span></h2>
+                        @if (Model.CanManage)
                         {
-                            <div class="visit-remarks__body visit-remarks__body--empty">No remarks recorded.</div>
+                            <a asp-page="Edit" asp-route-id="@visit.Id" asp-fragment="visit-photo-manager" class="visit-panel__link">
+                                @(photoCount == 0 ? "Add photos" : "Add or manage photos")
+                            </a>
+                        }
+                    </div>
+                    @if (photoCount == 0)
+                    {
+                        <p class="visit-panel__empty">No photos have been added to this visit.</p>
+                    }
+                    else
+                    {
+                        <div class="visit-form-card--gallery">
+                            <partial name="_PhotosPartial" model="Model.PhotoGallery" />
+                        </div>
+                    }
+                </section>
+            </div>
+
+            <aside class="visit-record__aside">
+                @* SECTION: Facts *@
+                <section class="visit-panel" aria-labelledby="visit-facts-heading">
+                    <h2 id="visit-facts-heading" class="visit-panel__title">The visit</h2>
+                    <dl class="visit-facts">
+                        <div>
+                            <dt>Date</dt>
+                            <dd>@visit.DateOfVisit.ToString("dd MMM yyyy", inv) <span>@visit.DateOfVisit.ToString("dddd", inv)</span></dd>
+                        </div>
+                        <div>
+                            <dt>Visit type</dt>
+                            <dd>
+                                @Model.Visit.VisitType.Name
+                                @if (!Model.Visit.VisitType.IsActive)
+                                {
+                                    <span>No longer used for new visits</span>
+                                }
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Visitors</dt>
+                            <dd>@visit.Strength.ToString("N0", inv)</dd>
+                        </div>
+                        <div>
+                            <dt>Photos</dt>
+                            <dd>@photoCount</dd>
+                        </div>
+                    </dl>
+                </section>
+
+                @* SECTION: Record history *@
+                <section class="visit-panel" aria-labelledby="visit-history-heading">
+                    <h2 id="visit-history-heading" class="visit-panel__title">Record</h2>
+                    <ul class="visit-history">
+                        @if (Model.Recorded is { } recorded)
+                        {
+                            <li>
+                                <span class="visit-history__what">Recorded@(recorded.By is null ? string.Empty : $" by {recorded.By}")</span>
+                                <span class="visit-history__when">@Stamp(recorded.AtIst)</span>
+                            </li>
+                        }
+                        @if (Model.LastEdited is { } edited)
+                        {
+                            <li>
+                                <span class="visit-history__what">Last edited@(edited.By is null ? string.Empty : $" by {edited.By}")</span>
+                                <span class="visit-history__when">@Stamp(edited.AtIst)</span>
+                            </li>
                         }
                         else
                         {
-                            <div class="visit-remarks__body">@visit?.Remarks</div>
-                        }
-                    </div>
-                </div>
-            </div>
-            <aside class="visit-details__aside">
-                <div class="visit-form-card visit-form-card--surface">
-                    <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Timeline</h2>
-                        <p class="visit-form-card__subtitle">Audit-friendly milestones for this record.</p>
-                    </div>
-                    <ul class="visit-timeline">
-                        @if (createdOn.HasValue)
-                        {
-                            <li>
-                                <span class="visit-timeline__dot" aria-hidden="true"></span>
-                                <div class="visit-timeline__content">
-                                    <span class="visit-timeline__label">Created</span>
-                                    <span class="visit-timeline__value">@createdOn.Value.ToString("dd MMM yyyy, HH:mm")</span>
-                                </div>
-                            </li>
-                        }
-                        @if (updatedOn.HasValue)
-                        {
-                            <li>
-                                <span class="visit-timeline__dot" aria-hidden="true"></span>
-                                <div class="visit-timeline__content">
-                                    <span class="visit-timeline__label">Last updated</span>
-                                    <span class="visit-timeline__value">@updatedOn.Value.ToString("dd MMM yyyy, HH:mm")</span>
-                                </div>
-                            </li>
-                        }
-                        else if (createdOn.HasValue)
-                        {
-                            <li>
-                                <span class="visit-timeline__dot" aria-hidden="true"></span>
-                                <div class="visit-timeline__content">
-                                    <span class="visit-timeline__label">Last updated</span>
-                                    <span class="visit-timeline__value">No edits since creation</span>
-                                </div>
-                            </li>
+                            <li class="visit-history__quiet">Not edited since it was recorded.</li>
                         }
                     </ul>
-                </div>
+                </section>
             </aside>
-        </section>
-
-        <section class="visit-media" id="visit-photo-gallery">
-            <div class="visit-media__gallery visit-media__gallery--full">
-                <div class="visit-form-card visit-form-card--gallery">
-                    <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Photo gallery</h2>
-                        <p class="visit-form-card__subtitle">Uploaded photo evidence for this visit to SDD.</p>
-                    </div>
-                    <div class="visit-form-card__body">
-                        <partial name="_PhotosPartial" model="Model.PhotoGallery" />
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>
+        </div>
 
         @if (photoCount > 0)
         {
-            <partial name="_PhotoViewer" model="visit?.VisitorName ?? string.Empty" />
+            <partial name="_PhotoViewer" model="visit.VisitorName" />
         }
-
-}
+    }
+</div>
 
 @section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-register.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
 }
 

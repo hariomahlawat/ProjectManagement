@@ -45,6 +45,22 @@ photos. Everyone signed in can read it; Admin, HoD and Project Office record and
    colours come from the `--pm-chart-*` tokens and redraw when the theme changes; downloads keep
    the card background.
 
+## The record page (`/Visits/Details/{id}`)
+
+- Breadcrumb back to the register, then a plain header: the type tag (same colour as on the
+  register), the visitor as the title, the date, the number of visitors and photos, and **Edit
+  visit** / **Delete** for managers. Delete asks first and removes the photos too.
+- The cover photo (or the first photo when none is chosen) shown large; it opens the photo viewer
+  at that photo. **All N photos** jumps to the gallery.
+- **Remarks** as typed, paragraphs and line breaks kept.
+- **Photos**: the gallery, opening the same in-page viewer (`_PhotoViewer`). Managers get a link
+  to the photo manager on the edit page.
+- Beside them (below on narrow screens): **The visit** (date, type, visitors, photos; a type no
+  longer used for new visits says so) and **Record**: who recorded it and when, and who last
+  edited it and when, in IST. An edit within two minutes of recording does not count as an edit.
+- A missing visit shows "Visit not found" with a way back, under a 404 status.
+- A photo or cover whose file cannot be served shows a quiet "unavailable" placeholder.
+
 ## Messages
 
 Server messages use the shared layout toasts: `TempData["ToastSuccess"]` and `TempData["ToastError"]`.
