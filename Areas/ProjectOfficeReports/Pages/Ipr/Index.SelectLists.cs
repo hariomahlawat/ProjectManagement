@@ -102,9 +102,15 @@ public sealed partial class IndexModel
             }
         };
 
-        var dateYears = await _db.IprRecords
-            .AsNoTracking()
-            .Where(IprStatusPolicy.CountedPredicate)
+        // Offer the years of closed history too while a closed status is being browsed;
+        // otherwise a year holding only rejected or withdrawn records could not be selected.
+        var yearScope = _db.IprRecords.AsNoTracking();
+        if (!Statuses.Any(IprStatusPolicy.IsClosed))
+        {
+            yearScope = yearScope.Where(IprStatusPolicy.CountedPredicate);
+        }
+
+        var dateYears = await yearScope
             .Select(record => new
             {
                 FiledYear = record.FiledAtUtc.HasValue ? (int?)record.FiledAtUtc.Value.Year : null,

@@ -562,6 +562,39 @@ public sealed class IprIndexPageTests
         Assert.Equal(1, page.Kpis.Total);
         Assert.Equal(1, page.Kpis.Rejected);
         Assert.Equal(0, page.Kpis.Withdrawn);
+        Assert.Contains(page.DateYearOptions, option => option.Year == 2023 && option.HasFiled);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_DefaultView_OffersOnlyYearsOfCountedRecords()
+    {
+        await using var db = CreateDbContext();
+        db.IprRecords.AddRange(
+            new IprRecord
+            {
+                IprFilingNumber = "IPR-YEAR-OPEN",
+                Title = "Open filing",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "IPR-YEAR-WITHDRAWN",
+                Title = "Withdrawn filing",
+                Type = IprType.Patent,
+                Status = IprStatus.Withdrawn,
+                FiledAtUtc = new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions());
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(new[] { 2024 }, page.DateYearOptions.Select(option => option.Year).ToArray());
     }
 
     private static ApplicationDbContext CreateDbContext()
