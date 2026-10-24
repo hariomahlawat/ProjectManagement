@@ -111,6 +111,16 @@ To bring the dates up to date, run the remove script and then the seed script. T
 
 `.github/workflows/notebook.yml` provides the broadest normal build/test path currently committed. The repository does not yet have one single workflow that expresses every required validation for every change type; use the affected-area tests plus the checks above.
 
+## Test parallelism
+
+`ProjectManagement.Tests/xunit.runner.json` sets xUnit's `parallelAlgorithm` to `conservative`. Keep it that way.
+
+xUnit runs tests on `maxParallelThreads` worker threads, which defaults to the processor count, so 2 on a GitHub runner. Before October 2026 the suite used xUnit 2.4, which has only the "aggressive" algorithm. Whenever a test awaited, that algorithm started another test class on the freed thread, so hundreds of tests were in flight at once. Every awaiting test's continuation then queued for one of those 2 threads, behind other tests' synchronous work: `WebApplicationFactory` booting a host inside `CreateClient()`, `Process.WaitForExit` in the publish-script tests, and EF model building. `WebApplicationFactory` tests waited in that queue for over 100 seconds, so `HttpClient` gave up with "The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing". The stack ended in `ResponseBodyReaderStream.ReadAsync`, because the TestServer response pipe resumes on xUnit's synchronization context. The .NET thread pool sat idle the whole time. Async tests that do not use a host were slowed too, typically 40–110 seconds each, but nothing timed them out. About 13% of `notebook` runs failed this way.
+
+The conservative algorithm starts only as many tests as there are worker threads, so a test that is awaiting no longer competes with an unbounded queue. Do not raise `HttpClient.Timeout`, add retries or disable parallelization to work around a slow in-process host test. Look for synchronous blocking on the xUnit thread instead.
+
+`longRunningTestSeconds` (60) with `diagnosticMessages` makes xUnit name any test still running after a minute in the test output, which is the first thing to check if such timeouts come back. `dotnet test --blame-hang` does not help here: vstest restarts its hang timer whenever any test starts or finishes, so it never fires while thousands of other tests keep completing.
+
 ## Before merging a change
 
 At minimum, record:

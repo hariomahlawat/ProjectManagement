@@ -25,44 +25,13 @@ jobs:
           dotnet-version: '8.0.x'
       - run: dotnet restore
       - run: dotnet build --no-restore
-      - run: dotnet tool install --global dotnet-dump
-      # vstest's --blame-hang timer resets on every test event, so it cannot see one stuck
-      # test among thousands. xUnit reports a test still running after 45s; dump then.
       - name: Test
-        run: |
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          mkdir -p dumps
-          dotnet test --no-build --logger "console;verbosity=normal" -- xUnit.LongRunningTestSeconds=45 xUnit.DiagnosticMessages=true > test.log 2>&1 &
-          tpid=$!
-          dumped=0
-          while kill -0 $tpid 2>/dev/null; do
-            if [ $dumped -lt 2 ] && grep -q "Long Running Test" test.log; then
-              hp=$(pgrep -f 'testhost' | head -1)
-              echo "Long-running test detected; dumping testhost $hp"
-              grep "Long Running Test" test.log | tail -20
-              dotnet-dump collect -p "$hp" --type Heap -o "dumps/hang-$dumped.dmp" || true
-              dumped=$((dumped+1))
-              sleep 25
-            fi
-            sleep 2
-          done
-          wait $tpid; rc=$?
-          grep -E "Long Running Test|\[FAIL\]|Failed!|Passed!" test.log | head -60
-          exit $rc
-      - name: Analyse dumps
-        if: always()
-        run: |
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          for d in dumps/*.dmp; do
-            [ -f "$d" ] || continue
-            dotnet-dump analyze "$d" -c "threadpool" -c "dumpasync --coalesce" -c "clrstack -all" -c "syncblk" -c "exit" > "$d.txt" 2>&1 || true
-            rm -f "$d"
-          done
-          cp test.log dumps/ || true
+        run: dotnet test --no-build --logger "console;verbosity=normal" > test.log 2>&1 || (grep -E "Long Running|\[FAIL\]|Failed!|Passed!" test.log; exit 1)
+      - if: always()
+        run: grep -E "Long Running|\[FAIL\]|Failed!|Passed!" test.log | head -40
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: hang-${{ matrix.attempt }}
-          path: dumps/
-          if-no-files-found: ignore
+          name: run-${{ matrix.attempt }}
+          path: test.log
           retention-days: 7

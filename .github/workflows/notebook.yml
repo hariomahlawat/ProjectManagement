@@ -41,21 +41,5 @@ jobs:
       - name: Build
         run: dotnet build --no-restore
 
-      # A test that runs for 90s (the in-process HttpClient gives up at 100s) is treated as
-      # a hang: the test host is dumped and the hanging tests are named in Sequence.xml.
       - name: Test
-        run: >-
-          dotnet test --no-build
-          --blame-hang --blame-hang-timeout 90s --blame-hang-dump-type full
-          --results-directory TestResults
-
-      - name: Upload hang diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-hang-diagnostics
-          path: |
-            TestResults/**/*.dmp
-            TestResults/**/Sequence*.xml
-          if-no-files-found: ignore
-          retention-days: 7
+        run: dotnet test --no-build
