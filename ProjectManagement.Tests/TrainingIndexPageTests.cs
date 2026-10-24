@@ -108,16 +108,19 @@ public sealed class TrainingIndexPageTests
     {
         var html = await RenderIndexPageAsync(canManage);
 
+        // Every row opens the training (a link plus a row-wide click); only managers get Manage.
+        Assert.Contains("<tr class=\"training-row\" data-row-href=", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"training-entry__name\"", html, StringComparison.Ordinal);
+
         if (canManage)
         {
-            Assert.Contains("<th scope=\"col\" class=\"text-end\">Actions</th>", html, StringComparison.Ordinal);
-            Assert.Contains(">Manage<", html, StringComparison.Ordinal);
+            Assert.Contains("<span class=\"visually-hidden\">Actions</span>", html, StringComparison.Ordinal);
+            Assert.Contains("<span>Manage</span>", html, StringComparison.Ordinal);
         }
         else
         {
-            Assert.Contains("<th scope=\"col\" class=\"text-end\">Actions</th>", html, StringComparison.Ordinal);
-            Assert.Contains(">View<", html, StringComparison.Ordinal);
-            Assert.DoesNotContain(">Manage<", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("<span class=\"visually-hidden\">Actions</span>", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("<span>Manage</span>", html, StringComparison.Ordinal);
         }
     }
 

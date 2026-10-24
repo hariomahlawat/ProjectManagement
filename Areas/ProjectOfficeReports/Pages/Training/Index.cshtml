@@ -1,6 +1,7 @@
 @page
 @using System.Globalization
 @using ProjectManagement.Areas.ProjectOfficeReports.Pages.Training
+@using TrainingIndex = ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel
 @{
     ViewData["Title"] = "Training tracker";
@@ -10,123 +11,70 @@
         ? Model.ProjectOptions.FirstOrDefault(option => option.Value == Model.Export.ProjectId.Value.ToString(CultureInfo.InvariantCulture))?.Text ?? string.Empty
         : string.Empty;
 
-    // ------------------------------------------------------------
-    // active filters counter
-    // ------------------------------------------------------------
-    var activeFilters = 0;
-    if (Model.Filter.TypeId.HasValue && Model.Filter.TypeId.Value != Guid.Empty) activeFilters++;
-    if (Model.Filter.ProjectId.HasValue) activeFilters++;
-    if (Model.Filter.ProjectTechnicalCategoryId.HasValue) activeFilters++;
-    if (Model.Filter.Category.HasValue) activeFilters++;
-    if (Model.Filter.From.HasValue || Model.Filter.To.HasValue) activeFilters++;
-    if (!string.IsNullOrWhiteSpace(Model.Filter.Search)) activeFilters++;
+    var inv = CultureInfo.InvariantCulture;
+    string N(int value) => value.ToString("N0", CultureInfo.CurrentCulture);
+    string Plural(int count, string one, string many) => count == 1 ? one : many;
 
-    // ------------------------------------------------------------
-    // route values for filter-preserving links
-    // ------------------------------------------------------------
-    var fromValue = Model.Filter.From?.ToString("yyyy-MM-dd");
-    var toValue = Model.Filter.To?.ToString("yyyy-MM-dd");
-    var baseFilterRouteValues = new Dictionary<string, string?>
-    {
-        ["TypeId"] = Model.Filter.TypeId?.ToString(),
-        ["Category"] = Model.Filter.Category?.ToString(),
-        ["From"] = fromValue,
-        ["To"] = toValue,
-        ["Search"] = Model.Filter.Search
-    };
+    var fromValue = Model.Filter.From?.ToString("yyyy-MM-dd", inv) ?? string.Empty;
+    var toValue = Model.Filter.To?.ToString("yyyy-MM-dd", inv) ?? string.Empty;
 
-    // ------------------------------------------------------------
-    // kpi buckets from service
-    // ------------------------------------------------------------
+    // Filters beyond search and type stay folded until one of them is set. A technical
+    // category chosen from the cards does not unfold them: the card and its chip show it.
+    var hasMoreFilters = Model.Filter.Category.HasValue
+        || Model.Filter.From.HasValue
+        || Model.Filter.To.HasValue;
+    var moreFilterCount = (Model.Filter.ProjectTechnicalCategoryId.HasValue ? 1 : 0)
+        + (Model.Filter.Category.HasValue ? 1 : 0)
+        + (Model.Filter.From.HasValue || Model.Filter.To.HasValue ? 1 : 0);
+
+    // Simulator / Drone headline figures by type name (see docs/ux/training.md)
     var sim = Model.Kpis.ByType.FirstOrDefault(x => x.TypeName.Equals("Simulator", StringComparison.OrdinalIgnoreCase));
     var drone = Model.Kpis.ByType.FirstOrDefault(x => x.TypeName.Equals("Drone", StringComparison.OrdinalIgnoreCase));
+    var columnCount = Model.CanManageTrainingTracker ? 5 : 4;
+    const string splitPartial = "~/Areas/ProjectOfficeReports/Pages/Training/_StrengthSplit.cshtml";
+    var scope = Model.HasFilters
+        ? $"{N(Model.TotalItems)} {Plural(Model.TotalItems, "training", "trainings")} match your filters"
+        : $"All {N(Model.TotalItems)} {Plural(Model.TotalItems, "training", "trainings")} on record";
 }
 
-<!-- ============================================================
-     PAGE HEADER
-     ============================================================ -->
-<div class="training-page-header card shadow-sm border-0 mb-4">
-    <div class="card-body d-flex flex-column flex-lg-row gap-3 gap-lg-4 align-items-start align-items-lg-center justify-content-between">
-        <div>
-            <h1 class="h2 mb-2">Training tracker</h1>
-            <p class="small text-secondary mb-0">
-                Current view:
-                @(
-                                Model.Filter.TypeId.HasValue && Model.Filter.TypeId.Value != Guid.Empty
-                                ? Model.TrainingTypes.FirstOrDefault(t => t.Value == Model.Filter.TypeId.ToString())?.Text ?? "Selected training type"
-                                : "All training types"
-                                ),
-                @(
-                                Model.Filter.ProjectTechnicalCategoryId.HasValue
-                                ? Model.ProjectTechnicalCategoryOptions.FirstOrDefault(t => t.Value == Model.Filter.ProjectTechnicalCategoryId.Value.ToString())?.Text ?? "Selected technical category"
-                                : "All technical categories"
-                                ),
-                @(
-                                Model.Filter.Category.HasValue
-                                ? Model.CategoryOptions.FirstOrDefault(t => t.Value == Model.Filter.Category.ToString())?.Text ?? "Selected trainee category"
-                                : "All trainee categories"
-                                )
-                @if (Model.Filter.ProjectId.HasValue)
-                {
-                    <text>, </text>
-                    @(Model.SelectedProjectName ?? "Selected project")
-                }
-                @if (Model.Filter.From.HasValue || Model.Filter.To.HasValue)
-                {
-                    <text>, period </text>
-                    @if (Model.Filter.From.HasValue)
-                    {
-                        @Model.Filter.From?.ToString("dd MMM yyyy")
-                    }
-                    @if (Model.Filter.To.HasValue)
-                    {
-                        <text> to </text>
-                        @Model.Filter.To?.ToString("dd MMM yyyy")
-                    }
-                }
-            </p>
+<div class="training-register">
+    @* SECTION: Page header — one row: title and scope, then the actions *@
+    <header class="training-register__head">
+        <div class="training-register__title">
+            <h1>Training tracker</h1>
+            @if (Model.IsFeatureEnabled)
+            {
+                <p>@scope</p>
+            }
         </div>
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            <button type="button"
-                    class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 training-filter-trigger"
-                    data-bs-toggle="modal"
-                    data-bs-target="#trainingFiltersModal">
-                <i class="bi bi-funnel" aria-hidden="true"></i>
-                <span>Filters</span>
-                @if (activeFilters > 0)
-                {
-                    <span class="badge bg-primary-subtle text-primary">@activeFilters</span>
-                }
-            </button>
+        <div class="training-register__actions">
             @if (Model.CanApproveTrainingTracker)
             {
-                <a asp-page="./Approvals"
-                   class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
+                <a asp-page="./Approvals" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-shield-check" aria-hidden="true"></i>
-                    <span>Training approvals</span>
+                    <span>Approvals</span>
                     @await Component.InvokeAsync("TrainingApprovalsBadge")
-                </a>
-            }
-            @if (Model.CanManageTrainingTracker)
-            {
-                <a asp-page="./Manage" class="btn btn-primary d-inline-flex align-items-center gap-2">
-                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                    <span>New training</span>
                 </a>
             }
             @if (Model.IsFeatureEnabled)
             {
                 <button type="button"
-                        class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+                        class="btn btn-sm btn-outline-secondary"
                         data-bs-toggle="modal"
                         data-bs-target="#trainingExportModal">
                     <i class="bi bi-download" aria-hidden="true"></i>
                     <span>Export</span>
                 </button>
             }
+            @if (Model.CanManageTrainingTracker)
+            {
+                <a asp-page="./Manage" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    <span>New training</span>
+                </a>
+            }
         </div>
-    </div>
-</div>
+    </header>
 
 @if (!Model.IsFeatureEnabled)
 {
@@ -136,79 +84,138 @@
 }
 else
 {
-    <!-- ============================================================
-         KPI ROW
-         ============================================================ -->
-    <div class="row g-3 mb-4">
-        <!-- total trainings: no strength -->
-        <div class="col-6 col-lg-3">
-            <div class="card kpi-card shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <div class="kpi-label">Total trainings</div>
-                    <div class="kpi-value">@Model.Kpis.TotalTrainings.ToString("N0", CultureInfo.CurrentCulture)</div>
-                    <ul class="training-split__legend">
-                        <li><span class="training-type-dot training-type--simulator"></span><strong>@((sim?.Trainings ?? 0).ToString("N0", CultureInfo.CurrentCulture))</strong> Simulator</li>
-                        <li><span class="training-type-dot training-type--drone"></span><strong>@((drone?.Trainings ?? 0).ToString("N0", CultureInfo.CurrentCulture))</strong> Drone</li>
-                    </ul>
+    @* SECTION: Headline figures (follow the filters) *@
+    <section class="training-register__figures" aria-label="Headline figures">
+        <div class="row g-3">
+            <div class="col-6 col-lg-3">
+                <div class="card kpi-card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="kpi-label">Trainings</div>
+                        <div class="kpi-value">@N(Model.Kpis.TotalTrainings)</div>
+                        <ul class="training-split__legend">
+                            <li><span class="training-type-dot training-type--simulator"></span><strong>@N(sim?.Trainings ?? 0)</strong> Simulator</li>
+                            <li><span class="training-type-dot training-type--drone"></span><strong>@N(drone?.Trainings ?? 0)</strong> Drone</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card kpi-card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="kpi-label">Trainees</div>
+                        <div class="kpi-value">@N(Model.Kpis.TotalTrainees)</div>
+                        <partial name="@splitPartial" model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel.StrengthBreakdown(Model.TotalOfficers, Model.TotalJcos, Model.TotalOrs)" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card kpi-card training-type--simulator shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="kpi-label"><span class="training-type-dot"></span>Simulator trainees</div>
+                        <div class="kpi-value">@N(sim?.Trainees ?? 0)</div>
+                        <partial name="@splitPartial" model="Model.SimulatorStrength" />
+                        <div class="kpi-meta">@N(sim?.Trainings ?? 0) @Plural(sim?.Trainings ?? 0, "training", "trainings")</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card kpi-card training-type--drone shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="kpi-label"><span class="training-type-dot"></span>Drone trainees</div>
+                        <div class="kpi-value">@N(drone?.Trainees ?? 0)</div>
+                        <partial name="@splitPartial" model="Model.DroneStrength" />
+                        <div class="kpi-meta">@N(drone?.Trainings ?? 0) @Plural(drone?.Trainings ?? 0, "training", "trainings")</div>
+                    </div>
                 </div>
             </div>
         </div>
+    </section>
 
-        <!-- total trainees: with strength -->
-        <div class="col-6 col-lg-3">
-            <div class="card kpi-card shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <div class="kpi-label">Total trainees</div>
-                    <div class="kpi-value">@Model.Kpis.TotalTrainees.ToString("N0", CultureInfo.CurrentCulture)</div>
-                    <partial name="~/Areas/ProjectOfficeReports/Pages/Training/_StrengthSplit.cshtml" model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel.StrengthBreakdown(Model.TotalOfficers, Model.TotalJcos, Model.TotalOrs)" />
-                </div>
-            </div>
-        </div>
-
-        <!-- simulator: trainees + strength -->
-        <div class="col-6 col-lg-3">
-            <div class="card kpi-card training-type--simulator shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <div class="kpi-label"><span class="training-type-dot"></span>Simulator trainees</div>
-                    <div class="kpi-value">@((sim?.Trainees ?? 0).ToString("N0", CultureInfo.CurrentCulture))</div>
-                    <partial name="~/Areas/ProjectOfficeReports/Pages/Training/_StrengthSplit.cshtml" model="Model.SimulatorStrength" />
-                    <div class="kpi-meta">@((sim?.Trainings ?? 0).ToString("N0", CultureInfo.CurrentCulture)) trainings</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- drone: trainees + strength -->
-        <div class="col-6 col-lg-3">
-            <div class="card kpi-card training-type--drone shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <div class="kpi-label"><span class="training-type-dot"></span>Drone trainees</div>
-                    <div class="kpi-value">@((drone?.Trainees ?? 0).ToString("N0", CultureInfo.CurrentCulture))</div>
-                    <partial name="~/Areas/ProjectOfficeReports/Pages/Training/_StrengthSplit.cshtml" model="Model.DroneStrength" />
-                    <div class="kpi-meta">@((drone?.Trainings ?? 0).ToString("N0", CultureInfo.CurrentCulture)) trainings</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============================================================
-         TRAINING YEAR CHART + TECHNICAL CATEGORY CARDS (7 : 5)
-         ============================================================ -->
-    @if (Model.TrainingYearChart.Count > 0 || Model.Kpis.ByTechnicalCategory.Count > 0)
+    @* SECTION: Technical categories and the yearly trend (follow the filters) *@
+    @if (Model.TechnicalCategoryCards.Count > 0 || Model.TrainingYearChart.Count > 0)
     {
-        <div class="row g-4 align-items-stretch mb-4">
+        <section class="training-insights" aria-label="Technical categories and trend">
+            @if (Model.TechnicalCategoryCards.Count > 0)
+            {
+                var selectedCategoryId = Model.Filter.ProjectTechnicalCategoryId;
+                <div class="training-insights__categories">
+                    <div class="training-section-title">
+                        <h2>By technical category</h2>
+                        <p>Choose a category to see its projects and filter the register.</p>
+                    </div>
+                    <div class="training-category-grid">
+                        @foreach (var cat in Model.TechnicalCategoryCards)
+                        {
+                            var isSelected = selectedCategoryId == cat.TechnicalCategoryId;
+                            var categoryRouteValues = Model.RouteWith(overrides: new Dictionary<string, string?>
+                            {
+                                ["ProjectTechnicalCategoryId"] = isSelected ? null : cat.TechnicalCategoryId.ToString(inv),
+                                ["ProjectId"] = null
+                            });
+                            <a asp-page="./Index"
+                               asp-all-route-data="categoryRouteValues"
+                               class="training-category-card@(isSelected ? " is-selected" : string.Empty)"
+                               aria-current="@(isSelected ? "true" : null)"
+                               title="@(isSelected ? $"Showing {cat.TechnicalCategoryName}. Choose again to show all categories." : $"Show {cat.TechnicalCategoryName}")">
+                                <span class="training-category-card__name">@cat.TechnicalCategoryName</span>
+                                <span class="training-category-card__figures">
+                                    <strong>@N(cat.Trainees)</strong>
+                                    <span>@Plural(cat.Trainees, "trainee", "trainees") · @N(cat.Trainings) @Plural(cat.Trainings, "training", "trainings")</span>
+                                </span>
+                                <partial name="@splitPartial"
+                                         model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel.StrengthBreakdown(cat.Officers, cat.Jcos, cat.Ors)"
+                                         view-data='new ViewDataDictionary(ViewData) { ["Compact"] = true }' />
+                            </a>
+                        }
+                    </div>
 
-            @* Chart: 7 columns on XL, full width on smaller screens *@
+                    @if (selectedCategoryId.HasValue)
+                    {
+                        <div class="training-category-projects">
+                            <div class="training-category-projects__head">
+                                <h3>Projects in @(Model.SelectedTechnicalCategoryLabel ?? "this category")</h3>
+                                <p>A session linked to more than one project counts under each.</p>
+                            </div>
+                            @if (Model.ProjectBreakdown.Count == 0)
+                            {
+                                <p class="training-category-projects__empty">No projects found for the current filters.</p>
+                            }
+                            else
+                            {
+                                <ul class="training-category-projects__list">
+                                    @foreach (var project in Model.ProjectBreakdown)
+                                    {
+                                        var isProject = Model.Filter.ProjectId == project.ProjectId;
+                                        var projectRouteValues = Model.RouteWith(overrides: new Dictionary<string, string?>
+                                        {
+                                            ["ProjectId"] = isProject ? null : project.ProjectId.ToString(inv)
+                                        });
+                                        <li class="@(isProject ? "is-selected" : null)">
+                                            <a asp-page="./Index" asp-all-route-data="projectRouteValues" class="training-category-projects__filter" aria-current="@(isProject ? "true" : null)">
+                                                <span class="training-category-projects__name">@project.ProjectName</span>
+                                                <span class="training-category-projects__count">@N(project.TrainingSessions) @Plural(project.TrainingSessions, "session", "sessions")</span>
+                                            </a>
+                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="training-category-projects__open" aria-label="Open project @project.ProjectName" title="Open project">
+                                                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
             @if (Model.TrainingYearChart.Count > 0)
             {
-                <div class="col-12 col-xl-7">
+                <div class="training-insights__trend">
                     <div class="card training-chart-card shadow-sm border-0 h-100">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
-                                    <h2 class="h6 mb-1">Training year trend</h2>
-                                    <p class="text-muted small mb-0">
-                                        Simulator vs Drone by training year (Apr–Mar)
-                                    </p>
+                                    <h2 class="h6 mb-1" id="training-year-trend-title">Trainees by training year</h2>
+                                    <p class="text-muted small mb-0">Simulator and Drone, April to March</p>
                                 </div>
                                 <button type="button"
                                         class="btn btn-light btn-sm"
@@ -220,217 +227,317 @@ else
                                 </button>
                             </div>
 
-                            <div class="ratio ratio-21x9 pm-util-maxh-360"
+                            <div class="training-chart-frame"
                                  data-training-year='@System.Text.Json.JsonSerializer.Serialize(
-                                                                  Model.TrainingYearChart,
-                                                                  new System.Text.Json.JsonSerializerOptions
-                                                                  {
-                                                                      PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-                                                                  })'>
-                    <canvas id="training-year-trend-canvas"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-        }
-
-            @* Simulator technical trainings cards: 5 columns on XL, 2 cards per row on md+ *@
-            @if (Model.Kpis.ByTechnicalCategory.Count > 0)
-            {
-                <div class="col-12 col-xl-5">
-                    <div class="mb-0 h-100">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h2 class="h6 mb-0">Simulator technical trainings</h2>
-                            <p class="text-muted small mb-0">
-                                Top categories in the current view
-                            </p>
-                        </div>
-
-                        <div class="row g-3">
-                            @foreach (var cat in Model.Kpis.ByTechnicalCategory
-                                            .OrderByDescending(x => x.Trainees)
-                                            .Take(6))
-                            {
-                                var categoryRouteValues = new Dictionary<string, string?>(baseFilterRouteValues)
-                                {
-                                    ["ProjectTechnicalCategoryId"] = cat.TechnicalCategoryId.ToString()
-                                };
-                                <div class="col-12 col-md-6">
-                                    <a asp-page="./Index"
-                                       asp-all-route-data="categoryRouteValues"
-                                       class="text-decoration-none">
-                                        <div class="card training-tech-card shadow-sm border-0 h-100">
-                                            <div class="card-body">
-                                                <div class="small text-muted mb-1">Technical category</div>
-                                                <div class="fw-semibold text-truncate"
-                                                     title="@cat.TechnicalCategoryName">
-                                                    @cat.TechnicalCategoryName
-                                                </div>
-
-                                                <div class="mt-3 small text-muted">Trainees</div>
-                                                <div class="fs-4 fw-semibold">@cat.Trainees.ToString("N0", CultureInfo.CurrentCulture)</div>
-                                                <partial name="~/Areas/ProjectOfficeReports/Pages/Training/_StrengthSplit.cshtml"
-                                                         model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel.StrengthBreakdown(cat.Officers, cat.Jcos, cat.Ors)"
-                                                         view-data='new ViewDataDictionary(ViewData) { ["Compact"] = true }' />
-
-                                                <div class="mt-2 d-flex justify-content-between align-items-center small text-muted">
-                                                    <span>Trainings</span>
-                                                    <span>
-                                                        @cat.Trainings.ToString("N0", CultureInfo.CurrentCulture)
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </a>
-                                </div>
-                            }
+                                                          Model.TrainingYearChart,
+                                                          new System.Text.Json.JsonSerializerOptions
+                                                          {
+                                                              PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                                                          })'>
+                                <canvas id="training-year-trend-canvas" role="img" aria-labelledby="training-year-trend-title"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
             }
-        </div>
+        </section>
     }
 
-    <!-- ============================================================
-         PROJECT BREAKDOWN (TECHNICAL CATEGORY)
-         ============================================================ -->
-    @if (Model.Filter.ProjectTechnicalCategoryId.HasValue)
-    {
-        var clearCategoryRouteValues = new Dictionary<string, string?>(baseFilterRouteValues);
-        var clearProjectRouteValues = new Dictionary<string, string?>(baseFilterRouteValues)
-        {
-            ["ProjectTechnicalCategoryId"] = Model.Filter.ProjectTechnicalCategoryId.Value.ToString()
-        };
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-body">
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
-                    <div>
-                        <h2 class="h6 mb-1">Projects in this technical category</h2>
-                        <p class="text-muted small mb-0">
-                            A session linked to multiple projects appears under each project.
-                        </p>
-                    </div>
-                    <div class="d-flex flex-wrap gap-2">
-                        @if (Model.Filter.ProjectId.HasValue)
-                        {
-                            <a asp-page="./Index"
-                               asp-all-route-data="clearProjectRouteValues"
-                               class="btn btn-outline-secondary btn-sm">
-                                Clear project filter
-                            </a>
-                        }
-                        <a asp-page="./Index"
-                           asp-all-route-data="clearCategoryRouteValues"
-                           class="btn btn-outline-secondary btn-sm">
-                            Clear category filter
-                        </a>
-                    </div>
-                </div>
-
-                @if (Model.ProjectBreakdown.Count == 0)
+    @* SECTION: Register, with its filter bar *@
+    <section class="training-register__list" aria-labelledby="training-register-heading">
+        <div class="training-toolbar">
+            <h2 id="training-register-heading" class="training-toolbar__count">
+                @if (Model.TotalItems == 0)
                 {
-                    <div class="text-muted">No projects found for the current filters.</div>
+                    <span>No trainings</span>
                 }
                 else
                 {
-                    <div class="table-responsive">
-                        <table class="table pm-table align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Project</th>
-                                    <th scope="col">Training sessions</th>
-                                    <th scope="col" class="text-end">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var project in Model.ProjectBreakdown)
-                                {
-                                    var projectRouteValues = new Dictionary<string, string?>(baseFilterRouteValues)
-                                    {
-                                        ["ProjectTechnicalCategoryId"] = Model.Filter.ProjectTechnicalCategoryId.Value.ToString(),
-                                        ["ProjectId"] = project.ProjectId.ToString()
-                                    };
-                                    <tr class="@(Model.Filter.ProjectId == project.ProjectId ? "table-primary" : string.Empty)">
-                                        <td>
-                                            <a asp-page="/Projects/Overview"
-                                               asp-route-id="@project.ProjectId"
-                                               class="fw-semibold text-decoration-none">
-                                                @project.ProjectName
-                                            </a>
-                                        </td>
-                                        <td class="fw-semibold">@project.TrainingSessions.ToString("N0", CultureInfo.CurrentCulture)</td>
-                                        <td class="text-end">
-                                            <a asp-page="./Index"
-                                               asp-all-route-data="projectRouteValues"
-                                               class="btn btn-sm btn-outline-primary">
-                                                View sessions
-                                            </a>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
+                    <span>@N(Model.TotalItems) @Plural(Model.TotalItems, "training", "trainings")</span>
+                    <span class="training-toolbar__meta">@N(Model.Kpis.TotalTrainees) @Plural(Model.Kpis.TotalTrainees, "trainee", "trainees")@(Model.TotalPages > 1 ? $" · showing {N(Model.ShowingFrom)}–{N(Model.ShowingTo)}" : string.Empty)</span>
+                }
+            </h2>
+        </div>
+
+        <form method="get" class="training-filter" role="search" aria-label="Filter trainings">
+            <div class="training-filter__bar">
+                <div class="training-filter__search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input name="Search" value="@Model.Filter.Search" class="form-control form-control-sm" placeholder="Search notes or projects" aria-label="Search notes or projects" autocomplete="off" maxlength="200" />
+                </div>
+                <select name="TypeId" class="form-select form-select-sm training-filter__type" asp-items="Model.TrainingTypes" aria-label="Training type" data-training-autosubmit></select>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary training-filter__more-toggle"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#training-filter-more"
+                        aria-expanded="@(hasMoreFilters ? "true" : "false")"
+                        aria-controls="training-filter-more">
+                    <i class="bi bi-sliders" aria-hidden="true"></i>
+                    <span>More filters</span>
+                    @if (moreFilterCount > 0)
+                    {
+                        <span class="training-filter__badge">@moreFilterCount</span>
+                    }
+                </button>
+                <button type="submit" class="btn btn-sm btn-primary training-filter__apply">Search</button>
+                @if (Model.TotalItems > 0)
+                {
+                    <div class="training-filter__view">
+                        <label for="training-sort">Sort</label>
+                        <select id="training-sort" name="Sort" class="form-select form-select-sm" data-training-autosubmit>
+                            @foreach (var option in TrainingIndex.SortOptions)
+                            {
+                                <option value="@option.Value" selected="@(option.Value == Model.SortKey)">@option.Label</option>
+                            }
+                        </select>
+                        <label for="training-page-size">Rows</label>
+                        <select id="training-page-size" name="PageSize" class="form-select form-select-sm" data-training-autosubmit>
+                            @foreach (var size in TrainingIndex.AllowedPageSizes)
+                            {
+                                <option value="@size" selected="@(size == Model.PageSize)">@size</option>
+                            }
+                        </select>
                     </div>
                 }
             </div>
-        </div>
-    }
-
-
-
-    <!-- ============================================================
-         FILTERS MODAL
-         ============================================================ -->
-    <div class="modal fade"
-         id="trainingFiltersModal"
-         tabindex="-1"
-         aria-labelledby="trainingFiltersModalLabel"
-         aria-hidden="true"
-         data-bs-focus="true">
-        <div class="modal-dialog modal-dialog-scrollable modal-xl modal-fullscreen-sm-down">
-            <div class="modal-content training-export-modal">
-                <form method="get" class="w-100">
-                    <div class="modal-header">
-                        <h2 class="modal-title h5" id="trainingFiltersModalLabel">Filters</h2>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div id="training-filter-more" class="training-filter__more collapse@(hasMoreFilters ? " show" : string.Empty)">
+                <div class="training-filter__more-grid">
+                    <div class="training-filter__field">
+                        <label for="training-filter-tech">Technical category</label>
+                        <select id="training-filter-tech" name="ProjectTechnicalCategoryId" class="form-select form-select-sm" asp-items="Model.ProjectTechnicalCategoryOptions"></select>
                     </div>
-                    <div class="modal-body">
-                        <div class="row g-3">
-                            <div class="col-lg-4">
-                                <label asp-for="Filter.TypeId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <select asp-for="Filter.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
-                            </div>
-                            <div class="col-lg-4">
-                                <label asp-for="Filter.ProjectTechnicalCategoryId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <select asp-for="Filter.ProjectTechnicalCategoryId" asp-items="Model.ProjectTechnicalCategoryOptions" class="form-select"></select>
-                            </div>
-                            <div class="col-lg-4">
-                                <label asp-for="Filter.Category" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <select asp-for="Filter.Category" asp-items="Model.CategoryOptions" class="form-select"></select>
-                            </div>
-                            <div class="col-md-3">
-                                <label asp-for="Filter.From" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <input asp-for="Filter.From" class="form-control" />
-                            </div>
-                            <div class="col-md-3">
-                                <label asp-for="Filter.To" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <input asp-for="Filter.To" class="form-control" />
-                            </div>
-                            <div class="col-md-6 col-lg-4">
-                                <label asp-for="Filter.Search" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <input asp-for="Filter.Search" class="form-control" placeholder="Search notes or projects" />
-                            </div>
-                        </div>
-                        <input asp-for="Filter.ProjectId" type="hidden" />
+                    <div class="training-filter__field">
+                        <label for="training-filter-category">Attended by</label>
+                        <select id="training-filter-category" name="Category" class="form-select form-select-sm">
+                            @foreach (var option in Model.CategoryOptions)
+                            {
+                                <option value="@option.Value" selected="@(option.Value == (Model.Filter.Category?.ToString() ?? string.Empty))">@option.Text</option>
+                            }
+                        </select>
                     </div>
-                    <div class="modal-footer gap-2 justify-content-between">
-                        <a asp-page="./Index" class="btn btn-link btn-sm px-0">Reset filters</a>
-                        <button type="submit" class="btn btn-primary btn-sm">Apply filters</button>
+                    <div class="training-filter__field">
+                        <label for="training-filter-from">From</label>
+                        <input id="training-filter-from" name="From" type="date" value="@fromValue" class="form-control form-control-sm" />
                     </div>
-                </form>
+                    <div class="training-filter__field">
+                        <label for="training-filter-to">To</label>
+                        <input id="training-filter-to" name="To" type="date" value="@toValue" class="form-control form-control-sm" />
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
+            @if (Model.Filter.ProjectId.HasValue)
+            {
+                <input type="hidden" name="ProjectId" value="@Model.Filter.ProjectId" />
+            }
+        </form>
+
+        @if (Model.HasFilters)
+        {
+            <div class="training-chips" aria-label="Active filters">
+                @if (Model.SelectedTypeLabel is { } typeLabel)
+                {
+                    <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "TypeId")' aria-label="Remove filter: type @typeLabel">
+                        <span>Type: @typeLabel</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                @if (Model.SelectedTechnicalCategoryLabel is { } techLabel)
+                {
+                    <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "ProjectTechnicalCategoryId")' aria-label="Remove filter: technical category @techLabel">
+                        <span>Category: @techLabel</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                @if (Model.Filter.ProjectId.HasValue)
+                {
+                    var projectLabel = Model.SelectedProjectName ?? "Selected project";
+                    <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "ProjectId")' aria-label="Remove filter: project @projectLabel">
+                        <span>Project: @projectLabel</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                @if (Model.SelectedCategoryLabel is { } categoryLabel)
+                {
+                    <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "Category")' aria-label="Remove filter: attended by @categoryLabel">
+                        <span>Attended by @categoryLabel</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                @if (Model.Filter.From is { } fromDate)
+                {
+                    <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "From")' aria-label="Remove filter: from @fromDate.ToString("dd MMM yyyy", inv)">
+                        <span>From @fromDate.ToString("dd MMM yyyy", inv)</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                @if (Model.Filter.To is { } toDate)
+                {
+                    <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "To")' aria-label="Remove filter: to @toDate.ToString("dd MMM yyyy", inv)">
+                        <span>To @toDate.ToString("dd MMM yyyy", inv)</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.Filter.Search))
+                {
+                    <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "Search")' aria-label="Remove search @Model.Filter.Search">
+                        <span>&ldquo;@Model.Filter.Search.Trim()&rdquo;</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                <a class="training-chips__clear" asp-page="./Index">Clear all</a>
+            </div>
+        }
+
+        @if (!Model.HasResults)
+        {
+            <div class="training-empty-state">
+                <i class="bi @(Model.HasFilters ? "bi-search" : "bi-mortarboard") training-empty-state__icon" aria-hidden="true"></i>
+                @if (Model.HasFilters)
+                {
+                    <h3>No trainings match these filters</h3>
+                    <p>Try a wider date range, another training type or a shorter search.</p>
+                    <a asp-page="./Index" class="btn btn-outline-secondary">Clear filters</a>
+                }
+                else
+                {
+                    <h3>No trainings recorded yet</h3>
+                    <p>Each training you record appears here with its attendees and linked projects.</p>
+                    @if (Model.CanManageTrainingTracker)
+                    {
+                        <a asp-page="./Manage" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Record the first training</a>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <div class="training-table-card">
+                <table class="training-register-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="training-register-table__date">Date</th>
+                            <th scope="col">Projects and units</th>
+                            <th scope="col" class="training-register-table__type">Type</th>
+                            <th scope="col" class="training-register-table__strength"><abbr title="Total, then Officers · JCOs · ORs">Trainees (O · JCO · OR)</abbr></th>
+                            @if (Model.CanManageTrainingTracker)
+                            {
+                                <th scope="col" class="training-register-table__actions"><span class="visually-hidden">Actions</span></th>
+                            }
+                        </tr>
+                    </thead>
+                    @foreach (var group in Model.Trainings.GroupBy(t => Model.GroupByMonth && t.EffectiveDate is { } d ? (d.Year, d.Month) : (0, 0)))
+                    {
+                        <tbody>
+                            @if (Model.GroupByMonth)
+                            {
+                                var monthLabel = group.Key.Item1 == 0
+                                    ? "Date not set"
+                                    : new DateOnly(group.Key.Item1, group.Key.Item2, 1).ToString("MMMM yyyy", inv);
+                                var totals = Model.MonthTotals.TryGetValue((group.Key.Item1, group.Key.Item2), out var found)
+                                    ? found
+                                    : (Trainings: group.Count(), Trainees: group.Sum(t => t.Total));
+                                <tr class="training-register-table__month">
+                                    <th scope="rowgroup" colspan="@columnCount">
+                                        <span>@monthLabel</span>
+                                        <span class="training-register-table__month-meta">@N(totals.Trainings) @Plural(totals.Trainings, "training", "trainings") · @N(totals.Trainees) @Plural(totals.Trainees, "trainee", "trainees")</span>
+                                    </th>
+                                </tr>
+                            }
+                            @foreach (var training in group)
+                            {
+                                var viewUrl = Url.Page("./View", new { id = training.Id });
+                                var projectCount = training.ProjectNames.Count;
+                                var projectTitle = projectCount == 0 ? "No project linked" : string.Join(", ", training.ProjectNames);
+                                var linkLabel = $"Open {training.TrainingTypeName} training, {training.Period}: {projectTitle}";
+                                <tr class="training-row" data-row-href="@viewUrl">
+                                    <td class="training-register-table__date">
+                                        <div class="training-date" title="@training.Period">
+                                            <span class="training-date__lead">@training.DateLead</span>
+                                            <span class="training-date__month">@training.DateMonth</span>
+                                            @if (!string.IsNullOrWhiteSpace(training.DateNote))
+                                            {
+                                                <span class="training-date__note">@training.DateNote</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="training-register-table__entry">
+                                        <a class="training-entry__name@(projectCount == 0 ? " is-empty" : string.Empty)" href="@viewUrl" title="@projectTitle" aria-label="@linkLabel">@(projectCount == 0 ? "No project linked" : training.ProjectNames[0])</a>
+                                        @if (projectCount > 1)
+                                        {
+                                            <span class="training-entry__more">+@(projectCount - 1) more</span>
+                                        }
+                                        @if (training.Units.Count > 0)
+                                        {
+                                            <p class="training-entry__units" title="@string.Join(", ", training.Units)"><i class="bi bi-people" aria-hidden="true"></i> @training.UnitDisplay</p>
+                                        }
+                                    </td>
+                                    <td class="training-register-table__type">
+                                        <span class="training-type-tag training-type--@TrainingTypeAppearance.Modifier(training.TrainingTypeName)">@training.TrainingTypeName</span>
+                                        @if (training.Source == ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounterSource.Legacy)
+                                        {
+                                            <span class="training-source-tag training-source-tag--legacy" title="Historical totals, no roster">Legacy</span>
+                                        }
+                                    </td>
+                                    <td class="training-register-table__strength">
+                                        <strong>@N(training.Total)</strong>
+                                        <span class="training-row-split" aria-label="@N(training.Officers) Officers, @N(training.Jcos) JCOs, @N(training.Ors) ORs">
+                                            <span title="Officers"><span class="training-rank-dot training-rank-dot--o"></span>@N(training.Officers) <abbr title="Officers">O</abbr></span>
+                                            <span title="JCOs"><span class="training-rank-dot training-rank-dot--j"></span>@N(training.Jcos) <abbr title="JCOs">JCO</abbr></span>
+                                            <span title="ORs"><span class="training-rank-dot training-rank-dot--r"></span>@N(training.Ors) <abbr title="ORs">OR</abbr></span>
+                                        </span>
+                                    </td>
+                                    @if (Model.CanManageTrainingTracker)
+                                    {
+                                        <td class="training-register-table__actions">
+                                            <a asp-page="./Manage" asp-route-id="@training.Id" class="btn btn-sm btn-outline-secondary training-row__manage" aria-label="Manage @training.TrainingTypeName training, @training.Period">
+                                                <i class="bi bi-pencil" aria-hidden="true"></i>
+                                                <span>Manage</span>
+                                            </a>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    }
+                </table>
+            </div>
+
+            @* SECTION: Pagination *@
+            @if (Model.TotalPages > 1)
+            {
+                var first = Math.Max(1, Model.PageNumber - 2);
+                var last = Math.Min(Model.TotalPages, first + 4);
+                first = Math.Max(1, last - 4);
+                <nav class="training-pagination" aria-label="Training pages">
+                    @if (Model.PageNumber > 1)
+                    {
+                        <a class="training-pagination__step" asp-page="./Index" asp-all-route-data="Model.RouteWith(pageNumber: Model.PageNumber - 1)"><i class="bi bi-chevron-left" aria-hidden="true"></i> Previous</a>
+                    }
+                    else
+                    {
+                        <span class="training-pagination__step is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i> Previous</span>
+                    }
+                    <ol class="training-pagination__pages">
+                        @for (var number = first; number <= last; number++)
+                        {
+                            <li>
+                                @if (number == Model.PageNumber)
+                                {
+                                    <span class="training-pagination__page is-current" aria-current="page">@number</span>
+                                }
+                                else
+                                {
+                                    <a class="training-pagination__page" asp-page="./Index" asp-all-route-data="Model.RouteWith(pageNumber: number)" aria-label="Page @number">@number</a>
+                                }
+                            </li>
+                        }
+                    </ol>
+                    <span class="training-pagination__status">Page @Model.PageNumber of @Model.TotalPages</span>
+                    @if (Model.PageNumber < Model.TotalPages)
+                    {
+                        <a class="training-pagination__step" asp-page="./Index" asp-all-route-data="Model.RouteWith(pageNumber: Model.PageNumber + 1)">Next <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                    }
+                    else
+                    {
+                        <span class="training-pagination__step is-disabled" aria-hidden="true">Next <i class="bi bi-chevron-right"></i></span>
+                    }
+                </nav>
+            }
+        }
+    </section>
 
     <!-- ============================================================
          EXPORT MODAL
@@ -606,187 +713,13 @@ else
         </div>
     </div>
 
-    <!-- ============================================================
-     TABLE / EMPTY
-     ============================================================ -->
-    @if (!Model.HasResults)
-    {
-        <div class="card shadow-sm border-0 empty-state">
-            <div class="card-body py-5 text-center text-muted">
-                <p class="mb-2">No trainings match the current filters.</p>
-                <p class="mb-3">Adjust the filters above or create a new training entry.</p>
-                <div class="d-flex justify-content-center gap-2">
-                    <a asp-page="./Index" class="btn btn-outline-secondary btn-sm">Clear filters</a>
-                    @if (Model.CanManageTrainingTracker)
-                    {
-                        <a asp-page="./Manage" class="btn btn-primary btn-sm">New training</a>
-                    }
-                </div>
-            </div>
-        </div>
-    }
-    else
-    {
-        <div class="card pm-card-table shadow-sm border-0">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table pm-table align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th scope="col">Training type</th>
-                                <th scope="col">Period</th>
-                                <th scope="col">Source</th>
-                                <th scope="col">Total</th>
-                                <th scope="col"><abbr title="Officers · JCOs · ORs" class="text-decoration-none">Strength (O · JCO · OR)</abbr></th>
-                                <th scope="col">Projects</th>
-                                <th scope="col">Unit(s)</th>
-                                <th scope="col" class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var training in Model.Trainings)
-                            {
-                                var projectCount = training.ProjectNames.Count;
-                                var unitCount = training.Units.Count;
-                                <tr>
-                                    <td>
-                                        <span class="training-type-tag training-type--@TrainingTypeAppearance.Modifier(training.TrainingTypeName)">@training.TrainingTypeName</span>
-                                    </td>
-                                    <td class="text-muted small">
-                                        @training.Period@if (!string.IsNullOrWhiteSpace(training.PeriodDayCount))
-                                        {
-                                            <text> (@training.PeriodDayCount)</text>
-                                        }
-                                    </td>
-                                    <td>
-                                        @if (training.Source == ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounterSource.Legacy)
-                                        {
-                                            <span class="training-source-tag training-source-tag--legacy" title="Historical totals, no roster">Legacy</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="training-source-tag">Roster</span>
-                                        }
-                                    </td>
-                                    <td class="fw-semibold">@training.Total.ToString("N0", CultureInfo.CurrentCulture)</td>
-                                    <td>
-                                        <span class="training-strength">@training.Strength</span>
-                                    </td>
-                                    @* ------------------------------------------------------------ *@
-                                    @* projects (inline expandable) *@
-                                    @* ------------------------------------------------------------ *@
-                                    <td class="pm-util-minw-180">
-                                        @if (projectCount == 0)
-                                        {
-                                            <span class="text-muted">None linked</span>
-                                        }
-                                        else if (projectCount <= 2)
-                                        {
-                                            <ul class="list-unstyled mb-0 small text-truncate-2">
-                                                @foreach (var project in training.ProjectNames)
-                                                {
-                                                    <li>@project</li>
-                                                }
-                                            </ul>
-                                        }
-                                        else
-                                        {
-                                            <details class="pm-expand">
-                                                <summary class="pm-expand__summary">
-                                                    <div class="pm-expand__summary-text">
-                                                        <ul class="list-unstyled mb-0 small text-truncate-2">
-                                                            @foreach (var project in training.ProjectNames.Take(2))
-                                                            {
-                                                                <li>@project</li>
-                                                            }
-                                                        </ul>
-                                                    </div>
-                                                    <span class="pm-expand__more small">See all (@projectCount)</span>
-                                                </summary>
-                                                <div class="pm-expand__body small">
-                                                    <ul class="list-unstyled mb-0">
-                                                        @foreach (var project in training.ProjectNames)
-                                                        {
-                                                            <li>@project</li>
-                                                        }
-                                                    </ul>
-                                                </div>
-                                            </details>
-                                        }
-                                    </td>
-                                    @* ------------------------------------------------------------ *@
-                                    @* units (inline expandable) *@
-                                    @* ------------------------------------------------------------ *@
-                                    <td class="small pm-util-maxw-200">
-                                        @if (unitCount == 0)
-                                        {
-                                            <span class="text-muted">—</span>
-                                        }
-                                        else if (unitCount == 1)
-                                        {
-                                            @training.UnitDisplay
-                                        }
-                                        else
-                                        {
-                                            <details class="pm-expand">
-                                                <summary class="pm-expand__summary">
-                                                    <span class="pm-expand__summary-text">@training.UnitDisplay</span>
-                                                    <span class="pm-expand__more small">See all (@unitCount)</span>
-                                                </summary>
-                                                <div class="pm-expand__body small">
-                                                    <ul class="list-unstyled mb-0">
-                                                        @foreach (var unit in training.Units)
-                                                        {
-                                                            <li>@unit</li>
-                                                        }
-                                                    </ul>
-                                                </div>
-                                            </details>
-                                        }
-                                    </td>
-                                    <td class="text-end training-row-actions">
-                                        <a asp-page="./View"
-                                           asp-route-id="@training.Id"
-                                           class="btn btn-sm btn-outline-secondary me-1">View</a>
-
-                                        @if (Model.CanManageTrainingTracker)
-                                        {
-                                            <a asp-page="./Manage" asp-route-id="@training.Id" class="btn btn-sm btn-outline-primary">Manage</a>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card-footer d-flex justify-content-between align-items-center">
-                <span class="text-muted small">
-                    Showing the 20 most recent trainings in this view.
-                </span>
-                @if (Model.HasMoreRecords)
-                {
-                    <a asp-page="./Records"
-                       asp-route-TypeId="@(Model.Filter.TypeId)"
-                       asp-route-ProjectTechnicalCategoryId="@(Model.Filter.ProjectTechnicalCategoryId)"
-                       asp-route-ProjectId="@(Model.Filter.ProjectId)"
-                       asp-route-Category="@(Model.Filter.Category)"
-                       asp-route-From="@(Model.Filter.From?.ToString("yyyy-MM-dd"))"
-                       asp-route-To="@(Model.Filter.To?.ToString("yyyy-MM-dd"))"
-                       asp-route-Search="@(Model.Filter.Search)"
-                       class="btn btn-outline-primary btn-sm">
-                        View all records
-                    </a>
-                }
-            </div>
-        </div>
-    }
 }
+</div>
 
 @section Styles {
     <link rel="stylesheet" href="~/css/components/pm-table.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/training/manage.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/training/register.css" asp-append-version="true" />
 }
 
 @section Scripts {

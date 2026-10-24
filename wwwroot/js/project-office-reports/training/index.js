@@ -601,6 +601,41 @@ function initDownloadButtons() {
 }
 
 // ================================================================
+// register: a click anywhere on a row opens the training
+// (Ctrl/Cmd-click opens a new tab); sort and rows apply at once
+// ================================================================
+function initRegisterRows() {
+    document.querySelectorAll('tr[data-row-href]').forEach((row) => {
+        row.addEventListener('click', (event) => {
+            if (event.defaultPrevented || event.target.closest('a, button, input, select, textarea, label')) {
+                return;
+            }
+            if (window.getSelection && String(window.getSelection()).length > 0) {
+                return;
+            }
+            const href = row.getAttribute('data-row-href');
+            if (!href) return;
+
+            if (event.ctrlKey || event.metaKey) {
+                window.open(href, '_blank', 'noopener');
+                return;
+            }
+            window.location.assign(href);
+        });
+    });
+}
+
+function initAutoSubmitControls() {
+    document.querySelectorAll('[data-training-autosubmit]').forEach((control) => {
+        control.addEventListener('change', () => {
+            if (control.form) {
+                control.form.submit();
+            }
+        });
+    });
+}
+
+// ================================================================
 // init
 // ================================================================
 function init() {
@@ -609,6 +644,8 @@ function init() {
     initTrainingExportForms();
     initTrainingYearChart();
     initDownloadButtons();
+    initRegisterRows();
+    initAutoSubmitControls();
 }
 
 if (document.readyState === 'loading') {

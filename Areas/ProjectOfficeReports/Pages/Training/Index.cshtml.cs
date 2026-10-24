@@ -28,9 +28,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
 public class IndexModel : PageModel
 {
     // -------------------------------------------------------------------------
-    // constants
+    // register paging and sort
     // -------------------------------------------------------------------------
-    private const int DashboardTrainingRowLimit = 20;
+    public const int DefaultPageSize = 25;
+
+    public static readonly int[] AllowedPageSizes = [25, 50, 100];
+
+    public static readonly IReadOnlyList<(string Value, string Label, TrainingRegisterSort Sort)> SortOptions =
+    [
+        ("newest", "Newest first", TrainingRegisterSort.Newest),
+        ("oldest", "Oldest first", TrainingRegisterSort.Oldest),
+        ("largest", "Most trainees", TrainingRegisterSort.Largest),
+        ("type", "Training type", TrainingRegisterSort.Type)
+    ];
 
     // -------------------------------------------------------------------------
     // ctor & deps
@@ -93,15 +103,54 @@ public class IndexModel : PageModel
         Array.Empty<TechnicalCategoryProjectBreakdownDto>();
     public string? SelectedProjectName { get; private set; }
 
-    // dashboard shows only a slice
+    // the register: one page of the matching trainings
+    [BindProperty(SupportsGet = true)]
+    public int PageNumber { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true)]
+    public int PageSize { get; set; } = DefaultPageSize;
+
+    [BindProperty(SupportsGet = true)]
+    public string? Sort { get; set; }
+
     public IReadOnlyList<TrainingRowViewModel> Trainings { get; private set; } = Array.Empty<TrainingRowViewModel>();
     public bool HasResults => Trainings.Count > 0;
 
-    // this tells the view to show the “View all records” button
-    public bool HasMoreRecords { get; private set; }
+    public int TotalItems { get; private set; }
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling((double)TotalItems / PageSize));
+    public int ShowingFrom => TotalItems == 0 ? 0 : ((PageNumber - 1) * PageSize) + 1;
+    public int ShowingTo => Math.Min(PageNumber * PageSize, TotalItems);
+
+    public string SortKey => SortOptions.Any(option => option.Value == Sort) ? Sort! : "newest";
+
+    // In date order the rows sit under month headings.
+    public bool GroupByMonth => SortKey is "newest" or "oldest";
+
+    // Month heading totals across every matching training, not only this page.
+    public IReadOnlyDictionary<(int Year, int Month), (int Trainings, int Trainees)> MonthTotals { get; private set; } =
+        new Dictionary<(int Year, int Month), (int Trainings, int Trainees)>();
+
+    public bool HasFilters =>
+        (Filter.TypeId.HasValue && Filter.TypeId.Value != Guid.Empty)
+        || Filter.ProjectId.HasValue
+        || Filter.ProjectTechnicalCategoryId.HasValue
+        || Filter.Category.HasValue
+        || Filter.From.HasValue
+        || Filter.To.HasValue
+        || !string.IsNullOrWhiteSpace(Filter.Search);
+
+    // labels for the active-filter chips
+    public string? SelectedTypeLabel => LabelFor(TrainingTypes, Filter.TypeId is { } id && id != Guid.Empty ? id.ToString() : null);
+    public string? SelectedTechnicalCategoryLabel => LabelFor(ProjectTechnicalCategoryOptions, Filter.ProjectTechnicalCategoryId?.ToString(CultureInfo.InvariantCulture))?.TrimStart('—', ' ');
+    public string? SelectedCategoryLabel => LabelFor(CategoryOptions, Filter.Category?.ToString());
 
     // KPIs
     public TrainingKpiDto Kpis { get; private set; } = new();
+
+    // Technical category cards. They follow every filter except the category and project
+    // themselves, so they stay a stable way to move between categories.
+    public IReadOnlyList<TrainingKpiByTechnicalCategoryDto> TechnicalCategoryCards { get; private set; } =
+        Array.Empty<TrainingKpiByTechnicalCategoryDto>();
 
     // chart rows
     public IReadOnlyList<TrainingYearChartRow> TrainingYearChart { get; private set; } = Array.Empty<TrainingYearChartRow>();
@@ -268,21 +317,42 @@ public class IndexModel : PageModel
         var results = await _readService.SearchAsync(query, cancellationToken);
 
         // ------------------------------------------------------------
-        // fetch the dashboard slice with units
+        // the register page, in the chosen order, with units
         // ------------------------------------------------------------
-        var paged = await _readService.SearchPagedAsync(
-            results,
-            pageNumber: 1,
-            pageSize: DashboardTrainingRowLimit,
-            cancellationToken);
+        if (!AllowedPageSizes.Contains(PageSize))
+        {
+            PageSize = DefaultPageSize;
+        }
+
+        TotalItems = results.Count;
+        PageNumber = Math.Clamp(PageNumber, 1, TotalPages);
+
+        var sort = SortOptions.First(option => option.Value == SortKey).Sort;
+        var paged = await _readService.SearchPagedAsync(results, PageNumber, PageSize, sort, cancellationToken);
 
         Trainings = paged.Items.Select(TrainingRowViewModel.FromListItem).ToList();
-        HasMoreRecords = paged.TotalCount > DashboardTrainingRowLimit;
+
+        MonthTotals = results
+            .Where(item => item.EffectiveDate.HasValue)
+            .GroupBy(item => (item.EffectiveDate!.Value.Year, item.EffectiveDate!.Value.Month))
+            .ToDictionary(group => group.Key, group => (group.Count(), group.Sum(item => item.CounterTotal)));
 
         // ------------------------------------------------------------
         // KPIs (unchanged)
         // ------------------------------------------------------------
         Kpis = await _readService.GetKpisAsync(query, cancellationToken);
+
+        if (Filter.ProjectTechnicalCategoryId.HasValue || Filter.ProjectId.HasValue)
+        {
+            var cardQuery = BuildQuery(Filter);
+            cardQuery.ProjectTechnicalCategoryId = null;
+            cardQuery.ProjectId = null;
+            TechnicalCategoryCards = await _readService.GetTechnicalCategoryKpisAsync(cardQuery, cancellationToken);
+        }
+        else
+        {
+            TechnicalCategoryCards = Kpis.ByTechnicalCategory;
+        }
 
         // ------------------------------------------------------------
         // project breakdown (per technical category)
@@ -297,12 +367,13 @@ public class IndexModel : PageModel
                 Filter.ProjectTechnicalCategoryId.Value,
                 cancellationToken);
 
-            if (Filter.ProjectId.HasValue)
-            {
-                SelectedProjectName = ProjectBreakdown
-                    .FirstOrDefault(project => project.ProjectId == Filter.ProjectId.Value)
-                    ?.ProjectName;
-            }
+        }
+
+        if (Filter.ProjectId.HasValue)
+        {
+            SelectedProjectName = ProjectOptions
+                .FirstOrDefault(option => option.Value == Filter.ProjectId.Value.ToString(CultureInfo.InvariantCulture))
+                ?.Text;
         }
 
         // aggregate strength for KPI cards (total)
@@ -403,6 +474,53 @@ public class IndexModel : PageModel
         Export.Category ??= Filter.Category;
         Export.Search ??= Filter.Search;
     }
+
+    // -------------------------------------------------------------------------
+    // route values for links that keep the current filters, with some replaced
+    // -------------------------------------------------------------------------
+    public Dictionary<string, string?> RouteWith(
+        string? removeKey = null,
+        int? pageNumber = null,
+        string? sort = null,
+        int? pageSize = null,
+        IReadOnlyDictionary<string, string?>? overrides = null)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["TypeId"] = Filter.TypeId is { } typeId && typeId != Guid.Empty ? typeId.ToString() : null,
+            ["ProjectTechnicalCategoryId"] = Filter.ProjectTechnicalCategoryId?.ToString(CultureInfo.InvariantCulture),
+            ["ProjectId"] = Filter.ProjectId?.ToString(CultureInfo.InvariantCulture),
+            ["Category"] = Filter.Category?.ToString(),
+            ["From"] = Filter.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["To"] = Filter.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["Search"] = string.IsNullOrWhiteSpace(Filter.Search) ? null : Filter.Search.Trim(),
+            ["Sort"] = (sort ?? SortKey) == "newest" ? null : sort ?? SortKey,
+            ["PageSize"] = (pageSize ?? PageSize) == DefaultPageSize ? null : (pageSize ?? PageSize).ToString(CultureInfo.InvariantCulture),
+            ["PageNumber"] = pageNumber is > 1 ? pageNumber.Value.ToString(CultureInfo.InvariantCulture) : null
+        };
+
+        if (removeKey is not null)
+        {
+            values[removeKey] = null;
+        }
+
+        if (overrides is not null)
+        {
+            foreach (var pair in overrides)
+            {
+                values[pair.Key] = pair.Value;
+            }
+        }
+
+        return values
+            .Where(pair => pair.Value is not null)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+    }
+
+    private static string? LabelFor(IEnumerable<SelectListItem> options, string? value)
+        => string.IsNullOrEmpty(value)
+            ? null
+            : options.FirstOrDefault(option => string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase))?.Text;
 
     // -------------------------------------------------------------------------
     // filter input
@@ -532,10 +650,22 @@ public class IndexModel : PageModel
     {
         public string? PeriodDayCount { get; init; }
 
+        // Date block for the register: a big first line, a month/year line and a short note.
+        public DateOnly? EffectiveDate { get; init; }
+
+        // Officers / JCOs / ORs for the register's labelled split.
+        public int Officers { get; init; }
+        public int Jcos { get; init; }
+        public int Ors { get; init; }
+        public string DateLead { get; init; } = "—";
+        public string DateMonth { get; init; } = "Date not set";
+        public string? DateNote { get; init; }
+
         public static TrainingRowViewModel FromListItem(TrainingListItem item)
         {
             var strength = $"{item.CounterOfficers:N0} · {item.CounterJcos:N0} · {item.CounterOrs:N0}";
             var (period, dayCount) = FormatPeriod(item);
+            var (lead, month, note) = FormatDateBlock(item);
             return new TrainingRowViewModel(
                 item.Id,
                 item.TrainingTypeName,
@@ -547,8 +677,40 @@ public class IndexModel : PageModel
                 item.Units,
                 item.UnitDisplay)
             {
-                PeriodDayCount = dayCount
+                PeriodDayCount = dayCount,
+                EffectiveDate = item.EffectiveDate,
+                Officers = item.CounterOfficers,
+                Jcos = item.CounterJcos,
+                Ors = item.CounterOrs,
+                DateLead = lead,
+                DateMonth = month,
+                DateNote = note
             };
+        }
+
+        private static (string Lead, string Month, string? Note) FormatDateBlock(TrainingListItem item)
+        {
+            var inv = CultureInfo.InvariantCulture;
+
+            if ((item.StartDate ?? item.EndDate) is { } start)
+            {
+                var end = item.EndDate ?? start;
+                if (end <= start)
+                {
+                    return (start.ToString("dd", inv), start.ToString("MMM yyyy", inv), "1 day");
+                }
+
+                var days = end.DayNumber - start.DayNumber + 1;
+                var endText = end.Year == start.Year ? end.ToString("dd MMM", inv) : end.ToString("dd MMM yyyy", inv);
+                return (start.ToString("dd", inv), start.ToString("MMM yyyy", inv), $"to {endText} · {days} days");
+            }
+
+            if (item.EffectiveDate is { } monthStart)
+            {
+                return (monthStart.ToString("MMM", inv), monthStart.ToString("yyyy", inv), "Month only");
+            }
+
+            return ("—", "Date not set", null);
         }
 
         private static (string Period, string? DayCount) FormatPeriod(TrainingListItem item)
