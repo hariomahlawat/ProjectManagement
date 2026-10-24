@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
@@ -109,6 +111,49 @@ public sealed class TrainingRegisterTests
         Assert.False(withoutType.ContainsKey("TypeId"));
         Assert.False(withoutType.ContainsKey("PageNumber"));
         Assert.True(page.HasFilters);
+    }
+
+    [Theory]
+    [InlineData("guards", true)]        // unit on the roster
+    [InlineData("SHUKLA", true)]        // trainee name, any case
+    [InlineData("17032478", true)]      // army number
+    [InlineData("comb med", true)]      // linked project name
+    [InlineData("refresher", true)]     // notes
+    [InlineData("simulator", true)]     // training type
+    [InlineData("artillery", false)]
+    public async Task Search_MatchesProjectsUnitsTraineesNotesAndType(string text, bool expected)
+    {
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<ProjectManagement.Data.ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ProjectManagement.Data.ApplicationDbContext(options);
+
+        var type = new TrainingType { Id = Guid.NewGuid(), Name = "Simulator", DisplayOrder = 1, IsActive = true, CreatedByUserId = "seed", CreatedAtUtc = DateTimeOffset.UtcNow };
+        var project = new ProjectManagement.Models.Project { Id = 501, Name = "Virtual Reality Based Comb Med Care (VR-CMC) Sml", CreatedByUserId = "seed" };
+        var trainingId = Guid.NewGuid();
+        var training = new ProjectManagement.Areas.ProjectOfficeReports.Domain.Training
+        {
+            Id = trainingId,
+            TrainingTypeId = type.Id,
+            TrainingType = type,
+            StartDate = new DateOnly(2026, 5, 24),
+            EndDate = new DateOnly(2026, 5, 30),
+            Notes = "Annual refresher",
+            CreatedByUserId = "seed",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        training.ProjectLinks.Add(new TrainingProject { TrainingId = trainingId, ProjectId = project.Id, Project = project });
+        training.Trainees.Add(new TrainingTrainee { TrainingId = trainingId, ArmyNumber = "17032478K", Rank = "Cfn", Name = "Suryaman Shukla", UnitName = "3 GUARDS", Category = (byte)TrainingCategory.OtherRank });
+
+        db.TrainingTypes.Add(type);
+        db.Projects.Add(project);
+        db.Trainings.Add(training);
+        await db.SaveChangesAsync();
+
+        var query = new TrainingTrackerQuery { Search = text };
+        var results = await new TrainingTrackerReadService(db).SearchAsync(query, default);
+
+        Assert.Equal(expected, results.Count == 1);
     }
 
     [Fact]

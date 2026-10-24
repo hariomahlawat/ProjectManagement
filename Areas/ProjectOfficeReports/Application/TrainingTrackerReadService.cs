@@ -1023,19 +1023,31 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 var text = query.Search.Trim();
                 if (text.Length > 0)
                 {
+                    // One search box: linked project names, units and trainees (name or army number)
+                    // on the roster, notes, and the training type. Case-insensitive, part of a word.
                     if (_db.Database.IsNpgsql())
                     {
+                        var pattern = $"%{text}%";
                         trainings = trainings.Where(x =>
-                            EF.Functions.ILike(x.Notes ?? string.Empty, $"%{text}%") ||
-                            EF.Functions.ILike(x.TrainingType!.Name, $"%{text}%") ||
-                            x.ProjectLinks.Any(link => link.Project != null && EF.Functions.ILike(link.Project.Name, $"%{text}%")));
+                            EF.Functions.ILike(x.Notes ?? string.Empty, pattern) ||
+                            EF.Functions.ILike(x.TrainingType!.Name, pattern) ||
+                            x.ProjectLinks.Any(link => link.Project != null && EF.Functions.ILike(link.Project.Name, pattern)) ||
+                            x.Trainees.Any(trainee =>
+                                EF.Functions.ILike(trainee.UnitName, pattern) ||
+                                EF.Functions.ILike(trainee.Name, pattern) ||
+                                EF.Functions.ILike(trainee.ArmyNumber ?? string.Empty, pattern)));
                     }
                     else
                     {
+                        var lowered = text.ToLowerInvariant();
                         trainings = trainings.Where(x =>
-                            (x.Notes != null && x.Notes.Contains(text)) ||
-                            x.TrainingType!.Name.Contains(text) ||
-                            x.ProjectLinks.Any(link => link.Project != null && link.Project.Name.Contains(text)));
+                            (x.Notes != null && x.Notes.ToLower().Contains(lowered)) ||
+                            x.TrainingType!.Name.ToLower().Contains(lowered) ||
+                            x.ProjectLinks.Any(link => link.Project != null && link.Project.Name.ToLower().Contains(lowered)) ||
+                            x.Trainees.Any(trainee =>
+                                trainee.UnitName.ToLower().Contains(lowered) ||
+                                trainee.Name.ToLower().Contains(lowered) ||
+                                (trainee.ArmyNumber != null && trainee.ArmyNumber.ToLower().Contains(lowered))));
                     }
                 }
             }

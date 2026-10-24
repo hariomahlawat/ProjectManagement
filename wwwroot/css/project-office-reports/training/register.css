@@ -161,33 +161,34 @@
     margin-top: 0.35rem;
 }
 
-/* Projects in the chosen category: each filters the register; the icon opens the project. */
+/* Projects in the chosen category: full width under the cards and the trend, full names
+   (they wrap rather than truncate, because many share a long common start). Each name
+   filters the register; the icon opens the project. */
 .training-category-projects {
-    margin-top: 0.75rem;
-    padding: 0.75rem 0.9rem;
+    padding: 0.85rem 1rem;
     border: 1px solid var(--pm-border-muted);
-    border-radius: 0.75rem;
+    border-radius: 0.875rem;
     background: var(--pm-card);
 }
 
-.training-category-projects__head h3 {
+.training-category-projects__head h2 {
     margin: 0;
-    font-size: var(--pm-font-size-sm);
+    font-size: 1rem;
     font-weight: 700;
     color: var(--pm-text-strong);
 }
 
 .training-category-projects__head p,
 .training-category-projects__empty {
-    margin: 0.1rem 0 0.5rem;
-    font-size: var(--pm-font-size-xs);
+    margin: 0.15rem 0 0.6rem;
+    font-size: var(--pm-font-size-sm);
     color: var(--pm-text-muted);
 }
 
 .training-category-projects__list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-    gap: 0.25rem 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -206,9 +207,9 @@
     flex: 1;
     align-items: baseline;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.75rem;
     min-width: 0;
-    padding: 0.35rem 0.25rem;
+    padding: 0.45rem 0.25rem;
     color: var(--pm-text-strong);
     text-decoration: none;
 }
@@ -224,10 +225,10 @@
 }
 
 .training-category-projects__name {
-    overflow: hidden;
+    min-width: 0;
     font-size: var(--pm-font-size-sm);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
 .training-category-projects__count {
@@ -235,6 +236,7 @@
     font-size: var(--pm-font-size-xs);
     color: var(--pm-text-muted);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .training-category-projects__open {
@@ -246,6 +248,39 @@
 .training-category-projects__open:hover,
 .training-category-projects__open:focus-visible {
     color: var(--pm-link);
+}
+
+.training-category-projects__more > summary {
+    display: inline-block;
+    margin-top: 0.6rem;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-link);
+    cursor: pointer;
+    list-style: none;
+}
+
+.training-category-projects__more > summary::-webkit-details-marker {
+    display: none;
+}
+
+.training-category-projects__more > summary:hover,
+.training-category-projects__more > summary:focus-visible {
+    text-decoration: underline;
+}
+
+.training-category-projects__hide,
+.training-category-projects__more[open] .training-category-projects__show {
+    display: none;
+}
+
+.training-category-projects__more[open] .training-category-projects__hide {
+    display: inline;
+}
+
+/* The rest of the list continues the same two columns; "Show fewer" sits below it. */
+.training-category-projects__more[open] {
+    display: flex;
+    flex-direction: column-reverse;
 }
 
 .training-chart-frame {
@@ -775,6 +810,10 @@
 
     .training-chart-frame {
         height: 13rem;
+    }
+
+    .training-category-projects__list {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .training-filter__search {
