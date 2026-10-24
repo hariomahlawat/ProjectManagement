@@ -79,7 +79,7 @@ public class ViewPhotoModel : PageModel
         return result;
     }
 
-    // e.g. visit-2026-06-15-7e557574.jpg: sorts by date and stays unique per photo.
+    // e.g. visit-2026-06-15-1a2b3c4d.jpg: sorts by date and stays unique per photo.
     internal static string DownloadName(DateOnly dateOfVisit, Guid photoId, string? contentType)
     {
         var extension = contentType?.ToLowerInvariant() switch

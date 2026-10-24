@@ -93,7 +93,7 @@ record page (gallery and cover) and from Edit's photo manager:
 
 - Previous and next (buttons, arrow keys, swipe), with "3 of 10".
 - Zoom from 50% to 300% (buttons, + and − keys, double-click; 0 resets).
-- **Open in a new tab**: the original file. **Download**: the original as `visit-2026-06-15-7e557574.jpg`
+- **Open in a new tab**: the original file. **Download**: the original as `visit-2026-06-15-1a2b3c4d.jpg`
   (visit date and photo), served by `ViewPhoto?download=true`.
 - The title is the photo's caption, or "Cover photo" / "Photo N". The line above it gives the visit
   and its date, and when the photo was added (IST).

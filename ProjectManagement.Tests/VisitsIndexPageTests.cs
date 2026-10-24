@@ -301,11 +301,11 @@ public sealed class VisitsIndexPageTests
     [InlineData(null, "jpg")]
     public void PhotoDownload_IsNamedByVisitDateAndPhoto(string? contentType, string extension)
     {
-        var photoId = Guid.Parse("7e557574-babb-42c4-b370-4b5ed3e1b659");
+        var photoId = Guid.Parse("1a2b3c4d-5e6f-4a1b-9c2d-3e4f5a6b7c8d");
 
         var name = ViewPhotoModel.DownloadName(new DateOnly(2026, 6, 15), photoId, contentType);
 
-        Assert.Equal($"visit-2026-06-15-7e557574.{extension}", name);
+        Assert.Equal($"visit-2026-06-15-1a2b3c4d.{extension}", name);
     }
 
     private static ApplicationDbContext CreateDb()
