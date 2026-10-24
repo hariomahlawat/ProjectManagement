@@ -1,10 +1,68 @@
 @page
 @model ProjectManagement.Areas.Identity.Pages.Account.LogoutModel
+@inject SignInManager<ApplicationUser> SignInManager
 @{
     ViewData["Title"] = "Sign out";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "focused";
+    ViewData["PublicHeaderMode"] = "Auth";
+    // Signing out is a POST; a GET while still signed in offers it rather than claiming it happened.
+    var signedIn = SignInManager.IsSignedIn(User);
 }
 
-<div class="text-center">
-    <h1>@ViewData["Title"]</h1>
-    <p>You have been signed out.</p>
+@section Styles {
+    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/status-page.css" asp-append-version="true" />
+}
+
+<div class="lp status lp-hue-3@(signedIn ? " status--in-app" : string.Empty)">
+    <div class="lp-aurora lp-aurora--status" aria-hidden="true"></div>
+    <div class="status__dots" aria-hidden="true"></div>
+    <div class="status__beam" aria-hidden="true"></div>
+    <div class="status__fan" aria-hidden="true"></div>
+
+    <div class="lp-wrap">
+        <section class="status__card" data-glass-light aria-labelledby="status-title">
+            @if (signedIn)
+            {
+                <span class="status__glyph" aria-hidden="true"><i class="bi bi-box-arrow-right"></i></span>
+                <p class="lp-eyebrow">Sign out</p>
+                <h1 id="status-title">Sign out of PRISM?</h1>
+                <p class="status__lead">You are signed in as <strong>@User.Identity?.Name</strong>. Signing out ends your session on this computer.</p>
+
+                <div class="status__actions">
+                    <form method="post" asp-area="Identity" asp-page="/Account/Logout">
+                        <button type="submit" class="lp-btn lp-btn--primary">
+                            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                            <span>Sign out</span>
+                        </button>
+                    </form>
+                    <a class="lp-btn lp-btn--ghost" asp-area="" asp-page="/Index">Stay signed in</a>
+                </div>
+            }
+            else
+            {
+                <span class="status__glyph" aria-hidden="true"><i class="bi bi-check2-circle"></i></span>
+                <p class="lp-eyebrow">Signed out</p>
+                <h1 id="status-title">You have been signed out</h1>
+                <p class="status__lead">Your PRISM session on this computer has ended. Sign in again whenever you are ready.</p>
+
+                <div class="status__actions">
+                    <a class="lp-btn lp-btn--primary" asp-area="Identity" asp-page="/Account/Login">
+                        <span>Sign in again</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                    <a class="lp-btn lp-btn--ghost" asp-area="" asp-page="/Index">Back to home</a>
+                </div>
+
+                <footer class="status__foot">
+                    <p><i class="bi bi-pc-display" aria-hidden="true"></i> On a shared computer, close the browser when you are done.</p>
+                </footer>
+            }
+        </section>
+    </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/pages/glass-light.js" asp-append-version="true" defer></script>
+}

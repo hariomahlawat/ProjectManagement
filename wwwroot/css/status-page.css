@@ -1,0 +1,275 @@
+/* =============================================================
+   STATUS PAGES
+   Sign out (Areas/Identity/Pages/Account/Logout.cshtml), Access denied
+   (Areas/Identity/Pages/Account/AccessDenied.cshtml) and Error
+   (Pages/Error.cshtml).
+   One centred glass card over the prism scene: a beam enters from the
+   left, the card sits where it splits, and the spectrum fans out
+   behind it. Signed out, the page slides under the floating header
+   capsule; signed in (.status--in-app) it sits below the app top bar.
+   Loaded after landing.css and uses its tokens and glass recipe;
+   no colour literals here.
+   ============================================================= */
+
+body:has(.status) main {
+    display: flex;
+    flex: 1 0 auto;
+}
+
+body:has(.status) main > .pm-page-shell {
+    display: flex;
+}
+
+/* Signed in there is no capsule to slide under. */
+body:has(.status--in-app) main {
+    margin-top: 0;
+}
+
+.status {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: calc(100dvh - 58px);
+    padding: calc(var(--lp-header-h) + 2rem) 0 3rem;
+    overflow: hidden;
+}
+
+.status--in-app {
+    min-height: calc(100dvh - 190px);
+    padding: 2.5rem 0 3rem;
+}
+
+.status__dots {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: radial-gradient(var(--lp-grid-dot) 1px, transparent 1.6px);
+    background-size: 26px 26px;
+    -webkit-mask-image: radial-gradient(ellipse 55% 60% at 50% 50%, var(--lp-shadow) 0%, transparent 75%);
+    mask-image: radial-gradient(ellipse 55% 60% at 50% 50%, var(--lp-shadow) 0%, transparent 75%);
+    opacity: 0.7;
+}
+
+.lp-aurora--status {
+    background:
+        radial-gradient(24% 32% at 30% 38%, color-mix(in srgb, var(--lp-hue, var(--lp-spec-6)) 55%, transparent), transparent 70%),
+        radial-gradient(24% 30% at 72% 30%, color-mix(in srgb, var(--lp-spec-4) 50%, transparent), transparent 70%),
+        radial-gradient(28% 34% at 66% 78%, color-mix(in srgb, var(--lp-spec-6) 45%, transparent), transparent 70%),
+        radial-gradient(20% 26% at 36% 76%, color-mix(in srgb, var(--lp-spec-2) 35%, transparent), transparent 70%);
+}
+
+/* ---------- The beam and the fan ---------- */
+
+.status__beam,
+.status__fan {
+    position: absolute;
+    top: 50%;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* One white beam in from the left edge... */
+.status__beam {
+    left: 0;
+    width: 50%;
+    height: 2px;
+    margin-top: -1px;
+    background: linear-gradient(90deg, transparent, var(--lp-beam) 70%);
+    box-shadow: 0 0 18px 2px color-mix(in srgb, var(--lp-aura) 70%, transparent);
+    opacity: 0.55;
+}
+
+/* ...six colours out to the right, behind the card. */
+.status__fan {
+    left: 50%;
+    width: 50%;
+    height: min(78%, 34rem);
+    transform: translateY(-50%);
+    background: linear-gradient(180deg, var(--lp-spec-1), var(--lp-spec-2), var(--lp-spec-3), var(--lp-spec-4), var(--lp-spec-5), var(--lp-spec-6));
+    clip-path: polygon(0 49.6%, 100% 0, 100% 100%, 0 50.4%);
+    -webkit-mask-image: linear-gradient(90deg, var(--lp-shadow) 0%, transparent 92%);
+    mask-image: linear-gradient(90deg, var(--lp-shadow) 0%, transparent 92%);
+    /* The landing fan alpha is tuned for a fan drawn over glass; here it needs to read on its own in Light. */
+    opacity: max(var(--lp-fan-alpha), 0.3);
+    filter: blur(1px);
+}
+
+/* ---------- Glass card ---------- */
+
+.status__card {
+    position: relative;
+    isolation: isolate;
+    width: min(100%, 34rem);
+    margin-inline: auto;
+    padding: clamp(1.75rem, 4vw, 2.75rem);
+    border: 1px solid var(--lp-glass-rim);
+    border-radius: 30px;
+    background: var(--lp-glass-strong);
+    box-shadow: var(--lp-glass-shadow), 0 40px 90px -50px color-mix(in srgb, var(--lp-hue, var(--lp-spec-6)) 55%, transparent);
+    backdrop-filter: var(--lp-glass-filter);
+    -webkit-backdrop-filter: var(--lp-glass-filter);
+    text-align: center;
+}
+
+/* A thin spectrum edge along the top: the light that reached the card. */
+.status__card::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 18%;
+    right: 18%;
+    z-index: 2;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--lp-spectrum);
+    opacity: 0.85;
+}
+
+/* The specular highlight; glass-light.js moves it with the pointer. */
+.status__card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(360px circle at var(--lp-mx, 50%) var(--lp-my, -12%), var(--lp-glass-sheen), transparent 62%);
+    opacity: 0.45;
+    transition: opacity 0.35s ease;
+}
+
+.status__card:hover::after {
+    opacity: 0.85;
+}
+
+.status__card > * {
+    position: relative;
+    z-index: 1;
+}
+
+.status__glyph {
+    display: inline-grid;
+    place-items: center;
+    width: 4.25rem;
+    height: 4.25rem;
+    margin-bottom: 1.35rem;
+    border: 1px solid color-mix(in srgb, var(--lp-hue) 35%, var(--lp-glass-rim));
+    border-radius: 22px;
+    background:
+        radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--lp-hue) 22%, transparent), transparent 70%),
+        var(--lp-glass);
+    box-shadow: var(--lp-glass-shadow), 0 14px 34px -16px color-mix(in srgb, var(--lp-hue) 70%, transparent);
+    color: var(--lp-hue);
+    font-size: 1.85rem;
+}
+
+.status__card .lp-eyebrow {
+    margin-bottom: 0.6rem;
+}
+
+.status__card h1 {
+    margin: 0;
+    font-size: clamp(1.7rem, 3.2vw, 2.2rem);
+    line-height: 1.12;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+}
+
+.status__lead {
+    max-width: 28rem;
+    margin: 0.85rem auto 0;
+    color: var(--lp-body);
+    font-size: 1rem;
+    line-height: 1.6;
+    text-wrap: pretty;
+}
+
+.status__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1.85rem;
+}
+
+.status__actions form {
+    display: contents;
+}
+
+.status__actions .lp-btn--primary {
+    border: 0;
+}
+
+.status__foot {
+    display: grid;
+    gap: 0.6rem;
+    margin-top: 1.85rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--lp-glass-rim);
+    color: var(--lp-muted);
+    font-size: 0.86rem;
+}
+
+.status__foot p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.status__foot p > .bi,
+.status__foot p > span {
+    margin-right: 0.4rem;
+}
+
+/* The reference for the administrator: selectable in one click. */
+.status__ref {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--lp-glass-rim);
+    border-radius: 8px;
+    background: var(--lp-glass);
+    color: var(--lp-text);
+    font-size: 0.84rem;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 640px) {
+    .status {
+        align-items: flex-start;
+        padding-top: calc(var(--lp-header-h) + 1.5rem);
+    }
+
+    .status--in-app {
+        padding-top: 1.5rem;
+    }
+
+    .status__card {
+        border-radius: 24px;
+    }
+
+    .status__beam,
+    .status__fan {
+        top: 9.5rem;
+    }
+
+    .status--in-app .status__beam,
+    .status--in-app .status__fan {
+        top: 5rem;
+    }
+
+    .status__actions .lp-btn {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .status__beam,
+    .status__fan {
+        display: none;
+    }
+}
