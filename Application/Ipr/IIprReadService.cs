@@ -9,10 +9,11 @@ public interface IIprReadService
 {
     Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default);
 
-    Task<int?> GetPageNumberForRecordAsync(
-        IprFilter filter,
-        int recordId,
-        CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Every IPR record, all statuses, in register order. The register view filters these in
+    /// the browser; each row carries its status so the counting rule stays in IprStatusPolicy.
+    /// </summary>
+    Task<IReadOnlyList<IprListRowDto>> ListRegisterAsync(CancellationToken cancellationToken = default);
 
     Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default);
 

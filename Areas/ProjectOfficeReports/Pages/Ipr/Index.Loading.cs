@@ -46,6 +46,14 @@ public sealed partial class IndexModel
         var attachments = dto.Attachments
             .Select(CreateAttachmentViewModel)
             .ToList();
+        var status = IprStatusPolicy.Normalize(dto.Status);
+        var filedOn = ConvertToIstDate(dto.FiledAtUtc);
+        var grantedOn = ConvertToIstDate(dto.GrantedAtUtc);
+        var isPending = status == IprStatus.Filed;
+        var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Date;
+        var pendingAge = isPending && filedOn.HasValue
+            ? FormatAge(Math.Max(0, (todayIst - filedOn.Value.Date).Days))
+            : null;
 
         return new IprRecordRowViewModel(
             dto.Id,
@@ -58,10 +66,18 @@ public sealed partial class IndexModel
             GetStatusChipClass(dto.Status),
             string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes,
             string.IsNullOrWhiteSpace(dto.FiledBy) ? "Not recorded" : dto.FiledBy.Trim(),
-            ConvertToIstDate(dto.FiledAtUtc),
-            ConvertToIstDate(dto.GrantedAtUtc),
+            filedOn,
+            grantedOn,
             attachments,
-            dto.AttachmentCount);
+            dto.AttachmentCount,
+            status.ToString(),
+            dto.Type.ToString(),
+            IprStatusPolicy.IsCounted(status),
+            IprStatusPolicy.IsClosed(status),
+            isPending,
+            pendingAge,
+            filedOn?.Year,
+            grantedOn?.Year);
     }
 
     private IprRecordAttachmentViewModel CreateAttachmentViewModel(IprListAttachmentDto attachment)
@@ -162,9 +178,6 @@ public sealed partial class IndexModel
 
         switch (Tab)
         {
-            case "project":
-                await LoadProjectGroupsAsync(cancellationToken);
-                break;
             case "followup":
                 await LoadAttentionAsync(cancellationToken);
                 break;
@@ -172,8 +185,8 @@ public sealed partial class IndexModel
                 await LoadAnalyticsAsync(cancellationToken);
                 break;
             default:
-                await ResolveSelectedRecordPageAsync(cancellationToken);
                 await LoadRecordsAsync(cancellationToken);
+                ResolveSelectedRecord();
                 break;
         }
 
@@ -205,73 +218,46 @@ public sealed partial class IndexModel
         ActiveFilterChips = BuildActiveFilterChips();
     }
 
-    private async Task ResolveSelectedRecordPageAsync(CancellationToken cancellationToken)
+    private async Task LoadRecordsAsync(CancellationToken cancellationToken)
+    {
+        // The register lists every record; the browser applies the filters instantly.
+        var rows = await _readService.ListRegisterAsync(cancellationToken);
+        Records = rows.Select(CreateRowViewModel).ToList();
+        TotalCount = Records.Count;
+        TotalPages = TotalCount == 0 ? 0 : 1;
+        PageNumber = 1;
+    }
+
+    private void ResolveSelectedRecord()
     {
         if (!SelectedRecordId.HasValue)
         {
             return;
         }
 
-        var resolvedPageNumber = await _readService.GetPageNumberForRecordAsync(
-            BuildFilter(),
-            SelectedRecordId.Value,
-            cancellationToken);
-
-        // A link to a closed record (from search or the editor) arrives without a status filter,
-        // and the default view lists only the positive count. Show that record's status instead.
-        if (!resolvedPageNumber.HasValue && Statuses.Count == 0)
-        {
-            var linkedStatus = await _db.IprRecords
-                .AsNoTracking()
-                .Where(record => record.Id == SelectedRecordId.Value)
-                .Select(record => (IprStatus?)record.Status)
-                .SingleOrDefaultAsync(cancellationToken);
-
-            if (linkedStatus is IprStatus status && IprStatusPolicy.IsClosed(status))
-            {
-                Statuses = new List<IprStatus> { status };
-                resolvedPageNumber = await _readService.GetPageNumberForRecordAsync(
-                    BuildFilter(),
-                    SelectedRecordId.Value,
-                    cancellationToken);
-            }
-        }
-
-        if (resolvedPageNumber.HasValue)
-        {
-            PageNumber = resolvedPageNumber.Value;
-            return;
-        }
-
-        SelectedRecordId = null;
-    }
-
-    private async Task LoadRecordsAsync(CancellationToken cancellationToken)
-    {
-        var result = await _readService.SearchAsync(BuildFilter(), cancellationToken);
-        Records = result.Items.Select(CreateRowViewModel).ToList();
-        TotalCount = result.Total;
-        PageNumber = result.Page;
-        PageSize = result.PageSize;
-        TotalPages = result.Total == 0 || PageSize <= 0
-            ? 0
-            : (int)Math.Ceiling(result.Total / (double)PageSize);
-
-        if (Records.Count == 0)
+        var selected = Records.FirstOrDefault(record => record.Id == SelectedRecordId.Value);
+        if (selected is null)
         {
             SelectedRecordId = null;
             return;
         }
 
-        if (!SelectedRecordId.HasValue || Records.All(record => record.Id != SelectedRecordId.Value))
+        // A link to a closed record (from search or the editor) arrives without a status filter,
+        // and the default view lists only the positive count. Show that record's status instead.
+        if (Statuses.Count == 0 &&
+            selected.IsClosed &&
+            Enum.TryParse<IprStatus>(selected.StatusKey, out var status))
         {
-            SelectedRecordId = Records[0].Id;
+            Statuses = new List<IprStatus> { status };
         }
     }
 
+    // The summary strip always describes the whole register, whatever the view's filters.
     private async Task LoadRegisterOverviewAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await BuildCountedRegisterQuery()
+        var snapshot = await _db.IprRecords
+            .AsNoTracking()
+            .Where(IprStatusPolicy.CountedPredicate)
             .Select(record => new
             {
                 record.Id,
@@ -288,13 +274,8 @@ public sealed partial class IndexModel
         var granted = snapshot.Count(item => item.Status == IprStatus.Granted);
         var awaiting = snapshot.Count(item => item.Status == IprStatus.Filed);
 
-        // Closed records are history: counted apart from the positive figures and independent
-        // of the status filter, so the figure stays visible while browsing Filed or Granted.
-        var closedCounts = await IprQueryFilter.Apply(
-                _db.IprRecords.AsNoTracking(),
-                BuildFilter(includeQuery: false),
-                includeSearch: false,
-                includeStatus: false)
+        var closedCounts = await _db.IprRecords
+            .AsNoTracking()
             .Where(IprStatusPolicy.ClosedPredicate)
             .GroupBy(record => record.Status)
             .Select(group => new { Status = group.Key, Count = group.Count() })
@@ -342,75 +323,6 @@ public sealed partial class IndexModel
                 var pendingByType = snapshot.Count(item => item.Type == type && item.Status == IprStatus.Filed);
                 return new TypeBreakdownRow(type, GetTypeLabel(type), filed, protectedByType, pendingByType);
             })
-            .ToList();
-    }
-
-    private async Task LoadProjectGroupsAsync(CancellationToken cancellationToken)
-    {
-        var snapshot = await BuildCountedRegisterQuery()
-            .Select(record => new
-            {
-                record.Id,
-                record.Title,
-                record.Type,
-                Status = record.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : record.Status,
-                record.FiledAtUtc,
-                record.GrantedAtUtc,
-                record.ProjectId,
-                ProjectName = record.Project != null ? record.Project.Name : "Unassigned project",
-                ProjectLifecycle = record.Project != null ? (ProjectLifecycleStatus?)record.Project.LifecycleStatus : null,
-                ProjectArchived = record.Project != null && record.Project.IsArchived,
-                AttachmentCount = record.Attachments.Count(attachment => !attachment.IsArchived)
-            })
-            .ToListAsync(cancellationToken);
-
-        ProjectIprGroups = snapshot
-            .GroupBy(item => new
-            {
-                item.ProjectId,
-                item.ProjectName,
-                item.ProjectLifecycle,
-                item.ProjectArchived
-            })
-            .Select(group =>
-            {
-                var items = group
-                    .OrderByDescending(item => item.FiledAtUtc ?? DateTimeOffset.MinValue)
-                    .ThenBy(item => item.Title)
-                    .Select(item => new ProjectIprItem(
-                        item.Id,
-                        string.IsNullOrWhiteSpace(item.Title) ? "Untitled IPR record" : item.Title!,
-                        GetTypeLabel(item.Type),
-                        GetStatusLabel(item.Status, item.Type),
-                        ConvertToIstDate(item.FiledAtUtc),
-                        ConvertToIstDate(item.GrantedAtUtc),
-                        item.AttachmentCount))
-                    .ToList();
-
-                var lifecycle = group.Key.ProjectLifecycle.HasValue
-                    ? GetProjectLifecycleLabel(group.Key.ProjectLifecycle.Value, group.Key.ProjectArchived)
-                    : "Needs assignment";
-
-                return new ProjectIprGroup(
-                    group.Key.ProjectId,
-                    group.Key.ProjectName,
-                    lifecycle,
-                    group.Count(),
-                    group.Count(item => item.Status == IprStatus.Granted),
-                    group.Count(item => item.Status == IprStatus.Filed),
-                    group.Count(item => item.Type == IprType.Patent),
-                    group.Count(item => item.Type == IprType.Copyright),
-                    items
-                        .Where(item => item.FiledOn.HasValue)
-                        .Select(item => item.FiledOn)
-                        .OrderByDescending(date => date)
-                        .FirstOrDefault(),
-                    !group.Key.ProjectId.HasValue,
-                    items);
-            })
-            .OrderByDescending(group => group.IsUnassigned)
-            .ThenByDescending(group => group.Awaiting)
-            .ThenBy(group => group.ProjectName)
             .ToList();
     }
 

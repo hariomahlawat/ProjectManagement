@@ -164,14 +164,6 @@ public sealed partial class IndexModel
             new SelectListItem("Evidence available", IprEvidenceFilter.Available.ToString()) { Selected = Evidence == IprEvidenceFilter.Available },
             new SelectListItem("Evidence missing", IprEvidenceFilter.Missing.ToString()) { Selected = Evidence == IprEvidenceFilter.Missing }
         };
-
-        PageSizeOptions = new List<SelectListItem>
-        {
-            new("10", "10") { Selected = PageSize == 10 },
-            new("15", "15") { Selected = PageSize == 15 },
-            new("25", "25") { Selected = PageSize == 25 },
-            new("50", "50") { Selected = PageSize == 50 }
-        };
     }
 
     private async Task EvaluateAuthorizationAsync()
@@ -243,12 +235,26 @@ public sealed partial class IndexModel
             Evidence = IprEvidenceFilter.All;
         }
 
-        Tab = Tab?.Trim().ToLowerInvariant() switch
+        var requestedTab = Tab?.Trim().ToLowerInvariant();
+        Tab = requestedTab switch
         {
-            "project" => "project",
             "followup" => "followup",
             "analytics" => "analytics",
             _ => "records"
+        };
+
+        // Links to the retired Projects tab open the register grouped by project.
+        if (requestedTab == "project" && string.IsNullOrWhiteSpace(Group))
+        {
+            Group = "project";
+        }
+
+        Group = Group?.Trim().ToLowerInvariant() switch
+        {
+            "project" => "project",
+            "status" => "status",
+            "year" => "year",
+            _ => null
         };
 
         AttentionIssue = AttentionIssue?.Trim().ToLowerInvariant() switch

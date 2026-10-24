@@ -24,4 +24,14 @@ public sealed record IprRecordRowViewModel(
     DateTime? FiledOn,
     DateTime? GrantedOn,
     IReadOnlyList<IprRecordAttachmentViewModel> Attachments,
-    int AttachmentCount);
+    int AttachmentCount,
+    // Register filtering facts. StatusKey and TypeKey are the stored enum names; IsCounted
+    // and IsClosed come from IprStatusPolicy so the browser never re-derives the rule.
+    string StatusKey = "",
+    string TypeKey = "",
+    bool IsCounted = true,
+    bool IsClosed = false,
+    bool IsPending = false,
+    string? PendingAge = null,
+    int? FiledYear = null,
+    int? GrantedYear = null);

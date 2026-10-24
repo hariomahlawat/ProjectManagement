@@ -558,7 +558,8 @@ public sealed class IprIndexPageTests
 
         Assert.Equal(new[] { IprStatus.Rejected }, page.Statuses);
         Assert.Equal(rejected.Id, page.SelectedRecordId);
-        Assert.Equal(new[] { rejected.Id }, page.Records.Select(record => record.Id).ToArray());
+        Assert.Equal(new[] { filed.Id, rejected.Id }.OrderBy(id => id), page.Records.Select(record => record.Id).OrderBy(id => id));
+        Assert.True(page.Records.Single(record => record.Id == rejected.Id).IsClosed);
         Assert.Equal(1, page.Kpis.Total);
         Assert.Equal(1, page.Kpis.Rejected);
         Assert.Equal(0, page.Kpis.Withdrawn);
@@ -586,7 +587,7 @@ public sealed class IprIndexPageTests
         await page.OnGetAsync(CancellationToken.None);
 
         Assert.Equal(new[] { IprStatus.Rejected, IprStatus.Withdrawn }, page.Statuses.OrderBy(status => status).ToArray());
-        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(3, page.TotalCount);
         var selected = Assert.Single(page.StatusOptions, option => option.Selected);
         Assert.Equal("Closed", selected.Value);
     }
@@ -621,6 +622,64 @@ public sealed class IprIndexPageTests
         await page.OnGetAsync(CancellationToken.None);
 
         Assert.Equal(new[] { 2024 }, page.DateYearOptions.Select(option => option.Year).ToArray());
+    }
+
+    [Fact]
+    public async Task OnGetAsync_RetiredProjectsTab_OpensRegisterGroupedByProject()
+    {
+        await using var db = CreateDbContext();
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+        {
+            Tab = "project"
+        };
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+
+        var result = await page.OnGetAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal("records", page.Tab);
+        Assert.Equal("project", page.Group);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_Register_ListsEveryRecordWithFilteringFacts()
+    {
+        await using var db = CreateDbContext();
+        db.IprRecords.AddRange(
+            new IprRecord { IprFilingNumber = "IPR-FACT-P", Title = "Pending", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-FACT-G", Title = "Granted", Type = IprType.Copyright, Status = IprStatus.Granted, FiledAtUtc = new DateTimeOffset(2021, 1, 1, 0, 0, 0, TimeSpan.Zero), GrantedAtUtc = new DateTimeOffset(2022, 3, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-FACT-W", Title = "Withdrawn", Type = IprType.Patent, Status = IprStatus.Withdrawn, FiledAtUtc = new DateTimeOffset(2019, 1, 1, 0, 0, 0, TimeSpan.Zero) });
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+        {
+            Tab = "records",
+            PageSize = 10,
+            PageNumber = 3
+        };
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+
+        var result = await page.OnGetAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(3, page.Records.Count);
+        var pending = page.Records.Single(record => record.ApplicationNumber == "IPR-FACT-P");
+        Assert.True(pending.IsPending);
+        Assert.True(pending.IsCounted);
+        Assert.False(string.IsNullOrEmpty(pending.PendingAge));
+        Assert.Equal("Filed", pending.StatusKey);
+        Assert.Equal("Patent", pending.TypeKey);
+        var granted = page.Records.Single(record => record.ApplicationNumber == "IPR-FACT-G");
+        Assert.Equal(2021, granted.FiledYear);
+        Assert.Equal(2022, granted.GrantedYear);
+        Assert.Null(granted.PendingAge);
+        var withdrawn = page.Records.Single(record => record.ApplicationNumber == "IPR-FACT-W");
+        Assert.True(withdrawn.IsClosed);
+        Assert.False(withdrawn.IsCounted);
+        Assert.Equal(2, page.Kpis.Total);
+        Assert.Equal(1, page.Kpis.Withdrawn);
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -744,8 +803,8 @@ public sealed class IprIndexPageTests
         public Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default)
             => Task.FromResult(new PagedResult<IprListRowDto>(Array.Empty<IprListRowDto>(), 0, filter.Page, filter.PageSize));
 
-        public Task<int?> GetPageNumberForRecordAsync(IprFilter filter, int recordId, CancellationToken cancellationToken = default)
-            => Task.FromResult<int?>(null);
+        public Task<IReadOnlyList<IprListRowDto>> ListRegisterAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<IprListRowDto>>(Array.Empty<IprListRowDto>());
 
         public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
             => Task.FromResult<IprRecord?>(null);
