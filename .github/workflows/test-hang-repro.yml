@@ -1,0 +1,51 @@
+# TEMPORARY: reproduces the intermittent test-host hang with dumps. Remove before merge.
+name: Test hang repro
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        attempt: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore
+      - name: Test
+        run: >-
+          dotnet test --no-build
+          --blame-hang --blame-hang-timeout 90s --blame-hang-dump-type full
+          --results-directory TestResults
+      - name: Analyse dumps
+        if: failure()
+        run: |
+          dotnet tool install --global dotnet-dump || true
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          for d in $(find TestResults -name '*.dmp'); do
+            echo "=== $d"
+            dotnet-dump analyze "$d" -c "clrthreads" -c "pe -nested" -c "dumpasync --coalesce" -c "clrstack -all" -c "exit" > "$d.txt" 2>&1 || true
+            gzip -k "$d.txt"
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: hang-${{ matrix.attempt }}
+          path: |
+            TestResults/**/*.dmp.txt
+            TestResults/**/Sequence*.xml
+          if-no-files-found: ignore
+          retention-days: 7
