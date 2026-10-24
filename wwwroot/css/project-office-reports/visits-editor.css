@@ -81,6 +81,16 @@
     gap: 1rem 1.25rem;
 }
 
+/* Short forms (Visit types) */
+.visit-editor-page--narrow {
+    max-width: 40rem;
+}
+
+.visit-editor__grid--single,
+.visit-editor__grid.visit-editor__grid--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .visit-editor__field {
     min-width: 0;
 }

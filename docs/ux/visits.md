@@ -76,6 +76,15 @@ photos. Everyone signed in can read it; Admin, HoD and Project Office record and
   details form. Captions are set per upload batch; there is no per-photo caption editor yet.
 - The footer with the buttons stays in view on long forms, except on phones.
 
+## Visit types (`/VisitTypes`, Admin)
+
+- Reached from the register header (**Visit types**, Admin only) and the menu.
+- A table of types with their tag colour, description, number of visits (a link to the register
+  filtered to that type) and status: **In use** or **Not offered for new visits**.
+- **Stop offering** / **Offer again** switches whether officers can choose the type for a new visit;
+  existing visits keep it and it stays in the register filters. **Delete** appears only for a type no
+  visit uses, and asks first. Renaming a type changes it on every visit that uses it.
+
 ## Messages
 
 Server messages use the shared layout toasts: `TempData["ToastSuccess"]` and `TempData["ToastError"]`.

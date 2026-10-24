@@ -670,6 +670,72 @@
     display: none;
 }
 
+/* SECTION: Visit types page */
+.visit-types-table__description {
+    margin: 0.35rem 0 0;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+.visit-types-table__count {
+    text-decoration: none;
+}
+
+.visit-types-table__count:hover strong {
+    color: var(--pm-link);
+    text-decoration: underline;
+}
+
+.visit-types-table__status {
+    width: 14rem;
+}
+
+.visit-types-table__actions {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.visit-types-table__buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.visit-types-table tr.is-inactive .visit-type-tag {
+    opacity: 0.7;
+}
+
+.visit-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+.visit-status::before {
+    content: "";
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--pm-border-strong);
+}
+
+.visit-status--active {
+    color: var(--pm-text-secondary);
+}
+
+.visit-status--active::before {
+    background: var(--pm-success);
+}
+
+.visit-types-note {
+    margin: 0;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
 /* SECTION: Medium screens */
 @media (max-width: 1199.98px) {
     .visit-filter {
@@ -848,6 +914,41 @@
     .visit-table__strength strong {
         display: inline;
         margin-right: 0.25rem;
+    }
+
+    .visit-types-table thead {
+        display: none;
+    }
+
+    .visit-types-table tbody tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.5rem 0.75rem;
+        padding: 0.9rem;
+    }
+
+    .visit-types-table tbody td {
+        display: block;
+        width: auto;
+        padding: 0;
+        border: 0;
+    }
+
+    .visit-types-table tbody td:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .visit-types-table tbody tr + tr {
+        border-top: 1px solid var(--pm-divider);
+    }
+
+    .visit-types-table td.visit-types-table__actions {
+        grid-column: 1 / -1;
+    }
+
+    .visit-types-table__buttons {
+        justify-content: flex-start;
+        flex-wrap: wrap;
     }
 
     .visit-row__edit {

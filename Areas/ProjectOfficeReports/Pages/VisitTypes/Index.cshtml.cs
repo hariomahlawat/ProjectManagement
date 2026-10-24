@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.VisitTypes;
@@ -24,9 +26,13 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<VisitTypeSummary> Items { get; private set; } = Array.Empty<VisitTypeSummary>();
 
+    // Same colour slot as the type tag on the Visits register.
+    public IReadOnlyDictionary<Guid, int> ColourSlots { get; private set; } = new Dictionary<Guid, int>();
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Items = await _service.GetSummariesAsync(cancellationToken);
+        ColourSlots = VisitTypeColours.SlotsFor(Items.Select(t => (t.Id, t.Name)));
     }
 
     public async Task<IActionResult> OnPostToggleAsync(Guid id, bool enable, string rowVersion, CancellationToken cancellationToken)
@@ -49,7 +55,7 @@ public class IndexModel : PageModel
         var result = await _service.UpdateAsync(id, existing.Name, existing.Description, enable, bytes, userId, cancellationToken);
         if (result.Outcome == VisitTypeMutationOutcome.Success)
         {
-            TempData["ToastSuccess"] = enable ? "Visit type enabled." : "Visit type disabled.";
+            TempData["ToastSuccess"] = enable ? "The visit type is offered again for new visits." : "The visit type is no longer offered for new visits. Its visits keep it.";
         }
         else if (result.Outcome == VisitTypeMutationOutcome.ConcurrencyConflict)
         {

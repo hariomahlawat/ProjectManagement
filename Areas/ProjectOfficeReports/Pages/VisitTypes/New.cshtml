@@ -1,43 +1,52 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.VisitTypes.NewModel
 @{
-    ViewData["Title"] = "New Visit Type";
+    ViewData["Title"] = "Add visit type · Visits to SDD";
 }
 
-<div class="visit-tracker">
-    <div class="pm-card">
-        <div class="pm-card-header">
-            <div class="pm-card-heading">
-                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-tag"></i></span>
-                <div>
-                    <h1 class="pm-card-title">New visit type</h1>
-                    <p class="pm-card-subtitle mb-0">Create a reusable category for future visits.</p>
+<div class="visit-editor-page visit-editor-page--narrow">
+    <nav aria-label="Breadcrumb" class="visit-record__crumbs">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-page="/Visits/Index">Visits to SDD</a></li>
+            <li class="breadcrumb-item"><a asp-page="Index">Visit types</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Add</li>
+        </ol>
+    </nav>
+
+    <header class="visit-editor-page__head">
+        <h1>Add visit type</h1>
+        <p>A category officers can choose when they record a visit.</p>
+    </header>
+
+    <form method="post" class="visit-editor">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger visit-editor__summary" role="alert"></div>
+        <section class="visit-editor__section">
+            <div class="visit-editor__grid visit-editor__grid--single">
+                <div class="visit-editor__field">
+                    <label asp-for="Input.Name" class="form-label">Name</label>
+                    <input asp-for="Input.Name" class="form-control" autocomplete="off" placeholder="e.g. Course Visits" />
+                    <span asp-validation-for="Input.Name" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="visit-editor__field">
+                    <label asp-for="Input.Description" class="form-label">Description <span class="visit-editor__optional">optional</span></label>
+                    <textarea asp-for="Input.Description" class="form-control" rows="3" placeholder="When to use this type, e.g. Courses from training establishments visiting as a group."></textarea>
+                    <span asp-validation-for="Input.Description" class="invalid-feedback d-block"></span>
                 </div>
             </div>
-            <div class="pm-card-actions">
-                <a asp-page="Index" class="btn btn-outline-secondary">Back to visit types</a>
+        </section>
+        <footer class="visit-editor__footer">
+            <a asp-page="Index" class="btn btn-link visit-editor__cancel">Cancel</a>
+            <div class="visit-editor__submit">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i> Add visit type</button>
             </div>
-        </div>
-        <div class="pm-card-body">
-            <form method="post" novalidate class="visit-form visit-form--narrow">
-                <div class="mb-3">
-                    <label asp-for="Input.Name" class="form-label"></label>
-                    <input asp-for="Input.Name" class="form-control" autocomplete="off" placeholder="e.g. Site inspection" />
-                    <span asp-validation-for="Input.Name" class="text-danger"></span>
-                </div>
-                <div class="mb-4">
-                    <label asp-for="Input.Description" class="form-label"></label>
-                    <textarea asp-for="Input.Description" class="form-control" rows="3" placeholder="Optional description for context"></textarea>
-                    <span asp-validation-for="Input.Description" class="text-danger"></span>
-                </div>
-                <div class="visit-form__footer">
-                    <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Create</button>
-                </div>
-            </form>
-        </div>
-    </div>
+        </footer>
+    </form>
 </div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-editor.css" asp-append-version="true" />
+}
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

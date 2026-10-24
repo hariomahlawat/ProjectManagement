@@ -6,12 +6,16 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 
 // Each visit type gets a colour slot (1–6) from its position by name, so a type keeps the
-// same colour on the register, the record page and the type chart (--pm-chart-accent-N).
+// same colour on the register, the record page, the type chart (--pm-chart-accent-N) and
+// the Visit types page.
 public static class VisitTypeColours
 {
     public const int SlotCount = 6;
 
     public static IReadOnlyDictionary<Guid, int> SlotsFor(IEnumerable<VisitType> types)
+        => SlotsFor(types.Select(t => (t.Id, t.Name)));
+
+    public static IReadOnlyDictionary<Guid, int> SlotsFor(IEnumerable<(Guid Id, string Name)> types)
     {
         return types
             .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
