@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,7 +39,6 @@ public class DetailsModel : PageModel
     // The photo shown large at the top: the chosen cover, or the first photo when none is chosen.
     public VisitPhoto? CoverPhoto { get; private set; }
 
-    public int CoverPhotoIndex { get; private set; }
 
     public int TypeColourSlot { get; private set; } = 1;
 
@@ -67,7 +67,6 @@ public class DetailsModel : PageModel
         RowVersion = Convert.ToBase64String(visit.RowVersion);
 
         CoverPhoto = Visit.Photos.FirstOrDefault(p => p.Id == visit.CoverPhotoId) ?? Visit.Photos.FirstOrDefault();
-        CoverPhotoIndex = CoverPhoto is null ? 0 : Visit.Photos.ToList().IndexOf(CoverPhoto);
 
         var types = await _visitTypeService.GetAllAsync(includeInactive: true, cancellationToken);
         TypeColourSlot = VisitTypeColours.SlotOf(VisitTypeColours.SlotsFor(types), visit.VisitTypeId);

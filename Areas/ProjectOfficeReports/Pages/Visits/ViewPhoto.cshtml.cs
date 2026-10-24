@@ -24,7 +24,8 @@ public class ViewPhotoModel : PageModel
         _photoService = photoService;
     }
 
-    public async Task<IActionResult> OnGetAsync(Guid id, Guid photoId, string? size, CancellationToken cancellationToken)
+    // download=true serves the file as an attachment with a readable name (the viewer's Download button).
+    public async Task<IActionResult> OnGetAsync(Guid id, Guid photoId, string? size, bool download, CancellationToken cancellationToken)
     {
         var normalizedSize = NormalizeSize(size);
         if (normalizedSize is null)
@@ -32,8 +33,11 @@ public class ViewPhotoModel : PageModel
             return NotFound();
         }
 
-        var visitExists = await _db.Visits.AsNoTracking().AnyAsync(v => v.Id == id, cancellationToken);
-        if (!visitExists)
+        var visitDate = await _db.Visits.AsNoTracking()
+            .Where(v => v.Id == id)
+            .Select(v => (DateOnly?)v.DateOfVisit)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (visitDate is null)
         {
             return NotFound();
         }
@@ -52,7 +56,7 @@ public class ViewPhotoModel : PageModel
         };
         headers.LastModified = asset.LastModifiedUtc.UtcDateTime;
 
-        var etag = new EntityTagHeaderValue($"\"visit-photo-{id}-{photoId}-{normalizedSize}\"");
+        var etag = new EntityTagHeaderValue($"\"visit-photo-{id}-{photoId}-{normalizedSize}{(download ? "-dl" : string.Empty)}\"");
         headers.ETag = etag;
 
         var ifNoneMatch = Request.GetTypedHeaders().IfNoneMatch;
@@ -67,7 +71,25 @@ public class ViewPhotoModel : PageModel
             EnableRangeProcessing = true
         };
 
+        if (download)
+        {
+            result.FileDownloadName = DownloadName(visitDate.Value, photoId, asset.ContentType);
+        }
+
         return result;
+    }
+
+    // e.g. visit-2026-06-15-7e557574.jpg: sorts by date and stays unique per photo.
+    internal static string DownloadName(DateOnly dateOfVisit, Guid photoId, string? contentType)
+    {
+        var extension = contentType?.ToLowerInvariant() switch
+        {
+            "image/png" => "png",
+            "image/webp" => "webp",
+            _ => "jpg"
+        };
+
+        return $"visit-{dateOfVisit:yyyy-MM-dd}-{photoId.ToString("N")[..8]}.{extension}";
     }
 
     private static string? NormalizeSize(string? size)

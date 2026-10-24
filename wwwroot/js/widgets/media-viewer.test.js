@@ -234,3 +234,37 @@ test('the Photos gallery uses the shared viewer, with its information panel and 
   assert.equal(window.location.hash, '#media=asset-1');
   window.close();
 });
+
+test('a list marked data-media-viewer-links keeps the open photo in the address and opens it from a link (Visits)', () => {
+  const linkedList = (hash) => {
+    const virtualConsole = new VirtualConsole();
+    const dom = new JSDOM(`<!doctype html><html><body>
+      <main id="content">
+        <a id="g1" href="/v/1/xl" data-media-viewer-open="visit-photos" data-media-viewer-key="photo-1">1</a>
+        <a id="g2" href="/v/2/xl" data-media-viewer-open="visit-photos" data-media-viewer-key="photo-2">2</a>
+      </main>
+      <script type="application/json" data-media-viewer-items="visit-photos" data-media-viewer-links="#media=">${JSON.stringify(photos)}</script>
+      ${viewerMarkup}</body></html>`, {
+      url: `http://localhost/ProjectOfficeReports/Visits/Details/abc${hash}`,
+      runScripts: 'outside-only',
+      virtualConsole,
+    });
+    dom.window.eval(viewerScript);
+    dom.window.PMMediaViewer.autoWire(dom.window.document);
+    return dom.window;
+  };
+
+  const window = linkedList('#visit-photo-gallery');
+  click(window, window.document.getElementById('g2'));
+  assert.equal(window.location.hash, '#media=photo-2', 'the open photo is in the address');
+  key(window, 'ArrowRight');
+  assert.equal(window.location.hash, '#media=photo-3');
+  key(window, 'Escape');
+  assert.equal(window.location.hash, '#visit-photo-gallery', 'closing restores the address');
+  window.close();
+
+  const shared = linkedList('#media=photo-2');
+  assert.equal(viewerOf(shared).hidden, false, 'a shared link opens the viewer');
+  assert.equal(text(shared, '[data-viewer-title]'), 'Trials');
+  shared.close();
+});

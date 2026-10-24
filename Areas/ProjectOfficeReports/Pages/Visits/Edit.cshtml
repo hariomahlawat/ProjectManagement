@@ -76,18 +76,22 @@
         </div>
     </section>
 
-    @if (totalPhotos > 0)
+    @if (totalPhotos > 0 && Model.SavedVisit is { } savedVisit)
     {
-        <partial name="_PhotoViewer" model="visitorName" />
+        @* data-media-viewer-links keeps the open photo in the address (#media=…), so a photo can be linked. *@
+            <script type="application/json" data-media-viewer-items="@VisitMediaViewerItems.Group" data-media-viewer-links="#media=">@Html.Raw(new ProjectManagement.ViewModels.MediaViewerItemsGroup(VisitMediaViewerItems.Group, VisitMediaViewerItems.ForPhotos(Url, savedVisit, Model.Photos)).ToJson())</script>
+        <partial name="_MediaViewer" />
     }
 </div>
 
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/visits-editor.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/widgets/media-viewer.css" asp-append-version="true" />
 }
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/widgets/media-viewer.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/project-office-reports/visits.js" asp-append-version="true"></script>
 }

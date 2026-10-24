@@ -11,7 +11,8 @@
 // An item: { key, kind: 'photo' | 'video', displayUrl, title, alt, context, date,
 //            originalUrl, downloadUrl, poster }.
 //
-// Pages that only need the viewer render Pages/Shared/_MediaViewer.cshtml (data-media-viewer-auto)
+// Pages that only need the viewer render Pages/Shared/_MediaViewer.cshtml (data-media-viewer-auto;
+// a JSON list with data-media-viewer-links="#media=" turns on links to one item, as on Visits)
 // and mark thumbnails with data-media-viewer-open="<group>" data-media-viewer-key="<key>". The
 // group's items come from <script type="application/json" data-media-viewer-items="<group>">,
 // or else from the page's [data-media-viewer-item] elements of that group, in page order (so a
@@ -349,7 +350,13 @@
         const viewer = doc.querySelector('[data-media-viewer-auto]');
         if (!viewer || viewer.dataset.mediaViewerWired === 'true') return null;
         viewer.dataset.mediaViewerWired = 'true';
-        const controller = attach(viewer);
+        // Optional links to one item: a JSON items list marked data-media-viewer-links="#media="
+        // keeps the open item of that group in the address and opens it again from a shared link.
+        const linkList = doc.querySelector('script[type="application/json"][data-media-viewer-items][data-media-viewer-links]');
+        const hashPrefix = linkList?.dataset.mediaViewerLinks || '';
+        const linkGroup = linkList?.dataset.mediaViewerItems || '';
+        const linked = Boolean(hashPrefix && linkGroup);
+        const controller = attach(viewer, linked ? { hashPrefix, items: readGroup(doc, linkGroup) } : {});
 
         doc.addEventListener('click', (event) => {
             // A modified click (new tab, new window) keeps the link's own behaviour.
@@ -365,6 +372,15 @@
             event.preventDefault();
             controller.open(index, trigger, { items });
         });
+
+        if (linked) {
+            const sync = () => {
+                controller.setItems(readGroup(doc, linkGroup));
+                controller.syncWithHash();
+            };
+            doc.defaultView.addEventListener('hashchange', sync);
+            sync();
+        }
 
         return controller;
     }

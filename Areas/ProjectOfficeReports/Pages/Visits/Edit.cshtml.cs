@@ -95,6 +95,9 @@ public class EditModel : PageModel
 
     public VisitPhotosViewModel PhotoGallery => new(VisitId, Photos, CoverPhotoId, CanManage);
 
+    // The visit as saved; the view builds the photo viewer's items from it (VisitMediaViewerItems).
+    public Visit? SavedVisit { get; private set; }
+
     public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || IsProjectOfficeMember();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -402,6 +405,7 @@ public class EditModel : PageModel
         Photos = details.Photos;
         VisitId = details.Visit.Id;
         SavedVisitorName = details.Visit.VisitorName;
+        SavedVisit = details.Visit;
 
         var visitTypes = await _visitTypeService.GetAllAsync(includeInactive: false, cancellationToken);
         var list = new List<SelectListItem>

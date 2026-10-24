@@ -13,9 +13,10 @@ photos. Everyone signed in can read it; Admin, HoD and Project Office record and
 | Photos (upload, cover, derivatives, serving) | `VisitPhotoService.cs`, `Pages/Visits/ViewPhoto.cshtml.cs` |
 | Excel and PDF exports | `VisitExportService.cs`, `Utilities/Reporting/Visit*Builder.cs` |
 | Register (the module's main page) | `Pages/Visits/Index.cshtml(.cs)`; `/Visits/All` redirects here with its filters |
-| Record page, forms | `Pages/Visits/Details`, `New`, `Edit`; fields `_VisitFields` + `VisitFormInput`, photo chooser `_PhotoPicker`, viewer `_PhotoViewer`, gallery `_PhotosPartial` |
-| Styles | `wwwroot/css/project-office-reports/visits-register.css` (register, type tags), `visits-details.css` (record, gallery, viewer), `visits-editor.css` (forms); site tokens only |
-| Script | `wwwroot/js/pages/project-office-reports/visits.js` (charts, viewer, row clicks, upload checks) |
+| Record page, forms | `Pages/Visits/Details`, `New`, `Edit`; fields `_VisitFields` + `VisitFormInput`, photo chooser `_PhotoPicker`, gallery `_PhotosPartial` |
+| Photo viewer | The shared `Pages/Shared/_MediaViewer.cshtml` (`wwwroot/js/widgets/media-viewer.js`), as on Photos and project pages; items from `VisitMediaViewerItems` |
+| Styles | `wwwroot/css/project-office-reports/visits-register.css` (register, type tags), `visits-details.css` (record, gallery), `visits-editor.css` (forms); site tokens only |
+| Script | `wwwroot/js/pages/project-office-reports/visits.js` (charts, row clicks, cover fallback, upload checks) |
 
 ## The register (`/ProjectOfficeReports/Visits`)
 
@@ -53,7 +54,7 @@ photos. Everyone signed in can read it; Admin, HoD and Project Office record and
 - The cover photo (or the first photo when none is chosen) shown large; it opens the photo viewer
   at that photo. **All N photos** jumps to the gallery.
 - **Remarks** as typed, paragraphs and line breaks kept.
-- **Photos**: the gallery, opening the same in-page viewer (`_PhotoViewer`). Managers get a link
+- **Photos**: the gallery. Managers get a link
   to the photo manager on the edit page.
 - Beside them (below on narrow screens): **The visit** (date, type, visitors, photos; a type no
   longer used for new visits says so) and **Record**: who recorded it and when, and who last
@@ -84,6 +85,21 @@ photos. Everyone signed in can read it; Admin, HoD and Project Office record and
 - **Stop offering** / **Offer again** switches whether officers can choose the type for a new visit;
   existing visits keep it and it stays in the register filters. **Delete** appears only for a type no
   visit uses, and asks first. Renaming a type changes it on every visit that uses it.
+
+## Viewing photos
+
+Visit photos open in the shared full-screen viewer used by Photos and the project pages, from the
+record page (gallery and cover) and from Edit's photo manager:
+
+- Previous and next (buttons, arrow keys, swipe), with "3 of 10".
+- Zoom from 50% to 300% (buttons, + and − keys, double-click; 0 resets).
+- **Open in a new tab**: the original file. **Download**: the original as `visit-2026-06-15-7e557574.jpg`
+  (visit date and photo), served by `ViewPhoto?download=true`.
+- The title is the photo's caption, or "Cover photo" / "Photo N". The line above it gives the visit
+  and its date, and when the photo was added (IST).
+- The open photo is kept in the address (`#media=photo-…`), so a link opens that photo. Closing
+  restores the address the page had.
+- Focus stays in the viewer while it is open and returns to the thumbnail; Esc closes it.
 
 ## Messages
 

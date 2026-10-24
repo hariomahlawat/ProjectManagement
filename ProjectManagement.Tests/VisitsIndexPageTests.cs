@@ -294,6 +294,20 @@ public sealed class VisitsIndexPageTests
         Assert.Equal("Original name", page.SavedVisitorName);
     }
 
+    [Theory]
+    [InlineData("image/jpeg", "jpg")]
+    [InlineData("image/png", "png")]
+    [InlineData("image/webp", "webp")]
+    [InlineData(null, "jpg")]
+    public void PhotoDownload_IsNamedByVisitDateAndPhoto(string? contentType, string extension)
+    {
+        var photoId = Guid.Parse("7e557574-babb-42c4-b370-4b5ed3e1b659");
+
+        var name = ViewPhotoModel.DownloadName(new DateOnly(2026, 6, 15), photoId, contentType);
+
+        Assert.Equal($"visit-2026-06-15-7e557574.{extension}", name);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

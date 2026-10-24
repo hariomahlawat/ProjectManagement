@@ -75,7 +75,7 @@
                 @if (coverUrl is not null)
                 {
                     <figure class="visit-cover">
-                        <button type="button" class="visit-cover__open" data-visit-open-photo="@Model.CoverPhotoIndex" aria-label="Open the photos, starting with the cover photo">
+                        <button type="button" class="visit-cover__open" data-visit-cover data-media-viewer-open="@VisitMediaViewerItems.Group" data-media-viewer-key="@VisitMediaViewerItems.KeyFor(Model.CoverPhoto!.Id)" aria-label="Open the photos, starting with the cover photo">
                             <img src="@coverUrl" alt="@(string.IsNullOrWhiteSpace(Model.CoverPhoto!.Caption) ? $"Cover photo of the visit by {visit.VisitorName}" : Model.CoverPhoto.Caption)" decoding="async" />
                         </button>
                         <figcaption class="visit-cover__bar">
@@ -184,7 +184,9 @@
 
         @if (photoCount > 0)
         {
-            <partial name="_PhotoViewer" model="visit.VisitorName" />
+            @* data-media-viewer-links keeps the open photo in the address (#media=…), so a photo can be linked. *@
+            <script type="application/json" data-media-viewer-items="@VisitMediaViewerItems.Group" data-media-viewer-links="#media=">@Html.Raw(new ProjectManagement.ViewModels.MediaViewerItemsGroup(VisitMediaViewerItems.Group, VisitMediaViewerItems.ForPhotos(Url, visit, Model.PhotoGallery!.Photos)).ToJson())</script>
+            <partial name="_MediaViewer" />
         }
     }
 </div>
@@ -192,8 +194,10 @@
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/visits-register.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/widgets/media-viewer.css" asp-append-version="true" />
 }
 
 @section Scripts {
+    <script src="~/js/widgets/media-viewer.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/project-office-reports/visits.js" asp-append-version="true"></script>
 }
