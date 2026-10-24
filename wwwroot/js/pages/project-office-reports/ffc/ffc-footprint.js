@@ -215,11 +215,16 @@
 
     const scale = buildScale(countries.map(getMetricValue));
 
+    // Dark sets an opaque ramp per metric; Light falls back to the translucent tint.
+    function shadeForStep(index) {
+        return mapColour(`ramp-${metricConfig.property}-${index + 1}`, shade(0.28 + index * 0.18));
+    }
+
     function shadeForValue(value) {
         if (value <= 0 || scale.length === 0) return mapColour('zero', '#e7ecf2');
         const index = scale.findIndex(range => value >= range.start && value <= range.end);
         const resolvedIndex = index < 0 ? scale.length - 1 : index;
-        return shade(0.28 + resolvedIndex * 0.18);
+        return shadeForStep(resolvedIndex);
     }
 
     function renderLegend() {
@@ -233,7 +238,7 @@
         scale.forEach((range, index) => {
             const item = createElement('div', 'ffc-footprint-legend__item');
             const sample = createElement('span', 'ffc-footprint-legend__sample');
-            sample.style.background = shade(0.28 + index * 0.18);
+            sample.style.background = shadeForStep(index);
             const label = range.start === range.end
                 ? `Qty ${range.start}`
                 : `Qty ${range.start}–${range.end}`;

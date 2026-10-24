@@ -559,14 +559,32 @@
     .ffc-country-card { break-inside: avoid; }
 }
 
-/* Dark: map colours read by ffc-footprint.js (Light uses its built-in fallbacks). */
+/* Dark: map colours read by ffc-footprint.js (Light uses its built-in fallbacks).
+   Land sits clearly above the sea, and each metric has an opaque ramp that gets
+   lighter as the quantity grows, instead of Light's see-through tint. */
 [data-bs-theme="dark"] .ffc-footprint-map {
-    --ffc-map-land: #25282d;
-    --ffc-map-land-border: #3a3f45;
-    --ffc-map-zero: #3a3f45;
-    --ffc-map-border: #6b7178;
+    --ffc-map-land: #2c3138;
+    --ffc-map-land-border: #444a52;
+    --ffc-map-zero: #3b4149;
+    --ffc-map-border: #8a929c;
     --ffc-map-selected: #9ec5fe;
     --ffc-map-hover: #e6e8eb;
+    --ffc-map-ramp-total-1: #34478f;
+    --ffc-map-ramp-total-2: #4d68d4;
+    --ffc-map-ramp-total-3: #7e98f2;
+    --ffc-map-ramp-total-4: #b8c8ff;
+    --ffc-map-ramp-installed-1: #1f6040;
+    --ffc-map-ramp-installed-2: #2f8f5a;
+    --ffc-map-ramp-installed-3: #4cc47f;
+    --ffc-map-ramp-installed-4: #9de4b7;
+    --ffc-map-ramp-delivered-1: #25508f;
+    --ffc-map-ramp-delivered-2: #3a72d0;
+    --ffc-map-ramp-delivered-3: #679ff0;
+    --ffc-map-ramp-delivered-4: #aacbff;
+    --ffc-map-ramp-planned-1: #6b4a12;
+    --ffc-map-ramp-planned-2: #a5721c;
+    --ffc-map-ramp-planned-3: #d9a032;
+    --ffc-map-ramp-planned-4: #f3d083;
 }
 
 /* ============================================================
@@ -595,7 +613,7 @@
 }
 
 :where([data-bs-theme="dark"]) .ffc-footprint-map {
-    background: color-mix(in srgb, #6ea8fe 11%, #16181b);
+    background: #121519;
 }
 
 :where([data-bs-theme="dark"]) .ffc-footprint-legend {

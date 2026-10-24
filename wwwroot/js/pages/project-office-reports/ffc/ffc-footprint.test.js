@@ -114,3 +114,36 @@ test('map colours follow the theme tokens and restyle when the theme changes', a
 
   assert.equal(styleCalls.at(-1).fillColor, '#25282d');
 });
+
+test('dark theme shades countries from the opaque ramp of the active metric', async () => {
+  const dom = new JSDOM(`<!doctype html><html data-bs-theme="dark"><head><style>
+      #ffcFootprintMap { --ffc-map-ramp-installed-1: #1f6040; --ffc-map-ramp-installed-2: #2f8f5a; }
+    </style></head><body>
+    <main data-ffc-footprint data-view="map" data-metric="installed" data-geo-url="/map.geojson">
+      <div id="ffcFootprintMap"></div>
+      <div data-ffc-map-legend></div>
+    </main>
+    <script type="application/json" id="ffc-footprint-data">[
+      { "id": 1, "iso3": "AAA", "name": "Alpha", "installed": 1 },
+      { "id": 2, "iso3": "BBB", "name": "Bravo", "installed": 8 }
+    ]</script>
+  </body></html>`, { runScripts: 'outside-only', url: 'https://prism.test/ProjectOfficeReports/FFC/Footprint?view=map' });
+  const { window } = dom;
+  const styles = {};
+  window.L = {
+    map: () => ({ setView() {}, fitBounds() {}, invalidateSize() {} }),
+    geoJSON: (data, options) => {
+      ['AAA', 'BBB'].forEach(iso3 => { styles[iso3] = options.style({ properties: { iso3 } }); });
+      return { addTo() { return this; }, getBounds: () => ({ isValid: () => false }), setStyle() {} };
+    },
+    featureGroup: () => ({ getBounds: () => ({ isValid: () => false }) })
+  };
+  window.fetch = async () => ({ ok: true, json: async () => ({ type: 'FeatureCollection', features: [] }) });
+  window.eval(script);
+  await new Promise(resolve => setTimeout(resolve, 10));
+
+  assert.equal(styles.AAA.fillColor, '#1f6040');
+  assert.equal(styles.AAA.fillOpacity, 1);
+  const samples = window.document.querySelectorAll('.ffc-footprint-legend__sample');
+  assert.equal(samples[0].style.background, 'rgb(31, 96, 64)');
+});
