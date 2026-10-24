@@ -70,6 +70,12 @@ public sealed partial class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public List<IprStatus> Statuses { get; set; } = new();
 
+    // Single-choice status scope from the filter drawer. "Closed" stands for Rejected and
+    // Withdrawn together, which a single select cannot submit as two Statuses values.
+    // NormalizeFilters expands it into Statuses; links and state fields carry Statuses.
+    [BindProperty(SupportsGet = true)]
+    public string? StatusScope { get; set; }
+
     [BindProperty(SupportsGet = true)]
     public int? ProjectId { get; set; }
 

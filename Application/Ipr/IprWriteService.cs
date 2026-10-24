@@ -274,19 +274,25 @@ public sealed class IprWriteService : IIprWriteService
     private async Task EnsureUniqueFilingNumberAsync(string filingNumber, IprType type, int? excludeId, CancellationToken cancellationToken)
     {
         var canonical = filingNumber.ToUpperInvariant();
-        var exists = await _db.IprRecords
+        var existingStatuses = await _db.IprRecords
             .AsNoTracking()
-            .AnyAsync(
-                x => x.IprFilingNumber.ToUpper() == canonical &&
-                     x.Type == type &&
-                     (!excludeId.HasValue || x.Id != excludeId.Value),
-                cancellationToken);
+            .Where(x => x.IprFilingNumber.ToUpper() == canonical &&
+                        x.Type == type &&
+                        (!excludeId.HasValue || x.Id != excludeId.Value))
+            .Select(x => x.Status)
+            .Take(1)
+            .ToListAsync(cancellationToken);
 
-        if (exists)
+        if (existingStatuses.Count > 0)
         {
+            // A closed record is hidden from the default register view, so name its status
+            // to tell the editor where to find it.
+            var existingStatus = existingStatuses[0];
             throw new IprValidationException(
                 IprValidationCode.DuplicateFilingNumber,
-                "An IPR record with the same filing number and type already exists.");
+                IprStatusPolicy.IsClosed(existingStatus)
+                    ? $"A {existingStatus.ToString().ToLowerInvariant()} IPR record with the same filing number and type already exists. Filter the register by {existingStatus} to find it."
+                    : "An IPR record with the same filing number and type already exists.");
         }
     }
 
@@ -400,21 +406,21 @@ public sealed class IprWriteService : IIprWriteService
         {
             throw new IprValidationException(
                 IprValidationCode.GrantDateRequired,
-                "Protection date is required once the record is protected.");
+                "Grant / registration date is required once the record is granted.");
         }
 
         if (grantedDate.HasValue && grantedDate.Value > todayIst)
         {
             throw new IprValidationException(
                 IprValidationCode.GrantDateInFuture,
-                "Protection date cannot be in the future.");
+                "Grant / registration date cannot be in the future.");
         }
 
         if (grantedDate.HasValue && grantedDate.Value < filedDate.Value)
         {
             throw new IprValidationException(
                 IprValidationCode.GrantDateBeforeFilingDate,
-                "Protection date cannot be earlier than the filing date.");
+                "Grant / registration date cannot be earlier than the filing date.");
         }
     }
 
@@ -449,7 +455,7 @@ public sealed class IprWriteService : IIprWriteService
             Title = NormalizeTitle(source.Title),
             Notes = string.IsNullOrWhiteSpace(source.Notes) ? null : source.Notes.Trim(),
             Type = source.Type,
-            Status = source.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : source.Status,
+            Status = IprStatusPolicy.Normalize(source.Status),
             FiledBy = string.IsNullOrWhiteSpace(source.FiledBy) ? null : source.FiledBy.Trim(),
             FiledAtUtc = source.FiledAtUtc?.ToUniversalTime(),
             GrantedAtUtc = source.Status == IprStatus.Granted

@@ -217,6 +217,26 @@ public sealed partial class IndexModel
             SelectedRecordId.Value,
             cancellationToken);
 
+        // A link to a closed record (from search or the editor) arrives without a status filter,
+        // and the default view lists only the positive count. Show that record's status instead.
+        if (!resolvedPageNumber.HasValue && Statuses.Count == 0)
+        {
+            var linkedStatus = await _db.IprRecords
+                .AsNoTracking()
+                .Where(record => record.Id == SelectedRecordId.Value)
+                .Select(record => (IprStatus?)record.Status)
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (linkedStatus is IprStatus status && IprStatusPolicy.IsClosed(status))
+            {
+                Statuses = new List<IprStatus> { status };
+                resolvedPageNumber = await _readService.GetPageNumberForRecordAsync(
+                    BuildFilter(),
+                    SelectedRecordId.Value,
+                    cancellationToken);
+            }
+        }
+
         if (resolvedPageNumber.HasValue)
         {
             PageNumber = resolvedPageNumber.Value;
@@ -251,7 +271,7 @@ public sealed partial class IndexModel
 
     private async Task LoadRegisterOverviewAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await BuildPublicRegisterQuery()
+        var snapshot = await BuildCountedRegisterQuery()
             .Select(record => new
             {
                 record.Id,
@@ -267,7 +287,22 @@ public sealed partial class IndexModel
 
         var granted = snapshot.Count(item => item.Status == IprStatus.Granted);
         var awaiting = snapshot.Count(item => item.Status == IprStatus.Filed);
-        Kpis = new IprKpis(snapshot.Count, 0, awaiting, granted, 0, 0);
+
+        // Closed records are history: counted apart from the positive figures and independent
+        // of the status filter, so the figure stays visible while browsing Filed or Granted.
+        var closedCounts = await IprQueryFilter.Apply(
+                _db.IprRecords.AsNoTracking(),
+                BuildFilter(includeQuery: false),
+                includeSearch: false,
+                includeStatus: false)
+            .Where(IprStatusPolicy.ClosedPredicate)
+            .GroupBy(record => record.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+        var rejected = closedCounts.FirstOrDefault(item => item.Status == IprStatus.Rejected)?.Count ?? 0;
+        var withdrawn = closedCounts.FirstOrDefault(item => item.Status == IprStatus.Withdrawn)?.Count ?? 0;
+
+        Kpis = new IprKpis(snapshot.Count, 0, awaiting, granted, rejected, withdrawn);
 
         ProjectsWithIpr = snapshot
             .Where(item => item.ProjectId.HasValue)
@@ -312,7 +347,7 @@ public sealed partial class IndexModel
 
     private async Task LoadProjectGroupsAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await BuildPublicRegisterQuery()
+        var snapshot = await BuildCountedRegisterQuery()
             .Select(record => new
             {
                 record.Id,
@@ -381,7 +416,7 @@ public sealed partial class IndexModel
 
     private async Task LoadAttentionAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await BuildPublicRegisterQuery()
+        var snapshot = await BuildCountedRegisterQuery()
             .Select(record => new
             {
                 record.Id,
@@ -486,7 +521,7 @@ public sealed partial class IndexModel
             (Key: "overdue", Title: "Long-pending filings", Description: $"Pending for more than {LongPendingYears} years.", Tone: "critical"),
             (Key: "data", Title: "Data inconsistencies", Description: "Status or mandatory filing information requires correction.", Tone: "critical"),
             (Key: "linkage", Title: "Project linkage", Description: "Records not yet connected to a project.", Tone: "warning"),
-            (Key: "evidence", Title: "Supporting evidence", Description: "Records without an uploaded filing or protection document.", Tone: "warning")
+            (Key: "evidence", Title: "Supporting evidence", Description: "Records without an uploaded filing or grant document.", Tone: "warning")
         };
 
         AttentionGroups = groupDefinitions
@@ -529,7 +564,7 @@ public sealed partial class IndexModel
 
     private async Task LoadAnalyticsAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await BuildPublicRegisterQuery()
+        var snapshot = await BuildCountedRegisterQuery()
             .Select(record => new
             {
                 record.Id,
@@ -647,6 +682,11 @@ public sealed partial class IndexModel
             _db.IprRecords.AsNoTracking(),
             BuildFilter(includeQuery: false),
             includeSearch: false);
+
+    // Summary figures and the Projects, Follow-up and Analytics views use the positive count
+    // only, even when a closed status is selected in the filter.
+    private IQueryable<IprRecord> BuildCountedRegisterQuery()
+        => BuildPublicRegisterQuery().Where(IprStatusPolicy.CountedPredicate);
 
     private async Task<IprRecord?> LoadRecordAsync(int id, CancellationToken cancellationToken, bool overwriteInput)
     {

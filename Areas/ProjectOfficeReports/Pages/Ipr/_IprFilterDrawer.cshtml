@@ -27,7 +27,7 @@
             <section class="ipr-filter-section">
                 <div class="ipr-filter-section__heading">
                     <h3>IPR position</h3>
-                    <p>Limit the register by category and current protection status.</p>
+                    <p>Limit the register by category and current status.</p>
                 </div>
                 <div class="ipr-filter-grid ipr-filter-grid--two">
                     <label class="ipr-filter-field">
@@ -43,8 +43,8 @@
                     </label>
                     <label class="ipr-filter-field">
                         <span>Status</span>
-                        <select name="Statuses" class="form-select">
-                            <option value="">All statuses</option>
+                        <select name="StatusScope" class="form-select">
+                            <option value="">Filed and granted</option>
                             @foreach (var option in Model.StatusOptions)
                             {
                                 if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
@@ -75,7 +75,7 @@
             <section class="ipr-filter-section">
                 <div class="ipr-filter-section__heading">
                     <h3>Date and evidence</h3>
-                    <p>Choose whether the year refers to filing or final protection.</p>
+                    <p>Choose whether the year refers to filing or to the grant / registration.</p>
                 </div>
                 <div class="ipr-filter-grid ipr-filter-grid--two">
                     <label class="ipr-filter-field">

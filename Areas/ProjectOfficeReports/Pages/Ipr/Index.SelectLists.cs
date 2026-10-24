@@ -33,14 +33,20 @@ public sealed partial class IndexModel
             })
             .ToList();
 
-        var supportedStatuses = new[] { IprStatus.Filed, IprStatus.Granted };
+        var supportedStatuses = IprStatusPolicy.SelectableStatuses;
 
-        StatusOptions = supportedStatuses
+        var currentScope = CurrentStatusScope();
+        var statusOptions = supportedStatuses
             .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
             {
-                Selected = Statuses.Contains(status)
+                Selected = string.Equals(currentScope, status.ToString(), StringComparison.Ordinal)
             })
             .ToList();
+        statusOptions.Insert(2, new SelectListItem("Rejected or withdrawn", ClosedStatusScope)
+        {
+            Selected = string.Equals(currentScope, ClosedStatusScope, StringComparison.Ordinal)
+        });
+        StatusOptions = statusOptions;
 
         var selectedFormType = Input.Type;
         StatusFormOptions = supportedStatuses
@@ -102,12 +108,15 @@ public sealed partial class IndexModel
             }
         };
 
-        var dateYears = await _db.IprRecords
-            .AsNoTracking()
-            .Where(record =>
-                record.Status == IprStatus.FilingUnderProcess ||
-                record.Status == IprStatus.Filed ||
-                record.Status == IprStatus.Granted)
+        // Offer the years of closed history too while a closed status is being browsed;
+        // otherwise a year holding only rejected or withdrawn records could not be selected.
+        var yearScope = _db.IprRecords.AsNoTracking();
+        if (!Statuses.Any(IprStatusPolicy.IsClosed))
+        {
+            yearScope = yearScope.Where(IprStatusPolicy.CountedPredicate);
+        }
+
+        var dateYears = await yearScope
             .Select(record => new
             {
                 FiledYear = record.FiledAtUtc.HasValue ? (int?)record.FiledAtUtc.Value.Year : null,
@@ -171,16 +180,51 @@ public sealed partial class IndexModel
         CanEdit = result.Succeeded;
     }
 
+    private const string ClosedStatusScope = "Closed";
+
+    // The drawer's single status choice that matches the current Statuses; empty means
+    // the default Filed and granted view.
+    private string CurrentStatusScope()
+    {
+        if (Statuses.Count == 0 ||
+            (Statuses.Count == 2 && Statuses.Contains(IprStatus.Filed) && Statuses.Contains(IprStatus.Granted)))
+        {
+            return string.Empty;
+        }
+
+        if (Statuses.All(IprStatusPolicy.IsClosed))
+        {
+            return Statuses.Count == 1 ? Statuses[0].ToString() : ClosedStatusScope;
+        }
+
+        return Statuses.Count == 1 ? Statuses[0].ToString() : string.Empty;
+    }
+
     private void NormalizeFilters()
     {
+        if (!string.IsNullOrWhiteSpace(StatusScope))
+        {
+            var scope = StatusScope.Trim();
+            if (string.Equals(scope, ClosedStatusScope, StringComparison.OrdinalIgnoreCase))
+            {
+                Statuses = IprStatusPolicy.ClosedStatuses.ToList();
+            }
+            else if (Enum.TryParse<IprStatus>(scope, ignoreCase: true, out var scopedStatus))
+            {
+                Statuses = new List<IprStatus> { scopedStatus };
+            }
+
+            StatusScope = null;
+        }
+
         Types = Types
             .Where(type => type is IprType.Patent or IprType.Copyright)
             .Distinct()
             .ToList();
 
         Statuses = Statuses
-            .Select(status => status == IprStatus.FilingUnderProcess ? IprStatus.Filed : status)
-            .Where(status => status is IprStatus.Filed or IprStatus.Granted)
+            .Select(IprStatusPolicy.Normalize)
+            .Where(IprStatusPolicy.IsSelectable)
             .Distinct()
             .ToList();
 
@@ -324,7 +368,7 @@ public sealed partial class IndexModel
         {
             IprStatus.FilingUnderProcess => "Pending",
             IprStatus.Filed => "Pending",
-            IprStatus.Granted => "Protected",
+            IprStatus.Granted => "Granted",
             IprStatus.Rejected => "Rejected",
             IprStatus.Withdrawn => "Withdrawn",
             _ => status.ToString()

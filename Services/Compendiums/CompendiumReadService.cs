@@ -10,6 +10,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Publications;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities;
+using IprStatusPolicy = ProjectManagement.Application.Ipr.IprStatusPolicy;
 
 namespace ProjectManagement.Services.Compendiums;
 
@@ -89,8 +90,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             .Where(item => item.ProjectId.HasValue
                            && projectIds.Contains(item.ProjectId.Value)
                            && item.Project != null
-                           && !item.Project.IsBuild
-                           && (item.Status == IprStatus.Filed || item.Status == IprStatus.Granted))
+                           && !item.Project.IsBuild)
+            .Where(IprStatusPolicy.CountedPredicate)
             .Select(item => item.ProjectId!.Value)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -1284,8 +1285,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
             .Where(item => item.ProjectId.HasValue
                            && projectIds.Contains(item.ProjectId.Value)
                            && item.Project != null
-                           && !item.Project.IsBuild
-                           && (item.Status == IprStatus.Filed || item.Status == IprStatus.Granted))
+                           && !item.Project.IsBuild)
+            .Where(IprStatusPolicy.CountedPredicate)
             .Select(item => new
             {
                 ProjectId = item.ProjectId!.Value,

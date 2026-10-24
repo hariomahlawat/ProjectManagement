@@ -16,6 +16,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
+using IprStatusPolicy = ProjectManagement.Application.Ipr.IprStatusPolicy;
 
 namespace ProjectManagement.Services.Reports.ProgressReview;
 
@@ -641,6 +642,7 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         var records = await _db.IprRecords
             .AsNoTracking()
+            .Where(IprStatusPolicy.CountedPredicate)
             .Where(record =>
                 (record.FiledAtUtc.HasValue && record.FiledAtUtc.Value >= fromOffset && record.FiledAtUtc.Value <= toOffset)
                 || (record.GrantedAtUtc.HasValue && record.GrantedAtUtc.Value >= fromOffset && record.GrantedAtUtc.Value <= toOffset))

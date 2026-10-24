@@ -46,9 +46,6 @@ namespace ProjectManagement.Services.Search
             var records = await _dbContext.IprRecords
                 .AsNoTracking()
                 .Where(record =>
-                    (record.Status == IprStatus.FilingUnderProcess ||
-                     record.Status == IprStatus.Filed ||
-                     record.Status == IprStatus.Granted) &&
                     (EF.Functions.ILike(record.IprFilingNumber, pattern, SearchLikePattern.EscapeCharacter) ||
                      EF.Functions.ILike(record.Title ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter) ||
                      EF.Functions.ILike(record.Notes ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter) ||
@@ -83,9 +80,6 @@ namespace ProjectManagement.Services.Search
                 .AsNoTracking()
                 .Where(attachment =>
                     !attachment.IsArchived &&
-                    (attachment.Record.Status == IprStatus.FilingUnderProcess ||
-                     attachment.Record.Status == IprStatus.Filed ||
-                     attachment.Record.Status == IprStatus.Granted) &&
                     attachment.ContentType == "application/pdf" &&
                     (
                         EF.Functions.ILike(attachment.OriginalFileName ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter) ||

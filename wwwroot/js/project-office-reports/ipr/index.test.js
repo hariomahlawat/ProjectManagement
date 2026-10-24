@@ -237,7 +237,7 @@ test('IPR summary exposes patent and copyright splits for filed, protected and p
   assert.match(pageSource, /patentBreakdown/);
   assert.match(pageSource, /copyrightBreakdown/);
   assert.match(pageSource, /Filed IPR category split/);
-  assert.match(pageSource, /Protected IPR category split/);
+  assert.match(pageSource, /Granted IPR category split/);
   assert.match(pageSource, /Pending IPR category split/);
   assert.match(pageSource, /patents granted/);
   assert.match(pageSource, /copyrights registered/);

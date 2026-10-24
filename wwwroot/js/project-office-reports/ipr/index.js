@@ -483,8 +483,10 @@
       const type = record.IprType ?? record.iprType ?? 'Patent';
       const status = record.Status ?? record.status ?? 'Patent pending';
       setBadge('[data-ipr-inspector-type]', type, 'ipr-type-badge', normalizeText(type));
-      const protectedStatus = /granted|registered|protected/i.test(status);
-      setBadge('[data-ipr-inspector-status]', status, 'ipr-status-badge', protectedStatus ? 'granted' : 'filed');
+      const statusModifier = /granted|registered|protected/i.test(status)
+        ? 'granted'
+        : /rejected|withdrawn/i.test(status) ? 'closed' : 'filed';
+      setBadge('[data-ipr-inspector-status]', status, 'ipr-status-badge', statusModifier);
       setText('[data-ipr-inspector-protected-label]', normalizeText(type) === 'copyright' ? 'Registered on' : 'Granted on');
       replaceProject(record);
       renderAttachments(record);
@@ -865,8 +867,8 @@
         guidance: 'Patent protects a technical invention; copyright protects original software, documents and creative material.',
         position: 'Select an IPR category to use the correct lifecycle terminology.',
         pending: 'Pending',
-        protected: 'Protected',
-        date: 'Protection date'
+        protected: 'Granted',
+        date: 'Grant / registration date'
       }
     };
 

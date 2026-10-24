@@ -63,7 +63,7 @@ public sealed class IprExportServiceTests
         Assert.Equal("Name of the product", worksheet.Cell(1, 2).GetString());
         Assert.Equal("IPR filing no", worksheet.Cell(1, 3).GetString());
 
-        Assert.Equal("Protection date", worksheet.Cell(1, 8).GetString());
+        Assert.Equal("Grant / registration date", worksheet.Cell(1, 8).GetString());
 
         Assert.Equal("Alpha", worksheet.Cell(2, 2).GetString());
         Assert.Equal("IPR-001", worksheet.Cell(2, 3).GetString());

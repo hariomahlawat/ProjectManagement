@@ -6,6 +6,7 @@ using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services;
+using IprStatusPolicy = ProjectManagement.Application.Ipr.IprStatusPolicy;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -264,15 +265,16 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
     {
         var rows = await _db.IprRecords
             .AsNoTracking()
+            .Where(IprStatusPolicy.CountedPredicate)
             .GroupBy(record => new { record.Type, record.Status })
             .Select(group => new IprCountRow(group.Key.Type, group.Key.Status, group.Count()))
             .ToListAsync(cancellationToken);
 
         var patentsGranted = Count(rows, IprType.Patent, IprStatus.Granted);
         var copyrightsRegistered = Count(rows, IprType.Copyright, IprStatus.Granted);
+        // Filed is the positive count (Filed + Granted), matching the IPR register.
         var patentsFiled = rows
-            .Where(row => row.Type == IprType.Patent
-                && row.Status is IprStatus.Filed or IprStatus.FilingUnderProcess)
+            .Where(row => row.Type == IprType.Patent)
             .Sum(row => row.Value);
         var protectedTotal = patentsGranted + copyrightsRegistered;
 
