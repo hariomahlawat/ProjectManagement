@@ -1,0 +1,62 @@
+# IPR Register
+
+The IPR Register lists the patents and copyrights filed for SDD projects. Everyone signed in can
+read it (`Ipr.View`); Admin, HoD and Project Office roles edit it (`Ipr.Edit`). Which records count
+is decided in one place, `Application/Ipr/IprStatusPolicy.cs` (see `docs/data-domain.md`): Filed
+and Granted are the positive count, Rejected and Withdrawn are closed history.
+
+## Where it lives
+
+| Concern | Code |
+| --- | --- |
+| Page | `Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml(.cs)` and its partial classes (`Index.Loading.cs`, `Index.SelectLists.cs`, `Index.RecordCommands.cs`, `Index.AttachmentCommands.cs`) |
+| Register rows | `IIprReadService.ListRegisterAsync` (every record, all statuses, register order) projected to `IprRecordRowViewModel` |
+| Editor | `_RecordFormPartial.cshtml` in the record drawer (`mode=edit&id=…`, `mode=create`) |
+| Styles | `wwwroot/css/site-ipr.css`; the "Register workspace" section uses tokens only |
+| Scripts | `wwwroot/js/project-office-reports/ipr/register-view.js` (register filters, grouping, record panel); `index.js` (editor, project picker, drawers, density); `ipr-register.js` (Analytics chart) |
+
+## Layout
+
+1. **Header**: title, a one-line description, **Patent or copyright?** (guidance), **Export**
+   (follows the register's current filters), **Add IPR record** (editors).
+2. **Summary strip**, four figures for the whole register, whatever the filters:
+   **Filed** (patent/copyright split), **Granted** (share of filed), **Pending** (how many are past
+   3 years) and **Closed** (rejected and withdrawn, kept as history). Each card filters the register
+   to that status; on the Register view it does so in place.
+3. **Views**: **Register**, **Follow-up** (with the attention count) and **Analytics**. The old
+   Projects tab is gone: `?tab=project` opens the register grouped by project.
+
+## The register (`/ProjectOfficeReports/Ipr`)
+
+- Every record loads at once; there is no paging. Filters apply instantly in the browser:
+  search (title, filing number, project), **All / Patents / Copyrights**, **Filed / Pending /
+  Granted / Closed** (each with its count), **Missing evidence**, **Not linked to a project**,
+  **Filed in** (year) and **Group by** (project, status or filing year). A project filter arriving
+  from a link shows as a removable chip.
+- With no status chosen the list shows Filed and Granted records. Closed records appear only under
+  **Closed**; a link to a closed record selects its status so it is visible.
+- The browser does not re-derive the counting rule: each row carries `data-counted` and
+  `data-closed` from `IprStatusPolicy`.
+- The URL keeps the server's parameter names (`query`, `types`, `statuses`, `year`, `dateBasis`,
+  `linkage`, `evidence`, `projectId`, `group`, `selectedRecordId`), so reloads, shared links and
+  Export agree with what is on screen.
+- Columns: record (title and filing number), project, category, status (with the pending age),
+  filed, granted, evidence ("1 PDF" or "Missing"). On phones only the record and status show;
+  the record panel carries the rest.
+- **Record panel**: choosing a row opens it over the page (Escape or the backdrop closes it):
+  facts, filed-to-outcome progress, evidence PDFs and notes. **Edit**, **Record grant** (pending
+  records) and **Add evidence** open the editor drawer.
+
+## Planned changes
+
+The redesign lands in small PRs; this section lists what is still to come.
+
+1. ~~Register workspace: summary strip, instant filters, Group by, record panel.~~ (done)
+2. Edit inside the record panel with one Save; attach the evidence PDF while creating a record.
+3. **Action list** replaces Follow-up: each filing once, under its most urgent issue, with a direct
+   fix (assign project, upload evidence, record grant, log follow-up).
+4. **Insights** replaces Analytics: grant rate, time to grant, outcome by filing year, portfolio
+   over time and pending by age; every chart filters the register.
+5. Follow-up log (last followed up / next follow-up) for long-pending filings; needs a migration.
+6. Clean-up: retire the Filters drawer, the old ribbon, inspector and project-dossier styles left in
+   `site-ipr.css`, and the paging parameters still bound for compatibility.

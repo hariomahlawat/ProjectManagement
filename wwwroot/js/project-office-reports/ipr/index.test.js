@@ -20,10 +20,6 @@ const cssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/site-ipr.css'),
   'utf8'
 );
-const paginationSource = fs.readFileSync(
-  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml'),
-  'utf8'
-);
 const filterDrawerSource = fs.readFileSync(
   path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml'),
   'utf8'
@@ -90,14 +86,6 @@ test('IPR attachment upload communicates PDF policy and prevents duplicate submi
   assert.match(source, /Uploading…/);
 });
 
-test('IPR records keep explicit search while structured filters use a header drawer', () => {
-  assert.match(pageSource, /data-bs-target="#iprFilterOffcanvas"/);
-  assert.match(pageSource, /ipr-record-search-button/);
-  assert.match(filterDrawerSource, /data-ipr-filter-form/);
-  assert.match(filterDrawerSource, /Apply filters/);
-  assert.doesNotMatch(source, /initialiseAutoSubmitFilters/);
-});
-
 test('IPR filter drawer supports filed and grant-registration year bases', () => {
   assert.match(filterDrawerSource, /asp-for="DateBasis"/);
   assert.match(selectListsSource, /Grant \/ registration year/);
@@ -115,68 +103,6 @@ test('IPR active scope is removable and visible across module views', () => {
   assert.match(pageSource, /ipr-followup-filters/);
 });
 
-
-test('IPR register uses a row-based workbench with a persistent inspector', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /ipr-record-workbench/);
-  assert.match(pageSource, /data-ipr-record-inspector/);
-  assert.match(pageSource, /id="iprRecordData"/);
-  assert.match(source, /initialiseRecordInspector/);
-  assert.match(source, /sessionStorage\.setItem/);
-  assert.match(cssSource, /\.ipr-register-table thead th\s*\{[\s\S]*position:\s*sticky/);
-});
-
-test('IPR project view is grouped into expandable project dossiers', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /data-ipr-project-group/);
-  assert.match(pageSource, /Project dossiers/);
-  assert.match(source, /initialiseProjectGroups/);
-  assert.match(source, /Expand pending/);
-});
-
-test('IPR module provides an operational follow-up view and compact insight ribbon', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /ipr-insight-ribbon/);
-  assert.match(pageSource, /IPR follow-up/);
-  assert.match(pageSource, /ipr-followup-group/);
-});
-
-
-test('IPR records workbench exposes clear selection, keyboard access and a resizable inspector', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /data-ipr-inspector-resize/);
-  assert.match(pageSource, /aria-selected=/);
-  assert.match(source, /initialiseInspectorResize/);
-  assert.match(source, /aria-valuenow/);
-  assert.match(source, /event\.key !== 'Enter'/);
-  assert.match(cssSource, /--ipr-inspector-width:\s*400px/);
-  assert.match(cssSource, /\.ipr-row-edit-link\s*\{[\s\S]*opacity:\s*0/);
-});
-
-test('IPR project dossiers provide explicit status filtering, operational sorting and targeted expansion', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /All IPR statuses/);
-  assert.match(pageSource, /data-ipr-project-group-sort/);
-  assert.match(pageSource, /Attention first/);
-  assert.match(pageSource, /Expand pending/);
-  assert.match(source, /sortGroups/);
-  assert.match(source, /group\.dataset\.awaiting === 'true'/);
-});
 
 test('IPR follow-up uses a full-width priority queue and explains issue deduplication', () => {
   const pageSource = fs.readFileSync(
@@ -198,14 +124,6 @@ test('IPR analytics replaces the repeated grant-rate tile with evidence coverage
   assert.match(pageSource, /recordsWithEvidence/);
 });
 
-
-test('IPR records page uses natural browser scrolling without nested vertical scroll areas', () => {
-  assert.match(cssSource, /\.ipr-record-workbench\s*\{[\s\S]*height:\s*auto/);
-  assert.match(cssSource, /\.ipr-register-scroll\s*\{[\s\S]*overflow:\s*visible/);
-  assert.match(cssSource, /\.ipr-record-inspector\s*\{[\s\S]*height:\s*auto;[\s\S]*overflow:\s*visible/);
-  assert.doesNotMatch(cssSource, /\.ipr-record-workbench\s*\{[\s\S]*height:\s*clamp\(/);
-  assert.doesNotMatch(cssSource, /\.ipr-record-inspector\s*\{[^}]*overflow-y:\s*auto/);
-});
 
 test('IPR entry workflow provides layered patent and copyright guidance', () => {
   const pageSource = fs.readFileSync(
@@ -229,38 +147,41 @@ test('IPR entry workflow provides layered patent and copyright guidance', () => 
   assert.match(source, /Patent granted/);
 });
 
-test('IPR summary exposes patent and copyright splits for filed, protected and pending records', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /patentBreakdown/);
-  assert.match(pageSource, /copyrightBreakdown/);
-  assert.match(pageSource, /Filed IPR category split/);
-  assert.match(pageSource, /Granted IPR category split/);
-  assert.match(pageSource, /Pending IPR category split/);
-  assert.match(pageSource, /patents granted/);
-  assert.match(pageSource, /copyrights registered/);
-  assert.match(pageSource, /ipr-insight__bar/);
-  assert.match(cssSource, /\.ipr-insight__breakdown/);
-  assert.match(cssSource, /\.ipr-insight__bar/);
+test('IPR workspace shows a four-figure summary and three views without the old Projects tab', () => {
+  assert.match(pageSource, /class="ipr-summary"/);
+  assert.match(pageSource, /data-ipr-scope="@card\.Scope"/);
+  assert.match(pageSource, /Scope = "counted"[\s\S]*Scope = "Granted"[\s\S]*Scope = "Filed"[\s\S]*Scope = "closed"/);
+  assert.match(pageSource, /class="ipr-views"/);
+  assert.match(pageSource, />Register</);
+  assert.match(pageSource, /Follow-up/);
+  assert.match(pageSource, />Analytics</);
+  assert.doesNotMatch(pageSource, /Project dossiers/);
+  assert.doesNotMatch(pageSource, /ipr-insight-ribbon/);
 });
 
-
-
-test('IPR pagination uses a non-reserved pageNumber query key in both controls', () => {
-  assert.match(paginationSource, /BuildPageRoute/);
-  assert.match(paginationSource, /aria-current="page"/);
-  assert.match(paginationSource, /Previous page/);
-  assert.match(paginationSource, /Next page/);
-  assert.doesNotMatch(paginationSource, /asp-route-page=/);
-  assert.match(source, /searchParams\.set\('pageNumber', '1'\)/);
-  assert.doesNotMatch(source, /searchParams\.set\('page', '1'\)/);
+test('IPR register filters in the browser from server-rendered row facts', () => {
+  assert.match(pageSource, /data-ipr-register/);
+  assert.match(pageSource, /data-counted="@\(row\.IsCounted/);
+  assert.match(pageSource, /data-closed="@\(row\.IsClosed/);
+  assert.match(pageSource, /data-ipr-filter-status="closed"/);
+  assert.match(pageSource, /data-ipr-group/);
+  assert.match(pageSource, /register-view\.js/);
+  assert.doesNotMatch(pageSource, /_RecordsPagination/);
+  assert.doesNotMatch(pageSource, /data-ipr-record-inspector/);
 });
 
-test('IPR selected filing state is explicit and independent from edit mode', () => {
-  assert.match(stateSource, /name="SelectedRecordId"/);
-  assert.match(source, /dataset\.iprSelectedRecordId/);
-  assert.match(source, /searchParams\.set\('selectedRecordId'/);
-  assert.match(source, /searchParams\.delete\('selectedRecordId'\)/);
+test('IPR structured filter drawer stays for Follow-up and Analytics only', () => {
+  assert.match(pageSource, /@if \(!isRegister\)[\s\S]*data-bs-target="#iprFilterOffcanvas"/);
+  assert.match(pageSource, /@if \(!isRegister\)\s*\{\s*<partial name="_IprFilterDrawer"/);
+  assert.match(filterDrawerSource, /data-ipr-filter-form/);
+  assert.match(filterDrawerSource, /Apply filters/);
+});
+
+test('IPR register styles use tokens and collapse to title and status on phones', () => {
+  const start = cssSource.indexOf('/* Register workspace:');
+  assert.ok(start > 0);
+  const section = cssSource.slice(start);
+  assert.doesNotMatch(section.replace(/var\([^)]*\)/g, ''), /#[0-9a-fA-F]{3,8}/);
+  assert.match(section, /\.ipr-record-panel\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(section, /@media \(max-width: 720px\)[\s\S]*\.ipr-table td:nth-child\(n\+2\):not\(:nth-child\(4\)\)/);
 });

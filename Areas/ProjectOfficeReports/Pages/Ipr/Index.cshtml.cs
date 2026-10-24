@@ -97,6 +97,10 @@ public sealed partial class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Tab { get; set; } = "records";
 
+    // Register grouping: none, project, status or year. The retired Projects tab maps to "project".
+    [BindProperty(SupportsGet = true)]
+    public string? Group { get; set; }
+
     [BindProperty(Name = "pageNumber", SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
 
@@ -150,22 +154,13 @@ public sealed partial class IndexModel : PageModel
 
     public IReadOnlyList<SelectListItem> EvidenceOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<SelectListItem> PageSizeOptions { get; private set; } = Array.Empty<SelectListItem>();
-
     private static readonly TimeZoneInfo IstTimeZone = TimeZoneHelper.GetIst();
 
     public IReadOnlyList<IprRecordRowViewModel> Records { get; private set; } = Array.Empty<IprRecordRowViewModel>();
 
-    public IprRecordRowViewModel? SelectedRecord
-        => SelectedRecordId.HasValue
-            ? Records.FirstOrDefault(record => record.Id == SelectedRecordId.Value)
-            : Records.FirstOrDefault();
-
     public IprKpis Kpis { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
     public IReadOnlyList<TypeBreakdownRow> TypeBreakdown { get; private set; } = Array.Empty<TypeBreakdownRow>();
-
-    public IReadOnlyList<ProjectIprGroup> ProjectIprGroups { get; private set; } = Array.Empty<ProjectIprGroup>();
 
     public IReadOnlyList<AttentionGroup> AttentionGroups { get; private set; } = Array.Empty<AttentionGroup>();
 
@@ -180,6 +175,9 @@ public sealed partial class IndexModel : PageModel
     public int AttentionRecordCount { get; private set; }
 
     public int VisibleAttentionRecordCount { get; private set; }
+
+    // Follow-up records in the view's filter scope (the tab badge counts the whole register).
+    public int FollowUpTotalCount { get; private set; }
 
     public int OverdueAttentionCount { get; private set; }
 
@@ -251,17 +249,7 @@ public sealed partial class IndexModel : PageModel
         await EvaluateAuthorizationAsync();
         NormalizeMode();
 
-        var requestedPageNumber = PageNumber;
-        var requestedSelectedRecordId = SelectedRecordId;
-
         await LoadPageAsync(cancellationToken, loadRecordInput: true);
-
-        if (string.Equals(Tab, "records", StringComparison.Ordinal) &&
-            (requestedPageNumber != PageNumber ||
-             (requestedSelectedRecordId.HasValue && requestedSelectedRecordId != SelectedRecordId)))
-        {
-            return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: true));
-        }
 
         return Page();
     }
@@ -325,6 +313,11 @@ public sealed partial class IndexModel : PageModel
         if (Evidence != IprEvidenceFilter.All)
         {
             values["evidence"] = Evidence.ToString();
+        }
+
+        if (!string.IsNullOrEmpty(Group) && string.Equals(Tab, "records", StringComparison.Ordinal))
+        {
+            values["group"] = Group;
         }
 
         if (!string.IsNullOrWhiteSpace(AttentionIssue) && string.Equals(Tab, "followup", StringComparison.Ordinal))
@@ -406,24 +399,6 @@ public sealed partial class IndexModel : PageModel
 
         return result;
     }
-
-    public IDictionary<string, string?> BuildPageRoute(int pageNumber)
-        => GetRouteValuesForLinks(
-            new { tab = "records", pageNumber, pageSize = PageSize },
-            includePage: false,
-            includeModeAndId: false);
-
-    public IDictionary<string, string?> BuildSelectedRecordRoute(int recordId)
-        => GetRouteValuesForLinks(
-            new { tab = "records", selectedRecordId = recordId },
-            includePage: true,
-            includeModeAndId: false);
-
-    public IDictionary<string, string?> BuildEditRoute(int recordId)
-        => GetRouteValuesForLinks(
-            new { tab = "records", selectedRecordId = recordId, mode = "edit", id = recordId },
-            includePage: true,
-            includeModeAndId: false);
 
     public IDictionary<string, string?> BuildRemoveFilterRoute(ActiveFilterChip chip)
     {
