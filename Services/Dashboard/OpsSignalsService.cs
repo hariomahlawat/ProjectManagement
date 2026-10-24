@@ -15,6 +15,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IprStatusPolicy = ProjectManagement.Application.Ipr.IprStatusPolicy;
 
 namespace ProjectManagement.Services.Dashboard;
 
@@ -153,7 +154,9 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // END SECTION
 
             // SECTION: IPR aggregation
-            var iprByMonth = await _db.IprRecords
+            // Filed and Granted records only; rejected and withdrawn filings are history.
+            var countedIpr = _db.IprRecords.Where(IprStatusPolicy.CountedPredicate);
+            var iprByMonth = await countedIpr
                 .Where(r => r.FiledAtUtc.HasValue
                             && r.FiledAtUtc.Value >= startOfDayOffset
                             && r.FiledAtUtc.Value <= endOfDayOffset)
@@ -164,10 +167,8 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 iprByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
                           .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
-            var iprFiledTotal = await _db.IprRecords.LongCountAsync(r => r.FiledAtUtc.HasValue, ct);
-            var iprGrantedTotal = await _db.IprRecords.LongCountAsync(
-                r => r.GrantedAtUtc.HasValue || r.Status == IprStatus.Granted,
-                ct);
+            var iprFiledTotal = await countedIpr.LongCountAsync(r => r.FiledAtUtc.HasValue, ct);
+            var iprGrantedTotal = await countedIpr.LongCountAsync(r => r.Status == IprStatus.Granted, ct);
             // END SECTION
 
             // SECTION: Proliferation aggregation

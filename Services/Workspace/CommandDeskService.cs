@@ -17,6 +17,7 @@ using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
 using ProjectManagement.ViewModels.Workspace;
+using IprStatusPolicy = ProjectManagement.Application.Ipr.IprStatusPolicy;
 
 namespace ProjectManagement.Services.Workspace;
 
@@ -149,6 +150,7 @@ public sealed class CommandDeskService
 
         var iprs = await _db.IprRecords
             .AsNoTracking()
+            .Where(IprStatusPolicy.CountedPredicate)
             .Where(ipr => ipr.FiledAtUtc >= fromUtc || ipr.GrantedAtUtc >= fromUtc)
             .Select(ipr => new { ipr.Title, ipr.IprFilingNumber, ipr.FiledAtUtc, ipr.GrantedAtUtc, ipr.Status })
             .ToListAsync(ct);

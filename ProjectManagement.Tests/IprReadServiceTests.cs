@@ -481,6 +481,42 @@ public sealed class IprReadServiceTests
         Assert.Equal(new[] { "IPR-702", "IPR-703" }, result.Items.Select(item => item.FilingNumber).OrderBy(value => value).ToArray());
     }
 
+    [Fact]
+    public async Task ClosedRecords_AreHistoryOutsideThePositiveCount()
+    {
+        await using var db = CreateDbContext();
+
+        db.IprRecords.AddRange(
+            new IprRecord { IprFilingNumber = "IPR-801", Title = "Filed", Type = IprType.Patent, Status = IprStatus.Filed },
+            new IprRecord { IprFilingNumber = "IPR-802", Title = "Granted", Type = IprType.Patent, Status = IprStatus.Granted },
+            new IprRecord { IprFilingNumber = "IPR-803", Title = "Rejected", Type = IprType.Patent, Status = IprStatus.Rejected },
+            new IprRecord { IprFilingNumber = "IPR-804", Title = "Withdrawn one", Type = IprType.Copyright, Status = IprStatus.Withdrawn },
+            new IprRecord { IprFilingNumber = "IPR-805", Title = "Withdrawn two", Type = IprType.Copyright, Status = IprStatus.Withdrawn });
+        await db.SaveChangesAsync();
+
+        var service = new IprReadService(db);
+
+        var register = await service.SearchAsync(new IprFilter());
+        var kpis = await service.GetKpisAsync(new IprFilter());
+        var export = await service.GetExportAsync(new IprFilter());
+
+        Assert.Equal(new[] { "IPR-801", "IPR-802" }, register.Items.Select(item => item.FilingNumber).OrderBy(value => value).ToArray());
+        Assert.Equal(2, export.Count);
+        Assert.Equal(2, kpis.Total);
+        Assert.Equal(1, kpis.Filed);
+        Assert.Equal(1, kpis.Granted);
+        Assert.Equal(1, kpis.Rejected);
+        Assert.Equal(2, kpis.Withdrawn);
+
+        var closed = await service.SearchAsync(new IprFilter { Statuses = new[] { IprStatus.Rejected, IprStatus.Withdrawn } });
+        var closedKpis = await service.GetKpisAsync(new IprFilter { Statuses = new[] { IprStatus.Rejected } });
+
+        Assert.Equal(new[] { "IPR-803", "IPR-804", "IPR-805" }, closed.Items.Select(item => item.FilingNumber).OrderBy(value => value).ToArray());
+        Assert.Equal(0, closedKpis.Total);
+        Assert.Equal(1, closedKpis.Rejected);
+        Assert.Equal(2, closedKpis.Withdrawn);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

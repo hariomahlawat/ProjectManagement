@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using ProjectManagement.Infrastructure.Data;
 
@@ -15,10 +16,10 @@ public static class IprQueryFilter
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(filter);
 
-        query = query.Where(record =>
-            record.Status == IprStatus.FilingUnderProcess ||
-            record.Status == IprStatus.Filed ||
-            record.Status == IprStatus.Granted);
+        if (includeStatus)
+        {
+            query = ApplyStatus(query, filter.Statuses);
+        }
 
         if (includeSearch && !string.IsNullOrWhiteSpace(filter.Query))
         {
@@ -32,15 +33,6 @@ public static class IprQueryFilter
         if (filter.Types is { Count: > 0 })
         {
             query = query.Where(record => filter.Types!.Contains(record.Type));
-        }
-
-        if (includeStatus && filter.Statuses is { Count: > 0 })
-        {
-            var wantsPending = filter.Statuses.Contains(IprStatus.Filed);
-            var wantsProtected = filter.Statuses.Contains(IprStatus.Granted);
-            query = query.Where(record =>
-                (wantsPending && (record.Status == IprStatus.FilingUnderProcess || record.Status == IprStatus.Filed)) ||
-                (wantsProtected && record.Status == IprStatus.Granted));
         }
 
         if (filter.ProjectId.HasValue)
@@ -81,6 +73,28 @@ public static class IprQueryFilter
         query = ApplyFiledRange(query, filter.FiledFrom, filter.FiledTo);
         query = ApplyProtectedRange(query, filter.ProtectedFrom, filter.ProtectedTo);
         return query;
+    }
+
+    // With no status selected the register shows the positive count (Filed and Granted).
+    // Closed records (Rejected, Withdrawn) appear only when their status is selected.
+    private static IQueryable<IprRecord> ApplyStatus(
+        IQueryable<IprRecord> query,
+        IReadOnlyCollection<IprStatus>? statuses)
+    {
+        if (statuses is not { Count: > 0 })
+        {
+            return query.Where(IprStatusPolicy.CountedPredicate);
+        }
+
+        var wantsPending = statuses.Contains(IprStatus.Filed) || statuses.Contains(IprStatus.FilingUnderProcess);
+        var wantsProtected = statuses.Contains(IprStatus.Granted);
+        var wantsRejected = statuses.Contains(IprStatus.Rejected);
+        var wantsWithdrawn = statuses.Contains(IprStatus.Withdrawn);
+        return query.Where(record =>
+            (wantsPending && (record.Status == IprStatus.FilingUnderProcess || record.Status == IprStatus.Filed)) ||
+            (wantsProtected && record.Status == IprStatus.Granted) ||
+            (wantsRejected && record.Status == IprStatus.Rejected) ||
+            (wantsWithdrawn && record.Status == IprStatus.Withdrawn));
     }
 
     public static IOrderedQueryable<IprRecord> ApplyRegisterOrdering(IQueryable<IprRecord> query)

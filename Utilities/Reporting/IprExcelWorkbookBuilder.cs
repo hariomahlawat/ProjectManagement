@@ -48,7 +48,7 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             "Status",
             "Filed by",
             "Filing date",
-            "Protection date",
+            "Grant / registration date",
             "Project",
             "Remarks"
         };

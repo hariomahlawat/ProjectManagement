@@ -567,6 +567,67 @@ public sealed class IprWriteServiceTests
         }
     }
 
+    [Theory]
+    [InlineData(IprStatus.Rejected)]
+    [InlineData(IprStatus.Withdrawn)]
+    public async Task UpdateAsync_KeepsClosedStatusAndClearsGrantDate(IprStatus closedStatus)
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 10, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var granted = ValidRecord(clock, "IPR-900");
+            granted.Status = IprStatus.Granted;
+            granted.GrantedAtUtc = granted.FiledAtUtc;
+            var created = await service.CreateAsync(granted);
+
+            var update = ValidRecord(clock, "IPR-900");
+            update.Id = created.Id;
+            update.Status = closedStatus;
+            update.GrantedAtUtc = granted.GrantedAtUtc;
+            update.RowVersion = created.RowVersion;
+
+            var updated = await service.UpdateAsync(update);
+
+            Assert.NotNull(updated);
+            Assert.Equal(closedStatus, updated!.Status);
+            Assert.Null(updated.GrantedAtUtc);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_DuplicateOfClosedRecord_NamesItsStatus()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var rejected = ValidRecord(clock, "IPR-901");
+            rejected.Status = IprStatus.Rejected;
+            db.IprRecords.Add(rejected);
+            await db.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<IprValidationException>(
+                () => service.CreateAsync(ValidRecord(clock, "IPR-901")));
+
+            Assert.Equal(IprValidationCode.DuplicateFilingNumber, ex.Code);
+            Assert.Contains("rejected IPR record", ex.Message);
+            Assert.Contains("Filter the register by Rejected", ex.Message);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
     private static IprRecord ValidRecord(FakeClock clock, string filingNumber, IprType type = IprType.Patent)
     {
         return new IprRecord

@@ -48,10 +48,7 @@ public sealed class DownloadModel : PageModel
             .FirstOrDefaultAsync(
                 x => x.IprRecordId == iprRecordId &&
                      x.Id == attachmentId &&
-                     !x.IsArchived &&
-                     (x.Record.Status == IprStatus.FilingUnderProcess ||
-                      x.Record.Status == IprStatus.Filed ||
-                      x.Record.Status == IprStatus.Granted),
+                     !x.IsArchived,
                 cancellationToken);
 
         if (attachment is null || string.IsNullOrWhiteSpace(attachment.StorageKey))

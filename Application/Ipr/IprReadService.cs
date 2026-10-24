@@ -146,12 +146,23 @@ public sealed class IprReadService : IIprReadService
             .Select(g => new { Status = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
 
-        var legacyFiled = groups.FirstOrDefault(g => g.Status == IprStatus.FilingUnderProcess)?.Count ?? 0;
-        var awaitingGrant = legacyFiled + (groups.FirstOrDefault(g => g.Status == IprStatus.Filed)?.Count ?? 0);
+        var awaitingGrant = groups
+            .Where(g => IprStatusPolicy.Normalize(g.Status) == IprStatus.Filed)
+            .Sum(g => g.Count);
         var granted = groups.FirstOrDefault(g => g.Status == IprStatus.Granted)?.Count ?? 0;
         var totalFiled = awaitingGrant + granted;
 
-        return new IprKpis(totalFiled, 0, awaitingGrant, granted, 0, 0);
+        // Closed records are a separate history figure: they ignore the status filter and
+        // never add to the positive count.
+        var closedGroups = await IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter, includeStatus: false)
+            .Where(IprStatusPolicy.ClosedPredicate)
+            .GroupBy(x => x.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+        var rejected = closedGroups.FirstOrDefault(g => g.Status == IprStatus.Rejected)?.Count ?? 0;
+        var withdrawn = closedGroups.FirstOrDefault(g => g.Status == IprStatus.Withdrawn)?.Count ?? 0;
+
+        return new IprKpis(totalFiled, 0, awaitingGrant, granted, rejected, withdrawn);
     }
 
     public async Task<IReadOnlyList<IprExportRowDto>> GetExportAsync(IprFilter filter, CancellationToken cancellationToken = default)

@@ -30,7 +30,7 @@
                     maxBarThickness: 40
                 },
                 {
-                    label: 'Protected',
+                    label: 'Granted',
                     data: rows.map(x => x.Granted ?? x.granted ?? 0),
                     backgroundColor: green,
                     borderRadius: 6,

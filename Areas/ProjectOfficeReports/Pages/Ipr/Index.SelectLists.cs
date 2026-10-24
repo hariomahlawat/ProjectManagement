@@ -33,7 +33,7 @@ public sealed partial class IndexModel
             })
             .ToList();
 
-        var supportedStatuses = new[] { IprStatus.Filed, IprStatus.Granted };
+        var supportedStatuses = IprStatusPolicy.SelectableStatuses;
 
         StatusOptions = supportedStatuses
             .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
@@ -104,10 +104,7 @@ public sealed partial class IndexModel
 
         var dateYears = await _db.IprRecords
             .AsNoTracking()
-            .Where(record =>
-                record.Status == IprStatus.FilingUnderProcess ||
-                record.Status == IprStatus.Filed ||
-                record.Status == IprStatus.Granted)
+            .Where(IprStatusPolicy.CountedPredicate)
             .Select(record => new
             {
                 FiledYear = record.FiledAtUtc.HasValue ? (int?)record.FiledAtUtc.Value.Year : null,
@@ -179,8 +176,8 @@ public sealed partial class IndexModel
             .ToList();
 
         Statuses = Statuses
-            .Select(status => status == IprStatus.FilingUnderProcess ? IprStatus.Filed : status)
-            .Where(status => status is IprStatus.Filed or IprStatus.Granted)
+            .Select(IprStatusPolicy.Normalize)
+            .Where(IprStatusPolicy.IsSelectable)
             .Distinct()
             .ToList();
 
@@ -324,7 +321,7 @@ public sealed partial class IndexModel
         {
             IprStatus.FilingUnderProcess => "Pending",
             IprStatus.Filed => "Pending",
-            IprStatus.Granted => "Protected",
+            IprStatus.Granted => "Granted",
             IprStatus.Rejected => "Rejected",
             IprStatus.Withdrawn => "Withdrawn",
             _ => status.ToString()

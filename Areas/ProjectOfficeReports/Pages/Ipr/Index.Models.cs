@@ -160,7 +160,7 @@ public sealed partial class IndexModel
         [DataType(DataType.Date)]
         public DateOnly? FiledOn { get; set; }
 
-        [Display(Name = "Protected on")]
+        [Display(Name = "Granted / registered on")]
         [DataType(DataType.Date)]
         public DateOnly? GrantedOn { get; set; }
 

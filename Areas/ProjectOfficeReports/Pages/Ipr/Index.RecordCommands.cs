@@ -219,7 +219,7 @@ public sealed partial class IndexModel
             Title = input.Title?.Trim(),
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
             Type = input.Type ?? IprType.Patent,
-            Status = input.Status == IprStatus.Granted ? IprStatus.Granted : IprStatus.Filed,
+            Status = input.Status is IprStatus status && IprStatusPolicy.IsSelectable(status) ? status : IprStatus.Filed,
             FiledBy = string.IsNullOrWhiteSpace(input.FiledBy) ? null : input.FiledBy.Trim(),
             FiledAtUtc = input.FiledOn.HasValue
                 ? new DateTimeOffset(input.FiledOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))

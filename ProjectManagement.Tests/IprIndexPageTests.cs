@@ -356,12 +356,12 @@ public sealed class IprIndexPageTests
             var filedKey = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.FiledOn)}";
             Assert.True(page.ModelState.TryGetValue(filedKey, out var filedEntry));
             var filedMessage = Assert.Single(filedEntry.Errors).ErrorMessage;
-            Assert.Equal("Protection date cannot be earlier than the filing date.", filedMessage);
+            Assert.Equal("Grant / registration date cannot be earlier than the filing date.", filedMessage);
 
             var grantedKey = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.GrantedOn)}";
             Assert.True(page.ModelState.TryGetValue(grantedKey, out var grantedEntry));
             var grantedMessage = Assert.Single(grantedEntry.Errors).ErrorMessage;
-            Assert.Equal("Protection date cannot be earlier than the filing date.", grantedMessage);
+            Assert.Equal("Grant / registration date cannot be earlier than the filing date.", grantedMessage);
         }
         finally
         {
@@ -466,6 +466,102 @@ public sealed class IprIndexPageTests
         Assert.Equal(1, copyright.Protected);
         Assert.Equal(1, copyright.Pending);
         Assert.Equal("registered", copyright.ProtectedVerb);
+    }
+
+    [Fact]
+    public async Task OnPostEditAsync_SavesWithdrawnStatus()
+    {
+        await using var db = CreateDbContext();
+        var readService = new IprReadService(db);
+        var (writeService, root) = CreateWriteService(db, new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        using var userManager = CreateUserManager(db);
+
+        try
+        {
+            var created = await writeService.CreateAsync(new IprRecord
+            {
+                IprFilingNumber = "IPR-WITHDRAW",
+                Title = "Withdrawn filing",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2024, 4, 2, 0, 0, 0, TimeSpan.Zero)
+            });
+
+            var page = new IndexModel(db, readService, writeService, new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+            {
+                Tab = "records",
+                Input = new IndexModel.RecordInput
+                {
+                    Id = created.Id,
+                    FilingNumber = created.IprFilingNumber,
+                    Title = created.Title,
+                    Type = created.Type,
+                    Status = IprStatus.Withdrawn,
+                    FiledOn = new DateOnly(2024, 4, 2),
+                    RowVersion = Convert.ToBase64String(created.RowVersion)
+                }
+            };
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
+
+            var result = await page.OnPostEditAsync(CancellationToken.None);
+
+            Assert.IsType<RedirectToPageResult>(result);
+            db.ChangeTracker.Clear();
+            var stored = await db.IprRecords.AsNoTracking().SingleAsync(record => record.Id == created.Id);
+            Assert.Equal(IprStatus.Withdrawn, stored.Status);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task OnGetAsync_LinkToClosedRecord_ShowsItUnderItsStatusAndKeepsCountsPositive()
+    {
+        await using var db = CreateDbContext();
+        var filed = new IprRecord
+        {
+            IprFilingNumber = "IPR-OPEN",
+            Title = "Open filing",
+            Type = IprType.Patent,
+            Status = IprStatus.Filed,
+            FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        var rejected = new IprRecord
+        {
+            IprFilingNumber = "IPR-REJECTED",
+            Title = "Rejected filing",
+            Type = IprType.Patent,
+            Status = IprStatus.Rejected,
+            FiledAtUtc = new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        db.IprRecords.AddRange(filed, rejected);
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(
+            db,
+            new IprReadService(db),
+            new StubIprWriteService(),
+            new AllowAuthorizationService(),
+            userManager,
+            new StubIprExportService(),
+            CreateAttachmentOptions())
+        {
+            Tab = "records",
+            SelectedRecordId = rejected.Id
+        };
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(new[] { IprStatus.Rejected }, page.Statuses);
+        Assert.Equal(rejected.Id, page.SelectedRecordId);
+        Assert.Equal(new[] { rejected.Id }, page.Records.Select(record => record.Id).ToArray());
+        Assert.Equal(1, page.Kpis.Total);
+        Assert.Equal(1, page.Kpis.Rejected);
+        Assert.Equal(0, page.Kpis.Withdrawn);
     }
 
     private static ApplicationDbContext CreateDbContext()

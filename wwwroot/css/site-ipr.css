@@ -74,7 +74,7 @@
 /* Compact operational summary */
 .ipr-insight-ribbon {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     overflow: hidden;
     margin-bottom: 14px;
     border: 1px solid var(--ipr-border);
@@ -111,6 +111,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 .ipr-insight--projects::before { background: var(--ipr-violet); }
 .ipr-insight--attention::before { background: #9aa7ba; }
 .ipr-insight--attention.has-attention::before { background: var(--ipr-red); }
+.ipr-insight--closed::before { background: var(--ipr-muted); }
 .ipr-insight__primary { display: block; min-width: 0; padding: 12px 16px 4px; color: inherit; text-decoration: none; }
 .ipr-insight > span,
 .ipr-insight > small,
@@ -418,6 +419,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 .ipr-type-badge--copyright { border-color: #e2d9ff; background: #f3efff; color: #6845c2; }
 .ipr-status-badge--filed { border-color: #efd9a5; background: #fff7e7; color: #916000; }
 .ipr-status-badge--granted { border-color: #ccebd9; background: #ebf8f0; color: #21784f; }
+.ipr-status-badge--closed { border-color: var(--ipr-border); background: var(--ipr-subtle); color: var(--ipr-muted); }
 .ipr-file-count { display: inline-flex; align-items: center; gap: 3px; color: #44546d; font-size: .76rem; font-weight: 650; }
 .ipr-no-file { color: #9ba7b8; }
 .ipr-register-table .btn-sm,
@@ -729,7 +731,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 .ipr-drawer-form [aria-busy="true"] { cursor: wait; }
 
 @media (max-width: 1300px) {
-    .ipr-insight-ribbon { grid-template-columns: repeat(5, minmax(150px, 1fr)); overflow-x: auto; }
+    .ipr-insight-ribbon { grid-template-columns: repeat(6, minmax(150px, 1fr)); overflow-x: auto; }
     .ipr-record-workbench { --ipr-inspector-width: 350px; }
 }
 

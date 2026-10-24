@@ -61,7 +61,7 @@ test('phase 31 persists dossier presentation choices through schema v7 and a for
 
 test('phase 31 resolves programme information from live PRISM data and omits absent optional facts', () => {
   assert.match(readService, /SponsoringLineDirectorate/);
-  assert.match(readService, /IprStatus\.Filed \|\| item\.Status == IprStatus\.Granted/);
+  assert.match(readService, /\.Where\(IprStatusPolicy\.CountedPredicate\)/);
   assert.match(readService, /ProjectTotStatus\.InProgress \|\| item\.Status == ProjectTotStatus\.Completed/);
   assert.match(builder, /ComposeProgrammeInformation/);
   assert.match(builder, /CompendiumProgrammeInformation\.Resolve/);
