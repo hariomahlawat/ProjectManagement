@@ -231,7 +231,6 @@ public sealed class ProjectOfficerWorkspaceService
             operational.ConferenceDirections,
             conference,
             pending.Waiting,
-            await BuildReturnedItemsAsync(userId, ct, complete: true),
             PlanDirectSaveRole: principal.IsInRole(ProjectManagement.Configuration.RoleNames.Admin)
                 || principal.IsInRole(ProjectManagement.Configuration.RoleNames.HoD)));
 
@@ -1137,17 +1136,15 @@ public sealed class ProjectOfficerWorkspaceService
         string Category);
 
     // SECTION: Returned items are surfaced as actionable corrections for the PO.
-    // The action queue and side list show a short preview (30 days, a few per type). Desk cards
-    // decide brief-ready from it, so they ask for every unresolved return in a longer horizon.
-    internal const int DeskReturnedHorizonDays = 180;
-
-    private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildReturnedItemsAsync(string userId, CancellationToken ct, bool complete = false)
+    // The action queue and side list show a short preview (30 days, a few per type). The
+    // briefing desk does not list them: a return is a finished HoD decision.
+    private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildReturnedItemsAsync(string userId, CancellationToken ct)
     {
-        var fetchLimit = complete ? int.MaxValue : 10;
-        var keepLimit = complete ? int.MaxValue : 5;
-        var totalLimit = complete ? int.MaxValue : 12;
+        const int fetchLimit = 10;
+        const int keepLimit = 5;
+        const int totalLimit = 12;
         var items = new List<WorkspaceAttentionItemVm>();
-        var returnedCutoffUtc = DateTimeOffset.UtcNow.AddDays(complete ? -DeskReturnedHorizonDays : -30);
+        var returnedCutoffUtc = DateTimeOffset.UtcNow.AddDays(-30);
         var rejectedPlans = await _db.PlanVersions.AsNoTracking().Include(p => p.Project).Where(p => (p.CreatedByUserId == userId || p.SubmittedByUserId == userId) && p.RejectedOn.HasValue && p.RejectedOn >= returnedCutoffUtc).OrderByDescending(p => p.RejectedOn).Take(fetchLimit).ToListAsync(ct);
         var rejectedPlanProjectIds = rejectedPlans.Select(p => p.ProjectId).ToArray();
         var newerPlanProjects = await _db.PlanVersions.AsNoTracking().Where(p => rejectedPlanProjectIds.Contains(p.ProjectId) && (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Approved)).Select(p => new { p.ProjectId, EventAt = p.SubmittedOn ?? p.ApprovedOn ?? p.CreatedOn }).ToListAsync(ct);
