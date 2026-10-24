@@ -332,7 +332,9 @@ function readChartTheme() {
         axisColor: palette?.axisColor || fallback.axisColor,
         gridColor: palette?.gridColor || fallback.gridColor,
         accents: palette?.accents?.length ? palette.accents : fallback.accents,
-        surface: styles.getPropertyValue('--pm-card').trim() || '#ffffff'
+        surface: styles.getPropertyValue('--pm-card').trim() || '#ffffff',
+        // The visitors line is neutral ink, so it never shares a colour with a visit type.
+        ink: styles.getPropertyValue('--pm-text-strong').trim() || '#1f2937'
     };
 }
 
@@ -371,16 +373,18 @@ function initVisitsCharts() {
     function buildTypeDataset(range) {
         const labels = [];
         const values = [];
+        const slots = [];
 
         typeData.forEach(t => {
             const val = range === 'lastYear' ? t.countLastYear : t.count;
             if (val > 0) {
                 labels.push(t.name);
                 values.push(val);
+                slots.push(t.colourSlot || labels.length);
             }
         });
 
-        return { labels, values };
+        return { labels, values, slots };
     }
 
     function showTypeEmptyState(isEmpty) {
@@ -390,8 +394,9 @@ function initVisitsCharts() {
         }
     }
 
-    function typeColours(count) {
-        return Array.from({ length: count }, (_, index) => theme.accents[index % theme.accents.length]);
+    // Each type keeps the colour slot it has in the register's type tags.
+    function typeColours(slots) {
+        return slots.map(slot => theme.accents[(slot - 1) % theme.accents.length]);
     }
 
     function buildMonthlyChart() {
@@ -410,11 +415,11 @@ function initVisitsCharts() {
                         order: 2
                     },
                     {
-                        label: 'People',
+                        label: 'Visitors',
                         data: monthlyData.map(x => x.strength),
                         type: 'line',
-                        borderColor: theme.accents[1],
-                        backgroundColor: theme.accents[1],
+                        borderColor: theme.ink,
+                        backgroundColor: theme.ink,
                         borderWidth: 2,
                         // Straight segments: a curve would suggest values between months.
                         tension: 0,
@@ -448,7 +453,7 @@ function initVisitsCharts() {
                         grid: { drawOnChartArea: false },
                         ticks: { precision: 0, color: theme.axisColor },
                         border: { display: false },
-                        title: { display: true, text: 'People', color: theme.axisColor }
+                        title: { display: true, text: 'Visitors', color: theme.axisColor }
                     }
                 },
                 plugins: {
@@ -471,7 +476,7 @@ function initVisitsCharts() {
                 labels: dataset.labels,
                 datasets: [{
                     data: dataset.values,
-                    backgroundColor: typeColours(dataset.values.length),
+                    backgroundColor: typeColours(dataset.slots),
                     borderColor: theme.surface,
                     borderWidth: 2
                 }]
@@ -501,7 +506,7 @@ function initVisitsCharts() {
             showTypeEmptyState(next.values.length === 0);
             typeChart.data.labels = next.labels;
             typeChart.data.datasets[0].data = next.values;
-            typeChart.data.datasets[0].backgroundColor = typeColours(next.values.length);
+            typeChart.data.datasets[0].backgroundColor = typeColours(next.slots);
             typeChart.update();
         });
     }
@@ -847,6 +852,50 @@ function initGalleryFallbacks() {
     });
 }
 
+// SECTION: Register rows
+// The visitor name is the real link; a click anywhere else on the row opens the same visit.
+function initRegisterRows() {
+    document.querySelectorAll('tr[data-row-href]').forEach(row => {
+        row.addEventListener('click', event => {
+            if (event.defaultPrevented || event.target.closest('a, button, input, select, textarea, label')) {
+                return;
+            }
+            if (window.getSelection && String(window.getSelection()).length > 0) {
+                return;
+            }
+            const href = row.getAttribute('data-row-href');
+            if (!href) {
+                return;
+            }
+            if (event.ctrlKey || event.metaKey) {
+                window.open(href, '_blank', 'noopener');
+                return;
+            }
+            window.location.assign(href);
+        });
+    });
+
+    // A thumbnail whose file cannot be served falls back to the no-photo tile.
+    document.querySelectorAll('.visit-entry__thumb img').forEach(img => {
+        const fallback = () => {
+            const thumb = img.closest('.visit-entry__thumb');
+            if (!thumb || thumb.classList.contains('is-missing')) {
+                return;
+            }
+            thumb.classList.add('is-missing', 'visit-entry__thumb--none');
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-image';
+            icon.setAttribute('aria-hidden', 'true');
+            thumb.prepend(icon);
+        };
+        if (img.complete && img.naturalWidth === 0) {
+            fallback();
+        } else {
+            img.addEventListener('error', fallback, { once: true });
+        }
+    });
+}
+
 // ----------------------------------------------------
 // INITIALISE EVERYTHING
 // ----------------------------------------------------
@@ -857,6 +906,7 @@ function init() {
     initVisitsCharts();
     initVisitPhotoViewer();
     initGalleryFallbacks();
+    initRegisterRows();
     initPhotoUploadInputs();
     initVisitRegisterPageSize();
 }

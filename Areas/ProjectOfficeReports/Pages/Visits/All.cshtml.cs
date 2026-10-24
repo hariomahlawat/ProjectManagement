@@ -1,41 +1,15 @@
 using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using ProjectManagement.Areas.ProjectOfficeReports.Application;
-using ProjectManagement.Models;
-using System.Linq;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 
+// The full register used to live here; it is now the Visits page itself, with paging and
+// filters. This keeps old links and bookmarks working, filters included.
 [Authorize]
 public class AllModel : PageModel
 {
-    private static readonly int[] AllowedPageSizes = [25, 50, 100];
-
-    private readonly VisitService _visitService;
-    private readonly VisitTypeService _visitTypeService;
-    private readonly IVisitExportService _visitExportService;
-    private readonly UserManager<ApplicationUser> _userManager;
-
-    public AllModel(
-        VisitService visitService,
-        VisitTypeService visitTypeService,
-        IVisitExportService visitExportService,
-        UserManager<ApplicationUser> userManager)
-    {
-        _visitService = visitService;
-        _visitTypeService = visitTypeService;
-        _visitExportService = visitExportService;
-        _userManager = userManager;
-    }
-
     [BindProperty(SupportsGet = true)]
     public Guid? VisitTypeId { get; set; }
 
@@ -49,146 +23,18 @@ public class AllModel : PageModel
     public string? Q { get; set; }
 
     [BindProperty(SupportsGet = true)]
-    public int PageNumber { get; set; } = 1;
+    public int? PageNumber { get; set; }
 
     [BindProperty(SupportsGet = true)]
-    public int PageSize { get; set; } = 25;
+    public int? PageSize { get; set; }
 
-    public int TotalItems { get; private set; }
-
-    public int TotalPages => PageSize <= 0
-        ? 1
-        : Math.Max(1, (int)Math.Ceiling((double)TotalItems / PageSize));
-
-    public int ShowingFrom => TotalItems == 0
-        ? 0
-        : ((PageNumber - 1) * PageSize) + 1;
-
-    public int ShowingTo => Math.Min(PageNumber * PageSize, TotalItems);
-
-    public IReadOnlyList<VisitListItem> Items { get; private set; } = Array.Empty<VisitListItem>();
-
-    public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public bool CanManage { get; private set; }
-
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    public IActionResult OnGet() => RedirectToPage("Index", new
     {
-        CanManage = IsManager();
-        NormalizePaging();
-        await PopulateVisitTypesAsync(cancellationToken);
-
-        // SECTION: Historical register pagination
-        var result = await _visitService.SearchPagedAsync(BuildQuery(), PageNumber, PageSize, cancellationToken);
-        TotalItems = result.TotalCount;
-        ClampPageNumber();
-
-        if (PageNumber != 1 && result.TotalCount > 0 && result.Items.Count == 0)
-        {
-            result = await _visitService.SearchPagedAsync(BuildQuery(), PageNumber, PageSize, cancellationToken);
-        }
-
-        Items = result.Items;
-    }
-
-    public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
-    {
-        CanManage = IsManager();
-        await PopulateVisitTypesAsync(cancellationToken);
-
-        var userId = _userManager.GetUserId(User);
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return Challenge();
-        }
-
-        var options = BuildQuery();
-        var request = new VisitExportRequest(
-            options.VisitTypeId,
-            options.StartDate,
-            options.EndDate,
-            options.RemarksQuery,
-            userId);
-
-        var result = await _visitExportService.ExportAsync(request, cancellationToken);
-        if (!result.Success || result.File is null)
-        {
-            // Go back to the list with the filters kept, so the page and its figures stay intact.
-            TempData["ToastError"] = result.Errors.Count > 0 ? result.Errors[0] : "The export could not be created. Please try again.";
-            return RedirectToPage(new { VisitTypeId, From, To, Q, PageNumber, PageSize });
-        }
-
-        return File(result.File.Content, result.File.ContentType, result.File.FileName);
-    }
-
-    private VisitQueryOptions BuildQuery()
-    {
-        return new VisitQueryOptions(VisitTypeId, ParseDate(From), ParseDate(To), Q);
-    }
-
-    // SECTION: Paging normalization
-    private void NormalizePaging()
-    {
-        if (!AllowedPageSizes.Contains(PageSize))
-        {
-            PageSize = 25;
-        }
-
-        if (PageNumber < 1)
-        {
-            PageNumber = 1;
-        }
-    }
-
-    private void ClampPageNumber()
-    {
-        if (TotalPages > 0 && PageNumber > TotalPages)
-        {
-            PageNumber = TotalPages;
-        }
-    }
-
-    private async Task PopulateVisitTypesAsync(CancellationToken cancellationToken)
-    {
-        var types = await _visitTypeService.GetAllAsync(includeInactive: false, cancellationToken);
-        var list = new List<SelectListItem>
-        {
-            new("All types", string.Empty)
-        };
-
-        foreach (var type in types)
-        {
-            list.Add(new SelectListItem(type.Name, type.Id.ToString())
-            {
-                Selected = VisitTypeId.HasValue && type.Id == VisitTypeId.Value
-            });
-        }
-
-        VisitTypeOptions = list;
-    }
-
-    private bool IsManager()
-    {
-        return User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
-    }
-
-    private static DateOnly? ParseDate(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        if (DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
-        {
-            return date;
-        }
-
-        if (DateOnly.TryParse(value, out date))
-        {
-            return date;
-        }
-
-        return null;
-    }
+        VisitTypeId,
+        From = string.IsNullOrWhiteSpace(From) ? null : From,
+        To = string.IsNullOrWhiteSpace(To) ? null : To,
+        Q = string.IsNullOrWhiteSpace(Q) ? null : Q,
+        PageNumber = PageNumber is > 1 ? PageNumber : null,
+        PageSize = PageSize is 50 or 100 ? PageSize : null
+    });
 }

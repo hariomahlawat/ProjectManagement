@@ -49,7 +49,13 @@ public sealed class VisitService
                 x.Strength,
                 PhotoCount = x.Photos.Count,
                 VisitTypeIsActive = x.VisitType.IsActive,
-                x.RowVersion
+                x.RowVersion,
+                // The list thumbnail: the chosen cover photo, or the first photo when none is chosen.
+                Thumbnail = x.Photos
+                    .OrderByDescending(p => p.Id == x.CoverPhotoId)
+                    .ThenBy(p => p.CreatedAtUtc)
+                    .Select(p => new { p.Id, p.VersionStamp })
+                    .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
@@ -60,11 +66,13 @@ public sealed class VisitService
                 x.VisitTypeId,
                 x.VisitTypeName,
                 x.VisitorName,
-                BuildRemarksPreview(x.Remarks),
+                BuildRemarksPreview(x.Remarks, x.VisitorName),
                 x.Strength,
                 x.PhotoCount,
                 x.VisitTypeIsActive,
-                x.RowVersion))
+                x.RowVersion,
+                x.Thumbnail?.Id,
+                x.Thumbnail?.VersionStamp))
             .ToList();
     }
 
@@ -99,7 +107,13 @@ public sealed class VisitService
                 x.Strength,
                 PhotoCount = x.Photos.Count,
                 VisitTypeIsActive = x.VisitType.IsActive,
-                x.RowVersion
+                x.RowVersion,
+                // The list thumbnail: the chosen cover photo, or the first photo when none is chosen.
+                Thumbnail = x.Photos
+                    .OrderByDescending(p => p.Id == x.CoverPhotoId)
+                    .ThenBy(p => p.CreatedAtUtc)
+                    .Select(p => new { p.Id, p.VersionStamp })
+                    .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
@@ -110,11 +124,13 @@ public sealed class VisitService
                 x.VisitTypeId,
                 x.VisitTypeName,
                 x.VisitorName,
-                BuildRemarksPreview(x.Remarks),
+                BuildRemarksPreview(x.Remarks, x.VisitorName),
                 x.Strength,
                 x.PhotoCount,
                 x.VisitTypeIsActive,
-                x.RowVersion))
+                x.RowVersion,
+                x.Thumbnail?.Id,
+                x.Thumbnail?.VersionStamp))
             .ToList();
 
         return new VisitPagedResult(items, totalCount);
@@ -217,7 +233,7 @@ public sealed class VisitService
     }
 
     // SECTION: Visit log preview helpers
-    private static string? BuildRemarksPreview(string? remarks, int maxLength = 180)
+    private static string? BuildRemarksPreview(string? remarks, string? visitorName = null, int maxLength = 180)
     {
         if (string.IsNullOrWhiteSpace(remarks))
         {
@@ -227,6 +243,21 @@ public sealed class VisitService
         var normalized = string.Join(
             " ",
             remarks.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Remarks often open with the visitor's name, which the list already shows on the line above;
+        // drop that repeat so the preview starts with what is new.
+        if (!string.IsNullOrWhiteSpace(visitorName))
+        {
+            var name = visitorName.Trim();
+            if (normalized.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+            {
+                var rest = normalized[name.Length..].TrimStart(' ', '.', ',', ':', ';', '-', '–', '—');
+                if (rest.Length > 0)
+                {
+                    normalized = char.ToUpperInvariant(rest[0]) + rest[1..];
+                }
+            }
+        }
 
         return normalized.Length <= maxLength
             ? normalized
@@ -406,7 +437,7 @@ public sealed record VisitQueryOptions(Guid? VisitTypeId, DateOnly? StartDate, D
 
 public sealed record VisitPagedResult(IReadOnlyList<VisitListItem> Items, int TotalCount);
 
-public sealed record VisitListItem(Guid Id, DateOnly DateOfVisit, Guid VisitTypeId, string VisitTypeName, string VisitorName, string? RemarksPreview, int Strength, int PhotoCount, bool VisitTypeIsActive, byte[] RowVersion);
+public sealed record VisitListItem(Guid Id, DateOnly DateOfVisit, Guid VisitTypeId, string VisitTypeName, string VisitorName, string? RemarksPreview, int Strength, int PhotoCount, bool VisitTypeIsActive, byte[] RowVersion, Guid? ThumbnailPhotoId = null, string? ThumbnailVersion = null);
 
 public sealed record VisitExportRow(
     DateOnly DateOfVisit,

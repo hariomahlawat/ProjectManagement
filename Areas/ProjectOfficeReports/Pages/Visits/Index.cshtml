@@ -1,436 +1,417 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.IndexModel
-@using System.Linq
+@using System.Globalization
+@using System.Text.Json
+@using Microsoft.AspNetCore.WebUtilities
 @{
     ViewData["Title"] = "Visits to SDD";
 
-    // normalize incoming dates for inputs
-    string? fromValue = Model.From;
-    DateOnly? parsedFrom = null;
-    if (!string.IsNullOrWhiteSpace(fromValue) && DateOnly.TryParse(fromValue, out var parsed))
-    {
-        parsedFrom = parsed;
-        fromValue = parsedFrom.Value.ToString("yyyy-MM-dd");
-    }
-
-    string? toValue = Model.To;
-    DateOnly? parsedTo = null;
-    if (!string.IsNullOrWhiteSpace(toValue) && DateOnly.TryParse(toValue, out var parsedEnd))
-    {
-        parsedTo = parsedEnd;
-        toValue = parsedTo.Value.ToString("yyyy-MM-dd");
-    }
-
-    // base data
-    var latestVisitItem = Model.Items
-        .OrderByDescending(item => item.DateOfVisit)
-        .ThenByDescending(item => item.PhotoCount)
-        .FirstOrDefault();
-
-    // filter state
-    var hasFilters = Model.VisitTypeId.HasValue
-                     || !string.IsNullOrWhiteSpace(Model.From)
-                     || !string.IsNullOrWhiteSpace(Model.To)
-                     || !string.IsNullOrWhiteSpace(Model.Q);
-
-    string? selectedTypeLabel = null;
-    if (Model.VisitTypeId.HasValue)
-    {
-        selectedTypeLabel = Model.VisitTypeOptions.FirstOrDefault(option => option.Value == Model.VisitTypeId.Value.ToString())?.Text;
-    }
-
-    // SECTION: time-based helpers for charts
-    var today = DateOnly.FromDateTime(DateTime.Today);
-    var lastYearFrom = today.AddYears(-1);
-
-    // ===== chart data =====
-    // monthly: last 12 months including current month
-    var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
-    var startMonth = firstOfThisMonth.AddMonths(-11); // 12 months window
-
-    var monthlyPoints = Enumerable.Range(0, 12)
-        .Select(i => startMonth.AddMonths(i))
-        .Select(month =>
-        {
-            var visitsInMonth = Model.AllItems
-                .Where(v => v.DateOfVisit.Year == month.Year && v.DateOfVisit.Month == month.Month)
-                .ToList();
-
-            return new
-            {
-                label = month.ToString("MMM yy"),
-                visits = visitsInMonth.Count,
-                strength = visitsInMonth.Sum(v => v.Strength)
-            };
-        })
-        .ToList();
-
-    // pie: visit types
-    var allVisitTypes = Model.AllItems
-        .GroupBy(v => v.VisitTypeName ?? "Unspecified")
-        .OrderByDescending(g => g.Count())
-        .Select(g => new
-        {
-            name = g.Key,
-            count = g.Count(),
-            countLastYear = g.Count(v => v.DateOfVisit >= lastYearFrom)
-        })
-        .ToList();
+    var inv = CultureInfo.InvariantCulture;
+    var summary = Model.Summary;
+    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    var fromValue = Model.FromDate?.ToString("yyyy-MM-dd", inv) ?? string.Empty;
+    var toValue = Model.ToDate?.ToString("yyyy-MM-dd", inv) ?? string.Empty;
+    string Plural(int count, string one, string many) => count == 1 ? one : many;
+    string N(int value) => value.ToString("N0", inv);
 }
 
-<div class="visit-shell visit-tracker visit-shell--tight">
-    <!-- SECTION: Compact page header and actions -->
-    <div class="visit-page-head">
-        <div class="visit-page-head__text">
+<div class="visit-register">
+    @* SECTION: Page header *@
+    <header class="visit-register__head">
+        <div class="visit-register__title">
             <h1>Visits to SDD</h1>
-            <p>Track inbound visits to SDD by dignitaries, courses and delegations.</p>
-            <div class="visit-inline-metrics" aria-label="Visit summary">
-                <span>
-                    <strong>@Model.VisitsLastYear</strong>
-                    visits / 12 mo
-                </span>
-                <span>
-                    <strong>@Model.PeopleLastYear</strong>
-                    people / 12 mo
-                </span>
-                <span>
-                    <strong>@Model.VisitsLast30</strong>
-                    visits / 30 d
-                </span>
-                <span>
-                    <strong>@Model.PeopleLast30</strong>
-                    people / 30 d
-                </span>
-            </div>
+            <p>Dignitaries, courses and delegations hosted by the Simulator Development Division.</p>
         </div>
-        <div class="visit-page-head__actions">
-            <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#visitsFiltersModal">
-                <i class="bi bi-sliders" aria-hidden="true"></i>
-                <span>Filters</span>
-                @if (hasFilters)
-                {
-                    <span class="badge bg-primary rounded-pill ms-1">
-                        !
-                        <span class="visually-hidden">Filters applied</span>
-                    </span>
-                }
-            </button>
-            @if (Model.Items.Count > 0)
+        <div class="visit-register__actions">
+            @if (Model.CanManageTypes)
             {
-                <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#exportVisitsModal">
-                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                    <span>Export</span>
-                </button>
+                <a asp-page="/VisitTypes/Index" class="btn btn-outline-secondary">
+                    <i class="bi bi-tags" aria-hidden="true"></i>
+                    <span>Visit types</span>
+                </a>
+            }
+            @if (Model.TotalItems > 0)
+            {
+                <div class="dropdown">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                        <span>Export</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end visit-register__export">
+                        <form method="post">
+                            <input type="hidden" name="VisitTypeId" value="@Model.VisitTypeId" />
+                            <input type="hidden" name="From" value="@fromValue" />
+                            <input type="hidden" name="To" value="@toValue" />
+                            <input type="hidden" name="Q" value="@Model.Q" />
+                            <input type="hidden" name="Sort" value="@Model.Sort" />
+                            <p class="visit-register__export-scope">
+                                @(Model.HasFilters ? $"The {N(Model.TotalItems)} {Plural(Model.TotalItems, "visit", "visits")} matching your filters" : $"All {N(Model.TotalItems)} visits on record")
+                            </p>
+                            <button type="submit" class="dropdown-item" asp-page-handler="Export">
+                                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Excel workbook
+                            </button>
+                            <button type="submit" class="dropdown-item" asp-page-handler="ExportPdf">
+                                <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF report with photos
+                            </button>
+                        </form>
+                    </div>
+                </div>
             }
             @if (Model.CanManage)
             {
-                <a asp-page="New" class="btn btn-primary d-inline-flex align-items-center gap-1">
-                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                <a asp-page="New" class="btn btn-primary">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
                     <span>Record visit</span>
                 </a>
             }
         </div>
-    </div>
+    </header>
 
-
-    <!-- active filter chips -->
-    @if (hasFilters)
-    {
-        <div class="d-flex flex-wrap gap-2 mb-2" aria-label="Active filters">
-            @if (!string.IsNullOrWhiteSpace(selectedTypeLabel))
-            {
-                <span class="visit-pill"><i class="bi bi-funnel"></i> @selectedTypeLabel</span>
-            }
-            @if (parsedFrom.HasValue)
-            {
-                <span class="visit-pill"><i class="bi bi-calendar-event"></i> From: @parsedFrom.Value.ToString("dd MMM yyyy")</span>
-            }
-            @if (parsedTo.HasValue)
-            {
-                <span class="visit-pill"><i class="bi bi-calendar2-event"></i> To: @parsedTo.Value.ToString("dd MMM yyyy")</span>
-            }
-            @if (!string.IsNullOrWhiteSpace(Model.Q))
-            {
-                <span class="visit-pill"><i class="bi bi-search"></i> "@Model.Q"</span>
-            }
+    @* SECTION: Headline figures (whole register, independent of the filters) *@
+    <section class="visit-register__summary" aria-label="Visits hosted">
+        <div class="visit-stat">
+            <span class="visit-stat__label">Last 12 months</span>
+            <span class="visit-stat__value">@N(summary.VisitsLastYear) <small>@Plural(summary.VisitsLastYear, "visit", "visits")</small></span>
+            <span class="visit-stat__meta">@N(summary.PeopleLastYear) @Plural(summary.PeopleLastYear, "visitor", "visitors") hosted</span>
         </div>
-    }
+        <div class="visit-stat">
+            <span class="visit-stat__label">Last 30 days</span>
+            <span class="visit-stat__value">@N(summary.VisitsLast30) <small>@Plural(summary.VisitsLast30, "visit", "visits")</small></span>
+            <span class="visit-stat__meta">@N(summary.PeopleLast30) @Plural(summary.PeopleLast30, "visitor", "visitors") hosted</span>
+        </div>
+        <div class="visit-stat">
+            <span class="visit-stat__label">Most recent visit</span>
+            <span class="visit-stat__value visit-stat__value--date">@(summary.LatestVisit?.ToString("dd MMM yyyy", inv) ?? "None yet")</span>
+            <span class="visit-stat__meta">@(summary.LatestVisit is { } latest ? latest.ToString("dddd", inv) : "No visits recorded")</span>
+        </div>
+        <div class="visit-stat">
+            <span class="visit-stat__label">On record</span>
+            <span class="visit-stat__value">@N(summary.TotalVisits) <small>@Plural(summary.TotalVisits, "visit", "visits")</small></span>
+            <span class="visit-stat__meta">Since records began</span>
+        </div>
+    </section>
 
-    <!-- SECTION: Visit log -->
-    <section class="visit-log-section" aria-label="Recent visits">
-        <div class="visit-section-head">
-            <div>
-                <h2 class="h6 mb-0">Visit log</h2>
-                <p class="text-muted small mb-0">Chronological list of recent visits.</p>
+    @* SECTION: Filters *@
+    <section class="visit-register__filters" aria-label="Filter visits">
+        <form method="get" class="visit-filter" role="search">
+            <div class="visit-filter__field visit-filter__field--search">
+                <label for="visit-filter-q">Search</label>
+                <div class="visit-filter__search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input id="visit-filter-q" name="Q" value="@Model.Q" class="form-control" placeholder="Visitor, remarks or type" autocomplete="off" />
+                </div>
             </div>
-            <div class="d-flex align-items-center gap-2">
-                @if (Model.TotalItems > Model.Items.Count)
+            <div class="visit-filter__field">
+                <label for="visit-filter-type">Visit type</label>
+                <select id="visit-filter-type" name="VisitTypeId" class="form-select" asp-items="Model.VisitTypeOptions"></select>
+            </div>
+            <div class="visit-filter__field">
+                <label for="visit-filter-from">From</label>
+                <input id="visit-filter-from" name="From" type="date" value="@fromValue" class="form-control" />
+            </div>
+            <div class="visit-filter__field">
+                <label for="visit-filter-to">To</label>
+                <input id="visit-filter-to" name="To" type="date" value="@toValue" class="form-control" />
+            </div>
+            @if (Model.SortKey != "newest")
+            {
+                <input type="hidden" name="Sort" value="@Model.SortKey" />
+            }
+            @if (Model.PageSize != 25)
+            {
+                <input type="hidden" name="PageSize" value="@Model.PageSize" />
+            }
+            <div class="visit-filter__actions">
+                <button type="submit" class="btn btn-primary">Apply</button>
+            </div>
+        </form>
+
+        @if (Model.HasFilters)
+        {
+            <div class="visit-chips" aria-label="Active filters">
+                @if (Model.SelectedTypeLabel is { } typeLabel)
                 {
-                    <span class="text-muted small">
-                        @(hasFilters ? $"Showing {Model.Items.Count} of {Model.TotalItems}" : $"Showing latest {Model.Items.Count} of {Model.TotalItems}")
-                    </span>
-                    <a asp-page="All"
-                       asp-route-VisitTypeId="@Model.VisitTypeId"
-                       asp-route-From="@fromValue"
-                       asp-route-To="@toValue"
-                       asp-route-Q="@Model.Q"
-                       class="btn btn-link btn-sm text-decoration-none">
-                        View all
+                    <a class="visit-chip" asp-page="Index" asp-all-route-data="Model.RouteWith(removeKey: nameof(Model.VisitTypeId))" aria-label="Remove filter: type @typeLabel">
+                        <span>Type: @typeLabel</span><i class="bi bi-x" aria-hidden="true"></i>
                     </a>
                 }
-                else if (hasFilters)
+                @if (Model.FromDate is { } fromDate)
                 {
-                    <span class="text-muted small">Showing @Model.Items.Count item@(Model.Items.Count == 1 ? "" : "s")</span>
+                    <a class="visit-chip" asp-page="Index" asp-all-route-data="Model.RouteWith(removeKey: nameof(Model.From))" aria-label="Remove filter: from @fromDate.ToString("dd MMM yyyy", inv)">
+                        <span>From @fromDate.ToString("dd MMM yyyy", inv)</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
                 }
+                @if (Model.ToDate is { } toDate)
+                {
+                    <a class="visit-chip" asp-page="Index" asp-all-route-data="Model.RouteWith(removeKey: nameof(Model.To))" aria-label="Remove filter: to @toDate.ToString("dd MMM yyyy", inv)">
+                        <span>To @toDate.ToString("dd MMM yyyy", inv)</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.Q))
+                {
+                    <a class="visit-chip" asp-page="Index" asp-all-route-data="Model.RouteWith(removeKey: nameof(Model.Q))" aria-label="Remove search @Model.Q">
+                        <span>&ldquo;@Model.Q.Trim()&rdquo;</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                <a class="visit-chips__clear" asp-page="Index">Clear all</a>
             </div>
+        }
+    </section>
+
+    @* SECTION: Register *@
+    <section class="visit-register__list" aria-labelledby="visit-register-heading">
+        <div class="visit-toolbar">
+            <h2 id="visit-register-heading" class="visit-toolbar__count">
+                @if (Model.TotalItems == 0)
+                {
+                    <span>No visits</span>
+                }
+                else
+                {
+                    <span>@N(Model.TotalItems) @Plural(Model.TotalItems, "visit", "visits")</span>
+                    <span class="visit-toolbar__meta">@N(Model.TotalPeople) @Plural(Model.TotalPeople, "visitor", "visitors")@(Model.TotalPages > 1 ? $" · showing {N(Model.ShowingFrom)}–{N(Model.ShowingTo)}" : string.Empty)</span>
+                }
+            </h2>
+            @if (Model.TotalItems > 0)
+            {
+                <form method="get" class="visit-toolbar__controls">
+                    @foreach (var pair in Model.RouteWith().Where(p => p.Key is not "Sort" and not "PageSize" and not "PageNumber"))
+                    {
+                        <input type="hidden" name="@pair.Key" value="@pair.Value" />
+                    }
+                    <label for="visit-sort">Sort</label>
+                    <select id="visit-sort" name="Sort" class="form-select form-select-sm" data-visit-page-size-submit>
+                        @foreach (var option in IndexModel.SortOptions)
+                        {
+                            <option value="@option.Value" selected="@(option.Value == Model.SortKey)">@option.Label</option>
+                        }
+                    </select>
+                    <label for="visit-page-size">Rows</label>
+                    <select id="visit-page-size" name="PageSize" class="form-select form-select-sm" data-visit-page-size-submit>
+                        @foreach (var size in IndexModel.AllowedPageSizes)
+                        {
+                            <option value="@size" selected="@(size == Model.PageSize)">@size</option>
+                        }
+                    </select>
+                    <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
+                </form>
+            }
         </div>
 
-        @if (Model.Items.Count == 0)
+        @if (Model.TotalItems == 0)
         {
-            <div class="visit-empty visit-empty--subtle text-center py-5">
-                <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-clipboard2-minus"></i></div>
-                <h2 class="visit-empty__title">No visits found</h2>
-                <p class="visit-empty__subtitle">
-                    @((hasFilters ? "Your filters are too narrow. Try widening the date range or clearing the search." : "Start by recording your first visit."))
-                </p>
+            <div class="visit-empty-state">
+                <i class="bi @(Model.HasFilters ? "bi-search" : "bi-building") visit-empty-state__icon" aria-hidden="true"></i>
+                @if (Model.HasFilters)
+                {
+                    <h3>No visits match these filters</h3>
+                    <p>Try a wider date range, another visit type or a shorter search.</p>
+                    <a asp-page="Index" class="btn btn-outline-secondary">Clear filters</a>
+                }
+                else
+                {
+                    <h3>No visits recorded yet</h3>
+                    <p>Each visit to SDD you record appears here with its photos and remarks.</p>
+                    @if (Model.CanManage)
+                    {
+                        <a asp-page="New" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Record the first visit</a>
+                    }
+                }
             </div>
         }
         else
         {
-            <div class="card border-0 shadow-sm">
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0 visit-table visit-log-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th scope="col">Date</th>
-                                <th scope="col">Visit type</th>
-                                <th scope="col">Visitor / Remarks</th>
-                                <th scope="col">Strength</th>
-                                <th scope="col">Photos</th>
-                                <th scope="col" class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in Model.Items)
+            <div class="visit-table-card">
+                <table class="visit-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="visit-table__date">Date</th>
+                            <th scope="col">Visit</th>
+                            <th scope="col" class="visit-table__type">Type</th>
+                            <th scope="col" class="visit-table__strength">Visitors</th>
+                            @if (Model.CanManage)
                             {
-                                <tr>
-                                    <td>
-                                        <div class="fw-semibold">@item.DateOfVisit.ToString("dd MMM yyyy")</div>
-                                        <div class="text-muted small">@item.DateOfVisit.ToString("dddd")</div>
-                                    </td>
-                                    <td>
-                                        <div>@item.VisitTypeName</div>
-                                        @if (!item.VisitTypeIsActive)
-                                        {
-                                            <span class="badge bg-warning-subtle text-warning-emphasis mt-1">Type inactive</span>
-                                        }
-                                    </td>
-                                    <td class="visit-log-record">
-                                        <div class="visit-log-record__visitor">@item.VisitorName</div>
-                                        @if (!string.IsNullOrWhiteSpace(item.RemarksPreview))
-                                        {
-                                            <div class="visit-log-record__remarks">@item.RemarksPreview</div>
-                                        }
-                                    </td>
-                                    <td class="visit-log-strength">
-                                        <strong>@item.Strength</strong>
-                                        <span>@(item.Strength == 1 ? "person" : "people")</span>
-                                    </td>
-                                    <td class="visit-log-photos">
-                                        @if (item.PhotoCount > 0)
-                                        {
-                                            <span class="visit-log-photos__count">
-                                                <i class="bi bi-images" aria-hidden="true"></i>
-                                                <span class="visually-hidden">Photos:</span>
-                                                @item.PhotoCount
-                                                <span>@(item.PhotoCount == 1 ? "photo" : "photos")</span>
-                                            </span>
-                                        }
-                                        else
-                                        {
-                                            <span class="visit-log-photos__empty">No photos</span>
-                                        }
-                                    </td>
-                                    <td class="text-end visit-log-actions">
-                                        <div class="btn-group" role="group">
-                                            <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
-                                            @if (Model.CanManage)
-                                            {
-                                                <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
-                                            }
+                                <th scope="col" class="visit-table__actions"><span class="visually-hidden">Actions</span></th>
+                            }
+                        </tr>
+                    </thead>
+                    @foreach (var group in Model.Items.GroupBy(v => Model.GroupByMonth ? (v.DateOfVisit.Year, v.DateOfVisit.Month) : (0, 0)))
+                    {
+                        <tbody>
+                            @if (Model.GroupByMonth)
+                            {
+                                var month = new DateOnly(group.Key.Item1, group.Key.Item2, 1);
+                                var totals = Model.MonthTotals.TryGetValue((group.Key.Item1, group.Key.Item2), out var found) ? found : (Visits: group.Count(), People: group.Sum(v => v.Strength));
+                                <tr class="visit-table__month">
+                                    <th scope="rowgroup" colspan="@(Model.CanManage ? 5 : 4)">
+                                        <span>@month.ToString("MMMM yyyy", inv)</span>
+                                        <span class="visit-table__month-meta">@totals.Visits @Plural(totals.Visits, "visit", "visits") · @N(totals.People) @Plural(totals.People, "visitor", "visitors")</span>
+                                    </th>
+                                </tr>
+                            }
+                            @foreach (var item in group)
+                            {
+                                var detailsUrl = Url.Page("Details", new { id = item.Id });
+                                var thumb = item.ThumbnailPhotoId is { } photoId
+                                    ? Url.Page("ViewPhoto", new { id = item.Id, photoId, size = "xs" })
+                                    : null;
+                                if (thumb is not null && !string.IsNullOrWhiteSpace(item.ThumbnailVersion))
+                                {
+                                    thumb = QueryHelpers.AddQueryString(thumb, "v", item.ThumbnailVersion);
+                                }
+                                <tr class="visit-row" data-row-href="@detailsUrl">
+                                    <td class="visit-table__date">
+                                        <div class="visit-date" aria-label="@item.DateOfVisit.ToString("dddd, dd MMMM yyyy", inv)">
+                                            <span class="visit-date__day">@item.DateOfVisit.ToString("dd", inv)</span>
+                                            <span class="visit-date__month">@item.DateOfVisit.ToString("MMM yyyy", inv)</span>
+                                            <span class="visit-date__weekday">@item.DateOfVisit.ToString("ddd", inv)</span>
                                         </div>
                                     </td>
+                                    <td class="visit-table__visit">
+                                        <div class="visit-entry">
+                                            <div class="visit-entry__thumb@(thumb is null ? " visit-entry__thumb--none" : string.Empty)">
+                                                @if (thumb is not null)
+                                                {
+                                                    <img src="@thumb" alt="" loading="lazy" decoding="async" />
+                                                    <span class="visit-entry__photo-count" aria-label="@item.PhotoCount @Plural(item.PhotoCount, "photo", "photos")"><i class="bi bi-images" aria-hidden="true"></i> @item.PhotoCount</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-image" aria-hidden="true"></i>
+                                                    <span class="visually-hidden">No photos</span>
+                                                }
+                                            </div>
+                                            <div class="visit-entry__text">
+                                                <a class="visit-entry__name" href="@detailsUrl">@item.VisitorName</a>
+                                                @if (!string.IsNullOrWhiteSpace(item.RemarksPreview))
+                                                {
+                                                    <p class="visit-entry__remarks">@item.RemarksPreview</p>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="visit-table__type">
+                                        <span class="visit-type-tag visit-type-tag--@Model.ColourSlotFor(item.VisitTypeId)">@item.VisitTypeName</span>
+                                        @if (!item.VisitTypeIsActive)
+                                        {
+                                            <span class="visit-type-tag__note">Type no longer in use</span>
+                                        }
+                                    </td>
+                                    <td class="visit-table__strength">
+                                        <strong>@N(item.Strength)</strong>
+                                        <span>@Plural(item.Strength, "visitor", "visitors")</span>
+                                    </td>
+                                    @if (Model.CanManage)
+                                    {
+                                        <td class="visit-table__actions">
+                                            <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary visit-row__edit" aria-label="Edit visit: @item.VisitorName">
+                                                <i class="bi bi-pencil" aria-hidden="true"></i>
+                                                <span class="visit-row__edit-label">Edit</span>
+                                            </a>
+                                        </td>
+                                    }
                                 </tr>
                             }
                         </tbody>
-                    </table>
-                </div>
+                    }
+                </table>
             </div>
+
+            @* SECTION: Pagination *@
+            @if (Model.TotalPages > 1)
+            {
+                var first = Math.Max(1, Model.PageNumber - 2);
+                var last = Math.Min(Model.TotalPages, first + 4);
+                first = Math.Max(1, last - 4);
+                <nav class="visit-pagination" aria-label="Visits pages">
+                    @if (Model.PageNumber > 1)
+                    {
+                        <a class="visit-pagination__step" asp-page="Index" asp-all-route-data="Model.RouteWith(pageNumber: Model.PageNumber - 1)"><i class="bi bi-chevron-left" aria-hidden="true"></i> Previous</a>
+                    }
+                    else
+                    {
+                        <span class="visit-pagination__step is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i> Previous</span>
+                    }
+                    <ol class="visit-pagination__pages">
+                        @for (var number = first; number <= last; number++)
+                        {
+                            <li>
+                                @if (number == Model.PageNumber)
+                                {
+                                    <span class="visit-pagination__page is-current" aria-current="page">@number</span>
+                                }
+                                else
+                                {
+                                    <a class="visit-pagination__page" asp-page="Index" asp-all-route-data="Model.RouteWith(pageNumber: number)" aria-label="Page @number">@number</a>
+                                }
+                            </li>
+                        }
+                    </ol>
+                    <span class="visit-pagination__status">Page @Model.PageNumber of @Model.TotalPages</span>
+                    @if (Model.PageNumber < Model.TotalPages)
+                    {
+                        <a class="visit-pagination__step" asp-page="Index" asp-all-route-data="Model.RouteWith(pageNumber: Model.PageNumber + 1)">Next <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                    }
+                    else
+                    {
+                        <span class="visit-pagination__step is-disabled" aria-hidden="true">Next <i class="bi bi-chevron-right"></i></span>
+                    }
+                </nav>
+            }
         }
     </section>
 
-    <!-- SECTION: Analytics charts -->
-    <section class="visit-analytics-section" aria-label="Visit analytics charts">
-        <div class="visit-section-head">
-            <div>
-                <h2>Analytics</h2>
-                <p>Trends and distribution of visits to SDD.</p>
+    @* SECTION: Trends *@
+    @if (Model.TotalItems > 0)
+    {
+        <section class="visit-register__trends" aria-labelledby="visit-trends-heading">
+            <div class="visit-section-title">
+                <h2 id="visit-trends-heading">Trends</h2>
+                <p>@(Model.HasFilters ? $"For the {N(Model.TotalItems)} {Plural(Model.TotalItems, "visit", "visits")} matching your filters." : "For every visit on record.")</p>
             </div>
-        </div>
-        <div class="visit-analytics-grid">
-            <div class="card border-0 shadow-sm visit-chart-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="visit-trends">
+                <figure class="visit-chart">
+                    <figcaption class="visit-chart__head">
                         <div>
-                            <h3 class="h6 mb-0" id="visits-monthly-title">Visits &amp; strength – last 12 months</h3>
-                            <p class="text-muted small mb-0">Bars show visits, line shows people (strength).</p>
+                            <h3 id="visits-monthly-title">Visits and visitors by month</h3>
+                            <p>The last 12 months. Bars count visits; the line counts visitors.</p>
                         </div>
-                        <button type="button"
-                                class="btn btn-sm btn-outline-secondary"
-                                data-chart-download="visits-monthly"
-                                aria-label="Download visits and strength chart">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-chart-download="visits-monthly" aria-label="Download the monthly chart as an image">
                             <i class="bi bi-download" aria-hidden="true"></i>
                         </button>
+                    </figcaption>
+                    <div id="visits-monthly-chart" class="visit-chart__canvas" data-monthly='@JsonSerializer.Serialize(Model.MonthlyTrend, jsonOptions)'>
+                        <canvas id="visits-monthly-canvas" role="img" aria-labelledby="visits-monthly-title"></canvas>
                     </div>
-                    <div id="visits-monthly-chart"
-                         data-monthly='@System.Text.Json.JsonSerializer.Serialize(monthlyPoints, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
-                         class="position-relative pm-util-minh-260">
-                        <canvas id="visits-monthly-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-monthly-title"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="card border-0 shadow-sm visit-chart-card">
-                <div class="card-body d-flex flex-column">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                </figure>
+                <figure class="visit-chart">
+                    <figcaption class="visit-chart__head">
                         <div>
-                            <h3 class="h6 mb-0" id="visits-type-title">Visits by type</h3>
-                            <p class="text-muted small mb-0">Distribution of visit categories.</p>
+                            <h3 id="visits-type-title">Visits by type</h3>
+                            <p>Share of visits in each category.</p>
                         </div>
-                        <div class="d-flex gap-2 align-items-center">
-                            <select id="visits-type-range" class="form-select form-select-sm w-auto" aria-label="Select time range for visits by type chart">
+                        <div class="visit-chart__tools">
+                            <select id="visits-type-range" class="form-select form-select-sm" aria-label="Period for visits by type">
                                 <option value="lastYear" selected>Last 12 months</option>
                                 <option value="all">All time</option>
                             </select>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-secondary"
-                                    data-chart-download="visits-type"
-                                    aria-label="Download visits by type chart">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-chart-download="visits-type" aria-label="Download the visits by type chart as an image">
                                 <i class="bi bi-download" aria-hidden="true"></i>
                             </button>
                         </div>
+                    </figcaption>
+                    <div id="visits-type-chart" class="visit-chart__canvas" data-types='@JsonSerializer.Serialize(Model.TypeMix, jsonOptions)'>
+                        <canvas id="visits-type-canvas" role="img" aria-labelledby="visits-type-title"></canvas>
+                        <p class="visit-chart__empty" data-visits-type-empty hidden>No visits in this period.</p>
                     </div>
-                    <div id="visits-type-chart"
-                         data-types='@System.Text.Json.JsonSerializer.Serialize(allVisitTypes, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
-                         class="flex-grow-1 pm-util-minh-240">
-                        <canvas id="visits-type-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-type-title"></canvas>
-                        <p class="visit-chart-empty" data-visits-type-empty hidden>No visits in this period.</p>
-                    </div>
-                </div>
+                </figure>
             </div>
-        </div>
-    </section>
-
-</div>
-
-<!-- FILTER MODAL -->
-<div class="modal fade" id="visitsFiltersModal" tabindex="-1" aria-labelledby="visitsFiltersModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="get">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="visitsFiltersModalLabel">Filter visits</h1>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-muted small mb-3">Refine visits by type, date range, or visitor/remarks text.</p>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label asp-for="VisitTypeId" class="form-label">Visit type</label>
-                            <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label" for="from-date-modal">From</label>
-                            <input id="from-date-modal" name="From" type="date" value="@(fromValue ?? string.Empty)" class="form-control" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label" for="to-date-modal">To</label>
-                            <input id="to-date-modal" name="To" type="date" value="@(toValue ?? string.Empty)" class="form-control" />
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label" for="search-modal">Visitor or remarks</label>
-                            <input id="search-modal" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <a asp-page="Index" class="btn btn-link text-decoration-none">Clear</a>
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-1">
-                        <i class="bi bi-funnel"></i>
-                        <span>Apply filters</span>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- EXPORT MODAL -->
-<div class="modal fade" id="exportVisitsModal" tabindex="-1" aria-labelledby="exportVisitsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="post" class="needs-validation" novalidate>
-                @Html.AntiForgeryToken()
-                <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="exportVisitsModalLabel">Export visits</h1>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-muted mb-3">Reuse current filters or narrow them further for this export.</p>
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label" for="export-visit-type">Visit type</label>
-                            <select id="export-visit-type" name="VisitTypeId" class="form-select">
-                                @foreach (var option in Model.VisitTypeOptions)
-                                {
-                                    <option value="@option.Value" selected="@option.Selected">@option.Text</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="export-search">Visitor or remarks</label>
-                            <input id="export-search" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
-                            <div class="form-text">Leave blank to include everything.</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="export-from-date">From</label>
-                            <input id="export-from-date" name="From" type="date" value="@(fromValue ?? string.Empty)" class="form-control" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="export-to-date">To</label>
-                            <input id="export-to-date" name="To" type="date" value="@(toValue ?? string.Empty)" class="form-control" />
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-outline-primary d-inline-flex align-items-center gap-2" asp-page-handler="ExportPdf">
-                        <i class="bi bi-filetype-pdf" aria-hidden="true"></i>
-                        <span>Export PDF</span>
-                    </button>
-                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" asp-page-handler="Export">
-                        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                        <span>Export Excel</span>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+        </section>
+    }
 </div>
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/project-office-reports/visits.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-register.css" asp-append-version="true" />
 }
 
 @section Scripts {

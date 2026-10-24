@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **7554** stylesheet literals in 84 files, **6** in inline view styles.
+Totals: **7530** stylesheet literals in 83 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -94,7 +94,7 @@ Totals: **7554** stylesheet literals in 84 files, **6** in inline view styles.
 
 ## Wave 4: Action tracker, tasks, office reports, admin and the rest
 
-1445 literals.
+1421 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
@@ -117,7 +117,6 @@ Totals: **7554** stylesheet literals in 84 files, **6** in inline view styles.
 | `project-office-reports/ffc-powerpoint-export.css` | 26 | 17 |
 | `project-office-reports/arpp-tokens.css` | 24 | 2 |
 | `project-office-reports/ffc-detailed-table.css` | 24 | 17 |
-| `project-office-reports/visits.css` | 24 | 13 |
 | `action-task-peek.css` | 21 | 15 |
 | `project-office-reports/ffc-footprint.css` | 15 | 11 |
 | `pages/media-intelligence.css` | 11 | 5 |

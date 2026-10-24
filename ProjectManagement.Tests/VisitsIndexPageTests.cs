@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -99,6 +100,176 @@ public sealed class VisitsIndexPageTests
         Assert.False(page.CanManage);
         Assert.NotNull(exportService.LastExcelRequest);
         Assert.Equal("viewer", exportService.LastExcelRequest?.RequestedByUserId);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_PagesSortsAndKeepsWholeRegisterFiguresWhenFiltered()
+    {
+        await using var db = CreateDb();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var (dignitaries, courses) = await SeedTypesAsync(db);
+
+        // 30 course visits over the last 30 days and one dignitary visit two years ago.
+        for (var i = 0; i < 30; i++)
+        {
+            db.Visits.Add(NewVisit(courses, today.AddDays(-i), $"Course {i:00}", 10 + i));
+        }
+
+        db.Visits.Add(NewVisit(dignitaries, today.AddYears(-2), "Old dignitary", 3));
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = CreatePage(db, userManager);
+        page.VisitTypeId = courses.Id;
+        page.Sort = "strength";
+        page.PageNumber = 2;
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        // Filtered register: 30 course visits, the second page of 25 by largest group.
+        Assert.Equal(30, page.TotalItems);
+        Assert.Equal(2, page.TotalPages);
+        Assert.Equal(5, page.Items.Count);
+        Assert.Equal(new[] { 14, 13, 12, 11, 10 }, page.Items.Select(v => v.Strength));
+        Assert.False(page.GroupByMonth);
+
+        // Headline figures cover the whole register: the old visit counts as on record only.
+        Assert.Equal(31, page.Summary.TotalVisits);
+        Assert.Equal(30, page.Summary.VisitsLast30);
+        Assert.Equal(today, page.Summary.LatestVisit);
+
+        // Both types stay filterable and keep their colour slots (by name).
+        Assert.Equal(1, page.ColourSlotFor(courses.Id));
+        Assert.Equal(2, page.ColourSlotFor(dignitaries.Id));
+    }
+
+    [Fact]
+    public async Task OnGetAsync_ClampsAPageBeyondTheLastToTheLastPage()
+    {
+        await using var db = CreateDb();
+        var (_, courses) = await SeedTypesAsync(db);
+        db.Visits.Add(NewVisit(courses, DateOnly.FromDateTime(DateTime.Today), "Only visit", 4));
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = CreatePage(db, userManager);
+        page.PageNumber = 9;
+        page.PageSize = 7;
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(25, page.PageSize);
+        Assert.Equal(1, page.PageNumber);
+        Assert.Single(page.Items);
+        Assert.True(page.GroupByMonth);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_RemarksPreviewDropsTheRepeatedVisitorName()
+    {
+        await using var db = CreateDb();
+        var (_, courses) = await SeedTypesAsync(db);
+        var visit = NewVisit(courses, DateOnly.FromDateTime(DateTime.Today), "Long Gunnery Staff Course - 5003", 60);
+        visit.Remarks = "Long Gunnery Staff Course - 5003. 48 x Indian Student Officers visited SDD.";
+        db.Visits.Add(visit);
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = CreatePage(db, userManager);
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal("48 x Indian Student Officers visited SDD.", Assert.Single(page.Items).RemarksPreview);
+    }
+
+    [Fact]
+    public async Task OnPostExportAsync_FailureReturnsToTheRegisterWithFiltersAndMessage()
+    {
+        await using var db = CreateDb();
+        using var userManager = CreateUserManager(db);
+        var exportService = new StubVisitExportService(
+            VisitExportResult.Failure("Start date must be before end date."),
+            VisitExportResult.Failure("unused"));
+        var page = new IndexModel(new VisitService(db, FakeClock.AtUtc(DateTimeOffset.UtcNow), new RecordingAudit(), new StubVisitPhotoService()),
+            new VisitTypeService(db, FakeClock.AtUtc(DateTimeOffset.UtcNow), new RecordingAudit()),
+            exportService,
+            userManager);
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+        page.Q = "course";
+        page.From = "2026-05-01";
+        page.To = "2026-01-01";
+
+        var result = await page.OnPostExportAsync(CancellationToken.None);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("course", redirect.RouteValues?["Q"]);
+        Assert.Equal("2026-05-01", redirect.RouteValues?["From"]);
+        Assert.Equal("Start date must be before end date.", page.TempData["ToastError"]);
+    }
+
+    [Fact]
+    public void AllPage_RedirectsToTheRegisterKeepingFilters()
+    {
+        var page = new AllModel { Q = "NDC", PageNumber = 3, PageSize = 50, From = " " };
+
+        var redirect = Assert.IsType<RedirectToPageResult>(page.OnGet());
+
+        Assert.Equal("Index", redirect.PageName);
+        Assert.Equal("NDC", redirect.RouteValues?["Q"]);
+        Assert.Equal(3, redirect.RouteValues?["PageNumber"]);
+        Assert.Equal(50, redirect.RouteValues?["PageSize"]);
+        Assert.Null(redirect.RouteValues?["From"]);
+    }
+
+    private static ApplicationDbContext CreateDb()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new ApplicationDbContext(options);
+    }
+
+    private static async Task<(VisitType Dignitaries, VisitType Courses)> SeedTypesAsync(ApplicationDbContext db)
+    {
+        VisitType Type(string name) => new()
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed-user",
+            IsActive = true,
+            RowVersion = new byte[] { 0x01 }
+        };
+
+        var dignitaries = Type("Mil Dignitaries");
+        var courses = Type("Course Visits");
+        db.VisitTypes.AddRange(dignitaries, courses);
+        await db.SaveChangesAsync();
+        return (dignitaries, courses);
+    }
+
+    private static Visit NewVisit(VisitType type, DateOnly date, string visitor, int strength) => new()
+    {
+        Id = Guid.NewGuid(),
+        VisitTypeId = type.Id,
+        DateOfVisit = date,
+        VisitorName = visitor,
+        Strength = strength,
+        CreatedAtUtc = DateTimeOffset.UtcNow,
+        CreatedByUserId = "seed-user",
+        RowVersion = new byte[] { 0x02 }
+    };
+
+    private static IndexModel CreatePage(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
+    {
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var page = new IndexModel(
+            new VisitService(db, clock, new RecordingAudit(), new StubVisitPhotoService()),
+            new VisitTypeService(db, clock, new RecordingAudit()),
+            new StubVisitExportService(VisitExportResult.Failure("unused"), VisitExportResult.Failure("unused")),
+            userManager);
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+        return page;
     }
 
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal user)
