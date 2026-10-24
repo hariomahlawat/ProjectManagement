@@ -566,6 +566,32 @@ public sealed class IprIndexPageTests
     }
 
     [Fact]
+    public async Task OnGetAsync_ClosedStatusScope_KeepsRejectedAndWithdrawnTogether()
+    {
+        await using var db = CreateDbContext();
+        db.IprRecords.AddRange(
+            new IprRecord { IprFilingNumber = "IPR-SCOPE-FILED", Title = "Filed", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-SCOPE-REJECTED", Title = "Rejected", Type = IprType.Patent, Status = IprStatus.Rejected, FiledAtUtc = new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-SCOPE-WITHDRAWN", Title = "Withdrawn", Type = IprType.Patent, Status = IprStatus.Withdrawn, FiledAtUtc = new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero) });
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+        {
+            Tab = "records",
+            StatusScope = "Closed"
+        };
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(new[] { IprStatus.Rejected, IprStatus.Withdrawn }, page.Statuses.OrderBy(status => status).ToArray());
+        Assert.Equal(2, page.TotalCount);
+        var selected = Assert.Single(page.StatusOptions, option => option.Selected);
+        Assert.Equal("Closed", selected.Value);
+    }
+
+    [Fact]
     public async Task OnGetAsync_DefaultView_OffersOnlyYearsOfCountedRecords()
     {
         await using var db = CreateDbContext();

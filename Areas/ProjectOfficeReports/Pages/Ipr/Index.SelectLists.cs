@@ -35,12 +35,18 @@ public sealed partial class IndexModel
 
         var supportedStatuses = IprStatusPolicy.SelectableStatuses;
 
-        StatusOptions = supportedStatuses
+        var currentScope = CurrentStatusScope();
+        var statusOptions = supportedStatuses
             .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
             {
-                Selected = Statuses.Contains(status)
+                Selected = string.Equals(currentScope, status.ToString(), StringComparison.Ordinal)
             })
             .ToList();
+        statusOptions.Insert(2, new SelectListItem("Rejected or withdrawn", ClosedStatusScope)
+        {
+            Selected = string.Equals(currentScope, ClosedStatusScope, StringComparison.Ordinal)
+        });
+        StatusOptions = statusOptions;
 
         var selectedFormType = Input.Type;
         StatusFormOptions = supportedStatuses
@@ -174,8 +180,43 @@ public sealed partial class IndexModel
         CanEdit = result.Succeeded;
     }
 
+    private const string ClosedStatusScope = "Closed";
+
+    // The drawer's single status choice that matches the current Statuses; empty means
+    // the default Filed and granted view.
+    private string CurrentStatusScope()
+    {
+        if (Statuses.Count == 0 ||
+            (Statuses.Count == 2 && Statuses.Contains(IprStatus.Filed) && Statuses.Contains(IprStatus.Granted)))
+        {
+            return string.Empty;
+        }
+
+        if (Statuses.All(IprStatusPolicy.IsClosed))
+        {
+            return Statuses.Count == 1 ? Statuses[0].ToString() : ClosedStatusScope;
+        }
+
+        return Statuses.Count == 1 ? Statuses[0].ToString() : string.Empty;
+    }
+
     private void NormalizeFilters()
     {
+        if (!string.IsNullOrWhiteSpace(StatusScope))
+        {
+            var scope = StatusScope.Trim();
+            if (string.Equals(scope, ClosedStatusScope, StringComparison.OrdinalIgnoreCase))
+            {
+                Statuses = IprStatusPolicy.ClosedStatuses.ToList();
+            }
+            else if (Enum.TryParse<IprStatus>(scope, ignoreCase: true, out var scopedStatus))
+            {
+                Statuses = new List<IprStatus> { scopedStatus };
+            }
+
+            StatusScope = null;
+        }
+
         Types = Types
             .Where(type => type is IprType.Patent or IprType.Copyright)
             .Distinct()
