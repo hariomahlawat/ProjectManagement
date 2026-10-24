@@ -332,7 +332,9 @@ function readChartTheme() {
         axisColor: palette?.axisColor || fallback.axisColor,
         gridColor: palette?.gridColor || fallback.gridColor,
         accents: palette?.accents?.length ? palette.accents : fallback.accents,
-        surface: styles.getPropertyValue('--pm-card').trim() || '#ffffff'
+        surface: styles.getPropertyValue('--pm-card').trim() || '#ffffff',
+        // The visitors line is neutral ink, so it never shares a colour with a visit type.
+        ink: styles.getPropertyValue('--pm-text-strong').trim() || '#1f2937'
     };
 }
 
@@ -371,16 +373,18 @@ function initVisitsCharts() {
     function buildTypeDataset(range) {
         const labels = [];
         const values = [];
+        const slots = [];
 
         typeData.forEach(t => {
             const val = range === 'lastYear' ? t.countLastYear : t.count;
             if (val > 0) {
                 labels.push(t.name);
                 values.push(val);
+                slots.push(t.colourSlot || labels.length);
             }
         });
 
-        return { labels, values };
+        return { labels, values, slots };
     }
 
     function showTypeEmptyState(isEmpty) {
@@ -390,8 +394,9 @@ function initVisitsCharts() {
         }
     }
 
-    function typeColours(count) {
-        return Array.from({ length: count }, (_, index) => theme.accents[index % theme.accents.length]);
+    // Each type keeps the colour slot it has in the register's type tags.
+    function typeColours(slots) {
+        return slots.map(slot => theme.accents[(slot - 1) % theme.accents.length]);
     }
 
     function buildMonthlyChart() {
@@ -410,11 +415,11 @@ function initVisitsCharts() {
                         order: 2
                     },
                     {
-                        label: 'People',
+                        label: 'Visitors',
                         data: monthlyData.map(x => x.strength),
                         type: 'line',
-                        borderColor: theme.accents[1],
-                        backgroundColor: theme.accents[1],
+                        borderColor: theme.ink,
+                        backgroundColor: theme.ink,
                         borderWidth: 2,
                         // Straight segments: a curve would suggest values between months.
                         tension: 0,
@@ -448,7 +453,7 @@ function initVisitsCharts() {
                         grid: { drawOnChartArea: false },
                         ticks: { precision: 0, color: theme.axisColor },
                         border: { display: false },
-                        title: { display: true, text: 'People', color: theme.axisColor }
+                        title: { display: true, text: 'Visitors', color: theme.axisColor }
                     }
                 },
                 plugins: {
@@ -471,7 +476,7 @@ function initVisitsCharts() {
                 labels: dataset.labels,
                 datasets: [{
                     data: dataset.values,
-                    backgroundColor: typeColours(dataset.values.length),
+                    backgroundColor: typeColours(dataset.slots),
                     borderColor: theme.surface,
                     borderWidth: 2
                 }]
@@ -501,7 +506,7 @@ function initVisitsCharts() {
             showTypeEmptyState(next.values.length === 0);
             typeChart.data.labels = next.labels;
             typeChart.data.datasets[0].data = next.values;
-            typeChart.data.datasets[0].backgroundColor = typeColours(next.values.length);
+            typeChart.data.datasets[0].backgroundColor = typeColours(next.slots);
             typeChart.update();
         });
     }
@@ -545,222 +550,6 @@ function initVisitsCharts() {
 }
 
 // ----------------------------------------------------
-// VISIT PHOTO VIEWER
-// ----------------------------------------------------
-
-function initVisitPhotoViewer() {
-    const gallery = document.querySelector('[data-visit-gallery]');
-    const viewerEl = document.querySelector('[data-visit-photo-viewer]');
-    const bootstrap = ensureBootstrapModal();
-
-    // Progressive enhancement: without Bootstrap/JS, the existing href continues
-    // to serve the secured XL image directly.
-    if (!gallery || !viewerEl || !bootstrap) {
-        return;
-    }
-
-    const items = Array.from(gallery.querySelectorAll('[data-visit-gallery-item]'));
-    if (items.length === 0) {
-        return;
-    }
-
-    const image = viewerEl.querySelector('[data-visit-photo-viewer-image]');
-    const counter = viewerEl.querySelector('[data-visit-photo-viewer-counter]');
-    const caption = viewerEl.querySelector('[data-visit-photo-viewer-caption]');
-    const coverBadge = viewerEl.querySelector('[data-visit-photo-viewer-cover]');
-    const previousButton = viewerEl.querySelector('[data-visit-photo-viewer-prev]');
-    const nextButton = viewerEl.querySelector('[data-visit-photo-viewer-next]');
-    const stage = viewerEl.querySelector('[data-visit-photo-viewer-stage]');
-    const loading = viewerEl.querySelector('[data-visit-photo-viewer-loading]');
-    const error = viewerEl.querySelector('[data-visit-photo-viewer-error]');
-
-    if (!image || !counter || !caption || !coverBadge || !previousButton || !nextButton || !stage) {
-        return;
-    }
-
-    const modal = bootstrap.Modal.getOrCreateInstance(viewerEl, {
-        keyboard: true,
-        focus: true
-    });
-
-    let activeIndex = 0;
-    let loadSequence = 0;
-    let lastTrigger = null;
-    let touchStartX = null;
-
-    const readItem = index => {
-        const item = items[index];
-        if (!item) {
-            return null;
-        }
-
-        return {
-            url: item.getAttribute('data-photo-url') || item.getAttribute('href') || '',
-            caption: item.getAttribute('data-photo-caption') || '',
-            isCover: item.getAttribute('data-photo-cover') === 'true'
-        };
-    };
-
-    const setLoadingState = isLoading => {
-        viewerEl.classList.toggle('is-loading', isLoading);
-        if (loading) {
-            loading.hidden = !isLoading;
-        }
-        if (isLoading && error) {
-            error.hidden = true;
-        }
-    };
-
-    const setErrorState = hasError => {
-        viewerEl.classList.toggle('has-error', hasError);
-        if (error) {
-            error.hidden = !hasError;
-        }
-        if (hasError && loading) {
-            loading.hidden = true;
-        }
-    };
-
-    const preloadAdjacent = index => {
-        [index - 1, index + 1].forEach(adjacentIndex => {
-            const adjacent = readItem(adjacentIndex);
-            if (!adjacent?.url) {
-                return;
-            }
-
-            const preload = new Image();
-            preload.decoding = 'async';
-            preload.src = adjacent.url;
-        });
-    };
-
-    const render = index => {
-        const item = readItem(index);
-        if (!item?.url) {
-            return;
-        }
-
-        activeIndex = index;
-        const sequence = ++loadSequence;
-        const position = index + 1;
-
-        counter.textContent = `${position} of ${items.length}`;
-        previousButton.disabled = index === 0;
-        nextButton.disabled = index === items.length - 1;
-
-        coverBadge.hidden = !item.isCover;
-        caption.textContent = item.caption;
-        caption.hidden = !item.caption;
-
-        image.alt = item.caption || `Visit photo ${position} of ${items.length}`;
-        image.dataset.activeUrl = item.url;
-        image.classList.remove('is-ready');
-        setErrorState(false);
-        setLoadingState(true);
-
-        const handleLoad = () => {
-            if (sequence !== loadSequence) {
-                return;
-            }
-
-            setLoadingState(false);
-            image.classList.add('is-ready');
-            preloadAdjacent(index);
-        };
-
-        const handleError = () => {
-            if (sequence !== loadSequence) {
-                return;
-            }
-
-            setLoadingState(false);
-            setErrorState(true);
-        };
-
-        image.addEventListener('load', handleLoad, { once: true });
-        image.addEventListener('error', handleError, { once: true });
-        image.src = item.url;
-    };
-
-    const move = delta => {
-        const nextIndex = activeIndex + delta;
-        if (nextIndex < 0 || nextIndex >= items.length) {
-            return;
-        }
-
-        render(nextIndex);
-    };
-
-    const handleKeydown = event => {
-        if (event.key === 'ArrowLeft') {
-            event.preventDefault();
-            move(-1);
-        } else if (event.key === 'ArrowRight') {
-            event.preventDefault();
-            move(1);
-        }
-    };
-
-    previousButton.addEventListener('click', () => move(-1));
-    nextButton.addEventListener('click', () => move(1));
-
-    stage.addEventListener('click', event => {
-        if (event.target === stage) {
-            modal.hide();
-        }
-    });
-
-    stage.addEventListener('touchstart', event => {
-        if (event.touches.length === 1) {
-            touchStartX = event.touches[0].clientX;
-        }
-    }, { passive: true });
-
-    stage.addEventListener('touchend', event => {
-        if (touchStartX === null || event.changedTouches.length === 0) {
-            touchStartX = null;
-            return;
-        }
-
-        const deltaX = event.changedTouches[0].clientX - touchStartX;
-        touchStartX = null;
-
-        if (Math.abs(deltaX) < 48) {
-            return;
-        }
-
-        move(deltaX > 0 ? -1 : 1);
-    }, { passive: true });
-
-    items.forEach((item, index) => {
-        item.addEventListener('click', event => {
-            event.preventDefault();
-            lastTrigger = item;
-            render(index);
-            modal.show();
-        });
-    });
-
-    viewerEl.addEventListener('shown.bs.modal', () => {
-        document.addEventListener('keydown', handleKeydown);
-        stage.focus({ preventScroll: true });
-    });
-
-    viewerEl.addEventListener('hidden.bs.modal', () => {
-        document.removeEventListener('keydown', handleKeydown);
-        loadSequence += 1;
-        image.removeAttribute('src');
-        image.classList.remove('is-ready');
-        setLoadingState(false);
-        setErrorState(false);
-
-        if (lastTrigger && typeof lastTrigger.focus === 'function') {
-            lastTrigger.focus({ preventScroll: true });
-        }
-    });
-}
-
-// ----------------------------------------------------
 // PHOTO UPLOAD GUARDRAILS
 // ----------------------------------------------------
 
@@ -769,43 +558,138 @@ function formatMb(bytes) {
     return (bytes / (1024 * 1024)).toFixed(1);
 }
 
+// A file size people can read: KB under a megabyte, otherwise MB to one decimal.
+function formatSize(bytes) {
+    return bytes < 1024 * 1024
+        ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+        : `${formatMb(bytes)} MB`;
+}
+
+// A configured limit, as the help text states it (20 MB, not 20.0 MB).
+function formatLimit(bytes) {
+    return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
 // SECTION: Photo upload interactions
 function initPhotoUploadInputs() {
     const inputs = document.querySelectorAll('[data-photo-upload-input]');
     inputs.forEach(input => {
-        const summaryId = input.getAttribute('aria-describedby')
-            ?.split(' ')
-            .map(id => id.trim())
-            .find(id => id.endsWith('photo-summary'));
-        const summaryEl = summaryId ? document.getElementById(summaryId) : null;
+        const picker = input.closest('[data-photo-picker]');
+        const summaryEl = picker?.querySelector('[data-photo-upload-summary]');
+        const previewEl = picker?.querySelector('[data-photo-upload-preview]');
+        const dropZone = input.closest('.visit-photo-picker__drop');
         const maxFiles = Number(input.getAttribute('data-max-files') || '0');
         const maxBytes = Number(input.getAttribute('data-max-bytes') || '0');
+        const maxBatchBytes = Number(input.getAttribute('data-max-batch-bytes') || '0');
+        let previewUrls = [];
+        let problem = null;
 
-        input.addEventListener('change', () => {
+        const clearPreviews = () => {
+            previewUrls.forEach(url => URL.revokeObjectURL(url));
+            previewUrls = [];
+            if (previewEl) {
+                previewEl.replaceChildren();
+            }
+        };
+
+        // SECTION: Selection check and previews
+        const render = () => {
             const files = Array.from(input.files || []);
-            if (!summaryEl) {
+            const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
+            const oversized = files.filter(file => maxBytes > 0 && (file.size || 0) > maxBytes);
+
+            problem = null;
+            if (maxFiles > 0 && files.length > maxFiles) {
+                problem = `Choose up to ${maxFiles} photos at a time; ${files.length} are selected.`;
+            } else if (oversized.length > 0) {
+                problem = oversized.length === 1
+                    ? `"${oversized[0].name}" is larger than ${formatLimit(maxBytes)}.`
+                    : `${oversized.length} photos are larger than ${formatLimit(maxBytes)} each.`;
+            } else if (maxBatchBytes > 0 && totalBytes > maxBatchBytes) {
+                problem = `Together these photos are ${formatSize(totalBytes)}; the limit is ${formatLimit(maxBatchBytes)}.`;
+            }
+
+            if (summaryEl) {
+                summaryEl.classList.toggle('is-invalid', problem !== null);
+                summaryEl.textContent = files.length === 0
+                    ? ''
+                    : problem ?? `${files.length} ${files.length === 1 ? 'photo' : 'photos'} selected · ${formatSize(totalBytes)}`;
+            }
+            input.setCustomValidity(problem ?? '');
+
+            clearPreviews();
+            if (!previewEl) {
                 return;
             }
 
-            // SECTION: Count guardrail
-            if (maxFiles > 0 && files.length > maxFiles) {
-                showToast(`You can upload up to ${maxFiles} photos at a time.`, 'danger');
-            }
-
-            // SECTION: Summary rendering
-            const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
-            summaryEl.textContent = files.length === 0
-                ? ''
-                : `Selected: ${files.length} file(s), total ${formatMb(totalBytes)} MB.`;
-
-            // SECTION: Size guardrail
-            if (maxBytes > 0) {
-                const oversized = files.find(file => (file.size || 0) > maxBytes);
-                if (oversized) {
-                    showToast(`\"${oversized.name}\" exceeds the per-photo limit. Please choose a smaller file.`, 'danger');
+            files.slice(0, 48).forEach(file => {
+                const item = document.createElement('li');
+                item.className = 'visit-photo-preview';
+                if (maxBytes > 0 && (file.size || 0) > maxBytes) {
+                    item.classList.add('is-too-large');
                 }
+
+                const img = document.createElement('img');
+                img.alt = '';
+                if (file.type && file.type.startsWith('image/')) {
+                    const url = URL.createObjectURL(file);
+                    previewUrls.push(url);
+                    img.src = url;
+                }
+
+                const name = document.createElement('span');
+                name.className = 'visit-photo-preview__name';
+                name.textContent = file.name;
+                name.title = file.name;
+
+                const size = document.createElement('span');
+                size.className = 'visit-photo-preview__size';
+                size.textContent = formatSize(file.size || 0);
+
+                item.append(img, name, size);
+                previewEl.append(item);
+            });
+        };
+
+        input.addEventListener('change', render);
+
+        // Stop the form being sent while the selection breaks the limits; the server checks again.
+        input.form?.addEventListener('submit', event => {
+            if (problem) {
+                event.preventDefault();
+                showToast(problem, 'danger');
+                input.focus();
             }
         });
+
+        // SECTION: Drag highlight
+        if (dropZone) {
+            ['dragenter', 'dragover'].forEach(type => input.addEventListener(type, () => dropZone.classList.add('is-dragging')));
+            ['dragleave', 'drop'].forEach(type => input.addEventListener(type, () => dropZone.classList.remove('is-dragging')));
+        }
+
+        window.addEventListener('pagehide', clearPreviews);
+    });
+}
+
+// SECTION: Character counters
+// <span data-char-counter-for="fieldId"> shows how much of a maxlength field is left.
+function initCharacterCounters() {
+    document.querySelectorAll('[data-char-counter-for]').forEach(counter => {
+        const field = document.getElementById(counter.getAttribute('data-char-counter-for') || '');
+        const limit = Number(field?.getAttribute('maxlength') || '0');
+        if (!field || limit <= 0) {
+            return;
+        }
+
+        const update = () => {
+            const used = field.value.length;
+            counter.textContent = `${used.toLocaleString()} / ${limit.toLocaleString()}`;
+            counter.classList.toggle('is-near-limit', used >= limit * 0.9);
+        };
+
+        field.addEventListener('input', update);
+        update();
     });
 }
 
@@ -847,6 +731,72 @@ function initGalleryFallbacks() {
     });
 }
 
+// SECTION: Register rows
+// The visitor name is the real link; a click anywhere else on the row opens the same visit.
+function initRegisterRows() {
+    document.querySelectorAll('tr[data-row-href]').forEach(row => {
+        row.addEventListener('click', event => {
+            if (event.defaultPrevented || event.target.closest('a, button, input, select, textarea, label')) {
+                return;
+            }
+            if (window.getSelection && String(window.getSelection()).length > 0) {
+                return;
+            }
+            const href = row.getAttribute('data-row-href');
+            if (!href) {
+                return;
+            }
+            if (event.ctrlKey || event.metaKey) {
+                window.open(href, '_blank', 'noopener');
+                return;
+            }
+            window.location.assign(href);
+        });
+    });
+
+    // A thumbnail whose file cannot be served falls back to the no-photo tile.
+    document.querySelectorAll('.visit-entry__thumb img').forEach(img => {
+        const fallback = () => {
+            const thumb = img.closest('.visit-entry__thumb');
+            if (!thumb || thumb.classList.contains('is-missing')) {
+                return;
+            }
+            thumb.classList.add('is-missing', 'visit-entry__thumb--none');
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-image';
+            icon.setAttribute('aria-hidden', 'true');
+            thumb.prepend(icon);
+        };
+        if (img.complete && img.naturalWidth === 0) {
+            fallback();
+        } else {
+            img.addEventListener('error', fallback, { once: true });
+        }
+    });
+}
+
+// SECTION: Cover photo on the record page
+// The cover opens the shared viewer through its data-media-viewer-open attributes; here it only
+// falls back to a quiet placeholder when the stored file cannot be served.
+function initCoverPhoto() {
+    document.querySelectorAll('[data-visit-cover]').forEach(button => {
+        const cover = button.closest('.visit-cover');
+        const img = button.querySelector('img');
+        const markMissing = () => {
+            cover?.classList.add('is-missing');
+            button.disabled = true;
+        };
+        if (!img) {
+            return;
+        }
+        if (img.complete && img.naturalWidth === 0) {
+            markMissing();
+        } else {
+            img.addEventListener('error', markMissing, { once: true });
+        }
+    });
+}
+
 // ----------------------------------------------------
 // INITIALISE EVERYTHING
 // ----------------------------------------------------
@@ -855,9 +805,11 @@ function init() {
     initConfirmations();
     initDisableOnSubmit();
     initVisitsCharts();
-    initVisitPhotoViewer();
     initGalleryFallbacks();
+    initRegisterRows();
+    initCoverPhoto();
     initPhotoUploadInputs();
+    initCharacterCounters();
     initVisitRegisterPageSize();
 }
 

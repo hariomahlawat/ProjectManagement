@@ -11,7 +11,7 @@
 }
 else
 {
-    <div class="visit-gallery" data-visit-gallery>
+    <div class="visit-gallery">
         @for (var index = 0; index < Model.Photos.Count; index++)
         {
             var photo = Model.Photos[index];
@@ -33,14 +33,11 @@ else
                 : caption;
 
             <article class="visit-gallery-card">
+                @* Opens the shared full-screen viewer (_MediaViewer); without JavaScript, the full photo. *@
                 <a href="@versionedFull"
                    class="visit-gallery-card__image"
-                   data-visit-gallery-item
-                   data-photo-id="@photo.Id"
-                   data-photo-url="@versionedFull"
-                   data-photo-index="@index"
-                   data-photo-caption="@caption"
-                   data-photo-cover="@(isCover ? "true" : "false")"
+                   data-media-viewer-open="@VisitMediaViewerItems.Group"
+                   data-media-viewer-key="@VisitMediaViewerItems.KeyFor(photo.Id)"
                    aria-label="@accessibleLabel">
                     <div class="visit-gallery-card__frame">
                         <img src="@versionedThumbnail"

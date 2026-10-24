@@ -38,6 +38,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
 | [Project Officer briefing desk](ux/project-officer-briefing-desk.md) | PO landing page: brief-ready rules, inline posts and the services they reuse. |
 | [Command desk](ux/command-desk.md) | HoD/Comdt desk: what moved forward, what waits on the viewer, what is lagging and which registers have gone quiet. |
+| [Visits to SDD](ux/visits.md) | The Visits register, record page and editor: what each shows, which figures follow the filters, messages and styles. |
 | [Public pages](ux/public-pages.md) | Signed-out landing and sign-in pages: the prism concept, where the copy comes from, tokens and the signed-out theme switch. |
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
 | [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |

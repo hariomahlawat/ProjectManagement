@@ -1,0 +1,341 @@
+/* ================================================================
+   Visits to SDD — Record a visit and Edit visit
+   Site tokens only. Rules: docs/ux/visits.md
+   ================================================================ */
+
+.visit-editor-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-width: 60rem;
+    padding-block: 0.25rem 2rem;
+}
+
+.visit-editor-page__head h1 {
+    margin: 0;
+    font-family: var(--pm-font-heading);
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--pm-text-strong);
+}
+
+.visit-editor-page__head p {
+    margin: 0.25rem 0 0;
+    color: var(--pm-text-muted);
+    overflow-wrap: anywhere;
+}
+
+.visit-editor {
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 0.875rem;
+    background: var(--pm-card);
+}
+
+.visit-editor__summary:empty,
+.visit-editor__summary.validation-summary-valid {
+    display: none;
+}
+
+.visit-editor__summary {
+    margin: 1.25rem 1.5rem 0;
+}
+
+.visit-editor__summary ul {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.visit-editor__section {
+    padding: 1.35rem 1.5rem 1.5rem;
+}
+
+.visit-editor__section + .visit-editor__section {
+    border-top: 1px solid var(--pm-divider);
+}
+
+.visit-editor__heading {
+    margin: 0 0 1rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
+.visit-editor__optional {
+    margin-left: 0.3rem;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 500;
+    color: var(--pm-text-muted);
+}
+
+.visit-editor__hint {
+    margin: -0.5rem 0 1rem;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
+}
+
+/* Fields: date, type and number on one row; visitor and remarks full width. */
+.visit-editor__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 0.8fr);
+    gap: 1rem 1.25rem;
+}
+
+/* Short forms (Visit types) */
+.visit-editor-page--narrow {
+    max-width: 40rem;
+}
+
+.visit-editor__grid--single,
+.visit-editor__grid.visit-editor__grid--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.visit-editor__field {
+    min-width: 0;
+}
+
+.visit-editor__field--full {
+    grid-column: 1 / -1;
+}
+
+.visit-editor__field .form-label {
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+}
+
+.visit-editor__label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.visit-editor__counter {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.visit-editor__counter.is-near-limit {
+    color: var(--pm-danger);
+}
+
+/* Footer: stays in reach at the bottom of long forms. */
+.visit-editor__footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1.5rem;
+    border-top: 1px solid var(--pm-divider);
+    border-radius: 0 0 0.875rem 0.875rem;
+    background: var(--pm-card);
+}
+
+.visit-editor__submit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.visit-editor__cancel {
+    padding-inline: 0;
+    color: var(--pm-text-secondary);
+}
+
+/* Photo chooser */
+.visit-photo-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.visit-photo-picker__drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 1.5rem 1rem;
+    border: 1.5px dashed var(--pm-border);
+    border-radius: 0.75rem;
+    background: var(--pm-surface-soft);
+    color: var(--pm-text-secondary);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.visit-photo-picker__drop:hover,
+.visit-photo-picker__drop.is-dragging,
+.visit-photo-picker__drop:focus-within {
+    border-color: var(--pm-primary);
+    background: var(--pm-surface-contrast);
+}
+
+.visit-photo-picker__drop .bi {
+    font-size: 1.6rem;
+    color: var(--pm-primary);
+}
+
+.visit-photo-picker__prompt strong {
+    color: var(--pm-link);
+}
+
+.visit-photo-picker__limits {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+/* The real input covers the drop zone, so clicks and drops reach it. */
+.visit-photo-picker__input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.visit-photo-picker__summary {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-secondary);
+}
+
+.visit-photo-picker__summary:empty {
+    display: none;
+}
+
+.visit-photo-picker__summary.is-invalid {
+    color: var(--pm-danger);
+    font-weight: 600;
+}
+
+.visit-photo-picker__previews {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.visit-photo-picker__previews:empty {
+    display: none;
+}
+
+.visit-photo-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.visit-photo-preview img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    border: 1px solid var(--pm-border-muted);
+    background: var(--pm-surface-muted);
+}
+
+.visit-photo-preview__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-secondary);
+}
+
+.visit-photo-preview__size {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.visit-photo-preview.is-too-large img {
+    outline: 2px solid var(--pm-danger);
+    outline-offset: -2px;
+}
+
+.visit-photo-preview.is-too-large .visit-photo-preview__size {
+    color: var(--pm-danger);
+    font-weight: 600;
+}
+
+.visit-photo-picker__caption {
+    max-width: 36rem;
+}
+
+/* Edit: the photo manager */
+.visit-editor--photos {
+    scroll-margin-top: 5.5rem;
+}
+
+.visit-editor__upload {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.visit-editor__upload-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.visit-editor__gallery {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--pm-divider);
+}
+
+@media (max-width: 767.98px) {
+    .visit-editor__section {
+        padding: 1.1rem 1rem 1.25rem;
+    }
+
+    .visit-editor__grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .visit-editor__field--type {
+        grid-column: 1 / -1;
+        order: -1;
+    }
+
+    .visit-editor__footer {
+        padding: 0.75rem 1rem;
+    }
+
+    .visit-editor__submit {
+        flex: 1;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 479.98px) {
+    /* Three stacked buttons would take a fifth of the screen; let the footer scroll with the form. */
+    .visit-editor__footer {
+        position: static;
+    }
+
+    .visit-editor__submit,
+    .visit-editor__submit .btn {
+        width: 100%;
+    }
+
+    .visit-editor__cancel {
+        order: 2;
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .visit-photo-picker__drop {
+        transition: none;
+    }
+}

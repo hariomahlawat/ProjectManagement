@@ -1,48 +1,60 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.VisitTypes.EditModel
 @{
-    ViewData["Title"] = "Edit Visit Type";
+    ViewData["Title"] = "Edit visit type · Visits to SDD";
 }
 
-<div class="visit-tracker">
-    <div class="pm-card">
-        <div class="pm-card-header">
-            <div class="pm-card-heading">
-                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-pencil-square"></i></span>
-                <div>
-                    <h1 class="pm-card-title">Edit visit type</h1>
-                    <p class="pm-card-subtitle mb-0">Keep your visit categories up to date.</p>
-                </div>
-            </div>
-            <div class="pm-card-actions">
-                <a asp-page="Index" class="btn btn-outline-secondary">Back to visit types</a>
-            </div>
-        </div>
-        <div class="pm-card-body">
-            <form method="post" novalidate class="visit-form visit-form--narrow">
-                <input type="hidden" asp-for="RowVersion" />
-                <div class="mb-3">
-                    <label asp-for="Input.Name" class="form-label"></label>
+<div class="visit-editor-page visit-editor-page--narrow">
+    <nav aria-label="Breadcrumb" class="visit-record__crumbs">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-page="/Visits/Index">Visits to SDD</a></li>
+            <li class="breadcrumb-item"><a asp-page="Index">Visit types</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Edit</li>
+        </ol>
+    </nav>
+
+    <header class="visit-editor-page__head">
+        <h1>Edit visit type</h1>
+        <p>Renaming a type changes it on every visit that uses it.</p>
+    </header>
+
+    <form method="post" class="visit-editor">
+        <input type="hidden" asp-for="RowVersion" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger visit-editor__summary" role="alert"></div>
+        <section class="visit-editor__section">
+            <div class="visit-editor__grid visit-editor__grid--single">
+                <div class="visit-editor__field">
+                    <label asp-for="Input.Name" class="form-label">Name</label>
                     <input asp-for="Input.Name" class="form-control" autocomplete="off" />
-                    <span asp-validation-for="Input.Name" class="text-danger"></span>
+                    <span asp-validation-for="Input.Name" class="invalid-feedback d-block"></span>
                 </div>
-                <div class="mb-3">
-                    <label asp-for="Input.Description" class="form-label"></label>
+                <div class="visit-editor__field">
+                    <label asp-for="Input.Description" class="form-label">Description <span class="visit-editor__optional">optional</span></label>
                     <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
-                    <span asp-validation-for="Input.Description" class="text-danger"></span>
+                    <span asp-validation-for="Input.Description" class="invalid-feedback d-block"></span>
                 </div>
-                <div class="form-check form-switch visit-form__switch mb-4">
-                    <input asp-for="Input.IsActive" class="form-check-input" />
-                    <label asp-for="Input.IsActive" class="form-check-label">Active</label>
+                <div class="visit-editor__field">
+                    <div class="form-check form-switch">
+                        <input asp-for="Input.IsActive" class="form-check-input" role="switch" />
+                        <label asp-for="Input.IsActive" class="form-check-label">Offer this type when recording new visits</label>
+                    </div>
+                    <div class="form-text">Turning this off keeps the type on existing visits and in the register filters.</div>
                 </div>
-                <div class="visit-form__footer">
-                    <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Save changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
+            </div>
+        </section>
+        <footer class="visit-editor__footer">
+            <a asp-page="Index" class="btn btn-link visit-editor__cancel">Cancel</a>
+            <div class="visit-editor__submit">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i> Save changes</button>
+            </div>
+        </footer>
+    </form>
 </div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-editor.css" asp-append-version="true" />
+}
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

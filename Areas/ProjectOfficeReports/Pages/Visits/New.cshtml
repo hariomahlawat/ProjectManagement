@@ -1,160 +1,51 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.NewModel
 @{
-    ViewData["Title"] = "Record visit to SDD";
+    ViewData["Title"] = "Record a visit · Visits to SDD";
+    ViewData["VisitTypeOptions"] = Model.VisitTypeOptions;
 }
 
-@if (!Model.CanManage)
-{
-    <div class="visit-shell visit-tracker">
-        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Record visit to SDD</li>
-            </ol>
-        </nav>
-        <div class="visit-access-card">
-            <div class="visit-empty text-center py-5">
-                <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-shield-lock"></i></div>
-                <h2 class="visit-empty__title">Access restricted</h2>
-                <p class="visit-empty__subtitle">You do not have permission to create visits.</p>
-            </div>
-        </div>
-    </div>
-}
-else
-{
-    <div class="visit-shell visit-tracker">
-        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Record visit to SDD</li>
-            </ol>
-        </nav>
+<div class="visit-editor-page">
+    <nav aria-label="Breadcrumb" class="visit-record__crumbs">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Record a visit</li>
+        </ol>
+    </nav>
 
-        <section class="visit-hero visit-hero--form">
-            <div class="visit-hero__content">
-                <h1 class="visit-hero__title">Record visit to SDD</h1>
-                <div class="visit-hero__actions">
-                    <a asp-page="Index" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
-                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                        <span>Back to Visits to SDD</span>
-                    </a>
-                </div>
-            </div>
+    <header class="visit-editor-page__head">
+        <h1>Record a visit</h1>
+        <p>A dignitary, course or delegation hosted by SDD. Photos can be added now or later.</p>
+    </header>
+
+    <form method="post" enctype="multipart/form-data" class="visit-editor" data-visits-disable-on-submit>
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger visit-editor__summary" role="alert"></div>
+
+        <section class="visit-editor__section" aria-labelledby="visit-editor-details">
+            <h2 id="visit-editor-details" class="visit-editor__heading">The visit</h2>
+            <partial name="_VisitFields" for="Input" />
         </section>
 
-        <div class="visit-form-layout">
-            <div class="visit-form-layout__primary">
-                <form method="post" enctype="multipart/form-data" novalidate class="visit-form" data-visits-disable-on-submit>
-                    <div class="visit-form-card">
-                        <div class="visit-form-card__header">
-                            <h2 class="visit-form-card__title">Visit overview</h2>
-                            <p class="visit-form-card__subtitle">Capture who visited SDD, when they visited, the visit type, strength, and reporting remarks.</p>
-                        </div>
-                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-                        <div class="visit-form-grid">
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.DateOfVisit" class="form-label"></label>
-                                <input asp-for="Input.DateOfVisit" class="form-control" type="date" />
-                                <span asp-validation-for="Input.DateOfVisit" class="text-danger"></span>
-                            </div>
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.VisitTypeId" class="form-label"></label>
-                                <select asp-for="Input.VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
-                                <span asp-validation-for="Input.VisitTypeId" class="text-danger"></span>
-                            </div>
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.VisitorName" class="form-label"></label>
-                                <input asp-for="Input.VisitorName" class="form-control" placeholder="Name of visitor" />
-                                <span asp-validation-for="Input.VisitorName" class="text-danger"></span>
-                            </div>
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.Strength" class="form-label"></label>
-                                <input asp-for="Input.Strength" class="form-control" type="number" min="1" step="1" placeholder="Team size" />
-                                <span asp-validation-for="Input.Strength" class="text-danger"></span>
-                            </div>
-                        </div>
-                    </div>
+        <section class="visit-editor__section" aria-labelledby="visit-editor-photos">
+            <h2 id="visit-editor-photos" class="visit-editor__heading">Photos <span class="visit-editor__optional">optional</span></h2>
+            <partial name="_PhotoPicker" model="Model.PhotoPicker" />
+        </section>
 
-                    <div class="visit-form-card">
-                        <div class="visit-form-card__header">
-                            <h2 class="visit-form-card__title">Visit insights</h2>
-                            <p class="visit-form-card__subtitle">Summarise discussions, directions, or follow-up actions that emerged during the visit.</p>
-                        </div>
-                        <div class="visit-form-grid visit-form-grid--single">
-                            <div class="visit-form-grid__field">
-                                <label asp-for="Input.Remarks" class="form-label"></label>
-                                <textarea asp-for="Input.Remarks" class="form-control" rows="5" placeholder="Optional remarks or key observations"></textarea>
-                                <span asp-validation-for="Input.Remarks" class="text-danger"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="visit-form-card">
-                        <div class="visit-form-card__header">
-                            <h2 class="visit-form-card__title">Photo evidence</h2>
-                            <p class="visit-form-card__subtitle">Photos are optional at creation time and will be uploaded after the visit is saved.</p>
-                        </div>
-                        <div class="visit-form-grid visit-form-grid--single">
-                            <div class="visit-form-grid__field">
-                                <label class="form-label" for="visit-photo">Photo evidence</label>
-                                <input id="visit-photo"
-                                       class="form-control"
-                                       type="file"
-                                       asp-for="Uploads"
-                                       accept="image/*"
-                                       multiple
-                                       data-photo-upload-input
-                                       data-max-files="@Model.VisitPhotoMaxFiles"
-                                       data-max-bytes="@Model.VisitPhotoMaxBytes"
-                                       aria-describedby="visit-photo-help visit-photo-summary" />
-                                <span asp-validation-for="Uploads" class="text-danger"></span>
-                                <div class="form-text" id="visit-photo-help">@Model.VisitPhotoHelpText</div>
-                                <div class="form-text" id="visit-photo-summary" data-photo-upload-summary></div>
-                            </div>
-                            <div class="visit-form-grid__field">
-                                <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>
-                                <input asp-for="UploadCaption" class="form-control" placeholder="What does this photo set show?" />
-                                <span asp-validation-for="UploadCaption" class="text-danger"></span>
-                                <div class="form-text">Applied to every photo in this batch. You can manage captions and cover photo from the edit screen.</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="visit-form__footer">
-                        <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-                        <button type="submit" name="SaveMode" value="save" class="btn btn-primary" data-visits-busy-label="Saving…">Record visit</button>
-                        <button type="submit" name="SaveMode" value="save-add-another" class="btn btn-outline-primary" data-visits-busy-label="Saving…">Record and add another</button>
-                    </div>
-                </form>
+        <footer class="visit-editor__footer">
+            <a asp-page="Index" class="btn btn-link visit-editor__cancel">Cancel</a>
+            <div class="visit-editor__submit">
+                <button type="submit" name="SaveMode" value="save-add-another" class="btn btn-outline-primary" data-visits-busy-label="Saving…">Record and add another</button>
+                <button type="submit" name="SaveMode" value="save" class="btn btn-primary" data-visits-busy-label="Saving…">
+                    <i class="bi bi-check2" aria-hidden="true"></i> Record visit
+                </button>
             </div>
-            <aside class="visit-form-layout__sidebar visit-form-layout__sidebar--sticky" aria-label="Submission helpers">
-                <div class="visit-intel-card">
-                    <h2 class="visit-intel-card__title">Submission checklist</h2>
-                    <ul class="visit-intel-card__list">
-                        <li>Confirm the visit type matches your reporting category.</li>
-                        <li>Use the remarks area for highlights, remarks, or directions.</li>
-                        <li>Attach photos that showcase context, progress, and stakeholders.</li>
-                        <li>Double-check spellings &amp; numbers before saving.</li>
-                    </ul>
-                </div>
-                <div class="visit-intel-card">
-                    <h2 class="visit-intel-card__title">Photo gallery preview</h2>
-                    <p class="visit-intel-card__subtitle">Selected photos will be uploaded after the visit is saved. You can manage captions and cover photo from the edit screen.</p>
-                    <div class="visit-intel-card__preview">
-                        <partial name="_PhotosPartial" model="Model.EmptyPhotoGallery" />
-                    </div>
-                </div>
-            </aside>
-        </div>
-    </div>
-}
+        </footer>
+    </form>
+</div>
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/project-office-reports/visits-new.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-editor.css" asp-append-version="true" />
 }
 
 @section Scripts {

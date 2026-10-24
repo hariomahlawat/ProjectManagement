@@ -1,67 +1,112 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.VisitTypes.IndexModel
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits
 @{
-    ViewData["Title"] = "Visit Types";
+    ViewData["Title"] = "Visit types · Visits to SDD";
+    var active = Model.Items.Count(t => t.IsActive);
 }
 
-<div class="visit-tracker">
-    <div class="pm-card">
-        <div class="pm-card-header">
-            <div class="pm-card-heading">
-                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-tag"></i></span>
-                <div>
-                    <h1 class="pm-card-title">Visit types</h1>
-                    <p class="pm-card-subtitle mb-0">Organise the categories available when logging visits.</p>
-                </div>
-            </div>
-            <div class="pm-card-actions">
-                <a asp-page="New" class="btn btn-primary d-inline-flex align-items-center gap-2">
-                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                    <span>Add visit type</span>
-                </a>
-            </div>
+<div class="visit-register">
+    <nav aria-label="Breadcrumb" class="visit-record__crumbs">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-page="/Visits/Index">Visits to SDD</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Visit types</li>
+        </ol>
+    </nav>
+
+    <header class="visit-register__head">
+        <div class="visit-register__title">
+            <h1>Visit types</h1>
+            <p>The categories officers choose from when they record a visit. @active of @Model.Items.Count in use.</p>
         </div>
-        <div class="pm-card-body">
-            @if (Model.Items.Count == 0)
-            {
-                <div class="visit-empty text-center py-5">
-                    <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-collection"></i></div>
-                    <h2 class="visit-empty__title">No visit types yet</h2>
-                    <p class="visit-empty__subtitle">Create your first category to start classifying visits.</p>
-                </div>
-            }
-            else
-            {
-                <div class="visit-type-grid">
-                    @foreach (var item in Model.Items)
+        <div class="visit-register__actions">
+            <a asp-page="New" class="btn btn-primary">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                <span>Add visit type</span>
+            </a>
+        </div>
+    </header>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="visit-empty-state">
+            <i class="bi bi-tags visit-empty-state__icon" aria-hidden="true"></i>
+            <h3>No visit types yet</h3>
+            <p>Add the first category, such as Mil Dignitaries or Course Visits, before recording visits.</p>
+            <a asp-page="New" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add visit type</a>
+        </div>
+    }
+    else
+    {
+        <div class="visit-table-card">
+            <table class="visit-table visit-types-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Type</th>
+                        <th scope="col" class="visit-table__strength">Visits</th>
+                        <th scope="col" class="visit-types-table__status">Status</th>
+                        <th scope="col" class="visit-types-table__actions"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items.OrderByDescending(t => t.IsActive).ThenBy(t => t.Name))
                     {
-                        <article class="visit-type-card">
-                            <div class="visit-type-card__header">
-                                <div>
-                                    <h2 class="visit-type-card__title">@item.Name</h2>
-                                    <p class="visit-type-card__meta">@item.VisitCount @("visit" + (item.VisitCount == 1 ? string.Empty : "s")) logged</p>
+                        <tr class="@(item.IsActive ? null : "is-inactive")">
+                            <td>
+                                <span class="visit-type-tag visit-type-tag--@VisitTypeColours.SlotOf(Model.ColourSlots, item.Id)">@item.Name</span>
+                                <p class="visit-types-table__description">@(string.IsNullOrWhiteSpace(item.Description) ? "No description." : item.Description)</p>
+                            </td>
+                            <td class="visit-table__strength">
+                                @if (item.VisitCount > 0)
+                                {
+                                    <a asp-page="/Visits/Index" asp-route-VisitTypeId="@item.Id" class="visit-types-table__count" aria-label="See the @item.VisitCount visits of type @item.Name">
+                                        <strong>@item.VisitCount</strong>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <strong>0</strong>
+                                }
+                            </td>
+                            <td class="visit-types-table__status">
+                                @if (item.IsActive)
+                                {
+                                    <span class="visit-status visit-status--active">In use</span>
+                                }
+                                else
+                                {
+                                    <span class="visit-status">Not offered for new visits</span>
+                                }
+                            </td>
+                            <td class="visit-types-table__actions">
+                                <div class="visit-types-table__buttons">
+                                    <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                    <form method="post" asp-page-handler="Toggle">
+                                        <input type="hidden" name="id" value="@item.Id" />
+                                        <input type="hidden" name="enable" value="@(item.IsActive ? "false" : "true")" />
+                                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">@(item.IsActive ? "Stop offering" : "Offer again")</button>
+                                    </form>
+                                    @if (item.VisitCount == 0)
+                                    {
+                                        <form method="post" asp-page-handler="Delete" data-confirm="Delete the visit type &ldquo;@item.Name&rdquo;? No visits use it.">
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                        </form>
+                                    }
                                 </div>
-                                <span class="visit-pill @(item.IsActive ? string.Empty : "visit-pill--warning")">@(item.IsActive ? "Active" : "Inactive")</span>
-                            </div>
-                            <p class="visit-type-card__description mb-0">@(string.IsNullOrWhiteSpace(item.Description) ? "No description provided yet." : item.Description)</p>
-                            <div class="visit-type-card__actions">
-                                <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
-                                <form method="post" asp-page-handler="Toggle" class="visit-type-card__form">
-                                    <input type="hidden" name="id" value="@item.Id" />
-                                    <input type="hidden" name="enable" value="@(item.IsActive ? "false" : "true")" />
-                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
-                                    <button type="submit" class="btn btn-outline-secondary btn-sm">@(item.IsActive ? "Disable" : "Enable")</button>
-                                </form>
-                                <form method="post" asp-page-handler="Delete" class="visit-type-card__form">
-                                    <input type="hidden" name="id" value="@item.Id" />
-                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
-                                    <button type="submit" class="btn btn-outline-danger btn-sm" @(item.VisitCount > 0 ? "disabled" : null) title="@(item.VisitCount > 0 ? "Cannot delete while visits use this type." : "Delete visit type")" data-confirm="Delete this visit type?">Delete</button>
-                                </form>
-                            </div>
-                        </article>
+                            </td>
+                        </tr>
                     }
-                </div>
-            }
+                </tbody>
+            </table>
         </div>
-    </div>
+        <p class="visit-types-note">A type that visits use cannot be deleted; stop offering it instead. Its visits keep the type and stay filterable on the register.</p>
+    }
 </div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-register.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/visits-details.css" asp-append-version="true" />
+}

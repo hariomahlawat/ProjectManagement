@@ -22,6 +22,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'project-office-reports', 'ffc', 'ffc-record-workspace.test.js'),
   path.join('wwwroot', 'js', 'pages', 'project-office-reports', 'ffc', 'ffc-footprint.test.js'),
   path.join('wwwroot', 'js', 'pages', 'project-office-reports', 'ffc', 'ffc-powerpoint-export.test.js'),
+  path.join('wwwroot', 'js', 'pages', 'project-office-reports', 'visits-photo-viewer.test.js'),
   path.join('wwwroot', 'js', 'components', 'prism-confirm-dialog.test.js'),
   path.join('wwwroot', 'js', 'widgets', 'media-viewer.test.js'),
   path.join('wwwroot', 'js', 'core', 'declarative-actions.test.js'),
