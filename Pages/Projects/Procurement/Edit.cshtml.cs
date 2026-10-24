@@ -26,13 +26,16 @@ namespace ProjectManagement.Pages.Projects.Procurement
         private readonly UserManager<ApplicationUser> _users;
         private readonly ApplicationDbContext _db;
         private readonly ILogger<EditModel> _logger;
+        private readonly ProcurementFactAvailabilityService _factAvailability;
 
         public EditModel(
             ProjectFactsService facts,
             UserManager<ApplicationUser> users,
             ApplicationDbContext db,
-            ILogger<EditModel> logger)
+            ILogger<EditModel> logger,
+            ProcurementFactAvailabilityService? factAvailability = null)
         {
+            _factAvailability = factAvailability ?? ProcurementFactAvailabilityService.Create(db);
             _facts = facts ?? throw new ArgumentNullException(nameof(facts));
             _users = users ?? throw new ArgumentNullException(nameof(users));
             _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -97,11 +100,17 @@ namespace ProjectManagement.Pages.Projects.Procurement
                 return Back(id, error: "Unable to save procurement details. Please review your input.");
             }
 
-            var stages = await _db.ProjectStages
-                .Where(s => s.ProjectId == id && s.StageCode != null)
-                .ToDictionaryAsync(s => s.StageCode!, s => s.Status, StringComparer.OrdinalIgnoreCase, ct);
+            // Same rule as the form's locks: a stage's figure opens once the stage has started
+            // (or can be completed directly), so it can be recorded before completion is requested.
+            var canRecordFact = await _factAvailability.GetRecordableStagesAsync(id, ct);
 
-            bool Completed(string code) => stages.TryGetValue(code, out var status) && status == StageStatus.Completed;
+            void RequireOpen(bool supplied, string stageCode, string label, List<string> errors)
+            {
+                if (supplied && !canRecordFact(stageCode))
+                {
+                    errors.Add($"{label} cannot be recorded until {ProcurementStageRules.StageName(stageCode)} has started.");
+                }
+            }
 
             var errors = new List<string>();
 
@@ -113,35 +122,16 @@ namespace ProjectManagement.Pages.Projects.Procurement
             {
                 errors.Add("IPA Cost is managed through ARPP for this project and cannot be edited here.");
             }
-            else if (Input.IpaCost.HasValue && !Completed(ProcurementStageRules.StageForIpaCost))
+            else
             {
-                errors.Add("IPA Cost cannot be set before IPA stage is completed.");
+                RequireOpen(Input.IpaCost.HasValue, ProcurementStageRules.StageForIpaCost, "IPA cost", errors);
             }
 
-            if (Input.AonCost.HasValue && !Completed(ProcurementStageRules.StageForAonCost))
-            {
-                errors.Add("AON Cost cannot be set before AON stage is completed.");
-            }
-
-            if (Input.BenchmarkCost.HasValue && !Completed(ProcurementStageRules.StageForBenchmarkCost))
-            {
-                errors.Add("Benchmark Cost cannot be set before BM stage is completed.");
-            }
-
-            if (Input.L1Cost.HasValue && !Completed(ProcurementStageRules.StageForL1Cost))
-            {
-                errors.Add("L1 Cost cannot be set before COB stage is completed.");
-            }
-
-            if (Input.PncCost.HasValue && !Completed(ProcurementStageRules.StageForPncCost))
-            {
-                errors.Add("PNC Cost cannot be set before PNC stage is completed.");
-            }
-
-            if (Input.SupplyOrderDate.HasValue && !Completed(ProcurementStageRules.StageForSupplyOrder))
-            {
-                errors.Add("Supply Order Date cannot be set before SO stage is completed.");
-            }
+            RequireOpen(Input.AonCost.HasValue, ProcurementStageRules.StageForAonCost, "AoN cost", errors);
+            RequireOpen(Input.BenchmarkCost.HasValue, ProcurementStageRules.StageForBenchmarkCost, "Benchmark cost", errors);
+            RequireOpen(Input.L1Cost.HasValue, ProcurementStageRules.StageForL1Cost, "L1 cost", errors);
+            RequireOpen(Input.PncCost.HasValue, ProcurementStageRules.StageForPncCost, "PNC cost", errors);
+            RequireOpen(Input.SupplyOrderDate.HasValue, ProcurementStageRules.StageForSupplyOrder, "Supply order date", errors);
 
             if (errors.Count > 0)
             {

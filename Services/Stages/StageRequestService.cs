@@ -33,7 +33,6 @@ public class StageRequestService
     private readonly IClock _clock;
     private readonly IStageValidationService _validationService;
     private readonly IProjectStageWorkflowPolicy? _workflowPolicy;
-    private readonly ProjectFactsReadService? _factsRead;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageRequestService(
@@ -41,6 +40,8 @@ public class StageRequestService
         IClock clock,
         IStageValidationService validationService,
         IProjectStageWorkflowPolicy? workflowPolicy = null,
+        // Unused: stage completion no longer depends on procurement figures. Kept so
+        // existing registrations and callers keep compiling.
         ProjectFactsReadService? factsRead = null,
         IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
@@ -49,7 +50,6 @@ public class StageRequestService
         _validationService = validationService
             ?? throw new ArgumentNullException(nameof(validationService));
         _workflowPolicy = workflowPolicy;
-        _factsRead = factsRead;
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
@@ -351,14 +351,6 @@ public class StageRequestService
                 errors.Add(
                     $"{DisplayName(stageNames, item.StageCode)} cannot be {RequestedActionPhrase(item.RequestedStatus)} yet. " +
                     $"Complete or skip the required predecessor stage{(predecessorNames.Length == 1 ? string.Empty : "s")}: {string.Join(", ", predecessorNames)}.");
-            }
-
-            if (item.RequestedStatus == StageStatus.Completed
-                && _factsRead is not null
-                && !await _factsRead.HasRequiredFactsAsync(input.ProjectId, item.StageCode, cancellationToken))
-            {
-                errors.Add(
-                    $"Record the required {DisplayName(stageNames, item.StageCode)} information before submitting completion.");
             }
 
             var requiresDecisionContext = item.RequestedStatus is StageStatus.Blocked or StageStatus.Skipped

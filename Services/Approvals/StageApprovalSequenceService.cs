@@ -27,18 +27,18 @@ public sealed class StageApprovalSequenceService
 
     private readonly ApplicationDbContext _db;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
-    private readonly ProjectFactsReadService _factsRead;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageApprovalSequenceService(
         ApplicationDbContext db,
         IProjectStageWorkflowPolicy workflowPolicy,
+        // Unused: stage completion no longer depends on procurement figures. Kept so
+        // existing registrations and callers keep compiling.
         ProjectFactsReadService factsRead,
         IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
-        _factsRead = factsRead ?? throw new ArgumentNullException(nameof(factsRead));
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
@@ -379,25 +379,6 @@ public sealed class StageApprovalSequenceService
                     "Completion date",
                     request.RequestedDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)));
             }
-
-            var hasFacts = await _factsRead.HasRequiredFactsAsync(project.Id, request.StageCode, cancellationToken);
-            if (!hasFacts)
-            {
-                correctionUrl = BuildFactsUrl(project.Id, request.StageCode);
-                checks.Add(new ApprovalCheckVm(
-                    ApprovalCheckState.Blocked,
-                    "Required stage information",
-                    $"Required information for {stageName} has not been recorded.",
-                    "Open project details",
-                    correctionUrl));
-            }
-            else
-            {
-                checks.Add(new ApprovalCheckVm(
-                    ApprovalCheckState.Passed,
-                    "Required stage information",
-                    "All mandatory information needed for completion is available."));
-            }
         }
 
         if (requestedStatus is StageStatus.InProgress or StageStatus.Completed)
@@ -554,14 +535,6 @@ public sealed class StageApprovalSequenceService
                     ? null
                     : new StageChronologyState(official.Status, official.CompletedOn);
             }, ipaAuthority);
-
-    private static string BuildFactsUrl(int projectId, string stageCode)
-        => stageCode switch
-        {
-            StageCodes.IPA or StageCodes.SOW or StageCodes.AON or StageCodes.BM or StageCodes.COB or StageCodes.PNC or StageCodes.SO
-                => $"/Projects/Overview/{projectId}#procurement",
-            _ => $"/Projects/Overview/{projectId}#timeline"
-        };
 
     private static string FormatStatus(StageStatus status)
         => status switch

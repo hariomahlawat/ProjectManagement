@@ -9,11 +9,11 @@ namespace ProjectManagement.Tests.Projects;
 public sealed class ProcurementEditVmFactoryTests
 {
     [Fact]
-    public void Create_UnlocksOnlyFieldsWhoseStageIsCompleted()
+    public void Create_UnlocksOnlyFieldsTheStageRuleOpens()
     {
-        var completed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { StageCodes.AON, StageCodes.COB };
+        var recordable = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { StageCodes.AON, StageCodes.COB };
 
-        var vm = ProcurementEditVmFactory.Create(7, new ProcurementAtAGlanceVm(null, 1_00_000m, null, 2_00_000m, null, null), completed.Contains);
+        var vm = ProcurementEditVmFactory.Create(7, new ProcurementAtAGlanceVm(null, 1_00_000m, null, 2_00_000m, null, null), recordable.Contains);
 
         Assert.Equal(7, vm.Input.ProjectId);
         Assert.Equal(1_00_000m, vm.Input.AonCost);

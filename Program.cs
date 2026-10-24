@@ -800,6 +800,7 @@ builder.Services.AddHostedService<ProjectContentAuditQueue>(serviceProvider =>
     serviceProvider.GetRequiredService<ProjectContentAuditQueue>());
 builder.Services.AddScoped<IProjectContentService, ProjectContentService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
+builder.Services.AddScoped<ProcurementFactAvailabilityService>();
 builder.Services.AddScoped<IProjectCostResolver, ProjectCostResolver>();
 builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<CompletedProjectsSummaryService>();
