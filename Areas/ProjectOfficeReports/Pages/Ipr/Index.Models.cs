@@ -54,37 +54,6 @@ public sealed partial class IndexModel
             => string.Join(" ", new[] { Name, Code, Lifecycle }.Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 
-    public sealed record ProjectIprItem(
-        int Id,
-        string Title,
-        string Type,
-        string Position,
-        DateTime? FiledOn,
-        DateTime? GrantedOn,
-        int AttachmentCount);
-
-    public sealed record ProjectIprGroup(
-        int? ProjectId,
-        string ProjectName,
-        string Lifecycle,
-        int Total,
-        int Granted,
-        int Awaiting,
-        int Patents,
-        int Copyrights,
-        DateTime? LatestFiledOn,
-        bool IsUnassigned,
-        IReadOnlyList<ProjectIprItem> Items)
-    {
-        public string SearchText
-            => string.Join(" ", new[]
-            {
-                ProjectName,
-                Lifecycle,
-                string.Join(" ", Items.Select(item => item.Title))
-            });
-    }
-
     public sealed record AwaitingGrantRow(
         int Id,
         int? ProjectId,
@@ -122,7 +91,12 @@ public sealed partial class IndexModel
         int? MedianAwaitingDays,
         int AwaitingOverThreeYears,
         int Unassigned,
-        int MissingAttachments);
+        int MissingAttachments,
+        int Total = 0,
+        IReadOnlyList<TypeBreakdownRow>? TypeBreakdown = null)
+    {
+        public IReadOnlyList<TypeBreakdownRow> TypeRows => TypeBreakdown ?? Array.Empty<TypeBreakdownRow>();
+    }
 
     public sealed class RecordInput
     {

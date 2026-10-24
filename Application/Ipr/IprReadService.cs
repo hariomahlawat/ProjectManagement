@@ -30,9 +30,25 @@ public sealed class IprReadService : IIprReadService
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
         page = Math.Clamp(page, 1, totalPages);
 
-        var queryResults = await IprQueryFilter.ApplyRegisterOrdering(query)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        var items = await ProjectRowsAsync(
+            IprQueryFilter.ApplyRegisterOrdering(query)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize),
+            cancellationToken);
+
+        return new PagedResult<IprListRowDto>(items, total, page, pageSize);
+    }
+
+    public async Task<IReadOnlyList<IprListRowDto>> ListRegisterAsync(CancellationToken cancellationToken = default)
+        => await ProjectRowsAsync(
+            IprQueryFilter.ApplyRegisterOrdering(_db.IprRecords.AsNoTracking()),
+            cancellationToken);
+
+    private static async Task<List<IprListRowDto>> ProjectRowsAsync(
+        IQueryable<IprRecord> query,
+        CancellationToken cancellationToken)
+    {
+        var queryResults = await query
             .Select(x => new
             {
                 x.Id,
@@ -87,41 +103,7 @@ public sealed class IprReadService : IIprReadService
                 x.Notes))
             .ToList();
 
-        return new PagedResult<IprListRowDto>(items, total, page, pageSize);
-    }
-
-    public async Task<int?> GetPageNumberForRecordAsync(
-        IprFilter filter,
-        int recordId,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        if (recordId <= 0)
-        {
-            return null;
-        }
-
-        var query = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
-        var target = await query
-            .Where(record => record.Id == recordId)
-            .Select(record => new
-            {
-                record.Id,
-                SortDate = record.FiledAtUtc ?? DateTimeOffset.MinValue
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (target is null)
-        {
-            return null;
-        }
-
-        var precedingCount = await query.CountAsync(record =>
-            (record.FiledAtUtc ?? DateTimeOffset.MinValue) > target.SortDate ||
-            ((record.FiledAtUtc ?? DateTimeOffset.MinValue) == target.SortDate && record.Id < target.Id),
-            cancellationToken);
-
-        return (precedingCount / filter.PageSize) + 1;
+        return items;
     }
 
     public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)

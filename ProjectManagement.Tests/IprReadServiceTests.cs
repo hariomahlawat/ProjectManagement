@@ -318,57 +318,6 @@ public sealed class IprReadServiceTests
     }
 
     [Fact]
-    public async Task GetPageNumberForRecordAsync_UsesFilteredRegisterOrdering()
-    {
-        await using var db = CreateDbContext();
-
-        var records = Enumerable.Range(1, 5)
-            .Select(index => new IprRecord
-            {
-                IprFilingNumber = $"IPR-40{index}",
-                Type = IprType.Patent,
-                Status = IprStatus.Filed,
-                FiledAtUtc = new DateTimeOffset(2026, 6 - index, 1, 0, 0, 0, TimeSpan.Zero)
-            })
-            .ToArray();
-
-        db.IprRecords.AddRange(records);
-        await db.SaveChangesAsync();
-
-        var filter = new IprFilter { PageSize = 2 };
-        var pageNumber = await new IprReadService(db)
-            .GetPageNumberForRecordAsync(filter, records[2].Id);
-
-        Assert.Equal(2, pageNumber);
-    }
-
-    [Fact]
-    public async Task GetPageNumberForRecordAsync_ReturnsNullWhenRecordDoesNotMatchFilter()
-    {
-        await using var db = CreateDbContext();
-
-        var patent = new IprRecord
-        {
-            IprFilingNumber = "IPR-501",
-            Type = IprType.Patent,
-            Status = IprStatus.Filed
-        };
-        db.IprRecords.Add(patent);
-        await db.SaveChangesAsync();
-
-        var filter = new IprFilter
-        {
-            Types = new[] { IprType.Copyright },
-            PageSize = 15
-        };
-
-        var pageNumber = await new IprReadService(db)
-            .GetPageNumberForRecordAsync(filter, patent.Id);
-
-        Assert.Null(pageNumber);
-    }
-
-    [Fact]
     public async Task SearchAsync_FiltersByGrantOrRegistrationYear()
     {
         await using var db = CreateDbContext();
@@ -515,6 +464,23 @@ public sealed class IprReadServiceTests
         Assert.Equal(0, closedKpis.Total);
         Assert.Equal(1, closedKpis.Rejected);
         Assert.Equal(2, closedKpis.Withdrawn);
+    }
+
+    [Fact]
+    public async Task ListRegisterAsync_ReturnsEveryStatusInRegisterOrder()
+    {
+        await using var db = CreateDbContext();
+        db.IprRecords.AddRange(
+            new IprRecord { IprFilingNumber = "IPR-L1", Title = "Older", Type = IprType.Patent, Status = IprStatus.Granted, FiledAtUtc = new DateTimeOffset(2021, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-L2", Title = "Newest", Type = IprType.Copyright, Status = IprStatus.Withdrawn, FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-L3", Title = "Middle", Type = IprType.Patent, Status = IprStatus.FilingUnderProcess, FiledAtUtc = new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero) });
+        await db.SaveChangesAsync();
+
+        var rows = await new IprReadService(db).ListRegisterAsync();
+
+        Assert.Equal(new[] { "IPR-L2", "IPR-L3", "IPR-L1" }, rows.Select(row => row.FilingNumber).ToArray());
+        Assert.Equal(IprStatus.Withdrawn, rows[0].Status);
+        Assert.Equal(IprStatus.Filed, rows[1].Status);
     }
 
     private static ApplicationDbContext CreateDbContext()

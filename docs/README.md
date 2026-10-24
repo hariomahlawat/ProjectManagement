@@ -40,6 +40,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Command desk](ux/command-desk.md) | HoD/Comdt desk: what moved forward, what waits on the viewer, what is lagging and which registers have gone quiet. |
 | [Training tracker](ux/training.md) | The training register (filters, sort, month groups, phone cards), type colours, the Officers / JCOs / ORs split and the theme-aware trend chart. |
 | [Visits to SDD](ux/visits.md) | The Visits register, record page and editor: what each shows, which figures follow the filters, messages and styles. |
+| [IPR Register](ux/ipr-register.md) | The IPR workspace: four-figure summary, instant-filter register with Group by, record panel, and the remaining redesign steps. |
 | [Public pages](ux/public-pages.md) | Signed-out landing and sign-in pages: the prism concept, where the copy comes from, tokens and the signed-out theme switch. |
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
 | [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |
