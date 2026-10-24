@@ -101,6 +101,86 @@ public sealed class TrainingIndexPageTests
         Assert.Equal(canApprove, page.CanApproveTrainingTracker);
     }
 
+    [Fact]
+    public async Task OnGetAsync_DateNotSetTotalsCoverEveryMatchingTraining_NotOnlyThisPage()
+    {
+        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(dbOptions);
+
+        var type = new TrainingType
+        {
+            Id = Guid.NewGuid(),
+            Name = "Simulator",
+            DisplayOrder = 1,
+            IsActive = true,
+            CreatedByUserId = "seed",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        db.TrainingTypes.Add(type);
+
+        // One dated training, then 26 with no date: page 2 holds only the last two undated ones.
+        db.Trainings.Add(CreateTraining(type, new DateOnly(2026, 5, 4), total: 3));
+        for (var i = 0; i < 26; i++)
+        {
+            db.Trainings.Add(CreateTraining(type, startDate: null, total: 2));
+        }
+
+        await db.SaveChangesAsync();
+
+        using var userManager = new StubUserManager(new ApplicationUser { Id = "viewer-1", UserName = "viewer" }, new ServiceCollection().BuildServiceProvider());
+        var page = new IndexModel(
+            new StubOptionsSnapshot<TrainingTrackerOptions>(new TrainingTrackerOptions { Enabled = true }),
+            new TrainingTrackerReadService(db),
+            new StubTrainingExportService(),
+            userManager,
+            new StubAuthorizationService(Array.Empty<string>()))
+        {
+            PageNumber = 2,
+            PageContext = new PageContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "viewer-1") }, "Test"))
+                }
+            }
+        };
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(2, page.Trainings.Count);
+        Assert.All(page.Trainings, row => Assert.Null(row.EffectiveDate));
+        Assert.Equal((26, 52), page.MonthTotals[(0, 0)]);
+        Assert.Equal((1, 3), page.MonthTotals[(2026, 5)]);
+    }
+
+    private static ProjectManagement.Areas.ProjectOfficeReports.Domain.Training CreateTraining(TrainingType type, DateOnly? startDate, int total)
+    {
+        var id = Guid.NewGuid();
+        return new ProjectManagement.Areas.ProjectOfficeReports.Domain.Training
+        {
+            Id = id,
+            TrainingTypeId = type.Id,
+            TrainingType = type,
+            StartDate = startDate,
+            EndDate = startDate,
+            CreatedByUserId = "seed",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            Counters = new TrainingCounters
+            {
+                TrainingId = id,
+                Officers = 0,
+                JuniorCommissionedOfficers = 0,
+                OtherRanks = total,
+                Total = total,
+                Source = TrainingCounterSource.Roster,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            }
+        };
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

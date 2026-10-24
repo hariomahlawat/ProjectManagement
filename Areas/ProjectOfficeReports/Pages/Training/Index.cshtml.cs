@@ -332,9 +332,9 @@ public class IndexModel : PageModel
 
         Trainings = paged.Items.Select(TrainingRowViewModel.FromListItem).ToList();
 
+        // Undated trainings share the (0, 0) bucket, the "Date not set" heading.
         MonthTotals = results
-            .Where(item => item.EffectiveDate.HasValue)
-            .GroupBy(item => (item.EffectiveDate!.Value.Year, item.EffectiveDate!.Value.Month))
+            .GroupBy(item => item.EffectiveDate is { } date ? (date.Year, date.Month) : (0, 0))
             .ToDictionary(group => group.Key, group => (group.Count(), group.Sum(item => item.CounterTotal)));
 
         // ------------------------------------------------------------
