@@ -13,23 +13,12 @@ function initLegacyToggle() {
     return;
   }
 
-  const toggleContainer = toggle.closest('[data-legacy-toggle]');
-  const countsCard = document.querySelector('[data-legacy-counts]');
   const legacyFields = document.querySelector('[data-legacy-fields]');
   const rosterCard = document.querySelector('[data-legacy-roster]');
   const hint = document.querySelector('[data-legacy-hint]');
 
   function updateState() {
     const isLegacy = toggle.checked;
-
-    if (toggleContainer) {
-      toggleContainer.classList.toggle('text-primary', isLegacy);
-    }
-
-    if (countsCard) {
-      countsCard.classList.toggle('border', isLegacy);
-      countsCard.classList.toggle('border-primary-subtle', isLegacy);
-    }
 
     if (legacyFields) {
       legacyFields.classList.toggle('d-none', !isLegacy);
@@ -112,16 +101,17 @@ function initRosterModule() {
   recalc();
 
   btnAdd?.addEventListener('click', () => {
-    addRow();
+    const row = addRow();
     recalc();
+    row?.querySelector('[data-field="armyNumber"]')?.focus();
   });
 
   rosterBody?.addEventListener('input', recalc);
   rosterBody?.addEventListener('change', recalc);
   rosterBody?.addEventListener('click', (event) => {
-    const target = event.target;
-    if (target instanceof HTMLElement && target.dataset.action === 'delete') {
-      target.closest('tr')?.remove();
+    const button = event.target instanceof Element ? event.target.closest('[data-action="delete"]') : null;
+    if (button) {
+      button.closest('tr')?.remove();
       recalc();
     }
   });
@@ -144,22 +134,23 @@ function initRosterModule() {
         : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input class="form-control form-control-sm" data-field="armyNumber" value="${escapeHtml(data.armyNumber ?? '')}"></td>
-      <td><input class="form-control form-control-sm" data-field="rank" value="${escapeHtml(data.rank ?? '')}"></td>
-      <td><input class="form-control form-control-sm" data-field="name" value="${escapeHtml(data.name ?? '')}"></td>
-      <td><input class="form-control form-control-sm" data-field="unitName" value="${escapeHtml(data.unitName ?? '')}"></td>
-      <td>
-        <select class="form-select form-select-sm" data-field="category">
+      <td class="training-roster-grid__number"><input class="form-control form-control-sm" data-field="armyNumber" aria-label="Army number" placeholder="Army number" autocomplete="off" value="${escapeHtml(data.armyNumber ?? '')}"></td>
+      <td class="training-roster-grid__rank"><input class="form-control form-control-sm" data-field="rank" aria-label="Rank" placeholder="Rank" autocomplete="off" value="${escapeHtml(data.rank ?? '')}"></td>
+      <td class="training-roster-grid__name"><input class="form-control form-control-sm" data-field="name" aria-label="Name" placeholder="Name" autocomplete="off" value="${escapeHtml(data.name ?? '')}"></td>
+      <td class="training-roster-grid__unit"><input class="form-control form-control-sm" data-field="unitName" aria-label="Unit" placeholder="Unit" autocomplete="off" value="${escapeHtml(data.unitName ?? '')}"></td>
+      <td class="training-roster-grid__category">
+        <select class="form-select form-select-sm" data-field="category" aria-label="Category">
           <option value="0"${category === 0 ? ' selected' : ''}>Officer</option>
           <option value="1"${category === 1 ? ' selected' : ''}>JCO</option>
           <option value="2"${category === 2 ? ' selected' : ''}>OR</option>
         </select>
       </td>
-      <td class="text-end">
+      <td class="training-roster-grid__remove">
         <input type="hidden" data-field="id" value="${escapeHtml(idValue)}">
-        <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">Remove</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" aria-label="Remove this person" title="Remove this person"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </td>`;
     rosterBody.appendChild(tr);
+    return tr;
   }
 
   function renderRoster(rows) {
@@ -224,6 +215,11 @@ function initRosterModule() {
     const normalized = syncRosterPayload(collectRows());
     const counts = countRoster(normalized);
     updateCounterSummary(counts.officers, counts.jcos, counts.ors, counts.total);
+
+    const empty = document.getElementById('rosterEmpty');
+    if (empty) {
+      empty.hidden = rosterBody.querySelectorAll('tr').length > 0;
+    }
   }
 
   function updateCounterSummary(officers, jcos, ors, total, source) {
@@ -354,9 +350,14 @@ function initRosterModule() {
 
 }
 
+// The roster travels as base64 of UTF-8 JSON (the server decodes it as UTF-8).
+// atob/btoa alone only handle Latin-1: a name in Devanagari or with a curly
+// apostrophe made btoa throw, and the roster was then sent empty.
 function decodeBase64(value) {
   try {
-    return atob(value);
+    const binary = atob(value);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
   } catch {
     return '';
   }
@@ -364,7 +365,10 @@ function decodeBase64(value) {
 
 function encodeBase64(value) {
   try {
-    return btoa(value);
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    bytes.forEach((b) => { binary += String.fromCharCode(b); });
+    return btoa(binary);
   } catch {
     return '';
   }

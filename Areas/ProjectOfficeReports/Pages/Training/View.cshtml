@@ -1,205 +1,221 @@
 @page
+@using System.Globalization
 @using ProjectManagement.Areas.ProjectOfficeReports.Pages.Training
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ViewModel
 @{
-    // ------------------------------------------------------------
-    // page metadata
-    // ------------------------------------------------------------
-    ViewData["Title"] = "Training details";
+    var training = Model.Training;
+    ViewData["Title"] = $"{Model.Title} · Training tracker";
     ViewData["UseFullWidth"] = false;
+
+    string N(int value) => value.ToString("N0", CultureInfo.CurrentCulture);
+    string Plural(int count, string one, string many) => count == 1 ? one : many;
+
+    var units = Model.Units;
+    var typeModifier = TrainingTypeAppearance.Modifier(training.TrainingTypeName);
+    const string splitPartial = "~/Areas/ProjectOfficeReports/Pages/Training/_StrengthSplit.cshtml";
 }
 
-<!-- ============================================================
-     PAGE HEADER
-     ============================================================ -->
-<div class="container-fluid py-3 px-0 px-lg-2">
-    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
-        <div class="d-flex flex-column gap-1">
-            <a asp-page="./Index" class="text-decoration-none text-muted small d-inline-flex align-items-center gap-1">
-                <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                <span>Back to training tracker</span>
-            </a>
-            <div>
-                <p class="text-uppercase text-muted small mb-1">Project office reports</p>
-                <h1 class="h4 mb-0"><span class="training-type-dot training-type--@TrainingTypeAppearance.Modifier(Model.Training.TrainingTypeName)"></span>@Model.Training.TrainingTypeName</h1>
-            </div>
-        </div>
+<div class="training-record">
+    <nav aria-label="Breadcrumb" class="training-record__crumbs">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-page="./Index">Training tracker</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
+        </ol>
+    </nav>
 
-        <div class="d-flex align-items-center gap-2">
-            @if (Model.Training.SourceDisplay == "Legacy")
-            {
-                <span class="training-source-tag training-source-tag--legacy" title="Historical totals, no roster">Legacy</span>
-            }
-            else
-            {
-                <span class="training-source-tag">@Model.Training.SourceDisplay</span>
-            }
-            @if (Model.CanManageTrainingTracker)
-            {
-                <a asp-page="./Manage"
-                   asp-route-id="@Model.Training.Id"
-                   class="btn btn-primary btn-sm">
-                    Manage
-                </a>
-            }
+    @* SECTION: Header — what it trained on, when, and how many *@
+    <header class="training-record__head">
+        <div class="training-record__identity">
+            <div class="training-record__tags">
+                <span class="training-type-tag training-type--@typeModifier">@training.TrainingTypeName</span>
+                @if (training.IsLegacy)
+                {
+                    <span class="training-source-tag training-source-tag--legacy" title="Historical totals, no roster">Legacy totals</span>
+                }
+            </div>
+            <h1>@Model.Title</h1>
+            <ul class="training-record__meta">
+                <li><i class="bi bi-calendar3" aria-hidden="true"></i> @Model.PeriodText@(Model.DurationText is { } length && training.DurationDays > 1 ? $" · {length}" : string.Empty)</li>
+                <li><i class="bi bi-people" aria-hidden="true"></i> @N(training.TotalTrainees) @Plural(training.TotalTrainees, "trainee", "trainees")</li>
+                @if (units.Count > 0)
+                {
+                    <li title="@string.Join(", ", units)"><i class="bi bi-shield" aria-hidden="true"></i> @(units.Count <= 2 ? string.Join(", ", units) : $"{units[0]}, {units[1]} and {units.Count - 2} more")</li>
+                }
+            </ul>
         </div>
-    </div>
+        @if (Model.CanManageTrainingTracker)
+        {
+            <div class="training-record__actions">
+                <a asp-page="./Manage" asp-route-id="@training.Id" class="btn btn-primary">
+                    <i class="bi bi-pencil" aria-hidden="true"></i>
+                    <span>Edit training</span>
+                </a>
+            </div>
+        }
+    </header>
 
     @if (!Model.IsFeatureEnabled)
     {
-        <div class="alert alert-warning" role="alert">
+        <div class="alert alert-warning mb-0" role="alert">
             The training tracker is currently disabled. Details may be out of date.
         </div>
     }
 
-        <!-- ========================================================
-         DETAILS GRID
-         ======================================================== -->
-    <div class="row g-4">
-        <div class="col-12 col-xl-8">
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-body">
-                    <!-- SECTION: At-a-glance metrics -->
-                    <div class="d-flex flex-wrap column-gap-5 row-gap-3 mb-4">
-                        <div>
-                            <div class="fw-semibold text-uppercase small text-muted">Period</div>
-                            <div class="fw-semibold">
-                                @Model.Training.PeriodDisplay
-                                @if (!string.IsNullOrWhiteSpace(Model.Training.PeriodDayCountDisplay))
-                                {
-                                    <span class="text-muted ms-2">@Model.Training.PeriodDayCountDisplay</span>
-                                }
-                            </div>
-                        </div>
-                        <div>
-                            <div class="fw-semibold text-uppercase small text-muted">Total trainees</div>
-                            <div class="fw-semibold">@Model.Training.TotalTrainees.ToString("N0")</div>
-                        </div>
-                        <div class="flex-grow-1">
-                            <div class="fw-semibold text-uppercase small text-muted">Strength</div>
-                            <partial name="~/Areas/ProjectOfficeReports/Pages/Training/_StrengthSplit.cshtml"
-                                     model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel.StrengthBreakdown(Model.Training.StrengthOfficers, Model.Training.StrengthJcos, Model.Training.StrengthOrs)"
-                                     view-data='new ViewDataDictionary(ViewData) { ["Compact"] = true }' />
-                        </div>
-                    </div>
-
-                    <hr />
-
-                    <!-- SECTION: Project links -->
-                    <div class="mb-4">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <h2 class="h6 mb-0">Linked projects</h2>
-                        </div>
-                        @if (Model.Training.ProjectNames.Count == 0)
-                        {
-                            <p class="text-muted mb-0">No projects linked to this training.</p>
-                        }
-                        else
-                        {
-                            <ul class="list-unstyled mb-0">
-                                @foreach (var name in Model.Training.ProjectNames)
-                                {
-                                    <li class="small">@name</li>
-                                }
-                            </ul>
-                        }
-                    </div>
-
-                    <hr />
-
-                    <!-- SECTION: Notes -->
-                    <div>
-                        <h2 class="h6 mb-2">Notes / remarks</h2>
-                        @if (string.IsNullOrWhiteSpace(Model.Training.Notes))
-                        {
-                            <p class="text-muted mb-0">No notes recorded for this training.</p>
-                        }
-                        else
-                        {
-                            <p class="mb-0 training-notes">@Model.Training.Notes</p>
-                        }
-                    </div>
-                </div>
-            </div>
-
-            <!-- SECTION: Roster -->
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                        <h2 class="h6 mb-0">Roster</h2>
-
-                        <div class="d-flex flex-wrap align-items-center gap-2">
-                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--o"></span>Officers <strong>@Model.Training.OfficersCount</strong></span>
-                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--j"></span>JCOs <strong>@Model.Training.JcosCount</strong></span>
-                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--r"></span>ORs <strong>@Model.Training.OrsCount</strong></span>
-                            <span class="training-rank-chip">Total <strong>@Model.Training.TotalCount</strong></span>
-                            <span class="small text-muted ms-1">Source: @Model.Training.RosterSourceDisplay</span>
-                        </div>
-                    </div>
-
-                    @if (Model.Training.Roster.Count == 0)
+    <div class="training-record__layout">
+        <div class="training-record__main">
+            @* SECTION: Who attended *@
+            <section class="training-panel" aria-labelledby="training-attended-heading">
+                <div class="training-panel__head">
+                    <h2 id="training-attended-heading" class="training-panel__title">Who attended</h2>
+                    @if (training.Roster.Count > 0)
                     {
-                        <p class="text-muted small mb-0">
-                            No roster is available for this training.
-                        </p>
+                        <span class="training-panel__note">@N(training.Roster.Count) on the roster</span>
+                    }
+                </div>
+                <div class="training-record__strength">
+                    <strong>@N(training.TotalTrainees)</strong>
+                    <span>@Plural(training.TotalTrainees, "trainee", "trainees")</span>
+                </div>
+                <partial name="@splitPartial" model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel.StrengthBreakdown(training.StrengthOfficers, training.StrengthJcos, training.StrengthOrs)" />
+
+                @if (training.Roster.Count == 0)
+                {
+                    <p class="training-panel__empty">
+                        @(training.IsLegacy
+                            ? "This training was recorded as totals only, from a historical register, so there is no roster."
+                            : "No one is on the roster yet.")
+                    </p>
+                }
+                else
+                {
+                    <table class="training-roster-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Rank and name</th>
+                                <th scope="col">Army number</th>
+                                <th scope="col">Unit</th>
+                                <th scope="col">Category</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in training.Roster)
+                            {
+                                var rankKey = row.CategoryLabel switch { "Officer" => "o", "JCO" => "j", _ => "r" };
+                                <tr>
+                                    <td class="training-roster-table__who"><span class="training-roster-table__rank">@row.Rank</span> @row.Name</td>
+                                    <td class="training-roster-table__number">@(string.IsNullOrWhiteSpace(row.ArmyNumber) ? "—" : row.ArmyNumber)</td>
+                                    <td class="training-roster-table__unit">@row.UnitName</td>
+                                    <td class="training-roster-table__category"><span class="training-rank-dot training-rank-dot--@rankKey"></span>@row.CategoryLabel</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+
+            @* SECTION: Projects *@
+            <section class="training-panel" aria-labelledby="training-projects-heading">
+                <h2 id="training-projects-heading" class="training-panel__title">
+                    Projects
+                    @if (training.Projects.Count > 1)
+                    {
+                        <span class="training-panel__count">@training.Projects.Count</span>
+                    }
+                </h2>
+                @if (training.Projects.Count == 0)
+                {
+                    <p class="training-panel__empty">No project is linked to this training.</p>
+                }
+                else
+                {
+                    <ul class="training-record__projects">
+                        @foreach (var project in training.Projects)
+                        {
+                            <li>
+                                <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">@project.Name</a>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            @* SECTION: Notes *@
+            <section class="training-panel" aria-labelledby="training-notes-heading">
+                <h2 id="training-notes-heading" class="training-panel__title">Notes</h2>
+                @if (string.IsNullOrWhiteSpace(training.Notes))
+                {
+                    <p class="training-panel__empty">No notes recorded.</p>
+                }
+                else
+                {
+                    <p class="training-record__notes">@training.Notes</p>
+                }
+            </section>
+        </div>
+
+        <aside class="training-record__aside">
+            @* SECTION: The training, at a glance *@
+            <section class="training-panel" aria-labelledby="training-facts-heading">
+                <h2 id="training-facts-heading" class="training-panel__title">The training</h2>
+                <dl class="training-facts">
+                    <div>
+                        <dt>Type</dt>
+                        <dd>@training.TrainingTypeName</dd>
+                    </div>
+                    <div>
+                        <dt>Dates</dt>
+                        <dd>@Model.PeriodText</dd>
+                    </div>
+                    @if (Model.DurationText is { } duration)
+                    {
+                        <div>
+                            <dt>Length</dt>
+                            <dd>@duration</dd>
+                        </div>
+                    }
+                    <div>
+                        <dt>Trainees</dt>
+                        <dd>
+                            @N(training.TotalTrainees)
+                            <span>@N(training.StrengthOfficers) Officers · @N(training.StrengthJcos) JCOs · @N(training.StrengthOrs) ORs</span>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Recorded as</dt>
+                        <dd>
+                            @(training.IsLegacy ? "Totals only" : "Roster")
+                            <span>@(training.IsLegacy ? "From a historical register" : "Counts come from the people listed")</span>
+                        </dd>
+                    </div>
+                </dl>
+            </section>
+
+            @* SECTION: Record history *@
+            <section class="training-panel" aria-labelledby="training-history-heading">
+                <h2 id="training-history-heading" class="training-panel__title">Record</h2>
+                <ul class="training-history">
+                    <li>
+                        <span class="training-history__what">Recorded by @training.CreatedByDisplayName</span>
+                        <span class="training-history__when">@ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ViewModel.Stamp(training.CreatedAt)</span>
+                    </li>
+                    @if (training.LastModifiedAt is { } modifiedAt && modifiedAt - training.CreatedAt > TimeSpan.FromMinutes(2))
+                    {
+                        <li>
+                            <span class="training-history__what">Last edited@(string.IsNullOrWhiteSpace(training.LastModifiedByDisplayName) ? string.Empty : $" by {training.LastModifiedByDisplayName}")</span>
+                            <span class="training-history__when">@ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ViewModel.Stamp(modifiedAt)</span>
+                        </li>
                     }
                     else
                     {
-                        <div class="table-responsive">
-                            <table class="table pm-table pm-table-sm align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Army number</th>
-                                        <th scope="col">Rank</th>
-                                        <th scope="col">Name</th>
-                                        <th scope="col">Unit</th>
-                                        <th scope="col">Category</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var row in Model.Training.Roster)
-                                    {
-                                        <tr>
-                                            <td class="text-mono">@row.ArmyNumber</td>
-                                            <td>@row.Rank</td>
-                                            <td>@row.Name</td>
-                                            <td>@row.UnitName</td>
-                                            <td>@row.CategoryLabel</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
+                        <li class="training-history__quiet">Not edited since it was recorded.</li>
                     }
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-xl-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <!-- SECTION: Metadata -->
-                    <h2 class="h6 mb-3">Metadata</h2>
-                    <dl class="row mb-0 small">
-                        <dt class="col-5 text-muted">Created by</dt>
-                        <dd class="col-7 mb-2">@Model.Training.CreatedByDisplayName</dd>
-
-                        <dt class="col-5 text-muted">Created at</dt>
-                        <dd class="col-7 mb-2">@Model.Training.CreatedAt.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</dd>
-
-                        <dt class="col-5 text-muted">Last modified by</dt>
-                        <dd class="col-7 mb-2">@(Model.Training.LastModifiedByDisplayName ?? "Not available")</dd>
-
-                        <dt class="col-5 text-muted">Last modified at</dt>
-                        <dd class="col-7">@(Model.Training.LastModifiedAt?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm") ?? "Not available")</dd>
-                    </dl>
-                </div>
-            </div>
-        </div>
+                </ul>
+            </section>
+        </aside>
     </div>
 </div>
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/components/pm-table.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/training/manage.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/training/record.css" asp-append-version="true" />
 }

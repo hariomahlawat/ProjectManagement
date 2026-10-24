@@ -910,10 +910,10 @@ public sealed class TrainingWriteService
             }
 
             var id = row.Id;
-            var armyNumber = string.IsNullOrWhiteSpace(row.ArmyNumber) ? null : row.ArmyNumber.Trim();
-            var rank = (row.Rank ?? string.Empty).Trim();
-            var name = (row.Name ?? string.Empty).Trim();
-            var unit = (row.UnitName ?? string.Empty).Trim();
+            var armyNumber = TrainingRosterText.ArmyNumber(row.ArmyNumber);
+            var rank = TrainingRosterText.Rank(row.Rank);
+            var name = TrainingRosterText.Name(row.Name);
+            var unit = TrainingRosterText.Unit(row.UnitName);
 
             if (string.IsNullOrWhiteSpace(armyNumber) && string.IsNullOrWhiteSpace(rank) && string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(unit))
             {

@@ -140,6 +140,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     x.RowVersion))
                 .FirstOrDefaultAsync(cancellationToken);
 
+            if (projection is not null)
+            {
+                projection = projection with { Roster = projection.Roster.Select(TidyRosterRow).ToList() };
+            }
+
             if (projection?.PendingDeleteRequest is { } pending)
             {
                 var requestedBy = await _db.Users
@@ -202,7 +207,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     training.LastModifiedAtUtc,
                     training.ProjectLinks
                         .OrderBy(link => link.Project != null ? link.Project.Name : string.Empty)
-                        .Select(link => link.Project != null ? link.Project.Name : string.Empty)
+                        .Select(link => new TrainingProjectSnapshot(link.ProjectId, link.Project != null ? link.Project.Name : string.Empty))
                         .ToList(),
                     training.Trainees
                         .OrderBy(trainee => trainee.Category)
@@ -243,9 +248,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 projection.TrainingMonth,
                 projection.TrainingYear);
 
-            var projectNames = projection.ProjectNames
-                .Where(name => !string.IsNullOrWhiteSpace(name))
+            var projects = projection.Projects
+                .Where(project => !string.IsNullOrWhiteSpace(project.Name))
                 .ToList();
+            var projectNames = projects.Select(project => project.Name).ToList();
 
             var userIds = new[] { projection.CreatedByUserId, projection.LastModifiedByUserId }
                 .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -270,10 +276,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var roster = rosterRows
                 .Select(row => new TrainingTraineeVm
                 {
-                    ArmyNumber = row.ArmyNumber ?? string.Empty,
-                    Rank = row.Rank ?? string.Empty,
-                    Name = row.Name ?? string.Empty,
-                    UnitName = row.UnitName ?? string.Empty,
+                    ArmyNumber = TrainingRosterText.ArmyNumber(row.ArmyNumber) ?? string.Empty,
+                    Rank = TrainingRosterText.Rank(row.Rank),
+                    Name = TrainingRosterText.Name(row.Name),
+                    UnitName = TrainingRosterText.Unit(row.UnitName),
                     CategoryLabel = FormatTraineeCategory(row.Category)
                 })
                 .ToList();
@@ -298,6 +304,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 RosterSourceDisplay = rosterSourceDisplay,
                 Roster = roster,
                 ProjectNames = projectNames,
+                Projects = projects,
+                PeriodStart = projection.StartDate,
+                PeriodEnd = projection.EndDate,
+                TrainingMonth = projection.TrainingMonth,
+                TrainingYear = projection.TrainingYear,
+                DurationDays = TrainingDuration.InclusiveDays(projection.StartDate, projection.EndDate),
+                IsLegacy = source == TrainingCounterSource.Legacy,
                 Notes = projection.Notes ?? string.Empty,
                 CreatedByDisplayName = createdByDisplayName,
                 CreatedAt = projection.CreatedAtUtc,
@@ -841,8 +854,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .GroupBy(entry => entry.TrainingId)
                 .ToDictionary(
                     group => group.Key,
-                    group => (IReadOnlyList<TrainingRosterRow>)group.Select(entry => entry.Row).ToList());
+                    group => (IReadOnlyList<TrainingRosterRow>)group.Select(entry => TidyRosterRow(entry.Row)).ToList());
         }
+
+        // Roster text as stored after tidying (TrainingRosterText), so older rows read the same as new ones.
+        private static TrainingRosterRow TidyRosterRow(TrainingRosterRow row) => new()
+        {
+            Id = row.Id,
+            ArmyNumber = TrainingRosterText.ArmyNumber(row.ArmyNumber),
+            Rank = TrainingRosterText.Rank(row.Rank),
+            Name = TrainingRosterText.Name(row.Name),
+            UnitName = TrainingRosterText.Unit(row.UnitName),
+            Category = row.Category
+        };
 
         // ============================================================
         // FIXED: TECHNICAL CATEGORY KPIs WITH STRENGTH
@@ -1429,7 +1453,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             DateTimeOffset CreatedAtUtc,
             string? LastModifiedByUserId,
             DateTimeOffset? LastModifiedAtUtc,
-            IReadOnlyList<string> ProjectNames,
+            IReadOnlyList<TrainingProjectSnapshot> Projects,
             IReadOnlyList<TrainingRosterRow> Roster);
 
         private sealed record TrainingDeleteRequestProjection(
