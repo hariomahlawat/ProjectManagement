@@ -1,0 +1,34 @@
+@using System.Globalization
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel.StrengthBreakdown
+@{
+    // Officers / JCOs / ORs as a labelled split: a bar in three shades of one hue, then the counts.
+    // ViewData["Compact"] = true gives the smaller version used inside cards.
+    var compact = ViewData["Compact"] as bool? ?? false;
+    var total = Model.Officers + Model.Jcos + Model.Ors;
+}
+@if (total > 0)
+{
+    <div class="training-split @(compact ? "training-split--compact" : string.Empty)">
+        <div class="training-split__bar"
+             aria-hidden="true"
+             style="--split-o:@Model.Officers;--split-j:@Model.Jcos;--split-r:@Model.Ors">
+            @if (Model.Officers > 0)
+            {
+                <span class="training-split__seg training-split__seg--o"></span>
+            }
+            @if (Model.Jcos > 0)
+            {
+                <span class="training-split__seg training-split__seg--j"></span>
+            }
+            @if (Model.Ors > 0)
+            {
+                <span class="training-split__seg training-split__seg--r"></span>
+            }
+        </div>
+        <ul class="training-split__legend">
+            <li><span class="training-rank-dot training-rank-dot--o"></span><strong>@Model.Officers.ToString("N0", CultureInfo.CurrentCulture)</strong> Officers</li>
+            <li><span class="training-rank-dot training-rank-dot--j"></span><strong>@Model.Jcos.ToString("N0", CultureInfo.CurrentCulture)</strong> JCOs</li>
+            <li><span class="training-rank-dot training-rank-dot--r"></span><strong>@Model.Ors.ToString("N0", CultureInfo.CurrentCulture)</strong> ORs</li>
+        </ul>
+    </div>
+}

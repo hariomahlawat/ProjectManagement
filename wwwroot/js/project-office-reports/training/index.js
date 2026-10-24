@@ -418,7 +418,32 @@ function initAutoShowExportModal() {
 }
 
 // ================================================================
-// chart: always label as trainees; we now *have* trainee counts
+// chart colours: read from the site and training tokens so the
+// chart follows Light and Dark (--pm-chart-*, --training-type-*)
+// ================================================================
+function readChartTheme() {
+    const styles = getComputedStyle(document.documentElement);
+    const read = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+    const palette = window.PMTheme && typeof window.PMTheme.getChartPalette === 'function'
+        ? window.PMTheme.getChartPalette()
+        : null;
+
+    return {
+        axisColor: palette?.axisColor || read('--pm-chart-axis', '#4b5563'),
+        gridColor: palette?.gridColor || read('--pm-chart-grid', '#e5e7eb'),
+        surface: read('--pm-card', '#ffffff'),
+        simulator: read('--training-type-simulator', '#2563eb'),
+        drone: read('--training-type-drone', '#14b8a6')
+    };
+}
+
+function onThemeChange(callback) {
+    const observer = new MutationObserver(callback);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+}
+
+// ================================================================
+// chart: trainees per training year, Simulator and Drone stacked
 // ================================================================
 function initTrainingYearChart() {
     const host = document.querySelector('[data-training-year]');
@@ -455,21 +480,13 @@ function initTrainingYearChart() {
             ''
     );
 
-    // 👇 IMPORTANT: try the names C# actually sends now, then fall back
-    const simulatorData = rows.map(
-        (row) =>
-            row.simulatorTrainings ??   // current C# name
-            row.simulatorTrainees ??   // older name, if you revert
-            0
-    );
-    const droneData = rows.map(
-        (row) =>
-            row.droneTrainings ??       // current C# name
-            row.droneTrainees ??       // older name, if you revert
-            0
-    );
+    // The server sends trainee counts under the *Trainings names; the older *Trainees names are a fallback.
+    const simulatorData = rows.map((row) => row.simulatorTrainings ?? row.simulatorTrainees ?? 0);
+    const droneData = rows.map((row) => row.droneTrainings ?? row.droneTrainees ?? 0);
 
-    new ChartCtor(canvas, {
+    let theme = readChartTheme();
+
+    const build = () => new ChartCtor(canvas, {
         type: 'bar',
         data: {
             labels,
@@ -477,15 +494,23 @@ function initTrainingYearChart() {
                 {
                     label: 'Simulator',
                     data: simulatorData,
-                    backgroundColor: 'rgba(59,130,246,0.85)',
-                    borderRadius: 6,
+                    backgroundColor: theme.simulator,
+                    borderColor: theme.surface,
+                    borderWidth: { top: 2 },
+                    borderSkipped: 'bottom',
+                    borderRadius: 4,
+                    maxBarThickness: 64,
                     stack: 'values'
                 },
                 {
                     label: 'Drone',
                     data: droneData,
-                    backgroundColor: 'rgba(14,165,233,0.85)',
-                    borderRadius: 6,
+                    backgroundColor: theme.drone,
+                    borderColor: theme.surface,
+                    borderWidth: { top: 2 },
+                    borderSkipped: 'bottom',
+                    borderRadius: 4,
+                    maxBarThickness: 64,
                     stack: 'values'
                 }
             ]
@@ -495,11 +520,14 @@ function initTrainingYearChart() {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    position: 'top'
+                    position: 'top',
+                    align: 'end',
+                    labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 10, color: theme.axisColor }
                 },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`
+                        label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} trainees`,
+                        footer: (items) => `Total: ${items.reduce((sum, item) => sum + item.parsed.y, 0).toLocaleString()} trainees`
                     }
                 }
             },
@@ -510,28 +538,40 @@ function initTrainingYearChart() {
             scales: {
                 x: {
                     stacked: true,
-                    grid: { display: false }
+                    grid: { display: false },
+                    ticks: { color: theme.axisColor },
+                    border: { color: theme.gridColor }
                 },
                 y: {
                     stacked: true,
                     beginAtZero: true,
-                    ticks: { precision: 0 },
+                    ticks: { precision: 0, color: theme.axisColor },
                     title: {
                         display: true,
-                        text: 'Trainees'
+                        text: 'Trainees',
+                        color: theme.axisColor
                     },
-                    grid: {
-                        color: 'rgba(148,163,184,0.2)'
-                    }
+                    grid: { color: theme.gridColor },
+                    border: { display: false }
                 }
             }
         }
+    });
+
+    let chart = build();
+
+    // Rebuild with the new colours when the user switches Light / Dark.
+    onThemeChange(() => {
+        theme = readChartTheme();
+        chart.destroy();
+        chart = build();
     });
 }
 
 
 // ================================================================
-// chart download buttons
+// chart download buttons: a PNG on the card colour, so it reads
+// the same when pasted into a document
 // ================================================================
 function initDownloadButtons() {
     document
@@ -541,11 +581,19 @@ function initDownloadButtons() {
                 const targetId = button.dataset.target;
                 if (!targetId) return;
 
-                const canvas = document.getElementById(targetId);
-                if (!canvas) return;
+                const source = document.getElementById(targetId);
+                if (!source) return;
+
+                const copy = document.createElement('canvas');
+                copy.width = source.width;
+                copy.height = source.height;
+                const context = copy.getContext('2d');
+                context.fillStyle = readChartTheme().surface;
+                context.fillRect(0, 0, copy.width, copy.height);
+                context.drawImage(source, 0, 0);
 
                 const link = document.createElement('a');
-                link.href = canvas.toDataURL('image/png');
+                link.href = copy.toDataURL('image/png');
                 link.download = `${targetId}.png`;
                 link.click();
             });

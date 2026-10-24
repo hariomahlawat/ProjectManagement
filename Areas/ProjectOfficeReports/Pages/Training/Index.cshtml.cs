@@ -534,7 +534,7 @@ public class IndexModel : PageModel
 
         public static TrainingRowViewModel FromListItem(TrainingListItem item)
         {
-            var strength = $"{item.CounterOfficers:N0} – {item.CounterJcos:N0} – {item.CounterOrs:N0}";
+            var strength = $"{item.CounterOfficers:N0} · {item.CounterJcos:N0} · {item.CounterOrs:N0}";
             var (period, dayCount) = FormatPeriod(item);
             return new TrainingRowViewModel(
                 item.Id,

@@ -20,6 +20,9 @@ public sealed class TrainingDetailsVm
     public string SourceDisplay { get; init; } = string.Empty;
     public int TotalTrainees { get; init; }
     public string StrengthDisplay { get; init; } = string.Empty;
+    public int StrengthOfficers { get; init; }
+    public int StrengthJcos { get; init; }
+    public int StrengthOrs { get; init; }
 
     // ------------------------------------------------------------
     // roster summary

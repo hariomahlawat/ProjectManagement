@@ -218,10 +218,10 @@
                     @{ var sourceLabel = input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
                         <div class="d-flex flex-wrap gap-2">
-                            <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@input.CounterOfficers</span></span>
-                            <span class="badge bg-primary-subtle text-primary-emphasis">JCOs: <span id="rosterJcosCount">@input.CounterJcos</span></span>
-                            <span class="badge bg-primary-subtle text-primary-emphasis">ORs: <span id="rosterOrsCount">@input.CounterOrs</span></span>
-                            <span class="badge bg-secondary-subtle text-secondary-emphasis">Total: <span id="rosterTotalCount">@input.CounterTotal</span></span>
+                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--o"></span>Officers <strong id="rosterOfficersCount">@input.CounterOfficers</strong></span>
+                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--j"></span>JCOs <strong id="rosterJcosCount">@input.CounterJcos</strong></span>
+                            <span class="training-rank-chip"><span class="training-rank-dot training-rank-dot--r"></span>ORs <strong id="rosterOrsCount">@input.CounterOrs</strong></span>
+                            <span class="training-rank-chip">Total <strong id="rosterTotalCount">@input.CounterTotal</strong></span>
                         </div>
                         <div class="text-muted" id="rosterCounterSource">Source: @sourceLabel</div>
                     </div>
