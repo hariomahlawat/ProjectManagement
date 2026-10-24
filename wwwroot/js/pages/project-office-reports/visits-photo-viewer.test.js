@@ -78,3 +78,18 @@ test('edit page opens photos in the same in-page viewer instead of leaving the p
   assert.match(edit, /<partial name="_PhotoViewer"/);
   assert.match(edit, /visits-details\.css/);
 });
+
+test('visit pages only ask ViewPhoto for the sizes it serves', () => {
+  const viewPhoto = read('Areas/ProjectOfficeReports/Pages/Visits/ViewPhoto.cshtml.cs');
+  const served = new Set(['xs', 'sm', 'md', 'xl', 'original']);
+  assert.match(viewPhoto, /"xs" or "sm" or "md" or "xl" or "original"/);
+
+  const views = ['Index.cshtml', 'Details.cshtml', '_PhotosPartial.cshtml']
+    .map(name => read(`Areas/ProjectOfficeReports/Pages/Visits/${name}`))
+    .join('\n');
+  const requested = [...views.matchAll(/ViewPhoto"[^)]*size = "([a-z]+)"/g)].map(match => match[1]);
+  assert.ok(requested.length >= 4);
+  for (const size of requested) {
+    assert.ok(served.has(size), `ViewPhoto does not serve size "${size}"`);
+  }
+});

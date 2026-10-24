@@ -13,7 +13,7 @@
     string? coverUrl = null;
     if (Model.CoverPhoto is { } cover && visit is not null)
     {
-        coverUrl = Url.Page("./ViewPhoto", new { id = visit.Id, photoId = cover.Id, size = "lg" });
+        coverUrl = Url.Page("./ViewPhoto", new { id = visit.Id, photoId = cover.Id, size = "xl" });
         if (coverUrl is not null && !string.IsNullOrWhiteSpace(cover.VersionStamp))
         {
             coverUrl = QueryHelpers.AddQueryString(coverUrl, "v", cover.VersionStamp);
