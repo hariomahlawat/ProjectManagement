@@ -62,6 +62,23 @@ export function categoryColor(name, tokens = chartTokens()) {
   return tokens.category.neutral;
 }
 
+// Colours for a list of category names: the three roots keep their fixed hues; any other
+// (exact sub-)category gets the next of the six accent tokens, so slices and their legend
+// swatches stay distinguishable in the PNG export, where there are no tooltips.
+export function categorySeriesColors(names, tokens = chartTokens()) {
+  const fallback = ['--pm-chart-accent-4', '--pm-chart-accent-6', '--pm-chart-accent-5', '--pm-chart-accent-2', '--pm-chart-accent-1', '--pm-chart-accent-3']
+    .map((name) => cssVar(name))
+    .filter(Boolean);
+  let next = 0;
+  return names.map((name) => {
+    const colour = categoryColor(name, tokens);
+    if (colour !== tokens.category.neutral || !fallback.length) return colour;
+    const picked = fallback[next % fallback.length];
+    next += 1;
+    return picked;
+  });
+}
+
 export function lifecycleColor(status, tokens = chartTokens()) {
   return tokens.lifecycle[status] ?? tokens.category.neutral;
 }

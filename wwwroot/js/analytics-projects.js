@@ -10,6 +10,7 @@ import {
   applyPmChartDefaults,
   barScales,
   categoryColor,
+  categorySeriesColors,
   chartTokens,
   enableClickThrough,
   lifecycleColor,
@@ -318,7 +319,7 @@ function initCompleted(panel) {
       sizeChartHost(byCategoryCanvas.parentElement, { min: 260, max: 280 });
       mount(byCategoryCanvas, () => {
         const tokens = chartTokens();
-        const colors = byCategory.map((p) => categoryColor(p.name, tokens));
+        const colors = categorySeriesColors(byCategory.map((p) => p.name), tokens);
         const chart = new window.Chart(byCategoryCanvas, {
           type: 'doughnut',
           data: {
