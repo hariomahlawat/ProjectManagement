@@ -61,7 +61,15 @@
             {
                 <i class="bi bi-journal-check" aria-hidden="true"></i>
                 <h2>No published ARPP documents</h2>
-                <p>Verified ARPPs and addenda will appear here after publication.</p>
+                @if (Model.CanManageArpp)
+                {
+                    <p>Verified ARPPs and addenda appear here after publication. Create the original ARPP, enter its rows, attach the HQ PDF and verify it in Administration.</p>
+                    <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-primary project-arpp-empty__action"><span class="bi bi-sliders" aria-hidden="true"></span> Open ARPP administration</a>
+                }
+                else
+                {
+                    <p>Verified ARPPs and addenda will appear here after the Project Office publishes them.</p>
+                }
             }
         </section>
     }

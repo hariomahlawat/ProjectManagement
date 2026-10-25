@@ -484,6 +484,7 @@ public sealed class ArppCommandService : IArppCommandService
         published.AttachmentSizeBytes = issue.Attachment.SizeBytes;
         published.AttachmentSha256 = issue.Attachment.Sha256;
 
+        var stageSynchronization = ArppIpaStageSynchronizationResult.Empty;
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         try
         {
@@ -523,7 +524,7 @@ public sealed class ArppCommandService : IArppCommandService
                 .Distinct()
                 .ToArray();
 
-            var stageSynchronization = await _ipaStageSynchronizer.SynchronizeProjectsAsync(
+            stageSynchronization = await _ipaStageSynchronizer.SynchronizeProjectsAsync(
                 affectedProjectIds,
                 cancellationToken);
 
@@ -564,7 +565,44 @@ public sealed class ArppCommandService : IArppCommandService
             }));
 
         await transaction.CommitAsync(cancellationToken);
-        return ArppCommandResult.Succeeded(issue.Id, "ARPP issue verified and locked.");
+        return ArppCommandResult.Succeeded(
+            issue.Id,
+            BuildVerificationMessage(published.RevisionNumber, stageSynchronization),
+            BuildVerificationWarnings(stageSynchronization));
+    }
+
+    private static string BuildVerificationMessage(
+        int revisionNumber,
+        ArppIpaStageSynchronizationResult synchronization)
+    {
+        var message = revisionNumber > 1
+            ? $"ARPP issue verified and locked. Published revision {revisionNumber} is now visible to PRISM users."
+            : "ARPP issue verified and locked. It is now visible in the published ARPP library.";
+
+        if (synchronization.ChangedProjectCount > 0)
+        {
+            message += $" The IPA stage of {synchronization.ChangedProjectCount} linked {Pluralize(synchronization.ChangedProjectCount, "project", "projects")} now follows this published position.";
+        }
+
+        return message;
+    }
+
+    private static IReadOnlyList<string> BuildVerificationWarnings(ArppIpaStageSynchronizationResult synchronization)
+    {
+        var warnings = new List<string>();
+        if (synchronization.DataQualityIssueCount > 0)
+        {
+            warnings.Add(
+                $"{synchronization.DataQualityIssueCount} linked {Pluralize(synchronization.DataQualityIssueCount, "project has", "projects have")} an IPA actual start later than the ARPP date. The completion date was applied; the start date is recorded in the audit log for correction.");
+        }
+
+        if (synchronization.SupersededRequestCount > 0)
+        {
+            warnings.Add(
+                $"{synchronization.SupersededRequestCount} pending IPA stage {Pluralize(synchronization.SupersededRequestCount, "request was", "requests were")} superseded because the published ARPP record is now authoritative.");
+        }
+
+        return warnings;
     }
 
     public async Task<ArppCommandResult> UnlockAsync(

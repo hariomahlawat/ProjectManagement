@@ -455,6 +455,12 @@
 .arpp-record-v2__readiness .is-ready .bi { color: var(--bs-success); }
 .arpp-record-v2__readiness .is-pending .bi { color: var(--bs-warning); }
 
+.arpp-record-v2__readiness-action {
+    font-weight: 600;
+    text-decoration-thickness: 1px;
+    text-underline-offset: .15em;
+}
+
 .arpp-record-v2__tabs {
     display: flex;
     align-items: center;

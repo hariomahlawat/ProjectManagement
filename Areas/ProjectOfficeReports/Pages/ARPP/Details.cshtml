@@ -49,6 +49,12 @@
                     <span class="bi bi-pencil-square" aria-hidden="true"></span> Edit working copy
                 </a>
             }
+            @if (Model.Issue.HasPublishedSnapshot)
+            {
+                <a asp-area="" asp-page="/Projects/Arpp/Index" asp-route-issueId="@Model.Issue.Id" class="btn btn-outline-primary btn-sm">
+                    <span class="bi bi-book" aria-hidden="true"></span> View in Published library
+                </a>
+            }
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Excel" asp-route-id="@Model.Issue.Id" class="btn btn-outline-success btn-sm">
                 <span class="bi bi-file-earmark-excel" aria-hidden="true"></span> Excel
             </a>
@@ -91,9 +97,30 @@
                 @if (!Model.Issue.IsVerified)
                 {
                     <ul class="arpp-record-v2__readiness" aria-label="Verification readiness">
-                        <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")"><span class="bi @(Model.Issue.Entries.Count > 0 ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span> Rows recorded</li>
-                        <li class="@(Model.Issue.Attachment is not null ? "is-ready" : "is-pending")"><span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span> HQ PDF attached</li>
-                        <li class="@(Model.ReferenceDataReady ? "is-ready" : "is-pending")"><span class="bi @(Model.ReferenceDataReady ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span> Reference values mapped</li>
+                        <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.Issue.Entries.Count > 0 ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            <span>Rows recorded</span>
+                            @if (Model.Issue.Entries.Count == 0 && Model.CanManage)
+                            {
+                                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="arpp-record-v2__readiness-action">Enter rows</a>
+                            }
+                        </li>
+                        <li class="@(Model.Issue.Attachment is not null ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            <span>HQ PDF attached</span>
+                            @if (Model.Issue.Attachment is null && Model.CanManage)
+                            {
+                                <a href="#arpp-document" data-arpp-open-tab="arpp-document-tab" class="arpp-record-v2__readiness-action">Attach the issued PDF</a>
+                            }
+                        </li>
+                        <li class="@(Model.ReferenceDataReady ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.ReferenceDataReady ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            <span>Reference values mapped</span>
+                            @if (!Model.ReferenceDataReady && Model.CanManage)
+                            {
+                                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="arpp-record-v2__readiness-action">Map CFA, Fund and DFPDS</a>
+                            }
+                        </li>
                     </ul>
                 }
             </div>

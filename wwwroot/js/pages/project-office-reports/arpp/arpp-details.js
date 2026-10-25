@@ -17,6 +17,17 @@
         uploadButton.disabled = !(uploadInput.files?.length > 0);
     }
 
+    root.querySelectorAll("[data-arpp-open-tab]").forEach(link => {
+        link.addEventListener("click", event => {
+            const tabButton = document.getElementById(link.getAttribute("data-arpp-open-tab") || "");
+            const Tab = window.bootstrap?.Tab;
+            if (!tabButton || !Tab) return;
+            event.preventDefault();
+            Tab.getOrCreateInstance(tabButton).show();
+            tabButton.focus();
+        });
+    });
+
     root.querySelectorAll("[data-arpp-delete-pdf-form]").forEach(form => {
         form.addEventListener("submit", async event => {
             if (form.dataset.confirmed === "true") return;

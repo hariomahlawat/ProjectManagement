@@ -274,6 +274,17 @@
             }
         });
 
+        // Rows whose CFA, Fund or DFPDS value is "Not listed" cannot be verified until an
+        // Admin maps the value, so they count as needing attention even though the form is valid.
+        const pendingReferenceControls = new Set();
+        form.querySelectorAll("[data-arpp-reference-pending]:not(.d-none)").forEach(marker => {
+            const control = marker.closest("td")?.querySelector("[data-arpp-reference-snapshot]");
+            if (control instanceof HTMLInputElement && !controls.has(control)) {
+                controls.add(control);
+                pendingReferenceControls.add(control);
+            }
+        });
+
         return Array.from(controls).map(control => {
             const row = control.closest("[data-arpp-entry-row]");
             const rowNumber = row?.querySelector("[data-arpp-row-number]")?.textContent?.trim();
@@ -282,7 +293,9 @@
                 control,
                 row,
                 label: rowNumber ? `Row ${rowNumber} · ${field}` : field,
-                message: validationMessageFor(control)
+                message: pendingReferenceControls.has(control)
+                    ? "Not listed — Admin mapping required before verification."
+                    : validationMessageFor(control)
             };
         });
     };

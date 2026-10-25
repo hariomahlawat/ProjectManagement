@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Configuration;
 using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP;
@@ -12,15 +13,18 @@ public sealed class IndexModel : PageModel
     private readonly IArppReadService _readService;
     private readonly IArppLibraryService _libraryService;
     private readonly IAuthorizationService _authorizationService;
+    private readonly IArppReferenceDataService _referenceDataService;
 
     public IndexModel(
         IArppReadService readService,
         IArppLibraryService libraryService,
-        IAuthorizationService authorizationService)
+        IAuthorizationService authorizationService,
+        IArppReferenceDataService referenceDataService)
     {
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _libraryService = libraryService ?? throw new ArgumentNullException(nameof(libraryService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
+        _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
     }
 
     [BindProperty(SupportsGet = true, Name = "fy")]
@@ -33,6 +37,15 @@ public sealed class IndexModel : PageModel
         [], [], 0, 0, 0m, 0m, 0m, 0, 0, 0, 0);
 
     public bool CanManage { get; private set; }
+
+    /// <summary>
+    /// True when at least one controlled list (CFA, Fund or DFPDS) has no active value.
+    /// A record cannot be verified until every row maps to a controlled value, so a new
+    /// deployment must set the lists up before the first ARPP can be published.
+    /// </summary>
+    public bool ReferenceListsIncomplete { get; private set; }
+
+    public bool CanManageReferenceData { get; private set; }
 
     /// <summary>
     /// Authoritative, organisation-visible position derived only from verified published
@@ -77,6 +90,20 @@ public sealed class IndexModel : PageModel
             User,
             resource: null,
             ProjectOfficeReportsPolicies.ManageArpp)).Succeeded;
+
+        if (CanManage)
+        {
+            var referenceData = await _referenceDataService.GetWorkspaceOptionsAsync(
+                [], [], [], cancellationToken);
+            ReferenceListsIncomplete =
+                !referenceData.CfaOptions.Any(option => option.IsActive) ||
+                !referenceData.FundOptions.Any(option => option.IsActive) ||
+                !referenceData.DfpdsSchedules.Any(option => option.IsActive);
+            CanManageReferenceData = (await _authorizationService.AuthorizeAsync(
+                User,
+                resource: null,
+                AdminPolicies.MasterDataManage)).Succeeded;
+        }
     }
 }
 
