@@ -527,11 +527,16 @@
             return Model.GetRouteValuesForLinks(values, includePage: false, includeModeAndId: false);
         }
 
-        // The register holds one year restriction. When the scope already has one, a year bar
-        // can open the register only if it asks for that same restriction; otherwise the link
-        // would replace the scope and show filings the bar does not count.
+        // A link replaces the scope's value for the filter it sets. It is offered only when the
+        // requested value sits inside the scope (the scope is open or already holds that value);
+        // otherwise the figure counts nothing there and the link would open filings outside it.
         bool CanOpenYear(int year, IprDateBasis basis)
             => !Model.Year.HasValue || (Model.Year == year && Model.DateBasis == basis);
+        bool CanOpenStatus(IprStatus status)
+            => Model.Statuses.Count == 0 || Model.Statuses.Any(scoped => IprStatusPolicy.Normalize(scoped) == status);
+        bool CanOpenType(IprType type) => Model.Types.Count == 0 || Model.Types.Contains(type);
+        bool CanOpenMissingEvidence() => Model.Evidence != IprEvidenceFilter.Available;
+        bool CanOpenAge(IprPendingAge band) => Model.PendingAge == IprPendingAge.Any || Model.PendingAge == band;
 
         var summary = Model.AnalyticsSummary;
         var withEvidence = Math.Max(0, summary.Total - summary.MissingAttachments);
@@ -556,26 +561,55 @@
             </header>
 
             <div class="ipr-insights__kpis">
-                <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { statuses = new[] { "Granted" } })">
-                    <span>Grant rate</span>
-                    <strong>@summary.GrantRatePercent%</strong>
-                    <small>@summary.TypeRows.Sum(row => row.Protected) of @summary.Total filings granted</small>
-                </a>
+                @{
+                    Func<object?, object> grantRateBody = @<text>
+                        <span>Grant rate</span>
+                        <strong>@summary.GrantRatePercent%</strong>
+                        <small>@summary.TypeRows.Sum(row => row.Protected) of @summary.Total filings granted</small>
+                    </text>;
+                    Func<object?, object> pendingBody = @<text>
+                        <span>Median pending age</span>
+                        <strong>@(summary.MedianAwaitingDays.HasValue ? FormatAge(summary.MedianAwaitingDays.Value) : "—")</strong>
+                        <small>@summary.TypeRows.Sum(row => row.Pending) filings awaiting an outcome</small>
+                    </text>;
+                }
+                @if (CanOpenStatus(IprStatus.Granted))
+                {
+                    <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { statuses = new[] { "Granted" } })">@grantRateBody(null)</a>
+                }
+                else
+                {
+                    <div class="ipr-insights-kpi">@grantRateBody(null)</div>
+                }
                 <div class="ipr-insights-kpi">
                     <span>Median time to grant</span>
                     <strong>@(summary.MedianGrantDays.HasValue ? FormatAge(summary.MedianGrantDays.Value) : "—")</strong>
                     <small>filing to grant or registration</small>
                 </div>
-                <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { statuses = new[] { "Filed" } })">
-                    <span>Median pending age</span>
-                    <strong>@(summary.MedianAwaitingDays.HasValue ? FormatAge(summary.MedianAwaitingDays.Value) : "—")</strong>
-                    <small>@summary.TypeRows.Sum(row => row.Pending) filings awaiting an outcome</small>
-                </a>
-                <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { evidence = "Missing" })">
-                    <span>Evidence coverage</span>
-                    <strong>@evidencePercent%</strong>
-                    <small>@summary.MissingAttachments without a PDF · show them</small>
-                </a>
+                @if (CanOpenStatus(IprStatus.Filed))
+                {
+                    <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { statuses = new[] { "Filed" } })">@pendingBody(null)</a>
+                }
+                else
+                {
+                    <div class="ipr-insights-kpi">@pendingBody(null)</div>
+                }
+                @if (CanOpenMissingEvidence())
+                {
+                    <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { evidence = "Missing" })">
+                        <span>Evidence coverage</span>
+                        <strong>@evidencePercent%</strong>
+                        <small>@summary.MissingAttachments without a PDF · show them</small>
+                    </a>
+                }
+                else
+                {
+                    <div class="ipr-insights-kpi">
+                        <span>Evidence coverage</span>
+                        <strong>@evidencePercent%</strong>
+                        <small>@summary.MissingAttachments without a PDF</small>
+                    </div>
+                }
             </div>
 
             <div class="ipr-insights__grid">
@@ -676,11 +710,19 @@
                     <div class="ipr-hbars">
                         @foreach (var band in Model.AwaitingAgeBands)
                         {
-                            <a class="ipr-hbars__item" asp-page="./Index" asp-all-route-data="@RegisterLink(new { pendingAge = band.Band.ToString() })">
+                            Func<object?, object> bandBody = @<text>
                                 <span>@band.Label</span>
                                 <span class="ipr-hbars__track"><span class="ipr-hbars__fill ipr-hbars__fill--@band.Tone" style="width:@(Math.Round(band.Count * 100d / ageMax, 1).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
                                 <strong>@band.Count</strong>
-                            </a>
+                            </text>;
+                            if (CanOpenAge(band.Band))
+                            {
+                                <a class="ipr-hbars__item" asp-page="./Index" asp-all-route-data="@RegisterLink(new { pendingAge = band.Band.ToString() })">@bandBody(null)</a>
+                            }
+                            else
+                            {
+                                <div class="ipr-hbars__item">@bandBody(null)</div>
+                            }
                         }
                     </div>
                 </article>
@@ -694,11 +736,12 @@
                             @foreach (var row in summary.TypeRows)
                             {
                                 var typeKey = row.Type.ToString();
+                                var typeInScope = CanOpenType(row.Type);
                                 <tr>
                                     <th scope="row"><span class="ipr-type-dot ipr-type-dot--@typeKey.ToLowerInvariant()"></span>@(row.Type == IprType.Copyright ? "Copyrights" : "Patents")</th>
-                                    <td><a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey } })">@row.Filed</a></td>
-                                    <td><a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey }, statuses = new[] { "Granted" } })">@row.Protected</a></td>
-                                    <td><a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey }, statuses = new[] { "Filed" } })">@row.Pending</a></td>
+                                    <td>@if (typeInScope) { <a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey } })">@row.Filed</a> } else { @row.Filed }</td>
+                                    <td>@if (typeInScope && CanOpenStatus(IprStatus.Granted)) { <a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey }, statuses = new[] { "Granted" } })">@row.Protected</a> } else { @row.Protected }</td>
+                                    <td>@if (typeInScope && CanOpenStatus(IprStatus.Filed)) { <a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey }, statuses = new[] { "Filed" } })">@row.Pending</a> } else { @row.Pending }</td>
                                     <td>@(row.Filed == 0 ? "—" : $"{Math.Round(row.Protected * 100d / row.Filed):0}%")</td>
                                 </tr>
                             }

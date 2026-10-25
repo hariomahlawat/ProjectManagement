@@ -206,4 +206,11 @@ test('IPR Insights links never open more or fewer filings than the chart counts'
   assert.match(pageSource, /@if \(CanOpenYear\(cohort\.Year, IprDateBasis\.Filed\)\)/);
   assert.match(pageSource, /@if \(CanOpenYear\(row\.Year, IprDateBasis\.Filed\)\)/);
   assert.match(pageSource, /@if \(CanOpenYear\(row\.Year, IprDateBasis\.Protected\)\)/);
+  // Status, type, evidence and age links open only values already inside the scope.
+  assert.match(pageSource, /@if \(CanOpenStatus\(IprStatus\.Granted\)\)/);
+  assert.match(pageSource, /@if \(CanOpenStatus\(IprStatus\.Filed\)\)/);
+  assert.match(pageSource, /@if \(CanOpenMissingEvidence\(\)\)/);
+  assert.match(pageSource, /if \(CanOpenAge\(band\.Band\)\)/);
+  assert.match(pageSource, /var typeInScope = CanOpenType\(row\.Type\);/);
+  assert.doesNotMatch(pageSource, /<td><a asp-page="\.\/Index" asp-all-route-data="@RegisterLink\(new \{ types/);
 });
