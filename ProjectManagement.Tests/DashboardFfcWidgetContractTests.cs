@@ -53,7 +53,7 @@ public sealed class DashboardFfcWidgetContractTests
         Assert.Contains("properties.ADM0_A3", script, StringComparison.Ordinal);
         Assert.Contains("ffc-simulator-map__leader", script, StringComparison.Ordinal);
         Assert.Contains("window.location.assign", script, StringComparison.Ordinal);
-        Assert.Contains("min-height:266px", css, StringComparison.Ordinal);
+        Assert.Contains("min-height: 352px", css, StringComparison.Ordinal); // the map canvas floor; taller than before so the footprint frames Africa to the Pacific
     }
 
     private static string ReadRepoFile(params string[] relativePath)

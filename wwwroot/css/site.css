@@ -175,6 +175,18 @@
     --pm-chart-accent-6: #14b8a6;
     /* -- SECTION: Effects & typography -- */
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
+    /* Card depth: a hairline-soft contact shadow plus a long faint drop, so white cards lift off the page. */
+    --pm-shadow-card: 0 1px 2px rgba(15, 23, 42, .05), 0 12px 32px -16px rgba(15, 23, 42, .18);
+    --pm-shadow-card-hover: 0 2px 4px rgba(15, 23, 42, .06), 0 18px 40px -16px rgba(15, 23, 42, .24);
+    --pm-focus-ring: 0 0 0 3px color-mix(in srgb, var(--pm-primary) 28%, transparent);
+    /* The prism spectrum, in refraction order; the same six hues as landing.css (--lp-spec-*).
+       Signed-in pages use at most one per card as a mark (icon, sparkline, lead bar), never as a fill. */
+    --pm-spec-1: #e11d48;
+    --pm-spec-2: #d97706;
+    --pm-spec-3: #16a34a;
+    --pm-spec-4: #0891b2;
+    --pm-spec-5: #2563eb;
+    --pm-spec-6: #7c3aed;
     --pm-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
     /* GitHub-aligned system font stack and typographic scale */
     --pm-font-size-xxs: 0.6875rem; /* 11px */
@@ -430,6 +442,16 @@
     --pm-shadow-lg: 0 2rem 3rem rgba(0, 0, 0, .45);
     /* Effects: depth comes from lighter surfaces, so shadows stay faint */
     --pm-shadow: 0 8px 20px rgba(0, 0, 0, .35);
+    --pm-shadow-card: 0 1px 2px rgba(0, 0, 0, .35), 0 12px 32px -16px rgba(0, 0, 0, .55);
+    --pm-shadow-card-hover: 0 2px 4px rgba(0, 0, 0, .4), 0 18px 40px -16px rgba(0, 0, 0, .65);
+    --pm-focus-ring: 0 0 0 3px color-mix(in srgb, var(--pm-primary) 35%, transparent);
+    /* The spectrum lifted for graphite surfaces (same values as landing.css in Dark). */
+    --pm-spec-1: #fb7185;
+    --pm-spec-2: #fbbf24;
+    --pm-spec-3: #4ade80;
+    --pm-spec-4: #22d3ee;
+    --pm-spec-5: #6ea8fe;
+    --pm-spec-6: #a78bfa;
     /* Bootstrap mappings. --bs-body-bg is the card surface, not the page: Bootstrap paints
        modals, dropdowns, offcanvas, popovers, list groups, active tabs and unchecked
        checkboxes with it. The page itself is painted by the body rule below. */

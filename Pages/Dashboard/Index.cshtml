@@ -117,26 +117,22 @@
 
 <div class="db-page" data-dashboard>
     <header class="db-header db-reveal">
-        <div>
-            <p class="db-header__date">@Model.DashboardLoadedAtIst.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture)</p>
-            <h1>@Model.Greeting</h1>
-            <p class="db-header__subtitle">The Division at a glance: portfolio, institutional outputs, engagement and innovation.</p>
+        <div class="db-header__title" title="Loaded @Model.DashboardLoadedAtIst.ToString("dd MMM yyyy, HH:mm") IST">
+            <h1>Dashboard</h1>
+            <span class="db-header__date">@Model.DashboardLoadedAtIst.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture)</span>
         </div>
-        <div class="db-header__actions">
-            <span class="db-updated"><i class="bi bi-clock-history"></i> Loaded @Model.DashboardLoadedAtIst.ToString("dd MMM yyyy, HH:mm") IST</span>
-            @if (pulse is not null)
-            {
-                <a class="btn btn-primary btn-sm db-primary-action" href="@pulse.AnalyticsUrl"><i class="bi bi-graph-up-arrow"></i><span>Open analytics</span></a>
-            }
-        </div>
+        @if (pulse is not null)
+        {
+            <a class="btn btn-primary btn-sm db-primary-action" href="@pulse.AnalyticsUrl"><i class="bi bi-graph-up-arrow"></i><span>Open analytics</span></a>
+        }
     </header>
 
     <main class="db-sections">
         <div class="db-top-grid">
-            <section class="db-panel db-reveal" aria-labelledby="portfolio-pulse-title">
+            <section class="db-panel db-hue-5 db-reveal" aria-labelledby="portfolio-pulse-title">
                 <div class="db-section-head">
                     <div>
-                        <span class="db-section-icon db-section-icon--blue"><i class="bi bi-activity"></i></span>
+                        <span class="db-section-icon"><i class="bi bi-activity"></i></span>
                         <div><h2 id="portfolio-pulse-title">Portfolio pulse</h2><p>@(pulse?.OngoingCount ?? 0) ongoing projects across the development lifecycle</p></div>
                     </div>
                     <a href="@(pulse?.OngoingUrl ?? "#")" class="db-text-link">View ongoing projects <i class="bi bi-arrow-right"></i></a>
@@ -147,21 +143,33 @@
                     <div class="db-pulse-layout">
                         <article class="db-pulse-block db-pulse-block--lifecycle">
                             <div class="db-block-heading"><h3>Lifecycle distribution</h3><span>@pulse.OngoingCount total</span></div>
-                            <div class="db-lifecycle" role="list" aria-label="Ongoing projects by lifecycle bucket">
-                                @{ var bucketTotal = Math.Max(1, totalBucket?.Total ?? 0); }
-                                @foreach (var item in new[]
+                            @{
+                                var bucketTotal = Math.Max(1, totalBucket?.Total ?? 0);
+                                // One hue, four steps: each later bucket is a lighter tint of the card's colour.
+                                var lifecycleItems = new[]
                                 {
-                                    (Label: "Approval", Count: totalBucket?.Apvl ?? 0, Css: "approval", Bucket: "approval"),
-                                    (Label: "AoN", Count: totalBucket?.Aon ?? 0, Css: "aon", Bucket: "aon"),
-                                    (Label: "Tendering", Count: totalBucket?.Tender ?? 0, Css: "tender", Bucket: "procurement"),
-                                    (Label: "Development", Count: totalBucket?.Devp ?? 0, Css: "development", Bucket: "development")
-                                })
-                                {
-                                    var pct = (int)Math.Round(item.Count * 100d / bucketTotal);
-                                    <a class="db-lifecycle__segment db-lifecycle__segment--@item.Css" href="@OngoingBucketUrl(item.Bucket)" role="listitem" aria-label="@item.Label: @item.Count projects, @pct percent">
-                                        <span>@item.Label</span><strong>@item.Count</strong><small>@pct%</small>
-                                    </a>
-                                }
+                                    (Label: "Approval", Count: totalBucket?.Apvl ?? 0, Bucket: "approval", Opacity: "1"),
+                                    (Label: "AoN", Count: totalBucket?.Aon ?? 0, Bucket: "aon", Opacity: ".72"),
+                                    (Label: "Tendering", Count: totalBucket?.Tender ?? 0, Bucket: "procurement", Opacity: ".48"),
+                                    (Label: "Development", Count: totalBucket?.Devp ?? 0, Bucket: "development", Opacity: ".28")
+                                };
+                            }
+                            <div class="db-lifecycle">
+                                <div class="db-lifecycle__bar" aria-hidden="true">
+                                    @foreach (var item in lifecycleItems)
+                                    {
+                                        <i style="--seg-share:@item.Count;--seg-opacity:@item.Opacity"></i>
+                                    }
+                                </div>
+                                <div class="db-lifecycle__stats" role="list" aria-label="Ongoing projects by lifecycle bucket">
+                                    @foreach (var item in lifecycleItems)
+                                    {
+                                        var pct = (int)Math.Round(item.Count * 100d / bucketTotal);
+                                        <a class="db-lifecycle__segment" style="--seg-opacity:@item.Opacity" href="@OngoingBucketUrl(item.Bucket)" role="listitem" aria-label="@item.Label: @item.Count projects, @pct percent">
+                                            <span>@item.Label</span><strong>@item.Count<small>@pct%</small></strong>
+                                        </a>
+                                    }
+                                </div>
                             </div>
                         </article>
 
@@ -196,10 +204,10 @@
                 }
             </section>
 
-            <section class="db-panel db-reveal" aria-labelledby="completed-title">
+            <section class="db-panel db-hue-6 db-reveal" aria-labelledby="completed-title">
                 <div class="db-section-head db-section-head--compact">
                     <div>
-                        <span class="db-section-icon db-section-icon--green"><i class="bi bi-check2-circle"></i></span>
+                        <span class="db-section-icon"><i class="bi bi-check2-circle"></i></span>
                         <div><h2 id="completed-title">Completed projects</h2><p>Portfolio outcomes and technical composition</p></div>
                     </div>
                     <a href="@(pulse?.CompletedUrl ?? "#")" class="db-text-link">View all <i class="bi bi-arrow-right"></i></a>
@@ -227,10 +235,10 @@
             </section>
         </div>
 
-        <section class="db-panel db-reveal" aria-labelledby="outputs-title">
+        <section class="db-panel db-hue-4 db-reveal" aria-labelledby="outputs-title">
             <div class="db-section-head">
                 <div>
-                    <span class="db-section-icon db-section-icon--teal"><i class="bi bi-bar-chart-line"></i></span>
+                    <span class="db-section-icon"><i class="bi bi-bar-chart-line"></i></span>
                     <div><h2 id="outputs-title">Institutional outputs</h2><p>Key institutional results with a 12-month activity view</p></div>
                 </div>
             </div>
@@ -243,7 +251,7 @@
                     <a class="db-output-card" href="@tile.LinkUrl">
                         <div class="db-output-card__head"><span class="db-output-card__icon"><i class="bi @tile.Icon"></i></span><span class="db-output-card__label">@tile.Label</span></div>
                         <div class="db-output-card__metrics @(tile.SecondaryValue.HasValue ? "has-secondary" : "")">
-                            <div class="db-output-card__metric">
+                            <div class="db-output-card__metric" title="@tile.Caption">
                                 <strong>@tile.Value.ToString("N0")</strong>
                                 @if (!string.IsNullOrWhiteSpace(tile.Unit))
                                 {
@@ -258,11 +266,7 @@
                                 </div>
                             }
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(tile.Caption))
-                        {
-                            @* The numbers above are totals since records began; the chart below is 12 months. *@
-                            <span class="db-output-card__scope">@tile.Caption</span>
-                        }
+                        @* The headline is a total since records began (tile.Caption, in its tooltip); the chart is 12 months. *@
                         <div class="db-output-card__chart @(hasRecentActivity ? "" : "is-empty")" data-db-spark data-values='@Html.Raw(Json(values))' data-labels='@Html.Raw(Json(labels))'>
                             <canvas role="img" aria-label="@tile.Label monthly activity over the last 12 months"></canvas>
                             @if (!hasRecentActivity)
@@ -272,8 +276,8 @@
                         </div>
                         <div class="db-output-card__foot">
                             <span>@(string.IsNullOrWhiteSpace(tile.TrendLabel) ? "Monthly activity · 12 months" : tile.TrendLabel)</span>
-                            @* The change compares the last three months with the three before (DeltaPeriods). *@
-                            <span class="db-output-card__delta" title="@tile.DeltaPeriods">
+                            @* The change compares the last three months with the three before; the basis and the months are in the tooltip. *@
+                            <span class="db-output-card__delta" title="@(string.Join(" \u00b7 ", new[] { tile.DeltaBasis, tile.DeltaPeriods }.Where(x => !string.IsNullOrWhiteSpace(x))))">
                                 @if (tile.DeltaPct is not null)
                                 {
                                     var deltaUp = tile.DeltaPct >= 0;
@@ -287,10 +291,6 @@
                                 {
                                     <em class="is-neutral">No change</em>
                                 }
-                                @if (!string.IsNullOrWhiteSpace(tile.DeltaBasis))
-                                {
-                                    <small>@tile.DeltaBasis</small>
-                                }
                             </span>
                         </div>
                     </a>
@@ -299,9 +299,9 @@
         </section>
 
         <section class="db-dual-grid db-reveal" aria-label="Engagement and innovation">
-            <article class="db-panel db-engagement-card">
+            <article class="db-panel db-hue-4 db-engagement-card">
                 <div class="db-section-head">
-                    <div><span class="db-section-icon db-section-icon--teal"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Recent engagement, monthly activity and leading activity types</p></div></div>
+                    <div><span class="db-section-icon"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Recent engagement, monthly activity and leading activity types</p></div></div>
                     <a asp-page="/Activities/Index" class="db-text-link">View activities <i class="bi bi-arrow-right"></i></a>
                 </div>
                 <div class="db-activity-overview">
@@ -342,7 +342,7 @@
                         @foreach (var activity in Model.ActivitySummary.RecentActivities)
                         {
                             var occurredIst = TimeZoneInfo.ConvertTime(activity.OccurredAtUtc, ProjectManagement.Infrastructure.IstClock.TimeZone);
-                            <a asp-page="/Activities/Details" asp-route-id="@activity.Id" class="db-recent-row">
+                            <a asp-page="/Activities/Details" asp-route-id="@activity.Id" class="db-recent-row" title="@activity.Title">
                                 <div>
                                     <strong>@activity.Title</strong>
                                     <span>
@@ -361,31 +361,31 @@
                 </div>
             </article>
 
-            <article class="db-panel db-innovation-card">
+            <article class="db-panel db-hue-6 db-innovation-card">
                 <div class="db-section-head">
-                    <div><span class="db-section-icon db-section-icon--indigo"><i class="bi bi-lightbulb"></i></span><div><h2>Innovation pipeline</h2><p>Active and on-hold ideas progressing through refinement</p></div></div>
+                    <div><span class="db-section-icon"><i class="bi bi-lightbulb"></i></span><div><h2>Innovation pipeline</h2><p>Active and on-hold ideas progressing through refinement</p></div></div>
                     <a asp-page="/ProjectIdeas/Index" class="db-text-link">Open ideation board <i class="bi bi-arrow-right"></i></a>
                 </div>
                 <div class="db-idea-summary">
                     <div class="db-idea-summary__primary"><strong>@Model.IdeaSummary.ActiveCount</strong><span>Active ideas</span></div>
                     <div><strong>@Model.IdeaSummary.OnHoldCount</strong><span>On hold</span></div>
-                    <div><strong>@Model.IdeaSummary.UpdatedLast30Days</strong><span>Updated in 30 days</span></div>
+                    <div><strong>@Model.IdeaSummary.UpdatedLast30Days</strong><span>Updated · 30 days</span></div>
                     <div><strong>@Model.IdeaSummary.IdeasWithDiscussion</strong><span>With discussion</span></div>
                     <div><strong>@Model.IdeaSummary.DocumentCount</strong><span>Supporting documents</span></div>
                 </div>
                 <div class="db-idea-list">
                     @foreach (var idea in Model.IdeaSummary.LatestIdeas)
                     {
-                        <a asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id" class="db-idea-row"><div><strong>@idea.Title</strong><span>@idea.Status · @idea.OwnerName · Updated @idea.UpdatedAt.ToString("dd MMM yyyy")</span></div><div><span><i class="bi bi-chat"></i> @idea.CommentCount</span><span><i class="bi bi-paperclip"></i> @idea.DocumentCount</span></div></a>
+                        <a asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id" class="db-idea-row" title="@idea.Title"><div><strong>@idea.Title</strong><span>@idea.Status · @idea.OwnerName · Updated @idea.UpdatedAt.ToString("dd MMM yyyy")</span></div><div><span><i class="bi bi-chat"></i> @idea.CommentCount</span><span><i class="bi bi-paperclip"></i> @idea.DocumentCount</span></div></a>
                     }
                     @if (Model.IdeaSummary.LatestIdeas.Count == 0) { <div class="db-empty db-empty--compact">No active or on-hold ideas recorded.</div> }
                 </div>
             </article>
         </section>
 
-        <section class="db-panel db-ffc-panel db-reveal" aria-labelledby="ffc-title" data-ffc-map-scope>
+        <section class="db-panel db-hue-5 db-ffc-panel db-reveal" aria-labelledby="ffc-title" data-ffc-map-scope>
             <div class="db-section-head">
-                <div><span class="db-section-icon db-section-icon--blue"><i class="bi bi-globe-asia-australia"></i></span><div><h2 id="ffc-title">Simulator footprint across FFCs</h2><p>Completed and planned units by partner country</p></div></div>
+                <div><span class="db-section-icon"><i class="bi bi-globe-asia-australia"></i></span><div><h2 id="ffc-title">Simulator footprint across FFCs</h2><p>Completed and planned units by partner country</p></div></div>
                 <nav class="db-ffc-module-actions" aria-label="FFC module navigation">
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Index"
@@ -430,9 +430,10 @@
                              data-widget="ffc-simulator-map"
                              data-countries="@ffcPayload"
                              data-geo-url="@ffcGeoUrl"
-                             data-focus-bounds="42,-18|-38,118"
+                             data-focus-bounds="30,-20|-36,125"
                              data-auto-fit="true"
                              data-auto-fit-max-zoom="4"
+                             data-zoom-snap="0.25"
                              data-deconflict-markers="true"
                              data-highlight-color="var(--db-primary)">
                             <div class="ffc-simulator-map__canvas"
