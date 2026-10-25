@@ -65,8 +65,7 @@ public sealed partial class IndexModel
         {
             var entity = ToEntity(Input);
             var created = await _writeService.CreateAsync(entity, cancellationToken);
-            TempData["ToastMessage"] = "IPR record created.";
-            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = created.Id, mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
+            return await CompleteSaveAsync(created.Id, "IPR record created.", cancellationToken);
         }
         catch (IprValidationException ex)
         {
@@ -134,8 +133,7 @@ public sealed partial class IndexModel
                 return Page();
             }
 
-            TempData["ToastMessage"] = "IPR record updated.";
-            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = updated.Id, mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
+            return await CompleteSaveAsync(updated.Id, "IPR record updated.", cancellationToken);
         }
         catch (IprValidationException ex)
         {
@@ -192,6 +190,48 @@ public sealed partial class IndexModel
         return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: false));
     }
 
+
+    // After a successful save: attach the optional evidence PDF, then show the record in its
+    // panel. The record is already saved when the PDF fails (not a PDF, too large), so the
+    // editor reopens on it with the reason rather than inviting a duplicate create.
+    private async Task<IActionResult> CompleteSaveAsync(int recordId, string savedMessage, CancellationToken cancellationToken)
+    {
+        var evidenceError = await AttachEvidenceAsync(recordId, cancellationToken);
+        if (evidenceError is not null)
+        {
+            TempData["ToastError"] = $"Record saved, but the PDF was not attached: {evidenceError}";
+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = recordId, mode = "edit", id = recordId }, includePage: true, includeModeAndId: false));
+        }
+
+        TempData["ToastMessage"] = Input.Evidence is { Length: > 0 } ? $"{savedMessage} PDF attached." : savedMessage;
+        return RedirectToPage("./Index", GetRouteValues(new { tab = "records", selectedRecordId = recordId }, includePage: true, includeModeAndId: false));
+    }
+
+    private async Task<string?> AttachEvidenceAsync(int recordId, CancellationToken cancellationToken)
+    {
+        var file = Input.Evidence;
+        if (file is null || file.Length == 0)
+        {
+            return null;
+        }
+
+        var userId = await GetCurrentUserIdAsync();
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return "your account could not be identified. Sign in again and upload it from the editor.";
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            await _writeService.AddAttachmentAsync(recordId, stream, file.FileName, file.ContentType, userId, cancellationToken);
+            return null;
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message;
+        }
+    }
 
     private static byte[]? DecodeRowVersion(string? value)
     {

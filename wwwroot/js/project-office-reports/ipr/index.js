@@ -55,51 +55,66 @@
     htmlInvalid?.focus?.({ preventScroll: true });
   };
 
-  const initialiseOffcanvas = () => {
-    const element = document.getElementById('iprRecordOffcanvas');
-    if (!element || typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) return;
+  // The record editor opens in the record panel's place (server-rendered for mode=create/edit).
+  const initialiseEditor = () => {
+    const element = document.getElementById('iprRecordEditor');
+    if (!element) return;
 
-    const mode = (element.dataset.iprMode || '').toLowerCase();
-    const hasForm = (element.dataset.iprHasForm || '').toLowerCase() === 'true';
-    const shouldShow = mode === 'create' || mode === 'edit';
-    const instance = bootstrap.Offcanvas.getOrCreateInstance(element);
+    const closeUrl = element.dataset.iprCloseUrl || window.location.pathname;
+    const form = element.querySelector('[data-ipr-record-form]');
+    let dirty = false;
+    let submitting = false;
 
-    element.addEventListener('shown.bs.offcanvas', () => {
-      if (hasForm) focusFirstFormError(element);
+    document.body.classList.add('ipr-panel-open');
+    if (form?.querySelector('.field-validation-error, .input-validation-error, [data-ipr-form-summary] li')) {
+      focusFirstFormError(element);
+    } else {
+      element.querySelector('input:not([type="hidden"]), select, textarea')?.focus?.({ preventScroll: true });
+    }
+
+    form?.addEventListener('input', () => { dirty = true; });
+    form?.addEventListener('change', () => { dirty = true; });
+
+    const close = () => {
+      if (dirty && !submitting && !window.confirm('Discard your changes to this record?')) return;
+      window.location.assign(closeUrl);
+    };
+
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || document.querySelector('.modal.show, .offcanvas.show')) return;
+      if (event.target.closest?.('[data-ipr-project-picker]')) return;
+      event.preventDefault();
+      close();
     });
 
-    if (shouldShow) instance.show();
-
-    element.addEventListener('hidden.bs.offcanvas', () => {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('mode');
-      url.searchParams.delete('id');
-      history.replaceState({}, document.title, url.toString());
-    });
-
-    if (!hasForm) return;
-
-    ['iprCreateForm', 'iprEditForm'].forEach(formId => {
-      const form = document.getElementById(formId);
-      if (!form) return;
-
-      form.addEventListener('invalid', () => {
-        window.setTimeout(() => focusFirstFormError(form), 0);
-      }, true);
-
-      form.addEventListener('submit', () => {
-        if (!form.checkValidity()) return;
-        const button = form.querySelector('[data-ipr-submit-button]');
-        if (!button || button.disabled) return;
-
-        const label = button.querySelector('[data-ipr-submit-label]');
-        const submittingText = button.getAttribute('data-submitting-text') || 'Saving…';
-        button.disabled = true;
-        button.setAttribute('aria-busy', 'true');
-        if (label) {
-          label.innerHTML = `<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>${submittingText}`;
-        }
+    document.querySelectorAll('[data-ipr-editor-close]').forEach(link => {
+      link.addEventListener('click', event => {
+        if (!dirty || submitting) return;
+        if (!window.confirm('Discard your changes to this record?')) event.preventDefault();
       });
+    });
+
+    if (!form) return;
+
+    form.addEventListener('invalid', () => {
+      window.setTimeout(() => focusFirstFormError(form), 0);
+    }, true);
+
+    form.addEventListener('submit', () => {
+      if (!form.checkValidity()) return;
+      const button = form.querySelector('[data-ipr-submit-button]');
+      if (!button || button.disabled) return;
+
+      submitting = true;
+      const label = button.querySelector('[data-ipr-submit-label]');
+      const evidence = form.querySelector('[data-ipr-evidence-input]');
+      const hasFile = Boolean(evidence?.files?.length);
+      const submittingText = hasFile ? 'Saving and uploading…' : (button.getAttribute('data-submitting-text') || 'Saving…');
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      if (label) {
+        label.innerHTML = `<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>${submittingText}`;
+      }
     });
   };
 
@@ -405,12 +420,6 @@
     });
   };
 
-  const initialiseToasts = () => {
-    const container = document.getElementById('iprToastContainer');
-    if (!container || typeof bootstrap === 'undefined' || !bootstrap.Toast) return;
-    container.querySelectorAll('.toast').forEach(element => bootstrap.Toast.getOrCreateInstance(element).show());
-  };
-
   const initialiseFilterDrawer = () => {
     const drawer = document.getElementById('iprFilterOffcanvas');
     const form = drawer?.querySelector('[data-ipr-filter-form]');
@@ -549,26 +558,11 @@
     });
   };
 
-  const initialiseAttachmentUpload = () => {
-    const form = document.getElementById('iprAttachmentForm');
-    if (!form) return;
-
-    form.addEventListener('submit', () => {
-      const button = form.querySelector('button[type="submit"]');
-      if (!button || !form.checkValidity()) return;
-      button.disabled = true;
-      button.setAttribute('aria-busy', 'true');
-      button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Uploading…';
-    });
-  };
-
   initialiseProjectPickers();
-  initialiseOffcanvas();
+  initialiseEditor();
   initialiseDensity();
   initialiseConfirmations();
-  initialiseToasts();
   initialiseFilterDrawer();
   initialiseTypeGuidance();
   initialiseGrantedDate();
-  initialiseAttachmentUpload();
 })();

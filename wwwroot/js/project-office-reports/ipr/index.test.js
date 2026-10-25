@@ -45,7 +45,7 @@ test('IPR drawer uses a container-aware two-column form instead of Bootstrap vie
 
 test('IPR mutation forms explicitly target the Index Razor Page and named handlers', () => {
   assert.match(formSource, /asp-page="\.\/Index"[\s\S]*asp-page-handler="@handler"/);
-  assert.match(formSource, /asp-page-handler="Attach"/);
+  assert.doesNotMatch(formSource, /asp-page-handler="Attach"/);
   assert.match(formSource, /asp-page-handler="RemoveAttachment"/);
   assert.match(formSource, /asp-page-handler="Delete"/);
   assert.doesNotMatch(formSource, /asp-all-route-data="formRoutes"/);
@@ -81,11 +81,23 @@ test('IPR create and edit forms prevent duplicate submission', () => {
   assert.match(source, /data-submitting-text/);
 });
 
-test('IPR attachment upload communicates PDF policy and prevents duplicate submission', () => {
-  assert.match(formSource, /accept="\.pdf,application\/pdf"/);
-  assert.match(source, /Uploading…/);
+test('IPR evidence PDF is saved with the record in one submit', () => {
+  assert.match(formSource, /enctype="multipart\/form-data"/);
+  assert.match(formSource, /asp-for="Input\.Evidence"[\s\S]*accept="\.pdf,application\/pdf"/);
+  assert.match(formSource, /form="iprRemoveAttachment@\(attachment\.Id\)"/);
+  assert.match(formSource, /id="iprRemoveAttachment@\(attachment\.Id\)"/);
+  assert.match(source, /Saving and uploading…/);
 });
 
+test('IPR editor opens in the record panel and confirms before discarding changes', () => {
+  assert.match(pageSource, /id="iprRecordEditor"/);
+  assert.match(pageSource, /ipr-record-panel--editor/);
+  assert.match(pageSource, /data-ipr-close-url="@editorCloseUrl"/);
+  assert.doesNotMatch(pageSource, /iprRecordOffcanvas/);
+  assert.match(source, /initialiseEditor/);
+  assert.match(source, /Discard your changes to this record\?/);
+  assert.match(formSource, /data-ipr-editor-close/);
+});
 test('IPR filter drawer supports filed and grant-registration year bases', () => {
   assert.match(filterDrawerSource, /asp-for="DateBasis"/);
   assert.match(selectListsSource, /Grant \/ registration year/);

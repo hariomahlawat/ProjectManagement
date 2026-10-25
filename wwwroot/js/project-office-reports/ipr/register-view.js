@@ -481,7 +481,7 @@
       grant.href = editHref(record.Id);
       grant.classList.toggle('d-none', fact.status !== 'Filed');
     }
-    if (evidence) evidence.href = editHref(record.Id, 'iprAttachmentsHeading');
+    if (evidence) evidence.href = editHref(record.Id, 'iprEvidenceHeading');
 
     state.selectedId = String(record.Id);
     rowFacts.forEach(item => item.row.classList.toggle('is-selected', item.id === state.selectedId));

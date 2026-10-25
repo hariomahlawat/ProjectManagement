@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -83,7 +84,7 @@ public sealed class IprIndexPageTests
     }
 
     [Fact]
-    public async Task OnPostCreateAsync_WhenAuthorizedAndValid_RedirectsToEdit()
+    public async Task OnPostCreateAsync_WhenAuthorizedAndValid_OpensTheSavedRecord()
     {
         await using var db = CreateDbContext();
         var readService = new StubIprReadService();
@@ -114,9 +115,9 @@ public sealed class IprIndexPageTests
 
             var redirect = Assert.IsType<RedirectToPageResult>(result);
             Assert.Equal("./Index", redirect.PageName);
-            Assert.Equal("edit", redirect.RouteValues?["mode"]);
-            var createdId = Assert.IsType<int>(redirect.RouteValues?["id"]);
-            Assert.Equal(createdId, Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]));
+            Assert.False(redirect.RouteValues!.ContainsKey("mode"));
+            Assert.Equal("records", redirect.RouteValues["tab"]);
+            var createdId = Assert.IsType<int>(redirect.RouteValues["selectedRecordId"]);
             Assert.Equal("IPR record created.", page.TempData["ToastMessage"]);
 
             var created = await db.IprRecords.AsNoTracking().SingleAsync(r => r.Id == createdId);
@@ -190,9 +191,8 @@ public sealed class IprIndexPageTests
 
             var redirect = Assert.IsType<RedirectToPageResult>(result);
             Assert.Equal("./Index", redirect.PageName);
-            Assert.Equal("edit", redirect.RouteValues?["mode"]);
-            Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["id"]));
-            Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]));
+            Assert.False(redirect.RouteValues!.ContainsKey("mode"));
+            Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues["selectedRecordId"]));
             Assert.Equal("IPR record updated.", page.TempData["ToastMessage"]);
             Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("DeleteRequest", StringComparison.Ordinal));
             Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("RemoveAttachment", StringComparison.Ordinal));
@@ -714,6 +714,96 @@ public sealed class IprIndexPageTests
         Assert.Equal(0, patents.Protected);
         Assert.Equal(0, page.AnalyticsSummary.TypeRows.Single(row => row.Type == IprType.Copyright).Filed);
     }
+
+    [Fact]
+    public async Task OnPostCreateAsync_WithEvidencePdf_SavesRecordAndAttachmentInOneSubmit()
+    {
+        await using var db = CreateDbContext();
+        db.Users.Add(new ApplicationUser { Id = "editor", UserName = "editor" });
+        await db.SaveChangesAsync();
+        var (writeService, root) = CreateWriteService(db, new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
+        using var userManager = CreateUserManager(db);
+
+        try
+        {
+            await using var pdf = IprWriteServiceTests.CreateValidPdfStream();
+            var page = new IndexModel(db, new StubIprReadService(), writeService, new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+            {
+                Input = new IndexModel.RecordInput
+                {
+                    FilingNumber = "IPR-PDF-1",
+                    Title = "Filed with receipt",
+                    Type = IprType.Patent,
+                    Status = IprStatus.Filed,
+                    FiledOn = new DateOnly(2024, 2, 1),
+                    Evidence = CreateFormFile(pdf, "receipt.pdf", "application/pdf")
+                }
+            };
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
+
+            var result = await page.OnPostCreateAsync(CancellationToken.None);
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            var createdId = Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]);
+            Assert.Equal("IPR record created. PDF attached.", page.TempData["ToastMessage"]);
+            var attachment = await db.IprAttachments.AsNoTracking().SingleAsync();
+            Assert.Equal(createdId, attachment.IprRecordId);
+            Assert.Equal("receipt.pdf", attachment.OriginalFileName);
+            Assert.Equal("editor", attachment.UploadedByUserId);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task OnPostCreateAsync_WithInvalidEvidence_KeepsRecordAndReopensEditorWithReason()
+    {
+        await using var db = CreateDbContext();
+        db.Users.Add(new ApplicationUser { Id = "editor", UserName = "editor" });
+        await db.SaveChangesAsync();
+        var (writeService, root) = CreateWriteService(db, new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
+        using var userManager = CreateUserManager(db);
+
+        try
+        {
+            await using var notPdf = new MemoryStream(Encoding.ASCII.GetBytes("plain text, not a PDF"));
+            var page = new IndexModel(db, new StubIprReadService(), writeService, new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+            {
+                Input = new IndexModel.RecordInput
+                {
+                    FilingNumber = "IPR-PDF-2",
+                    Title = "Filed with a bad file",
+                    Type = IprType.Patent,
+                    Status = IprStatus.Filed,
+                    FiledOn = new DateOnly(2024, 2, 1),
+                    Evidence = CreateFormFile(notPdf, "receipt.pdf", "application/pdf")
+                }
+            };
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
+
+            var result = await page.OnPostCreateAsync(CancellationToken.None);
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("edit", redirect.RouteValues?["mode"]);
+            var createdId = Assert.IsType<int>(redirect.RouteValues?["id"]);
+            Assert.Single(await db.IprRecords.AsNoTracking().Where(record => record.Id == createdId).ToListAsync());
+            Assert.Empty(await db.IprAttachments.AsNoTracking().ToListAsync());
+            Assert.StartsWith("Record saved, but the PDF was not attached:", page.TempData["ToastError"] as string);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    private static IFormFile CreateFormFile(Stream content, string fileName, string contentType)
+        => new FormFile(content, 0, content.Length, "Input.Evidence", fileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = contentType
+        };
 
     private static ApplicationDbContext CreateDbContext()
     {

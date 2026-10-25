@@ -11,7 +11,7 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
 | --- | --- |
 | Page | `Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml(.cs)` and its partial classes (`Index.Loading.cs`, `Index.SelectLists.cs`, `Index.RecordCommands.cs`, `Index.AttachmentCommands.cs`) |
 | Register rows | `IIprReadService.ListRegisterAsync` (every record, all statuses, register order) projected to `IprRecordRowViewModel` |
-| Editor | `_RecordFormPartial.cshtml` in the record drawer (`mode=edit&id=…`, `mode=create`) |
+| Editor | `_RecordFormPartial.cshtml` in the editor panel (`mode=edit&id=…`, `mode=create`); one form saves the record and an optional evidence PDF (`Index.RecordCommands.cs`, `CompleteSaveAsync`) |
 | Styles | `wwwroot/css/site-ipr.css`; the "Register workspace" section uses tokens only |
 | Scripts | `wwwroot/js/project-office-reports/ipr/register-view.js` (register filters, grouping, record panel); `index.js` (editor, project picker, drawers, density); `ipr-register.js` (Analytics chart) |
 
@@ -45,14 +45,26 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
   the record panel carries the rest.
 - **Record panel**: choosing a row opens it over the page (Escape or the backdrop closes it):
   facts, filed-to-outcome progress, evidence PDFs and notes. **Edit**, **Record grant** (pending
-  records) and **Add evidence** open the editor drawer.
+  records) and **Add evidence** open the editor in the same place.
+
+## The editor
+
+- **Add IPR record** and **Edit** open the editor where the record panel opens, as a wider panel
+  over the page (no separate drawer). Escape, the backdrop, **Cancel** or the close button leave
+  it; with unsaved changes it asks first. Closing an edit returns to that record's panel.
+- One form, one **Save**: record details, status and dates, project, notes and an optional
+  **Evidence** PDF, also when creating a record. The record saves first, then the PDF is attached.
+  If the PDF is rejected (not a PDF, too large) the record stays saved and the editor reopens on
+  it with the reason, so nobody re-creates a duplicate.
+- Existing PDFs are listed in the Evidence section; each has its own remove button.
+- After a save the register opens with the saved record's panel and a confirmation.
 
 ## Planned changes
 
 The redesign lands in small PRs; this section lists what is still to come.
 
 1. ~~Register workspace: summary strip, instant filters, Group by, record panel.~~ (done)
-2. Edit inside the record panel with one Save; attach the evidence PDF while creating a record.
+2. ~~Edit inside the record panel with one Save; attach the evidence PDF while creating a record.~~ (done)
 3. **Action list** replaces Follow-up: each filing once, under its most urgent issue, with a direct
    fix (assign project, upload evidence, record grant, log follow-up).
 4. **Insights** replaces Analytics: grant rate, time to grant, outcome by filing year, portfolio

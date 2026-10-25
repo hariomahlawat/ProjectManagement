@@ -50,8 +50,6 @@
     ViewData["Title"] = "IPR Register";
     ViewData["UseFullWidth"] = true;
 
-    var toastMessage = TempData["ToastMessage"] as string;
-    var toastError = TempData["ToastError"] as string;
     var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
     var isRegister = Model.Tab == "records";
@@ -154,24 +152,6 @@
             }
         </div>
     </header>
-
-    @if (!string.IsNullOrWhiteSpace(toastMessage) || !string.IsNullOrWhiteSpace(toastError))
-    {
-        <div id="iprToastContainer" class="toast-container position-fixed end-0 p-3 ipr-toast-container" aria-live="polite" aria-atomic="true">
-            @if (!string.IsNullOrWhiteSpace(toastMessage))
-            {
-                <div class="toast align-items-center text-bg-success border-0 show" role="status">
-                    <div class="d-flex"><div class="toast-body">@toastMessage</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
-                </div>
-            }
-            @if (!string.IsNullOrWhiteSpace(toastError))
-            {
-                <div class="toast align-items-center text-bg-danger border-0 show" role="alert">
-                    <div class="d-flex"><div class="toast-body">@toastError</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
-                </div>
-            }
-        </div>
-    }
 
     <section class="ipr-summary" aria-label="IPR register summary">
         @foreach (var card in summaryCards)
@@ -595,25 +575,30 @@
         </section>
     }
 
-    @if (Model.CanEdit)
+    @if (Model.CanEdit && (isCreateMode || isEditMode))
     {
-        <div class="offcanvas offcanvas-end ipr-record-drawer"
-             tabindex="-1"
-             id="iprRecordOffcanvas"
-             aria-labelledby="iprRecordOffcanvasLabel"
-             data-ipr-mode="@(Model.Mode ?? string.Empty)"
-             data-ipr-has-form="@(isCreateMode || isEditMode ? "true" : "false")">
-            <div class="offcanvas-header ipr-record-drawer__header">
+        // The editor opens where the record panel opens. Closing an edit returns to the record.
+        var editorCloseRoutes = isEditMode && Model.Input.Id.HasValue
+            ? Model.GetRouteValuesForLinks(new { selectedRecordId = Model.Input.Id }, includeModeAndId: false)
+            : Model.GetRouteValuesForLinks(includeModeAndId: false);
+        var editorCloseUrl = Url.Page("./Index", editorCloseRoutes.ToDictionary(pair => pair.Key, pair => (object?)pair.Value));
+        <a class="ipr-record-scrim" href="@editorCloseUrl" aria-label="Close editor" tabindex="-1" data-ipr-editor-close></a>
+        <aside class="ipr-record-panel ipr-record-panel--editor ipr-record-drawer"
+               id="iprRecordEditor"
+               data-ipr-editor
+               data-ipr-close-url="@editorCloseUrl"
+               data-ipr-has-form="true"
+               aria-labelledby="iprRecordEditorTitle"
+               tabindex="-1">
+            <header class="ipr-record-panel__header">
                 <div>
-                    <h2 class="offcanvas-title" id="iprRecordOffcanvasLabel">@(isCreateMode ? "Add IPR record" : "Edit IPR record")</h2>
-                    <p>Capture filing, grant and project details.</p>
+                    <span class="ipr-record-panel__eyebrow">@(isCreateMode ? "New record" : $"Editing · {Model.Input.FilingNumber}")</span>
+                    <h2 id="iprRecordEditorTitle">@(isCreateMode ? "Add IPR record" : (string.IsNullOrWhiteSpace(Model.Input.Title) ? "Edit IPR record" : Model.Input.Title))</h2>
                 </div>
-                <a class="btn-close" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" aria-label="Close IPR record form"></a>
-            </div>
-            <div class="offcanvas-body ipr-record-drawer__body">
-                <partial name="_RecordFormPartial" model="Model" />
-            </div>
-        </div>
+                <a class="btn btn-outline-secondary btn-sm ipr-record-panel__close" href="@editorCloseUrl" aria-label="Close editor" data-ipr-editor-close><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+            </header>
+            <partial name="_RecordFormPartial" model="Model" />
+        </aside>
     }
 
     @if (!isRegister)

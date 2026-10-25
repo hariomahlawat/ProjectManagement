@@ -5,7 +5,9 @@
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
     var handler = isCreateMode ? "Create" : "Edit";
     var formId = isCreateMode ? "iprCreateForm" : "iprEditForm";
-    var closeRoutes = Model.GetRouteValuesForLinks(includeModeAndId: false);
+    var closeRoutes = isEditMode && Model.Input.Id.HasValue
+        ? Model.GetRouteValuesForLinks(new { selectedRecordId = Model.Input.Id }, includeModeAndId: false)
+        : Model.GetRouteValuesForLinks(includeModeAndId: false);
     var isGranted = Model.Input.Status == IprStatus.Granted;
     var selectedType = Model.Input.Type;
     var typeGuidanceText = selectedType switch
@@ -22,6 +24,7 @@
     <form method="post"
           asp-page="./Index"
           asp-page-handler="@handler"
+          enctype="multipart/form-data"
           class="ipr-drawer-form"
           id="@formId"
           data-ipr-record-form>
@@ -183,10 +186,61 @@
             </div>
         </section>
 
+        <section class="ipr-form-section" aria-labelledby="iprEvidenceHeading">
+            <header class="ipr-form-section__header">
+                <span id="iprEvidenceHeading">Evidence</span>
+                <small>@Model.AttachmentUploadHint</small>
+            </header>
+            <div class="ipr-form-grid">
+                @if (isEditMode && Model.Attachments.Count > 0)
+                {
+                    <ul class="ipr-attachment-list ipr-form-field--wide">
+                        @foreach (var attachment in Model.Attachments)
+                        {
+                            <li class="ipr-attachment-row">
+                                <a class="ipr-attachment-row__main"
+                                   asp-page="Download"
+                                   asp-route-iprRecordId="@Model.Input.Id"
+                                   asp-route-attachmentId="@attachment.Id"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   title="Open @attachment.FileName">
+                                    <span class="ipr-attachment-row__icon"><i class="bi bi-file-earmark-pdf"></i></span>
+                                    <span class="ipr-attachment-row__content">
+                                        <strong>@attachment.FileName</strong>
+                                        <small>@Model.FormatFileSize(attachment.FileSize) · @Model.FormatAttachmentTimestamp(attachment.UploadedAtUtc)</small>
+                                        <small>Uploaded by @attachment.UploadedBy</small>
+                                    </span>
+                                </a>
+                                @* The remove button submits its own form (rendered below the editor form). *@
+                                <button type="submit"
+                                        form="iprRemoveAttachment@(attachment.Id)"
+                                        class="btn btn-sm btn-outline-danger ipr-attachment-row__remove"
+                                        aria-label="Remove @attachment.FileName"
+                                        title="Remove attachment">
+                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <div class="ipr-form-field ipr-form-field--wide">
+                    <label asp-for="Input.Evidence" class="form-label">@(isEditMode && Model.Attachments.Count > 0 ? "Add another PDF" : "Filing receipt or grant certificate")</label>
+                    <input asp-for="Input.Evidence"
+                           class="form-control"
+                           type="file"
+                           accept=".pdf,application/pdf"
+                           data-ipr-evidence-input />
+                    <span class="form-text">Optional. Saved together with the record.</span>
+                </div>
+            </div>
+        </section>
+
         <footer class="ipr-drawer-form__actions">
             <a class="btn btn-outline-secondary"
                asp-page="./Index"
-               asp-all-route-data="closeRoutes">Cancel</a>
+               asp-all-route-data="closeRoutes"
+               data-ipr-editor-close>Cancel</a>
             <button type="submit"
                     class="btn btn-primary"
                     data-ipr-submit-button
@@ -198,86 +252,20 @@
 
     @if (isEditMode && Model.Input.Id.HasValue)
     {
-        <section class="ipr-attachment-section" aria-labelledby="iprAttachmentsHeading">
-            <header class="ipr-attachment-section__header">
-                <div>
-                    <h3 id="iprAttachmentsHeading">Attachments</h3>
-                    <p>Supporting documents linked to this IPR record.</p>
-                </div>
-                <span class="ipr-file-policy">@Model.AttachmentUploadHint</span>
-            </header>
-
-            @if (Model.Attachments.Count == 0)
-            {
-                <div class="ipr-attachment-empty">
-                    <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
-                    <span>No attachments uploaded.</span>
-                </div>
-            }
-            else
-            {
-                <ul class="ipr-attachment-list">
-                    @foreach (var attachment in Model.Attachments)
-                    {
-                        <li class="ipr-attachment-row">
-                            <a class="ipr-attachment-row__main"
-                               asp-page="Download"
-                               asp-route-iprRecordId="@Model.Input.Id"
-                               asp-route-attachmentId="@attachment.Id"
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               title="Open @attachment.FileName">
-                                <span class="ipr-attachment-row__icon"><i class="bi bi-file-earmark-pdf"></i></span>
-                                <span class="ipr-attachment-row__content">
-                                    <strong>@attachment.FileName</strong>
-                                    <small>@Model.FormatFileSize(attachment.FileSize) · @Model.FormatAttachmentTimestamp(attachment.UploadedAtUtc)</small>
-                                    <small>Uploaded by @attachment.UploadedBy</small>
-                                </span>
-                            </a>
-                            <form method="post"
-                                  asp-page="./Index"
-                                  asp-page-handler="RemoveAttachment"
-                                  data-ipr-confirm="Remove this attachment?">
-                                <partial name="_RegisterStateFields" model="Model" />
-                                <input type="hidden" name="RemoveAttachment.AttachmentId" value="@attachment.Id" />
-                                <input type="hidden" name="RemoveAttachment.RecordId" value="@Model.Input.Id" />
-                                <input type="hidden" name="RemoveAttachment.RowVersion" value="@attachment.RowVersion" />
-                                <button type="submit"
-                                        class="btn btn-sm btn-outline-danger ipr-attachment-row__remove"
-                                        aria-label="Remove @attachment.FileName"
-                                        title="Remove attachment">
-                                    <i class="bi bi-trash" aria-hidden="true"></i>
-                                </button>
-                            </form>
-                        </li>
-                    }
-                </ul>
-            }
-
+        @foreach (var attachment in Model.Attachments)
+        {
             <form method="post"
                   asp-page="./Index"
-                  asp-page-handler="Attach"
-                  enctype="multipart/form-data"
-                  class="ipr-attachment-upload"
-                  id="iprAttachmentForm">
+                  asp-page-handler="RemoveAttachment"
+                  id="iprRemoveAttachment@(attachment.Id)"
+                  class="d-none"
+                  data-ipr-confirm="Remove this attachment?">
                 <partial name="_RegisterStateFields" model="Model" />
-                <input type="hidden" asp-for="UploadInput.RecordId" />
-                <div class="ipr-form-field">
-                    <label asp-for="UploadInput.File" class="form-label">Add PDF attachment</label>
-                    <input asp-for="UploadInput.File"
-                           class="form-control"
-                           type="file"
-                           accept=".pdf,application/pdf"
-                           required />
-                    <span class="form-text">@Model.AttachmentUploadHint</span>
-                    <span asp-validation-for="UploadInput.File" class="text-danger"></span>
-                </div>
-                <button type="submit" class="btn btn-outline-primary">
-                    <i class="bi bi-upload" aria-hidden="true"></i>
-                    Upload
-                </button>
+                <input type="hidden" name="RemoveAttachment.AttachmentId" value="@attachment.Id" />
+                <input type="hidden" name="RemoveAttachment.RecordId" value="@Model.Input.Id" />
+                <input type="hidden" name="RemoveAttachment.RowVersion" value="@attachment.RowVersion" />
             </form>
-        </section>
+        }
 
         <section class="ipr-danger-zone" aria-labelledby="iprDangerZoneHeading">
             <div>
