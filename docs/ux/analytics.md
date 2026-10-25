@@ -10,7 +10,8 @@ one chart style defined once.
 | Concern | Code |
 | --- | --- |
 | Page, header, mode switcher, headline figures | `Pages/Analytics/Index.cshtml`, `IndexModel.Headlines` |
-| Mode partials | `Pages/Analytics/Partials/_OngoingAnalytics.cshtml`, `_CompletedAnalytics.cshtml`, `_CoeAnalytics.cshtml`, `_ProjectManagementInsights.cshtml` |
+| Mode partials | `Pages/Analytics/Partials/_OngoingAnalytics.cshtml`, `_CompletedAnalytics.cshtml`, `_CoeAnalytics.cshtml`, `_ProjectManagementInsights.cshtml`, `_ArppAnalytics.cshtml` (with `_ArppGroupRow`, `_ArppYearFilter`); `_BoardRows.cshtml` is the shared drill-down list |
+| ARPP rules | `Services/Analytics/ArppAnalyticsService.cs` (`ProjectManagement.Tests/ArppAnalyticsServiceTests.cs`) |
 | Styles | `wwwroot/css/analytics.css` (tokens only) |
 | Chart style, legend chips, value labels, click-through | `wwwroot/js/charts/pm-chart-defaults.js` |
 | Chart data wiring and PNG export | `wwwroot/js/analytics-projects.js` |
@@ -21,12 +22,16 @@ one chart style defined once.
 - **Header**: the title "Analytics", one line saying what the active mode covers, the "As of" date
   (IST) on the right, and the 3px spectrum hairline under the title. That hairline is the only place
   the whole rainbow appears on the page.
-- **Mode switcher**: one segmented control with four items and their counts (Ongoing, Completed,
-  CoE, Insights). The content takes the full width; there is no side rail.
+- **Mode switcher**: one segmented control with five items and their counts (Ongoing, Completed,
+  CoE, Insights, ARPP; ARPP only for users with the ViewArpp policy). The active pill is ink on the
+  page colour, and its text takes the page colour too, so it reads in both themes. The content takes
+  the full width; there is no side rail.
 - **Headline figures**: three or four large figures open every mode. They are computed once in
   `IndexModel.BuildHeadlines()` from data the page already loads and link to the filtered projects
   list where a list exists.
   - Ongoing: projects, busiest stage, median days in the current stage, projects past 180 days.
+    All four follow the parent-category filter (selecting every category is no filter); only the
+    switcher badge stays the portfolio total. Days in stage are measured against the IST "as of" day.
   - Completed: total, this year, best year, median time from first stage start to completion.
   - CoE: total, ongoing, completed (with this year), sub-categories.
   - Insights: slowest stage, fastest stage, portfolio median (median of the stage medians), stages
@@ -44,7 +49,9 @@ one chart style defined once.
   cost band) and the category filter, followed by "Where time goes": the stages ranked slowest
   first with plain-language numbers ("196 days median · 16× portfolio median · 8 projects"). A stage
   at two times the portfolio median or more is marked in the status red. The old Ongoing
-  "Average time spent in each stage" chart is folded into this view.
+  "Average time spent in each stage" chart is folded into this view. Every finished stage counts in
+  the All projects view and in the ranked list; a project with no cost figure yet falls in neither
+  cost band. The category filter means the category and everything under it.
 
 - **ARPP** (fifth mode, added 2026-10-25): the projects listed in one financial year's published
   ARPP (the latest published row per project, as the ARPP library's current position) joined to
@@ -55,7 +62,8 @@ one chart style defined once.
   orders and their value against listed IPA, development PDC due and overdue), and fund, DFPDS
   schedule and parent category rows. The rules (year choice, cost bands, standing by
   lifecycle, milestone eligibility: a supply order counts as placed on a supply-order date or a stage
-  beyond Supply Order, not on a resolved amount alone) live in
+  beyond Supply Order, not on a resolved amount alone; PDC due and overdue count only projects still
+  in work, and a closed year says so rather than showing an empty due window) live in
   `Services/Analytics/ArppAnalyticsService.cs` over `IArppLibraryService.GetCurrentPositionAsync` and
   `IArppFyProjectUpdateService.BuildAsync`; the page only binds the year.
 
@@ -65,7 +73,8 @@ Nobody has to leave Analytics to see which projects a figure is made of. Every c
 expandable rows beneath it (`details[data-drill-key]`): a bar click opens and scrolls to its row
 (`drillAction` in `analytics-projects.js`), and the rows list the project names with links to
 each project's overview. Ongoing stages, completed years, completed categories and technical
-categories, CoE stages and sub-categories, and every ARPP grouping all have rows.
+categories, CoE stages (an "Unassigned" bar included) and sub-categories, and every ARPP grouping
+all have rows.
 
 ## Chart rules (every Chart.js canvas in PRISM)
 

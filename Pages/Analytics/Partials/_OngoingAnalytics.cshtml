@@ -5,9 +5,7 @@
 @{
     var ongoing = Model.Ongoing!;
     var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-    var stageSeries = ongoing.ByStageByParentCategory.Count > 0
-        ? ongoing.ByStageByParentCategory.Cast<object>().ToList()
-        : ongoing.ByStage.Cast<object>().ToList();
+    var stageSeries = ongoing.ByStageByParentCategory;
     var stageBoard = ongoing.StageBoard;
     var maxStageCount = stageBoard.Count > 0 ? stageBoard.Max(item => item.StageCount) : 0;
 

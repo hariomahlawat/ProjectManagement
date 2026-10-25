@@ -191,8 +191,12 @@ namespace ProjectManagement.Services.Analytics
             // having reached the Supply Order stage or beyond (including completion). A resolved amount alone
             // can be an L1 or PNC cost recorded before any order exists.
             var withSo = updates.Where(IsSupplyOrderPlaced).ToList();
-            var pdcDue = updates.Where(row => row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value >= today && row.DevelopmentPdcDate.Value <= fyEnd && !row.IsCompleted).ToList();
-            var pdcOverdue = updates.Where(row => row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value < today && !row.IsCompleted).ToList();
+            // PDC milestones concern projects still in work: a completed, cancelled or archived project has no
+            // development PDC to meet. "Due" is a PDC still ahead and within the year; once the year has closed
+            // nothing is ahead, and the row says so instead of showing an empty window as a zero.
+            var isYearClosed = fyEnd < today;
+            var pdcDue = updates.Where(row => IsInWork(row) && row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value >= today && row.DevelopmentPdcDate.Value <= fyEnd).ToList();
+            var pdcOverdue = updates.Where(row => IsInWork(row) && row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value < today).ToList();
 
             static AnalyticsBoardGroupVm Milestone(string key, string name, IReadOnlyList<ArppFyProjectUpdateRow> rows, Func<ArppFyProjectUpdateRow, string?> detail) =>
                 new(key, name, rows.Count, rows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => new AnalyticsBoardProjectVm(row.ProjectId, row.ProjectName, detail(row))).ToList());
@@ -201,7 +205,7 @@ namespace ProjectManagement.Services.Analytics
             {
                 Milestone("AON", "Past AoN", pastAon, row => row.AonDate?.ToString("d MMM yyyy")),
                 Milestone("SO", "Supply order placed", withSo, row => row.SupplyOrderAmountInRupees is > 0m ? IndianCurrencyFormatter.FormatCompact(row.SupplyOrderAmountInRupees.Value) : row.SupplyOrderDate?.ToString("d MMM yyyy")),
-                Milestone("PDC_DUE", $"PDC due by {fyEnd:d MMM yyyy}", pdcDue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy")),
+                Milestone("PDC_DUE", isYearClosed ? $"PDC due by {fyEnd:d MMM yyyy} (year closed)" : $"PDC due by {fyEnd:d MMM yyyy}", pdcDue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy")),
                 Milestone("PDC_OVERDUE", "PDC overdue", pdcOverdue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy"))
             };
 
@@ -211,6 +215,7 @@ namespace ProjectManagement.Services.Analytics
                 FinancialYearDisplay = FinancialYearHelper.Format(selected),
                 AvailableFinancialYears = available,
                 IsCurrentFinancialYear = selected == currentFy,
+                IsFinancialYearClosed = isYearClosed,
                 FallbackNote = fallbackNote,
                 ListedCount = approved.Count,
                 ListedIpaValue = position.ApprovedIpaValue,
@@ -240,6 +245,9 @@ namespace ProjectManagement.Services.Analytics
                 MilestoneBoard = milestoneBoard
             };
         }
+
+        private static bool IsInWork(ArppFyProjectUpdateRow row) =>
+            row.LifecycleStatus == ProjectLifecycleStatus.Active && !row.IsArchived;
 
         private static bool IsSupplyOrderPlaced(ArppFyProjectUpdateRow row)
         {

@@ -27,7 +27,9 @@
         AnalyticsTab.Arpp => Model.Arpp is { HasData: true }
             ? $"The {Model.Arpp.ListedCount} projects listed in the FY {Model.Arpp.FinancialYearDisplay} ARPP and where they stand today"
             : "Projects listed in the year's ARPP and where they stand today",
-        _ => $"Where the {Model.OngoingCount} ongoing projects stand, by stage and parent category"
+        _ => Model.IsOngoingFiltered
+            ? $"Where the {Model.Ongoing?.TotalOngoingProjects ?? 0} ongoing projects in the selected parent categories stand, by stage"
+            : $"Where the {Model.OngoingCount} ongoing projects stand, by stage and parent category"
     };
 
     var modes = new[]

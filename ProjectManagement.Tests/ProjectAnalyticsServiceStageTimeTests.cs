@@ -306,4 +306,113 @@ public class ProjectAnalyticsServiceStageTimeTests
 
         Assert.DoesNotContain(result.Rows, row => string.Equals(row.StageKey, StageCodes.TOT, StringComparison.OrdinalIgnoreCase));
     }
+    [Fact]
+    public async Task GetStageTimeInsightsAsync_KeepsUncostedProjectsInHotspotsButNotInBands()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var costed = new Project { Id = 1, Name = "Costed", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed };
+        var uncosted = new Project { Id = 2, Name = "No cost yet", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Active };
+        db.Projects.AddRange(costed, uncosted);
+
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                Id = 10,
+                ProjectId = costed.Id,
+                Project = costed,
+                StageCode = StageCodes.FS,
+                SortOrder = 1,
+                ActualStart = new DateOnly(2024, 1, 1),
+                CompletedOn = new DateOnly(2024, 1, 10)
+            },
+            new ProjectStage
+            {
+                Id = 11,
+                ProjectId = uncosted.Id,
+                Project = uncosted,
+                StageCode = StageCodes.FS,
+                SortOrder = 1,
+                ActualStart = new DateOnly(2024, 2, 1),
+                CompletedOn = new DateOnly(2024, 2, 20)
+            });
+
+        db.ProjectPncFacts.Add(new ProjectPncFact
+        {
+            ProjectId = costed.Id,
+            PncCost = 5_000_000m,
+            CreatedByUserId = "seed",
+            CreatedOnUtc = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var service = new ProjectAnalyticsService(db, FakeClock.AtUtc(DateTimeOffset.UtcNow), new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
+
+        var result = await service.GetStageTimeInsightsAsync();
+
+        // All projects: both finished stages count, 10 and 20 days.
+        var hotspot = Assert.Single(result.StageHotspots);
+        Assert.Equal(StageCodes.FS, hotspot.StageKey);
+        Assert.Equal(2, hotspot.ProjectCount);
+        Assert.Equal(15, hotspot.MedianDays);
+
+        // By cost band: only the costed project has a band.
+        var fsRows = result.Rows.Where(r => r.StageKey == StageCodes.FS).ToList();
+        var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.BelowOneCrore);
+        Assert.Equal(1, belowRow.ProjectCount);
+        Assert.Equal(10, belowRow.MedianDays);
+        var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveOrEqualOneCrore);
+        Assert.Equal(0, aboveRow.ProjectCount);
+    }
+
+    [Fact]
+    public async Task GetStageTimeInsightsAsync_CategoryFilterIncludesSubCategories()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var coeRoot = new ProjectCategory { Id = 1, Name = "CoE" };
+        var coeShortTerm = new ProjectCategory { Id = 2, Name = "CoE Short Term", ParentId = coeRoot.Id };
+        var other = new ProjectCategory { Id = 3, Name = "Other R&D Projects" };
+        db.ProjectCategories.AddRange(coeRoot, coeShortTerm, other);
+
+        var onRoot = new Project { Id = 1, Name = "On root", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed, CategoryId = coeRoot.Id };
+        var onChild = new Project { Id = 2, Name = "On child", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed, CategoryId = coeShortTerm.Id };
+        var elsewhere = new Project { Id = 3, Name = "Elsewhere", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed, CategoryId = other.Id };
+        db.Projects.AddRange(onRoot, onChild, elsewhere);
+
+        var id = 100;
+        foreach (var (project, days) in new[] { (onRoot, 10), (onChild, 20), (elsewhere, 90) })
+        {
+            db.ProjectStages.Add(new ProjectStage
+            {
+                Id = id++,
+                ProjectId = project.Id,
+                Project = project,
+                StageCode = StageCodes.FS,
+                SortOrder = 1,
+                ActualStart = new DateOnly(2024, 1, 1),
+                CompletedOn = new DateOnly(2024, 1, 1).AddDays(days - 1)
+            });
+        }
+
+        await db.SaveChangesAsync();
+
+        var service = new ProjectAnalyticsService(db, FakeClock.AtUtc(DateTimeOffset.UtcNow), new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
+
+        var result = await service.GetStageTimeInsightsAsync(coeRoot.Id);
+
+        var hotspot = Assert.Single(result.StageHotspots);
+        Assert.Equal(2, hotspot.ProjectCount);
+        Assert.Equal(15, hotspot.MedianDays);
+        Assert.Equal(coeRoot.Id, result.SelectedCategoryId);
+    }
 }

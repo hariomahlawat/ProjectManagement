@@ -1,6 +1,6 @@
 // =============================================================================
-// Projects → Analytics: chart rendering for the four modes (Ongoing, Completed,
-// CoE, Insights). Data arrives in data-* attributes written by the Razor
+// Projects → Analytics: chart rendering for the five modes (Ongoing, Completed,
+// CoE, Insights, ARPP). Data arrives in data-* attributes written by the Razor
 // partials; the PageModel owns every business number. This file only draws.
 //
 // Style: everything goes through charts/pm-chart-defaults.js (one chart style,

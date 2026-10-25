@@ -153,13 +153,13 @@
         <header class="analytics-card__head">
           <div class="analytics-card__text">
             <h2 class="analytics-card__title">Milestones</h2>
-            <p class="analytics-card__meta">How far the listed projects have moved, from the project records.</p>
+            <p class="analytics-card__meta">How far the listed projects have moved, from the project records. PDC figures count projects still in work.</p>
           </div>
         </header>
         <div class="analytics-minis">
           <div class="analytics-mini"><b>@Model.PastAonCount</b><span>past AoN</span></div>
           <div class="analytics-mini"><b>@Model.SupplyOrderCount</b><span>supply order placed</span></div>
-          <div class="analytics-mini"><b>@Model.PdcDueInYearCount</b><span>PDC due this year</span></div>
+          <div class="analytics-mini"><b>@Model.PdcDueInYearCount</b><span>@(Model.IsFinancialYearClosed ? "PDC due (year closed)" : "PDC due this year")</span></div>
           <div class="analytics-mini @(Model.PdcOverdueCount > 0 ? "is-hot" : "")"><b>@Model.PdcOverdueCount</b><span>PDC overdue</span></div>
         </div>
         <div class="analytics-meter" title="Supply-order value against listed IPA value">
