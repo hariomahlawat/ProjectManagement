@@ -7,7 +7,7 @@ const root = process.cwd();
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 test('workspace and analytics use the canonical present-stage resolver', () => {
-  const analytics = read('Pages/Analytics/Index.cshtml.cs');
+  const analytics = read('Services/Analytics/PortfolioAnalyticsService.cs');
   const workspace = read('Services/Workspace/CommandWorkspaceService.cs');
 
   assert.match(workspace, /PresentStageHelper\.ComputePresentStageAndAge\s*\(/);
@@ -18,7 +18,7 @@ test('workspace and analytics use the canonical present-stage resolver', () => {
 });
 
 test('workspace and analytics resolve project categories through the same recursive hierarchy helper', () => {
-  const analytics = read('Pages/Analytics/Index.cshtml.cs');
+  const analytics = read('Services/Analytics/PortfolioAnalyticsService.cs');
   const workspace = read('Services/Workspace/CommandWorkspaceService.cs');
   const hierarchy = read('Services/Projects/ProjectCategoryHierarchyResolver.cs');
 

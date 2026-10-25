@@ -154,8 +154,8 @@ namespace ProjectManagement.Services.Analytics
                 row => standing.TryGetValue(row.ProjectId, out var update) && !string.IsNullOrWhiteSpace(update.CurrentStageCode)
                     ? (Code: update.CurrentStageCode!.Trim(), Name: update.CurrentStageLabel)
                     : (Code: UnassignedStageCode, Name: UnassignedStageName));
-            var stageCodes = BuildOrderedStageCodes(stageOfProject.Values.Select(stage => stage.Code));
-            var stageOrder = BuildStageOrderLookup(stageCodes);
+            var stageCodes = AnalyticsAggregation.BuildOrderedStageCodes(stageOfProject.Values.Select(stage => stage.Code));
+            var stageOrder = AnalyticsAggregation.BuildStageOrderLookup(stageCodes);
             var byStage = StageCodes.All
                 .Select(code => new ArppStageCountVm(code, StageCodes.DisplayNameOf(code), stageOfProject.Values.Count(stage => string.Equals(stage.Code, code, StringComparison.OrdinalIgnoreCase))))
                 .Concat(stageCodes
@@ -171,7 +171,7 @@ namespace ProjectManagement.Services.Analytics
             }
             standingBoard.AddRange(ongoingRows
                 .GroupBy(row => stageOfProject[row.ProjectId].Code, StringComparer.OrdinalIgnoreCase)
-                .OrderBy(group => ResolveStageOrder(group.Key, stageOrder))
+                .OrderBy(group => AnalyticsAggregation.ResolveStageOrder(group.Key, stageOrder))
                 .Select(group => new AnalyticsBoardGroupVm(
                     group.Key,
                     stageOfProject[group.First().ProjectId].Name,
@@ -303,31 +303,5 @@ namespace ProjectManagement.Services.Analytics
                 category => category.Id,
                 category => new ProjectCategoryHierarchyNode(category.Id, category.Name, category.ParentId));
         }
-
-        // SECTION: Stage ordering helpers (workflow order first, then ad hoc stages)
-        private static IReadOnlyList<string> BuildOrderedStageCodes(IEnumerable<string> stageCodes)
-        {
-            var present = stageCodes.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            return StageCodes.All
-                .Where(code => present.Contains(code, StringComparer.OrdinalIgnoreCase))
-                .Concat(present.Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-
-        private static IReadOnlyDictionary<string, int> BuildStageOrderLookup(IReadOnlyList<string> orderedStageCodes)
-        {
-            var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            for (var index = 0; index < orderedStageCodes.Count; index++)
-            {
-                lookup[orderedStageCodes[index]] = index;
-            }
-
-            return lookup;
-        }
-
-        private static int ResolveStageOrder(string stageCode, IReadOnlyDictionary<string, int> stageOrderLookup) =>
-            stageOrderLookup.TryGetValue(stageCode, out var order) ? order : int.MaxValue;
-        // END SECTION
     }
 }

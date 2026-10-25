@@ -11,7 +11,10 @@ one chart style defined once.
 | --- | --- |
 | Page, header, mode switcher, headline figures | `Pages/Analytics/Index.cshtml`, `IndexModel.Headlines` |
 | Mode partials | `Pages/Analytics/Partials/_OngoingAnalytics.cshtml`, `_CompletedAnalytics.cshtml`, `_CoeAnalytics.cshtml`, `_ProjectManagementInsights.cshtml`, `_ArppAnalytics.cshtml` (with `_ArppGroupRow`, `_ArppYearFilter`); `_BoardRows.cshtml` is the shared drill-down list |
+| Ongoing, Completed and CoE aggregation | `Services/Analytics/PortfolioAnalyticsService.cs` (`ProjectManagement.Tests/CoeAnalyticsTests.cs`); the page passes the IST "as of" day in |
+| Insights aggregation | `Services/Analytics/ProjectAnalyticsService.cs` (`ProjectManagement.Tests/ProjectAnalyticsServiceStageTimeTests.cs`) |
 | ARPP rules | `Services/Analytics/ArppAnalyticsService.cs` (`ProjectManagement.Tests/ArppAnalyticsServiceTests.cs`) |
+| Median and stage order shared by the three services | `Services/Analytics/AnalyticsAggregation.cs` |
 | Styles | `wwwroot/css/analytics.css` (tokens only) |
 | Chart style, legend chips, value labels, click-through | `wwwroot/js/charts/pm-chart-defaults.js` |
 | Chart data wiring and PNG export | `wwwroot/js/analytics-projects.js` |
