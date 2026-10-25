@@ -7,9 +7,7 @@
     ViewData["Title"] = $"Edit {Model.Issue.Name}";
     ViewData["PageShell"] = "workspace";
     var lookupUrl = Url.Content("~/api/arpp/projects");
-    var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
-        ? "Original ARPP"
-        : $"Addendum No. {Model.Issue.IssueSequence}";
+    var issueTypeLabel = ArppDisplayNames.IssueLabel(Model.Issue.Kind, Model.Issue.IssueSequence);
 }
 
 @section Styles {
@@ -409,11 +407,12 @@
                     <select asp-for="Input.Kind" class="form-select" data-arpp-issue-kind>
                         <option value="@((int)ArppIssueKind.Original)">Original ARPP</option>
                         <option value="@((int)ArppIssueKind.Addendum)">Addendum</option>
+                        <option value="@((int)ArppIssueKind.Amendment)">Amendment letter</option>
                     </select>
                     <span asp-validation-for="Input.Kind" class="text-danger small"></span>
                 </div>
                 <div class="@(Model.Input.Kind == ArppIssueKind.Original ? "d-none" : string.Empty)" data-arpp-addendum-number-field>
-                    <label asp-for="Input.IssueSequence" class="form-label">Addendum number</label>
+                    <label asp-for="Input.IssueSequence" class="form-label" data-arpp-sequence-label>@(Model.Input.Kind == ArppIssueKind.Amendment ? "Amendment number" : "Addendum number")</label>
                     <input asp-for="Input.IssueSequence" class="form-control" type="number" min="0" data-arpp-issue-sequence />
                     <div class="form-text" data-arpp-sequence-help>Original ARPP uses internal sequence 0.</div>
                     <span asp-validation-for="Input.IssueSequence" class="text-danger small"></span>

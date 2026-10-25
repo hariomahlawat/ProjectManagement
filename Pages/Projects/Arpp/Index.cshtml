@@ -12,9 +12,7 @@
     ViewData["CanManageArpp"] = Model.CanManageArpp;
 
     static string IssueLabel(ArppLibraryDocumentLink document)
-        => document.Kind == ArppIssueKind.Original
-            ? "Original ARPP"
-            : $"Addendum No. {document.IssueSequence}";
+        => ArppDisplayNames.IssueLabel(document.Kind, document.IssueSequence);
 
     var hasQuery = !string.IsNullOrWhiteSpace(Model.Query);
 }
@@ -32,7 +30,7 @@
             <span class="project-arpp-page__eyebrow">Projects · Published reference</span>
             <div class="project-arpp-page__title-row">
                 <h1>ARPP / PPP</h1>
-                <p>Verified annual procurement plans and addenda.</p>
+                <p>Verified annual procurement plans, addenda and amendment letters.</p>
             </div>
         </div>
         <div class="project-arpp-page__actions">
@@ -187,9 +185,7 @@
             <main class="project-arpp-reader" id="arppLibraryReaderStart" data-arpp-library-reader-start tabindex="-1">
                 @if (Model.Document is { } document)
                 {
-                    var issueLabel = document.Kind == ArppIssueKind.Original
-                        ? "Original ARPP"
-                        : $"Addendum No. {document.IssueSequence}";
+                    var issueLabel = ArppDisplayNames.IssueLabel(document.Kind, document.IssueSequence);
                     <header class="project-arpp-reader__header project-arpp-reader__header--document">
                         <div>
                             <span class="project-arpp-reader__label">@issueLabel · FY @FinancialYearHelper.Format(document.FinancialYearStart) · Issued @document.IssueDate.ToString("dd MMM yyyy")</span>

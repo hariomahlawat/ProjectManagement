@@ -67,6 +67,7 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
         var total = await unlinked.CountAsync(cancellationToken);
         var rows = await unlinked
             .OrderByDescending(entry => entry.Issue.FinancialYearStart)
+            .ThenByDescending(entry => entry.Issue.IssueDate)
             .ThenByDescending(entry => entry.Issue.IssueSequence)
             .ThenBy(entry => entry.SortOrder)
             .Take(limit)
@@ -77,6 +78,7 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
                 IssueId = entry.ArppIssueId,
                 entry.Issue.FinancialYearStart,
                 IssueName = entry.Issue.Name,
+                entry.Issue.Kind,
                 entry.Issue.IssueSequence,
                 entry.Issue.IssueDate,
                 entry.Issue.IsVerified,
@@ -161,6 +163,7 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
                 row.IssueId,
                 row.FinancialYearStart,
                 row.IssueName,
+                row.Kind,
                 row.IssueSequence,
                 row.IssueDate,
                 row.SerialNumber,

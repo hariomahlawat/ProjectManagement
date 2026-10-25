@@ -45,6 +45,7 @@ public sealed class ArppLibraryService : IArppLibraryService
 
         var documents = await snapshots
             .OrderByDescending(snapshot => snapshot.FinancialYearStart)
+            .ThenBy(snapshot => snapshot.IssueDate)
             .ThenBy(snapshot => snapshot.IssueSequence)
             .Select(snapshot => new ArppLibraryDocumentLink(
                 snapshot.ArppIssueId,
@@ -71,7 +72,7 @@ public sealed class ArppLibraryService : IArppLibraryService
             .OrderByDescending(group => group.Key)
             .Select(group => new ArppLibraryFinancialYear(
                 group.Key,
-                group.OrderBy(document => document.IssueSequence).ToArray()))
+                group.OrderBy(document => document.IssueDate).ThenBy(document => document.IssueSequence).ToArray()))
             .ToArray();
 
         return new ArppLibraryNavigation(financialYears, documents.Count);
@@ -160,8 +161,8 @@ public sealed class ArppLibraryService : IArppLibraryService
         var current = linkedRows
             .GroupBy(entry => entry.ProjectId!.Value)
             .Select(group => group
-                .OrderByDescending(entry => entry.PublishedIssue.IssueSequence)
-                .ThenByDescending(entry => entry.PublishedIssue.IssueDate)
+                .OrderByDescending(entry => entry.PublishedIssue.IssueDate)
+                .ThenByDescending(entry => entry.PublishedIssue.IssueSequence)
                 .ThenByDescending(entry => entry.ArppIssueId)
                 .ThenByDescending(entry => entry.Id)
                 .First())
@@ -191,7 +192,8 @@ public sealed class ArppLibraryService : IArppLibraryService
                 !entry.ProjectId.HasValue ||
                 entry.Project is null ||
                 entry.Project.IsDeleted)
-            .OrderBy(entry => entry.PublishedIssue.IssueSequence)
+            .OrderBy(entry => entry.PublishedIssue.IssueDate)
+            .ThenBy(entry => entry.PublishedIssue.IssueSequence)
             .ThenBy(entry => entry.SortOrder)
             .ThenBy(entry => entry.Id)
             .Select(entry => new ArppLibraryUnlinkedRow(
@@ -267,8 +269,8 @@ public sealed class ArppLibraryService : IArppLibraryService
             .AsNoTracking()
             .Where(entry => entry.ProjectId == projectId)
             .OrderByDescending(entry => entry.PublishedIssue.FinancialYearStart)
-            .ThenByDescending(entry => entry.PublishedIssue.IssueSequence)
             .ThenByDescending(entry => entry.PublishedIssue.IssueDate)
+            .ThenByDescending(entry => entry.PublishedIssue.IssueSequence)
             .ThenByDescending(entry => entry.ArppIssueId)
             .ThenByDescending(entry => entry.Id)
             .Select(entry => new ArppLibraryProjectHistoryRow(

@@ -7,9 +7,7 @@
 @{
     Layout = null;
     var financialYear = FinancialYearHelper.Format(Model.Issue.FinancialYearStart);
-    var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
-        ? "Original ARPP"
-        : $"Addendum No. {Model.Issue.IssueSequence}";
+    var issueTypeLabel = ArppDisplayNames.IssueLabel(Model.Issue.Kind, Model.Issue.IssueSequence);
     var approvedRowValue =
         Model.Issue.CategorySummary[ArppCategory.New].TotalIpaCost +
         Model.Issue.CategorySummary[ArppCategory.CommittedLiability].TotalIpaCost +

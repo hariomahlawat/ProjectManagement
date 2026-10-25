@@ -24,7 +24,7 @@
         <div>
             <span class="arpp-v2-page-header__eyebrow">Administration</span>
             <h1>Create issued letter</h1>
-            <p>Record the original ARPP letter or an addendum as issued by HQ, then enter its rows in the workspace.</p>
+            <p>Record the original ARPP letter, an addendum or an intermediate amendment letter as issued by HQ, then enter its rows in the workspace.</p>
         </div>
         <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
             <span class="bi bi-arrow-left" aria-hidden="true"></span>
@@ -64,11 +64,12 @@
                     <select asp-for="Input.Kind" class="form-select" data-arpp-issue-kind>
                         <option value="@((int)ArppIssueKind.Original)">Original ARPP</option>
                         <option value="@((int)ArppIssueKind.Addendum)">Addendum</option>
+                        <option value="@((int)ArppIssueKind.Amendment)">Amendment letter</option>
                     </select>
                     <span asp-validation-for="Input.Kind" class="text-danger"></span>
                 </div>
                 <div class="col-md-3 @(Model.Input.Kind == ArppIssueKind.Original ? "d-none" : string.Empty)" data-arpp-addendum-number-field>
-                    <label asp-for="Input.IssueSequence" class="form-label">Addendum number</label>
+                    <label asp-for="Input.IssueSequence" class="form-label" data-arpp-sequence-label>@(Model.Input.Kind == ArppIssueKind.Amendment ? "Amendment number" : "Addendum number")</label>
                     <input asp-for="Input.IssueSequence" class="form-control" type="number" min="0" data-arpp-issue-sequence />
                     <div class="form-text" data-arpp-sequence-help>Original ARPP uses internal sequence 0.</div>
                     <span asp-validation-for="Input.IssueSequence" class="text-danger"></span>

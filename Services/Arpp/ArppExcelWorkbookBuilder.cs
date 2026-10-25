@@ -59,9 +59,7 @@ public sealed class ArppExcelWorkbookBuilder
         title.Style.Font.FontColor = XLColor.FromHtml("#17365D");
 
         var identity = worksheet.Range(2, 1, 2, columnCount).Merge();
-        var issueLabel = issue.Kind == ArppIssueKind.Original
-            ? "Original ARPP"
-            : $"Addendum No. {issue.IssueSequence}";
+        var issueLabel = ArppDisplayNames.IssueLabel(issue.Kind, issue.IssueSequence);
         identity.Value = $"ARPP / PPP · FY {FinancialYearHelper.Format(issue.FinancialYearStart)} · " +
                          $"{issueLabel} · Issued {issue.IssueDate:dd MMM yyyy}";
         identity.Style.Font.FontColor = XLColor.FromHtml("#526174");

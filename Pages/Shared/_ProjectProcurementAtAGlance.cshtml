@@ -26,9 +26,7 @@
     var ipaSourceParts = new List<string>();
     if (ipaPosition?.IsManagedByArpp == true)
     {
-        var documentLabel = ipaPosition.IssueSequence.GetValueOrDefault() == 0
-            ? "Original ARPP"
-            : $"Addendum No. {ipaPosition.IssueSequence}";
+        var documentLabel = ArppDisplayNames.IssueLabel(ipaPosition.IssueKind, ipaPosition.IssueSequence);
         ipaSourceParts.Add(documentLabel);
 
         if (ipaPosition.IssueDate.HasValue)

@@ -5052,7 +5052,7 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("FinancialYearStart", "IssueDate");
 
-                    b.HasIndex("FinancialYearStart", "IssueSequence")
+                    b.HasIndex("FinancialYearStart", "Kind", "IssueSequence")
                         .IsUnique()
                         .HasDatabaseName("UX_ArppIssues_FinancialYear_Sequence");
 
@@ -5064,7 +5064,7 @@ namespace ProjectManagement.Migrations
 
                             t.HasCheckConstraint("CK_ArppIssues_IssueSequence", "\"IssueSequence\" >= 0");
 
-                            t.HasCheckConstraint("CK_ArppIssues_KindSequence", "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+                            t.HasCheckConstraint("CK_ArppIssues_KindSequence", "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" IN (2, 3) AND \"IssueSequence\" > 0)");
 
                             t.HasCheckConstraint("CK_ArppIssues_VerificationState", "(NOT \"IsVerified\" AND \"VerifiedAtUtc\" IS NULL AND \"VerifiedByUserId\" IS NULL AND \"VerificationNote\" IS NULL) OR (\"IsVerified\" AND \"VerifiedAtUtc\" IS NOT NULL AND length(btrim(\"VerifiedByUserId\")) > 0)");
                         });
@@ -5228,7 +5228,7 @@ namespace ProjectManagement.Migrations
 
                             t.HasCheckConstraint("CK_ArppPublishedIssues_IssueSequence", "\"IssueSequence\" >= 0");
 
-                            t.HasCheckConstraint("CK_ArppPublishedIssues_KindSequence", "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+                            t.HasCheckConstraint("CK_ArppPublishedIssues_KindSequence", "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" IN (2, 3) AND \"IssueSequence\" > 0)");
 
                             t.HasCheckConstraint("CK_ArppPublishedIssues_PdfContentType", "\"AttachmentContentType\" = 'application/pdf'");
 

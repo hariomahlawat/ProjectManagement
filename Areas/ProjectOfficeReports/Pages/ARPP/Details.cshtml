@@ -9,9 +9,7 @@
     ViewData["ArppSection"] = "administration";
     ViewData["CanManageArpp"] = Model.CanManage;
 
-    var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
-        ? "Original ARPP"
-        : $"Addendum No. {Model.Issue.IssueSequence}";
+    var issueTypeLabel = ArppDisplayNames.IssueLabel(Model.Issue.Kind, Model.Issue.IssueSequence);
     var isCorrection = !Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot;
     var valueStateLabel = Model.Issue.IsVerified ? "Published" : "Working";
     var statusLabel = Model.Issue.IsVerified

@@ -1,4 +1,4 @@
-using System.Globalization;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Arpp;
@@ -22,9 +22,7 @@ public sealed class ArppExportService : IArppExportService
         ArgumentNullException.ThrowIfNull(issue);
 
         var financialYear = FinancialYearHelper.Format(issue.FinancialYearStart).Replace('-', '_');
-        var issueLabel = issue.IssueSequence == 0
-            ? "Original"
-            : $"Addendum_{issue.IssueSequence.ToString(CultureInfo.InvariantCulture)}";
+        var issueLabel = ArppDisplayNames.IssueFileLabel(issue.Kind, issue.IssueSequence);
         var fileName = $"ARPP_{financialYear}_{issueLabel}_{generatedAtUtc:yyyyMMdd_HHmm}.xlsx";
 
         return new ArppExportFile(

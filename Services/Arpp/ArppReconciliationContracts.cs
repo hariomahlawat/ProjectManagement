@@ -11,6 +11,7 @@ public sealed record ArppReconciliationItem(
     long IssueId,
     int FinancialYearStart,
     string IssueName,
+    ProjectManagement.Models.Arpp.ArppIssueKind IssueKind,
     int IssueSequence,
     DateOnly IssueDate,
     string? SerialNumber,

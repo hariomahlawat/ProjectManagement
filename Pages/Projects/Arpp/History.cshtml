@@ -103,7 +103,7 @@
                                 <a asp-page="./Index"
                                    asp-route-issueId="@row.SourceIssueId"
                                    asp-route-query="@Model.Query">@row.SourceIssueName</a>
-                                <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
+                                <small>@ArppDisplayNames.IssueLabel(row.SourceKind, row.SourceSequence) · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
                             </td>
                             <td class="project-arpp-table__serial">@(row.Category == ArppCategory.Delisted ? "—" : row.SerialNumber)</td>
                             <td class="project-arpp-table__ppp">@(row.Category == ArppCategory.Delisted ? "—" : row.PppNumber)</td>

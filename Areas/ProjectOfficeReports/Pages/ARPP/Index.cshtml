@@ -25,7 +25,7 @@
         <div class="arpp-v2-page-header__identity">
             <span class="arpp-v2-page-header__eyebrow">Administration</span>
             <h1>ARPP administration</h1>
-            <p>Create, correct, verify and publish the annual procurement plans and addenda issued by HQ.</p>
+            <p>Create, correct, verify and publish the annual procurement plans, addenda and amendment letters issued by HQ.</p>
         </div>
         @if (Model.CanManage)
         {
@@ -148,7 +148,7 @@
                             <div class="arpp-v2-record__main">
                                 <div class="arpp-v2-record__badges">
                                     <span class="arpp-badge arpp-badge--issue">@ArppDisplayNames.For(issue.Kind)</span>
-                                    @if (issue.Kind == ArppIssueKind.Addendum) { <span class="arpp-sequence">Addendum @issue.IssueSequence</span> }
+                                    @if (issue.Kind != ArppIssueKind.Original) { <span class="arpp-sequence">@ArppDisplayNames.IssueLabel(issue.Kind, issue.IssueSequence)</span> }
                                     <span class="arpp-badge @stateBadgeClass"><span class="bi @stateIcon" aria-hidden="true"></span> @stateLabel</span>
                                     @if (!string.IsNullOrWhiteSpace(continuity)) { <span class="arpp-v2-record__continuity">@continuity</span> }
                                 </div>

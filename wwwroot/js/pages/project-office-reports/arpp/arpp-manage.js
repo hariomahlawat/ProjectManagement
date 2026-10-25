@@ -241,7 +241,7 @@
             DfpdsSchedule: "DFPDS",
             FinancialYearStart: "Financial year",
             Kind: "Issue type",
-            IssueSequence: "Addendum number",
+            IssueSequence: "Letter number",
             IssueDate: "Issue date",
             Name: "Document name"
         })[suffix] || suffix.replace(/([a-z])([A-Z])/g, "$1 $2");
@@ -568,6 +568,7 @@
         const kind = root.querySelector("[data-arpp-issue-kind]");
         const sequence = root.querySelector("[data-arpp-issue-sequence]");
         const help = root.querySelector("[data-arpp-sequence-help]");
+        const label = root.querySelector("[data-arpp-sequence-label]");
         const sequenceField = root.querySelector("[data-arpp-addendum-number-field]");
         if (!kind || !sequence) return;
         if (kind.value === "1") {
@@ -577,11 +578,17 @@
             sequenceField?.classList.add("d-none");
             if (help) help.textContent = "Original ARPP; internal sequence 0 is stored automatically.";
         } else {
+            const isAmendment = kind.value === "3";
             sequence.readOnly = false;
             sequence.min = "1";
             sequenceField?.classList.remove("d-none");
             if (Number(sequence.value) <= 0) sequence.value = "1";
-            if (help) help.textContent = "Enter the addendum number shown in the issued letter.";
+            if (label) label.textContent = isAmendment ? "Amendment number" : "Addendum number";
+            if (help) {
+                help.textContent = isAmendment
+                    ? "PRISM numbers amendment letters separately from addenda within the financial year."
+                    : "Enter the addendum number shown in the issued letter.";
+            }
         }
     };
 

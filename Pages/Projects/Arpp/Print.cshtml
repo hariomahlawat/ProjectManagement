@@ -6,9 +6,7 @@
 @{
     Layout = null;
     var financialYear = FinancialYearHelper.Format(Model.Document.FinancialYearStart);
-    var issueLabel = Model.Document.Kind == ArppIssueKind.Original
-        ? "Original ARPP"
-        : $"Addendum No. {Model.Document.IssueSequence}";
+    var issueLabel = ArppDisplayNames.IssueLabel(Model.Document.Kind, Model.Document.IssueSequence);
 }
 <!DOCTYPE html>
 <html lang="en">

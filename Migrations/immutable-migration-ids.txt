@@ -1,4 +1,4 @@
-﻿20251102161908_InitialMigrations
+20251102161908_InitialMigrations
 20251107172308_AddDocRepoSoftDelete
 20251109042620_CompletedProjectsCostAndStatus
 20251110105531_RealignTimeline
@@ -123,3 +123,4 @@
 20261218033007_AddChatAttachments
 20261218090008_AddChatAttachmentRemovalDetails
 20261219100000_AddSearchV2QueryAccelerators
+20261219153001_AddArppAmendmentIssueKind
