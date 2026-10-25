@@ -34,7 +34,6 @@ using ProjectManagement.Contracts;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
-using ProjectManagement.Features.Analytics;
 using ProjectManagement.Features.MediaLibrary;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Outbox;
@@ -2903,7 +2902,6 @@ app.MapGet("/Projects/Documents/Download", async (
 }).AllowAnonymous();
 
 app.MapRemarkApi();
-app.MapProjectAnalyticsApi();
 app.MapMentionApi();
 app.MapRazorPages();
 
