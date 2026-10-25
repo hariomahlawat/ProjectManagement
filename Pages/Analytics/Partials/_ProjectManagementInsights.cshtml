@@ -105,7 +105,7 @@
             <div class="analytics-hotspot__body">
               <div class="analytics-hotspot__line">
                 <strong>@stage.StageName</strong>
-                <span>@Math.Round(stage.MedianDays) days median · @Ratio(stage.RatioToPortfolioMedian) portfolio median · @stage.ProjectCount @(stage.ProjectCount == 1 ? "project" : "projects")@(stage.ProjectCount < 3 ? ", small sample" : "")</span>
+                <span>@Math.Round(stage.MedianDays) @(Math.Round(stage.MedianDays) == 1 ? "day" : "days") median · @Ratio(stage.RatioToPortfolioMedian) portfolio median · @stage.ProjectCount @(stage.ProjectCount == 1 ? "project" : "projects")@(stage.ProjectCount < 3 ? ", small sample" : "")</span>
               </div>
               <span class="analytics-hotspot__track" aria-hidden="true"><i style="--w:@(width)%"></i></span>
             </div>

@@ -146,7 +146,8 @@ export function barScales({ horizontal = false, stacked = false, integer = true,
   const categoryAxis = {
     stacked,
     grid: { display: false },
-    ticks: { autoSkip: false, maxRotation: 0, minRotation: 0, color: t.text, font: { size: 12, weight: '600' } }
+    // Labels stay flat where they fit (desktop) and turn upright on a phone, never skipped.
+    ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, color: t.text, font: { size: 12, weight: '600' } }
   };
   const valueAxis = {
     stacked,
