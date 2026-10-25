@@ -60,6 +60,11 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
   If the PDF is rejected (not a PDF, too large) the record stays saved and the editor reopens on
   it with the reason, so nobody re-creates a duplicate.
 - Existing PDFs are listed in the Evidence section; each has its own remove button.
+- Each uploaded PDF is also copied into the document repository (source `IPR`, item = the
+  attachment id). Removing the PDF, or deleting the record, unlinks that copy in the same save and
+  moves it to the repository trash with the editor's name and the reason, unless another module
+  still links the same file or it was uploaded to the repository directly
+  (`Services/DocRepo/DocRepoSourceLinks.cs`). An admin can restore or purge it from the trash.
 - After a save the register opens with the saved record's panel and a confirmation.
 
 ## The Action list (`?tab=followup`)

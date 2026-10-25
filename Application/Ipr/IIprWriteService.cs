@@ -11,7 +11,7 @@ public interface IIprWriteService
 
     Task<IprRecord?> UpdateAsync(IprRecord record, CancellationToken cancellationToken = default);
 
-    Task<bool> DeleteAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(int id, byte[] rowVersion, string? actorUserId = null, CancellationToken cancellationToken = default);
 
     Task<IprAttachment> AddAttachmentAsync(
         int iprRecordId,
@@ -21,5 +21,5 @@ public interface IIprWriteService
         string uploadedByUserId,
         CancellationToken cancellationToken = default);
 
-    Task<bool> DeleteAttachmentAsync(int attachmentId, byte[] rowVersion, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAttachmentAsync(int attachmentId, byte[] rowVersion, string? actorUserId = null, CancellationToken cancellationToken = default);
 }

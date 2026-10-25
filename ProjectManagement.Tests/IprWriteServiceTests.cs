@@ -460,6 +460,162 @@ public sealed class IprWriteServiceTests
     }
 
     [Fact]
+    public async Task DeleteAttachmentAsync_TrashesTheRepositoryCopyWhenNothingElseLinksIt()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 2, 9, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var (record, attachment) = await SeedAttachmentAsync(db, clock, "DOC-001");
+            var onlyIpr = SeedRepositoryDocument(db, isExternal: true, ("IPR", attachment.Id.ToString()));
+            var shared = SeedRepositoryDocument(db, isExternal: true, ("IPR", attachment.Id.ToString()), ("FFC", "77"));
+            var uploaded = SeedRepositoryDocument(db, isExternal: false, ("IPR", attachment.Id.ToString()));
+            var otherAttachment = SeedRepositoryDocument(db, isExternal: true, ("IPR", "999"));
+            await db.SaveChangesAsync();
+
+            var deleted = await service.DeleteAttachmentAsync(attachment.Id, attachment.RowVersion, " editor-1 ");
+
+            Assert.True(deleted);
+            var trashed = await db.Documents.AsNoTracking().SingleAsync(d => d.Id == onlyIpr);
+            Assert.True(trashed.IsDeleted);
+            Assert.False(trashed.IsActive);
+            Assert.Equal("editor-1", trashed.DeletedByUserId);
+            Assert.Equal(clock.UtcNow.UtcDateTime, trashed.DeletedAtUtc);
+            Assert.Contains("IPR attachment", trashed.DeleteReason);
+
+            // A copy another module still uses, a directly uploaded document and another
+            // attachment's copy stay in the repository.
+            Assert.False((await db.Documents.AsNoTracking().SingleAsync(d => d.Id == shared)).IsDeleted);
+            Assert.False((await db.Documents.AsNoTracking().SingleAsync(d => d.Id == uploaded)).IsDeleted);
+            Assert.False((await db.Documents.AsNoTracking().SingleAsync(d => d.Id == otherAttachment)).IsDeleted);
+
+            var remainingLinks = await db.DocRepoExternalLinks.AsNoTracking().ToListAsync();
+            Assert.DoesNotContain(remainingLinks, l => l.SourceModule == "IPR" && l.SourceItemId == attachment.Id.ToString());
+            Assert.Contains(remainingLinks, l => l.DocumentId == shared && l.SourceModule == "FFC");
+            Assert.Contains(remainingLinks, l => l.DocumentId == otherAttachment);
+
+            var audit = await db.DocRepoAudits.AsNoTracking().SingleAsync();
+            Assert.Equal(onlyIpr, audit.DocumentId);
+            Assert.Equal(DocRepoSourceLinks.SourceRemovedEvent, audit.EventType);
+            Assert.Equal("editor-1", audit.ActorUserId);
+            Assert.Contains("\"sourceModule\":\"IPR\"", audit.DetailsJson);
+            Assert.Empty(await db.IprAttachments.AsNoTracking().ToListAsync());
+            Assert.Single(await db.IprRecords.AsNoTracking().Where(r => r.Id == record.Id).ToListAsync());
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteAsync_TrashesTheRepositoryCopiesOfEveryAttachment()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 3, 9, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var (record, first) = await SeedAttachmentAsync(db, clock, "DOC-002");
+            var second = new IprAttachment
+            {
+                IprRecordId = record.Id,
+                StorageKey = "missing/second.pdf",
+                OriginalFileName = "second.pdf",
+                ContentType = "application/pdf",
+                FileSize = 10,
+                UploadedByUserId = "user-1",
+                UploadedAtUtc = clock.UtcNow,
+                RowVersion = new byte[] { 2 }
+            };
+            db.IprAttachments.Add(second);
+            await db.SaveChangesAsync();
+            var firstCopy = SeedRepositoryDocument(db, isExternal: true, ("IPR", first.Id.ToString()));
+            var secondCopy = SeedRepositoryDocument(db, isExternal: true, ("IPR", second.Id.ToString()));
+            await db.SaveChangesAsync();
+
+            var deleted = await service.DeleteAsync(record.Id, record.RowVersion);
+
+            Assert.True(deleted);
+            var documents = await db.Documents.AsNoTracking().Where(d => d.Id == firstCopy || d.Id == secondCopy).ToListAsync();
+            Assert.Equal(2, documents.Count);
+            Assert.All(documents, d =>
+            {
+                Assert.True(d.IsDeleted);
+                Assert.Equal("system", d.DeletedByUserId);
+                Assert.Contains("DOC-002", d.DeleteReason);
+            });
+            Assert.Empty(await db.DocRepoExternalLinks.AsNoTracking().ToListAsync());
+            Assert.Equal(2, await db.DocRepoAudits.AsNoTracking().CountAsync());
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    private static async Task<(IprRecord Record, IprAttachment Attachment)> SeedAttachmentAsync(
+        ApplicationDbContext db,
+        FakeClock clock,
+        string filingNumber)
+    {
+        var record = ValidRecord(clock, filingNumber);
+        record.RowVersion = new byte[] { 1 };
+        db.IprRecords.Add(record);
+        await db.SaveChangesAsync();
+
+        var attachment = new IprAttachment
+        {
+            IprRecordId = record.Id,
+            StorageKey = "missing/evidence.pdf",
+            OriginalFileName = "evidence.pdf",
+            ContentType = "application/pdf",
+            FileSize = 10,
+            UploadedByUserId = "user-1",
+            UploadedAtUtc = clock.UtcNow,
+            RowVersion = new byte[] { 1 }
+        };
+        db.IprAttachments.Add(attachment);
+        await db.SaveChangesAsync();
+        return (record, attachment);
+    }
+
+    private static Guid SeedRepositoryDocument(ApplicationDbContext db, bool isExternal, params (string Module, string ItemId)[] links)
+    {
+        var id = Guid.NewGuid();
+        db.Documents.Add(new ProjectManagement.Data.DocRepo.Document
+        {
+            Id = id,
+            Subject = "Evidence",
+            OfficeCategoryId = 1,
+            DocumentCategoryId = 1,
+            OriginalFileName = "evidence.pdf",
+            FileSizeBytes = 10,
+            Sha256 = id.ToString("N"),
+            StoragePath = $"docs/{id:N}.pdf",
+            IsExternal = isExternal,
+            CreatedByUserId = "system",
+            CreatedAtUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+        });
+        foreach (var (module, itemId) in links)
+        {
+            db.DocRepoExternalLinks.Add(new ProjectManagement.Data.DocRepo.DocRepoExternalLink
+            {
+                Id = Guid.NewGuid(),
+                DocumentId = id,
+                SourceModule = module,
+                SourceItemId = itemId,
+                CreatedAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        }
+
+        return id;
+    }
+
+    [Fact]
     public async Task AddAttachmentAsync_RejectsDisallowedContentType()
     {
         await using var db = CreateDbContext();

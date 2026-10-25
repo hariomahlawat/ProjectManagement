@@ -1054,13 +1054,13 @@ public sealed class IprIndexPageTests
         public Task<IprRecord?> UpdateAsync(IprRecord record, CancellationToken cancellationToken = default)
             => Task.FromResult<IprRecord?>(null);
 
-        public Task<bool> DeleteAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default)
+        public Task<bool> DeleteAsync(int id, byte[] rowVersion, string? actorUserId = null, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
 
         public Task<IprAttachment> AddAttachmentAsync(int iprRecordId, System.IO.Stream content, string originalFileName, string? contentType, string uploadedByUserId, CancellationToken cancellationToken = default)
             => Task.FromResult(new IprAttachment());
 
-        public Task<bool> DeleteAttachmentAsync(int attachmentId, byte[] rowVersion, CancellationToken cancellationToken = default)
+        public Task<bool> DeleteAttachmentAsync(int attachmentId, byte[] rowVersion, string? actorUserId = null, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
     }
 
