@@ -712,7 +712,29 @@
         const amount = parseMoney(input.value);
         if (amount !== null) input.value = amount.toFixed(2);
         updateMoneyHelper(input);
+        // The unobtrusive validator may have judged the raw text ("45,00,000"); judge the
+        // normalised value instead so a valid amount never keeps a stale error.
+        if (window.jQuery?.validator && form.contains(input)) window.jQuery(input).valid();
     };
+
+    // jQuery Validate's range rule parses the raw text, so an Indian-grouped amount such as
+    // "45,00,000" reads as NaN and fails with the "cannot be negative" message. Money inputs
+    // are judged on their parsed amount instead.
+    const patchMoneyRangeValidation = () => {
+        const validator = window.jQuery?.validator;
+        if (!validator?.methods?.range || validator.arppMoneyRangePatched) return;
+        const originalRange = validator.methods.range;
+        validator.methods.range = function (value, element, param) {
+            if (element instanceof HTMLElement && element.hasAttribute("data-arpp-money")) {
+                const amount = parseMoney(value);
+                if (amount === null) return this.optional(element) || false;
+                return originalRange.call(this, amount, element, param);
+            }
+            return originalRange.call(this, value, element, param);
+        };
+        validator.arppMoneyRangePatched = true;
+    };
+    patchMoneyRangeValidation();
 
     const autosizeReference = textarea => {
         textarea.style.height = "auto";
@@ -910,17 +932,28 @@
         return row;
     };
 
+    // A new row inherits the previous row's CFA, Fund and DFPDS only when those are mapped
+    // controlled values. A "Not listed" wording is specific to its row and would otherwise
+    // carry its Admin-mapping block into every row added after it.
+    const mappedReference = (row, idField, textField) => {
+        const id = Number(getField(row, idField)?.value || 0);
+        return id > 0 ? { id, text: getField(row, textField)?.value || "" } : { id: 0, text: "" };
+    };
+
     const addManualRow = () => {
         const previous = rows().at(-1);
-        const row = addRow(previous ? {
-            cfa: getField(previous, "Cfa")?.value || "",
-            cfaOptionId: Number(getField(previous, "CfaOptionId")?.value || 0),
-            fund: getField(previous, "Fund")?.value || "",
-            fundOptionId: Number(getField(previous, "FundOptionId")?.value || 0),
-            dfpdsSchedule: getField(previous, "DfpdsSchedule")?.value || "",
-            dfpdsScheduleId: Number(getField(previous, "DfpdsScheduleId")?.value || 0),
+        const cfa = previous ? mappedReference(previous, "CfaOptionId", "Cfa") : { id: 0, text: "" };
+        const fund = previous ? mappedReference(previous, "FundOptionId", "Fund") : { id: 0, text: "" };
+        const dfpds = previous ? mappedReference(previous, "DfpdsScheduleId", "DfpdsSchedule") : { id: 0, text: "" };
+        const row = addRow({
+            cfa: cfa.text,
+            cfaOptionId: cfa.id,
+            fund: fund.text,
+            fundOptionId: fund.id,
+            dfpdsSchedule: dfpds.text,
+            dfpdsScheduleId: dfpds.id,
             category: "1"
-        } : { category: "1" });
+        });
         const firstControl = getField(row, "SerialNumber");
         window.requestAnimationFrame(() => {
             window.requestAnimationFrame(() => {
