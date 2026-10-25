@@ -340,7 +340,7 @@ function initCompleted(panel) {
           color: colors[index],
           value: ensureNumber(p.count)
         })));
-        enableBarClick(chart, (index) => drillAction(panel, `cat:${byCategory[index]?.name ?? ''}`));
+        enableBarClick(chart, (index) => drillAction(panel, `cat:${byCategory[index]?.id ?? 'none'}`));
         return chart;
       });
     }
@@ -371,7 +371,7 @@ function initCompleted(panel) {
             plugins: { tooltip: { callbacks: { label: (item) => `${item.formattedValue} completed` } } }
           }
         });
-        enableBarClick(chart, (index) => drillAction(panel, `tech:${byTechnical[index]?.name ?? ''}`));
+        enableBarClick(chart, (index) => drillAction(panel, `tech:${byTechnical[index]?.id ?? 'none'}`));
         return chart;
       });
     }
@@ -456,7 +456,7 @@ function initCoe(panel) {
             }
           }
         });
-        enableBarClick(chart, (index) => drillAction(panel, `sub:${rows[index]?.name ?? ''}`));
+        enableBarClick(chart, (index) => drillAction(panel, `sub:${rows[index]?.key ?? rows[index]?.name ?? ''}`));
         renderLegend(panel.querySelector('[data-legend="coe-subcategories-by-lifecycle-chart"]'), chart, datasets.map((dataset, index) => ({
           label: dataset.label,
           color: dataset.backgroundColor,

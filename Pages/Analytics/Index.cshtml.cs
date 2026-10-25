@@ -476,16 +476,19 @@ namespace ProjectManagement.Pages.Analytics
                 .Select(project => new CompletedBoardRow(
                     project.Id,
                     project.Name,
+                    project.CategoryId,
                     project.Category != null ? project.Category.Name : null,
+                    project.TechnicalCategoryId,
                     project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
                     project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null)))
                 .ToListAsync(cancellationToken);
 
-            IReadOnlyList<AnalyticsBoardGroupVm> Group(Func<CompletedBoardRow, string?> keyOf) => rows
-                .GroupBy(row => string.IsNullOrWhiteSpace(keyOf(row)) ? "Uncategorized" : keyOf(row)!.Trim())
+            // Grouped and keyed by category id, as the charts count: names are unique only per parent.
+            IReadOnlyList<AnalyticsBoardGroupVm> Group(Func<CompletedBoardRow, int?> idOf, Func<CompletedBoardRow, string?> nameOf) => rows
+                .GroupBy(row => idOf(row))
                 .Select(group => new AnalyticsBoardGroupVm(
-                    group.Key,
-                    group.Key,
+                    CategoryDrillKey(group.Key),
+                    group.Select(nameOf).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name))?.Trim() ?? "Uncategorized",
                     group.Count(),
                     group
                         .OrderByDescending(row => row.Year)
@@ -499,8 +502,11 @@ namespace ProjectManagement.Pages.Analytics
                 .ThenBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            return (Group(row => row.CategoryName), Group(row => row.TechnicalName));
+            return (Group(row => row.CategoryId, row => row.CategoryName), Group(row => row.TechnicalCategoryId, row => row.TechnicalName));
         }
+
+        /// <summary>The drill-down key the charts use for a category: its id, or "none" for projects without one.</summary>
+        internal static string CategoryDrillKey(int? id) => id?.ToString() ?? "none";
         // END SECTION
 
         // SECTION: Median time to complete (first stage start to completion)
@@ -618,6 +624,7 @@ namespace ProjectManagement.Pages.Analytics
                 SubcategoriesByLifecycle = subcategoryBreakdown,
                 SubcategoryProjects = subcategoryProjects,
                 StageBoard = BuildCoeStageBoard(subcategoryProjects),
+                OverflowProjects = BuildCoeOverflowProjects(subcategoryBreakdown, subcategoryProjects),
                 TotalCoeProjects = totalCoeProjects,
                 OngoingCount = ongoingCount,
                 CompletedCount = completedCount,
@@ -753,7 +760,8 @@ namespace ProjectManagement.Pages.Analytics
                     overflow.Sum(bucket => bucket.Ongoing),
                     overflow.Sum(bucket => bucket.Completed),
                     overflow.Sum(bucket => bucket.Cancelled),
-                    overflow.Sum(bucket => bucket.Total)));
+                    overflow.Sum(bucket => bucket.Total),
+                    CoeAnalyticsVm.OverflowSubcategoryKey));
             }
 
             return primaryBuckets;
@@ -921,6 +929,36 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
+        // SECTION: CoE overflow drill-down (the sub-categories folded into the chart's "Other" bucket, as one row)
+        private static CoeSubcategoryProjectsVm? BuildCoeOverflowProjects(
+            IReadOnlyList<CoeSubcategoryLifecycleVm> buckets,
+            IReadOnlyList<CoeSubcategoryProjectsVm> projectsBySubcategory)
+        {
+            if (!buckets.Any(bucket => bucket.Key == CoeAnalyticsVm.OverflowSubcategoryKey))
+            {
+                return null;
+            }
+
+            var charted = buckets
+                .Where(bucket => bucket.Key != CoeAnalyticsVm.OverflowSubcategoryKey)
+                .Select(bucket => bucket.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var folded = projectsBySubcategory
+                .Where(bucket => !charted.Contains(bucket.SubcategoryName))
+                .ToList();
+
+            return new CoeSubcategoryProjectsVm(
+                $"Other ({folded.Count} sub-categories)",
+                folded
+                    .SelectMany(bucket => bucket.Projects.Select(project => project with { CurrentStage = $"{bucket.SubcategoryName} · {project.CurrentStage}" }))
+                    .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                folded.Sum(bucket => bucket.OngoingCount),
+                folded.Sum(bucket => bucket.CompletedCount),
+                folded.Sum(bucket => bucket.CancelledCount));
+        }
+        // END SECTION
+
         // SECTION: CoE stage drill-down (ongoing projects grouped by current stage, workflow order)
         private static IReadOnlyList<AnalyticsBoardGroupVm> BuildCoeStageBoard(IReadOnlyList<CoeSubcategoryProjectsVm> buckets)
         {
@@ -954,7 +992,7 @@ namespace ProjectManagement.Pages.Analytics
             _ => status.ToString()
         };
 
-        private sealed record CompletedBoardRow(int Id, string? Name, string? CategoryName, string? TechnicalName, int? Year);
+        private sealed record CompletedBoardRow(int Id, string? Name, int? CategoryId, string? CategoryName, int? TechnicalCategoryId, string? TechnicalName, int? Year);
 
         private sealed record CoeCategoryDescriptor(int Id, int? ParentId, string Name);
         private sealed record CoeCategoryLookup(
@@ -979,7 +1017,7 @@ namespace ProjectManagement.Pages.Analytics
             var namedCategories = await LoadCategoryNamesAsync(categoryCounts, cancellationToken);
 
             return categoryCounts
-                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedCategories), item.Count))
+                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedCategories), item.Count, item.Id))
                 .ToList();
         }
 
@@ -1021,7 +1059,7 @@ namespace ProjectManagement.Pages.Analytics
             var namedTechnicalCategories = await LoadTechnicalCategoryNamesAsync(technicalCounts, cancellationToken);
 
             return technicalCounts
-                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedTechnicalCategories), item.Count))
+                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedTechnicalCategories), item.Count, item.Id))
                 .ToList();
         }
 

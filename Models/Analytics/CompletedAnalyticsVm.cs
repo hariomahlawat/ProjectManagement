@@ -42,7 +42,8 @@ public sealed record CompletedYearBoardItemVm(
 // END SECTION
 
 // SECTION: Shared analytics DTOs
-public sealed record AnalyticsCategoryCountPoint(string Name, int Count);
+/// <summary>Count for one exact category; <paramref name="Id"/> is null for projects without one. The drill-down key is the id, since names are only unique per parent.</summary>
+public sealed record AnalyticsCategoryCountPoint(string Name, int Count, int? Id = null);
 
 public sealed record AnalyticsStageCountPoint(string Name, int Count);
 
