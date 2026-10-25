@@ -3,134 +3,122 @@
 @using System.Text.Json
 
 @{
-    // SECTION: JSON serialiser options
-    var jsonOptions = new JsonSerializerOptions
+    var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var overviewUrl = Url.Page("/Projects/Overview");
+    var buckets = Model.SubcategoryProjects ?? Array.Empty<ProjectManagement.Models.Analytics.CoeSubcategoryProjectsVm>();
+    var maxBucket = buckets.Count > 0 ? buckets.Max(bucket => bucket.Projects.Count) : 0;
+    string StatusClass(string status) => status switch
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        "Ongoing" => "is-ongoing",
+        "Completed" => "is-completed",
+        "Cancelled" => "is-cancelled",
+        _ => string.Empty
     };
-
-    var noCoeProjectsMessage = "No CoE projects to analyse yet. Create a CoE project to see analytics here.";
-    var noSubcategoryMessage = "CoE sub-category breakdown will appear here once projects have sub-categories configured.";
-    var noSubcategoryProjectsMessage = "No CoE projects with sub-categories configured yet.";
-    // END SECTION
 }
 
 <section class="analytics-panel analytics-panel--coe" aria-label="CoE projects analytics">
-    <!-- SECTION: CoE analytics layout -->
-    <div class="analytics-layout">
-        <!-- SECTION: CoE stage and lifecycle charts row -->
-        <div class="analytics-layout__row analytics-layout__row--coe-grid">
-            <!-- SECTION: CoE stage chart -->
-            <article class="analytics-card">
-                <header class="analytics-card__header analytics-card__header--with-actions">
-                    <div class="analytics-card__header-text">
-                        <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
-                        <p class="analytics-card__meta">
-                            Current stage distribution for active CoE projects.
-                        </p>
-                    </div>
-
-                    <button type="button"
-                            class="analytics-chart-download-btn"
-                            data-chart-download-target="coe-by-stage-chart"
-                            aria-label="Download chart as PNG"
-                            title="Download chart as PNG">
-                        <i class="bi bi-download" aria-hidden="true"></i>
-                    </button>
-                </header>
-                <div class="analytics-card__body">
-                    @if (!Model.HasCoeProjects)
-                    {
-                        <p class="analytics-card__empty-text">@noCoeProjectsMessage</p>
-                    }
-                    else
-                    {
-                        <div class="analytics-card__chart">
-                            <canvas id="coe-by-stage-chart"
-                                    role="img"
-                                    aria-label="Ongoing CoE projects by current stage"
-                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, jsonOptions))'>
-                            </canvas>
-                        </div>
-                    }
-                </div>
-            </article>
-            <!-- END SECTION -->
-
-            <!-- SECTION: CoE sub-category lifecycle chart -->
-            <article class="analytics-card analytics-card--coe-subcategories">
-                <header class="analytics-card__header analytics-card__header--with-actions">
-                    <div class="analytics-card__header-text">
-                        <h2 class="analytics-card__title">CoE sub-categories by lifecycle</h2>
-                        <p class="analytics-card__meta">
-                            Distribution of CoE sub-categories across lifecycle statuses.
-                        </p>
-                    </div>
-
-                    <button type="button"
-                            class="analytics-chart-download-btn"
-                            data-chart-download-target="coe-subcategories-by-lifecycle-chart"
-                            aria-label="Download chart as PNG"
-                            title="Download chart as PNG">
-                        <i class="bi bi-download" aria-hidden="true"></i>
-                    </button>
-                </header>
-                <div class="analytics-card__body">
-                    @if (!Model.HasSubcategoryBreakdown)
-                    {
-                        <p class="analytics-card__empty-text">@noSubcategoryMessage</p>
-                    }
-                    else
-                    {
-                        <div class="analytics-card__chart analytics-card__chart--scrollable">
-                            <canvas id="coe-subcategories-by-lifecycle-chart"
-                                    role="img"
-                                    aria-label="CoE sub-categories by lifecycle status"
-                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.SubcategoriesByLifecycle, jsonOptions))'>
-                            </canvas>
-                        </div>
-                        <p class="analytics-card__footnote">Only CoE sub-categories with at least one project are shown.</p>
-                    }
-                </div>
-            </article>
-            <!-- END SECTION -->
+  <div class="analytics-row analytics-row--7-5">
+    <!-- SECTION: Ongoing CoE projects by current stage -->
+    <article class="analytics-card">
+      <header class="analytics-card__head">
+        <div class="analytics-card__text">
+          <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
+          <p class="analytics-card__meta">Every workflow stage in order; click a bar to open those projects.</p>
         </div>
-        <!-- END SECTION -->
-
-        <!-- SECTION: CoE projects by sub-category -->
-        <section class="analytics-roadmap analytics-roadmap--coe-subcategories"
-                 aria-label="CoE projects by sub-category">
-            @if (!(Model.SubcategoryProjects?.Any() ?? false))
-            {
-                <div class="analytics-roadmap__column">
-                    <h3 class="analytics-roadmap__heading">CoE sub-categories</h3>
-                    <p class="analytics-roadmap__empty">
-                        @noSubcategoryProjectsMessage
-                    </p>
-                </div>
-            }
-            else
-            {
-                @foreach (var bucket in Model.SubcategoryProjects)
-                {
-                    <div class="analytics-roadmap__column">
-                        <h3 class="analytics-roadmap__heading">@bucket.SubcategoryName</h3>
-                        <ul class="analytics-roadmap__list">
-                            @foreach (var project in bucket.Projects)
-                            {
-                                <li class="analytics-roadmap__item">
-                                    <span class="analytics-roadmap__project-name">@project.Name</span>
-                                    <span class="analytics-roadmap__project-meta">
-                                        @project.LifecycleStatus · @project.CurrentStage
-                                    </span>
-                                </li>
-                            }
-                        </ul>
-                    </div>
-                }
-            }
-        </section>
-        <!-- END SECTION -->
-    </div>
+        <div class="analytics-card__actions">
+          <button type="button" class="analytics-icon-btn" data-chart-download-target="coe-by-stage-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+            <i class="bi bi-download" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
+      <div class="analytics-card__chart">
+        <canvas id="coe-by-stage-chart"
+                role="img"
+                aria-label="Ongoing CoE projects by current stage"
+                data-empty-message="No CoE projects yet. Create a CoE project to see it here."
+                data-series='@Html.Raw(JsonSerializer.Serialize(Model.HasCoeProjects ? Model.ByStage : Array.Empty<ProjectManagement.Models.Analytics.CoeStageBucketVm>(), json))'></canvas>
+      </div>
+    </article>
     <!-- END SECTION -->
+
+    <!-- SECTION: CoE sub-categories by lifecycle -->
+    <article class="analytics-card">
+      <header class="analytics-card__head">
+        <div class="analytics-card__text">
+          <h2 class="analytics-card__title">Sub-categories by lifecycle</h2>
+          <p class="analytics-card__meta">Ongoing, completed and cancelled projects in each CoE sub-category.</p>
+        </div>
+        <div class="analytics-card__actions">
+          <button type="button" class="analytics-icon-btn" data-chart-download-target="coe-subcategories-by-lifecycle-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+            <i class="bi bi-download" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
+      <div class="analytics-card__legend" data-legend="coe-subcategories-by-lifecycle-chart"></div>
+      <div class="analytics-card__chart">
+        <canvas id="coe-subcategories-by-lifecycle-chart"
+                role="img"
+                aria-label="CoE sub-categories by lifecycle status"
+                data-empty-message="Sub-category breakdown appears once CoE projects have sub-categories."
+                data-series='@Html.Raw(JsonSerializer.Serialize(Model.SubcategoriesByLifecycle, json))'></canvas>
+      </div>
+      @if (Model.HasSubcategoryBreakdown)
+      {
+        <p class="analytics-card__foot">Only sub-categories with at least one project are shown.</p>
+      }
+    </article>
+    <!-- END SECTION -->
+  </div>
+
+  <!-- SECTION: CoE projects by sub-category (sub-category → projects) -->
+  <article class="analytics-card">
+    <header class="analytics-card__head">
+      <div class="analytics-card__text">
+        <h2 class="analytics-card__title">Projects in each sub-category</h2>
+        <p class="analytics-card__meta">Open a sub-category to see its projects with their lifecycle and current stage.</p>
+      </div>
+    </header>
+    @if (buckets.Count == 0)
+    {
+      <p class="analytics-empty" role="status">No CoE projects with sub-categories yet.</p>
+    }
+    else
+    {
+      <section class="analytics-drill analytics-drill--flush" aria-label="CoE projects by sub-category">
+        @foreach (var bucket in buckets)
+        {
+          var width = maxBucket > 0 ? (int)Math.Round(100.0 * bucket.Projects.Count / maxBucket) : 0;
+          var ongoing = bucket.Projects.Count(project => project.LifecycleStatus == "Ongoing");
+          var completed = bucket.Projects.Count(project => project.LifecycleStatus == "Completed");
+          var cancelled = bucket.Projects.Count(project => project.LifecycleStatus == "Cancelled");
+          <details class="analytics-drill__row">
+            <summary class="analytics-drill__summary">
+              <span class="analytics-drill__name">@bucket.SubcategoryName</span>
+              <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+              <span class="analytics-drill__chips">
+                @if (ongoing > 0) { <span class="analytics-drill__chip"><i class="analytics-dot is-ongoing" aria-hidden="true"></i>Ongoing <b>@ongoing</b></span> }
+                @if (completed > 0) { <span class="analytics-drill__chip"><i class="analytics-dot is-completed" aria-hidden="true"></i>Completed <b>@completed</b></span> }
+                @if (cancelled > 0) { <span class="analytics-drill__chip"><i class="analytics-dot is-cancelled" aria-hidden="true"></i>Cancelled <b>@cancelled</b></span> }
+              </span>
+              <span class="analytics-drill__count">@bucket.Projects.Count</span>
+              <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
+            </summary>
+            <div class="analytics-drill__body">
+              <ol class="analytics-drill__list">
+                @foreach (var project in bucket.Projects)
+                {
+                  <li>
+                    <a href="@overviewUrl?id=@project.Id">@project.Name</a>
+                    <span class="analytics-drill__status @StatusClass(project.LifecycleStatus)">@project.LifecycleStatus</span>
+                    <span class="analytics-drill__stage">@project.CurrentStage</span>
+                  </li>
+                }
+              </ol>
+            </div>
+          </details>
+        }
+      </section>
+    }
+  </article>
+  <!-- END SECTION -->
 </section>

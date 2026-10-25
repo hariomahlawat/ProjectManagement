@@ -393,7 +393,9 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         }
 
         var rows = spans
-            .GroupBy(span => new StageTimeBucketKey(span.StageKey, span.StageName, span.StageOrder, span.Bucket))
+            // One row per stage and band. The same stage can carry different sort orders across
+            // workflow versions, so the order is not part of the key; the earliest is kept for sorting.
+            .GroupBy(span => new StageTimeBucketKey(span.StageKey, span.StageName, span.Bucket))
             .Select(group =>
             {
                 var durations = group
@@ -415,7 +417,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 {
                     StageKey = group.Key.StageKey,
                     StageName = group.Key.StageName,
-                    StageOrder = group.Key.StageOrder,
+                    StageOrder = group.Min(item => item.StageOrder),
                     Bucket = group.Key.Bucket,
                     MedianDays = CalculateMedian(durations),
                     AverageDays = durations.Length == 0 ? 0 : durations.Average(),
@@ -446,7 +448,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         }
 
         var points = spans
-            .GroupBy(span => new StageHotspotKey(span.StageKey, span.StageName, span.StageOrder))
+            .GroupBy(span => new StageHotspotKey(span.StageKey, span.StageName))
             .Select(group =>
             {
                 var durations = group
@@ -469,7 +471,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 {
                     StageKey = group.Key.StageKey,
                     StageName = group.Key.StageName,
-                    StageOrder = group.Key.StageOrder,
+                    StageOrder = group.Min(item => item.StageOrder),
                     MedianDays = CalculateMedian(durations),
                     AverageDays = durations.Average(),
                     ProjectCount = projectCount
@@ -798,9 +800,9 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         double Days,
         bool IsCompletedProject);
 
-    private sealed record StageTimeBucketKey(string StageKey, string StageName, int StageOrder, string Bucket);
+    private sealed record StageTimeBucketKey(string StageKey, string StageName, string Bucket);
 
-    private sealed record StageHotspotKey(string StageKey, string StageName, int StageOrder);
+    private sealed record StageHotspotKey(string StageKey, string StageName);
 }
 
 public sealed record CategoryShareResult(IReadOnlyList<CategoryShareSlice> Slices, int Total);

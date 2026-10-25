@@ -9,6 +9,14 @@ public sealed class CompletedAnalyticsVm
     public required IReadOnlyList<CompletedPerYearByParentCategoryPoint> PerYearByParentCategory { get; init; }
     public required IReadOnlyList<CompletedYearBoardItemVm> YearBoard { get; init; }
     public int TotalCompletedProjects { get; init; }
+
+    // SECTION: Headline figures
+    public int CompletedThisYear { get; init; }
+    public int? BestYear { get; init; }
+    public int BestYearCount { get; init; }
+    /// <summary>Median calendar days from the first stage start to completion; null when no project has both dates.</summary>
+    public double? MedianDaysToComplete { get; init; }
+    // END SECTION
 }
 
 // SECTION: Completed year board DTOs

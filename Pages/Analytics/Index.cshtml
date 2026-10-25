@@ -1,103 +1,127 @@
 @page
 @model ProjectManagement.Pages.Analytics.IndexModel
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Globalization
+@using System.Text.Json
 @using ProjectManagement.Models.Analytics
 @using ProjectManagement.Pages.Analytics
 @using ProjectManagement.Services.Projects
-@{ 
+@{
     ViewData["Title"] = "Analytics";
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "analytics";
-    var categories = Model.Categories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.CategoryOption>();
-    var technicalCategories = Model.TechnicalCategories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.TechnicalCategoryOption>();
+    var categories = Model.Categories ?? Array.Empty<IndexModel.CategoryOption>();
+    var technicalCategories = Model.TechnicalCategories ?? Array.Empty<IndexModel.TechnicalCategoryOption>();
     ViewData["AnalyticsCategories"] = categories;
     ViewData["AnalyticsTechnicalCategories"] = technicalCategories;
+
+    var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    string Json(object value) => JsonSerializer.Serialize(value, json);
+
+    // One line under the title says what the active mode covers; the figures below it do the talking.
+    var scope = Model.ActiveTab switch
+    {
+        AnalyticsTab.Completed => $"{Model.CompletedCount} completed projects by year, category and technical category",
+        AnalyticsTab.Coe => "Centre of Excellence projects by stage, sub-category and lifecycle",
+        AnalyticsTab.Insights => "How long each workflow stage takes, from finished stages across ongoing and completed projects",
+        _ => $"Where the {Model.OngoingCount} ongoing projects stand, by stage and parent category"
+    };
+
+    var modes = new[]
+    {
+        (Tab: AnalyticsTab.Ongoing, Label: "Ongoing", Count: Model.OngoingCount.ToString(), Route: "Ongoing"),
+        (Tab: AnalyticsTab.Completed, Label: "Completed", Count: Model.CompletedCount.ToString(), Route: "Completed"),
+        (Tab: AnalyticsTab.Coe, Label: "CoE", Count: Model.CoeCount.ToString(), Route: "Coe"),
+        (Tab: AnalyticsTab.Insights, Label: "Insights", Count: "Cycle time", Route: "Insights")
+    };
 }
 
 @section Styles {
-    <!-- SECTION: Analytics styles -->
     <link rel="stylesheet" href="~/css/analytics.css" asp-append-version="true" />
-    <!-- END SECTION -->
 }
 
-@* <!-- SECTION: Analytics header -->
-@await Html.PartialAsync("Partials/_AnalyticsHeader", Model)
-<!-- END SECTION --> *@
-
 <section class="analytics-page" data-analytics-tab="@Model.ActiveTab">
-  <!-- Analytics layout: mode navigation and chart canvas -->
   <div
     id="analytics-root"
     data-default-lifecycle="@Model.DefaultLifecycle"
     data-projects-index-url="@Url.Page("/Projects/Index")"
     data-project-overview-url="@Url.Page("/Projects/Overview")"
+    data-ongoing-index-url="@Url.Page("/Projects/Ongoing/Index")"
+    data-stages='@Html.Raw(Json(Model.WorkflowStages))'
+    data-parent-categories='@Html.Raw(Json(Model.OngoingStageParentCategoryOptions))'
+    data-categories='@Html.Raw(Json(categories))'
+    data-technical-categories='@Html.Raw(Json(technicalCategories))'
   >
-    <div class="analytics-layout analytics-layout--shell" aria-label="Project analytics views">
-      <aside class="analytics-left-rail" aria-label="Analytics modes">
-        <!-- Left navigation for analytics modes -->
-        <nav class="analytics-left-nav" aria-label="Analytics views">
-          <a
-            asp-page="./Index"
-            asp-route-tab="Ongoing"
-            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Ongoing ? "is-active" : null)"
-          >
-            <div class="analytics-left-nav__title">Ongoing projects</div>
-            <div class="analytics-left-nav__meta">@Model.OngoingCount projects</div>
-          </a>
-
-          <a
-            asp-page="./Index"
-            asp-route-tab="Completed"
-            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Completed ? "is-active" : null)"
-          >
-            <div class="analytics-left-nav__title">Completed projects</div>
-            <div class="analytics-left-nav__meta">@Model.CompletedCount projects</div>
-          </a>
-
-          <a
-            asp-page="./Index"
-            asp-route-tab="Coe"
-            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Coe ? "is-active" : null)"
-          >
-            <div class="analytics-left-nav__title">CoE projects</div>
-            <div class="analytics-left-nav__meta">@Model.CoeCount projects</div>
-          </a>
-
-          <a
-            asp-page="./Index"
-            asp-route-tab="Insights"
-            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Insights ? "is-active" : null)"
-          >
-            <div class="analytics-left-nav__title">Project management insights</div>
-            <div class="analytics-left-nav__meta">Stage cycle time</div>
-          </a>
-        </nav>
-      </aside>
-
-      <div class="analytics-main" data-role="analytics-main">
-        <!-- SECTION: Analytics content panel -->
-        <div class="analytics-main-panel">
-          @switch (Model.ActiveTab)
-          {
-            case AnalyticsTab.Completed:
-              @await Html.PartialAsync("Partials/_CompletedAnalytics", Model.Completed!)
-              break;
-
-            case AnalyticsTab.Ongoing:
-              @await Html.PartialAsync("Partials/_OngoingAnalytics", Model)
-              break;
-
-            case AnalyticsTab.Coe:
-              @await Html.PartialAsync("Partials/_CoeAnalytics", Model.Coe!)
-              break;
-
-            case AnalyticsTab.Insights:
-              @await Html.PartialAsync("Partials/_ProjectManagementInsights", Model.Insights!)
-              break;
-          }
-        </div>
-        <!-- END SECTION -->
+    <!-- SECTION: Page header (same pattern as the Dashboard: title, one-line scope, date, spectrum hairline) -->
+    <header class="analytics-header">
+      <div class="analytics-header__title">
+        <h1>Analytics</h1>
+        <p class="analytics-header__scope">@scope</p>
       </div>
+      <span class="analytics-header__date" title="Figures read at @Model.AsOfIst.ToString("HH:mm") IST">As of @Model.AsOfIst.ToString("d MMMM yyyy", CultureInfo.InvariantCulture)</span>
+    </header>
+    <!-- END SECTION -->
+
+    <!-- SECTION: Mode switcher -->
+    <nav class="analytics-modes" aria-label="Analytics views">
+      @foreach (var mode in modes)
+      {
+        var isActive = Model.ActiveTab == mode.Tab;
+        <a asp-page="./Index"
+           asp-route-tab="@mode.Route"
+           class="analytics-modes__item @(isActive ? "is-active" : null)"
+           aria-current="@(isActive ? "page" : null)">
+          <span class="analytics-modes__label">@mode.Label</span>
+          <span class="analytics-modes__count">@mode.Count</span>
+        </a>
+      }
+    </nav>
+    <!-- END SECTION -->
+
+    <!-- SECTION: Headline figures -->
+    @if (Model.Headlines.Count > 0)
+    {
+      <section class="analytics-headlines" aria-label="Headline figures">
+        @foreach (var figure in Model.Headlines)
+        {
+          var valueClass = figure.Value.Length > 7 ? "analytics-figure__value analytics-figure__value--text" : "analytics-figure__value";
+          if (!string.IsNullOrEmpty(figure.Href))
+          {
+            <a class="analytics-figure analytics-figure--link" href="@figure.Href">
+              <span class="@valueClass">@figure.Value</span>
+              <span class="analytics-figure__label">@figure.Label</span>
+              @if (!string.IsNullOrEmpty(figure.Hint)) { <span class="analytics-figure__hint">@figure.Hint</span> }
+            </a>
+          }
+          else
+          {
+            <div class="analytics-figure">
+              <span class="@valueClass">@figure.Value</span>
+              <span class="analytics-figure__label">@figure.Label</span>
+              @if (!string.IsNullOrEmpty(figure.Hint)) { <span class="analytics-figure__hint">@figure.Hint</span> }
+            </div>
+          }
+        }
+      </section>
+    }
+    <!-- END SECTION -->
+
+    <div class="analytics-content" data-role="analytics-main">
+      @switch (Model.ActiveTab)
+      {
+        case AnalyticsTab.Completed:
+          @await Html.PartialAsync("Partials/_CompletedAnalytics", Model.Completed!)
+          break;
+        case AnalyticsTab.Coe:
+          @await Html.PartialAsync("Partials/_CoeAnalytics", Model.Coe!)
+          break;
+        case AnalyticsTab.Insights:
+          @await Html.PartialAsync("Partials/_ProjectManagementInsights", Model.Insights!)
+          break;
+        default:
+          @await Html.PartialAsync("Partials/_OngoingAnalytics", Model)
+          break;
+      }
     </div>
   </div>
 </section>

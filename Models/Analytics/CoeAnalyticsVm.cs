@@ -18,6 +18,12 @@ public sealed class CoeAnalyticsVm
     public bool HasCoeProjects => TotalCoeProjects > 0;
 
     public bool HasSubcategoryBreakdown => SubcategoriesByLifecycle.Count > 0;
+
+    // SECTION: Headline figures
+    public int OngoingCount { get; init; }
+    public int CompletedCount { get; init; }
+    public int CompletedThisYearCount { get; init; }
+    // END SECTION
     // END SECTION
 
     // SECTION: Sub-category project listings

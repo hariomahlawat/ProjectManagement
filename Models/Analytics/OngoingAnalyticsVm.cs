@@ -16,6 +16,19 @@ public sealed class OngoingAnalyticsVm
 
     public IReadOnlyList<AnalyticsStageDurationPoint> AvgStageDurations { get; init; } =
         Array.Empty<AnalyticsStageDurationPoint>();
+
+    // SECTION: Headline figures (computed once in the PageModel from the stage rows)
+    /// <summary>Stage holding the most projects in the current selection, or null when empty.</summary>
+    public string? TopStageName { get; init; }
+    public int TopStageCount { get; init; }
+
+    /// <summary>Median days the selected ongoing projects have spent in their current stage.</summary>
+    public double? MedianDaysInCurrentStage { get; init; }
+
+    /// <summary>Projects whose current stage has run longer than <see cref="LongStageThresholdDays"/>.</summary>
+    public int ProjectsPastThreshold { get; init; }
+    public const int LongStageThresholdDays = 180;
+    // END SECTION
 }
 
 public sealed record OngoingStageBoardItemVm(

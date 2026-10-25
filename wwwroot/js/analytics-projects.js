@@ -1,1515 +1,622 @@
-// SECTION: Palette helpers
-const paletteFallback = [
-  '#2563eb',
-  '#f97316',
-  '#22c55e',
-  '#a855f7',
-  '#9c27b0',
-  '#fb8c00',
-  '#00acc1',
-  '#8d6e63',
-  '#5c6bc0',
-  '#43a047'
-];
+// =============================================================================
+// Projects → Analytics: chart rendering for the four modes (Ongoing, Completed,
+// CoE, Insights). Data arrives in data-* attributes written by the Razor
+// partials; the PageModel owns every business number. This file only draws.
+//
+// Style: everything goes through charts/pm-chart-defaults.js (one chart style,
+// token colours, HTML legend chips, printed values). No colour literals here.
+// =============================================================================
+import {
+  applyPmChartDefaults,
+  barScales,
+  categoryColor,
+  chartTokens,
+  enableClickThrough,
+  lifecycleColor,
+  renderLegend,
+  sizeChartHost,
+  watchTheme
+} from './charts/pm-chart-defaults.js';
 
-const lifecycleStatuses = ['Ongoing', 'Completed', 'Cancelled'];
-
-function getPalette() {
-  const defaultPalette = {
-    axisColor: '#4b5563',
-    gridColor: '#e5e7eb',
-    neutral: '#9ca3af',
-    accents: paletteFallback
-  };
-
-  if (!window.PMTheme || typeof window.PMTheme.getChartPalette !== 'function') {
-    return defaultPalette;
-  }
-
-  const themePalette = window.PMTheme.getChartPalette();
-  if (!themePalette || !Array.isArray(themePalette.accents)) {
-    return defaultPalette;
-  }
-
-  const themeAccents = themePalette.accents
-    .map((value) => (value ?? '').trim())
-    .filter(Boolean);
-
-  const combinedAccents = [...themeAccents];
-  paletteFallback.forEach((fallback) => {
-    if (!combinedAccents.includes(fallback)) {
-      combinedAccents.push(fallback);
-    }
-  });
-
-  return {
-    axisColor: (themePalette.axisColor ?? '').trim() || defaultPalette.axisColor,
-    gridColor: (themePalette.gridColor ?? '').trim() || defaultPalette.gridColor,
-    neutral: (themePalette.neutral ?? '').trim() || defaultPalette.neutral,
-    accents: combinedAccents.length ? combinedAccents : defaultPalette.accents
-  };
-}
-
-function getAccentColor(index) {
-  const palette = getPalette();
-  const accents = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
-  return accents[index % accents.length];
-}
-
-function getLifecycleColor(status) {
-  const lifecycleColors = {
-    Ongoing: getAccentColor(0),
-    Completed: getAccentColor(1),
-    Cancelled: getAccentColor(2)
-  };
-  return lifecycleColors[status] || getAccentColor(0);
-}
-// END SECTION
-
-const stageTimeBucketKeys = {
-  below: 'Below1Cr',
-  above: 'AboveOrEqual1Cr'
-};
-
-const MAX_STAGE_AXIS_LABEL_LENGTH = 16;
-
-// SECTION: Label helpers
-// Wrap long axis labels onto multiple lines so they do not overlap
-function wrapLabel(label, maxLineLength = 16) {
-  if (!label) {
-    return '';
-  }
-
-  const text = String(label).trim();
-  if (!text) {
-    return '';
-  }
-
-  const words = tokenizeLabel(text, maxLineLength);
-  const lines = [];
-  let current = '';
-
-  const pushCurrentLine = () => {
-    if (current) {
-      lines.push(current);
-      current = '';
-    }
-  };
-
-  words.forEach((word) => {
-    const segments = splitLabelSegment(word, maxLineLength);
-
-    segments.forEach((segment, index) => {
-      const candidate = current ? `${current} ${segment}` : segment;
-      if (candidate.length > maxLineLength && current) {
-        pushCurrentLine();
-        current = segment;
-      } else {
-        current = candidate;
-      }
-
-      const hasMoreSegments = index < segments.length - 1;
-      if (hasMoreSegments) {
-        pushCurrentLine();
-      }
-    });
-  });
-
-  pushCurrentLine();
-
-  if (!lines.length) {
-    return text;
-  }
-
-  // Chart.js supports either a string or an array of strings.
-  return lines.length > 1 ? lines : lines[0];
-}
-
-function tokenizeLabel(text, maxLineLength) {
-  return text
-    .replace(/([-/])/g, '$1 ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((token) => token.trim())
-    .flatMap((token) => splitLabelSegment(token, maxLineLength));
-}
-
-function splitLabelSegment(segment, maxLineLength) {
-  if (!segment) {
-    return [];
-  }
-
-  if (segment.length <= maxLineLength) {
-    return [segment];
-  }
-
-  const parts = [];
-  let start = 0;
-  while (start < segment.length) {
-    parts.push(segment.slice(start, start + maxLineLength));
-    start += maxLineLength;
-  }
-
-  return parts;
-}
-// END SECTION
-
-// SECTION: Chart helpers
-function createDoughnutChart(canvas, { labels, values, colors, options }) {
-  if (!canvas || !window.Chart) {
-    return null;
-  }
-
-  const palette = getPalette();
-  const accentColors = Array.isArray(colors) && colors.length
-    ? colors
-    : values.map((_, idx) => getAccentColor(idx));
-
-  return renderWithTheme(canvas, {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [
-        {
-          data: values,
-          backgroundColor: accentColors,
-          borderWidth: 0
-        }
-      ]
-    },
-    options: mergeChartOptions(
-      {
-        responsive: true,
-        plugins: {
-          legend: { position: 'bottom', labels: { color: palette.axisColor } }
-        }
-      },
-      options
-    )
-  });
-}
-
-function createBarChart(
-  canvas,
-  { labels, values, label = 'Projects', backgroundColor = null, options }
-) {
-  if (!canvas || !window.Chart) {
-    return null;
-  }
-
-  const rawLabels = Array.isArray(labels) ? labels : [];
-  const wrappedLabels = rawLabels.map((l) => wrapLabel(l));
-  const palette = getPalette();
-
-  return renderWithTheme(canvas, {
-    type: 'bar',
-    data: {
-      labels: wrappedLabels,
-      datasets: [
-        {
-          label,
-          data: values,
-          backgroundColor: backgroundColor || getAccentColor(0),
-          borderRadius: 4
-        }
-      ]
-    },
-    options: mergeChartOptions(
-      {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false, labels: { color: palette.axisColor } }
-        },
-        scales: {
-          x: {
-            ticks: {
-              maxRotation: 0,
-              autoSkip: false,
-              color: palette.axisColor
-            },
-            grid: { color: palette.gridColor }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { color: palette.axisColor },
-            grid: { color: palette.gridColor }
-          }
-        }
-      },
-      options
-    )
-  });
-}
-// END SECTION
-
-// SECTION: Chart option helpers
-function mergeChartOptions(base, override) {
-  if (!override) {
-    return base;
-  }
-
-  return deepMerge(base, override);
-}
-
-function deepMerge(target, source) {
-  const output = { ...target };
-
-  Object.keys(source).forEach((key) => {
-    const sourceValue = source[key];
-    const targetValue = target[key];
-
-    if (sourceValue && typeof sourceValue === 'object' && !Array.isArray(sourceValue)) {
-      const baseValue =
-        targetValue && typeof targetValue === 'object' && !Array.isArray(targetValue)
-          ? targetValue
-          : {};
-      output[key] = deepMerge(baseValue, sourceValue);
-    } else {
-      output[key] = sourceValue;
-    }
-  });
-
-  return output;
-}
-
-function renderWithTheme(canvas, config) {
-  if (!canvas || !window.Chart) {
-    return null;
-  }
-
-  const existing = typeof window.Chart.getChart === 'function'
-    ? window.Chart.getChart(canvas)
-    : null;
-
-  if (existing) {
-    existing.destroy();
-  }
-
-  return new window.Chart(canvas.getContext('2d'), config);
-}
-
+// SECTION: Small helpers
 function ensureNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getDefaultLegendClick() {
-  const fallback = window.Chart?.defaults?.plugins?.legend?.onClick;
-  return typeof fallback === 'function' ? fallback : function noop() {};
+function readJson(element, key, fallback = []) {
+  const raw = element?.dataset?.[key];
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error(`Analytics: could not parse data-${key}.`, error);
+    return fallback;
+  }
+}
+
+function getCssVar(name, fallback) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name);
+  return value ? value.trim() : fallback;
+}
+
+function withQuery(baseUrl, params) {
+  if (!baseUrl) return null;
+  const url = new URL(baseUrl, window.location.origin);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+  });
+  return url.pathname + url.search;
+}
+
+const root = () => document.getElementById('analytics-root');
+const chartRegistry = new Map(); // canvas id → () => Chart, so a theme switch can redraw
+
+function mount(canvas, build) {
+  if (!canvas || !window.Chart) return null;
+  const existing = window.Chart.getChart(canvas);
+  if (existing) existing.destroy();
+  const chart = build();
+  if (chart) chartRegistry.set(canvas, build);
+  return chart;
+}
+
+function renderEmptyState(canvas, message) {
+  const host = canvas?.parentElement;
+  if (!host) return;
+  canvas.hidden = true;
+  if (host.querySelector('.analytics-empty')) return;
+  const empty = document.createElement('p');
+  empty.className = 'analytics-empty';
+  empty.setAttribute('role', 'status');
+  empty.textContent = message || canvas.dataset.emptyMessage || 'No data yet.';
+  host.appendChild(empty);
+  host.style.height = 'auto';
 }
 // END SECTION
 
-// SECTION: Dataset helpers
-function parseSeries(canvas) {
-  if (!canvas) {
-    return [];
-  }
+// SECTION: Stage axis
+// Every stage chart draws the same workflow order (from #analytics-root data-stages) and
+// the same short labels, so the eye can compare charts across modes.
+const stageShortLabels = {
+  FS: 'FS', IPA: 'IPA', SOW: 'SoW', AON: 'AoN', BID: 'Bid', TEC: 'TEC', BM: 'BM', COB: 'COB',
+  PNC: 'PNC', EAS: 'EAS', SO: 'SO', DEVP: 'Devp', ATP: 'ATP', PAYMENT: 'Pay', TOT: 'ToT'
+};
 
-  const payload = canvas.dataset?.series;
-  if (!payload) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(payload);
-  } catch (error) {
-    console.error('Failed to parse analytics series payload.', error);
-    return [];
-  }
+function workflowStages() {
+  return readJson(root(), 'stages', []).map((stage) => ({
+    code: String(stage.code ?? ''),
+    name: String(stage.name ?? stage.code ?? '')
+  }));
 }
 
-function renderSeriesChart(canvas, renderCallback) {
-  if (!canvas) {
-    return;
-  }
+// Known stages first in workflow order, then anything ad hoc that appears in the data.
+function stageAxis(codesInData, namesByCode = new Map()) {
+  const axis = workflowStages().map((stage) => ({ ...stage, short: stageShortLabels[stage.code] ?? stage.code }));
+  const known = new Set(axis.map((stage) => stage.code.toUpperCase()));
+  codesInData.forEach((code) => {
+    const key = String(code ?? '').toUpperCase();
+    if (!key || known.has(key)) return;
+    known.add(key);
+    const name = namesByCode.get(code) ?? code;
+    axis.push({ code, name, short: name.length > 8 ? code : name });
+  });
+  return axis;
+}
 
-  const series = parseSeries(canvas);
-  if (!series.length) {
+function stageTooltipTitle(axis) {
+  return (items) => axis[items?.[0]?.dataIndex ?? -1]?.name ?? '';
+}
+// END SECTION
+
+// SECTION: Category series (DCD / CoE / Other R&D)
+const categoryOrder = ['DCD Projects', 'CoE', 'Other R&D Projects'];
+
+function orderCategories(names) {
+  const present = Array.from(new Set(names.filter(Boolean)));
+  const ranked = categoryOrder.filter((name) => present.includes(name));
+  const rest = present.filter((name) => !ranked.includes(name)).sort((a, b) => a.localeCompare(b));
+  return [...ranked, ...rest];
+}
+
+function paintCategoryDots(scope) {
+  const tokens = chartTokens();
+  (scope ?? document).querySelectorAll('[data-category-dot]').forEach((dot) => {
+    dot.style.setProperty('--pm-dot', categoryColor(dot.dataset.categoryDot, tokens));
+  });
+}
+
+function parentCategoryId(name) {
+  const options = readJson(root(), 'parentCategories', []);
+  return options.find((option) => option.name === name)?.id ?? null;
+}
+// END SECTION
+
+// SECTION: Ongoing mode
+function initOngoing(panel) {
+  initOngoingStageFilterPopover(panel);
+  paintCategoryDots(panel);
+
+  const canvas = panel.querySelector('#ongoing-by-stage-chart');
+  const points = readJson(canvas, 'series', []);
+  if (!canvas) return;
+  if (!points.length) {
     renderEmptyState(canvas);
     return;
   }
 
-  renderCallback(series);
-}
+  const stageNames = new Map(points.map((p) => [p.stageCode, p.stageName]));
+  const axis = stageAxis(points.map((p) => p.stageCode), stageNames);
+  const categories = orderCategories(points.map((p) => p.categoryName ?? 'Unassigned'));
+  const ongoingUrl = root()?.dataset.ongoingIndexUrl;
 
-function renderEmptyState(canvas) {
-  if (!canvas) {
-    return;
-  }
-
-  const container = canvas.parentElement;
-  if (!container) {
-    return;
-  }
-
-  const message = canvas.dataset?.emptyMessage ?? 'No data available yet.';
-  canvas.style.display = 'none';
-  canvas.setAttribute('aria-hidden', 'true');
-
-  if (container.querySelector('.analytics-empty-state')) {
-    return;
-  }
-
-  const placeholder = document.createElement('div');
-  placeholder.className = 'analytics-empty-state';
-  placeholder.setAttribute('role', 'status');
-  placeholder.textContent = message;
-  container.appendChild(placeholder);
-}
-// END SECTION
-
-// SECTION: Category color mapping
-const semanticCategoryColors = Object.freeze({
-  'DCD Projects': '#3c68e8',
-  'CoE': '#52c653',
-  'Other R&D Projects': '#ef7a00'
-});
-
-const semanticCategoryOrder = Object.freeze([
-  'DCD Projects',
-  'CoE',
-  'Other R&D Projects'
-]);
-
-function buildCategoryColorMapping(stackedPoints) {
-  const totals = new Map();
-  const hasStackedPoints = Array.isArray(stackedPoints) && stackedPoints.length;
-
-  if (hasStackedPoints) {
-    stackedPoints.forEach((point) => {
-      const key = point?.categoryName ?? 'Unassigned';
-      totals.set(key, (totals.get(key) ?? 0) + ensureNumber(point?.count));
-    });
-  }
-
-  const unassignedLabels = ['Unassigned', 'Uncategorized'];
-  const unassignedLabel = Array.from(totals.keys()).find((label) => {
-    const normalizedLabel = String(label ?? '').trim().toLowerCase();
-    return unassignedLabels.some(
-      (candidate) => candidate.toLowerCase() === normalizedLabel
-    );
-  });
-
-  if (unassignedLabel) {
-    totals.delete(unassignedLabel);
-  }
-
-  const semanticCategories = semanticCategoryOrder.filter((name) => totals.has(name));
-  const otherCategories = Array.from(totals.entries())
-    .filter(([name]) => !semanticCategoryColors[name])
-    .sort((first, second) => {
-      const totalDifference = second[1] - first[1];
-      return totalDifference !== 0 ? totalDifference : first[0].localeCompare(second[0]);
-    })
-    .map(([name]) => name);
-  const rankedCategories = [...semanticCategories, ...otherCategories];
-
-  const palette = getPalette();
-  const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
-  const categoryColorMap = new Map();
-
-  rankedCategories.forEach((name, index) => {
-    categoryColorMap.set(
-      name,
-      semanticCategoryColors[name] ?? accentColors[index % accentColors.length]
-    );
-  });
-
-  if (unassignedLabel) {
-    categoryColorMap.set(unassignedLabel, palette.neutral ?? '#9ca3af');
-    rankedCategories.push(unassignedLabel);
-  }
-
-  return {
-    categoryColorMap,
-    rankedCategories
-  };
-}
-
-// SECTION: Ongoing stage board color sync
-function applyStageBoardCategoryColors(categoryColorMap = new Map()) {
-  applyCategoryDots('.analytics-stage-board__category-dot[data-category-name]', categoryColorMap);
-}
-
-// SECTION: Shared category dot color sync
-function applyCategoryDots(selector, categoryColorMap = new Map()) {
-  const categoryDots = document.querySelectorAll(selector);
-  if (!categoryDots.length) {
-    return;
-  }
-
-  const palette = getPalette();
-  const neutralColor = palette.neutral ?? '#9ca3af';
-
-  categoryDots.forEach((dot) => {
-    if (!(dot instanceof HTMLElement)) {
-      return;
-    }
-
-    const categoryName = (dot.dataset.categoryName ?? '').trim();
-    const color = categoryColorMap.get(categoryName) ?? neutralColor;
-    dot.style.backgroundColor = color;
-  });
-}
-// END SECTION
-// END SECTION
-
-// SECTION: Stage axis helpers
-const stageAxisCodeOverrides = {
-  EAS: 'EAS',
-  SO: 'SO'
-};
-
-const stageAxisNameOverrides = {
-  'SOW Vetting': 'SoW',
-  'Scope of Work Vetting': 'SoW',
-  Benchmarking: 'BM',
-  Development: 'Devp'
-};
-
-function normalizeStageAxisLabel(label) {
-  if (!label) {
-    return '';
-  }
-
-  return stageAxisNameOverrides[label] ?? label;
-}
-
-function getStageAxisLabel(point) {
-  if (!point) {
-    return '';
-  }
-
-  const name = point.name ?? '';
-  const code = point.stageCode ?? '';
-
-  const normalizedCode = code.toUpperCase();
-  const overrideLabel = stageAxisCodeOverrides[normalizedCode];
-  if (overrideLabel) {
-    return normalizeStageAxisLabel(overrideLabel);
-  }
-
-  if (!name) {
-    return normalizeStageAxisLabel(code);
-  }
-
-  if (name.length <= MAX_STAGE_AXIS_LABEL_LENGTH || !code) {
-    return normalizeStageAxisLabel(name);
-  }
-
-  return normalizeStageAxisLabel(code);
-}
-
-function createStageTooltipTitle(series) {
-  return (tooltipItems) => {
-    if (!tooltipItems?.length) {
-      return '';
-    }
-
-    const index = tooltipItems[0]?.dataIndex ?? 0;
-    return series[index]?.name ?? tooltipItems[0]?.label ?? '';
-  };
-}
-// END SECTION
-
-// SECTION: Stage duration tooltip helpers
-function createStageDurationTooltipLabel(series) {
-  return (context) => {
-    const value = ensureNumber(context.raw);
-    const formatted = Number.isFinite(value) ? value.toFixed(1) : '0.0';
-    const label = context.dataset?.label || 'Value';
-    const sampleSize = ensureNumber(series[context.dataIndex]?.sampleSize);
-    const sampleNote = sampleSize > 0 && sampleSize <= 2 ? ' (limited sample)' : '';
-
-    return `${label}: ${formatted} days${sampleNote}`;
-  };
-}
-// END SECTION
-
-// SECTION: Completed analytics helpers
-function getCompletedAnalyticsData() {
-  const panel = document.querySelector('.analytics-panel--completed');
-  if (!panel) {
-    return null;
-  }
-
-  const json = panel.dataset.completedAnalytics;
-  if (!json) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(json);
-  } catch (error) {
-    console.error('Failed to parse completed analytics payload.', error);
-    return null;
-  }
-}
-
-// SECTION: Completed analytics chart builders
-function createCompletedPerYearStackedChart(
-  canvas,
-  points,
-  categoryColorMap = new Map(),
-  categoryOrder = []
-) {
-  if (!canvas || !window.Chart || !Array.isArray(points) || !points.length) {
-    return null;
-  }
-
-  const context = canvas.getContext('2d');
-  if (!context) {
-    return null;
-  }
-
-  const years = Array.from(new Set(points.map((point) => point.year))).sort(
-    (first, second) => first - second
-  );
-
-  const detectedCategories = Array.from(
-    new Set(points.map((point) => point.categoryName ?? 'Unassigned'))
-  );
-  let categories = detectedCategories.sort((first, second) => first.localeCompare(second));
-
-  if (Array.isArray(categoryOrder) && categoryOrder.length) {
-    const orderedSet = categoryOrder.filter((category) => detectedCategories.includes(category));
-    const remainingCategories = detectedCategories.filter(
-      (category) => !orderedSet.includes(category)
-    );
-    categories = [...orderedSet, ...remainingCategories];
-  }
-
-  const palette = getPalette();
-  const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
-
-  const datasets = categories.map((category, index) => ({
-    label: category,
-    data: years.map((year) => {
-      const match = points.find(
-        (point) => point.year === year && (point.categoryName ?? 'Unassigned') === category
-      );
-      return ensureNumber(match?.count);
-    }),
-    backgroundColor: categoryColorMap.get(category) ?? accentColors[index % accentColors.length],
-    borderWidth: 1
-  }));
-
-  return renderWithTheme(canvas, {
-    type: 'bar',
-    data: {
-      labels: years,
-      datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: { color: palette.axisColor }
-        },
-        tooltip: {
-          callbacks: {
-            footer(context) {
-              const total = context.reduce(
-                (sum, entry) => sum + ensureNumber(entry.parsed?.y),
-                0
-              );
-              return `Total: ${total}`;
+  sizeChartHost(canvas.parentElement, { min: 300, max: 340 });
+  mount(canvas, () => {
+    const tokens = chartTokens();
+    const datasets = categories.map((category) => ({
+      label: category,
+      data: axis.map((stage) => points
+        .filter((p) => p.stageCode === stage.code && (p.categoryName ?? 'Unassigned') === category)
+        .reduce((sum, p) => sum + ensureNumber(p.count), 0)),
+      backgroundColor: categoryColor(category, tokens),
+      stack: 'category'
+    }));
+    const chart = new window.Chart(canvas, {
+      type: 'bar',
+      data: { labels: axis.map((stage) => stage.short), datasets },
+      options: {
+        interaction: { mode: 'index', intersect: true },
+        scales: barScales({ stacked: true }),
+        plugins: {
+          tooltip: {
+            callbacks: {
+              title: stageTooltipTitle(axis),
+              label: (item) => `${item.dataset.label}: ${item.formattedValue}`,
+              footer: (items) => `Total: ${items.reduce((sum, item) => sum + ensureNumber(item.parsed.y), 0)}`
             }
           }
         }
-      },
-      scales: {
-        x: {
-          stacked: true,
-          title: {
-            display: true,
-            text: 'Year',
-            color: palette.axisColor
-          }
-        },
-        y: {
-          stacked: true,
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: 'Number of projects',
-            color: palette.axisColor
-          },
-          ticks: {
-            precision: 0,
-            color: palette.axisColor
-          },
-          grid: { color: palette.gridColor }
-        }
       }
-    }
+    });
+    renderLegend(panel.querySelector('[data-legend="ongoing-by-stage-chart"]'), chart, datasets.map((dataset, index) => ({
+      label: dataset.label,
+      color: dataset.backgroundColor,
+      value: dataset.data.reduce((sum, value) => sum + value, 0),
+      datasetIndex: index
+    })));
+    enableClickThrough(chart, (index, datasetIndex) => withQuery(ongoingUrl, {
+      PresentStageCode: axis[index]?.code,
+      ProjectCategoryId: parentCategoryId(datasets[datasetIndex]?.label)
+    }));
+    return chart;
   });
 }
-// END SECTION
 
-// SECTION: Ongoing analytics chart builders
-function createOngoingStageStackedChart(
-  canvas,
-  points,
-  categoryColorMap = new Map(),
-  categoryOrder = []
-) {
-  if (!canvas || !window.Chart || !Array.isArray(points) || !points.length) {
-    return null;
-  }
+function initOngoingStageFilterPopover(panel) {
+  const form = panel.querySelector('[data-stage-filter-form]');
+  if (!form) return;
+  const trigger = form.querySelector('[data-stage-filter-trigger]');
+  const popover = form.querySelector('[data-stage-filter-popover]');
+  const summary = form.querySelector('[data-stage-filter-summary]');
+  const options = Array.from(form.querySelectorAll('[data-stage-filter-option]'));
+  if (!trigger || !popover || !summary || !options.length) return;
 
-  const context = canvas.getContext('2d');
-  if (!context) {
-    return null;
-  }
+  const labelOf = (option) => form.querySelector(`label[for="${option.id}"]`)?.textContent?.trim() ?? '';
+  const setOpen = (open) => {
+    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    popover.hidden = !open;
+  };
+  const selected = () => options.filter((option) => option.checked);
+  const updateSummary = () => {
+    const count = selected().length;
+    summary.textContent = count === 0 || count === options.length
+      ? 'All'
+      : count === 1 ? labelOf(selected()[0]) : `${count} selected`;
+  };
 
-  const stageCodes = [];
-  points.forEach((point) => {
-    if (point?.stageCode && !stageCodes.includes(point.stageCode)) {
-      stageCodes.push(point.stageCode);
-    }
+  trigger.addEventListener('click', () => setOpen(popover.hidden));
+  form.querySelector('[data-stage-filter-select-all]')?.addEventListener('click', () => {
+    options.forEach((option) => { option.checked = true; });
+    updateSummary();
   });
-
-  const stageAxisPoints = stageCodes.map((code) => {
-    const match = points.find((point) => point.stageCode === code);
-    return {
-      name: match?.stageName ?? match?.stageCode ?? '',
-      stageCode: code
-    };
+  form.querySelector('[data-stage-filter-clear]')?.addEventListener('click', () => {
+    options.forEach((option) => { option.checked = false; });
+    updateSummary();
   });
-
-  const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
-
-  const detectedCategories = Array.from(
-    new Set(points.map((point) => point.categoryName ?? 'Unassigned'))
-  );
-  let orderedCategories = detectedCategories.sort((first, second) =>
-    first.localeCompare(second)
-  );
-
-  if (Array.isArray(categoryOrder) && categoryOrder.length) {
-    const orderedSet = categoryOrder.filter((category) => detectedCategories.includes(category));
-    const remainingCategories = detectedCategories.filter(
-      (category) => !orderedSet.includes(category)
-    );
-    orderedCategories = [...orderedSet, ...remainingCategories];
-  }
-
-  const palette = getPalette();
-  const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
-
-  const datasets = orderedCategories.map((category, index) => ({
-    label: category,
-    data: stageCodes.map((stageCode) => {
-      const match = points.find(
-        (point) => point.stageCode === stageCode && point.categoryName === category
-      );
-      return ensureNumber(match?.count);
-    }),
-    backgroundColor: categoryColorMap.get(category) ?? accentColors[index % accentColors.length],
-    borderWidth: 1
-  }));
-
-  return renderWithTheme(canvas, {
-    type: 'bar',
-    data: {
-      labels: axisLabels,
-      datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: { color: palette.axisColor }
-        },
-        tooltip: {
-          callbacks: {
-            title: createStageTooltipTitle(stageAxisPoints),
-            footer(context) {
-              const total = context.reduce(
-                (sum, entry) => sum + ensureNumber(entry.parsed?.y),
-                0
-              );
-              return `Total: ${total}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          stacked: true,
-          ticks: {
-            autoSkip: false,
-            maxRotation: 0,
-            minRotation: 0
-          }
-        },
-        y: {
-          stacked: true,
-          beginAtZero: true,
-          grace: '5%',
-          ticks: {
-            precision: 0
-          },
-          grid: { color: palette.gridColor }
-        }
-      }
-    }
+  options.forEach((option) => option.addEventListener('change', updateSummary));
+  form.addEventListener('submit', () => {
+    if (!selected().length) options.forEach((option) => { option.checked = true; });
+    setOpen(false);
   });
-}
-// END SECTION
-
-function initCompletedAnalytics() {
-  const data = getCompletedAnalyticsData();
-  if (!data) {
-    return;
-  }
-
-  const byCategoryEl = document.getElementById('completedByCategoryChart');
-  const byTechnicalEl = document.getElementById('completedByTechnicalChart');
-  const perYearEl = document.getElementById('completedPerYearChart');
-
-  if (byCategoryEl && data.byCategory?.length) {
-    createDoughnutChart(byCategoryEl, {
-      labels: data.byCategory.map((point) => point.name),
-      values: data.byCategory.map((point) => point.count)
-    });
-  }
-
-  if (byTechnicalEl && data.byTechnical?.length) {
-    createBarChart(byTechnicalEl, {
-      labels: data.byTechnical.map((point) => point.name),
-      values: data.byTechnical.map((point) => point.count)
-    });
-  }
-
-  if (perYearEl) {
-    if (data.perYearByParentCategory?.length) {
-      const { categoryColorMap, rankedCategories } = buildCategoryColorMapping(data.perYearByParentCategory);
-      createCompletedPerYearStackedChart(
-        perYearEl,
-        data.perYearByParentCategory,
-        categoryColorMap,
-        rankedCategories
-      );
-      applyCategoryDots('.analytics-completed-board__category-dot[data-category-name]', categoryColorMap);
-    } else if (data.perYear?.length) {
-      createBarChart(perYearEl, {
-        labels: data.perYear.map((point) => point.year?.toString() ?? ''),
-        values: data.perYear.map((point) => point.count),
-        label: 'Projects completed',
-        backgroundColor: getAccentColor(2)
-      });
-    }
-  }
-}
-// END SECTION
-
-// SECTION: Ongoing stage parent-category filter popover
-function initOngoingStageFilterPopover() {
-  const filterForm = document.querySelector('.analytics-stage-filter-form');
-  if (!filterForm) {
-    return;
-  }
-
-  const trigger = filterForm.querySelector('[data-stage-filter-trigger]');
-  const popover = filterForm.querySelector('[data-stage-filter-popover]');
-  const summary = filterForm.querySelector('[data-stage-filter-summary]');
-  const selectAllButton = filterForm.querySelector('[data-stage-filter-select-all]');
-  const clearButton = filterForm.querySelector('[data-stage-filter-clear]');
-  const applyButton = filterForm.querySelector('[data-stage-filter-apply]');
-  const options = Array.from(filterForm.querySelectorAll('[data-stage-filter-option]'));
-  const optionLabels = new Map(
-    options.map((option) => {
-      const label = filterForm.querySelector(`label[for="${option.id}"] .analytics-stage-filter-option__label`);
-      return [option, label ? label.textContent?.trim() ?? '' : ''];
-    })
-  );
-
-  if (!trigger || !popover || !summary || !options.length) {
-    return;
-  }
-
-  function setPopoverState(isOpen) {
-    trigger.dataset.stageFilterOpen = isOpen ? 'true' : 'false';
-    trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-    popover.hidden = !isOpen;
-  }
-
-  function setAllOptionsChecked(checked) {
-    options.forEach((option) => {
-      option.checked = checked;
-    });
-  }
-
-  function selectedOptions() {
-    return options.filter((option) => option.checked);
-  }
-
-  function updateSummaryText() {
-    const selected = selectedOptions();
-    const selectedCount = selected.length;
-    const totalCount = options.length;
-    let text = 'All';
-
-    if (selectedCount === 1) {
-      text = optionLabels.get(selected[0]) || '1 selected';
-    } else if (selectedCount > 1 && selectedCount < totalCount) {
-      text = `${selectedCount} selected`;
-    }
-
-    summary.textContent = text;
-  }
-
-  function ensureAtLeastOneOrAllSelected() {
-    if (!selectedOptions().length) {
-      setAllOptionsChecked(true);
-    }
-  }
-
-  trigger.addEventListener('click', () => {
-    const nextState = popover.hidden;
-    setPopoverState(nextState);
-  });
-
-  selectAllButton?.addEventListener('click', () => {
-    setAllOptionsChecked(true);
-    updateSummaryText();
-  });
-
-  clearButton?.addEventListener('click', () => {
-    setAllOptionsChecked(true);
-    updateSummaryText();
-  });
-
-  options.forEach((option) => {
-    option.addEventListener('change', () => {
-      updateSummaryText();
-    });
-  });
-
-  applyButton?.addEventListener('click', () => {
-    ensureAtLeastOneOrAllSelected();
-  });
-
-  filterForm.addEventListener('submit', () => {
-    ensureAtLeastOneOrAllSelected();
-    setPopoverState(false);
-    updateSummaryText();
-  });
-
   document.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
-    }
-
-    if (!filterForm.contains(target)) {
-      setPopoverState(false);
-    }
+    if (event.target instanceof Element && !form.contains(event.target)) setOpen(false);
   });
-
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      setPopoverState(false);
+    if (event.key === 'Escape' && !popover.hidden) {
+      setOpen(false);
       trigger.focus();
     }
   });
-
-  setPopoverState(false);
-  updateSummaryText();
+  setOpen(false);
+  updateSummary();
 }
 // END SECTION
 
-// SECTION: Ongoing analytics initialiser
-function initOngoingAnalytics() {
-  initOngoingStageFilterPopover();
+// SECTION: Completed mode
+function initCompleted(panel) {
+  const data = readJson(panel, 'completedAnalytics', null);
+  if (!data) return;
+  paintCategoryDots(panel);
+  const projectsUrl = root()?.dataset.projectsIndexUrl;
+  const technicalOptions = readJson(root(), 'technicalCategories', []);
+  const categoryOptions = readJson(root(), 'categories', []);
 
-  const stageCanvas = document.getElementById('ongoing-by-stage-chart');
-  const durationCanvas = document.getElementById('ongoing-stage-duration-chart');
-
-  const stageSeries = stageCanvas ? parseSeries(stageCanvas) : [];
-  const { categoryColorMap, rankedCategories } = buildCategoryColorMapping(stageSeries);
-  applyStageBoardCategoryColors(categoryColorMap);
-
-  if (stageCanvas) {
-    if (stageSeries.length) {
-      const looksStacked =
-        Object.prototype.hasOwnProperty.call(stageSeries[0], 'categoryName') &&
-        Object.prototype.hasOwnProperty.call(stageSeries[0], 'stageCode');
-
-      if (looksStacked) {
-        createOngoingStageStackedChart(
-          stageCanvas,
-          stageSeries,
-          categoryColorMap,
-          rankedCategories
-        );
-      } else {
-        createBarChart(stageCanvas, {
-          labels: stageSeries.map((point) => point.name),
-          values: stageSeries.map((point) => point.count),
-          label: 'Projects'
-        });
-      }
-    }
-  }
-
-  if (durationCanvas) {
-    const series = parseSeries(durationCanvas);
-    if (series.length) {
-      // SECTION: Stage duration (mean vs median)
-      const labels = series.map((point) => getStageAxisLabel(point)).map((label) => wrapLabel(label));
-      const meanValues = series.map((point) => ensureNumber(point.days));
-      const medianValues = series.map((point) => ensureNumber(point.medianDays));
-      const palette = getPalette();
-
-      renderWithTheme(durationCanvas, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Mean (Average)',
-              data: meanValues,
-              backgroundColor: getAccentColor(2),
-              borderRadius: 4,
-              maxBarThickness: 40
-            },
-            {
-              label: 'Median',
-              data: medianValues,
-              backgroundColor: getAccentColor(0),
-              borderRadius: 4,
-              maxBarThickness: 40
-            }
-          ]
-        },
-        options: mergeChartOptions(
-          {
-            responsive: true,
-            maintainAspectRatio: false,
+  // Projects completed per year: the big chart, stacked by parent category.
+  const perYearCanvas = panel.querySelector('#completedPerYearChart');
+  const perYearPoints = Array.isArray(data.perYearByParentCategory) && data.perYearByParentCategory.length
+    ? data.perYearByParentCategory
+    : (data.perYear ?? []).map((p) => ({ year: p.year, categoryName: 'All projects', count: p.count }));
+  if (perYearCanvas) {
+    if (!perYearPoints.length) {
+      renderEmptyState(perYearCanvas);
+    } else {
+      const years = Array.from(new Set(perYearPoints.map((p) => p.year))).sort((a, b) => a - b);
+      const categories = orderCategories(perYearPoints.map((p) => p.categoryName ?? 'Unassigned'));
+      sizeChartHost(perYearCanvas.parentElement, { min: 340, max: 380 });
+      mount(perYearCanvas, () => {
+        const tokens = chartTokens();
+        const datasets = categories.map((category) => ({
+          label: category,
+          data: years.map((year) => perYearPoints
+            .filter((p) => p.year === year && (p.categoryName ?? 'Unassigned') === category)
+            .reduce((sum, p) => sum + ensureNumber(p.count), 0)),
+          backgroundColor: categories.length === 1 ? tokens.primary : categoryColor(category, tokens),
+          stack: 'year'
+        }));
+        const chart = new window.Chart(perYearCanvas, {
+          type: 'bar',
+          data: { labels: years, datasets },
+          options: {
+            interaction: { mode: 'index', intersect: true },
+            scales: barScales({ stacked: true }),
             plugins: {
-              legend: {
-                display: true,
-                position: 'bottom',
-                labels: { color: palette.axisColor }
-              },
               tooltip: {
                 callbacks: {
-                  title: createStageTooltipTitle(series),
-                  label: createStageDurationTooltipLabel(series)
+                  title: (items) => `Completed in ${items?.[0]?.label ?? ''}`,
+                  label: (item) => `${item.dataset.label}: ${item.formattedValue}`,
+                  footer: (items) => `Total: ${items.reduce((sum, item) => sum + ensureNumber(item.parsed.y), 0)}`
                 }
               }
-            },
-            scales: {
-              x: {
-                ticks: { autoSkip: false, maxRotation: 0, minRotation: 0, color: palette.axisColor },
-                grid: { color: palette.gridColor }
-              },
-              y: {
-                beginAtZero: true,
-                ticks: { color: palette.axisColor },
-                grid: { color: palette.gridColor }
-              }
-            }
-          },
-          {
-            scales: {
-              x: { ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 } }
             }
           }
-        )
+        });
+        renderLegend(panel.querySelector('[data-legend="completedPerYearChart"]'), chart, datasets.map((dataset, index) => ({
+          label: dataset.label,
+          color: dataset.backgroundColor,
+          value: dataset.data.reduce((sum, value) => sum + value, 0),
+          datasetIndex: index
+        })));
+        enableClickThrough(chart, (index) => withQuery(projectsUrl, { Lifecycle: 'Completed', CompletedYear: years[index] }));
+        return chart;
       });
-      // END SECTION
+    }
+  }
+
+  // By category: a doughnut in the fixed category colours with the total in the hole.
+  const byCategoryCanvas = panel.querySelector('#completedByCategoryChart');
+  const byCategory = Array.isArray(data.byCategory) ? data.byCategory : [];
+  if (byCategoryCanvas) {
+    if (!byCategory.length) {
+      renderEmptyState(byCategoryCanvas);
+    } else {
+      sizeChartHost(byCategoryCanvas.parentElement, { min: 260, max: 280 });
+      mount(byCategoryCanvas, () => {
+        const tokens = chartTokens();
+        const colors = byCategory.map((p) => categoryColor(p.name, tokens));
+        const chart = new window.Chart(byCategoryCanvas, {
+          type: 'doughnut',
+          data: {
+            labels: byCategory.map((p) => p.name),
+            datasets: [{ data: byCategory.map((p) => ensureNumber(p.count)), backgroundColor: colors, borderWidth: 3, borderColor: tokens.card, hoverOffset: 6 }]
+          },
+          options: {
+            cutout: '68%',
+            layout: { padding: 8 },
+            plugins: {
+              pmValueLabels: { centreLabel: 'completed' },
+              tooltip: {
+                callbacks: {
+                  label(item) {
+                    const total = byCategory.reduce((sum, p) => sum + ensureNumber(p.count), 0);
+                    const share = total ? Math.round((item.parsed / total) * 100) : 0;
+                    return `${item.label}: ${item.formattedValue} (${share}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+        renderLegend(panel.querySelector('[data-legend="completedByCategoryChart"]'), null, byCategory.map((p, index) => ({
+          label: p.name,
+          color: colors[index],
+          value: ensureNumber(p.count)
+        })));
+        enableClickThrough(chart, (index) => {
+          const option = categoryOptions.find((c) => c.name === byCategory[index]?.name);
+          return option ? withQuery(projectsUrl, { Lifecycle: 'Completed', CategoryId: option.id, IncludeCategoryDescendants: true }) : null;
+        });
+        return chart;
+      });
+    }
+  }
+
+  // By technical category: horizontal bars, most first, one hue.
+  const byTechnicalCanvas = panel.querySelector('#completedByTechnicalChart');
+  const byTechnical = (Array.isArray(data.byTechnical) ? data.byTechnical : [])
+    .slice()
+    .sort((a, b) => ensureNumber(b.count) - ensureNumber(a.count));
+  if (byTechnicalCanvas) {
+    if (!byTechnical.length) {
+      renderEmptyState(byTechnicalCanvas);
+    } else {
+      sizeChartHost(byTechnicalCanvas.parentElement, { horizontal: true, rows: byTechnical.length, min: 200, max: 420, rowHeight: 34 });
+      mount(byTechnicalCanvas, () => {
+        const tokens = chartTokens();
+        const chart = new window.Chart(byTechnicalCanvas, {
+          type: 'bar',
+          data: {
+            labels: byTechnical.map((p) => p.name),
+            datasets: [{ label: 'Completed projects', data: byTechnical.map((p) => ensureNumber(p.count)), backgroundColor: tokens.primary, maxBarThickness: 22 }]
+          },
+          options: {
+            indexAxis: 'y',
+            layout: { padding: { right: 36, top: 4 } },
+            scales: barScales({ horizontal: true }),
+            plugins: { tooltip: { callbacks: { label: (item) => `${item.formattedValue} completed` } } }
+          }
+        });
+        enableClickThrough(chart, (index) => {
+          const option = technicalOptions.find((t) => t.name === byTechnical[index]?.name);
+          return option ? withQuery(projectsUrl, { Lifecycle: 'Completed', TechnicalCategoryId: option.id }) : null;
+        });
+        return chart;
+      });
     }
   }
 }
 // END SECTION
 
-// SECTION: CoE analytics initialiser
-function initCoeAnalytics() {
-  const stageCanvas = document.getElementById('coe-by-stage-chart');
-  const subcategoryCanvas = document.getElementById('coe-subcategories-by-lifecycle-chart');
+// SECTION: CoE mode
+function initCoe(panel) {
+  const ongoingUrl = root()?.dataset.ongoingIndexUrl;
 
-  renderSeriesChart(stageCanvas, (series) => {
-    if (!window.Chart) {
-      return;
-    }
-
-    const stageAxisPoints = series.map((point) => ({
-      name: point.stageName || '',
-      stageCode: point.stageKey || ''
-    }));
-
-    const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
-
-    createBarChart(stageCanvas, {
-      labels: axisLabels,
-      values: series.map((point) => ensureNumber(point.projectCount ?? point.value)),
-      label: 'Projects',
-      backgroundColor: getAccentColor(3),
-      options: {
-        plugins: {
-          tooltip: {
-            callbacks: {
-              title: createStageTooltipTitle(stageAxisPoints)
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-              stepSize: 1
-            }
-          }
-        }
-      }
-    });
-  });
-
-  renderSeriesChart(subcategoryCanvas, (series) => {
-    if (!window.Chart) {
-      return;
-    }
-
-    const palette = getPalette();
-    const labels = series.map((point) => point.name ?? '');
-    const lifecycleKeyMap = {
-      Ongoing: 'ongoing',
-      Completed: 'completed',
-      Cancelled: 'cancelled'
-    };
-
-    const legendEntries = lifecycleStatuses.map((status) => {
-      const key = lifecycleKeyMap[status];
-      const total = series.reduce((sum, row) => sum + ensureNumber(row[key]), 0);
-      return {
-        status,
-        key,
-        total,
-        color: getLifecycleColor(status),
-        isActive: total > 0
-      };
-    });
-
-    const datasets = legendEntries
-      .filter((entry) => entry.isActive)
-      .map((entry) => ({
-        label: entry.status,
-        data: series.map((row) => ensureNumber(row[entry.key])),
-        backgroundColor: entry.color,
-        stack: 'lifecycle',
-        borderRadius: 4,
-        maxBarThickness: 48
-      }));
-
-    const datasetIndexLookup = new Map();
-    datasets.forEach((dataset, index) => datasetIndexLookup.set(dataset.label, index));
-    legendEntries.forEach((entry) => {
-      entry.datasetIndex = datasetIndexLookup.get(entry.status) ?? 0;
-    });
-
-    const rotation = labels.length > 6 ? 30 : 0;
-
-    renderWithTheme(subcategoryCanvas, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            stacked: true,
-            ticks: {
-              maxRotation: rotation,
-              minRotation: rotation,
-              color: palette.axisColor
-            },
-            grid: {
-              display: false
-            }
+  const stageCanvas = panel.querySelector('#coe-by-stage-chart');
+  const stageSeries = readJson(stageCanvas, 'series', []);
+  if (stageCanvas) {
+    if (!stageSeries.length) {
+      renderEmptyState(stageCanvas);
+    } else {
+      const names = new Map(stageSeries.map((p) => [p.stageKey, p.stageName]));
+      const axis = stageAxis(stageSeries.map((p) => p.stageKey), names);
+      sizeChartHost(stageCanvas.parentElement, { min: 280, max: 300 });
+      mount(stageCanvas, () => {
+        const tokens = chartTokens();
+        const chart = new window.Chart(stageCanvas, {
+          type: 'bar',
+          data: {
+            labels: axis.map((stage) => stage.short),
+            datasets: [{
+              label: 'Ongoing CoE projects',
+              data: axis.map((stage) => stageSeries
+                .filter((p) => String(p.stageKey).toUpperCase() === stage.code.toUpperCase())
+                .reduce((sum, p) => sum + ensureNumber(p.projectCount ?? p.value), 0)),
+              backgroundColor: tokens.category.coe
+            }]
           },
-          y: {
-            stacked: true,
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-              stepSize: 1,
-              color: palette.axisColor
-            },
-            grid: {
-              color: palette.gridColor
-            }
+          options: {
+            scales: barScales(),
+            plugins: { tooltip: { callbacks: { title: stageTooltipTitle(axis), label: (item) => `${item.formattedValue} ongoing` } } }
           }
-        },
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              usePointStyle: true,
-              color: palette.axisColor,
-              generateLabels() {
-                return legendEntries.map((entry) => ({
-                  text: `${entry.status} · ${entry.total}`,
-                  fillStyle: entry.isActive ? entry.color : palette.gridColor,
-                  strokeStyle: entry.isActive ? entry.color : palette.gridColor,
-                  hidden: false,
-                  datasetIndex: entry.datasetIndex,
-                  lineWidth: entry.isActive ? 1 : 0
-                }));
-              }
-            },
-            onClick(event, legendItem, legend) {
-              const entry = legendEntries[legendItem.index];
-              if (!entry?.isActive) {
-                return;
-              }
-
-              const defaultClick = getDefaultLegendClick();
-              defaultClick.call(this, event, legendItem, legend);
-            }
-          },
-          tooltip: {
-            callbacks: {
-              title(items) {
-                const item = items?.[0];
-                if (!item) {
-                  return '';
-                }
-
-                const row = series[item.dataIndex] ?? {};
-                return row.name ?? '';
-              },
-              label(context) {
-                const status = context.dataset?.label ?? '';
-                const row = series[context.dataIndex] ?? {};
-                const key = lifecycleKeyMap[status];
-                const value = ensureNumber(context.raw ?? row[key]);
-                const total = ensureNumber(row.total);
-                if (!total) {
-                  return `${status}: ${value} projects`;
-                }
-                const percentage = Math.round((value / total) * 100);
-                return `${status}: ${value} of ${total} projects (${percentage}%)`;
-              },
-              footer(items) {
-                const item = items?.[0];
-                if (!item) {
-                  return '';
-                }
-
-                const row = series[item.dataIndex] ?? {};
-                const total = ensureNumber(row.total);
-                return total ? `Total: ${total} projects` : '';
-              }
-            }
-          }
-        }
-      }
-    });
-  });
-}
-// END SECTION
-
-// SECTION: Analytics form helpers
-function enableAutoSubmitFilters() {
-  const elements = document.querySelectorAll('[data-auto-submit="change"]');
-  elements.forEach((element) => {
-    element.addEventListener('change', () => {
-      const form = element.closest('form');
-      if (form?.requestSubmit) {
-        form.requestSubmit();
-        return;
-      }
-
-      if (form) {
-        form.submit();
-      }
-    });
-  });
-}
-// END SECTION
-
-// SECTION: Project management insights initialiser
-function initStageTimeInsights() {
-  enableAutoSubmitFilters();
-  initStageCycleTimeByCostChart();
-  initStageHotspotsChart();
-}
-
-function initStageCycleTimeByCostChart() {
-  const canvas = document.getElementById('stage-time-by-cost-chart');
-  if (!canvas || !window.Chart) {
-    return;
+        });
+        enableClickThrough(chart, (index) => withQuery(ongoingUrl, { PresentStageCode: axis[index]?.code }));
+        return chart;
+      });
+    }
   }
 
-  const series = parseSeries(canvas);
-  if (!series.length) {
+  const subcategoryCanvas = panel.querySelector('#coe-subcategories-by-lifecycle-chart');
+  const rows = readJson(subcategoryCanvas, 'series', []);
+  if (subcategoryCanvas) {
+    if (!rows.length) {
+      renderEmptyState(subcategoryCanvas);
+    } else {
+      const statuses = ['Ongoing', 'Completed', 'Cancelled'];
+      const keyOf = { Ongoing: 'ongoing', Completed: 'completed', Cancelled: 'cancelled' };
+      sizeChartHost(subcategoryCanvas.parentElement, { horizontal: true, rows: rows.length, min: 220, max: 460, rowHeight: 38 });
+      mount(subcategoryCanvas, () => {
+        const tokens = chartTokens();
+        const datasets = statuses.map((status) => ({
+          label: status,
+          data: rows.map((row) => ensureNumber(row[keyOf[status]])),
+          backgroundColor: lifecycleColor(status, tokens),
+          stack: 'lifecycle',
+          maxBarThickness: 24
+        }));
+        const chart = new window.Chart(subcategoryCanvas, {
+          type: 'bar',
+          data: { labels: rows.map((row) => row.name ?? ''), datasets },
+          options: {
+            indexAxis: 'y',
+            layout: { padding: { right: 36, top: 4 } },
+            interaction: { mode: 'index', intersect: true },
+            scales: barScales({ horizontal: true, stacked: true }),
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label(item) {
+                    const total = ensureNumber(rows[item.dataIndex]?.total);
+                    const share = total ? Math.round((item.parsed.x / total) * 100) : 0;
+                    return `${item.dataset.label}: ${item.formattedValue}${total ? ` (${share}%)` : ''}`;
+                  },
+                  footer: (items) => `Total: ${ensureNumber(rows[items?.[0]?.dataIndex]?.total)}`
+                }
+              }
+            }
+          }
+        });
+        renderLegend(panel.querySelector('[data-legend="coe-subcategories-by-lifecycle-chart"]'), chart, datasets.map((dataset, index) => ({
+          label: dataset.label,
+          color: dataset.backgroundColor,
+          value: dataset.data.reduce((sum, value) => sum + value, 0),
+          datasetIndex: index
+        })));
+        return chart;
+      });
+    }
+  }
+}
+// END SECTION
+
+// SECTION: Insights mode (one stage cycle-time chart with toggles, plus the ranked list)
+const costBands = [
+  { key: 'Below1Cr', label: 'Below ₹1 crore' },
+  { key: 'AboveOrEqual1Cr', label: '₹1 crore and above' }
+];
+
+function initInsights(panel) {
+  enableAutoSubmit(panel);
+  const canvas = panel.querySelector('#stage-cycle-time-chart');
+  if (!canvas) return;
+  const rows = readJson(canvas, 'rows', []);     // per stage × cost band
+  const points = readJson(canvas, 'points', []); // per stage, all projects
+  if (!points.length && !rows.length) {
     renderEmptyState(canvas);
     return;
   }
 
-  const orderedSeries = [...series].sort((a, b) => {
-    const orderCompare = (a.stageOrder ?? 0) - (b.stageOrder ?? 0);
-    if (orderCompare !== 0) {
-      return orderCompare;
+  const names = new Map([...points, ...rows].map((p) => [p.stageKey, p.stageName]));
+  const codes = Array.from(new Set([...points, ...rows].map((p) => p.stageKey)));
+  const axis = stageAxis(codes, names);
+  const state = { measure: 'median', split: 'all' };
+  const legend = panel.querySelector('[data-legend="stage-cycle-time-chart"]');
+  const field = () => (state.measure === 'mean' ? 'averageDays' : 'medianDays');
+  const measureLabel = () => (state.measure === 'mean' ? 'Mean' : 'Median');
+  const matchStage = (p, stage) => String(p.stageKey).toUpperCase() === stage.code.toUpperCase();
+
+  sizeChartHost(canvas.parentElement, { min: 300, max: 340 });
+
+  const draw = () => mount(canvas, () => {
+    const tokens = chartTokens();
+    let datasets;
+    if (state.split === 'band') {
+      const tints = [tokens.primary, tokens.primarySoft];
+      datasets = costBands.map((band, index) => ({
+        label: band.label,
+        bandKey: band.key,
+        data: axis.map((stage) => ensureNumber(rows.find((r) => matchStage(r, stage) && r.bucket === band.key)?.[field()])),
+        backgroundColor: tints[index]
+      }));
+    } else {
+      datasets = [{
+        label: `${measureLabel()} days in stage`,
+        data: axis.map((stage) => ensureNumber(points.find((p) => matchStage(p, stage))?.[field()])),
+        backgroundColor: tokens.primary
+      }];
     }
-
-    const nameA = a.stageName || '';
-    const nameB = b.stageName || '';
-    return nameA.localeCompare(nameB);
-  });
-
-  const stages = Array.from(
-    new Map(
-      orderedSeries.map((row) => {
-        const key = row.stageKey || '';
-        return [key, {
-          key,
-          name: row.stageName || key,
-          order: row.stageOrder ?? 0
-        }];
-      })
-    ).values()
-  );
-
-  // SECTION: Stage axis label formatting
-  const stageAxisPoints = stages.map((stage) => ({
-    name: stage.name,
-    stageCode: stage.key
-  }));
-    const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
-    const wrappedLabels = axisLabels.map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
-    // END SECTION
-
-    const palette = getPalette();
-
-  function buildDataset(bucketKey, label, color) {
-    return {
-      label,
-      bucketKey,
-      data: stages.map((stage) => {
-        const match = series.find((row) => row.stageKey === stage.key && row.bucket === bucketKey);
-        return match ? Number(match.medianDays) || 0 : 0;
-      }),
-      backgroundColor: color,
-      borderRadius: 4,
-      maxBarThickness: 40
-    };
-  }
-
-  const datasets = [
-    buildDataset(stageTimeBucketKeys.below, 'Project cost below 1 crore', getAccentColor(0)),
-    buildDataset(stageTimeBucketKeys.above, 'Project cost at or above 1 crore', getAccentColor(2))
-  ];
-
-    renderWithTheme(canvas, {
+    const chart = new window.Chart(canvas, {
       type: 'bar',
-      data: {
-        labels: wrappedLabels,
-        datasets
-      },
+      data: { labels: axis.map((stage) => stage.short), datasets },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            stacked: false,
-            // SECTION: Ensure all stage labels display on x-axis
-            ticks: {
-              maxRotation: 0,
-              autoSkip: false,
-              color: palette.axisColor
-            }
-            // END SECTION
-          },
-          y: {
-            beginAtZero: true,
-            title: { display: true, text: 'Median days in stage', color: palette.axisColor },
-            ticks: { color: palette.axisColor },
-            grid: { color: palette.gridColor }
-          }
-        },
+        interaction: { mode: 'index', intersect: true },
+        scales: barScales({ integer: false }),
         plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: palette.axisColor }
-          },
-        tooltip: {
-          callbacks: {
-            title(items) {
-              const item = items?.[0];
-              if (!item) {
-                return '';
-              }
-
-              const stage = stages[item.dataIndex];
-              return stage?.name || '';
-            },
-            label(context) {
-              const stage = stages[context.dataIndex];
-              const bucketKey = context.dataset?.bucketKey;
-              if (!stage || !bucketKey) {
-                return `${context.dataset?.label || 'Cost bucket'}: 0 days`;
-              }
-
-              const row = series.find(
-                (entry) => entry.stageKey === stage.key && entry.bucket === bucketKey
-              );
-              if (!row) {
-                return `${context.dataset?.label || 'Cost bucket'}: 0 days`;
-              }
-
-              const median = Number(row.medianDays ?? 0).toFixed(1);
-              const average = Number(row.averageDays ?? 0).toFixed(1);
-              const count = row.projectCount ?? 0;
-              return `${context.dataset?.label}: median ${median} days, average ${average} days, ${count} projects`;
-            }
-          }
-        }
-      }
-    }
-  });
-}
-
-function initStageHotspotsChart() {
-  const canvas = document.getElementById('stage-hotspots-chart');
-  if (!canvas || !window.Chart) {
-    return;
-  }
-
-  renderSeriesChart(canvas, (series) => {
-    const orderedSeries = [...series].sort((a, b) => {
-      const medianDelta = (b.medianDays ?? 0) - (a.medianDays ?? 0);
-      if (medianDelta !== 0) {
-        return medianDelta;
-      }
-
-      const orderCompare = (a.stageOrder ?? 0) - (b.stageOrder ?? 0);
-      if (orderCompare !== 0) {
-        return orderCompare;
-      }
-
-      const nameA = a.stageName || '';
-      const nameB = b.stageName || '';
-      return nameA.localeCompare(nameB);
-    });
-
-    const stageAxisPoints = orderedSeries.map((point) => ({
-      name: point.stageName || point.stageKey || '',
-      stageCode: point.stageKey || ''
-    }));
-      const labels = stageAxisPoints
-        .map((point) => getStageAxisLabel(point))
-        .map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
-
-      const medianValues = orderedSeries.map((point) => ensureNumber(point.medianDays));
-      const averageValues = orderedSeries.map((point) => ensureNumber(point.averageDays));
-      const projectCounts = orderedSeries.map((point) => Math.max(0, Math.round(point.projectCount ?? 0)));
-
-      const palette = getPalette();
-      const emphasisColors = medianValues.map((_, index) => (index < 3 ? getAccentColor(0) : getAccentColor(1)));
-      const emphasisBorders = medianValues.map((_, index) => (index < 3 ? getAccentColor(0) : getAccentColor(1)));
-
-      renderWithTheme(canvas, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-            label: 'Median days to finish stage',
-            data: medianValues,
-            backgroundColor: emphasisColors,
-            borderColor: emphasisBorders,
-            borderWidth: 1,
-            borderRadius: 6,
-            barThickness: 24
-          }
-        ]
-      },
-      options: {
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              beginAtZero: true,
-              title: { display: true, text: 'Median days in stage', color: palette.axisColor },
-              ticks: {
-                precision: 0,
-                color: palette.axisColor
-              },
-              grid: { color: palette.gridColor }
-            },
-            y: {
-              grid: { display: false },
-              ticks: {
-                autoSkip: false,
-                color: palette.axisColor
-              }
-            }
-          },
-          plugins: {
-            legend: { display: false },
+          pmValueLabels: { format: (value) => Math.round(value).toString() },
           tooltip: {
             callbacks: {
-              title: createStageTooltipTitle(stageAxisPoints),
-              label(context) {
-                const index = context.dataIndex ?? 0;
-                const median = medianValues[index];
-                const average = averageValues[index];
-                const count = projectCounts[index];
-
-                const lines = [];
-                if (Number.isFinite(median)) {
-                  lines.push(`Median: ${median.toFixed(1)} days`);
-                }
-
-                if (Number.isFinite(average)) {
-                  lines.push(`Average: ${average.toFixed(1)} days`);
-                }
-
-                if (Number.isFinite(count)) {
-                  const sampleLabel = count < 3 ? ' (low sample size)' : '';
-                  lines.push(`Projects counted: ${count}${sampleLabel}`);
-                }
-
-                return lines;
+              title: stageTooltipTitle(axis),
+              label(item) {
+                const stage = axis[item.dataIndex];
+                const source = item.dataset.bandKey
+                  ? rows.find((r) => matchStage(r, stage) && r.bucket === item.dataset.bandKey)
+                  : points.find((p) => matchStage(p, stage));
+                if (!source) return `${item.dataset.label}: no finished stages yet`;
+                return [
+                  `${item.dataset.label}: ${Math.round(ensureNumber(source[field()]))} days`,
+                  `${state.measure === 'mean' ? 'Median' : 'Mean'}: ${Math.round(ensureNumber(source[state.measure === 'mean' ? 'medianDays' : 'averageDays']))} days`,
+                  `${ensureNumber(source.projectCount)} project${ensureNumber(source.projectCount) === 1 ? '' : 's'}${ensureNumber(source.projectCount) < 3 ? ' (small sample)' : ''}`
+                ];
               }
             }
           }
         }
       }
+    });
+    renderLegend(legend, datasets.length > 1 ? chart : null, datasets.map((dataset, index) => ({
+      label: dataset.label,
+      color: dataset.backgroundColor,
+      datasetIndex: index
+    })));
+    return chart;
+  });
+
+  panel.querySelectorAll('[data-cycle-toggle]').forEach((group) => {
+    const key = group.dataset.cycleToggle;
+    group.querySelectorAll('button[data-value]').forEach((button) => {
+      button.addEventListener('click', () => {
+        state[key] = button.dataset.value;
+        group.querySelectorAll('button[data-value]').forEach((other) => {
+          other.setAttribute('aria-pressed', other === button ? 'true' : 'false');
+        });
+        draw();
+      });
+    });
+  });
+
+  draw();
+}
+
+function enableAutoSubmit(scope) {
+  scope.querySelectorAll('[data-auto-submit="change"]').forEach((element) => {
+    element.addEventListener('change', () => {
+      const form = element.closest('form');
+      if (form?.requestSubmit) form.requestSubmit();
+      else form?.submit();
     });
   });
 }
 // END SECTION
 
-// SECTION: Analytics chart export helpers
-function getCssVar(name, fallback) {
-  const css = getComputedStyle(document.documentElement);
-  const value = css.getPropertyValue(name);
-  return value ? value.trim() : fallback;
+// SECTION: Bootstrap
+function hydrate() {
+  const ongoing = document.querySelector('.analytics-panel--ongoing');
+  const completed = document.querySelector('.analytics-panel--completed');
+  const coe = document.querySelector('.analytics-panel--coe');
+  const insights = document.querySelector('.analytics-panel--insights');
+  if (ongoing) initOngoing(ongoing);
+  else if (completed) initCompleted(completed);
+  else if (coe) initCoe(coe);
+  else if (insights) initInsights(insights);
 }
+
+function boot() {
+  if (!document.getElementById('analytics-root') || !window.Chart) return;
+  applyPmChartDefaults(window.Chart);
+  hydrate();
+  initAnalyticsChartDownloads();
+  watchTheme(window.Chart, () => {
+    chartRegistry.forEach((build, canvas) => mount(canvas, build));
+    paintCategoryDots(document);
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot, { once: true });
+} else {
+  boot();
+}
+// END SECTION
+
+// SECTION: Chart export (PNG, 1920x1080). Colours come from the chart tokens, never literals.
 
 // SECTION: Export profile constants
 const EXPORT_PROFILE = {
@@ -1595,7 +702,7 @@ function createExportHeaderFooterPlugin({
       const maxWidth = chart.width - left - right;
 
       ctx.save();
-      ctx.fillStyle = '#111827';
+      ctx.fillStyle = chartTokens().textStrong;
       ctx.textBaseline = 'top';
 
       // SECTION: Header branding
@@ -1640,7 +747,7 @@ function createExportHeaderFooterPlugin({
       cursorY += metaMetrics.height + 6 * scale;
 
       const detailLine = [contextLine, timestamp].filter(Boolean).join(' • ');
-      ctx.fillStyle = '#4b5563';
+      ctx.fillStyle = chartTokens().text;
       ctx.font = `${EXPORT_TYPOGRAPHY.watermark * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
       drawWrappedText(
         ctx,
@@ -1716,7 +823,7 @@ function createExportDataLabelsPlugin({
       const segmentFontSize = pluginOptions.segmentFontSize ?? fontSegment;
       const totalFontSize = pluginOptions.totalFontSize ?? fontTotal;
       const weight = pluginOptions.fontWeight ?? fontWeight;
-      const labelFontFamily = '"Inter", "Segoe UI", Arial, sans-serif';
+      const labelFontFamily = chartTokens().font;
       // END SECTION
 
       if (type === 'bar') {
@@ -1767,8 +874,8 @@ function createExportDataLabelsPlugin({
             }
 
             ctx.font = `${weight} ${segmentFontSize}px ${labelFontFamily}`;
-            ctx.fillStyle = stacked ? '#f9fafb' : '#111827';
-            ctx.strokeStyle = stacked ? 'rgba(17, 24, 39, 0.35)' : 'transparent';
+            ctx.fillStyle = stacked ? chartTokens().labelOnFill : chartTokens().textStrong;
+            ctx.strokeStyle = 'transparent';
             ctx.lineWidth = stacked ? 3 : 0;
 
             let x = 0;
@@ -1828,7 +935,7 @@ function createExportDataLabelsPlugin({
             }
 
             ctx.font = `${weight} ${totalFontSize}px ${labelFontFamily}`;
-            ctx.fillStyle = '#111827';
+            ctx.fillStyle = chartTokens().textStrong;
             ctx.textBaseline = 'middle';
 
             if (isHorizontal && xScale) {
@@ -1887,7 +994,7 @@ function createExportDataLabelsPlugin({
           ctx.font = `${weight} ${segmentFontSize}px ${labelFontFamily}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillStyle = '#111827';
+          ctx.fillStyle = chartTokens().textStrong;
           ctx.fillText(labelText, x, y);
         });
       }
@@ -1946,10 +1053,15 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
     left: EXPORT_PADDING.left * scale
   };
   exportConfig.options.plugins.datalabels = false;
+  exportConfig.options.plugins.pmValueLabels = { display: false }; // the export draws its own, larger labels
+  exportConfig.options.plugins.legend = { ...(exportConfig.options.plugins.legend || {}), display: (exportConfig.data?.datasets?.length ?? 0) > 1 };
+  delete exportConfig.options.onClick;
+  delete exportConfig.options.onHover;
   // END SECTION
 
   // SECTION: Legend typography
   exportConfig.options.plugins.legend = exportConfig.options.plugins.legend || {};
+  exportConfig.options.plugins.legend.position = 'top';
   exportConfig.options.plugins.legend.labels = exportConfig.options.plugins.legend.labels || {};
   exportConfig.options.plugins.legend.labels.font = {
     ...(exportConfig.options.plugins.legend.labels.font || {}),
@@ -2020,7 +1132,7 @@ function exportChartAsPngFullHd(chart, opts = {}) {
   const meta = opts.meta ?? '';
   const contextLine = opts.contextLine ?? '';
   const branding = opts.branding ?? '';
-  const backgroundColor = (opts.backgroundColor ?? getCssVar('--pm-card', '')) || '#ffffff';
+  const backgroundColor = (opts.backgroundColor ?? getCssVar('--pm-card', '')) || chartTokens().card;
 
   const hiResWidth = width * dpr;
   const hiResHeight = height * dpr;
@@ -2135,36 +1247,5 @@ function initAnalyticsChartDownloads() {
       triggerDownload(png, filenameBase);
     });
   });
-}
-// END SECTION
-
-// SECTION: Analytics bootstrap
-function hydrateAnalytics() {
-  const page = document.querySelector('.analytics-page');
-  if (!page) {
-    return;
-  }
-
-  if (document.querySelector('.analytics-panel--completed')) {
-    initCompletedAnalytics();
-  } else if (document.querySelector('.analytics-panel--ongoing')) {
-    initOngoingAnalytics();
-  } else if (document.querySelector('.analytics-panel--coe')) {
-    initCoeAnalytics();
-  } else if (document.querySelector('.analytics-panel--insights')) {
-    initStageTimeInsights();
-  }
-
-  initAnalyticsChartDownloads();
-}
-
-function initAnalyticsBootstrap() {
-  hydrateAnalytics();
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initAnalyticsBootstrap, { once: true });
-} else {
-  initAnalyticsBootstrap();
 }
 // END SECTION

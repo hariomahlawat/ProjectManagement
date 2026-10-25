@@ -40,12 +40,19 @@ test('workspace stage chart uses balanced dashboard geometry rather than the old
 });
 
 test('analytics assigns stable semantic colours to the three organisational project roots', () => {
+  // Category colours are site tokens (one vocabulary for Light and Dark), resolved by meaning
+  // in the shared chart defaults; the analytics script holds no colour literals.
+  const defaultsJs = read('wwwroot/js/charts/pm-chart-defaults.js');
   const analyticsJs = read('wwwroot/js/analytics-projects.js');
+  const siteCss = read('wwwroot/css/site.css');
 
-  assert.match(analyticsJs, /'DCD Projects':\s*'#3c68e8'/);
-  assert.match(analyticsJs, /'CoE':\s*'#52c653'/);
-  assert.match(analyticsJs, /'Other R&D Projects':\s*'#ef7a00'/);
-  assert.match(analyticsJs, /semanticCategoryOrder/);
+  assert.match(defaultsJs, /dcd:\s*cssVar\('--pm-chart-cat-dcd'\)/);
+  assert.match(defaultsJs, /coe:\s*cssVar\('--pm-chart-cat-coe'\)/);
+  assert.match(defaultsJs, /other:\s*cssVar\('--pm-chart-cat-other'\)/);
+  assert.match(defaultsJs, /export function categoryColor\(/);
+  assert.match(analyticsJs, /categoryOrder\s*=\s*\['DCD Projects',\s*'CoE',\s*'Other R&D Projects'\]/);
+  assert.doesNotMatch(analyticsJs, /#[0-9a-fA-F]{3,6}/);
+  assert.equal((siteCss.match(/--pm-chart-cat-dcd:/g) || []).length, 2, 'light and dark values');
 });
 
 test('workspace and analytics keep compact EAS labeling and adaptive y-axis headroom', () => {
@@ -55,6 +62,8 @@ test('workspace and analytics keep compact EAS labeling and adaptive y-axis head
   assert.match(workspaceJs, /workspaceStageAxisCodeOverrides/);
   assert.match(workspaceJs, /EAS:\s*'EAS'/);
   assert.match(workspaceJs, /grace:\s*'5%'/);
-  assert.match(analyticsJs, /grace:\s*'5%'/);
+  // Analytics takes its axis headroom from the shared chart defaults.
+  assert.match(read('wwwroot/js/charts/pm-chart-defaults.js'), /grace:\s*'8%'/);
+  assert.match(analyticsJs, /barScales\(/);
 });
 
