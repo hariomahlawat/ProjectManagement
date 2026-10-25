@@ -118,8 +118,9 @@
 <div class="db-page" data-dashboard>
     <header class="db-header db-reveal">
         <div>
-            <h1>Dashboard</h1>
-            <p class="db-header__subtitle">Portfolio, institutional outputs, engagement and innovation at a glance.</p>
+            <p class="db-header__date">@Model.DashboardLoadedAtIst.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture)</p>
+            <h1>@Model.Greeting</h1>
+            <p class="db-header__subtitle">The Division at a glance: portfolio, institutional outputs, engagement and innovation.</p>
         </div>
         <div class="db-header__actions">
             <span class="db-updated"><i class="bi bi-clock-history"></i> Loaded @Model.DashboardLoadedAtIst.ToString("dd MMM yyyy, HH:mm") IST</span>

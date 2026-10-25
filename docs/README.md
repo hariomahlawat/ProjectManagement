@@ -42,6 +42,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Visits to SDD](ux/visits.md) | The Visits register, record page and editor: what each shows, which figures follow the filters, messages and styles. |
 | [IPR Register](ux/ipr-register.md) | The IPR workspace: four-figure summary, instant-filter register with Group by, record panel, and the remaining redesign steps. |
 | [Public pages](ux/public-pages.md) | Signed-out landing and sign-in pages: the prism concept, where the copy comes from, tokens and the signed-out theme switch. |
+| [Top bar and Dashboard header](ux/app-shell-and-dashboard.md) | What a signed-in user sees first: top-bar fit rules by width, the Dashboard greeting header and minimum type sizes. |
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
 | [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |
 | [Timeline implementation roadmap](timeline-proposal-roadmap.md) | Completed B/C milestones, historical gaps and open D/E boundaries. |
