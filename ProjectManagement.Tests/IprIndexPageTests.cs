@@ -875,6 +875,36 @@ public sealed class IprIndexPageTests
         }
     }
 
+    [Fact]
+    public async Task OnGetAsync_Insights_BuildsCohortsAndAgeBandsThatMatchTheRegisterFilters()
+    {
+        await using var db = CreateDbContext();
+        db.IprRecords.AddRange(
+            new IprRecord { IprFilingNumber = "IPR-INS-1", Title = "2020 granted", Type = IprType.Patent, Status = IprStatus.Granted, FiledAtUtc = new DateTimeOffset(2020, 3, 1, 0, 0, 0, TimeSpan.Zero), GrantedAtUtc = new DateTimeOffset(2022, 3, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-INS-2", Title = "2020 pending", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2020, 6, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-INS-3", Title = "Withdrawn", Type = IprType.Patent, Status = IprStatus.Withdrawn, FiledAtUtc = new DateTimeOffset(2021, 6, 1, 0, 0, 0, TimeSpan.Zero) });
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+        {
+            Tab = "analytics"
+        };
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        var cohort = Assert.Single(page.FilingCohorts);
+        Assert.Equal(2020, cohort.Year);
+        Assert.Equal(2, cohort.Filed);
+        Assert.Equal(1, cohort.Granted);
+        Assert.Equal(50, cohort.GrantRatePercent);
+        Assert.Equal(
+            new[] { IprPendingAge.UnderOneYear, IprPendingAge.OneToThreeYears, IprPendingAge.ThreeToFiveYears, IprPendingAge.OverFiveYears },
+            page.AwaitingAgeBands.Select(band => band.Band).ToArray());
+        Assert.Equal(1, page.AwaitingAgeBands.Single(band => band.Band == IprPendingAge.OverFiveYears).Count);
+    }
+
     private static IFormFile CreateFormFile(Stream content, string fileName, string contentType)
         => new FormFile(content, 0, content.Length, "Input.Evidence", fileName)
         {

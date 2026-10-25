@@ -13,7 +13,7 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
 | Register rows | `IIprReadService.ListRegisterAsync` (every record, all statuses, register order) projected to `IprRecordRowViewModel` |
 | Editor | `_RecordFormPartial.cshtml` in the editor panel (`mode=edit&id=…`, `mode=create`); one form saves the record and an optional evidence PDF (`Index.RecordCommands.cs`, `CompleteSaveAsync`) |
 | Styles | `wwwroot/css/site-ipr.css`; the "Register workspace" section uses tokens only |
-| Scripts | `wwwroot/js/project-office-reports/ipr/register-view.js` (register filters, grouping, record panel); `index.js` (editor, project picker, drawers, density); `ipr-register.js` (Analytics chart) |
+| Scripts | `wwwroot/js/project-office-reports/ipr/register-view.js` (register filters, grouping, record panel); `index.js` (editor, project picker, drawers, density). Insights charts are plain HTML and CSS, no chart library |
 
 ## Layout
 
@@ -24,7 +24,7 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
    3 years) and **Closed** (rejected and withdrawn, kept as history). Each card filters the register
    to that status; on the Register view it does so in place.
 3. **Views**: **Register**, **Action list** (`?tab=followup`, with the count of filings needing
-   action) and **Analytics**. The old Projects tab is gone: `?tab=project` opens the register
+   action) and **Insights** (`?tab=analytics`). The old Projects tab is gone: `?tab=project` opens the register
    grouped by project.
 
 ## The register (`/ProjectOfficeReports/Ipr`)
@@ -32,15 +32,17 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
 - Every record loads at once; there is no paging. Filters apply instantly in the browser:
   search (title, filing number, project), **All / Patents / Copyrights**, **Filed / Pending /
   Granted / Closed** (each with its count), **Missing evidence**, **Not linked to a project**,
-  **Filed in** (year) and **Group by** (project, status or filing year). A project filter arriving
-  from a link shows as a removable chip.
+  **Filed in** (year) and **Group by** (project, status or filing year). A project or pending-age
+  filter arriving from a link shows as a removable chip.
 - With no status chosen the list shows Filed and Granted records. Closed records appear only under
   **Closed**; a link to a closed record selects its status so it is visible.
 - The browser does not re-derive the counting rule: each row carries `data-counted` and
   `data-closed` from `IprStatusPolicy`.
 - The URL keeps the server's parameter names (`query`, `types`, `statuses`, `year`, `dateBasis`,
-  `linkage`, `evidence`, `projectId`, `group`, `selectedRecordId`), so reloads, shared links and
-  Export agree with what is on screen.
+  `linkage`, `evidence`, `pendingAge`, `projectId`, `group`, `selectedRecordId`), so reloads,
+  shared links and Export agree with what is on screen. `pendingAge` bands (under 1 year, 1–3,
+  3–5, over 5 years since filing) are defined once in `IprQueryFilter.PendingAgeRange` and handed
+  to the browser.
 - Columns: record (title and filing number), project, category, status (with the pending age),
   filed, granted, evidence ("1 PDF" or "Missing"). On phones only the record and status show;
   the record panel carries the rest.
@@ -76,6 +78,19 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
   Viewers get **Open** instead.
 - The Filters drawer still scopes this view until the clean-up step.
 
+## Insights (`?tab=analytics`)
+
+- Four figures for the current scope: **Grant rate**, **Median time to grant**, **Median pending
+  age** and **Evidence coverage**.
+- **Outcome by filing year**: filings made each year, split granted / still pending, with the
+  grant rate. **Filings and grants by year**: filings in the filing year, grants in the year they
+  came through. **Pending by age**: the four pending-age bands. **Patents and copyrights**: filed,
+  granted, pending and rate per category.
+- Every bar, band, figure and table count opens the register filtered to those filings (for
+  example a grant bar opens `year=2022&dateBasis=Protected`), keeping the current scope.
+- The Filters drawer still sets the scope until the clean-up step; the summary strip above stays
+  register-wide.
+
 ## Planned changes
 
 The redesign lands in small PRs; this section lists what is still to come.
@@ -84,8 +99,7 @@ The redesign lands in small PRs; this section lists what is still to come.
 2. ~~Edit inside the record panel with one Save; attach the evidence PDF while creating a record.~~ (done)
 3. ~~**Action list** replaces Follow-up: each filing once, under its most urgent issue, with a direct
    fix (assign project, upload evidence, record outcome).~~ (done; "log follow-up" comes with step 5)
-4. **Insights** replaces Analytics: grant rate, time to grant, outcome by filing year, portfolio
-   over time and pending by age; every chart filters the register.
+4. ~~**Insights** replaces Analytics; every chart filters the register.~~ (done)
 5. Follow-up log (last followed up / next follow-up) for long-pending filings; needs a migration.
 6. Clean-up: retire the Filters drawer, the old ribbon, inspector and project-dossier styles left in
    `site-ipr.css`, and the paging parameters still bound for compatibility.

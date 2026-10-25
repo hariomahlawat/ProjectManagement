@@ -111,7 +111,7 @@ test('IPR active scope is removable and visible across module views', () => {
   assert.match(pageSource, /_ActiveFilterChips/);
   assert.match(activeFilterSource, /BuildRemoveFilterRoute/);
   assert.match(activeFilterSource, /BuildClearFiltersRoute/);
-  assert.match(pageSource, /Analytics scope:/);
+  assert.match(pageSource, /"Scope: "/);
   assert.match(pageSource, /ipr-actions__filters/);
 });
 
@@ -126,16 +126,17 @@ test('IPR Action list lists each filing once with a direct fix per issue', () =>
   assert.match(pageSource, /AttentionIssueCounts/);
   assert.match(source, /hashId/);
 });
-test('IPR analytics replaces the repeated grant-rate tile with evidence coverage', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /Evidence coverage/);
-  assert.match(pageSource, /recordsWithEvidence/);
+test('IPR Insights draws its charts in HTML and every chart opens the filtered register', () => {
+  assert.match(pageSource, /id="iprInsightsHeading">Insights</);
+  assert.match(pageSource, /IDictionary<string, string\?> RegisterLink\(object overrides\)/);
+  assert.match(pageSource, /RegisterLink\(new \{ year = cohort\.Year/);
+  assert.match(pageSource, /RegisterLink\(new \{ year = row\.Year, dateBasis = "Protected" \}\)/);
+  assert.match(pageSource, /RegisterLink\(new \{ pendingAge = band\.Band\.ToString\(\) \}\)/);
+  assert.match(pageSource, /RegisterLink\(new \{ evidence = "Missing" \}\)/);
+  assert.doesNotMatch(pageSource, /chart\.umd\.js/);
+  assert.doesNotMatch(pageSource, /<canvas/);
+  assert.match(cssSource, /\.ipr-bars__stack/);
 });
-
-
 test('IPR entry workflow provides layered patent and copyright guidance', () => {
   const pageSource = fs.readFileSync(
     path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
@@ -165,7 +166,7 @@ test('IPR workspace shows a four-figure summary and three views without the old 
   assert.match(pageSource, /class="ipr-views"/);
   assert.match(pageSource, />Register</);
   assert.match(pageSource, /Action list/);
-  assert.match(pageSource, />Analytics</);
+  assert.match(pageSource, />Insights</);
   assert.doesNotMatch(pageSource, /Project dossiers/);
   assert.doesNotMatch(pageSource, /ipr-insight-ribbon/);
 });
@@ -195,4 +196,30 @@ test('IPR register styles use tokens and collapse to title and status on phones'
   assert.doesNotMatch(section.replace(/var\([^)]*\)/g, ''), /#[0-9a-fA-F]{3,8}/);
   assert.match(section, /\.ipr-record-panel\s*\{[\s\S]*position:\s*fixed/);
   assert.match(section, /@media \(max-width: 720px\)[\s\S]*\.ipr-table td:nth-child\(n\+2\):not\(:nth-child\(4\)\)/);
+});
+
+test('IPR Insights links never open more or fewer filings than the chart counts', () => {
+  // Insights ignores search text, so drill-down links must not carry it into the register.
+  assert.match(pageSource, /IDictionary<string, string\?> RegisterLink\(object overrides\)[\s\S]*\["query"\] = null/);
+  // A year bar opens the register only when it does not replace a year already in the scope.
+  assert.match(pageSource, /bool CanOpenYear\(int year, IprDateBasis basis\)\s*=> scopeCounts && \(!Model\.Year\.HasValue \|\| \(Model\.Year == year && Model\.DateBasis == basis\)\)/);
+  assert.match(pageSource, /@if \(CanOpenYear\(cohort\.Year, IprDateBasis\.Filed\)\)/);
+  assert.match(pageSource, /@if \(CanOpenYear\(row\.Year, IprDateBasis\.Filed\)\)/);
+  assert.match(pageSource, /@if \(CanOpenYear\(row\.Year, IprDateBasis\.Protected\)\)/);
+  // Status, type, evidence and age links open only values already inside the scope.
+  assert.match(pageSource, /@if \(CanOpenStatus\(IprStatus\.Granted\)\)/);
+  assert.match(pageSource, /@if \(CanOpenStatus\(IprStatus\.Filed\)\)/);
+  assert.match(pageSource, /@if \(CanOpenMissingEvidence\(\)\)/);
+  assert.match(pageSource, /if \(CanOpenAge\(band\.Band\)\)/);
+  assert.match(pageSource, /var typeInScope = CanOpenType\(row\.Type\);/);
+  // Closed statuses never travel into a drill-down for counted filings.
+  assert.match(pageSource, /if \(!values\.ContainsKey\("statuses"\) && Model\.Statuses\.Any\(IprStatusPolicy\.IsClosed\)\)/);
+  assert.match(pageSource, /var scopeCounts = Model\.Statuses\.Count == 0 \|\| scopedCountedStatuses\.Length > 0;/);
+  assert.match(pageSource, /bool CanOpenMissingEvidence\(\) => scopeCounts &&/);
+  assert.doesNotMatch(pageSource, /<td><a asp-page="\.\/Index" asp-all-route-data="@RegisterLink\(new \{ types/);
+});
+
+test('IPR form posts keep the pending-age and Group by scope', () => {
+  assert.match(stateSource, /@if \(Model\.PendingAge != IprPendingAge\.Any\)\s*\{\s*<input type="hidden" name="PendingAge" value="@Model\.PendingAge" \/>/);
+  assert.match(stateSource, /<input type="hidden" name="Group" value="@Model\.Group" \/>/);
 });

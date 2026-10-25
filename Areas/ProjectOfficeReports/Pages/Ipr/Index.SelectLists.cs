@@ -235,6 +235,11 @@ public sealed partial class IndexModel
             Evidence = IprEvidenceFilter.All;
         }
 
+        if (!Enum.IsDefined(PendingAge))
+        {
+            PendingAge = IprPendingAge.Any;
+        }
+
         var requestedTab = Tab?.Trim().ToLowerInvariant();
         Tab = requestedTab switch
         {
@@ -350,7 +355,8 @@ public sealed partial class IndexModel
             DateBasis = DateBasis,
             Year = Year,
             Linkage = Linkage,
-            Evidence = Evidence
+            Evidence = Evidence,
+            PendingAge = PendingAge
         };
 
         filter.Page = PageNumber;

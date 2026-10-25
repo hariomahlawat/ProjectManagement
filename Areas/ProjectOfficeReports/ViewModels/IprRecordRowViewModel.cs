@@ -34,4 +34,5 @@ public sealed record IprRecordRowViewModel(
     bool IsPending = false,
     string? PendingAge = null,
     int? FiledYear = null,
-    int? GrantedYear = null);
+    int? GrantedYear = null,
+    int? PendingDays = null);

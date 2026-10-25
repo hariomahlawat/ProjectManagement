@@ -24,6 +24,16 @@ public enum IprEvidenceFilter
     Missing = 2
 }
 
+/// <summary>How long a pending filing has waited since filing (IST calendar days).</summary>
+public enum IprPendingAge
+{
+    Any = 0,
+    UnderOneYear = 1,
+    OneToThreeYears = 2,
+    ThreeToFiveYears = 3,
+    OverFiveYears = 4
+}
+
 public sealed class IprFilter
 {
     private const int DefaultPageSize = 15;
@@ -47,6 +57,11 @@ public sealed class IprFilter
     public IprLinkageFilter Linkage { get; set; } = IprLinkageFilter.All;
 
     public IprEvidenceFilter Evidence { get; set; } = IprEvidenceFilter.All;
+
+    // Limits the result to pending filings of that age; AsOf (default: today in IST) anchors it.
+    public IprPendingAge PendingAge { get; set; } = IprPendingAge.Any;
+
+    public DateOnly? AsOf { get; set; }
 
     // Retained for compatibility with existing callers and tests that use explicit ranges.
     public DateOnly? FiledFrom { get; set; }

@@ -33,6 +33,14 @@
 {
     <input type="hidden" name="Evidence" value="@Model.Evidence" />
 }
+@if (Model.PendingAge != IprPendingAge.Any)
+{
+    <input type="hidden" name="PendingAge" value="@Model.PendingAge" />
+}
+@if (!string.IsNullOrWhiteSpace(Model.Group))
+{
+    <input type="hidden" name="Group" value="@Model.Group" />
+}
 @if (!string.IsNullOrWhiteSpace(Model.AttentionIssue))
 {
     <input type="hidden" name="AttentionIssue" value="@Model.AttentionIssue" />

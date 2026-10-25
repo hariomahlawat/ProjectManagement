@@ -4,6 +4,7 @@
 @using System.Linq
 @using ProjectManagement.Infrastructure.Data
 @using ProjectManagement.Application.Ipr
+@using Microsoft.AspNetCore.Routing
 @functions {
     private static string CountLabel(int count, string singular, string plural)
         => $"{count} {(count == 1 ? singular : plural)}";
@@ -54,7 +55,6 @@
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
     var isRegister = Model.Tab == "records";
     var exportRouteValues = Model.GetRouteValuesForLinks(includeModeAndId: false);
-    var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
     var recordsJson = JsonSerializer.Serialize(Model.Records);
     var patentBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Patent);
     var copyrightBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Copyright);
@@ -93,10 +93,22 @@
         dateBasis = Model.DateBasis.ToString(),
         linkage = Model.Linkage.ToString(),
         evidence = Model.Evidence.ToString(),
+        pendingAge = Model.PendingAge.ToString(),
         projectId = Model.ProjectId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
         group = Model.Group ?? string.Empty,
         selectedRecordId = Model.SelectedRecordId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty
     });
+    // Pending-age bands, defined once in IprQueryFilter: name -> [min days, max days or null].
+    var pendingAgeBands = JsonSerializer.Serialize(
+        Enum.GetValues<IprPendingAge>()
+            .Where(band => band != IprPendingAge.Any)
+            .ToDictionary(
+                band => band.ToString(),
+                band =>
+                {
+                    var range = IprQueryFilter.PendingAgeRange(band);
+                    return new { min = range.MinDays, max = range.MaxDays, label = ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel.GetPendingAgeLabel(band) };
+                }));
     var filedYears = Model.Records
         .Where(record => record.FiledYear.HasValue)
         .Select(record => record.FiledYear!.Value)
@@ -183,7 +195,7 @@
                 <span class="ipr-views__badge">@Model.AttentionRecordCount</span>
             }
         </a>
-        <a href="@Url.Page("./Index", new { tab = "analytics" })" class="@(Model.Tab == "analytics" ? "is-active" : string.Empty)" aria-current="@(Model.Tab == "analytics" ? "page" : null)">Analytics</a>
+        <a href="@Url.Page("./Index", new { tab = "analytics" })" class="@(Model.Tab == "analytics" ? "is-active" : string.Empty)" aria-current="@(Model.Tab == "analytics" ? "page" : null)">Insights</a>
     </nav>
 
     @if (!isRegister)
@@ -197,6 +209,7 @@
                  aria-label="IPR records"
                  data-ipr-register
                  data-ipr-state="@registerState"
+                 data-ipr-age-bands="@pendingAgeBands"
                  data-ipr-can-edit="@(Model.CanEdit ? "true" : "false")"
                  data-ipr-project-base-url="@Url.Page("/Projects/Overview", new { area = "" })"
                  data-ipr-download-url="@Url.Page("./Download")">
@@ -240,6 +253,10 @@
                         <option value="year">Filing year</option>
                     </select>
                 </label>
+                <span class="ipr-chip is-on d-none" data-ipr-age-chip>
+                    <span data-ipr-age-chip-label></span>
+                    <button type="button" class="ipr-chip__remove" data-ipr-age-chip-clear aria-label="Remove pending-age filter"><i class="bi bi-x" aria-hidden="true"></i></button>
+                </span>
                 <span class="ipr-chip is-on d-none" data-ipr-project-chip>
                     <span data-ipr-project-chip-label></span>
                     <button type="button" class="ipr-chip__remove" data-ipr-project-chip-clear aria-label="Remove project filter"><i class="bi bi-x" aria-hidden="true"></i></button>
@@ -287,6 +304,7 @@
                                     data-project="@(row.ProjectId.HasValue ? row.ProjectName : string.Empty)"
                                     data-filed-year="@row.FiledYear"
                                     data-granted-year="@row.GrantedYear"
+                                    data-pending-days="@row.PendingDays"
                                     data-search="@searchText"
                                     class="@(row.Id == Model.SelectedRecordId ? "is-selected" : string.Empty)">
                                     <td>
@@ -495,97 +513,255 @@
     }
     else
     {
-        <section class="ipr-analytics-view">
-            <div class="ipr-analytics-scope">
-                <div>
-                    <i class="bi bi-funnel" aria-hidden="true"></i>
-                    <span>Analytics scope:</span>
-                    <strong>@(Model.HasStructuredFilters ? string.Join(" · ", Model.ActiveFilterChips.Where(chip => chip.Key != "query").Select(chip => chip.Label)) : "Complete IPR Register")</strong>
-                </div>
-                @if (Model.HasStructuredFilters)
-                {
-                    <a asp-page="./Index" asp-all-route-data="@Model.BuildClearFiltersRoute(includeQuery: false)">Clear scope</a>
-                }
-            </div>
-            @{
-                var analyticsTotal = Model.AnalyticsSummary.Total;
-                var recordsWithEvidence = Math.Max(0, analyticsTotal - Model.AnalyticsSummary.MissingAttachments);
-                var evidenceCoveragePercent = analyticsTotal == 0
-                    ? 100
-                    : (int)Math.Round(recordsWithEvidence * 100d / analyticsTotal, MidpointRounding.AwayFromZero);
+        // Insights: every bar and figure opens the register filtered to those filings, within
+        // the current scope (the Filters drawer), using the register's own URL parameters.
+        // Search text is not part of the Insights scope, so it is not carried into the register.
+        var scopedCountedStatuses = Model.Statuses
+            .Where(IprStatusPolicy.IsCounted)
+            .Select(status => IprStatusPolicy.Normalize(status).ToString())
+            .Distinct()
+            .ToArray();
+        IDictionary<string, string?> RegisterLink(object overrides)
+        {
+            var values = new RouteValueDictionary(overrides)
+            {
+                ["tab"] = "records",
+                ["attentionIssue"] = null,
+                ["query"] = null
+            };
+            // Insights counts only Filed and Granted filings, so closed statuses in the scope are
+            // not carried into a link that keeps the scope's statuses.
+            if (!values.ContainsKey("statuses") && Model.Statuses.Any(IprStatusPolicy.IsClosed))
+            {
+                values["statuses"] = scopedCountedStatuses.Length > 0 ? scopedCountedStatuses : null;
             }
-            <div class="ipr-analytics-insights">
-                <article><span>Evidence coverage</span><strong>@evidenceCoveragePercent%</strong><small>@recordsWithEvidence of @analyticsTotal filings have supporting files</small></article>
-                <article><span>Median time to grant</span><strong>@(Model.AnalyticsSummary.MedianGrantDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianGrantDays.Value) : "—")</strong><small>granted cases with both dates</small></article>
-                <article><span>Median pending age</span><strong>@(Model.AnalyticsSummary.MedianAwaitingDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianAwaitingDays.Value) : "—")</strong><small>currently pending</small></article>
-                <article class="@(Model.AnalyticsSummary.AwaitingOverThreeYears > 0 ? "has-warning" : string.Empty)"><span>Long pending</span><strong>@Model.AnalyticsSummary.AwaitingOverThreeYears</strong><small>pending beyond 3 years</small></article>
-            </div>
+            return Model.GetRouteValuesForLinks(values, includePage: false, includeModeAndId: false);
+        }
 
-            <div class="ipr-analytics-main-grid">
-                <article class="ipr-panel ipr-chart-panel">
-                    <div class="ipr-panel-header"><div><h2>Filing and grant events by year</h2><p>Patent grants and copyright registrations are counted in the year the grant or registration was recorded.</p></div></div>
-                    <div class="ipr-chart-canvas"><canvas id="iprEventTrend" data-yearly='@Html.Raw(yearlyJson)' role="img" aria-label="IPR filing and grant events by year"></canvas></div>
-                </article>
-                <article class="ipr-panel ipr-age-panel">
-                    <div class="ipr-panel-header"><div><h2>Age of pending filings</h2><p>Distribution of the current follow-up workload.</p></div></div>
-                    <div class="ipr-age-bands">
-                        @foreach (var band in Model.AwaitingAgeBands)
-                        {
-                            <div class="ipr-age-band">
-                                <div><span>@band.Label</span><strong>@band.Count</strong></div>
-                                <div class="ipr-age-band__track"><span class="ipr-age-band__fill ipr-age-band__fill--@band.Tone" style="width:@(band.Percentage)%"></span></div>
-                            </div>
-                        }
-                    </div>
-                    <div class="ipr-type-matrix ipr-type-matrix--compact">
-                        <div class="ipr-type-matrix__head"><span>Category</span><span>Filed</span><span>Granted</span><span>Pending</span></div>
-                        @foreach (var item in Model.AnalyticsSummary.TypeRows)
-                        {
-                            <div class="ipr-type-matrix__row">
-                                <strong>@item.TypeLabel</strong>
-                                <span>@item.Filed</span>
-                                <span class="text-success fw-semibold" title="@item.Protected @item.ProtectedVerb">@item.Protected <small>@item.ProtectedVerb</small></span>
-                                <span class="ipr-awaiting-value fw-semibold" title="@item.Pending @item.PendingLabel">@item.Pending <small>pending</small></span>
-                            </div>
-                        }
-                    </div>
-                </article>
-            </div>
+        // A link replaces the scope's value for the filter it sets. It is offered only when the
+        // requested value sits inside the scope (the scope is open or already holds that value);
+        // otherwise the figure counts nothing there and the link would open filings outside it.
+        // A scope of only Rejected or Withdrawn counts nothing here, so no figure links.
+        var scopeCounts = Model.Statuses.Count == 0 || scopedCountedStatuses.Length > 0;
+        bool CanOpenYear(int year, IprDateBasis basis)
+            => scopeCounts && (!Model.Year.HasValue || (Model.Year == year && Model.DateBasis == basis));
+        bool CanOpenStatus(IprStatus status)
+            => Model.Statuses.Count == 0 || Model.Statuses.Any(scoped => IprStatusPolicy.Normalize(scoped) == status);
+        bool CanOpenType(IprType type) => scopeCounts && (Model.Types.Count == 0 || Model.Types.Contains(type));
+        bool CanOpenMissingEvidence() => scopeCounts && Model.Evidence != IprEvidenceFilter.Available;
+        bool CanOpenAge(IprPendingAge band) => scopeCounts && (Model.PendingAge == IprPendingAge.Any || Model.PendingAge == band);
 
-            <article class="ipr-panel ipr-oldest-panel">
-                <div class="ipr-panel-header">
-                    <div><h2>Oldest pending filings</h2><p>Prioritised by elapsed time since filing.</p></div>
-                    <a asp-page="./Index" asp-route-tab="followup" class="btn btn-sm btn-outline-secondary">Open follow-up</a>
+        var summary = Model.AnalyticsSummary;
+        var withEvidence = Math.Max(0, summary.Total - summary.MissingAttachments);
+        var evidencePercent = summary.Total == 0 ? 100 : (int)Math.Round(withEvidence * 100d / summary.Total, MidpointRounding.AwayFromZero);
+        var cohortMax = Math.Max(1, Model.FilingCohorts.Select(row => row.Filed).DefaultIfEmpty(0).Max());
+        var eventMax = Math.Max(1, Model.YearlyStats.Select(row => Math.Max(row.Filed, row.Granted)).DefaultIfEmpty(0).Max());
+        var ageMax = Math.Max(1, Model.AwaitingAgeBands.Select(band => band.Count).DefaultIfEmpty(0).Max());
+        string BarHeight(int value, int max) => $"height:{Math.Round(value * 150d / max, 1).ToString(System.Globalization.CultureInfo.InvariantCulture)}px";
+        <section class="ipr-insights" aria-labelledby="iprInsightsHeading">
+            <header class="ipr-actions__header">
+                <div>
+                    <h2 id="iprInsightsHeading">Insights</h2>
+                    <p>How the portfolio is moving. Select any bar or figure to open those filings in the register.</p>
                 </div>
-                @if (Model.OldestAwaitingGrant.Count == 0)
+                <span class="ipr-actions__total">
+                    @(Model.HasStructuredFilters ? "Scope: " + string.Join(" · ", Model.ActiveFilterChips.Where(chip => chip.Key != "query").Select(chip => chip.Label)) : "Whole register")
+                    @if (Model.HasStructuredFilters)
+                    {
+                        <a asp-page="./Index" asp-all-route-data="@Model.BuildClearFiltersRoute(includeQuery: false)">Clear scope</a>
+                    }
+                </span>
+            </header>
+
+            <div class="ipr-insights__kpis">
+                @{
+                    Func<object?, object> grantRateBody = @<text>
+                        <span>Grant rate</span>
+                        <strong>@summary.GrantRatePercent%</strong>
+                        <small>@summary.TypeRows.Sum(row => row.Protected) of @summary.Total filings granted</small>
+                    </text>;
+                    Func<object?, object> pendingBody = @<text>
+                        <span>Median pending age</span>
+                        <strong>@(summary.MedianAwaitingDays.HasValue ? FormatAge(summary.MedianAwaitingDays.Value) : "—")</strong>
+                        <small>@summary.TypeRows.Sum(row => row.Pending) filings awaiting an outcome</small>
+                    </text>;
+                }
+                @if (CanOpenStatus(IprStatus.Granted))
                 {
-                    <div class="ipr-compact-empty"><i class="bi bi-check-circle"></i><span>No filings are pending.</span></div>
+                    <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { statuses = new[] { "Granted" } })">@grantRateBody(null)</a>
                 }
                 else
                 {
-                    <div class="ipr-oldest-list">
-                        @foreach (var item in Model.OldestAwaitingGrant)
-                        {
-                            var oldestEditRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", mode = "edit", id = item.Id }, includeModeAndId: false);
-                            <div class="ipr-oldest-row">
-                                <span class="ipr-oldest-row__rank"></span>
-                                <div>
-                                    @if (Model.CanEdit)
-                                    {
-                                        <a asp-page="./Index" asp-all-route-data="oldestEditRoutes">@item.Title</a>
-                                    }
-                                    else
-                                    {
-                                        <strong>@item.Title</strong>
-                                    }
-                                    <span>@item.ProjectName · @item.Type</span>
-                                </div>
-                                <div><strong>@FormatAge(item.WaitingDays)</strong><span>Filed @(item.FiledOn?.ToString("dd MMM yyyy") ?? "date unavailable")</span></div>
-                            </div>
-                        }
+                    <div class="ipr-insights-kpi">@grantRateBody(null)</div>
+                }
+                <div class="ipr-insights-kpi">
+                    <span>Median time to grant</span>
+                    <strong>@(summary.MedianGrantDays.HasValue ? FormatAge(summary.MedianGrantDays.Value) : "—")</strong>
+                    <small>filing to grant or registration</small>
+                </div>
+                @if (CanOpenStatus(IprStatus.Filed))
+                {
+                    <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { statuses = new[] { "Filed" } })">@pendingBody(null)</a>
+                }
+                else
+                {
+                    <div class="ipr-insights-kpi">@pendingBody(null)</div>
+                }
+                @if (CanOpenMissingEvidence())
+                {
+                    <a class="ipr-insights-kpi" asp-page="./Index" asp-all-route-data="@RegisterLink(new { evidence = "Missing" })">
+                        <span>Evidence coverage</span>
+                        <strong>@evidencePercent%</strong>
+                        <small>@summary.MissingAttachments without a PDF · show them</small>
+                    </a>
+                }
+                else
+                {
+                    <div class="ipr-insights-kpi">
+                        <span>Evidence coverage</span>
+                        <strong>@evidencePercent%</strong>
+                        <small>@summary.MissingAttachments without a PDF</small>
                     </div>
                 }
-            </article>
+            </div>
+
+            <div class="ipr-insights__grid">
+                <article class="ipr-insights-card">
+                    <h3>Outcome by filing year</h3>
+                    <p>Of the filings made each year, how many are granted so far.</p>
+                    @if (Model.FilingCohorts.Count == 0)
+                    {
+                        <p class="ipr-insights-card__empty">No filings in this scope.</p>
+                    }
+                    else
+                    {
+                        <div class="ipr-bars" role="list">
+                            @foreach (var cohort in Model.FilingCohorts)
+                            {
+                                @if (CanOpenYear(cohort.Year, IprDateBasis.Filed))
+                                {
+                                    <a class="ipr-bars__item" role="listitem"
+                                       asp-page="./Index"
+                                       asp-all-route-data="@RegisterLink(new { year = cohort.Year, dateBasis = (string?)null })"
+                                       aria-label="@($"{cohort.Year}: {cohort.Filed} filed, {cohort.Granted} granted. Show these filings")">
+                                        <span class="ipr-bars__value">@cohort.GrantRatePercent%</span>
+                                        <span class="ipr-bars__stack">
+                                            <span class="is-pending" style="@BarHeight(cohort.Pending, cohortMax)"></span>
+                                            <span class="is-granted" style="@BarHeight(cohort.Granted, cohortMax)"></span>
+                                        </span>
+                                        <span class="ipr-bars__label">@cohort.Year</span>
+                                        <span class="ipr-bars__sub">@cohort.Filed filed</span>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <div class="ipr-bars__item" role="listitem" aria-label="@($"{cohort.Year}: {cohort.Filed} filed, {cohort.Granted} granted")">
+                                        <span class="ipr-bars__value">@cohort.GrantRatePercent%</span>
+                                        <span class="ipr-bars__stack">
+                                            <span class="is-pending" style="@BarHeight(cohort.Pending, cohortMax)"></span>
+                                            <span class="is-granted" style="@BarHeight(cohort.Granted, cohortMax)"></span>
+                                        </span>
+                                        <span class="ipr-bars__label">@cohort.Year</span>
+                                        <span class="ipr-bars__sub">@cohort.Filed filed</span>
+                                    </div>
+                                }
+                            }
+                        </div>
+                        <div class="ipr-insights-legend"><span><i class="is-granted"></i>Granted</span><span><i class="is-pending"></i>Still pending</span></div>
+                    }
+                </article>
+
+                <article class="ipr-insights-card">
+                    <h3>Filings and grants by year</h3>
+                    <p>Filings counted in the filing year; grants and registrations in the year they came through.</p>
+                    @if (Model.YearlyStats.Count == 0)
+                    {
+                        <p class="ipr-insights-card__empty">No filings in this scope.</p>
+                    }
+                    else
+                    {
+                        <div class="ipr-bars" role="list">
+                            @foreach (var row in Model.YearlyStats)
+                            {
+                                <div class="ipr-bars__item ipr-bars__item--pair" role="listitem">
+                                    <span class="ipr-bars__pair">
+                                        @if (CanOpenYear(row.Year, IprDateBasis.Filed))
+                                        {
+                                            <a class="is-filed" style="@BarHeight(row.Filed, eventMax)"
+                                               asp-page="./Index" asp-all-route-data="@RegisterLink(new { year = row.Year, dateBasis = (string?)null })"
+                                               title="@($"{row.Filed} filed in {row.Year}")"
+                                               aria-label="@($"{row.Filed} filed in {row.Year}. Show them")"></a>
+                                        }
+                                        else
+                                        {
+                                            <span class="is-filed" style="@BarHeight(row.Filed, eventMax)" title="@($"{row.Filed} filed in {row.Year}")"></span>
+                                        }
+                                        @if (CanOpenYear(row.Year, IprDateBasis.Protected))
+                                        {
+                                            <a class="is-granted" style="@BarHeight(row.Granted, eventMax)"
+                                               asp-page="./Index" asp-all-route-data="@RegisterLink(new { year = row.Year, dateBasis = "Protected" })"
+                                               title="@($"{row.Granted} granted in {row.Year}")"
+                                               aria-label="@($"{row.Granted} granted in {row.Year}. Show them")"></a>
+                                        }
+                                        else
+                                        {
+                                            <span class="is-granted" style="@BarHeight(row.Granted, eventMax)" title="@($"{row.Granted} granted in {row.Year}")"></span>
+                                        }
+                                    </span>
+                                    <span class="ipr-bars__label">@row.Year</span>
+                                    <span class="ipr-bars__sub">@row.Filed / @row.Granted</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="ipr-insights-legend"><span><i class="is-filed"></i>Filed</span><span><i class="is-granted"></i>Granted</span></div>
+                    }
+                </article>
+
+                <article class="ipr-insights-card">
+                    <h3>Pending by age</h3>
+                    <p>How long pending filings have waited since filing.</p>
+                    <div class="ipr-hbars">
+                        @foreach (var band in Model.AwaitingAgeBands)
+                        {
+                            Func<object?, object> bandBody = @<text>
+                                <span>@band.Label</span>
+                                <span class="ipr-hbars__track"><span class="ipr-hbars__fill ipr-hbars__fill--@band.Tone" style="width:@(Math.Round(band.Count * 100d / ageMax, 1).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                                <strong>@band.Count</strong>
+                            </text>;
+                            if (CanOpenAge(band.Band))
+                            {
+                                <a class="ipr-hbars__item" asp-page="./Index" asp-all-route-data="@RegisterLink(new { pendingAge = band.Band.ToString() })">@bandBody(null)</a>
+                            }
+                            else
+                            {
+                                <div class="ipr-hbars__item">@bandBody(null)</div>
+                            }
+                        }
+                    </div>
+                </article>
+
+                <article class="ipr-insights-card">
+                    <h3>Patents and copyrights</h3>
+                    <p>Filed includes granted records.</p>
+                    <table class="ipr-insights-table">
+                        <thead><tr><th scope="col">Category</th><th scope="col">Filed</th><th scope="col">Granted</th><th scope="col">Pending</th><th scope="col">Rate</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in summary.TypeRows)
+                            {
+                                var typeKey = row.Type.ToString();
+                                var typeInScope = CanOpenType(row.Type);
+                                <tr>
+                                    <th scope="row"><span class="ipr-type-dot ipr-type-dot--@typeKey.ToLowerInvariant()"></span>@(row.Type == IprType.Copyright ? "Copyrights" : "Patents")</th>
+                                    <td>@if (typeInScope) { <a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey } })">@row.Filed</a> } else { @row.Filed }</td>
+                                    <td>@if (typeInScope && CanOpenStatus(IprStatus.Granted)) { <a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey }, statuses = new[] { "Granted" } })">@row.Protected</a> } else { @row.Protected }</td>
+                                    <td>@if (typeInScope && CanOpenStatus(IprStatus.Filed)) { <a asp-page="./Index" asp-all-route-data="@RegisterLink(new { types = new[] { typeKey }, statuses = new[] { "Filed" } })">@row.Pending</a> } else { @row.Pending }</td>
+                                    <td>@(row.Filed == 0 ? "—" : $"{Math.Round(row.Protected * 100d / row.Filed):0}%")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </article>
+            </div>
         </section>
     }
 
@@ -626,8 +802,6 @@
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
-    <script src="~/lib/chartjs/chart.umd.js" defer asp-append-version="true"></script>
-    <script src="~/js/project-office-reports/ipr/ipr-register.js" defer asp-append-version="true"></script>
     <script src="~/js/project-office-reports/ipr/index.js" defer asp-append-version="true"></script>
     <script src="~/js/project-office-reports/ipr/register-view.js" defer asp-append-version="true"></script>
 }
