@@ -370,6 +370,7 @@ public sealed class ArppReadService : IArppReadService
             .AsNoTracking()
             .Where(entry => entry.ProjectId == projectId)
             .OrderByDescending(entry => entry.Issue.FinancialYearStart)
+            .ThenByDescending(entry => entry.Issue.IssueDate)
             .ThenByDescending(entry => entry.Issue.IssueSequence)
             .ThenByDescending(entry => entry.Id)
             .Select(entry => new

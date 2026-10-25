@@ -107,7 +107,10 @@ public sealed class ArppAmendmentLetterTests
         addendum.PublishedSnapshot = BuildPublished(addendum, Row(201, 1, ArppCategory.CommittedLiability, 12_000_000m));
 
         var amendment = BuildIssue(3, 2026, ArppIssueKind.Amendment, 1, "Amendment letter 1", new DateOnly(2026, 9, 20));
-        amendment.PublishedSnapshot = BuildPublished(amendment, Row(301, 1, ArppCategory.Delisted, 12_000_000m));
+        var amendmentRow = Row(301, 1, ArppCategory.Delisted, 12_000_000m);
+        amendmentRow.Cfa = "GOC-in-C ARTRAC";
+        amendmentRow.DfpdsSchedule = "9.5";
+        amendment.PublishedSnapshot = BuildPublished(amendment, amendmentRow);
 
         db.ArppIssues.AddRange(original, addendum, amendment);
         await db.SaveChangesAsync();
@@ -136,6 +139,25 @@ public sealed class ArppAmendmentLetterTests
         Assert.Equal(3, ipa!.IssueId);
         Assert.Equal(ArppIssueKind.Amendment, ipa.IssueKind);
         Assert.True(ipa.IsDelisted);
+
+        // Every output that projects the ARPP position must agree: the briefing update
+        // sheet also follows the later amendment, so the delisted project carries no PPP
+        // number and the amendment's CFA / Fund / DFPDS wording.
+        var briefing = new ProjectManagement.Services.ProjectBriefings.ProjectBriefingUpdateSheetFactsResolver(db, new NoFormalFacts());
+        var sheet = (await briefing.ResolveAsync([1]))[1];
+        Assert.True(sheet.IsDelistedArppPosition);
+        Assert.Null(sheet.ArppReference);
+        Assert.Equal("GOC-in-C ARTRAC", sheet.Cfa);
+        Assert.Equal("9.5", sheet.DfpdsSchedule);
+    }
+
+    private sealed class NoFormalFacts : ProjectManagement.Services.Projects.IProjectFormalUpdateFactsResolver
+    {
+        public Task<IReadOnlyDictionary<int, ProjectManagement.Services.Projects.ProjectFormalUpdateFacts>> ResolveAsync(
+            IReadOnlyCollection<int> projectIds,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyDictionary<int, ProjectManagement.Services.Projects.ProjectFormalUpdateFacts>>(
+                new Dictionary<int, ProjectManagement.Services.Projects.ProjectFormalUpdateFacts>());
     }
 
     private static ArppIssueCreateCommand Create(ArppIssueKind kind, int sequence, string name, DateOnly issueDate)
