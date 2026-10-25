@@ -673,6 +673,24 @@
     max-width: 52px;
 }
 
+@media (max-width: 991.98px) {
+    .pm-module-subnav-spacer .pm-brand__text,
+    .pm-module-subnav-spacer .pm-drawer-toggle__label {
+        display: none;
+    }
+
+    .pm-module-subnav-spacer .pm-drawer-toggle__button {
+        width: 36px;
+        justify-content: center;
+        padding: 0;
+        border-radius: 10px;
+    }
+
+    .pm-module-subnav-spacer .pm-drawer-toggle__icon {
+        background: transparent;
+    }
+}
+
 /* ============================================================
    Navigation drawer hardening
    The drawer is portalled to <body> by drawer.js. These rules keep
