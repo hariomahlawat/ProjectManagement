@@ -122,9 +122,11 @@ public sealed class DocRepoIngestionService : IDocRepoIngestionService
                 link.SourceItemId.Equals(normalizedItemId, StringComparison.Ordinal));
 
             // A copy trashed because its last source was deleted comes back when a source uses
-            // the same file again. A document uploaded to the repository directly and deleted
-            // there stays deleted; the link is still recorded.
-            if (existingDocument.IsDeleted && existingDocument.IsExternal)
+            // the same file again. A document deleted in the repository itself (direct upload, or
+            // an approved delete request) stays deleted; the link is still recorded.
+            if (existingDocument.IsDeleted &&
+                existingDocument.IsExternal &&
+                await DocRepoSourceLinks.WasTrashedBySourceRemovalAsync(_db, existingDocument.Id, cancellationToken))
             {
                 DocRepoSourceLinks.StageRestore(_db, existingDocument, createdBy, normalizedModule, normalizedItemId, now);
             }

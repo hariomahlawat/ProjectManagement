@@ -644,6 +644,40 @@ public sealed class IprWriteServiceTests
         Assert.Empty(await db.DocRepoAudits.AsNoTracking().ToListAsync());
     }
 
+    [Fact]
+    public async Task ReuploadingAPdfWhoseCopyWasDeletedByApproval_LinksItWithoutRestoring()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 6, 9, 0, 0, TimeSpan.Zero));
+
+        await using var pdf = CreateValidPdfStream();
+        var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(pdf));
+        var documentId = SeedRepositoryDocument(db, isExternal: true);
+        await db.SaveChangesAsync();
+        var document = await db.Documents.SingleAsync(d => d.Id == documentId);
+        document.Sha256 = sha;
+        document.IsDeleted = true;
+        // Trashed by source removal earlier, then restored, then deleted through an approved request.
+        db.DocRepoAudits.AddRange(
+            new ProjectManagement.Data.DocRepo.DocRepoAudit { DocumentId = documentId, ActorUserId = "u", EventType = DocRepoSourceLinks.SourceRemovedEvent, OccurredAtUtc = clock.UtcNow.AddDays(-3) },
+            new ProjectManagement.Data.DocRepo.DocRepoAudit { DocumentId = documentId, ActorUserId = "u", EventType = "RestoredFromTrash", OccurredAtUtc = clock.UtcNow.AddDays(-2) },
+            new ProjectManagement.Data.DocRepo.DocRepoAudit { DocumentId = documentId, ActorUserId = "u", EventType = "SoftDeleted", OccurredAtUtc = clock.UtcNow.AddDays(-1) });
+        await db.SaveChangesAsync();
+
+        var ingestion = new DocRepoIngestionService(
+            db,
+            new InMemoryDocStorage(),
+            Options.Create(new DocRepoOptions { EnableIngestion = true, IngestionOfficeCategoryId = 1, IngestionDocumentCategoryId = 1 }),
+            clock);
+
+        var id = await ingestion.IngestExternalPdfAsync(pdf, "evidence.pdf", "IPR", "43");
+
+        Assert.Equal(documentId, id);
+        Assert.True((await db.Documents.AsNoTracking().SingleAsync()).IsDeleted);
+        Assert.Single(await db.DocRepoExternalLinks.AsNoTracking().Where(l => l.SourceItemId == "43").ToListAsync());
+        Assert.DoesNotContain(await db.DocRepoAudits.AsNoTracking().ToListAsync(), a => a.EventType == DocRepoSourceLinks.SourceRestoredEvent);
+    }
+
     private sealed class InMemoryDocStorage : IDocStorage
     {
         public Task<string> SaveAsync(Stream source, string safeFileName, DateTime utcNow, CancellationToken ct)

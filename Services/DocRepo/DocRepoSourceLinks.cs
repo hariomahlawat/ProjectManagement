@@ -118,6 +118,37 @@ public static class DocRepoSourceLinks
         return trashed;
     }
 
+    // Audit events that delete or bring back a repository document. The latest one tells why a
+    // trashed document is in the trash.
+    private static readonly string[] TrashStateEvents =
+    {
+        SourceRemovedEvent,
+        SourceRestoredEvent,
+        "SoftDeleted",
+        "RestoredFromTrash",
+        "Reuploaded"
+    };
+
+    /// <summary>
+    /// True when the document's latest trash or restore event is a source removal, so the
+    /// repository's own deletes (an approved delete request) are never undone by a re-upload.
+    /// </summary>
+    public static async Task<bool> WasTrashedBySourceRemovalAsync(
+        ApplicationDbContext db,
+        Guid documentId,
+        CancellationToken cancellationToken = default)
+    {
+        var latest = await db.DocRepoAudits
+            .AsNoTracking()
+            .Where(audit => audit.DocumentId == documentId && TrashStateEvents.Contains(audit.EventType))
+            .OrderByDescending(audit => audit.OccurredAtUtc)
+            .ThenByDescending(audit => audit.Id)
+            .Select(audit => audit.EventType)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return latest == SourceRemovedEvent;
+    }
+
     /// <summary>
     /// Locks the document rows until the current transaction ends (PostgreSQL only; the
     /// providers used in tests do not run requests concurrently).
