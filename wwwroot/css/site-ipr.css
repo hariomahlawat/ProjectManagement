@@ -69,7 +69,6 @@
 }
 
 .ipr-register-actions { gap: 9px; flex-wrap: wrap; }
-.ipr-toast-container { top: 72px; z-index: 1100; }
 
 /* Compact operational summary */
 .ipr-insight-ribbon {
@@ -1563,6 +1562,9 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 .ipr-record-progress span { display: block; }
 .ipr-record-progress span { color: var(--ipr-muted); font-size: .85rem; }
 body.ipr-panel-open { overflow: hidden; }
+/* The record editor reuses the panel frame; the form keeps the drawer's two-column layout. */
+.ipr-record-panel--editor { width: min(680px, 100%); background: var(--ipr-drawer-surface); }
+.ipr-record-panel--editor .ipr-record-panel__header { position: sticky; top: 0; z-index: 4; border-bottom: 1px solid var(--ipr-border); background: var(--pm-card, #fff); }
 
 @media (max-width: 720px) {
     .ipr-workspace-header__actions { width: 100%; }

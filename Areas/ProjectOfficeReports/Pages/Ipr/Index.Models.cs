@@ -142,6 +142,10 @@ public sealed partial class IndexModel
         public int? ProjectId { get; set; }
 
         public string? RowVersion { get; set; }
+
+        // Optional PDF saved with the record in the same submit (create or edit).
+        [Display(Name = "Evidence PDF")]
+        public IFormFile? Evidence { get; set; }
     }
 
     public sealed class DeleteInput

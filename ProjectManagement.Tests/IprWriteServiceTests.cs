@@ -732,7 +732,7 @@ public sealed class IprWriteServiceTests
         return new IprAttachmentStorage(provider, resolver, options);
     }
 
-    private static MemoryStream CreateValidPdfStream()
+    internal static MemoryStream CreateValidPdfStream()
     {
         var stream = new MemoryStream();
         var offsets = new List<long>();
