@@ -557,6 +557,106 @@ public sealed class IprWriteServiceTests
         }
     }
 
+    [Fact]
+    public async Task RemovingThenReuploadingTheSamePdf_RestoresTheTrashedRepositoryCopy()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 4, 9, 0, 0, TimeSpan.Zero));
+        var options = CreateAttachmentOptions(maxFileSizeBytes: 64 * 1024);
+        var root = CreateTempRoot();
+
+        try
+        {
+            var ingestion = new DocRepoIngestionService(
+                db,
+                new InMemoryDocStorage(),
+                Options.Create(new DocRepoOptions { EnableIngestion = true, IngestionOfficeCategoryId = 1, IngestionDocumentCategoryId = 1 }),
+                clock);
+            var service = new IprWriteService(db, clock, CreateStorage(root, options), options, ingestion, NullLogger<IprWriteService>.Instance);
+
+            var record = ValidRecord(clock, "DOC-003");
+            db.IprRecords.Add(record);
+            await db.SaveChangesAsync();
+
+            await using (var first = CreateValidPdfStream())
+            {
+                await service.AddAttachmentAsync(record.Id, first, "evidence.pdf", "application/pdf", "user-1");
+            }
+
+            var original = await db.IprAttachments.SingleAsync();
+            var documentId = (await db.Documents.AsNoTracking().SingleAsync()).Id;
+
+            await service.DeleteAttachmentAsync(original.Id, original.RowVersion, "user-1");
+            Assert.True((await db.Documents.AsNoTracking().SingleAsync()).IsDeleted);
+
+            await using (var again = CreateValidPdfStream())
+            {
+                await service.AddAttachmentAsync(record.Id, again, "evidence.pdf", "application/pdf", "user-1");
+            }
+
+            var replacement = await db.IprAttachments.SingleAsync();
+            var document = await db.Documents.AsNoTracking().SingleAsync();
+            Assert.Equal(documentId, document.Id);
+            Assert.False(document.IsDeleted);
+            Assert.True(document.IsActive);
+            Assert.Null(document.DeletedAtUtc);
+            Assert.Null(document.DeleteReason);
+
+            var link = await db.DocRepoExternalLinks.AsNoTracking().SingleAsync();
+            Assert.Equal(documentId, link.DocumentId);
+            Assert.Equal(replacement.Id.ToString(), link.SourceItemId);
+
+            var events = await db.DocRepoAudits.AsNoTracking().OrderBy(a => a.Id).Select(a => a.EventType).ToListAsync();
+            Assert.Equal(new[] { DocRepoSourceLinks.SourceRemovedEvent, DocRepoSourceLinks.SourceRestoredEvent }, events);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task ReuploadingAPdfDeletedFromTheRepositoryDirectly_LinksItWithoutRestoring()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 5, 9, 0, 0, TimeSpan.Zero));
+
+        await using var pdf = CreateValidPdfStream();
+        var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(pdf));
+        var deletedId = SeedRepositoryDocument(db, isExternal: false);
+        await db.SaveChangesAsync();
+        var deleted = await db.Documents.SingleAsync(d => d.Id == deletedId);
+        deleted.Sha256 = sha;
+        deleted.IsDeleted = true;
+        await db.SaveChangesAsync();
+
+        var ingestion = new DocRepoIngestionService(
+            db,
+            new InMemoryDocStorage(),
+            Options.Create(new DocRepoOptions { EnableIngestion = true, IngestionOfficeCategoryId = 1, IngestionDocumentCategoryId = 1 }),
+            clock);
+
+        var id = await ingestion.IngestExternalPdfAsync(pdf, "evidence.pdf", "IPR", "42");
+
+        Assert.Equal(deletedId, id);
+        Assert.True((await db.Documents.AsNoTracking().SingleAsync()).IsDeleted);
+        Assert.Single(await db.DocRepoExternalLinks.AsNoTracking().Where(l => l.SourceItemId == "42").ToListAsync());
+        Assert.Empty(await db.DocRepoAudits.AsNoTracking().ToListAsync());
+    }
+
+    private sealed class InMemoryDocStorage : IDocStorage
+    {
+        public Task<string> SaveAsync(Stream source, string safeFileName, DateTime utcNow, CancellationToken ct)
+            => Task.FromResult($"docs/{Guid.NewGuid():N}.pdf");
+
+        public Task<Stream> OpenReadAsync(string storagePath, CancellationToken ct)
+            => Task.FromResult<Stream>(new MemoryStream());
+
+        public Task DeleteAsync(string storagePath, CancellationToken ct) => Task.CompletedTask;
+
+        public Task<bool> ExistsAsync(string storagePath, CancellationToken ct) => Task.FromResult(true);
+    }
+
     private static async Task<(IprRecord Record, IprAttachment Attachment)> SeedAttachmentAsync(
         ApplicationDbContext db,
         FakeClock clock,

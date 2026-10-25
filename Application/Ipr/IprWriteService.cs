@@ -148,6 +148,7 @@ public sealed class IprWriteService : IIprWriteService
         }
 
         var attachmentKeys = record.Attachments.Select(a => a.StorageKey).ToList();
+        await using var transaction = await BeginDocRepoTransactionAsync(cancellationToken);
         await StageDocRepoRemovalAsync(
             record.Attachments.Select(a => a.Id).ToList(),
             actorUserId,
@@ -159,6 +160,10 @@ public sealed class IprWriteService : IIprWriteService
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -260,6 +265,7 @@ public sealed class IprWriteService : IIprWriteService
         }
 
         var storageKey = attachment.StorageKey;
+        await using var transaction = await BeginDocRepoTransactionAsync(cancellationToken);
         await StageDocRepoRemovalAsync(
             new[] { attachment.Id },
             actorUserId,
@@ -271,6 +277,10 @@ public sealed class IprWriteService : IIprWriteService
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -285,6 +295,11 @@ public sealed class IprWriteService : IIprWriteService
     // An uploaded PDF is also ingested into the document repository (source "IPR", item = the
     // attachment id). Deleting it here unlinks that copy and trashes it when nothing else uses it,
     // in the same save as the delete.
+    private async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?> BeginDocRepoTransactionAsync(CancellationToken cancellationToken)
+        => _db.Database.IsRelational() && _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
     private Task StageDocRepoRemovalAsync(
         IReadOnlyCollection<int> attachmentIds,
         string? actorUserId,

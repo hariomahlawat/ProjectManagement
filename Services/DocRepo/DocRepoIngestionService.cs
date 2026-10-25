@@ -87,11 +87,27 @@ public sealed class DocRepoIngestionService : IDocRepoIngestionService
         var sha256Hex = ComputeSha256(buffer);
         buffer.Seek(0, SeekOrigin.Begin);
 
-        var existingDocument = await _db.Documents
-            .Include(d => d.ExternalLinks)
-            .FirstOrDefaultAsync(
-                d => d.Sha256 == sha256Hex && !d.IsDeleted,
-                cancellationToken);
+        // Sha256 is unique across all rows, trashed ones included, so a trashed copy is reused.
+        // The row is locked before its links are read so source removal cannot trash it while
+        // this request links it (see DocRepoSourceLinks).
+        await using var transaction = _db.Database.IsRelational() && _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
+        var existingDocumentId = await _db.Documents
+            .AsNoTracking()
+            .Where(d => d.Sha256 == sha256Hex)
+            .Select(d => (Guid?)d.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        Document? existingDocument = null;
+        if (existingDocumentId.HasValue)
+        {
+            await DocRepoSourceLinks.LockDocumentsAsync(_db, new[] { existingDocumentId.Value }, cancellationToken);
+            existingDocument = await _db.Documents
+                .Include(d => d.ExternalLinks)
+                .FirstAsync(d => d.Id == existingDocumentId.Value, cancellationToken);
+        }
 
         var now = _clock.UtcNow;
         var nowUtc = now.UtcDateTime;
@@ -105,6 +121,14 @@ public sealed class DocRepoIngestionService : IDocRepoIngestionService
                 link.SourceModule.Equals(normalizedModule, StringComparison.OrdinalIgnoreCase) &&
                 link.SourceItemId.Equals(normalizedItemId, StringComparison.Ordinal));
 
+            // A copy trashed because its last source was deleted comes back when a source uses
+            // the same file again. A document uploaded to the repository directly and deleted
+            // there stays deleted; the link is still recorded.
+            if (existingDocument.IsDeleted && existingDocument.IsExternal)
+            {
+                DocRepoSourceLinks.StageRestore(_db, existingDocument, createdBy, normalizedModule, normalizedItemId, now);
+            }
+
             if (!alreadyLinked)
             {
                 var externalLink = new DocRepoExternalLink
@@ -117,7 +141,12 @@ public sealed class DocRepoIngestionService : IDocRepoIngestionService
                 };
 
                 _db.DocRepoExternalLinks.Add(externalLink);
-                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
             }
 
             return existingDocument.Id;
@@ -173,6 +202,10 @@ public sealed class DocRepoIngestionService : IDocRepoIngestionService
         await _db.Documents.AddAsync(document, cancellationToken);
         await _db.DocRepoExternalLinks.AddAsync(link, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
 
         _logger?.LogInformation(
             "Ingested external PDF for module {Module} item {ItemId} into document {DocumentId}.",

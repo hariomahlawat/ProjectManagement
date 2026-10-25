@@ -14,9 +14,14 @@ namespace ProjectManagement.Services.DocRepo;
 // A module that ingested its files into the document repository calls this when those files
 // are deleted at the source. The changes are staged on the caller's context so they are saved
 // in the same transaction as the source delete.
+//
+// Concurrency: ingestion links a new source to an existing document by its SHA-256. Both sides
+// lock the document row (LockDocumentsAsync) before reading its links, so a document is never
+// trashed while another request is linking it. Callers must hold a transaction until they save.
 public static class DocRepoSourceLinks
 {
     public const string SourceRemovedEvent = "SourceRemoved";
+    public const string SourceRestoredEvent = "SourceRestored";
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.General)
     {
@@ -52,6 +57,20 @@ public static class DocRepoSourceLinks
 
         var module = sourceModule.Trim();
         var itemIds = sourceItemIds.Select(id => id.Trim()).Distinct(StringComparer.Ordinal).ToList();
+
+        var documentIds = await db.DocRepoExternalLinks
+            .AsNoTracking()
+            .Where(link => link.SourceModule == module && itemIds.Contains(link.SourceItemId))
+            .Select(link => link.DocumentId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (documentIds.Count == 0)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        await LockDocumentsAsync(db, documentIds, cancellationToken);
 
         var links = await db.DocRepoExternalLinks
             .Include(link => link.Document)
@@ -97,5 +116,60 @@ public static class DocRepoSourceLinks
         }
 
         return trashed;
+    }
+
+    /// <summary>
+    /// Locks the document rows until the current transaction ends (PostgreSQL only; the
+    /// providers used in tests do not run requests concurrently).
+    /// </summary>
+    public static async Task LockDocumentsAsync(
+        ApplicationDbContext db,
+        IReadOnlyCollection<Guid> documentIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (documentIds.Count == 0 || !db.Database.IsNpgsql())
+        {
+            return;
+        }
+
+        if (db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("Locking repository documents requires an open transaction.");
+        }
+
+        var ids = documentIds.Distinct().OrderBy(id => id).ToArray();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"Documents\" WHERE \"Id\" = ANY({ids}) ORDER BY \"Id\" FOR UPDATE",
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Brings back a document that source removal moved to the trash, because a source links it
+    /// again (the same file was uploaded again). Staged on the caller's context.
+    /// </summary>
+    public static void StageRestore(
+        ApplicationDbContext db,
+        Document document,
+        string actorUserId,
+        string sourceModule,
+        string sourceItemId,
+        DateTimeOffset now)
+    {
+        document.IsDeleted = false;
+        document.IsActive = true;
+        document.DeletedAtUtc = null;
+        document.DeletedByUserId = null;
+        document.DeleteReason = null;
+        document.UpdatedAtUtc = now.UtcDateTime;
+        document.UpdatedByUserId = actorUserId;
+
+        db.DocRepoAudits.Add(new DocRepoAudit
+        {
+            DocumentId = document.Id,
+            ActorUserId = actorUserId,
+            EventType = SourceRestoredEvent,
+            DetailsJson = JsonSerializer.Serialize(new { SourceModule = sourceModule, SourceItemId = sourceItemId }, SerializerOptions),
+            OccurredAtUtc = now
+        });
     }
 }
