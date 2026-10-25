@@ -1,4 +1,4 @@
-# Top bar and Dashboard header
+# Top bar, Dashboard and workspace headers
 
 What a signed-in user sees first: the top bar on every page, and the Dashboard header they land on
 after signing in. The aim is that the step from the [sign-in page](public-pages.md) to the app does
@@ -41,3 +41,12 @@ not feel like a drop in quality.
 - Dashboard text is at least 12px (`.75rem`); small uppercase labels at least 11px (`.6875rem`);
   what used to be 11–12.5px is now 13px (`.8125rem`). The same floor applies to the FFC map widget
   (`wwwroot/css/widgets/ffc-simulator-map.css`). Keep new Dashboard text at or above these floors.
+- My Workspace uses the same floors: the workspace rail, Officer workload, Project portfolio and
+  the other command views (`wwwroot/css/command-workspace.css`) and Conference review
+  (`wwwroot/css/officer-conference.css`).
+
+## My Workspace page headers
+
+Every command view opens with the same header: a small "Command oversight" / "Project monitoring"
+label, a large title and one line on what the view shows (`cw-page-header` for Officer workload and
+Project portfolio, matching Conference review and Briefing decks; the Command desk has its own).
