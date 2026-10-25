@@ -53,8 +53,11 @@ one chart style defined once.
   note. Cards: where the projects stand (ongoing by stage, with Completed / stage / Cancelled rows),
   by sanctioning authority (CFA), by category and IPA cost band, milestones (past AoN, supply
   orders and their value against listed IPA, development PDC due and overdue), and fund, DFPDS
-  schedule and parent category rows. Data comes from `IArppLibraryService.GetCurrentPositionAsync`
-  and `IArppFyProjectUpdateService.BuildAsync`; the grouping is in `IndexModel.BuildArppAnalyticsAsync`.
+  schedule and parent category rows. The rules (year choice, cost bands, standing by
+  lifecycle, milestone eligibility: a supply order counts as placed on a supply-order date or a stage
+  beyond Supply Order, not on a resolved amount alone) live in
+  `Services/Analytics/ArppAnalyticsService.cs` over `IArppLibraryService.GetCurrentPositionAsync` and
+  `IArppFyProjectUpdateService.BuildAsync`; the page only binds the year.
 
 ## Staying on the page
 
