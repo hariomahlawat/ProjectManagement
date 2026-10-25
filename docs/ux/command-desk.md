@@ -25,6 +25,22 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
    - Visits, people trained and activities use the Dashboard's own rules, shared in code so the two pages agree: a visit by its date; a training's headcount and reference date (`TrainingReach`); an activity's occurrence, excluding deleted and future ones (`ActivityOccurrence`).
    - Up to five recent highlights.
    - Auto-completed (backfilled) stages and future-dated events do not count.
+   - **Each count opens its register filtered to the same window** (`CommandDeskRoutes`), using
+     the register's own query names, so the number on the chip is the number of rows that open:
+
+     | Count | Opens |
+     | --- | --- |
+     | Stages completed | Projects list, `StageCompletedFrom`/`To` (any stage completed in the window, backfilled stages excluded) |
+     | Projects completed | Projects list, Completed tab, `CompletedFrom`/`To` |
+     | ToT completed | ToT tracker, status Completed, `CompletedFrom`/`To` |
+     | IPR filed / granted | IPR register, `from`/`to` on the filed date, or on the grant date with `statuses=Granted&dateBasis=Protected` |
+     | FFC deliveries / installations | FFC portfolio, `deliveredFrom`/`To` or `installedFrom`/`To` |
+     | Visits, people trained, activities | their registers' existing From/To filters |
+     | Units proliferated | the Proliferation records page for the year the window ends in: that page is a per-year calculation and has no date window, so this one count is a near miss, not exact |
+
+     The windows are inclusive, `yyyy-MM-dd`, and each register shows the window as a removable
+     active-filter chip. The IPR register filters in the browser, so its rows carry
+     `data-filed-on` / `data-granted-on` and `register-view.js` applies the window like the others.
 2. **Waiting on you**: hidden when nothing waits on the viewer.
    - Viewers who can approve (HoD, Admin) see the Decision Centre queue from `IApprovalQueueService`, so the two never disagree.
    - Any viewer sees tasks they assigned that were submitted for closure, and tasks they assigned that are **blocked** (with the blocking reason; a blocked task usually needs its assigner). Blocked tasks also stay under Tasks below, which everyone sees. Who assigned a task is its creator, or whoever later put it from the backlog into a sprint with a responsible person or reassigned it (`ActionTaskAssigners`, shared with Task Management's "assigned by").

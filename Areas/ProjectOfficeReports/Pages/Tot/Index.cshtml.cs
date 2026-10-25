@@ -71,6 +71,13 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public bool MetCompletedOnly { get; set; }
 
+    // Inclusive window on the ToT completion date (yyyy-MM-dd); set by Command desk drill-downs.
+    [BindProperty(SupportsGet = true)]
+    public DateOnly? CompletedFrom { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateOnly? CompletedTo { get; set; }
+
     [BindProperty(SupportsGet = true)]
     public int? SelectedProjectId { get; set; }
 
@@ -416,6 +423,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
+            CompletedFrom,
+            CompletedTo,
             SelectedProjectId = SubmitInput.ProjectId,
             ViewMode
         });
@@ -615,6 +624,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
+            CompletedFrom,
+            CompletedTo,
             SelectedProjectId = DecideInput.ProjectId,
             ViewMode
         });
@@ -634,6 +645,8 @@ public sealed class IndexModel : PageModel
             OnlyPendingRequests = OnlyPending,
             RequiresTotOnly = RequiresTotOnly,
             MetCompletedOnly = MetCompletedOnly,
+            CompletedFrom = CompletedFrom,
+            CompletedTo = CompletedTo,
             SearchTerm = SearchTerm
         };
 
@@ -728,6 +741,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
+            CompletedFrom,
+            CompletedTo,
             SelectedProjectId = projectId ?? SelectedProjectId,
             ViewMode
         });

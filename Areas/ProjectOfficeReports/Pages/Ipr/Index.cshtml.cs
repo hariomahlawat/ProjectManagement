@@ -85,6 +85,16 @@ public sealed partial class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? Year { get; set; }
 
+    // Inclusive date window (yyyy-MM-dd) on the DateBasis date: filed, or granted / registered
+    // when the basis is Protected. Set by Command desk drill-downs; shown as a removable chip.
+    [BindProperty(SupportsGet = true)]
+    public DateOnly? From { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateOnly? To { get; set; }
+
+    public bool HasDateWindow => From.HasValue || To.HasValue;
+
     [BindProperty(SupportsGet = true)]
     public IprLinkageFilter Linkage { get; set; } = IprLinkageFilter.All;
 
@@ -188,6 +198,7 @@ public sealed partial class IndexModel : PageModel
             || Statuses.Count > 0
             || ProjectId.HasValue
             || Year.HasValue
+            || HasDateWindow
             || Linkage != IprLinkageFilter.All
             || Evidence != IprEvidenceFilter.All
             || PendingAge != IprPendingAge.Any;
@@ -281,6 +292,16 @@ public sealed partial class IndexModel : PageModel
         if (Year.HasValue)
         {
             values["year"] = Year.Value;
+        }
+
+        if (From.HasValue)
+        {
+            values["from"] = DayValue(From);
+        }
+
+        if (To.HasValue)
+        {
+            values["to"] = DayValue(To);
         }
 
         if (Linkage != IprLinkageFilter.All)

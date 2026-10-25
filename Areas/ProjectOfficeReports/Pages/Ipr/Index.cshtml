@@ -93,6 +93,9 @@
         statuses = Model.Statuses.Select(status => status.ToString()).ToArray(),
         year = Model.Year?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
         dateBasis = Model.DateBasis.ToString(),
+        from = ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel.DayValue(Model.From) ?? string.Empty,
+        to = ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel.DayValue(Model.To) ?? string.Empty,
+        rangeLabel = Model.DateWindowLabel,
         linkage = Model.Linkage.ToString(),
         evidence = Model.Evidence.ToString(),
         pendingAge = Model.PendingAge.ToString(),
@@ -239,6 +242,10 @@
                         <option value="year">Filing year</option>
                     </select>
                 </label>
+                <span class="ipr-chip is-on @(Model.HasDateWindow ? null : "d-none")" data-ipr-range-chip>
+                    <span data-ipr-range-chip-label>@Model.DateWindowLabel</span>
+                    <button type="button" class="ipr-chip__remove" data-ipr-range-chip-clear aria-label="Remove date filter"><i class="bi bi-x" aria-hidden="true"></i></button>
+                </span>
                 <span class="ipr-chip is-on d-none" data-ipr-age-chip>
                     <span data-ipr-age-chip-label></span>
                     <button type="button" class="ipr-chip__remove" data-ipr-age-chip-clear aria-label="Remove pending-age filter"><i class="bi bi-x" aria-hidden="true"></i></button>
@@ -290,6 +297,8 @@
                                     data-project="@(row.ProjectId.HasValue ? row.ProjectName : string.Empty)"
                                     data-filed-year="@row.FiledYear"
                                     data-granted-year="@row.GrantedYear"
+                                    data-filed-on="@row.FiledOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)"
+                                    data-granted-on="@row.GrantedOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)"
                                     data-pending-days="@row.PendingDays"
                                     data-search="@searchText"
                                     class="@(row.Id == Model.SelectedRecordId ? "is-selected" : string.Empty)">

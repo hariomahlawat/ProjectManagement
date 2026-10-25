@@ -40,7 +40,13 @@ public sealed record FfcPortfolioFilter(
     FfcFilterState IpaStatus = FfcFilterState.Any,
     FfcFilterState GslStatus = FfcFilterState.Any,
     FfcFilterState DeliveryStatus = FfcFilterState.Any,
-    FfcFilterState InstallationStatus = FfcFilterState.Any);
+    FfcFilterState InstallationStatus = FfcFilterState.Any,
+    // Inclusive windows on the record's delivery and installation dates (records marked
+    // delivered / installed only); set by Command desk drill-downs.
+    DateOnly? DeliveredFrom = null,
+    DateOnly? DeliveredTo = null,
+    DateOnly? InstalledFrom = null,
+    DateOnly? InstalledTo = null);
 
 public sealed record FfcPortfolioSummary(
     int RecordCount,
@@ -177,6 +183,24 @@ public static class FfcPortfolioQuery
         queryable = ApplyBooleanMilestoneFilter(queryable, filter.GslStatus, isIpa: false);
         queryable = ApplyDeliveryFilter(queryable, filter.DeliveryStatus);
         queryable = ApplyInstallationFilter(queryable, filter.InstallationStatus);
+
+        if (filter.DeliveredFrom.HasValue || filter.DeliveredTo.HasValue)
+        {
+            var from = filter.DeliveredFrom ?? DateOnly.MinValue;
+            var to = filter.DeliveredTo ?? DateOnly.MaxValue;
+            queryable = queryable.Where(record =>
+                record.DeliveryYes && record.DeliveryDate.HasValue &&
+                record.DeliveryDate.Value >= from && record.DeliveryDate.Value <= to);
+        }
+
+        if (filter.InstalledFrom.HasValue || filter.InstalledTo.HasValue)
+        {
+            var from = filter.InstalledFrom ?? DateOnly.MinValue;
+            var to = filter.InstalledTo ?? DateOnly.MaxValue;
+            queryable = queryable.Where(record =>
+                record.InstallationYes && record.InstallationDate.HasValue &&
+                record.InstallationDate.Value >= from && record.InstallationDate.Value <= to);
+        }
 
         var normalizedSearch = NormalizeSearch(filter.Query);
         if (normalizedSearch is not null)

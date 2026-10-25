@@ -119,6 +119,11 @@ public sealed partial class IndexModel
             DateBasis = IprDateBasis.Filed;
         }
 
+        if (From.HasValue && To.HasValue && From.Value > To.Value)
+        {
+            (From, To) = (To, From);
+        }
+
         if (!Enum.IsDefined(Linkage))
         {
             Linkage = IprLinkageFilter.All;
@@ -235,6 +240,10 @@ public sealed partial class IndexModel
             ProjectId = ProjectId,
             DateBasis = DateBasis,
             Year = Year,
+            FiledFrom = DateBasis == IprDateBasis.Protected ? null : From,
+            FiledTo = DateBasis == IprDateBasis.Protected ? null : To,
+            ProtectedFrom = DateBasis == IprDateBasis.Protected ? From : null,
+            ProtectedTo = DateBasis == IprDateBasis.Protected ? To : null,
             Linkage = Linkage,
             Evidence = Evidence,
             PendingAge = PendingAge

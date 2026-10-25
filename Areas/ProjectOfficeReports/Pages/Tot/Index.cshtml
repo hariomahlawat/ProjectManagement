@@ -72,6 +72,19 @@
     if (Model.OnlyPending) filterBits.Add("Pending only");
     if (Model.RequiresTotOnly) filterBits.Add("Requires ToT");
     if (Model.MetCompletedOnly) filterBits.Add("MET completed");
+    if (Model.CompletedFrom.HasValue || Model.CompletedTo.HasValue)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        filterBits.Add((Model.CompletedFrom, Model.CompletedTo) switch
+        {
+            ({ } cf, { } ct) => $"Completed {cf.ToString("dd MMM", inv)} – {ct.ToString("dd MMM yyyy", inv)}",
+            ({ } cf, null) => $"Completed from {cf.ToString("dd MMM yyyy", inv)}",
+            (null, { } ct) => $"Completed to {ct.ToString("dd MMM yyyy", inv)}",
+            _ => string.Empty
+        });
+    }
+    var completedFromValue = Model.CompletedFrom?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var completedToValue = Model.CompletedTo?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var filterSummary = filterBits.Any() ? string.Join(" · ", filterBits) : "No filters";
 }
 
@@ -178,6 +191,8 @@
                     <input type="hidden" name="OnlyPending" value="@Model.OnlyPending" />
                     <input type="hidden" name="RequiresTotOnly" value="@Model.RequiresTotOnly" />
                     <input type="hidden" name="MetCompletedOnly" value="@Model.MetCompletedOnly" />
+                    <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
+                    <input type="hidden" name="CompletedTo" value="@completedToValue" />
                     <input type="hidden" name="SelectedProjectId" value="@Model.SelectedProjectId" />
 
                     <div class="input-group input-group-sm pm-util-maxw-320">
@@ -220,6 +235,8 @@
                            asp-route-OnlyPending="@Model.OnlyPending"
                            asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
                            asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
+                           asp-route-CompletedFrom="@completedFromValue"
+                           asp-route-CompletedTo="@completedToValue"
                            asp-route-SelectedProjectId="@row.ProjectId">
                             <div>
                                 <div class="tot-row-title">@row.ProjectName</div>
@@ -422,6 +439,8 @@
                     <input type="hidden" asp-for="OnlyPending" />
                     <input type="hidden" asp-for="RequiresTotOnly" />
                     <input type="hidden" asp-for="MetCompletedOnly" />
+                    <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
+                    <input type="hidden" name="CompletedTo" value="@completedToValue" />
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>

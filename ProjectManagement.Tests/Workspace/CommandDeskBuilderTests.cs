@@ -59,9 +59,50 @@ public sealed class CommandDeskBuilderTests
         });
 
         Assert.Collection(desk.MovedForward,
-            count => Assert.Equal((2, "visits", "/ProjectOfficeReports/Visits"), (count.Count, count.Label, count.Url)),
-            count => Assert.Equal((65, "people trained", "/ProjectOfficeReports/Training"), (count.Count, count.Label, count.Url)),
-            count => Assert.Equal((1, "activity", "/Activities"), (count.Count, count.Label, count.Url)));
+            count => Assert.Equal((2, "visits", "/ProjectOfficeReports/Visits?From=2026-09-23&To=2026-10-22"), (count.Count, count.Label, count.Url)),
+            count => Assert.Equal((65, "people trained", "/ProjectOfficeReports/Training?Filter.From=2026-09-23&Filter.To=2026-10-22"), (count.Count, count.Label, count.Url)),
+            count => Assert.Equal((1, "activity", "/Activities?FromDate=2026-09-23&ToDate=2026-10-22"), (count.Count, count.Label, count.Url)));
+    }
+
+    // Each count opens its register filtered to the desk's window (the register's own query
+    // names), so the number on the chip is the number of rows that open.
+    [Fact]
+    public void MovedForward_EachCountOpensItsRegisterFilteredToTheWindow()
+    {
+        var kinds = Enum.GetValues<CommandDeskProgressKind>();
+        var desk = Build(progress: kinds.Select(kind => new CommandDeskProgressEvent(kind, Today.AddDays(-2))).ToList());
+
+        var urls = desk.MovedForward.ToDictionary(count => count.Label, count => count.Url);
+        Assert.Equal("/Projects?StageCompletedFrom=2026-09-23&StageCompletedTo=2026-10-22", urls["stage completed"]);
+        Assert.Equal("/Projects?Lifecycle=Completed&CompletedFrom=2026-09-23&CompletedTo=2026-10-22", urls["project completed"]);
+        Assert.Equal("/ProjectOfficeReports/Tot?TotStatusFilter=Completed&CompletedFrom=2026-09-23&CompletedTo=2026-10-22", urls["ToT completed"]);
+        Assert.Equal("/ProjectOfficeReports/Ipr?from=2026-09-23&to=2026-10-22", urls["IPR filed"]);
+        Assert.Equal("/ProjectOfficeReports/Ipr?statuses=Granted&dateBasis=Protected&from=2026-09-23&to=2026-10-22", urls["IPR granted"]);
+        Assert.Equal("/ProjectOfficeReports/Proliferation?year=2026", urls["unit proliferated"]);
+        Assert.Equal("/ProjectOfficeReports/FFC?deliveredFrom=2026-09-23&deliveredTo=2026-10-22", urls["FFC delivery"]);
+        Assert.Equal("/ProjectOfficeReports/FFC?installedFrom=2026-09-23&installedTo=2026-10-22", urls["FFC installation"]);
+        Assert.Equal("/ProjectOfficeReports/Visits?From=2026-09-23&To=2026-10-22", urls["visit"]);
+        Assert.Equal("/ProjectOfficeReports/Training?Filter.From=2026-09-23&Filter.To=2026-10-22", urls["person trained"]);
+        Assert.Equal("/Activities?FromDate=2026-09-23&ToDate=2026-10-22", urls["activity"]);
+    }
+
+    [Fact]
+    public void MovedForward_LinksFollowTheFifteenDayWindow()
+    {
+        var desk = Build(
+            progress: new[] { new CommandDeskProgressEvent(CommandDeskProgressKind.Visit, Today) },
+            window: 15);
+
+        var visit = Assert.Single(desk.MovedForward);
+        Assert.Equal("/ProjectOfficeReports/Visits?From=2026-10-08&To=2026-10-22", visit.Url);
+    }
+
+    [Fact]
+    public void WindowStart_IsTodayAndTheDaysBefore()
+    {
+        // A 30-day window is today plus the 29 days before it, matching InWindow.
+        Assert.Equal(new DateOnly(2026, 9, 23), CommandDeskBuilder.WindowStart(Today, 30));
+        Assert.Equal(new DateOnly(2026, 10, 8), CommandDeskBuilder.WindowStart(Today, 15));
     }
 
     [Theory]

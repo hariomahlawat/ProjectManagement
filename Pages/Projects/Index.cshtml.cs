@@ -86,6 +86,20 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public string? StageCompletedMonth { get; set; }
 
+        // Date windows (inclusive, yyyy-MM-dd), set by Command desk drill-downs: projects completed
+        // in the window, or projects with a stage completed in the window.
+        [BindProperty(SupportsGet = true)]
+        public DateOnly? CompletedFrom { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public DateOnly? CompletedTo { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public DateOnly? StageCompletedFrom { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public DateOnly? StageCompletedTo { get; set; }
+
         [BindProperty(SupportsGet = true)]
         public string? SlipBucket { get; set; }
 
@@ -142,6 +156,10 @@ namespace ProjectManagement.Pages.Projects
             IncludeArchived ||
             !string.IsNullOrWhiteSpace(StageCode) ||
             !string.IsNullOrWhiteSpace(StageCompletedMonth) ||
+            CompletedFrom.HasValue ||
+            CompletedTo.HasValue ||
+            StageCompletedFrom.HasValue ||
+            StageCompletedTo.HasValue ||
             !string.IsNullOrWhiteSpace(SlipBucket) ||
             ProjectTypeId.HasValue ||
             ProjectTypeUnclassified ||
@@ -235,7 +253,11 @@ namespace ProjectManagement.Pages.Projects
                 stageMonth,
                 SlipBucket,
                 IncludeCategoryDescendants,
-                resolvedCategoryIds);
+                resolvedCategoryIds,
+                CompletedFrom,
+                CompletedTo,
+                StageCompletedFrom,
+                StageCompletedTo);
 
             var lifecycleCounts = await CountProjectsByLifecycleAsync(
                 baseFilters,
@@ -409,6 +431,10 @@ namespace ProjectManagement.Pages.Projects
             AddValue(values, "IncludeArchived", IncludeArchived ? "true" : null);
             AddValue(values, "StageCode", StageCode);
             AddValue(values, "StageCompletedMonth", StageCompletedMonth);
+            AddValue(values, "CompletedFrom", DayValue(CompletedFrom));
+            AddValue(values, "CompletedTo", DayValue(CompletedTo));
+            AddValue(values, "StageCompletedFrom", DayValue(StageCompletedFrom));
+            AddValue(values, "StageCompletedTo", DayValue(StageCompletedTo));
             AddValue(values, "SlipBucket", SlipBucket);
             AddValue(values, "IncludeCategoryDescendants", IncludeCategoryDescendants ? "true" : null);
             AddValue(values, "Build", Build);
@@ -654,6 +680,23 @@ namespace ProjectManagement.Pages.Projects
             }
 
             return null;
+        }
+
+        public static string? DayValue(DateOnly? date)
+            => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+        // "26 Sep – 25 Oct 2026" for an active-filter label; one side alone reads "from"/"to".
+        public static string? DescribeWindow(DateOnly? from, DateOnly? to)
+        {
+            static string Day(DateOnly d) => d.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+            return (from, to) switch
+            {
+                ({ } f, { } t) when f.Year == t.Year => $"{f.ToString("dd MMM", CultureInfo.InvariantCulture)} – {Day(t)}",
+                ({ } f, { } t) => $"{Day(f)} – {Day(t)}",
+                ({ } f, null) => $"from {Day(f)}",
+                (null, { } t) => $"to {Day(t)}",
+                _ => null
+            };
         }
 
         private static DateOnly? ParseStageMonth(string? month)

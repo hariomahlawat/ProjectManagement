@@ -24,6 +24,10 @@
     if (!string.IsNullOrWhiteSpace(selectedLeadPo)) activeFilters.Add($"Project Officer: {selectedLeadPo}");
     var selectedCompletionYear = Model.CompletionYearOptions.FirstOrDefault(o => o.Selected && !string.IsNullOrEmpty(o.Value))?.Text;
     if (!string.IsNullOrWhiteSpace(selectedCompletionYear)) activeFilters.Add($"Completion year: {selectedCompletionYear}");
+    var completedWindow = ProjectManagement.Pages.Projects.IndexModel.DescribeWindow(Model.CompletedFrom, Model.CompletedTo);
+    if (completedWindow is not null) activeFilters.Add($"Completed {completedWindow}");
+    var stageWindow = ProjectManagement.Pages.Projects.IndexModel.DescribeWindow(Model.StageCompletedFrom, Model.StageCompletedTo);
+    if (stageWindow is not null) activeFilters.Add($"Stage completed {stageWindow}");
     var selectedTotStatus = Model.TotStatusOptions.FirstOrDefault(o => o.Selected && !string.IsNullOrEmpty(o.Value))?.Text;
     if (!string.IsNullOrWhiteSpace(selectedTotStatus)) activeFilters.Add($"ToT: {selectedTotStatus}");
     if (Model.ProjectTypeUnclassified) activeFilters.Add("Project type: Unclassified");
@@ -71,6 +75,10 @@
             <input type="hidden" name="Dir" value="@Model.Dir" data-project-sort-direction-field />
             @if (!string.IsNullOrWhiteSpace(Model.StageCode)) { <input type="hidden" name="StageCode" value="@Model.StageCode" /> }
             @if (!string.IsNullOrWhiteSpace(Model.StageCompletedMonth)) { <input type="hidden" name="StageCompletedMonth" value="@Model.StageCompletedMonth" /> }
+            @if (Model.CompletedFrom.HasValue) { <input type="hidden" name="CompletedFrom" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.CompletedFrom)" /> }
+            @if (Model.CompletedTo.HasValue) { <input type="hidden" name="CompletedTo" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.CompletedTo)" /> }
+            @if (Model.StageCompletedFrom.HasValue) { <input type="hidden" name="StageCompletedFrom" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.StageCompletedFrom)" /> }
+            @if (Model.StageCompletedTo.HasValue) { <input type="hidden" name="StageCompletedTo" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.StageCompletedTo)" /> }
             @if (!string.IsNullOrWhiteSpace(Model.SlipBucket)) { <input type="hidden" name="SlipBucket" value="@Model.SlipBucket" /> }
             @if (Model.IncludeCategoryDescendants) { <input type="hidden" name="IncludeCategoryDescendants" value="true" /> }
 
