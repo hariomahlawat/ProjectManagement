@@ -404,7 +404,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                     StageName = group.Key.StageName,
                     StageOrder = group.Min(item => item.StageOrder),
                     Bucket = group.Key.Bucket,
-                    MedianDays = CalculateMedian(durations),
+                    MedianDays = AnalyticsAggregation.CalculateMedian(durations),
                     AverageDays = durations.Length == 0 ? 0 : durations.Average(),
                     ProjectCount = projectIds.Length,
                     CompletedProjectCount = completedProjects,
@@ -457,7 +457,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                     StageKey = group.Key.StageKey,
                     StageName = group.Key.StageName,
                     StageOrder = group.Min(item => item.StageOrder),
-                    MedianDays = CalculateMedian(durations),
+                    MedianDays = AnalyticsAggregation.CalculateMedian(durations),
                     AverageDays = durations.Average(),
                     ProjectCount = projectCount
                 };
@@ -735,20 +735,6 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
     private static double CalculateStageDurationDays(DateOnly start, DateOnly end)
         => StageDurationCalculator.InclusiveCalendarDays(start, end);
-
-    private static double CalculateMedian(double[] orderedValues)
-    {
-        if (orderedValues.Length == 0)
-        {
-            return 0;
-        }
-
-        var count = orderedValues.Length;
-        var midpoint = count / 2;
-        return count % 2 == 1
-            ? orderedValues[midpoint]
-            : (orderedValues[midpoint - 1] + orderedValues[midpoint]) / 2.0;
-    }
 
     private static int BucketSortOrder(string bucket)
     {
