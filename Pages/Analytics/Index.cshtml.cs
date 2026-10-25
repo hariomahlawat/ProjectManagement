@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Execution;
@@ -88,6 +89,24 @@ namespace ProjectManagement.Pages.Analytics
         public CoeAnalyticsVm? Coe { get; private set; }
         public StageTimeInsightsPanelVm? Insights { get; private set; }
 
+        // SECTION: Page header and headline figures
+        private static readonly TimeZoneInfo IndiaStandardTime = IstClock.TimeZone;
+
+        /// <summary>When the figures were read, in IST; shown as the page's "as of" date.</summary>
+        public DateTimeOffset AsOfIst { get; private set; }
+
+        /// <summary>Three or four large figures that open the active mode, computed from data already loaded.</summary>
+        public IReadOnlyList<HeadlineFigure> Headlines { get; private set; } = Array.Empty<HeadlineFigure>();
+
+        /// <summary>Workflow stages in order, so every stage chart draws the same axis.</summary>
+        public IReadOnlyList<WorkflowStageOption> WorkflowStages { get; } = StageCodes.All
+            .Select(code => new WorkflowStageOption(code, StageCodes.DisplayNameOf(code)))
+            .ToList();
+
+        public sealed record HeadlineFigure(string Label, string Value, string? Hint = null, string? Href = null);
+        public sealed record WorkflowStageOption(string Code, string Name);
+        // END SECTION
+
         public ProjectLifecycleFilter DefaultLifecycle => ProjectLifecycleFilter.Active;
 
         public int LifecycleViewCount => LifecycleFilters.Length;
@@ -106,6 +125,7 @@ namespace ProjectManagement.Pages.Analytics
                 _ => AnalyticsTab.Ongoing
             };
 
+            AsOfIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime);
             await LoadAnalyticsAsync(cancellationToken);
 
             // SECTION: Active tab hydration
@@ -128,33 +148,169 @@ namespace ProjectManagement.Pages.Analytics
                 case AnalyticsTab.Insights:
                 {
                     // SECTION: Stage time insight loading
+                    // One category filter drives the cycle-time chart and the hotspot list. The old
+                    // hotspotCategoryId query key still works for bookmarked links.
+                    var insightCategoryId = StageTimeCategoryId ?? StageHotspotCategoryId;
                     var stageCycleResult = await _projectAnalyticsService
-                        .GetStageTimeInsightsAsync(StageTimeCategoryId, cancellationToken);
-
-                    var hotspotResult = StageHotspotCategoryId == StageTimeCategoryId
-                        ? stageCycleResult
-                        : await _projectAnalyticsService
-                            .GetStageTimeInsightsAsync(StageHotspotCategoryId, cancellationToken);
+                        .GetStageTimeInsightsAsync(insightCategoryId, cancellationToken);
                     // END SECTION
+
+                    var ranked = RankStageHotspots(stageCycleResult.StageHotspots, out var portfolioMedian);
 
                     Insights = new StageTimeInsightsPanelVm
                     {
                         StageCycleTime = new StageTimeCycleChartVm
                         {
                             Rows = stageCycleResult.Rows,
-                            SelectedCategoryId = StageTimeCategoryId ?? stageCycleResult.SelectedCategoryId
+                            SelectedCategoryId = insightCategoryId ?? stageCycleResult.SelectedCategoryId
                         },
                         StageHotspots = new StageHotspotChartVm
                         {
-                            Points = hotspotResult.StageHotspots,
-                            SelectedCategoryId = StageHotspotCategoryId ?? hotspotResult.SelectedCategoryId
-                        }
+                            Points = stageCycleResult.StageHotspots,
+                            SelectedCategoryId = insightCategoryId ?? stageCycleResult.SelectedCategoryId
+                        },
+                        SelectedCategoryId = insightCategoryId ?? stageCycleResult.SelectedCategoryId,
+                        PortfolioMedianDays = portfolioMedian,
+                        RankedHotspots = ranked
                     };
                     break;
                 }
             }
             // END SECTION
+
+            Headlines = BuildHeadlines();
         }
+
+        // SECTION: Headline figures
+        private IReadOnlyList<HeadlineFigure> BuildHeadlines()
+        {
+            var ongoingUrl = PageUrl("/Projects/Ongoing/Index");
+            var completedUrl = PageUrl("/Projects/Index", new { Lifecycle = ProjectLifecycleFilter.Completed });
+
+            switch (ActiveTab)
+            {
+                case AnalyticsTab.Ongoing when Ongoing is not null:
+                    return new[]
+                    {
+                        new HeadlineFigure("Ongoing projects", Ongoing.TotalOngoingProjects.ToString(), "in the portfolio", ongoingUrl),
+                        new HeadlineFigure(
+                            "Busiest stage",
+                            Ongoing.TopStageName ?? "—",
+                            Ongoing.TopStageName is null ? null : $"{Ongoing.TopStageCount} {Plural(Ongoing.TopStageCount, "project")} there now"),
+                        new HeadlineFigure(
+                            "Median time in stage",
+                            FormatDays(Ongoing.MedianDaysInCurrentStage),
+                            "days in the current stage"),
+                        new HeadlineFigure(
+                            $"Past {OngoingAnalyticsVm.LongStageThresholdDays} days",
+                            Ongoing.ProjectsPastThreshold.ToString(),
+                            $"{Plural(Ongoing.ProjectsPastThreshold, "project")} in one stage longer than that")
+                    };
+
+                case AnalyticsTab.Completed when Completed is not null:
+                    return new[]
+                    {
+                        new HeadlineFigure("Completed projects", Completed.TotalCompletedProjects.ToString(), "all time", completedUrl),
+                        new HeadlineFigure(
+                            "This year",
+                            Completed.CompletedThisYear.ToString(),
+                            $"completed in {AsOfIst.Year}",
+                            PageUrl("/Projects/Index", new { Lifecycle = ProjectLifecycleFilter.Completed, CompletedYear = AsOfIst.Year })),
+                        new HeadlineFigure(
+                            "Best year",
+                            Completed.BestYear?.ToString() ?? "—",
+                            Completed.BestYear is null ? null : $"{Completed.BestYearCount} {Plural(Completed.BestYearCount, "project")} completed",
+                            Completed.BestYear is null ? null : PageUrl("/Projects/Index", new { Lifecycle = ProjectLifecycleFilter.Completed, CompletedYear = Completed.BestYear })),
+                        new HeadlineFigure(
+                            "Median time to complete",
+                            FormatYears(Completed.MedianDaysToComplete),
+                            "from first stage start to completion")
+                    };
+
+                case AnalyticsTab.Coe when Coe is not null:
+                    return new[]
+                    {
+                        new HeadlineFigure("CoE projects", Coe.TotalCoeProjects.ToString(), "all time"),
+                        new HeadlineFigure("Ongoing", Coe.OngoingCount.ToString(), "CoE projects in progress"),
+                        new HeadlineFigure("Completed", Coe.CompletedCount.ToString(), $"{Coe.CompletedThisYearCount} this year"),
+                        new HeadlineFigure("Sub-categories", Coe.SubcategoryProjects.Count.ToString(), "with at least one project")
+                    };
+
+                case AnalyticsTab.Insights when Insights is not null:
+                    var slowest = Insights.SlowestStage;
+                    var fastest = Insights.FastestStage;
+                    return new[]
+                    {
+                        new HeadlineFigure(
+                            "Slowest stage",
+                            slowest?.StageName ?? "—",
+                            slowest is null ? null : $"{FormatDays(slowest.MedianDays)} {Plural((int)Math.Round(slowest.MedianDays), "day")} median"),
+                        new HeadlineFigure(
+                            "Fastest stage",
+                            fastest?.StageName ?? "—",
+                            fastest is null ? null : $"{FormatDays(fastest.MedianDays)} {Plural((int)Math.Round(fastest.MedianDays), "day")} median"),
+                        new HeadlineFigure(
+                            "Portfolio median",
+                            FormatDays(Insights.RankedHotspots.Count > 0 ? Insights.PortfolioMedianDays : null),
+                            "days per stage, across all stages"),
+                        new HeadlineFigure(
+                            "Stages measured",
+                            Insights.RankedHotspots.Count.ToString(),
+                            "with recorded start and end dates")
+                    };
+
+                default:
+                    return Array.Empty<HeadlineFigure>();
+            }
+        }
+
+        private static IReadOnlyList<StageHotspotRankVm> RankStageHotspots(
+            IReadOnlyList<StageHotspotPointVm> points,
+            out double portfolioMedian)
+        {
+            var measured = points
+                .Where(point => point.ProjectCount > 0)
+                .OrderByDescending(point => point.MedianDays)
+                .ThenBy(point => point.StageOrder)
+                .ToList();
+
+            portfolioMedian = CalculateMedian(measured.Select(point => point.MedianDays).ToList());
+            var slowestMedian = measured.Count > 0 ? measured[0].MedianDays : 0;
+            var baseline = portfolioMedian;
+
+            return measured
+                .Select((point, index) => new StageHotspotRankVm(
+                    Rank: index + 1,
+                    StageKey: point.StageKey,
+                    StageName: point.StageName,
+                    MedianDays: point.MedianDays,
+                    AverageDays: point.AverageDays,
+                    ProjectCount: point.ProjectCount,
+                    RatioToPortfolioMedian: baseline > 0 ? point.MedianDays / baseline : 0,
+                    ShareOfSlowest: slowestMedian > 0 ? point.MedianDays / slowestMedian : 0))
+                .ToList();
+        }
+
+        /// <summary>Url.Page needs a request; unit tests build the model without one, so headlines then carry no links.</summary>
+        private string? PageUrl(string page, object? values = null) =>
+            PageContext?.HttpContext is null ? null : (values is null ? Url.Page(page) : Url.Page(page, values));
+
+        private static string Plural(int count, string noun) => count == 1 ? noun : noun + "s";
+
+        private static string FormatDays(double? days) =>
+            days.HasValue ? Math.Round(days.Value).ToString("0") : "—";
+
+        private static string FormatYears(double? days)
+        {
+            if (!days.HasValue)
+            {
+                return "—";
+            }
+
+            var years = days.Value / 365.25;
+            return years >= 1 ? $"{years:0.0} yr" : $"{Math.Round(days.Value):0} d";
+        }
+        // END SECTION
 
         private async Task LoadAnalyticsAsync(CancellationToken cancellationToken)
         {
@@ -247,6 +403,12 @@ namespace ProjectManagement.Pages.Analytics
                 .ToList();
             // END SECTION
 
+            // SECTION: Headline figures (this year, best year, median time to complete)
+            var currentYear = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime).Year;
+            var bestYear = perYear.OrderByDescending(point => point.Count).ThenByDescending(point => point.Year).FirstOrDefault();
+            var medianDaysToComplete = await BuildMedianDaysToCompleteAsync(completedQuery, cancellationToken);
+            // END SECTION
+
             return new CompletedAnalyticsVm
             {
                 ByCategory = byCategory,
@@ -254,10 +416,39 @@ namespace ProjectManagement.Pages.Analytics
                 PerYear = perYear,
                 PerYearByParentCategory = perYearByParentCategory,
                 YearBoard = yearBoard,
-                TotalCompletedProjects = await completedQuery.CountAsync(cancellationToken)
+                TotalCompletedProjects = await completedQuery.CountAsync(cancellationToken),
+                CompletedThisYear = perYear.FirstOrDefault(point => point.Year == currentYear)?.Count ?? 0,
+                BestYear = bestYear?.Year,
+                BestYearCount = bestYear?.Count ?? 0,
+                MedianDaysToComplete = medianDaysToComplete
             };
             // END SECTION
         }
+
+        // SECTION: Median time to complete (first stage start to completion)
+        private async Task<double?> BuildMedianDaysToCompleteAsync(
+            IQueryable<Project> completedQuery,
+            CancellationToken cancellationToken)
+        {
+            var rows = await completedQuery
+                .Where(project => project.CompletedOn.HasValue)
+                .Select(project => new
+                {
+                    project.CompletedOn,
+                    FirstStart = project.ProjectStages
+                        .Where(stage => stage.ActualStart.HasValue)
+                        .Min(stage => stage.ActualStart)
+                })
+                .ToListAsync(cancellationToken);
+
+            var spans = rows
+                .Where(row => row.FirstStart.HasValue && row.CompletedOn.HasValue && row.CompletedOn.Value >= row.FirstStart.Value)
+                .Select(row => (double)StageDurationCalculator.InclusiveCalendarDays(row.FirstStart!.Value, row.CompletedOn!.Value))
+                .ToList();
+
+            return spans.Count == 0 ? null : CalculateMedian(spans);
+        }
+        // END SECTION
 
         private async Task<OngoingAnalyticsVm> BuildOngoingAnalyticsAsync(CancellationToken cancellationToken)
         {
@@ -277,13 +468,26 @@ namespace ProjectManagement.Pages.Analytics
                 cancellationToken);
             var stageDurations = await BuildOngoingStageDurationsAsync(cancellationToken);
 
+            // SECTION: Headline figures from the (filtered) stage rows
+            var stageRows = await BuildOngoingStageRowsAsync(ActiveOngoingStageParentCategoryIds, cancellationToken);
+            var topStage = stageBoard.OrderByDescending(item => item.StageCount).FirstOrDefault();
+            var stageAges = stageRows
+                .Where(row => row.DaysInStage.HasValue)
+                .Select(row => (double)row.DaysInStage!.Value)
+                .ToList();
+            // END SECTION
+
             return new OngoingAnalyticsVm
             {
                 TotalOngoingProjects = total,
                 ByStage = byStage,
                 ByStageByParentCategory = byStageByParentCategory,
                 StageBoard = stageBoard,
-                AvgStageDurations = stageDurations
+                AvgStageDurations = stageDurations,
+                TopStageName = topStage?.StageName,
+                TopStageCount = topStage?.StageCount ?? 0,
+                MedianDaysInCurrentStage = stageAges.Count == 0 ? null : CalculateMedian(stageAges),
+                ProjectsPastThreshold = stageAges.Count(days => days > OngoingAnalyticsVm.LongStageThresholdDays)
             };
             // END SECTION
         }
@@ -320,12 +524,25 @@ namespace ProjectManagement.Pages.Analytics
                 coeProjectsQuery,
                 cancellationToken);
 
+            // SECTION: Headline figures
+            var currentYear = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime).Year;
+            var ongoingCount = await coeProjectsQuery.CountAsync(p => p.LifecycleStatus == ProjectLifecycleStatus.Active, cancellationToken);
+            var completedCount = await coeProjectsQuery.CountAsync(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed, cancellationToken);
+            var completedThisYear = await coeProjectsQuery.CountAsync(
+                p => p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                    && (p.CompletedYear ?? (p.CompletedOn.HasValue ? p.CompletedOn.Value.Year : (int?)null)) == currentYear,
+                cancellationToken);
+            // END SECTION
+
             return new CoeAnalyticsVm
             {
                 ByStage = stageBuckets,
                 SubcategoriesByLifecycle = subcategoryBreakdown,
                 SubcategoryProjects = subcategoryProjects,
-                TotalCoeProjects = totalCoeProjects
+                TotalCoeProjects = totalCoeProjects,
+                OngoingCount = ongoingCount,
+                CompletedCount = completedCount,
+                CompletedThisYearCount = completedThisYear
             };
             // END SECTION
         }
@@ -600,6 +817,7 @@ namespace ProjectManagement.Pages.Analytics
                     return new
                     {
                         Subcategory = NormalizeCoeSubcategoryName(row.CategoryName),
+                        row.LifecycleStatus,
                         Project = new CoeProjectSummaryVm(
                             row.Id,
                             row.Name,
@@ -612,7 +830,10 @@ namespace ProjectManagement.Pages.Analytics
                     group.Key,
                     group.Select(item => item.Project)
                         .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
-                        .ToList()))
+                        .ToList(),
+                    OngoingCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Active),
+                    CompletedCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Completed),
+                    CancelledCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Cancelled)))
                 .OrderBy(bucket => bucket.SubcategoryName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -1067,7 +1288,8 @@ namespace ProjectManagement.Pages.Analytics
                         StageCode: stageCode,
                         StageName: stageName,
                         ParentCategoryId: rootCategory?.Id,
-                        ParentCategoryName: rootCategory?.Name ?? "Uncategorized");
+                        ParentCategoryName: rootCategory?.Name ?? "Uncategorized",
+                        DaysInStage: stage.DaysSinceStartOrLastCompletion);
                 })
                 .ToList();
 
@@ -1283,7 +1505,8 @@ namespace ProjectManagement.Pages.Analytics
             string StageCode,
             string StageName,
             int? ParentCategoryId,
-            string ParentCategoryName);
+            string ParentCategoryName,
+            int? DaysInStage);
         // END SECTION
 
         public sealed record CategoryOption(int Id, string Name);

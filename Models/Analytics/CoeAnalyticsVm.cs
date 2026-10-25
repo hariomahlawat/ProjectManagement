@@ -18,6 +18,12 @@ public sealed class CoeAnalyticsVm
     public bool HasCoeProjects => TotalCoeProjects > 0;
 
     public bool HasSubcategoryBreakdown => SubcategoriesByLifecycle.Count > 0;
+
+    // SECTION: Headline figures
+    public int OngoingCount { get; init; }
+    public int CompletedCount { get; init; }
+    public int CompletedThisYearCount { get; init; }
+    // END SECTION
     // END SECTION
 
     // SECTION: Sub-category project listings
@@ -44,9 +50,13 @@ public sealed record CoeSubcategoryLifecycleVm(
 // END SECTION
 
 // SECTION: CoE sub-category project listing dataset
+/// <summary>Projects in one CoE sub-category with their lifecycle counts, resolved once from the lifecycle status.</summary>
 public sealed record CoeSubcategoryProjectsVm(
     string SubcategoryName,
-    IReadOnlyList<CoeProjectSummaryVm> Projects);
+    IReadOnlyList<CoeProjectSummaryVm> Projects,
+    int OngoingCount = 0,
+    int CompletedCount = 0,
+    int CancelledCount = 0);
 
 public sealed record CoeProjectSummaryVm(
     int Id,

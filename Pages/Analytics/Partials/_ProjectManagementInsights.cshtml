@@ -1,192 +1,119 @@
 @model ProjectManagement.Models.Analytics.StageTimeInsightsPanelVm
+@using System.Linq
 @using System.Text.Json
 @using ProjectManagement.Pages.Analytics
 
 @{
-    var jsonOptions = new JsonSerializerOptions
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
+    var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     var categories = ViewData["AnalyticsCategories"] as IEnumerable<IndexModel.CategoryOption>
         ?? Array.Empty<IndexModel.CategoryOption>();
-    var filterId = "project-category-filter";
-    var hotspotFilterId = $"{filterId}-hotspots";
-    var stageTimeCategoryId = Model.StageCycleTime.SelectedCategoryId;
-    var hotspotCategoryId = Model.StageHotspots.SelectedCategoryId;
+    var selectedCategoryId = Model.SelectedCategoryId;
+    var selectedCategoryName = selectedCategoryId.HasValue
+        ? categories.FirstOrDefault(category => category.Id == selectedCategoryId.Value)?.Name ?? "All"
+        : "All";
+    var hasData = Model.StageHotspots.HasData || Model.StageCycleTime.HasData;
+    var portfolioMedian = Model.PortfolioMedianDays;
+    static string Ratio(double ratio) => ratio >= 10 ? $"{ratio:0}×" : $"{ratio:0.0}×";
 }
 
-<!-- SECTION: Project management insights -->
 <section class="analytics-panel analytics-panel--insights" aria-label="Project management insights">
-    <div class="analytics-layout analytics-layout--shell">
-        <div class="analytics-layout__row">
-            <article class="analytics-card analytics-card--wide">
-                <header class="analytics-card__header analytics-card__header--with-actions">
-                    <div class="analytics-card__header-text">
-                        <h2 class="analytics-card__title">Stage cycle time by Project Cost Band</h2>
-                        <p class="analytics-card__meta">
-                            Median days spent in each completed stage, grouped by the latest recorded procurement cost bucket.
-                            Active stages from ongoing projects are excluded until those stages finish.
-                        </p>
-                    </div>
+  <!-- SECTION: Stage cycle time (mean/median, all projects or by cost band) -->
+  <article class="analytics-card">
+    <header class="analytics-card__head">
+      <div class="analytics-card__text">
+        <h2 class="analytics-card__title">Stage cycle time</h2>
+        <p class="analytics-card__meta">Days a finished stage took, across ongoing and completed projects. Stages still running are not counted.</p>
+      </div>
+      <div class="analytics-card__actions">
+        <form method="get" asp-page="./Index" class="analytics-filter-form" aria-label="Filter by project category">
+          <input type="hidden" name="tab" value="Insights" />
+          <label class="analytics-filter analytics-filter--select">
+            <span>Category</span>
+            <b>@selectedCategoryName</b>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            <select name="categoryId" class="analytics-filter__select" data-page-handled data-auto-submit="change" aria-label="Project category">
+              <option value="" selected="@(!selectedCategoryId.HasValue ? "selected" : null)">All</option>
+              @foreach (var category in categories)
+              {
+                <option value="@category.Id" selected="@(selectedCategoryId == category.Id ? "selected" : null)">@category.Name</option>
+              }
+            </select>
+          </label>
+        </form>
+        <button type="button" class="analytics-icon-btn" data-chart-download-target="stage-cycle-time-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
 
-                    <div class="analytics-card__header-actions">
-                        <!-- SECTION: Project category filter -->
-                        <form method="get" asp-page="./Index" class="analytics-card__filters">
-                            <input type="hidden" name="tab" value="Insights" />
-                            <input type="hidden" name="hotspotCategoryId" value="@(hotspotCategoryId?.ToString() ?? string.Empty)" />
-                            <div class="analytics-card__filter-chip">
-                                <label class="form-label mb-0" for="@filterId">
-                                    Project category
-                                </label>
-                                <select
-                                    id="@filterId"
-                                    name="categoryId"
-                                    class="form-select form-select-sm"
-                                    data-page-handled data-auto-submit="change"
-                                >
-                                    <option
-                                        value=""
-                                        selected="@(!stageTimeCategoryId.HasValue ? "selected" : null)"
-                                    >
-                                        All
-                                    </option>
-                                    @foreach (var category in categories)
-                                    {
-                                        var isSelected = stageTimeCategoryId.HasValue && stageTimeCategoryId.Value == category.Id;
-                                        <option
-                                            value="@category.Id"
-                                            selected="@(isSelected ? "selected" : null)"
-                                        >
-                                            @category.Name
-                                        </option>
-                                    }
-                                </select>
-                            </div>
-                        </form>
-                        <!-- END SECTION -->
-
-                        <button type="button"
-                                class="analytics-chart-download-btn"
-                                data-chart-download-target="stage-time-by-cost-chart"
-                                aria-label="Download chart as PNG"
-                                title="Download chart as PNG">
-                            <i class="bi bi-download" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </header>
-
-                <div class="analytics-card__body">
-                    @if (!Model.StageCycleTime.HasData)
-                    {
-                        <p class="analytics-card__empty-text">
-                            Not enough finished stages yet to calculate cycle times.
-                        </p>
-                    }
-                    else
-                    {
-                        <div class="analytics-card__chart">
-                                <canvas
-                                    id="stage-time-by-cost-chart"
-                                    role="img"
-                                    aria-label="Stage cycle time by project cost bucket"
-                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.StageCycleTime.Rows, jsonOptions))'
-                                    data-empty-message="Not enough finished stages yet to calculate cycle times."
-                                ></canvas>
-                            </div>
-
-                        <p class="analytics-card__footnote">
-                            Only stages with both actual start and completion dates are counted.
-                            Stages from ongoing projects are only included once they complete.
-                            Cost buckets use the latest AoN, benchmark, PNC, L1, or IPA entry available per project.
-                        </p>
-                    }
-                </div>
-            </article>
+    @if (hasData)
+    {
+      <div class="analytics-card__toolbar">
+        <div class="analytics-seg" role="group" aria-label="Measure" data-cycle-toggle="measure">
+          <button type="button" data-value="median" aria-pressed="true">Median</button>
+          <button type="button" data-value="mean" aria-pressed="false">Mean</button>
         </div>
-
-        <div class="analytics-layout__row">
-            <article class="analytics-card analytics-card--wide analytics-card--insights-hotspots">
-                <header class="analytics-card__header analytics-card__header--with-actions">
-                    <div class="analytics-card__header-text">
-                        <h2 class="analytics-card__title">Stage delay hotspots</h2>
-                        <p class="analytics-card__meta">
-                            Median days taken to complete each project stage. Ongoing stages are only included after they finish.
-                        </p>
-                    </div>
-
-                    <div class="analytics-card__header-actions">
-                        <!-- SECTION: Shared project category filter -->
-                        <form method="get" asp-page="./Index" class="analytics-card__filters">
-                            <input type="hidden" name="tab" value="Insights" />
-                            <input type="hidden" name="categoryId" value="@(stageTimeCategoryId?.ToString() ?? string.Empty)" />
-                            <div class="analytics-card__filter-chip">
-                                <label class="form-label mb-0" for="@hotspotFilterId">
-                                    Project category
-                                </label>
-                                <select
-                                    id="@hotspotFilterId"
-                                    name="hotspotCategoryId"
-                                    class="form-select form-select-sm"
-                                    data-page-handled data-auto-submit="change"
-                                >
-                                    <option
-                                        value=""
-                                        selected="@(!hotspotCategoryId.HasValue ? "selected" : null)"
-                                    >
-                                        All
-                                    </option>
-                                    @foreach (var category in categories)
-                                    {
-                                        var isSelected = hotspotCategoryId.HasValue && hotspotCategoryId.Value == category.Id;
-                                        <option
-                                            value="@category.Id"
-                                            selected="@(isSelected ? "selected" : null)"
-                                        >
-                                            @category.Name
-                                        </option>
-                                    }
-                                </select>
-                            </div>
-                        </form>
-                        <!-- END SECTION -->
-
-                        <button type="button"
-                                class="analytics-chart-download-btn"
-                                data-chart-download-target="stage-hotspots-chart"
-                                aria-label="Download chart as PNG"
-                                title="Download chart as PNG">
-                            <i class="bi bi-download" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </header>
-
-                <div class="analytics-card__body">
-                    @if (!Model.StageHotspots.HasData)
-                    {
-                        <p class="analytics-card__empty-text">
-                            No completed stages available yet to analyse stage delays.
-                        </p>
-                    }
-                    else
-                    {
-                        <div class="analytics-card__chart">
-                                <canvas
-                                    id="stage-hotspots-chart"
-                                    role="img"
-                                    aria-label="Stage delay hotspots - median days per stage"
-                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.StageHotspots.Points, jsonOptions))'
-                                    data-empty-message="No completed stages available yet to analyse stage delays."
-                                ></canvas>
-                        </div>
-
-                        <p class="analytics-card__footnote">
-                            Only stages with both actual start and completion dates are counted. Ongoing projects contribute once their stages finish. Outliers are included; use median to understand the central tendency.
-                        </p>
-                    }
-                </div>
-            </article>
+        <div class="analytics-seg" role="group" aria-label="Split" data-cycle-toggle="split">
+          <button type="button" data-value="all" aria-pressed="true">All projects</button>
+          <button type="button" data-value="band" aria-pressed="false">By cost band</button>
         </div>
+        <div class="analytics-card__legend analytics-card__legend--inline" data-legend="stage-cycle-time-chart"></div>
+      </div>
+    }
+    <div class="analytics-card__chart">
+      <canvas id="stage-cycle-time-chart"
+              role="img"
+              aria-label="Days per workflow stage"
+              data-empty-message="Not enough finished stages yet to measure cycle time."
+              data-rows='@Html.Raw(JsonSerializer.Serialize(Model.StageCycleTime.Rows, json))'
+              data-points='@Html.Raw(JsonSerializer.Serialize(Model.StageHotspots.Points, json))'></canvas>
     </div>
+    @if (hasData)
+    {
+      <p class="analytics-card__foot">
+        Only stages with both a start and an end date count. Cost bands use the latest AoN, benchmark, PNC, L1 or IPA figure recorded for the project.
+      </p>
+    }
+  </article>
+  <!-- END SECTION -->
+
+  <!-- SECTION: Hotspots, ranked slowest first -->
+  <article class="analytics-card">
+    <header class="analytics-card__head">
+      <div class="analytics-card__text">
+        <h2 class="analytics-card__title">Where time goes</h2>
+        <p class="analytics-card__meta">
+          Stages ranked by median days, against a portfolio median of
+          <strong>@Math.Round(portfolioMedian) days</strong> per stage@(selectedCategoryId.HasValue ? $" for {selectedCategoryName}" : "").
+          Two times the portfolio median or more is marked.
+        </p>
+      </div>
+    </header>
+    @if (Model.RankedHotspots.Count == 0)
+    {
+      <p class="analytics-empty" role="status">No finished stages yet to rank.</p>
+    }
+    else
+    {
+      <ol class="analytics-hotspots">
+        @foreach (var stage in Model.RankedHotspots)
+        {
+          var isHot = stage.RatioToPortfolioMedian >= 2;
+          var width = (int)Math.Round(100 * stage.ShareOfSlowest);
+          <li class="analytics-hotspot @(isHot ? "is-hot" : null)">
+            <span class="analytics-hotspot__rank">@stage.Rank</span>
+            <div class="analytics-hotspot__body">
+              <div class="analytics-hotspot__line">
+                <strong>@stage.StageName</strong>
+                <span>@Math.Round(stage.MedianDays) @(Math.Round(stage.MedianDays) == 1 ? "day" : "days") median · @Ratio(stage.RatioToPortfolioMedian) portfolio median · @stage.ProjectCount @(stage.ProjectCount == 1 ? "project" : "projects")@(stage.ProjectCount < 3 ? ", small sample" : "")</span>
+              </div>
+              <span class="analytics-hotspot__track" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+            </div>
+            <span class="analytics-hotspot__days"><b>@Math.Round(stage.MedianDays)</b><small>days</small></span>
+          </li>
+        }
+      </ol>
+    }
+  </article>
+  <!-- END SECTION -->
 </section>
-<!-- END SECTION -->

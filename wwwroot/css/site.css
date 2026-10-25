@@ -173,6 +173,30 @@
     --pm-chart-accent-4: #a855f7;
     --pm-chart-accent-5: #ec4899;
     --pm-chart-accent-6: #14b8a6;
+    /* Chart vocabulary (Analytics and any Chart.js canvas): one hue per meaning, defined once.
+       Categories: DCD blue, CoE green, Other R&D amber. Lifecycle: Ongoing blue, Completed green,
+       Cancelled grey. A comparison (mean vs median, two cost bands) is ONE hue in two tints. */
+    --pm-chart-font: var(--pm-font-body);
+    --pm-chart-text: #5f6673;
+    --pm-chart-text-strong: #0f172a;
+    --pm-chart-grid-soft: rgba(15, 23, 42, .07);
+    --pm-chart-label: #0f172a;
+    --pm-chart-label-on-fill: #ffffff;
+    --pm-chart-tooltip-bg: #ffffff;
+    --pm-chart-tooltip-text: #0b1220;
+    --pm-chart-tooltip-muted: #5f6673;
+    --pm-chart-tooltip-border: #e5e7eb;
+    --pm-chart-primary: #2563eb;
+    --pm-chart-primary-soft: #93b4f6;
+    --pm-chart-primary-track: #e2e8f5;
+    --pm-chart-cat-dcd: #2563eb;
+    --pm-chart-cat-coe: #16a34a;
+    --pm-chart-cat-other: #d97706;
+    --pm-chart-cat-neutral: #9aa3b2;
+    --pm-chart-ongoing: #2563eb;
+    --pm-chart-completed: #16a34a;
+    --pm-chart-cancelled: #9aa3b2;
+    --pm-chart-hotspot: #e11d48;
     /* -- SECTION: Effects & typography -- */
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
     /* Card depth: a hairline-soft contact shadow plus a long faint drop, so white cards lift off the page. */
@@ -411,6 +435,26 @@
     --pm-chart-accent-4: #c084fc;
     --pm-chart-accent-5: #f472b6;
     --pm-chart-accent-6: #2dd4bf;
+    --pm-chart-text: var(--pm-dark-text-muted);
+    --pm-chart-text-strong: #f0f2f4;
+    --pm-chart-grid-soft: rgba(255, 255, 255, .08);
+    --pm-chart-label: #f0f2f4;
+    --pm-chart-label-on-fill: #0e0f11;
+    --pm-chart-tooltip-bg: var(--pm-dark-raised);
+    --pm-chart-tooltip-text: #f0f2f4;
+    --pm-chart-tooltip-muted: var(--pm-dark-text-muted);
+    --pm-chart-tooltip-border: var(--pm-dark-strong-border);
+    --pm-chart-primary: #6ea8fe;
+    --pm-chart-primary-soft: #3f5f94;
+    --pm-chart-primary-track: #25282d;
+    --pm-chart-cat-dcd: #6ea8fe;
+    --pm-chart-cat-coe: #4ade80;
+    --pm-chart-cat-other: #fbbf24;
+    --pm-chart-cat-neutral: #6b7280;
+    --pm-chart-ongoing: #6ea8fe;
+    --pm-chart-completed: #4ade80;
+    --pm-chart-cancelled: #6b7280;
+    --pm-chart-hotspot: #fb7185;
     /* Remaining accents: lifted for text and marks on graphite; soft ones become tints */
     --pm-accent-blue-glow: color-mix(in srgb, #6ea8fe 30%, #16181b);
     --pm-accent-blue-muted: color-mix(in srgb, #6ea8fe 35%, #16181b);

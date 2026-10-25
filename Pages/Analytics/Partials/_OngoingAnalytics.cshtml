@@ -3,206 +3,130 @@
 @using System.Text.Json
 
 @{
-    // SECTION: Ongoing analytics serialization
-    var ongoingAnalytics = Model.Ongoing!;
-    var jsonOptions = new JsonSerializerOptions
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    var ongoing = Model.Ongoing!;
+    var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var stageSeries = ongoing.ByStageByParentCategory.Count > 0
+        ? ongoing.ByStageByParentCategory.Cast<object>().ToList()
+        : ongoing.ByStage.Cast<object>().ToList();
+    var stageBoard = ongoing.StageBoard;
+    var maxStageCount = stageBoard.Count > 0 ? stageBoard.Max(item => item.StageCount) : 0;
 
-    var stageSeries = ongoingAnalytics.ByStageByParentCategory.Count > 0
-        ? ongoingAnalytics.ByStageByParentCategory.Cast<object>().ToList()
-        : ongoingAnalytics.ByStage.Cast<object>().ToList();
-    var stageBoard = ongoingAnalytics.StageBoard ?? Array.Empty<ProjectManagement.Models.Analytics.OngoingStageBoardItemVm>();
-    var selectedStageParentCategoryIds = Model.ActiveOngoingStageParentCategoryIds;
-    var stageParentCategoryOptions = Model.OngoingStageParentCategoryOptions.ToList();
-    var selectedCount = selectedStageParentCategoryIds.Count;
-    var hasExplicitSelection = selectedCount > 0;
-    var selectAllByDefault = !hasExplicitSelection;
-    var selectedNames = stageParentCategoryOptions
-        .Where(option => selectedStageParentCategoryIds.Contains(option.Id))
-        .Select(option => option.Name)
-        .ToList();
-    var categorySummaryValue = !hasExplicitSelection || selectedCount >= stageParentCategoryOptions.Count
+    var options = Model.OngoingStageParentCategoryOptions.ToList();
+    var selectedIds = Model.ActiveOngoingStageParentCategoryIds;
+    var hasSelection = selectedIds.Count > 0 && selectedIds.Count < options.Count;
+    var summary = !hasSelection
         ? "All"
-        : selectedCount == 1 && selectedNames.Count == 1
-            ? selectedNames[0]
-            : $"{selectedCount} selected";
-    // END SECTION
+        : selectedIds.Count == 1
+            ? options.First(option => option.Id == selectedIds[0]).Name
+            : $"{selectedIds.Count} selected";
+    var overviewUrl = Url.Page("/Projects/Overview");
+    var insightsUrl = Url.Page("./Index", new { tab = "Insights" });
 }
 
 <section class="analytics-panel analytics-panel--ongoing" aria-label="Ongoing projects analytics">
-    <!-- SECTION: Ongoing analytics layout -->
-    <div class="analytics-layout">
-        <div class="analytics-grid analytics-grid--ongoing">
-
-            <!-- Card: stage distribution -->
-            <article class="analytics-card analytics-card--wide analytics-card--ongoing-stage-main">
-                <header class="analytics-card__header analytics-card__header--with-actions">
-                    <div class="analytics-card__header-text">
-                        <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
-                        <p class="analytics-card__meta">How many ongoing projects are currently in each stage.</p>
-                    </div>
-
-                    <div class="analytics-card__header-actions">
-                        <!-- SECTION: Ongoing stage parent category filter -->
-                        <form method="get"
-                              asp-page="/Analytics/Index"
-                              class="analytics-stage-filter-form"
-                              aria-label="Filter ongoing projects by parent category">
-                            <input type="hidden" name="tab" value="ongoing" />
-
-                            <button type="button"
-                                    class="analytics-stage-filter-trigger"
-                                    data-stage-filter-trigger
-                                    aria-haspopup="dialog"
-                                    aria-expanded="false"
-                                    aria-controls="ongoing-stage-parent-category-popover">
-                                <span class="analytics-stage-filter-trigger__label">Parent categories:</span>
-                                <span class="analytics-stage-filter-trigger__value"
-                                      data-stage-filter-summary>@categorySummaryValue</span>
-                                <i class="bi bi-chevron-down analytics-stage-filter-trigger__icon" aria-hidden="true"></i>
-                            </button>
-
-                            <div id="ongoing-stage-parent-category-popover"
-                                 class="analytics-stage-filter-popover"
-                                 data-stage-filter-popover
-                                 role="dialog"
-                                 aria-label="Parent categories filter"
-                                 hidden>
-                                <p class="analytics-stage-filter-popover__title">Parent categories</p>
-
-                                <div class="analytics-stage-filter-options">
-                                    @foreach (var option in stageParentCategoryOptions)
-                                    {
-                                        var isChecked = selectAllByDefault || selectedStageParentCategoryIds.Contains(option.Id);
-                                        var optionId = $"ongoing-stage-parent-category-option-{option.Id}";
-
-                                        <label for="@optionId" class="analytics-stage-filter-option">
-                                            <input id="@optionId"
-                                                   type="checkbox"
-                                                   name="ongoingStageParentCategoryIds"
-                                                   value="@option.Id"
-                                                   class="form-check-input analytics-stage-filter-option__checkbox"
-                                                   checked="@isChecked"
-                                                   data-stage-filter-option />
-                                            <span class="analytics-stage-filter-option__label">@option.Name</span>
-                                        </label>
-                                    }
-                                </div>
-
-                                <div class="analytics-stage-filter-actions">
-                                    <div class="analytics-stage-filter-actions__left">
-                                        <button type="button"
-                                                class="btn btn-sm btn-link"
-                                                data-stage-filter-select-all>
-                                            Select all
-                                        </button>
-                                        <button type="button"
-                                                class="btn btn-sm btn-link"
-                                                data-stage-filter-clear>
-                                            Clear
-                                        </button>
-                                    </div>
-                                    <button type="submit" class="btn btn-sm btn-primary" data-stage-filter-apply>
-                                        Apply
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                        <!-- END SECTION -->
-
-                        <button type="button"
-                                class="analytics-chart-download-btn"
-                                data-chart-download-target="ongoing-by-stage-chart"
-                                aria-label="Download chart as PNG"
-                                title="Download chart as PNG">
-                            <i class="bi bi-download" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </header>
-                <div class="analytics-card__body analytics-card__body--ongoing-stage-main">
-                    <div class="analytics-card__chart analytics-card__chart--ongoing-stage">
-                        <canvas id="ongoing-by-stage-chart"
-                                aria-label="Ongoing projects by current stage"
-                                role="img"
-                                data-empty-message="No ongoing projects found for the selected parent categories."
-                                data-series='@Html.Raw(JsonSerializer.Serialize(stageSeries, jsonOptions))'></canvas>
-                    </div>
-
-                    <!-- SECTION: Ongoing stage textual drill-down board -->
-                    @if (stageBoard.Count == 0)
-                    {
-                        <p class="analytics-card__empty-text analytics-stage-board__empty">
-                            No ongoing projects found for the selected parent categories.
-                        </p>
-                    }
-                    else
-                    {
-                        <section class="analytics-stage-board" aria-label="Ongoing projects stage drill-down">
-                            @foreach (var stageItem in stageBoard)
-                            {
-                                <article class="analytics-stage-board__stage-column"
-                                         aria-label="@($"{stageItem.StageName} stage with {stageItem.StageCount} projects")">
-                                    <h3 class="analytics-stage-board__stage-title">@stageItem.StageName (@stageItem.StageCount)</h3>
-
-                                    @foreach (var category in stageItem.Categories)
-                                    {
-                                        <section class="analytics-stage-board__category-group"
-                                                 aria-label="@($"{category.ParentCategoryName} with {category.CategoryCount} projects")">
-                                            <h4 class="analytics-stage-board__category-title">
-                                                <span class="analytics-stage-board__category-dot analytics-stage-board__category-dot--neutral"
-                                                      data-category-name="@category.ParentCategoryName"
-                                                      aria-hidden="true"></span>
-                                                @category.ParentCategoryName (@category.CategoryCount)
-                                            </h4>
-                                            <ol class="analytics-stage-board__project-list">
-                                                @foreach (var project in category.Projects)
-                                                {
-                                                    <li class="analytics-stage-board__project-item" title="@project.ProjectName">
-                                                        @project.ProjectName
-                                                    </li>
-                                                }
-                                            </ol>
-                                        </section>
-                                    }
-                                </article>
-                            }
-                        </section>
-                    }
-                    <!-- END SECTION -->
+  <!-- SECTION: Ongoing projects by current stage -->
+  <article class="analytics-card">
+    <header class="analytics-card__head">
+      <div class="analytics-card__text">
+        <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
+        <p class="analytics-card__meta">Every workflow stage in order; click a bar to open those projects.</p>
+      </div>
+      <div class="analytics-card__actions">
+        <form method="get" asp-page="/Analytics/Index" class="analytics-filter-form" data-stage-filter-form aria-label="Filter by parent category">
+          <input type="hidden" name="tab" value="ongoing" />
+          <button type="button"
+                  class="analytics-filter"
+                  data-stage-filter-trigger
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-controls="ongoing-stage-parent-category-popover">
+            <span>Parent category</span>
+            <b data-stage-filter-summary>@summary</b>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+          </button>
+          <div id="ongoing-stage-parent-category-popover"
+               class="analytics-popover"
+               data-stage-filter-popover
+               role="dialog"
+               aria-label="Parent categories"
+               hidden>
+            <p class="analytics-popover__title">Parent categories</p>
+            <div class="analytics-popover__options">
+              @foreach (var option in options)
+              {
+                var isChecked = !hasSelection || selectedIds.Contains(option.Id);
+                var optionId = $"ongoing-stage-parent-category-option-{option.Id}";
+                <div class="analytics-popover__option">
+                  <input id="@optionId" type="checkbox" name="ongoingStageParentCategoryIds" value="@option.Id" class="form-check-input" checked="@isChecked" data-stage-filter-option />
+                  <label for="@optionId"><i class="analytics-dot" data-category-dot="@option.Name" aria-hidden="true"></i>@option.Name</label>
                 </div>
-            </article>
-
-            <!-- Card: time-in-stage -->
-            <article class="analytics-card analytics-card--wide">
-                <header class="analytics-card__header analytics-card__header--with-actions">
-                    <div class="analytics-card__header-text">
-                        <h2 class="analytics-card__title">Average time spent in each stage</h2>
-                        <p class="analytics-card__meta">
-                            Mean and median number of days ongoing projects spend in each stage.
-                        </p>
-                    </div>
-
-                    <button type="button"
-                            class="analytics-chart-download-btn"
-                            data-chart-download-target="ongoing-stage-duration-chart"
-                            aria-label="Download chart as PNG"
-                            title="Download chart as PNG">
-                        <i class="bi bi-download" aria-hidden="true"></i>
-                    </button>
-                </header>
-                <div class="analytics-card__body">
-                    <div class="analytics-card__chart">
-                        <canvas id="ongoing-stage-duration-chart"
-                                aria-label="Average time spent in each stage"
-                                role="img"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(ongoingAnalytics.AvgStageDurations, jsonOptions))'></canvas>
-                    </div>
-                </div>
-            </article>
-
-        </div>
+              }
+            </div>
+            <div class="analytics-popover__actions">
+              <button type="button" class="btn btn-sm btn-link" data-stage-filter-select-all>Select all</button>
+              <button type="button" class="btn btn-sm btn-link" data-stage-filter-clear>Clear</button>
+              <button type="submit" class="btn btn-sm btn-primary ms-auto">Apply</button>
+            </div>
+          </div>
+        </form>
+        <button type="button" class="analytics-icon-btn" data-chart-download-target="ongoing-by-stage-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+    <div class="analytics-card__legend" data-legend="ongoing-by-stage-chart"></div>
+    <div class="analytics-card__chart">
+      <canvas id="ongoing-by-stage-chart"
+              role="img"
+              aria-label="Ongoing projects by current stage"
+              data-empty-message="No ongoing projects in the selected parent categories."
+              data-series='@Html.Raw(JsonSerializer.Serialize(stageSeries, json))'></canvas>
     </div>
+
+    <!-- SECTION: Stage drill-down (stage → category → projects) -->
+    @if (stageBoard.Count > 0)
+    {
+      <section class="analytics-drill" aria-label="Ongoing projects by stage">
+        <h3 class="analytics-drill__title">Projects in each stage</h3>
+        @foreach (var stage in stageBoard)
+        {
+          var width = maxStageCount > 0 ? (int)Math.Round(100.0 * stage.StageCount / maxStageCount) : 0;
+          <details class="analytics-drill__row">
+            <summary class="analytics-drill__summary">
+              <span class="analytics-drill__name">@stage.StageName</span>
+              <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+              <span class="analytics-drill__chips">
+                @foreach (var category in stage.Categories)
+                {
+                  <span class="analytics-drill__chip"><i class="analytics-dot" data-category-dot="@category.ParentCategoryName" aria-hidden="true"></i>@category.ParentCategoryName <b>@category.CategoryCount</b></span>
+                }
+              </span>
+              <span class="analytics-drill__count">@stage.StageCount</span>
+              <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
+            </summary>
+            <div class="analytics-drill__body">
+              @foreach (var category in stage.Categories)
+              {
+                <div class="analytics-drill__group">
+                  <h4><i class="analytics-dot" data-category-dot="@category.ParentCategoryName" aria-hidden="true"></i>@category.ParentCategoryName <span>@category.CategoryCount</span></h4>
+                  <ol>
+                    @foreach (var project in category.Projects)
+                    {
+                      <li><a href="@overviewUrl?id=@project.ProjectId">@project.ProjectName</a></li>
+                    }
+                  </ol>
+                </div>
+              }
+            </div>
+          </details>
+        }
+      </section>
+    }
     <!-- END SECTION -->
+  </article>
+  <!-- END SECTION -->
+
+  <p class="analytics-note">
+    Time spent in each stage now lives under <a href="@insightsUrl">Insights</a>, with the mean, median and cost-band views in one chart.
+  </p>
 </section>

@@ -27,7 +27,31 @@ public sealed class StageTimeInsightsPanelVm
     public StageTimeCycleChartVm StageCycleTime { get; init; } = new();
 
     public StageHotspotChartVm StageHotspots { get; init; } = new();
+
+    // SECTION: Ranked hotspots and portfolio baseline (computed once in the PageModel)
+    /// <summary>Category filter shared by the cycle-time chart and the hotspot list.</summary>
+    public int? SelectedCategoryId { get; init; }
+
+    /// <summary>Median of the per-stage medians: the baseline a stage is compared against.</summary>
+    public double PortfolioMedianDays { get; init; }
+
+    /// <summary>Stages ranked slowest first, with their ratio to the portfolio median.</summary>
+    public IReadOnlyList<StageHotspotRankVm> RankedHotspots { get; init; } = Array.Empty<StageHotspotRankVm>();
+
+    public StageHotspotRankVm? SlowestStage => RankedHotspots.Count > 0 ? RankedHotspots[0] : null;
+    public StageHotspotRankVm? FastestStage => RankedHotspots.Count > 0 ? RankedHotspots[^1] : null;
+    // END SECTION
 }
+
+public sealed record StageHotspotRankVm(
+    int Rank,
+    string StageKey,
+    string StageName,
+    double MedianDays,
+    double AverageDays,
+    int ProjectCount,
+    double RatioToPortfolioMedian,
+    double ShareOfSlowest);
 
 public sealed class StageTimeCycleChartVm
 {

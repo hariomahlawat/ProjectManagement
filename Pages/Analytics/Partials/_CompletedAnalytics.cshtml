@@ -1,143 +1,124 @@
 @model ProjectManagement.Models.Analytics.CompletedAnalyticsVm
+@using System.Globalization
+@using System.Linq
 @using System.Text.Json
 
 @{
-    // SECTION: Completed analytics serialization
-    var jsonOptions = new JsonSerializerOptions
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-    var completedJson = JsonSerializer.Serialize(Model, jsonOptions);
-    // END SECTION
+    var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var completedJson = JsonSerializer.Serialize(Model, json);
+    var years = Model.YearBoard.OrderByDescending(item => item.Year).ToList();
+    var maxYearCount = years.Count > 0 ? years.Max(item => item.YearCount) : 0;
+    var overviewUrl = Url.Page("/Projects/Overview");
 }
 
 <section class="analytics-panel analytics-panel--completed"
          aria-label="Completed projects analytics"
          data-completed-analytics='@Html.Raw(completedJson)'>
-    <!-- SECTION: Completed projects analytics cards -->
-    <div class="analytics-grid analytics-grid--completed">
-        <!-- SECTION: Projects completed per year -->
-        <article class="analytics-card analytics-card--wide">
-            <header class="analytics-card__header analytics-card__header--with-actions">
-                <div class="analytics-card__header-text">
-                    <h2 class="analytics-card__title">Projects completed per year</h2>
-                    <p class="analytics-card__subtitle">
-                        Year-wise view of projects reaching completion, broken down by parent project category.
-                    </p>
-                </div>
-
-                <button type="button"
-                        class="analytics-chart-download-btn"
-                        data-chart-download-target="completedPerYearChart"
-                        aria-label="Download chart as PNG"
-                        title="Download chart as PNG">
-                    <i class="bi bi-download" aria-hidden="true"></i>
-                </button>
-            </header>
-
-            <div class="analytics-card__body">
-                <div class="analytics-chart-container">
-                    <canvas id="completedPerYearChart" aria-label="Projects completed per year" role="img"></canvas>
-                </div>
-
-                @if (Model.YearBoard.Count == 0)
-                {
-                    <p class="analytics-card__empty-text analytics-completed-board__empty">
-                        No completed projects available for year-wise listing.
-                    </p>
-                }
-                else
-                {
-                    <section class="analytics-completed-board" aria-label="Completed projects grouped by year">
-                        @foreach (var yearItem in Model.YearBoard)
-                        {
-                            <article class="analytics-completed-board__year-column"
-                                     aria-label="@($"{yearItem.Year} with {yearItem.YearCount} completed projects")">
-                                <h3 class="analytics-completed-board__year-title">@yearItem.Year (@yearItem.YearCount)</h3>
-
-                                @foreach (var category in yearItem.Categories)
-                                {
-                                    <section class="analytics-completed-board__category-group"
-                                             aria-label="@($"{category.ParentCategoryName} with {category.CategoryCount} projects")">
-                                        <h4 class="analytics-completed-board__category-title">
-                                            <span class="analytics-completed-board__category-dot"
-                                                  data-category-name="@category.ParentCategoryName"
-                                                  aria-hidden="true"></span>
-                                            @category.ParentCategoryName (@category.CategoryCount)
-                                        </h4>
-
-                                        <ol class="analytics-completed-board__project-list">
-                                            @foreach (var project in category.Projects)
-                                            {
-                                                <li class="analytics-completed-board__project-item"
-                                                    title="@project.ProjectName">
-                                                    @project.ProjectName
-                                                </li>
-                                            }
-                                        </ol>
-                                    </section>
-                                }
-                            </article>
-                        }
-                    </section>
-                }
-            </div>
-        </article>
-        <!-- END SECTION -->
-
-        <!-- SECTION: Completed projects by category -->
-        <article class="analytics-card">
-            <header class="analytics-card__header analytics-card__header--with-actions">
-                <div class="analytics-card__header-text">
-                    <h2 class="analytics-card__title">Completed projects by category</h2>
-                    <p class="analytics-card__subtitle">
-                        Breakdown of completed projects in each project category.
-                    </p>
-                </div>
-
-                <button type="button"
-                        class="analytics-chart-download-btn"
-                        data-chart-download-target="completedByCategoryChart"
-                        aria-label="Download chart as PNG"
-                        title="Download chart as PNG">
-                    <i class="bi bi-download" aria-hidden="true"></i>
-                </button>
-            </header>
-
-            <div class="analytics-card__body">
-                <div class="analytics-chart-container">
-                    <canvas id="completedByCategoryChart" aria-label="Completed projects by category" role="img"></canvas>
-                </div>
-            </div>
-        </article>
-        <!-- END SECTION -->
-
-        <!-- SECTION: Completed projects by technical category -->
-        <article class="analytics-card">
-            <header class="analytics-card__header analytics-card__header--with-actions">
-                <div class="analytics-card__header-text">
-                    <h2 class="analytics-card__title">Completed projects by technical category</h2>
-                    <p class="analytics-card__subtitle">
-                        Number of completed projects in each technical category.
-                    </p>
-                </div>
-
-                <button type="button"
-                        class="analytics-chart-download-btn"
-                        data-chart-download-target="completedByTechnicalChart"
-                        aria-label="Download chart as PNG"
-                        title="Download chart as PNG">
-                    <i class="bi bi-download" aria-hidden="true"></i>
-                </button>
-            </header>
-
-            <div class="analytics-card__body">
-                <div class="analytics-chart-container">
-                    <canvas id="completedByTechnicalChart" aria-label="Completed projects by technical category" role="img"></canvas>
-                </div>
-            </div>
-        </article>
-        <!-- END SECTION -->
+  <!-- SECTION: Projects completed per year (the big chart) -->
+  <article class="analytics-card">
+    <header class="analytics-card__head">
+      <div class="analytics-card__text">
+        <h2 class="analytics-card__title">Projects completed per year</h2>
+        <p class="analytics-card__meta">By parent category; click a year to open its projects.</p>
+      </div>
+      <div class="analytics-card__actions">
+        <button type="button" class="analytics-icon-btn" data-chart-download-target="completedPerYearChart" aria-label="Download chart as PNG" title="Download chart as PNG">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+    <div class="analytics-card__legend" data-legend="completedPerYearChart"></div>
+    <div class="analytics-card__chart analytics-card__chart--tall">
+      <canvas id="completedPerYearChart" role="img" aria-label="Projects completed per year" data-empty-message="No completed projects with a completion year yet."></canvas>
     </div>
+
+    <!-- SECTION: Year drill-down (year → category → projects), most recent first -->
+    @if (years.Count > 0)
+    {
+      <section class="analytics-drill" aria-label="Completed projects by year">
+        <h3 class="analytics-drill__title">Projects completed in each year</h3>
+        @foreach (var year in years)
+        {
+          var width = maxYearCount > 0 ? (int)Math.Round(100.0 * year.YearCount / maxYearCount) : 0;
+          <details class="analytics-drill__row">
+            <summary class="analytics-drill__summary">
+              <span class="analytics-drill__name">@year.Year</span>
+              <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+              <span class="analytics-drill__chips">
+                @foreach (var category in year.Categories)
+                {
+                  <span class="analytics-drill__chip"><i class="analytics-dot" data-category-dot="@category.ParentCategoryName" aria-hidden="true"></i>@category.ParentCategoryName <b>@category.CategoryCount</b></span>
+                }
+              </span>
+              <span class="analytics-drill__count">@year.YearCount</span>
+              <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
+            </summary>
+            <div class="analytics-drill__body">
+              @foreach (var category in year.Categories)
+              {
+                <div class="analytics-drill__group">
+                  <h4><i class="analytics-dot" data-category-dot="@category.ParentCategoryName" aria-hidden="true"></i>@category.ParentCategoryName <span>@category.CategoryCount</span></h4>
+                  <ol>
+                    @foreach (var project in category.Projects)
+                    {
+                      <li>
+                        <a href="@overviewUrl?id=@project.ProjectId">@project.ProjectName</a>
+                        @if (project.CompletedOn.HasValue)
+                        {
+                          <time datetime="@project.CompletedOn.Value.ToString("yyyy-MM-dd")">@project.CompletedOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</time>
+                        }
+                      </li>
+                    }
+                  </ol>
+                </div>
+              }
+            </div>
+          </details>
+        }
+      </section>
+    }
     <!-- END SECTION -->
+  </article>
+  <!-- END SECTION -->
+
+  <div class="analytics-row analytics-row--5-7">
+    <!-- SECTION: Completed projects by category -->
+    <article class="analytics-card">
+      <header class="analytics-card__head">
+        <div class="analytics-card__text">
+          <h2 class="analytics-card__title">By category</h2>
+          <p class="analytics-card__meta">Share of completed projects in each project category.</p>
+        </div>
+        <div class="analytics-card__actions">
+          <button type="button" class="analytics-icon-btn" data-chart-download-target="completedByCategoryChart" aria-label="Download chart as PNG" title="Download chart as PNG">
+            <i class="bi bi-download" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
+      <div class="analytics-card__chart analytics-card__chart--doughnut">
+        <canvas id="completedByCategoryChart" role="img" aria-label="Completed projects by category" data-empty-message="No completed projects yet."></canvas>
+      </div>
+      <div class="analytics-card__legend analytics-card__legend--below" data-legend="completedByCategoryChart"></div>
+    </article>
+    <!-- END SECTION -->
+
+    <!-- SECTION: Completed projects by technical category -->
+    <article class="analytics-card">
+      <header class="analytics-card__head">
+        <div class="analytics-card__text">
+          <h2 class="analytics-card__title">By technical category</h2>
+          <p class="analytics-card__meta">Most completed first; click a bar to open those projects.</p>
+        </div>
+        <div class="analytics-card__actions">
+          <button type="button" class="analytics-icon-btn" data-chart-download-target="completedByTechnicalChart" aria-label="Download chart as PNG" title="Download chart as PNG">
+            <i class="bi bi-download" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
+      <div class="analytics-card__chart">
+        <canvas id="completedByTechnicalChart" role="img" aria-label="Completed projects by technical category" data-empty-message="No completed projects yet."></canvas>
+      </div>
+    </article>
+    <!-- END SECTION -->
+  </div>
 </section>
