@@ -60,6 +60,8 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
   If the PDF is rejected (not a PDF, too large) the record stays saved and the editor reopens on
   it with the reason, so nobody re-creates a duplicate.
 - Existing PDFs are listed in the Evidence section; each has its own remove button.
+- Each uploaded PDF is also copied into the document repository (source `IPR`). Removing the PDF
+  or deleting the record keeps that copy: the repository is an archive (decided 2026-10-25).
 - After a save the register opens with the saved record's panel and a confirmation.
 
 ## The Action list (`?tab=followup`)

@@ -368,3 +368,6 @@ FodyWeavers.xsd
 !wwwroot/js/logs/
 !wwwroot/js/logs/**
 !wwwroot/js/logs/**
+
+# Runtime uploads are user data, never source. Files already tracked here are not affected.
+/wwwroot/uploads/
