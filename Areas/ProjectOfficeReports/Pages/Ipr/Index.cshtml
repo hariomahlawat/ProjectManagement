@@ -516,6 +516,11 @@
         // Insights: every bar and figure opens the register filtered to those filings, within
         // the current scope (the Filters drawer), using the register's own URL parameters.
         // Search text is not part of the Insights scope, so it is not carried into the register.
+        var scopedCountedStatuses = Model.Statuses
+            .Where(IprStatusPolicy.IsCounted)
+            .Select(status => IprStatusPolicy.Normalize(status).ToString())
+            .Distinct()
+            .ToArray();
         IDictionary<string, string?> RegisterLink(object overrides)
         {
             var values = new RouteValueDictionary(overrides)
@@ -524,19 +529,27 @@
                 ["attentionIssue"] = null,
                 ["query"] = null
             };
+            // Insights counts only Filed and Granted filings, so closed statuses in the scope are
+            // not carried into a link that keeps the scope's statuses.
+            if (!values.ContainsKey("statuses") && Model.Statuses.Any(IprStatusPolicy.IsClosed))
+            {
+                values["statuses"] = scopedCountedStatuses.Length > 0 ? scopedCountedStatuses : null;
+            }
             return Model.GetRouteValuesForLinks(values, includePage: false, includeModeAndId: false);
         }
 
         // A link replaces the scope's value for the filter it sets. It is offered only when the
         // requested value sits inside the scope (the scope is open or already holds that value);
         // otherwise the figure counts nothing there and the link would open filings outside it.
+        // A scope of only Rejected or Withdrawn counts nothing here, so no figure links.
+        var scopeCounts = Model.Statuses.Count == 0 || scopedCountedStatuses.Length > 0;
         bool CanOpenYear(int year, IprDateBasis basis)
-            => !Model.Year.HasValue || (Model.Year == year && Model.DateBasis == basis);
+            => scopeCounts && (!Model.Year.HasValue || (Model.Year == year && Model.DateBasis == basis));
         bool CanOpenStatus(IprStatus status)
             => Model.Statuses.Count == 0 || Model.Statuses.Any(scoped => IprStatusPolicy.Normalize(scoped) == status);
-        bool CanOpenType(IprType type) => Model.Types.Count == 0 || Model.Types.Contains(type);
-        bool CanOpenMissingEvidence() => Model.Evidence != IprEvidenceFilter.Available;
-        bool CanOpenAge(IprPendingAge band) => Model.PendingAge == IprPendingAge.Any || Model.PendingAge == band;
+        bool CanOpenType(IprType type) => scopeCounts && (Model.Types.Count == 0 || Model.Types.Contains(type));
+        bool CanOpenMissingEvidence() => scopeCounts && Model.Evidence != IprEvidenceFilter.Available;
+        bool CanOpenAge(IprPendingAge band) => scopeCounts && (Model.PendingAge == IprPendingAge.Any || Model.PendingAge == band);
 
         var summary = Model.AnalyticsSummary;
         var withEvidence = Math.Max(0, summary.Total - summary.MissingAttachments);

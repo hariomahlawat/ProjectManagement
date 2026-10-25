@@ -202,7 +202,7 @@ test('IPR Insights links never open more or fewer filings than the chart counts'
   // Insights ignores search text, so drill-down links must not carry it into the register.
   assert.match(pageSource, /IDictionary<string, string\?> RegisterLink\(object overrides\)[\s\S]*\["query"\] = null/);
   // A year bar opens the register only when it does not replace a year already in the scope.
-  assert.match(pageSource, /bool CanOpenYear\(int year, IprDateBasis basis\)\s*=> !Model\.Year\.HasValue \|\| \(Model\.Year == year && Model\.DateBasis == basis\)/);
+  assert.match(pageSource, /bool CanOpenYear\(int year, IprDateBasis basis\)\s*=> scopeCounts && \(!Model\.Year\.HasValue \|\| \(Model\.Year == year && Model\.DateBasis == basis\)\)/);
   assert.match(pageSource, /@if \(CanOpenYear\(cohort\.Year, IprDateBasis\.Filed\)\)/);
   assert.match(pageSource, /@if \(CanOpenYear\(row\.Year, IprDateBasis\.Filed\)\)/);
   assert.match(pageSource, /@if \(CanOpenYear\(row\.Year, IprDateBasis\.Protected\)\)/);
@@ -212,5 +212,9 @@ test('IPR Insights links never open more or fewer filings than the chart counts'
   assert.match(pageSource, /@if \(CanOpenMissingEvidence\(\)\)/);
   assert.match(pageSource, /if \(CanOpenAge\(band\.Band\)\)/);
   assert.match(pageSource, /var typeInScope = CanOpenType\(row\.Type\);/);
+  // Closed statuses never travel into a drill-down for counted filings.
+  assert.match(pageSource, /if \(!values\.ContainsKey\("statuses"\) && Model\.Statuses\.Any\(IprStatusPolicy\.IsClosed\)\)/);
+  assert.match(pageSource, /var scopeCounts = Model\.Statuses\.Count == 0 \|\| scopedCountedStatuses\.Length > 0;/);
+  assert.match(pageSource, /bool CanOpenMissingEvidence\(\) => scopeCounts &&/);
   assert.doesNotMatch(pageSource, /<td><a asp-page="\.\/Index" asp-all-route-data="@RegisterLink\(new \{ types/);
 });
