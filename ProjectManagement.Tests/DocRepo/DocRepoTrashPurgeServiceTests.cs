@@ -132,6 +132,22 @@ public sealed class DocRepoTrashPurgeServiceTests
     }
 
     [Fact]
+    public async Task PurgeExpiredAsync_UsesTheRetentionAsChangedWithoutARestart()
+    {
+        await using var db = CreateDb();
+        Seed(db, deletedDaysAgo: 40);
+        await db.SaveChangesAsync();
+        var options = new MutableOptionsMonitor(new DocRepoOptions { TrashRetentionDays = 30 });
+        var service = new DocRepoTrashPurgeService(db, new RecordingStorage(), new DocRepoAuditService(db), FakeClock.AtUtc(Now), options);
+
+        options.CurrentValue = new DocRepoOptions { TrashRetentionDays = 90 };
+
+        Assert.Equal(90, service.RetentionDays);
+        Assert.Equal(0, await service.PurgeExpiredAsync());
+        Assert.Single(await db.Documents.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
     public async Task PurgeDueUtc_IsTheTrashDatePlusTheRetention()
     {
         await using var db = CreateDb();
@@ -149,7 +165,7 @@ public sealed class DocRepoTrashPurgeServiceTests
             storage,
             new DocRepoAuditService(db),
             FakeClock.AtUtc(Now),
-            Options.Create(new DocRepoOptions { TrashRetentionDays = retentionDays }));
+            new MutableOptionsMonitor(new DocRepoOptions { TrashRetentionDays = retentionDays }));
 
     private static ApplicationDbContext CreateDb()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -175,6 +191,17 @@ public sealed class DocRepoTrashPurgeServiceTests
             CreatedAtUtc = Now.UtcDateTime.AddYears(-1)
         });
         return id;
+    }
+
+    private sealed class MutableOptionsMonitor : IOptionsMonitor<DocRepoOptions>
+    {
+        public MutableOptionsMonitor(DocRepoOptions value) => CurrentValue = value;
+
+        public DocRepoOptions CurrentValue { get; set; }
+
+        public DocRepoOptions Get(string? name) => CurrentValue;
+
+        public IDisposable? OnChange(Action<DocRepoOptions, string?> listener) => null;
     }
 
     private sealed class RecordingStorage : IDocStorage

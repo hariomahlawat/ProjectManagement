@@ -34,7 +34,7 @@ public sealed class DocRepoTrashPurgeService
     private readonly IDocStorage _storage;
     private readonly IDocRepoAuditService _audit;
     private readonly IClock _clock;
-    private readonly DocRepoOptions _options;
+    private readonly IOptionsMonitor<DocRepoOptions> _options;
     private readonly ILogger<DocRepoTrashPurgeService>? _logger;
 
     public DocRepoTrashPurgeService(
@@ -42,19 +42,22 @@ public sealed class DocRepoTrashPurgeService
         IDocStorage storage,
         IDocRepoAuditService audit,
         IClock clock,
-        IOptions<DocRepoOptions> options,
+        IOptionsMonitor<DocRepoOptions> options,
         ILogger<DocRepoTrashPurgeService>? logger = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger;
     }
 
-    /// <summary>Days a document stays in the trash; 0 or less turns automatic purging off.</summary>
-    public int RetentionDays => _options.TrashRetentionDays;
+    /// <summary>
+    /// Days a document stays in the trash; 0 or less turns automatic purging off. Read live, like
+    /// the worker, so a configuration change applies without a restart.
+    /// </summary>
+    public int RetentionDays => _options.CurrentValue.TrashRetentionDays;
 
     /// <summary>When a trashed document will be purged automatically, or null if it never will.</summary>
     public DateTime? PurgeDueUtc(DateTime? deletedAtUtc)
@@ -116,12 +119,14 @@ public sealed class DocRepoTrashPurgeService
     /// </summary>
     public async Task<int> PurgeExpiredAsync(CancellationToken cancellationToken = default)
     {
-        if (RetentionDays <= 0)
+        // One policy per run, even if the setting changes while it runs.
+        var retentionDays = RetentionDays;
+        if (retentionDays <= 0)
         {
             return 0;
         }
 
-        var cutoff = _clock.UtcNow.UtcDateTime.AddDays(-RetentionDays);
+        var cutoff = _clock.UtcNow.UtcDateTime.AddDays(-retentionDays);
         var purged = 0;
         // Documents whose file could not be deleted in this run are skipped by the next batches,
         // so they never block newer due documents; the next run tries them again.
@@ -147,7 +152,7 @@ public sealed class DocRepoTrashPurgeService
                 var result = await PurgeAsync(
                     item.Id,
                     SystemActor,
-                    new { item.Id, Reason = "TrashRetention", RetentionDays, item.DeletedAtUtc },
+                    new { item.Id, Reason = "TrashRetention", RetentionDays = retentionDays, item.DeletedAtUtc },
                     cutoff,
                     cancellationToken);
 
