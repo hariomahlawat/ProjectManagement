@@ -515,15 +515,23 @@
     {
         // Insights: every bar and figure opens the register filtered to those filings, within
         // the current scope (the Filters drawer), using the register's own URL parameters.
+        // Search text is not part of the Insights scope, so it is not carried into the register.
         IDictionary<string, string?> RegisterLink(object overrides)
         {
             var values = new RouteValueDictionary(overrides)
             {
                 ["tab"] = "records",
-                ["attentionIssue"] = null
+                ["attentionIssue"] = null,
+                ["query"] = null
             };
             return Model.GetRouteValuesForLinks(values, includePage: false, includeModeAndId: false);
         }
+
+        // The register holds one year restriction. When the scope already has one, a year bar
+        // can open the register only if it asks for that same restriction; otherwise the link
+        // would replace the scope and show filings the bar does not count.
+        bool CanOpenYear(int year, IprDateBasis basis)
+            => !Model.Year.HasValue || (Model.Year == year && Model.DateBasis == basis);
 
         var summary = Model.AnalyticsSummary;
         var withEvidence = Math.Max(0, summary.Total - summary.MissingAttachments);
@@ -583,18 +591,33 @@
                         <div class="ipr-bars" role="list">
                             @foreach (var cohort in Model.FilingCohorts)
                             {
-                                <a class="ipr-bars__item" role="listitem"
-                                   asp-page="./Index"
-                                   asp-all-route-data="@RegisterLink(new { year = cohort.Year, dateBasis = (string?)null })"
-                                   aria-label="@($"{cohort.Year}: {cohort.Filed} filed, {cohort.Granted} granted. Show these filings")">
-                                    <span class="ipr-bars__value">@cohort.GrantRatePercent%</span>
-                                    <span class="ipr-bars__stack">
-                                        <span class="is-pending" style="@BarHeight(cohort.Pending, cohortMax)"></span>
-                                        <span class="is-granted" style="@BarHeight(cohort.Granted, cohortMax)"></span>
-                                    </span>
-                                    <span class="ipr-bars__label">@cohort.Year</span>
-                                    <span class="ipr-bars__sub">@cohort.Filed filed</span>
-                                </a>
+                                @if (CanOpenYear(cohort.Year, IprDateBasis.Filed))
+                                {
+                                    <a class="ipr-bars__item" role="listitem"
+                                       asp-page="./Index"
+                                       asp-all-route-data="@RegisterLink(new { year = cohort.Year, dateBasis = (string?)null })"
+                                       aria-label="@($"{cohort.Year}: {cohort.Filed} filed, {cohort.Granted} granted. Show these filings")">
+                                        <span class="ipr-bars__value">@cohort.GrantRatePercent%</span>
+                                        <span class="ipr-bars__stack">
+                                            <span class="is-pending" style="@BarHeight(cohort.Pending, cohortMax)"></span>
+                                            <span class="is-granted" style="@BarHeight(cohort.Granted, cohortMax)"></span>
+                                        </span>
+                                        <span class="ipr-bars__label">@cohort.Year</span>
+                                        <span class="ipr-bars__sub">@cohort.Filed filed</span>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <div class="ipr-bars__item" role="listitem" aria-label="@($"{cohort.Year}: {cohort.Filed} filed, {cohort.Granted} granted")">
+                                        <span class="ipr-bars__value">@cohort.GrantRatePercent%</span>
+                                        <span class="ipr-bars__stack">
+                                            <span class="is-pending" style="@BarHeight(cohort.Pending, cohortMax)"></span>
+                                            <span class="is-granted" style="@BarHeight(cohort.Granted, cohortMax)"></span>
+                                        </span>
+                                        <span class="ipr-bars__label">@cohort.Year</span>
+                                        <span class="ipr-bars__sub">@cohort.Filed filed</span>
+                                    </div>
+                                }
                             }
                         </div>
                         <div class="ipr-insights-legend"><span><i class="is-granted"></i>Granted</span><span><i class="is-pending"></i>Still pending</span></div>
@@ -615,14 +638,28 @@
                             {
                                 <div class="ipr-bars__item ipr-bars__item--pair" role="listitem">
                                     <span class="ipr-bars__pair">
-                                        <a class="is-filed" style="@BarHeight(row.Filed, eventMax)"
-                                           asp-page="./Index" asp-all-route-data="@RegisterLink(new { year = row.Year, dateBasis = (string?)null })"
-                                           title="@($"{row.Filed} filed in {row.Year}")"
-                                           aria-label="@($"{row.Filed} filed in {row.Year}. Show them")"></a>
-                                        <a class="is-granted" style="@BarHeight(row.Granted, eventMax)"
-                                           asp-page="./Index" asp-all-route-data="@RegisterLink(new { year = row.Year, dateBasis = "Protected" })"
-                                           title="@($"{row.Granted} granted in {row.Year}")"
-                                           aria-label="@($"{row.Granted} granted in {row.Year}. Show them")"></a>
+                                        @if (CanOpenYear(row.Year, IprDateBasis.Filed))
+                                        {
+                                            <a class="is-filed" style="@BarHeight(row.Filed, eventMax)"
+                                               asp-page="./Index" asp-all-route-data="@RegisterLink(new { year = row.Year, dateBasis = (string?)null })"
+                                               title="@($"{row.Filed} filed in {row.Year}")"
+                                               aria-label="@($"{row.Filed} filed in {row.Year}. Show them")"></a>
+                                        }
+                                        else
+                                        {
+                                            <span class="is-filed" style="@BarHeight(row.Filed, eventMax)" title="@($"{row.Filed} filed in {row.Year}")"></span>
+                                        }
+                                        @if (CanOpenYear(row.Year, IprDateBasis.Protected))
+                                        {
+                                            <a class="is-granted" style="@BarHeight(row.Granted, eventMax)"
+                                               asp-page="./Index" asp-all-route-data="@RegisterLink(new { year = row.Year, dateBasis = "Protected" })"
+                                               title="@($"{row.Granted} granted in {row.Year}")"
+                                               aria-label="@($"{row.Granted} granted in {row.Year}. Show them")"></a>
+                                        }
+                                        else
+                                        {
+                                            <span class="is-granted" style="@BarHeight(row.Granted, eventMax)" title="@($"{row.Granted} granted in {row.Year}")"></span>
+                                        }
                                     </span>
                                     <span class="ipr-bars__label">@row.Year</span>
                                     <span class="ipr-bars__sub">@row.Filed / @row.Granted</span>

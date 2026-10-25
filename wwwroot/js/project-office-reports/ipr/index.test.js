@@ -197,3 +197,13 @@ test('IPR register styles use tokens and collapse to title and status on phones'
   assert.match(section, /\.ipr-record-panel\s*\{[\s\S]*position:\s*fixed/);
   assert.match(section, /@media \(max-width: 720px\)[\s\S]*\.ipr-table td:nth-child\(n\+2\):not\(:nth-child\(4\)\)/);
 });
+
+test('IPR Insights links never open more or fewer filings than the chart counts', () => {
+  // Insights ignores search text, so drill-down links must not carry it into the register.
+  assert.match(pageSource, /IDictionary<string, string\?> RegisterLink\(object overrides\)[\s\S]*\["query"\] = null/);
+  // A year bar opens the register only when it does not replace a year already in the scope.
+  assert.match(pageSource, /bool CanOpenYear\(int year, IprDateBasis basis\)\s*=> !Model\.Year\.HasValue \|\| \(Model\.Year == year && Model\.DateBasis == basis\)/);
+  assert.match(pageSource, /@if \(CanOpenYear\(cohort\.Year, IprDateBasis\.Filed\)\)/);
+  assert.match(pageSource, /@if \(CanOpenYear\(row\.Year, IprDateBasis\.Filed\)\)/);
+  assert.match(pageSource, /@if \(CanOpenYear\(row\.Year, IprDateBasis\.Protected\)\)/);
+});

@@ -1650,7 +1650,8 @@ a.ipr-bars__item:focus-visible { background: var(--ipr-subtle); color: inherit; 
 .ipr-bars__stack { display: flex; flex-direction: column; width: 70%; max-width: 44px; overflow: hidden; border-radius: 6px 6px 0 0; }
 .ipr-bars__stack > span { display: block; min-height: 0; }
 .ipr-bars__pair { display: flex; align-items: flex-end; gap: 3px; width: 80%; max-width: 52px; }
-.ipr-bars__pair > a { display: block; flex: 1 1 0; min-height: 2px; border-radius: 4px 4px 0 0; }
+.ipr-bars__pair > a,
+.ipr-bars__pair > span { display: block; flex: 1 1 0; min-height: 2px; border-radius: 4px 4px 0 0; }
 .ipr-bars__pair > a:hover,
 .ipr-bars__pair > a:focus-visible { outline: 2px solid var(--ipr-navy); outline-offset: 1px; }
 .ipr-bars .is-granted,
