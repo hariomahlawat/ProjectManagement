@@ -21,6 +21,9 @@
             }
         </div>
         <a asp-page="./Index"
+           asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "records", attentionIssue = (string?)null }, includeModeAndId: false)"
+           class="ipr-active-filter-bar__clear">Change in Register</a>
+        <a asp-page="./Index"
            asp-all-route-data="@Model.BuildClearFiltersRoute()"
            class="ipr-active-filter-bar__clear">Clear all</a>
     </section>

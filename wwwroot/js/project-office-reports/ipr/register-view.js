@@ -14,6 +14,7 @@
   const panel = root.querySelector('[data-ipr-panel]');
   const scrim = root.querySelector('[data-ipr-panel-scrim]');
   const exportLink = document.querySelector('[data-ipr-export]');
+  const viewLinks = Array.from(document.querySelectorAll('[data-ipr-view]'));
   const CLOSED = ['Rejected', 'Withdrawn'];
   const GROUP_LABELS = { project: 'Project', status: 'Status', year: 'Filing year' };
 
@@ -323,6 +324,20 @@
       exportUrl.search = exportParams.toString();
       exportLink.href = exportUrl.toString();
     }
+
+    // The view tabs carry the same filters; search and Group by belong to the Register only.
+    viewLinks.forEach(link => {
+      const view = link.dataset.iprView;
+      const viewUrl = new URL(link.href, window.location.href);
+      const viewParams = new URLSearchParams();
+      viewParams.set('tab', view);
+      params.forEach((value, key) => {
+        if (view === 'records' || key !== 'query') viewParams.append(key, value);
+      });
+      if (view === 'records' && state.group) viewParams.set('group', state.group);
+      viewUrl.search = viewParams.toString();
+      link.href = viewUrl.toString();
+    });
   };
 
   let queryTimer = 0;

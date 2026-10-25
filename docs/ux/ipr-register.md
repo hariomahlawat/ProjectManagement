@@ -13,7 +13,7 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
 | Register rows | `IIprReadService.ListRegisterAsync` (every record, all statuses, register order) projected to `IprRecordRowViewModel` |
 | Editor | `_RecordFormPartial.cshtml` in the editor panel (`mode=edit&id=…`, `mode=create`); one form saves the record and an optional evidence PDF (`Index.RecordCommands.cs`, `CompleteSaveAsync`) |
 | Styles | `wwwroot/css/site-ipr.css`; the "Register workspace" section uses tokens only |
-| Scripts | `wwwroot/js/project-office-reports/ipr/register-view.js` (register filters, grouping, record panel); `index.js` (editor, project picker, drawers, density). Insights charts are plain HTML and CSS, no chart library |
+| Scripts | `wwwroot/js/project-office-reports/ipr/register-view.js` (register filters, grouping, record panel); `index.js` (editor, project picker, density). Insights charts are plain HTML and CSS, no chart library |
 
 ## Layout
 
@@ -42,7 +42,11 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
   `linkage`, `evidence`, `pendingAge`, `projectId`, `group`, `selectedRecordId`), so reloads,
   shared links and Export agree with what is on screen. `pendingAge` bands (under 1 year, 1–3,
   3–5, over 5 years since filing) are defined once in `IprQueryFilter.PendingAgeRange` and handed
-  to the browser.
+  to the browser. Old `pageNumber` / `pageSize` links still open the page; the values are ignored.
+- The view tabs (**Register**, **Action list**, **Insights**) carry these filters, so the other
+  views show the same scope. Search text and Group by stay with the Register. There is no separate
+  filter drawer: to change the scope, return to the Register (the scope bar's **Change in
+  Register** link keeps it).
 - Columns: record (title and filing number), project, category, status (with the pending age),
   filed, granted, evidence ("1 PDF" or "Missing"). On phones only the record and status show;
   the record panel carries the rest.
@@ -78,7 +82,7 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
   outcome**, **Fix details**, **Assign project** or **Upload PDF**. The fix opens the editor at
   the right field; after saving, the Action list reloads so the next item is one click away.
   Viewers get **Open** instead.
-- The Filters drawer still scopes this view until the clean-up step.
+- Scoped by the Register's filters (shown as removable chips above the view).
 
 ## Insights (`?tab=analytics`)
 
@@ -90,8 +94,8 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
   granted, pending and rate per category.
 - Every bar, band, figure and table count opens the register filtered to those filings (for
   example a grant bar opens `year=2022&dateBasis=Protected`), keeping the current scope.
-- The Filters drawer still sets the scope until the clean-up step; the summary strip above stays
-  register-wide.
+- Scoped by the Register's filters (removable chips; search text does not apply); the summary
+  strip above stays register-wide.
 
 ## Planned changes
 
@@ -103,5 +107,5 @@ The redesign lands in small PRs; this section lists what is still to come.
    fix (assign project, upload evidence, record outcome).~~ (done; "log follow-up" comes with step 5)
 4. ~~**Insights** replaces Analytics; every chart filters the register.~~ (done)
 5. Follow-up log (last followed up / next follow-up) for long-pending filings; needs a migration.
-6. Clean-up: retire the Filters drawer, the old ribbon, inspector and project-dossier styles left in
-   `site-ipr.css`, and the paging parameters still bound for compatibility.
+6. ~~Clean-up: retire the Filters drawer (the view tabs carry the Register filters), the unused
+   styles left in `site-ipr.css`, the unused scripts and the paging parameters.~~ (done)
