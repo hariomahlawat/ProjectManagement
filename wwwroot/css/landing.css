@@ -48,16 +48,29 @@
 
     --lp-glass-hi-alpha: 0.95;
     --lp-glass-lo-alpha: 0.55;
+    --lp-glass-edge-alpha: 0.32;
+    --lp-glass-face-alpha: 0.16;
+    --lp-ground-alpha: 0.16;
     --lp-aura-alpha: 0.5;
-    --lp-fan-alpha: 0.16;
+    --lp-fan-alpha: 0.5;
+    --lp-split-alpha: 0.22;
+    --lp-beam-glow-alpha: 0.1;
+    --lp-beam-core-alpha: 0.8;
     --lp-ray-glow-alpha: 0.35;
+    --lp-ray-core-alpha: 0.32;
 
     /* Glass: white frost in Light, smoked glass in Dark (see "Glass" below). */
-    --lp-glass-mix: 56%;
-    --lp-glass-strong-mix: 74%;
+    --lp-glass-mix: 46%;
+    --lp-glass-strong-mix: 70%;
+    --lp-glass-blur: 18px;
     --lp-rim: var(--lp-shadow);
     --lp-rim-mix: 9%;
+    --lp-rim-hi-mix: 95%;
+    --lp-rim-lo: var(--lp-shadow);
+    --lp-rim-lo-mix: 18%;
     --lp-sheen-mix: 95%;
+    --lp-gleam-mix: 38%;
+    --lp-lens-mix: 85%;
     --lp-aurora-alpha: 0.5;
 }
 
@@ -95,15 +108,28 @@
 
     --lp-glass-hi-alpha: 0.16;
     --lp-glass-lo-alpha: 0.03;
+    --lp-glass-edge-alpha: 0.5;
+    --lp-glass-face-alpha: 0.12;
+    --lp-ground-alpha: 0.45;
     --lp-aura-alpha: 0.32;
     --lp-fan-alpha: 0.4;
+    --lp-split-alpha: 0.4;
+    --lp-beam-glow-alpha: 0.08;
+    --lp-beam-core-alpha: 0.75;
     --lp-ray-glow-alpha: 0.7;
+    --lp-ray-core-alpha: 0.45;
 
-    --lp-glass-mix: 5%;
-    --lp-glass-strong-mix: 8%;
+    --lp-glass-mix: 6%;
+    --lp-glass-strong-mix: 9%;
+    --lp-glass-blur: 20px;
     --lp-rim: var(--lp-glass-hi);
     --lp-rim-mix: 12%;
+    --lp-rim-hi-mix: 48%;
+    --lp-rim-lo: var(--lp-glass-hi);
+    --lp-rim-lo-mix: 4%;
     --lp-sheen-mix: 20%;
+    --lp-gleam-mix: 7%;
+    --lp-lens-mix: 16%;
     --lp-aurora-alpha: 0.42;
 }
 
@@ -129,6 +155,9 @@ body:has(.lp) main > .pm-page-shell {
     padding: 0 !important;
 }
 
+/* Tokens live on body as well as .lp, so the floating header capsule (outside .lp)
+   shares the same glass. */
+body:has(.lp),
 .lp {
     --lp-text: var(--pm-text-strong);
     --lp-body: var(--pm-text-secondary);
@@ -141,9 +170,22 @@ body:has(.lp) main > .pm-page-shell {
     --lp-glass: color-mix(in srgb, var(--lp-glass-hi) var(--lp-glass-mix), transparent);
     --lp-glass-strong: color-mix(in srgb, var(--lp-glass-hi) var(--lp-glass-strong-mix), transparent);
     --lp-glass-rim: color-mix(in srgb, var(--lp-rim) var(--lp-rim-mix), transparent);
+    /* The rim catches light at the top-left and falls into shade at the bottom-right. */
+    --lp-glass-rim-hi: color-mix(in srgb, var(--lp-glass-hi) var(--lp-rim-hi-mix), transparent);
+    --lp-glass-rim-lo: color-mix(in srgb, var(--lp-rim-lo) var(--lp-rim-lo-mix), transparent);
+    --lp-glass-rim-ring: linear-gradient(135deg, var(--lp-glass-rim-hi) 0%, transparent 34%, transparent 66%, var(--lp-glass-rim-lo) 100%);
     --lp-glass-sheen: color-mix(in srgb, var(--lp-glass-hi) var(--lp-sheen-mix), transparent);
-    --lp-glass-shadow: 0 1px 0 0 var(--lp-glass-sheen) inset, 0 0 0 1px color-mix(in srgb, var(--lp-glass-hi) calc(var(--lp-sheen-mix) / 4), transparent) inset, 0 24px 60px -30px color-mix(in srgb, var(--lp-shadow) 45%, transparent);
-    --lp-glass-filter: blur(22px) saturate(1.7);
+    /* A soft diagonal gleam across the upper-left of every pane. */
+    --lp-glass-gleam: color-mix(in srgb, var(--lp-glass-hi) var(--lp-gleam-mix), transparent);
+    --lp-glass-surface: linear-gradient(135deg, var(--lp-glass-gleam) 0%, transparent 46%), var(--lp-glass);
+    /* Top sheen, a thin inner line, the lens (a brighter band just inside the edge, where
+       thick glass bends the light) and a soft drop. */
+    --lp-glass-lens: color-mix(in srgb, var(--lp-glass-hi) var(--lp-lens-mix), transparent);
+    --lp-glass-shadow: 0 1px 0 0 var(--lp-glass-sheen) inset, 0 0 0 1px color-mix(in srgb, var(--lp-glass-hi) calc(var(--lp-sheen-mix) / 4), transparent) inset, 0 0 18px -6px var(--lp-glass-lens) inset, 0 24px 60px -30px color-mix(in srgb, var(--lp-shadow) 45%, transparent);
+    --lp-glass-filter: blur(var(--lp-glass-blur)) saturate(1.7);
+}
+
+.lp {
     color: var(--lp-body);
 }
 
@@ -281,7 +323,7 @@ body:has(.lp) main > .pm-page-shell {
 
 .lp-stop--aura { stop-color: var(--lp-aura); }
 .lp-stop--beam { stop-color: var(--lp-beam); }
-.lp-stop--fan { stop-color: var(--lp-beam); stop-opacity: var(--lp-fan-alpha); }
+.lp-stop--fan { stop-color: var(--lp-glass-hi); stop-opacity: var(--lp-fan-alpha); }
 .lp-stop--fan-end { stop-opacity: 0.03; }
 .lp-stop--glass-hi { stop-color: var(--lp-glass-hi); stop-opacity: var(--lp-glass-hi-alpha); }
 .lp-stop--glass-lo { stop-color: var(--lp-glass-lo); stop-opacity: var(--lp-glass-lo-alpha); }
@@ -301,15 +343,23 @@ body:has(.lp) main > .pm-page-shell {
 }
 
 .lp-prism__beam {
-    stroke-width: 4;
+    stroke-width: 3.5;
     stroke-linecap: round;
 }
 
 .lp-prism__beam-glow {
     stroke: var(--lp-beam);
-    stroke-width: 16;
+    stroke-width: 18;
     stroke-linecap: round;
-    opacity: 0.08;
+    opacity: var(--lp-beam-glow-alpha);
+}
+
+/* A bright core down the middle of the beam, so it reads as light rather than a rod. */
+.lp-prism__beam-core {
+    stroke: var(--lp-glass-hi);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    opacity: var(--lp-beam-core-alpha);
 }
 
 .lp-prism__pulse {
@@ -332,9 +382,32 @@ body:has(.lp) main > .pm-page-shell {
 
 .lp-prism__glass {
     stroke: var(--lp-glass-edge);
-    stroke-opacity: 0.45;
-    stroke-width: 1.5;
+    stroke-opacity: var(--lp-glass-edge-alpha);
+    stroke-width: 1;
     stroke-linejoin: round;
+}
+
+/* The exit face, shaded a step darker so the body has thickness. */
+.lp-prism__face {
+    fill: var(--lp-glass-edge);
+    opacity: var(--lp-glass-face-alpha);
+}
+
+/* The spectrum already separating inside the glass, one wedge per ray. */
+.lp-prism__split {
+    opacity: var(--lp-split-alpha);
+}
+
+.lp-prism__split-1 { fill: var(--lp-spec-1); }
+.lp-prism__split-2 { fill: var(--lp-spec-2); }
+.lp-prism__split-3 { fill: var(--lp-spec-3); }
+.lp-prism__split-4 { fill: var(--lp-spec-4); }
+.lp-prism__split-5 { fill: var(--lp-spec-5); }
+.lp-prism__split-6 { fill: var(--lp-spec-6); }
+
+.lp-prism__ground {
+    fill: var(--lp-shadow);
+    opacity: var(--lp-ground-alpha);
 }
 
 .lp-prism__shine {
@@ -344,13 +417,15 @@ body:has(.lp) main > .pm-page-shell {
     opacity: 0.85;
 }
 
-.lp-prism__shine--base {
-    opacity: 0.35;
-}
-
 .lp-prism__ray {
     animation: lp-ray 6s ease-in-out infinite;
     transform-box: fill-box;
+}
+
+/* A brighter core along each ray, so the bands read as beams rather than ribbons. */
+.lp-prism__ray-core {
+    fill: var(--lp-glass-hi);
+    opacity: var(--lp-ray-core-alpha);
 }
 
 .lp-prism__ray--2 { animation-delay: -1s; }
@@ -462,9 +537,8 @@ body:has(.lp) main > .pm-page-shell {
 }
 
 .lp-hero__facts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem 1.4rem;
+    display: grid;
+    gap: 0.55rem;
     margin: 2.2rem 0 0;
     padding: 0;
     list-style: none;
@@ -1477,13 +1551,13 @@ body:has(.lp) .public-topbar {
 body:has(.lp) .public-topbar__inner {
     min-height: 56px;
     padding: 0 0.5rem 0 1rem;
-    border: 1px solid var(--lp-glass-rim, var(--pm-border));
     border-radius: 999px;
-    background: color-mix(in srgb, var(--pm-card) 62%, transparent);
-    box-shadow: 0 1px 0 0 color-mix(in srgb, var(--pm-card) 80%, transparent) inset, 0 18px 40px -26px color-mix(in srgb, var(--lp-shadow) 45%, transparent);
-    backdrop-filter: blur(22px) saturate(1.7);
-    -webkit-backdrop-filter: blur(22px) saturate(1.7);
     pointer-events: auto;
+}
+
+body:has(.lp) .public-topbar__inner > * {
+    position: relative;
+    z-index: 1;
 }
 
 body:has(.lp) .public-theme {
@@ -1506,17 +1580,43 @@ body:has(.lp) main {
 .lp-btn--ghost,
 .lp-tile,
 .lp-trust__grid article,
-.lp-hero__legend li {
+.lp-hero__legend li,
+body:has(.lp) .public-topbar__inner,
+.auth__card {
+    position: relative;
     border: 1px solid var(--lp-glass-rim);
-    background: var(--lp-glass);
+    background: var(--lp-glass-surface);
     box-shadow: var(--lp-glass-shadow);
     backdrop-filter: var(--lp-glass-filter);
     -webkit-backdrop-filter: var(--lp-glass-filter);
 }
 
+/* The directional rim: a 1px ring, bright where the light hits and shaded opposite,
+   masked so only the edge paints. Browsers without mask-composite keep the plain rim. */
+.lp-badge::before,
+.lp-btn--ghost::before,
+.lp-tile::before,
+.lp-trust__grid article::before,
+.lp-hero__legend li::before,
+body:has(.lp) .public-topbar__inner::before,
+.auth__card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--lp-glass-rim-ring);
+    -webkit-mask: linear-gradient(var(--lp-shadow) 0 0) content-box, linear-gradient(var(--lp-shadow) 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(var(--lp-shadow) 0 0) content-box, linear-gradient(var(--lp-shadow) 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
 .lp-btn--ghost:hover {
     border-color: var(--lp-glass-rim);
-    background: var(--lp-glass-strong);
+    background: linear-gradient(135deg, var(--lp-glass-gleam) 0%, transparent 46%), var(--lp-glass-strong);
 }
 
 /* Primary buttons get a glassy top sheen over their solid fill. */
@@ -1608,6 +1708,9 @@ body:has(.lp) main {
     .lp {
         --lp-glass: var(--lp-surface);
         --lp-glass-strong: var(--lp-surface);
+        --lp-glass-gleam: transparent;
+        --lp-glass-lens: transparent;
+        --lp-glass-rim-ring: none;
         --lp-glass-filter: none;
     }
 

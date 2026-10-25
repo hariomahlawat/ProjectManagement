@@ -11,17 +11,20 @@
     // Each ray leaves the prism's right face (between Start and the next ray's start) and
     // fans out to a 14-unit band centred on Y at x = 520. The bare artwork carries the rays on
     // to x = 1000, past the SVG box, so on the sign-in page they run behind the glass card.
+    // Order follows the refraction (top ray to bottom ray) and leads with the project record.
     var labels = new[]
     {
-        (Y: 120, Name: "Teamwork", Detail: "Chat, tasks, notebook, calendar"),
-        (Y: 190, Name: "Office records", Detail: "Visits, training, IPR, ToT, FFC"),
-        (Y: 260, Name: "Media", Detail: "Photos, videos, publications"),
-        (Y: 330, Name: "Documents", Detail: "Repository, AOTS, OCR search"),
-        (Y: 400, Name: "Projects", Detail: "Stages, plans and facts"),
-        (Y: 470, Name: "Desks", Detail: "Command and briefing desks"),
+        (Y: 120, Name: "Projects", Detail: "Stages, plans and facts"),
+        (Y: 190, Name: "Desks", Detail: "Command and briefing desks"),
+        (Y: 260, Name: "Teamwork", Detail: "Chat, tasks, notebook, calendar"),
+        (Y: 330, Name: "Office records", Detail: "Visits, training, IPR, ToT, FFC"),
+        (Y: 400, Name: "Media", Detail: "Photos, videos, publications"),
+        (Y: 470, Name: "Documents", Detail: "Repository, AOTS, OCR search"),
     };
     var rayEndX = showLabels ? 520.0 : 1000.0;
     var inv = System.Globalization.CultureInfo.InvariantCulture;
+    // Where the beam enters the glass; the spectrum starts separating from here.
+    const double entryX = 226, entryY = 301;
     var rays = labels.Select((label, i) =>
     {
         // Exit points step evenly down the right face from (345.6, 219.2).
@@ -31,7 +34,15 @@
         double ey0 = sy0 + (label.Y - 7 - sy0) * t0, ey1 = sy1 + (label.Y + 7 - sy1) * t1;
         var points = string.Format(inv, "{0:0.#},{1:0.#} {2:0.#},{3:0.#} {2:0.#},{4:0.#} {5:0.#},{6:0.#}",
             sx0, sy0, rayEndX, ey0, ey1, sx1, sy1);
-        return (Points: points, label.Y, label.Name, label.Detail);
+        // The brighter core runs down the middle third of the band.
+        var core = string.Format(inv, "{0:0.#},{1:0.#} {2:0.#},{3:0.#} {2:0.#},{4:0.#} {5:0.#},{6:0.#}",
+            sx0 + (sx1 - sx0) * 0.36, sy0 + (sy1 - sy0) * 0.36,
+            rayEndX, ey0 + (ey1 - ey0) * 0.36, ey0 + (ey1 - ey0) * 0.64,
+            sx0 + (sx1 - sx0) * 0.64, sy0 + (sy1 - sy0) * 0.64);
+        // Inside the glass: a wedge from the entry point to this ray's exit segment.
+        var split = string.Format(inv, "{0:0.#},{1:0.#} {2:0.#},{3:0.#} {4:0.#},{5:0.#}",
+            entryX, entryY, sx0, sy0, sx1, sy1);
+        return (Points: points, Core: core, Split: split, label.Y, label.Name, label.Detail);
     }).ToArray();
 }
 <svg class="lp-prism @(showLabels ? "lp-prism--labelled" : "lp-prism--art")"
@@ -40,7 +51,7 @@
      aria-labelledby="lpPrismTitle lpPrismDesc"
      focusable="false">
     <title id="lpPrismTitle">PRISM: one record, every view</title>
-    <desc id="lpPrismDesc">A single beam of light, the project record, enters a prism and leaves as six coloured rays: teamwork, office records, media, documents, projects and the command and briefing desks.</desc>
+    <desc id="lpPrismDesc">A single beam of light, the project record, enters a prism and leaves as six coloured rays: projects, the command and briefing desks, teamwork, office records, media and documents.</desc>
     <defs>
         <radialGradient id="lpPrismAura" cx="0.5" cy="0.5" r="0.5">
             <stop offset="0" class="lp-stop lp-stop--aura" stop-opacity="0.55" />
@@ -62,20 +73,31 @@
         <filter id="lpPrismBlur" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="7" />
         </filter>
+        <filter id="lpPrismSoft" x="-20%" y="-50%" width="140%" height="200%">
+            <feGaussianBlur stdDeviation="5" />
+        </filter>
         @for (var i = 0; i < rays.Length; i++)
         {
             <linearGradient id="lpPrismRay@(i)" gradientUnits="userSpaceOnUse" x1="350" y1="0" x2="@(showLabels ? "520" : "1000")" y2="0">
                 <stop offset="0" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0.95" />
-                <stop offset="1" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="@(showLabels ? "0.6" : "0.05")" />
+                @if (!showLabels)
+                {
+                    <stop offset="0.55" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0.45" />
+                }
+                <stop offset="1" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="@(showLabels ? "0.6" : "0.03")" />
             </linearGradient>
         }
     </defs>
 
     <circle class="lp-prism__aura" cx="350" cy="280" r="250" fill="url(#lpPrismAura)" />
 
-    @* The incoming beam, its soft glow and a travelling pulse. *@
+    @* A soft shadow on the ground, so the glass stands on something. *@
+    <ellipse class="lp-prism__ground" cx="304" cy="436" rx="128" ry="8" filter="url(#lpPrismSoft)" aria-hidden="true" />
+
+    @* The incoming beam, its soft glow, a bright core and a travelling pulse. *@
     <line class="lp-prism__beam-glow" x1="-10" y1="360" x2="226" y2="301" />
     <line class="lp-prism__beam" x1="-10" y1="360" x2="226" y2="301" stroke="url(#lpPrismBeam)" />
+    <line class="lp-prism__beam-core" x1="40" y1="347.5" x2="224" y2="301.5" />
     <line class="lp-prism__pulse" x1="-10" y1="360" x2="226" y2="301" />
     @if (showLabels)
     {
@@ -93,15 +115,25 @@
     <g class="lp-prism__rays">
         @for (var i = 0; i < rays.Length; i++)
         {
-            <polygon class="lp-prism__ray lp-prism__ray--@(i + 1)" points="@rays[i].Points" fill="url(#lpPrismRay@(i))" />
+            <g class="lp-prism__ray lp-prism__ray--@(i + 1)">
+                <polygon points="@rays[i].Points" fill="url(#lpPrismRay@(i))" />
+                <polygon class="lp-prism__ray-core" points="@rays[i].Core" />
+            </g>
         }
     </g>
 
-    @* The glass body, the light spreading inside it, and an edge highlight. *@
+    @* The glass body, the light spreading and splitting inside it, the shaded exit face
+       and an edge highlight. *@
     <polygon class="lp-prism__glass" points="300,90 180,430 420,430" fill="url(#lpPrismGlass)" />
     <polygon class="lp-prism__fan" points="226,301 345.6,219.2 374.4,300.8" fill="url(#lpPrismFan)" />
+    <g class="lp-prism__split" aria-hidden="true">
+        @for (var i = 0; i < rays.Length; i++)
+        {
+            <polygon class="lp-prism__split-@(i + 1)" points="@rays[i].Split" />
+        }
+    </g>
+    <polygon class="lp-prism__face" points="300,90 420,430 407,430 289,97" />
     <line class="lp-prism__shine" x1="295" y1="108" x2="194" y2="396" />
-    <line class="lp-prism__shine lp-prism__shine--base" x1="200" y1="424" x2="330" y2="424" />
 
     @if (showLabels)
     {
