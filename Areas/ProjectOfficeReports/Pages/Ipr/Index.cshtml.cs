@@ -179,6 +179,9 @@ public sealed partial class IndexModel : PageModel
     // Follow-up records in the view's filter scope (the tab badge counts the whole register).
     public int FollowUpTotalCount { get; private set; }
 
+    // Filings carrying each issue (overdue, data, linkage, evidence), for the Action list filter.
+    public IReadOnlyDictionary<string, int> AttentionIssueCounts { get; private set; } = new Dictionary<string, int>();
+
     public int OverdueAttentionCount { get; private set; }
 
     public int UnassignedCount { get; private set; }

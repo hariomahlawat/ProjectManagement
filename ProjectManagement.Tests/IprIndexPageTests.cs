@@ -798,6 +798,83 @@ public sealed class IprIndexPageTests
         }
     }
 
+    [Fact]
+    public async Task OnGetAsync_ActionList_ListsEachFilingOnceAndCountsEveryIssue()
+    {
+        await using var db = CreateDbContext();
+        db.IprRecords.AddRange(
+            // Long pending, unlinked and without evidence: one row, under "overdue".
+            new IprRecord { IprFilingNumber = "IPR-ACT-1", Title = "Old filing", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2019, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+            // Recent, unlinked, no evidence: one row, under "linkage".
+            new IprRecord { IprFilingNumber = "IPR-ACT-2", Title = "New filing", Type = IprType.Copyright, Status = IprStatus.Filed, FiledAtUtc = DateTimeOffset.UtcNow.AddMonths(-2) });
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+        {
+            Tab = "followup"
+        };
+        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(2, page.FollowUpTotalCount);
+        Assert.Equal(2, page.VisibleAttentionRecordCount);
+        Assert.Equal(new[] { "overdue", "linkage" }, page.AttentionGroups.Select(group => group.Key).ToArray());
+        Assert.Equal("Long-pending filings", page.AttentionGroups[0].Title);
+        Assert.Equal(1, page.AttentionIssueCounts["overdue"]);
+        Assert.Equal(2, page.AttentionIssueCounts["linkage"]);
+        Assert.Equal(2, page.AttentionIssueCounts["evidence"]);
+        Assert.Equal(0, page.AttentionIssueCounts["data"]);
+    }
+
+    [Fact]
+    public async Task OnPostEditAsync_FromActionList_ReturnsToTheActionList()
+    {
+        await using var db = CreateDbContext();
+        var (writeService, root) = CreateWriteService(db, new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        using var userManager = CreateUserManager(db);
+
+        try
+        {
+            var created = await writeService.CreateAsync(new IprRecord
+            {
+                IprFilingNumber = "IPR-ACT-EDIT",
+                Title = "Fix from the list",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2024, 4, 2, 0, 0, 0, TimeSpan.Zero)
+            });
+
+            var page = new IndexModel(db, new IprReadService(db), writeService, new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+            {
+                Tab = "followup",
+                Input = new IndexModel.RecordInput
+                {
+                    Id = created.Id,
+                    FilingNumber = created.IprFilingNumber,
+                    Title = created.Title,
+                    Type = created.Type,
+                    Status = created.Status,
+                    FiledOn = new DateOnly(2024, 4, 2),
+                    RowVersion = Convert.ToBase64String(created.RowVersion)
+                }
+            };
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
+
+            var result = await page.OnPostEditAsync(CancellationToken.None);
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("followup", redirect.RouteValues?["tab"]);
+            Assert.False(redirect.RouteValues!.ContainsKey("mode"));
+            Assert.False(redirect.RouteValues.ContainsKey("selectedRecordId"));
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
     private static IFormFile CreateFormFile(Stream content, string fileName, string contentType)
         => new FormFile(content, 0, content.Length, "Input.Evidence", fileName)
         {

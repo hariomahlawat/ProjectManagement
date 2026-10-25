@@ -1586,3 +1586,43 @@ body.ipr-panel-open { overflow: hidden; }
     .ipr-table td:nth-child(4) { width: 1%; text-align: right; }
     .ipr-table__age { display: block; margin: 4px 0 0; }
 }
+
+/* Action list (Follow-up view): one row per filing, under its most urgent issue. Tokens only. */
+.ipr-actions { display: grid; gap: 16px; }
+.ipr-actions__header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.ipr-actions__header h2 { margin: 0; font-size: 1.15rem; font-weight: 800; }
+.ipr-actions__header p { max-width: 760px; margin: 4px 0 0; color: var(--ipr-muted); }
+.ipr-actions__total { color: var(--ipr-muted); font-size: .85rem; font-weight: 700; }
+.ipr-actions__filters { justify-self: start; }
+.ipr-actions__filters .ipr-seg__item { text-decoration: none; }
+.ipr-actions__groups { display: grid; gap: 18px; }
+.ipr-actions__empty { padding: 48px 20px; border: 1px solid var(--ipr-border); border-radius: 14px; background: var(--pm-card, #fff); text-align: center; }
+.ipr-actions__empty i { color: var(--ipr-green); font-size: 2rem; }
+.ipr-actions__empty h3 { margin: 6px 0 4px; font-size: 1.05rem; font-weight: 800; }
+.ipr-actions__empty p { max-width: 560px; margin: 0 auto; color: var(--ipr-muted); }
+.ipr-actions-group { overflow: hidden; border: 1px solid var(--ipr-border); border-radius: 14px; background: var(--pm-card, #fff); }
+.ipr-actions-group > header { padding: 16px 20px; border-bottom: 1px solid var(--ipr-border); }
+.ipr-actions-group h3 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 1rem; font-weight: 800; }
+.ipr-actions-group > header p { margin: 3px 0 0; color: var(--ipr-muted); font-size: .85rem; }
+.ipr-actions-group__count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--ipr-subtle); color: var(--ipr-navy); font-size: .75rem; font-weight: 800; }
+.ipr-actions-group--critical .ipr-actions-group__count { background: var(--ipr-red-soft); color: var(--ipr-red); }
+.ipr-actions-list { margin: 0; padding: 0; list-style: none; }
+.ipr-actions-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 18px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--ipr-border); }
+.ipr-actions-item:last-child { border-bottom: 0; }
+.ipr-actions-item__title { color: var(--ipr-navy); font-weight: 800; text-decoration: none; }
+.ipr-actions-item__title:hover,
+.ipr-actions-item__title:focus-visible { color: var(--ipr-blue-dark); text-decoration: underline; }
+.ipr-actions-item__meta { display: block; margin-top: 2px; color: var(--ipr-muted); font-size: .8rem; }
+.ipr-actions-item__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ipr-issue { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: var(--ipr-subtle); color: var(--ipr-muted); font-size: .75rem; font-weight: 700; }
+.ipr-issue.is-primary { background: var(--ipr-red-soft); color: var(--ipr-red); }
+.ipr-actions-item__fact { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.ipr-actions-item__fact strong { font-size: 1.05rem; font-weight: 800; }
+.ipr-actions-item__fact span { color: var(--ipr-muted); font-size: .75rem; }
+.ipr-actions-item__action .btn { white-space: nowrap; }
+
+@media (max-width: 720px) {
+    .ipr-actions-item { grid-template-columns: minmax(0, 1fr) auto; }
+    .ipr-actions-item__fact { display: none; }
+    .ipr-actions__filters { max-width: 100%; }
+}

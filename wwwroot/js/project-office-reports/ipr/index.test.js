@@ -112,21 +112,20 @@ test('IPR active scope is removable and visible across module views', () => {
   assert.match(activeFilterSource, /BuildRemoveFilterRoute/);
   assert.match(activeFilterSource, /BuildClearFiltersRoute/);
   assert.match(pageSource, /Analytics scope:/);
-  assert.match(pageSource, /ipr-followup-filters/);
+  assert.match(pageSource, /ipr-actions__filters/);
 });
 
 
-test('IPR follow-up uses a full-width priority queue and explains issue deduplication', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /highest-priority issue/);
-  assert.match(pageSource, /ipr-followup-group--wide/);
-  assert.match(cssSource, /\.ipr-followup-group--wide\s*\{\s*grid-column:\s*1\s*\/\s*-1/);
-  assert.doesNotMatch(pageSource, />Review<\/a>/);
+test('IPR Action list lists each filing once with a direct fix per issue', () => {
+  assert.match(pageSource, />Action list</);
+  assert.match(pageSource, /Each filing appears once, under its most urgent issue/);
+  assert.match(pageSource, /"overdue" => "Record outcome"/);
+  assert.match(pageSource, /"linkage" => "Assign project"/);
+  assert.match(pageSource, /"evidence" => "iprEvidenceHeading"/);
+  assert.match(pageSource, /asp-fragment="@actionFragment"/);
+  assert.match(pageSource, /AttentionIssueCounts/);
+  assert.match(source, /hashId/);
 });
-
 test('IPR analytics replaces the repeated grant-rate tile with evidence coverage', () => {
   const pageSource = fs.readFileSync(
     path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
@@ -165,7 +164,7 @@ test('IPR workspace shows a four-figure summary and three views without the old 
   assert.match(pageSource, /Scope = "counted"[\s\S]*Scope = "Granted"[\s\S]*Scope = "Filed"[\s\S]*Scope = "closed"/);
   assert.match(pageSource, /class="ipr-views"/);
   assert.match(pageSource, />Register</);
-  assert.match(pageSource, /Follow-up/);
+  assert.match(pageSource, /Action list/);
   assert.match(pageSource, />Analytics</);
   assert.doesNotMatch(pageSource, /Project dossiers/);
   assert.doesNotMatch(pageSource, /ipr-insight-ribbon/);

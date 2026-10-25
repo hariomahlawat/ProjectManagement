@@ -432,10 +432,10 @@ public sealed partial class IndexModel
 
         var groupDefinitions = new[]
         {
-            (Key: "overdue", Title: "Long-pending filings", Description: $"Pending for more than {LongPendingYears} years.", Tone: "critical"),
-            (Key: "data", Title: "Data inconsistencies", Description: "Status or mandatory filing information requires correction.", Tone: "critical"),
-            (Key: "linkage", Title: "Project linkage", Description: "Records not yet connected to a project.", Tone: "warning"),
-            (Key: "evidence", Title: "Supporting evidence", Description: "Records without an uploaded filing or grant document.", Tone: "warning")
+            (Key: "overdue", Title: "Long-pending filings", Description: $"Pending for more than {LongPendingYears} years. Chase the patent office, then record the outcome.", Tone: "critical"),
+            (Key: "data", Title: "Details to correct", Description: "A filing number, filing date or grant date is missing or inconsistent.", Tone: "critical"),
+            (Key: "linkage", Title: "Not linked to a project", Description: "Link each filing to the project it protects.", Tone: "warning"),
+            (Key: "evidence", Title: "Missing evidence", Description: "No filing receipt or grant certificate uploaded.", Tone: "warning")
         };
 
         AttentionGroups = groupDefinitions
@@ -453,6 +453,10 @@ public sealed partial class IndexModel
 
         VisibleAttentionRecordCount = AttentionGroups.Sum(group => group.Items.Count);
         FollowUpTotalCount = attentionItems.Count;
+        AttentionIssueCounts = groupDefinitions.ToDictionary(
+            definition => definition.Key,
+            definition => attentionItems.Count(item => item.IssueKeys.Contains(definition.Key, StringComparer.Ordinal)),
+            StringComparer.Ordinal);
     }
 
     private static AttentionGroup CreateAttentionGroup(

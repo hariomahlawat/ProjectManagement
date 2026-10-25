@@ -92,8 +92,14 @@
     let leaving = false;
 
     document.body.classList.add('ipr-panel-open');
+    // A link can point at a section (the Action list's "Assign project", "Upload PDF").
+    const hashId = window.location.hash.replace(/[^\w-]/g, '');
+    const target = hashId ? element.querySelector(`#${hashId}`) : null;
     if (form?.querySelector('.field-validation-error, .input-validation-error, [data-ipr-form-summary] li')) {
       focusFirstFormError(element);
+    } else if (target) {
+      target.scrollIntoView?.({ block: 'center' });
+      (target.matches(FOCUSABLE) ? target : target.closest('section')?.querySelector(FOCUSABLE))?.focus?.({ preventScroll: true });
     } else {
       element.querySelector('input:not([type="hidden"]), select, textarea')?.focus?.({ preventScroll: true });
     }
