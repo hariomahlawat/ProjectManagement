@@ -1,15 +1,56 @@
 /* ============================================================
-   Application navigation refinement
-   Strengthens hierarchy between the global shell and module tabs,
-   while preserving the existing PRISM visual language.
+   Application shell: top bar and module sub-nav
+   One header in two tiers, drawn with site tokens only so Light and
+   Dark both follow site.css (docs/ux/app-shell-and-dashboard.md).
+   The surface is a light frost (the public capsule's recipe at near
+   full opacity) so the page scrolls under it with a faint sheen; a
+   2px spectrum rule along the top edge is the signature shared with
+   the sign-in prism. Heights (52px + 46px) are fixed: other pages
+   offset their sticky elements by them.
    ============================================================ */
+.pm-topbar,
+.pm-module-subnav-wrap {
+    --pm-shell-bg: color-mix(in srgb, var(--pm-card) 94%, transparent);
+    --pm-shell-focus: color-mix(in srgb, var(--pm-primary) 45%, transparent);
+    background: var(--pm-shell-bg);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+    .pm-topbar,
+    .pm-module-subnav-wrap {
+        background: var(--pm-card);
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .pm-topbar,
+    .pm-module-subnav-wrap {
+        background: var(--pm-card);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
+
 .pm-topbar {
     position: sticky;
     top: 0;
     z-index: 60;
-    border-bottom: 1px solid var(--pm-border-muted, #e2e8f0);
-    background: var(--pm-card, #fff);
-    box-shadow: 0 1px 0 rgba(15, 23, 42, .025);
+    border-bottom: 1px solid color-mix(in srgb, var(--pm-border) 55%, transparent);
+}
+
+/* The prism signature: six hues in refraction order along the top edge. */
+.pm-topbar::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+        var(--pm-spec-1), var(--pm-spec-2), var(--pm-spec-3),
+        var(--pm-spec-4), var(--pm-spec-5), var(--pm-spec-6));
+    opacity: .9;
+    pointer-events: none;
 }
 
 .pm-topbar__inner {
@@ -26,38 +67,51 @@
 .pm-topbar .pm-drawer-toggle__button {
     min-height: 34px;
     padding: .28rem .68rem;
-    border-color: #d7e0ed;
-    background: #f7f9fc;
+    border-color: var(--pm-border);
+    background: var(--pm-surface-subtle);
     box-shadow: none;
-    color: #315ee8;
+    color: var(--pm-text-secondary);
 }
 
 .pm-topbar .pm-drawer-toggle__button:hover,
 .pm-topbar .pm-drawer-toggle__button:focus {
-    border-color: #b9c8e8;
-    background: #eef3ff;
+    border-color: var(--pm-border-strong);
+    background: var(--pm-surface);
     box-shadow: none;
+    color: var(--pm-text-strong);
     transform: none;
 }
 
 .pm-topbar .pm-drawer-toggle__icon {
     width: 1.35rem;
     height: 1.35rem;
-    background: #e8efff;
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
     font-size: .9rem;
 }
 
+/* Brand lockup: the same two-weight wordmark as the public pages. */
 .pm-topbar .pm-brand {
     flex: 0 0 auto;
     gap: .55rem;
-    color: #13213a;
-    font-size: .96rem;
-    font-weight: 750;
-    letter-spacing: -.015em;
+    color: var(--pm-text-strong);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+}
+
+.pm-topbar .pm-brand:hover,
+.pm-topbar .pm-brand:focus-visible {
+    color: var(--pm-text-strong);
+}
+
+.pm-brand__text span {
+    color: var(--pm-text-muted);
+    font-weight: 600;
 }
 
 .pm-topbar .pm-nav-logo {
-    height: 27px;
+    height: 28px;
     max-width: 52px;
 }
 
@@ -67,7 +121,7 @@
     min-width: 0;
     height: 52px;
     align-items: stretch;
-    gap: 1px;
+    gap: .15rem;
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
@@ -87,21 +141,22 @@
     gap: .35rem;
     padding: 0 .62rem;
     border: 0;
-    border-radius: 7px 7px 0 0;
-    color: #5f6d82;
-    font-size: .78rem;
+    border-radius: 8px 8px 0 0;
+    color: var(--pm-text-secondary);
+    font-size: .8125rem;
     font-weight: 600;
     text-decoration: none;
     transition: color .15s ease, background-color .15s ease;
 }
 
+/* The active mark: a short primary underline that grows in. */
 .pm-top-tabs__item::after {
     content: "";
     position: absolute;
-    right: .45rem;
+    right: .5rem;
     bottom: 0;
-    left: .45rem;
-    height: 3px;
+    left: .5rem;
+    height: 2.5px;
     border-radius: 999px 999px 0 0;
     background: transparent;
     transform: scaleX(.45);
@@ -110,24 +165,23 @@
 }
 
 .pm-top-tabs__item:hover {
-    color: #17243c;
-    background: #f7f9fc;
+    color: var(--pm-text-strong);
+    background: var(--pm-surface-subtle);
 }
 
 .pm-top-tabs__item:focus-visible {
     z-index: 1;
-    outline: 2px solid rgba(49, 94, 232, .45);
+    outline: 2px solid var(--pm-shell-focus);
     outline-offset: -3px;
 }
 
 .pm-top-tabs__item.is-active {
-    color: #234fd1;
-    background: linear-gradient(180deg, rgba(239, 244, 255, 0) 20%, #f3f6ff 100%);
-    font-weight: 750;
+    color: var(--pm-text-strong);
+    font-weight: 700;
 }
 
 .pm-top-tabs__item.is-active::after {
-    background: #3567e8;
+    background: var(--pm-primary);
     transform: scaleX(1);
 }
 
@@ -143,22 +197,22 @@
     height: 36px;
     align-items: center;
     padding: 0 3.9rem 0 2rem;
-    border: 1px solid #d4deeb;
+    border: 1px solid var(--pm-border);
     border-radius: 999px;
-    background: #fbfcfe;
+    background: var(--pm-surface-subtle);
     transition: width .18s ease, border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
 }
 
 .pm-top-search:focus-within {
     width: 18rem;
-    border-color: #809cf1;
-    background: var(--pm-card, #fff);
-    box-shadow: 0 0 0 3px rgba(53, 103, 232, .12);
+    border-color: var(--pm-primary);
+    background: var(--pm-card);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pm-primary) 16%, transparent);
 }
 
 .pm-top-search__icon {
     left: .72rem;
-    color: #7c8aa0;
+    color: var(--pm-text-muted);
     font-size: .78rem;
 }
 
@@ -166,8 +220,8 @@
     width: 100%;
     min-width: 0;
     padding: 0;
-    color: #17243c;
-    font-size: .76rem;
+    color: var(--pm-text-strong);
+    font-size: .8125rem;
 }
 
 .pm-top-search__input::-webkit-search-cancel-button {
@@ -175,7 +229,7 @@
 }
 
 .pm-top-search__input::placeholder {
-    color: #8d99aa;
+    color: var(--pm-text-muted);
 }
 
 .pm-top-search__shortcut {
@@ -185,23 +239,22 @@
     transform: translateY(-50%);
     min-width: 2.9rem;
     padding: .15rem .36rem;
-    border: 1px solid #dbe3ee;
-    border-bottom-color: #c7d1df;
+    border: 1px solid var(--pm-border);
+    border-bottom-color: var(--pm-border-strong);
     border-radius: 5px;
-    background: var(--pm-card, #fff);
-    color: #748197;
+    background: var(--pm-card);
+    color: var(--pm-text-muted);
     font-family: inherit;
-    font-size: .61rem;
+    font-size: .625rem;
     font-weight: 650;
     line-height: 1.2;
     text-align: center;
-    box-shadow: 0 1px 1px rgba(15, 23, 42, .04);
 }
 
 .pm-top-search:focus-within .pm-top-search__shortcut {
-    color: #315ee8;
-    border-color: #cbd8ff;
-    background: #f5f7ff;
+    color: var(--pm-primary-strong);
+    border-color: color-mix(in srgb, var(--pm-primary) 35%, var(--pm-border));
+    background: var(--pm-primary-soft);
 }
 
 .pm-topbar__icon-button {
@@ -211,16 +264,16 @@
     justify-content: center;
     border: 1px solid transparent;
     border-radius: 999px;
-    color: #637188;
+    color: var(--pm-text-secondary);
     text-decoration: none;
     transition: color .15s ease, background-color .15s ease, border-color .15s ease;
 }
 
 .pm-topbar__icon-button:hover,
 .pm-topbar__icon-button:focus-visible {
-    border-color: #dbe3ee;
-    background: #f5f7fb;
-    color: #315ee8;
+    border-color: var(--pm-border);
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-strong);
 }
 
 .pm-topbar__right .navbar-nav {
@@ -231,27 +284,26 @@
     min-height: 38px;
     padding: .15rem .35rem;
     border-radius: 999px;
-    color: #344258;
-    font-size: .78rem;
+    color: var(--pm-text-secondary);
+    font-size: .8125rem;
     font-weight: 600;
 }
 
 .pm-topbar__right .navbar-nav .nav-link:hover,
 .pm-topbar__right .navbar-nav .nav-link:focus-visible,
 .pm-topbar__right .navbar-nav .nav-link[aria-expanded="true"] {
-    background: #f5f7fb;
-    color: #17243c;
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-strong);
 }
 
-/* Module navigation is deliberately quieter than the global top bar. */
+/* Module sub-nav: the header's second tier. Same surface as the top bar, one hairline
+   between them, and a soft shadow only where it meets the scrolled page. */
 .pm-module-subnav-wrap {
     position: sticky;
     top: 52px;
     z-index: 55;
-    border-bottom: 1px solid var(--pm-border-muted, #e2e8f0);
-    background: rgba(248, 250, 252, .97);
-    box-shadow: 0 2px 7px rgba(15, 23, 42, .025);
-    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--pm-border-muted);
+    box-shadow: 0 6px 14px -10px color-mix(in srgb, var(--pm-text-strong) 22%, transparent);
 }
 
 .pm-module-subnav-row {
@@ -281,7 +333,7 @@
     min-width: 0;
     height: 46px;
     align-items: center;
-    gap: 2px;
+    gap: .15rem;
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
@@ -292,56 +344,54 @@
     display: none;
 }
 
+/* Items are quiet pills; the active one is a soft primary tint, nothing more. */
 .pm-module-subnav__item {
     display: inline-flex;
     flex: 0 0 auto;
-    height: 34px;
+    height: 32px;
     align-items: center;
     gap: .42rem;
-    padding: 0 .68rem;
-    border: 1px solid transparent;
-    border-radius: 8px;
+    padding: 0 .72rem;
+    border: 0;
+    border-radius: 999px;
     background: transparent;
-    color: #647287;
-    font-size: .75rem;
+    color: var(--pm-text-secondary);
+    font-size: .78rem;
     font-weight: 600;
     line-height: 1;
     text-decoration: none;
     cursor: pointer;
-    transition: color .15s ease, background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+    transition: color .15s ease, background-color .15s ease;
 }
 
 .pm-module-subnav__item:hover {
-    border-color: #e0e6ef;
-    background: rgba(255, 255, 255, .78);
-    color: #23324a;
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-strong);
 }
 
 .pm-module-subnav__item:focus-visible {
-    outline: 2px solid rgba(49, 94, 232, .42);
+    outline: 2px solid var(--pm-shell-focus);
     outline-offset: 1px;
 }
 
 .pm-module-subnav__item.is-active {
-    border-color: #cad7fb;
-    background: #edf2ff;
-    color: #234fcf;
-    font-weight: 750;
-    box-shadow: inset 0 -2px 0 #4b72e8;
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+    font-weight: 700;
 }
 
 .pm-module-subnav__icon {
-    color: #8290a4;
+    color: var(--pm-text-muted);
     font-size: .82rem;
     transition: color .15s ease;
 }
 
 .pm-module-subnav__item:hover .pm-module-subnav__icon {
-    color: #53647d;
+    color: var(--pm-text-secondary);
 }
 
 .pm-module-subnav__item.is-active .pm-module-subnav__icon {
-    color: #315ee8;
+    color: var(--pm-primary-strong);
 }
 
 .pm-module-subnav__badge {
@@ -355,7 +405,7 @@
     flex: 0 0 auto;
     align-items: center;
     padding-left: .55rem;
-    border-left: 1px solid #dce4ef;
+    border-left: 1px solid var(--pm-border);
 }
 
 .pm-module-subnav__action {
@@ -364,32 +414,32 @@
     align-items: center;
     justify-content: center;
     gap: .4rem;
-    padding: 0 .82rem;
-    border: 1px solid #315ee8;
-    border-radius: 8px;
-    background: #3567e8;
-    color: #fff;
-    font-size: .75rem;
-    font-weight: 750;
+    padding: 0 .85rem;
+    border: 1px solid var(--pm-primary);
+    border-radius: 999px;
+    background: var(--pm-primary);
+    color: var(--pm-text-inverted);
+    font-size: .78rem;
+    font-weight: 700;
     line-height: 1;
     text-decoration: none;
-    box-shadow: 0 3px 9px rgba(53, 103, 232, .16);
+    box-shadow: 0 3px 9px color-mix(in srgb, var(--pm-primary) 20%, transparent);
     transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;
 }
 
 .pm-module-subnav__action:hover,
 .pm-module-subnav__action:focus-visible {
-    border-color: #234fcf;
-    background: #2e59d7;
-    color: #fff;
-    box-shadow: 0 5px 13px rgba(53, 103, 232, .22);
+    border-color: var(--pm-primary-hover);
+    background: var(--pm-primary-hover);
+    color: var(--pm-text-inverted);
+    box-shadow: 0 5px 13px color-mix(in srgb, var(--pm-primary) 28%, transparent);
     transform: translateY(-1px);
 }
 
 .pm-module-subnav__action.is-active {
-    border-color: #1e45bd;
-    background: #244fc9;
-    box-shadow: 0 0 0 3px rgba(53, 103, 232, .14);
+    border-color: var(--pm-primary-strong);
+    background: var(--pm-primary-strong);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pm-primary) 16%, transparent);
 }
 
 .pm-subnav__overflow {
@@ -409,28 +459,29 @@
 .pm-module-subnav__menu {
     min-width: 15rem;
     padding: .4rem;
-    border: 1px solid #dce4ef;
-    border-radius: 10px;
-    box-shadow: 0 14px 30px rgba(15, 23, 42, .12);
+    border: 1px solid var(--pm-border);
+    border-radius: 12px;
+    background: var(--pm-card);
+    box-shadow: var(--pm-shadow-lg, var(--pm-shadow));
 }
 
 .pm-module-subnav__menu .dropdown-item {
     min-height: 36px;
     padding: .45rem .62rem;
-    border-radius: 7px;
-    color: #46556b;
-    font-size: .78rem;
+    border-radius: 8px;
+    color: var(--pm-text-secondary);
+    font-size: .8125rem;
 }
 
 .pm-module-subnav__menu .dropdown-item:hover,
 .pm-module-subnav__menu .dropdown-item:focus {
-    background: #f2f5fa;
-    color: #17243c;
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-strong);
 }
 
 .pm-module-subnav__menu .dropdown-item.active {
-    background: #edf2ff;
-    color: #234fcf;
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
     font-weight: 700;
 }
 
@@ -598,48 +649,29 @@
 .pm-module-subnav-spacer .pm-drawer-toggle__button {
     min-height: 34px;
     padding: .28rem .68rem;
-    border-color: #d7e0ed;
-    background: #f7f9fc;
+    border-color: var(--pm-border);
+    background: var(--pm-surface-subtle);
     box-shadow: none;
 }
 
 .pm-module-subnav-spacer .pm-drawer-toggle__icon {
     width: 1.35rem;
     height: 1.35rem;
-    background: #e8efff;
+    background: var(--pm-primary-soft);
     font-size: .9rem;
 }
 
 .pm-module-subnav-spacer .pm-brand {
     gap: .55rem;
-    font-size: .96rem;
-    font-weight: 750;
-    letter-spacing: -.015em;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: .05em;
 }
 
 .pm-module-subnav-spacer .pm-nav-logo {
-    height: 27px;
+    height: 28px;
     max-width: 52px;
 }
-
-@media (max-width: 991.98px) {
-    .pm-module-subnav-spacer .pm-brand__text,
-    .pm-module-subnav-spacer .pm-drawer-toggle__label {
-        display: none;
-    }
-
-    .pm-module-subnav-spacer .pm-drawer-toggle__button {
-        width: 36px;
-        justify-content: center;
-        padding: 0;
-        border-radius: 10px;
-    }
-
-    .pm-module-subnav-spacer .pm-drawer-toggle__icon {
-        background: transparent;
-    }
-}
-
 
 /* ============================================================
    Navigation drawer hardening
@@ -876,7 +908,7 @@ body.pm-drawer-open {
 }
 
 .pm-theme-choice__option:focus-visible {
-    outline: 2px solid rgba(49, 94, 232, .45);
+    outline: 2px solid color-mix(in srgb, var(--pm-primary) 45%, transparent);
     outline-offset: 1px;
 }
 
@@ -977,172 +1009,22 @@ body.pm-drawer-open {
 @media print {
     .pm-whats-new { display: none !important; }
 }
-
 /* ============================================================
-   Dark theme (neutral graphite). The shell above is drawn with literal
-   light colours, so it is remapped here. See docs/ux/dark-theme-palette.md.
+   Dark theme (neutral graphite). The shell is drawn with site tokens, so
+   only what the tokens cannot express is remapped here.
+   See docs/ux/dark-theme-palette.md.
    ============================================================ */
-[data-bs-theme="dark"] .pm-topbar {
-    border-bottom-color: var(--pm-dark-hairline);
-    background: var(--pm-dark-card);
+/* The lifted blue is a text colour in Dark; the one filled button takes dark text on it. */
+[data-bs-theme="dark"] .pm-module-subnav__action,
+[data-bs-theme="dark"] .pm-module-subnav__action:hover,
+[data-bs-theme="dark"] .pm-module-subnav__action:focus-visible,
+[data-bs-theme="dark"] .pm-module-subnav__action.is-active {
+    color: var(--pm-dark-page);
     box-shadow: none;
-}
-
-[data-bs-theme="dark"] .pm-topbar .pm-drawer-toggle__button,
-[data-bs-theme="dark"] .pm-module-subnav-spacer .pm-drawer-toggle__button {
-    border-color: var(--pm-dark-hairline);
-    background: var(--pm-dark-tile);
-    color: var(--pm-dark-accent);
-}
-
-[data-bs-theme="dark"] .pm-topbar .pm-drawer-toggle__button:hover,
-[data-bs-theme="dark"] .pm-topbar .pm-drawer-toggle__button:focus {
-    border-color: var(--pm-dark-strong-border);
-    background: var(--pm-dark-raised);
-}
-
-[data-bs-theme="dark"] .pm-topbar .pm-drawer-toggle__icon,
-[data-bs-theme="dark"] .pm-module-subnav-spacer .pm-drawer-toggle__icon {
-    background: color-mix(in srgb, var(--pm-dark-accent) 16%, var(--pm-dark-card));
-}
-
-[data-bs-theme="dark"] .pm-topbar .pm-brand {
-    color: var(--pm-text-strong);
-}
-
-[data-bs-theme="dark"] .pm-top-tabs__item {
-    color: var(--pm-dark-text-muted);
-}
-
-[data-bs-theme="dark"] .pm-top-tabs__item:hover {
-    color: var(--pm-dark-text);
-    background: var(--pm-dark-tile);
-}
-
-[data-bs-theme="dark"] .pm-top-tabs__item:focus-visible,
-[data-bs-theme="dark"] .pm-module-subnav__item:focus-visible,
-[data-bs-theme="dark"] .pm-theme-choice__option:focus-visible {
-    outline-color: rgba(110, 168, 254, .5);
-}
-
-[data-bs-theme="dark"] .pm-top-tabs__item.is-active {
-    color: var(--pm-text-strong);
-    background: transparent;
-}
-
-[data-bs-theme="dark"] .pm-top-tabs__item.is-active::after {
-    background: var(--pm-dark-accent);
-}
-
-[data-bs-theme="dark"] .pm-top-search {
-    border-color: var(--pm-dark-hairline);
-    background: var(--pm-dark-tile);
-}
-
-[data-bs-theme="dark"] .pm-top-search:focus-within {
-    border-color: color-mix(in srgb, var(--pm-dark-accent) 70%, var(--pm-dark-card));
-    background: var(--pm-dark-tile);
-    box-shadow: 0 0 0 3px rgba(110, 168, 254, .18);
-}
-
-[data-bs-theme="dark"] .pm-top-search__icon,
-[data-bs-theme="dark"] .pm-top-search__input::placeholder {
-    color: #8a9097;
-}
-
-[data-bs-theme="dark"] .pm-top-search__input {
-    color: var(--pm-dark-text);
-}
-
-[data-bs-theme="dark"] .pm-top-search__shortcut {
-    border-color: var(--pm-dark-strong-border);
-    background: var(--pm-dark-card);
-    color: var(--pm-dark-text-muted);
-    box-shadow: none;
-}
-
-[data-bs-theme="dark"] .pm-top-search:focus-within .pm-top-search__shortcut {
-    border-color: var(--pm-dark-strong-border);
-    background: var(--pm-dark-card);
-    color: var(--pm-dark-accent);
-}
-
-[data-bs-theme="dark"] .pm-topbar__icon-button,
-[data-bs-theme="dark"] .pm-topbar__right .navbar-nav .nav-link {
-    color: var(--pm-dark-text-muted);
-}
-
-[data-bs-theme="dark"] .pm-topbar__icon-button:hover,
-[data-bs-theme="dark"] .pm-topbar__icon-button:focus-visible,
-[data-bs-theme="dark"] .pm-topbar__right .navbar-nav .nav-link:hover,
-[data-bs-theme="dark"] .pm-topbar__right .navbar-nav .nav-link:focus-visible,
-[data-bs-theme="dark"] .pm-topbar__right .navbar-nav .nav-link[aria-expanded="true"] {
-    border-color: var(--pm-dark-hairline);
-    background: var(--pm-dark-tile);
-    color: var(--pm-dark-text);
 }
 
 [data-bs-theme="dark"] .pm-module-subnav-wrap {
-    border-bottom-color: var(--pm-dark-hairline);
-    background: rgba(14, 15, 17, .96);
     box-shadow: none;
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__item {
-    color: var(--pm-dark-text-muted);
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__item:hover {
-    border-color: var(--pm-dark-hairline);
-    background: var(--pm-dark-tile);
-    color: var(--pm-dark-text);
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__item.is-active {
-    border-color: color-mix(in srgb, var(--pm-dark-accent) 30%, var(--pm-dark-card));
-    background: color-mix(in srgb, var(--pm-dark-accent) 14%, var(--pm-dark-card));
-    color: var(--pm-text-strong);
-    box-shadow: inset 0 -2px 0 var(--pm-dark-accent);
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__icon {
-    color: #8a9097;
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__item:hover .pm-module-subnav__icon {
-    color: var(--pm-dark-text-muted);
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__item.is-active .pm-module-subnav__icon {
-    color: var(--pm-dark-accent);
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__actions {
-    border-left-color: var(--pm-dark-hairline);
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__action {
-    box-shadow: none;
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__menu {
-    border-color: var(--pm-dark-hairline);
-    box-shadow: 0 14px 30px rgba(0, 0, 0, .45);
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__menu .dropdown-item {
-    color: #b4b9bf;
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__menu .dropdown-item:hover,
-[data-bs-theme="dark"] .pm-module-subnav__menu .dropdown-item:focus {
-    background: var(--pm-dark-tile);
-    color: var(--pm-dark-text);
-}
-
-[data-bs-theme="dark"] .pm-module-subnav__menu .dropdown-item.active {
-    background: color-mix(in srgb, var(--pm-dark-accent) 14%, var(--pm-dark-card));
-    color: var(--pm-text-strong);
 }
 
 [data-bs-theme="dark"] .pm-drawer__panel {
@@ -1155,27 +1037,3 @@ body.pm-drawer-open {
     box-shadow: none;
 }
 
-/* ============================================================
-   Dark theme (generated by tools/theme-dark-codemod.js, then reviewed).
-   Light is unchanged; these rules only apply under data-bs-theme="dark".
-   Palette: docs/ux/dark-theme-palette.md
-   ============================================================ */
-:where([data-bs-theme="dark"]) .pm-module-subnav__action {
-    border: 1px solid #6ea8fe;
-    background: #3567e8;
-    color: #fff;
-}
-
-:where([data-bs-theme="dark"]) .pm-module-subnav__action:hover,
-:where([data-bs-theme="dark"]) .pm-module-subnav__action:focus-visible {
-    border-color: #6ea8fe;
-    background: #2e59d7;
-    color: #fff;
-    box-shadow: 0 5px 13px rgba(0, 0, 0, 0.6);
-}
-
-:where([data-bs-theme="dark"]) .pm-module-subnav__action.is-active {
-    border-color: #6ea8fe;
-    background: #244fc9;
-    box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.25);
-}
