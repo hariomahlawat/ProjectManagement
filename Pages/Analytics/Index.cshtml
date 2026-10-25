@@ -24,6 +24,9 @@
         AnalyticsTab.Completed => $"{Model.CompletedCount} completed projects by year, category and technical category",
         AnalyticsTab.Coe => "Centre of Excellence projects by stage, sub-category and lifecycle",
         AnalyticsTab.Insights => "How long each workflow stage takes, from finished stages across ongoing and completed projects",
+        AnalyticsTab.Arpp => Model.Arpp is { HasData: true }
+            ? $"The {Model.Arpp.ListedCount} projects listed in the FY {Model.Arpp.FinancialYearDisplay} ARPP and where they stand today"
+            : "Projects listed in the year's ARPP and where they stand today",
         _ => $"Where the {Model.OngoingCount} ongoing projects stand, by stage and parent category"
     };
 
@@ -32,8 +35,9 @@
         (Tab: AnalyticsTab.Ongoing, Label: "Ongoing", Count: Model.OngoingCount.ToString(), Route: "Ongoing"),
         (Tab: AnalyticsTab.Completed, Label: "Completed", Count: Model.CompletedCount.ToString(), Route: "Completed"),
         (Tab: AnalyticsTab.Coe, Label: "CoE", Count: Model.CoeCount.ToString(), Route: "Coe"),
-        (Tab: AnalyticsTab.Insights, Label: "Insights", Count: "Cycle time", Route: "Insights")
-    };
+        (Tab: AnalyticsTab.Insights, Label: "Insights", Count: "Cycle time", Route: "Insights"),
+        (Tab: AnalyticsTab.Arpp, Label: "ARPP", Count: Model.Arpp is not null ? $"FY {Model.Arpp.FinancialYearDisplay}" : "By year", Route: "Arpp")
+    }.Where(mode => mode.Tab != AnalyticsTab.Arpp || Model.CanViewArpp).ToList();
 }
 
 @section Styles {
@@ -117,6 +121,9 @@
           break;
         case AnalyticsTab.Insights:
           @await Html.PartialAsync("Partials/_ProjectManagementInsights", Model.Insights!)
+          break;
+        case AnalyticsTab.Arpp:
+          @await Html.PartialAsync("Partials/_ArppAnalytics", Model.Arpp ?? new ArppAnalyticsVm())
           break;
         default:
           @await Html.PartialAsync("Partials/_OngoingAnalytics", Model)

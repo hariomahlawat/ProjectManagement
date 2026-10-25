@@ -1,0 +1,33 @@
+@model (IReadOnlyList<ProjectManagement.Models.Analytics.AnalyticsBoardGroupVm> Groups, string Prefix, string? OverviewUrl, string Title)
+@using System.Linq
+@{
+    var groups = Model.Groups;
+    var max = groups.Count > 0 ? groups.Max(group => group.Count) : 0;
+}
+@if (groups.Count > 0)
+{
+  <section class="analytics-drill" aria-label="@Model.Title">
+    <h3 class="analytics-drill__title">@Model.Title</h3>
+    @foreach (var group in groups)
+    {
+      var width = max > 0 ? (int)Math.Round(100.0 * group.Count / max) : 0;
+      <details class="analytics-drill__row" data-drill-key="@(Model.Prefix):@group.Key">
+        <summary class="analytics-drill__summary">
+          <span class="analytics-drill__name">@group.Name</span>
+          <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+          <span class="analytics-drill__chips">@if (group.Hint is not null) { <span class="analytics-drill__chip">@group.Hint</span> }</span>
+          <span class="analytics-drill__count">@group.Count</span>
+          <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
+        </summary>
+        <div class="analytics-drill__body">
+          <ol class="analytics-drill__list">
+            @foreach (var project in group.Projects)
+            {
+              <li><a href="@Model.OverviewUrl?id=@project.ProjectId">@project.ProjectName</a>@if (project.Detail is not null) { <span class="analytics-drill__stage">@project.Detail</span> }</li>
+            }
+          </ol>
+        </div>
+      </details>
+    }
+  </section>
+}

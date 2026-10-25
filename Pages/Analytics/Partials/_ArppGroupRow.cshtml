@@ -1,0 +1,23 @@
+@model (ProjectManagement.Models.Analytics.ArppValueGroupVm Group, string Prefix, string? OverviewUrl, int Total)
+@using ProjectManagement.Utilities
+@{
+    var group = Model.Group;
+    var width = Model.Total > 0 ? (int)Math.Round(100.0 * group.Count / Model.Total) : 0;
+}
+<details class="analytics-drill__row" data-drill-key="@(Model.Prefix):@group.Key">
+  <summary class="analytics-drill__summary">
+    <span class="analytics-drill__name">@group.Name</span>
+    <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+    <span class="analytics-drill__chips"><span class="analytics-drill__chip">IPA <b>@IndianCurrencyFormatter.FormatCompact(group.IpaValue)</b></span></span>
+    <span class="analytics-drill__count">@group.Count</span>
+    <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
+  </summary>
+  <div class="analytics-drill__body">
+    <ol class="analytics-drill__list">
+      @foreach (var project in group.Projects)
+      {
+        <li><a href="@Model.OverviewUrl?id=@project.ProjectId">@project.ProjectName</a>@if (project.Detail is not null) { <span class="analytics-drill__stage">@project.Detail</span> }</li>
+      }
+    </ol>
+  </div>
+</details>

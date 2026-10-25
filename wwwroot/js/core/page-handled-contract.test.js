@@ -46,6 +46,11 @@ const registry = {
     selector: '[data-auto-submit="change"]',
     hosts: ['Pages/Analytics/Index.cshtml'],
   },
+  'Pages/Analytics/Partials/_ArppYearFilter.cshtml': {
+    script: 'wwwroot/js/analytics-projects.js',
+    selector: '[data-auto-submit="change"]',
+    hosts: ['Pages/Analytics/Index.cshtml'],
+  },
   'Pages/ActionTasks/_TaskUpdateTimeline.cshtml': {
     script: 'wwwroot/js/pages/action-tasks/task-interaction.js',
     selector: '[data-at-update-delete-form]',

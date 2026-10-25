@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -45,14 +46,24 @@ namespace ProjectManagement.Pages.Analytics
             "centres of excellence"
         };
 
+        private readonly IArppAnalyticsService? _arppAnalytics;
+        private readonly IAuthorizationService? _authorization;
+
+        /// <summary>True when the signed-in user may see the ARPP mode (the ARPP report's ViewArpp policy). Decides the switcher item; the server check is in OnGetAsync.</summary>
+        public bool CanViewArpp { get; private set; }
+
         public IndexModel(
             ApplicationDbContext db,
             IProjectAnalyticsService projectAnalyticsService,
-            IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+            IArppAnalyticsService? arppAnalytics = null,
+            IAuthorizationService? authorization = null)
         {
             _db = db;
             _projectAnalyticsService = projectAnalyticsService;
             _workflowStageMetadataProvider = workflowStageMetadataProvider;
+            _arppAnalytics = arppAnalytics;
+            _authorization = authorization;
         }
 
         private static readonly ProjectLifecycleFilter[] LifecycleFilters =
@@ -70,6 +81,11 @@ namespace ProjectManagement.Pages.Analytics
 
         [BindProperty(SupportsGet = true, Name = "hotspotCategoryId")]
         public int? StageHotspotCategoryId { get; set; }
+
+        [BindProperty(SupportsGet = true, Name = "financialYearStart")]
+        public int? ArppFinancialYearStart { get; set; }
+
+        public ArppAnalyticsVm? Arpp { get; private set; }
 
         [BindProperty(SupportsGet = true, Name = "ongoingStageParentCategoryIds")]
         public List<int> OngoingStageParentCategoryIds { get; set; } = new();
@@ -115,15 +131,24 @@ namespace ProjectManagement.Pages.Analytics
 
         public int TechnicalGroupCount => TechnicalCategories.Count;
 
-        public async Task OnGetAsync(string? tab, CancellationToken cancellationToken)
+        public async Task<IActionResult> OnGetAsync(string? tab, CancellationToken cancellationToken)
         {
             ActiveTab = tab?.ToLowerInvariant() switch
             {
                 "completed" => AnalyticsTab.Completed,
                 "coe" => AnalyticsTab.Coe,
                 "insights" => AnalyticsTab.Insights,
+                "arpp" => AnalyticsTab.Arpp,
                 _ => AnalyticsTab.Ongoing
             };
+
+            // SECTION: ARPP mode authorization (same policy as the ARPP library and the FY report)
+            CanViewArpp = await CanViewArppAsync();
+            if (ActiveTab == AnalyticsTab.Arpp && !CanViewArpp)
+            {
+                return Forbid();
+            }
+            // END SECTION
 
             AsOfIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime);
             await LoadAnalyticsAsync(cancellationToken);
@@ -175,10 +200,30 @@ namespace ProjectManagement.Pages.Analytics
                     };
                     break;
                 }
+
+                case AnalyticsTab.Arpp:
+                    // The ARPP rules (year choice, bands, standing, milestones) live in the service; the page only binds the year.
+                    Arpp = _arppAnalytics is null
+                        ? null
+                        : await _arppAnalytics.BuildAsync(ArppFinancialYearStart, DateOnly.FromDateTime(AsOfIst.DateTime), cancellationToken);
+                    break;
             }
             // END SECTION
 
             Headlines = BuildHeadlines();
+            return Page();
+        }
+
+        private async Task<bool> CanViewArppAsync()
+        {
+            // Fail closed: without an authorization service or a signed-in principal there is no ARPP mode.
+            if (_authorization is null || User?.Identity?.IsAuthenticated != true)
+            {
+                return false;
+            }
+
+            var result = await _authorization.AuthorizeAsync(User, ProjectOfficeReportsPolicies.ViewArpp);
+            return result.Succeeded;
         }
 
         // SECTION: Headline figures
@@ -257,6 +302,29 @@ namespace ProjectManagement.Pages.Analytics
                             "Stages measured",
                             Insights.RankedHotspots.Count.ToString(),
                             "with recorded start and end dates")
+                    };
+
+                case AnalyticsTab.Arpp when Arpp is not null && Arpp.HasData:
+                    return new[]
+                    {
+                        new HeadlineFigure(
+                            "Listed projects",
+                            Arpp.ListedCount.ToString(),
+                            $"IPA {IndianCurrencyFormatter.FormatCompact(Arpp.ListedIpaValue)} in FY {Arpp.FinancialYearDisplay}"),
+                        new HeadlineFigure(
+                            "New this year",
+                            Arpp.NewCount.ToString(),
+                            $"CL {Arpp.CommittedLiabilityCount} · CF {Arpp.CarryForwardCount} · delisted {Arpp.DelistedCount}"),
+                        new HeadlineFigure(
+                            "Completed",
+                            Arpp.CompletedCount.ToString(),
+                            $"of the listed projects; {Arpp.OngoingCount} ongoing"),
+                        new HeadlineFigure(
+                            "Supply orders placed",
+                            Arpp.SupplyOrderCount.ToString(),
+                            Arpp.SupplyOrderValue > 0
+                                ? $"{IndianCurrencyFormatter.FormatCompact(Arpp.SupplyOrderValue)}, {Math.Round(Arpp.SupplyOrderShareOfIpa * 100):0}% of listed IPA"
+                                : "no supply-order value recorded yet")
                     };
 
                 default:
@@ -407,6 +475,7 @@ namespace ProjectManagement.Pages.Analytics
             var currentYear = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime).Year;
             var bestYear = perYear.OrderByDescending(point => point.Count).ThenByDescending(point => point.Year).FirstOrDefault();
             var medianDaysToComplete = await BuildMedianDaysToCompleteAsync(completedQuery, cancellationToken);
+            var (categoryBoard, technicalBoard) = await BuildCompletedGroupBoardsAsync(completedQuery, cancellationToken);
             // END SECTION
 
             return new CompletedAnalyticsVm
@@ -420,10 +489,53 @@ namespace ProjectManagement.Pages.Analytics
                 CompletedThisYear = perYear.FirstOrDefault(point => point.Year == currentYear)?.Count ?? 0,
                 BestYear = bestYear?.Year,
                 BestYearCount = bestYear?.Count ?? 0,
-                MedianDaysToComplete = medianDaysToComplete
+                MedianDaysToComplete = medianDaysToComplete,
+                CategoryBoard = categoryBoard,
+                TechnicalBoard = technicalBoard
             };
             // END SECTION
         }
+
+        // SECTION: Completed drill-downs by exact category and technical category (same grouping as the charts)
+        private async Task<(IReadOnlyList<AnalyticsBoardGroupVm> CategoryBoard, IReadOnlyList<AnalyticsBoardGroupVm> TechnicalBoard)>
+            BuildCompletedGroupBoardsAsync(IQueryable<Project> completedQuery, CancellationToken cancellationToken)
+        {
+            var rows = await completedQuery
+                .Select(project => new CompletedBoardRow(
+                    project.Id,
+                    project.Name,
+                    project.CategoryId,
+                    project.Category != null ? project.Category.Name : null,
+                    project.TechnicalCategoryId,
+                    project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
+                    project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null)))
+                .ToListAsync(cancellationToken);
+
+            // Grouped and keyed by category id, as the charts count: names are unique only per parent.
+            IReadOnlyList<AnalyticsBoardGroupVm> Group(Func<CompletedBoardRow, int?> idOf, Func<CompletedBoardRow, string?> nameOf) => rows
+                .GroupBy(row => idOf(row))
+                .Select(group => new AnalyticsBoardGroupVm(
+                    CategoryDrillKey(group.Key),
+                    group.Select(nameOf).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name))?.Trim() ?? "Uncategorized",
+                    group.Count(),
+                    group
+                        .OrderByDescending(row => row.Year)
+                        .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(row => new AnalyticsBoardProjectVm(
+                            row.Id,
+                            string.IsNullOrWhiteSpace(row.Name) ? "Untitled project" : row.Name.Trim(),
+                            row.Year?.ToString()))
+                        .ToList()))
+                .OrderByDescending(group => group.Count)
+                .ThenBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return (Group(row => row.CategoryId, row => row.CategoryName), Group(row => row.TechnicalCategoryId, row => row.TechnicalName));
+        }
+
+        /// <summary>The drill-down key the charts use for a category: its id, or "none" for projects without one.</summary>
+        internal static string CategoryDrillKey(int? id) => id?.ToString() ?? "none";
+        // END SECTION
 
         // SECTION: Median time to complete (first stage start to completion)
         private async Task<double?> BuildMedianDaysToCompleteAsync(
@@ -539,6 +651,8 @@ namespace ProjectManagement.Pages.Analytics
                 ByStage = stageBuckets,
                 SubcategoriesByLifecycle = subcategoryBreakdown,
                 SubcategoryProjects = subcategoryProjects,
+                StageBoard = BuildCoeStageBoard(subcategoryProjects),
+                OverflowProjects = BuildCoeOverflowProjects(subcategoryBreakdown, subcategoryProjects),
                 TotalCoeProjects = totalCoeProjects,
                 OngoingCount = ongoingCount,
                 CompletedCount = completedCount,
@@ -674,7 +788,8 @@ namespace ProjectManagement.Pages.Analytics
                     overflow.Sum(bucket => bucket.Ongoing),
                     overflow.Sum(bucket => bucket.Completed),
                     overflow.Sum(bucket => bucket.Cancelled),
-                    overflow.Sum(bucket => bucket.Total)));
+                    overflow.Sum(bucket => bucket.Total),
+                    CoeAnalyticsVm.OverflowSubcategoryKey));
             }
 
             return primaryBuckets;
@@ -822,7 +937,8 @@ namespace ProjectManagement.Pages.Analytics
                             row.Id,
                             row.Name,
                             FormatCoeLifecycleStatus(row.LifecycleStatus),
-                            stageName)
+                            stageName,
+                            string.IsNullOrWhiteSpace(stage.CurrentStageCode) ? null : stage.CurrentStageCode.Trim())
                     };
                 })
                 .GroupBy(item => item.Subcategory, StringComparer.OrdinalIgnoreCase)
@@ -841,6 +957,61 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
+        // SECTION: CoE overflow drill-down (the sub-categories folded into the chart's "Other" bucket, as one row)
+        private static CoeSubcategoryProjectsVm? BuildCoeOverflowProjects(
+            IReadOnlyList<CoeSubcategoryLifecycleVm> buckets,
+            IReadOnlyList<CoeSubcategoryProjectsVm> projectsBySubcategory)
+        {
+            if (!buckets.Any(bucket => bucket.Key == CoeAnalyticsVm.OverflowSubcategoryKey))
+            {
+                return null;
+            }
+
+            var charted = buckets
+                .Where(bucket => bucket.Key != CoeAnalyticsVm.OverflowSubcategoryKey)
+                .Select(bucket => bucket.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var folded = projectsBySubcategory
+                .Where(bucket => !charted.Contains(bucket.SubcategoryName))
+                .ToList();
+
+            return new CoeSubcategoryProjectsVm(
+                $"Other ({folded.Count} sub-categories)",
+                folded
+                    .SelectMany(bucket => bucket.Projects.Select(project => project with { CurrentStage = $"{bucket.SubcategoryName} · {project.CurrentStage}" }))
+                    .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                folded.Sum(bucket => bucket.OngoingCount),
+                folded.Sum(bucket => bucket.CompletedCount),
+                folded.Sum(bucket => bucket.CancelledCount));
+        }
+        // END SECTION
+
+        // SECTION: CoE stage drill-down (ongoing projects grouped by current stage, workflow order)
+        private static IReadOnlyList<AnalyticsBoardGroupVm> BuildCoeStageBoard(IReadOnlyList<CoeSubcategoryProjectsVm> buckets)
+        {
+            var ongoing = buckets
+                .SelectMany(bucket => bucket.Projects.Select(project => (bucket.SubcategoryName, Project: project)))
+                .Where(item => item.Project.LifecycleStatus == "Ongoing" && !string.IsNullOrWhiteSpace(item.Project.CurrentStageCode))
+                .ToList();
+
+            var order = BuildStageOrderLookup(BuildOrderedStageCodes(ongoing.Select(item => item.Project.CurrentStageCode!)));
+
+            return ongoing
+                .GroupBy(item => item.Project.CurrentStageCode!, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => ResolveStageOrder(group.Key, order))
+                .Select(group => new AnalyticsBoardGroupVm(
+                    group.Key,
+                    group.First().Project.CurrentStage,
+                    group.Count(),
+                    group
+                        .OrderBy(item => item.Project.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(item => new AnalyticsBoardProjectVm(item.Project.Id, item.Project.Name, item.SubcategoryName))
+                        .ToList()))
+                .ToList();
+        }
+        // END SECTION
+
         private static string FormatCoeLifecycleStatus(ProjectLifecycleStatus status) => status switch
         {
             ProjectLifecycleStatus.Active => "Ongoing",
@@ -848,6 +1019,8 @@ namespace ProjectManagement.Pages.Analytics
             ProjectLifecycleStatus.Cancelled => "Cancelled",
             _ => status.ToString()
         };
+
+        private sealed record CompletedBoardRow(int Id, string? Name, int? CategoryId, string? CategoryName, int? TechnicalCategoryId, string? TechnicalName, int? Year);
 
         private sealed record CoeCategoryDescriptor(int Id, int? ParentId, string Name);
         private sealed record CoeCategoryLookup(
@@ -872,7 +1045,7 @@ namespace ProjectManagement.Pages.Analytics
             var namedCategories = await LoadCategoryNamesAsync(categoryCounts, cancellationToken);
 
             return categoryCounts
-                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedCategories), item.Count))
+                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedCategories), item.Count, item.Id))
                 .ToList();
         }
 
@@ -914,7 +1087,7 @@ namespace ProjectManagement.Pages.Analytics
             var namedTechnicalCategories = await LoadTechnicalCategoryNamesAsync(technicalCounts, cancellationToken);
 
             return technicalCounts
-                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedTechnicalCategories), item.Count))
+                .Select(item => new AnalyticsCategoryCountPoint(ResolveName(item.Id, namedTechnicalCategories), item.Count, item.Id))
                 .ToList();
         }
 

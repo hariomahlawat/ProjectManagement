@@ -17,6 +17,11 @@ public sealed class CompletedAnalyticsVm
     /// <summary>Median calendar days from the first stage start to completion; null when no project has both dates.</summary>
     public double? MedianDaysToComplete { get; init; }
     // END SECTION
+
+    // SECTION: In-page drill-downs for the category and technical-category charts
+    public IReadOnlyList<AnalyticsBoardGroupVm> CategoryBoard { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
+    public IReadOnlyList<AnalyticsBoardGroupVm> TechnicalBoard { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
+    // END SECTION
 }
 
 // SECTION: Completed year board DTOs
@@ -37,7 +42,8 @@ public sealed record CompletedYearBoardItemVm(
 // END SECTION
 
 // SECTION: Shared analytics DTOs
-public sealed record AnalyticsCategoryCountPoint(string Name, int Count);
+/// <summary>Count for one exact category; <paramref name="Id"/> is null for projects without one. The drill-down key is the id, since names are only unique per parent.</summary>
+public sealed record AnalyticsCategoryCountPoint(string Name, int Count, int? Id = null);
 
 public sealed record AnalyticsStageCountPoint(string Name, int Count);
 

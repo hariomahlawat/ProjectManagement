@@ -1,0 +1,235 @@
+@model ProjectManagement.Models.Analytics.ArppAnalyticsVm
+@using System.Globalization
+@using System.Linq
+@using System.Text.Json
+@using ProjectManagement.Models.Analytics
+@using ProjectManagement.Utilities
+
+@{
+    var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var overviewUrl = Url.Page("/Projects/Overview");
+    var arppLibraryUrl = Url.Page("/Projects/Arpp/Index", new { financialYearStart = Model.FinancialYearStart });
+    var fyReportUrl = Url.Page("/Projects/Reports/ArppFyUpdate", new { FinancialYearStart = Model.FinancialYearStart });
+    static string Crore(decimal rupees) => IndianCurrencyFormatter.FormatCompact(rupees);
+    var maxStanding = Model.StandingBoard.Count > 0 ? Model.StandingBoard.Max(group => group.Count) : 0;
+    var maxMilestone = Model.ListedCount;
+}
+
+<section class="analytics-panel analytics-panel--arpp" aria-label="ARPP listed projects analytics">
+  @if (Model.FallbackNote is not null)
+  {
+    <p class="analytics-note analytics-note--lead">@Model.FallbackNote</p>
+  }
+
+  @if (!Model.HasData)
+  {
+    <article class="analytics-card">
+      <header class="analytics-card__head">
+        <div class="analytics-card__text">
+          <h2 class="analytics-card__title">ARPP FY @Model.FinancialYearDisplay</h2>
+          <p class="analytics-card__meta">No published ARPP rows for this financial year yet.</p>
+        </div>
+        <div class="analytics-card__actions">
+          @await Html.PartialAsync("Partials/_ArppYearFilter", Model)
+        </div>
+      </header>
+      <p class="analytics-empty" role="status">Publish (verify) the year's ARPP in the ARPP administration workspace to see it here.</p>
+    </article>
+  }
+  else
+  {
+    <!-- SECTION: Where the listed projects stand -->
+    <article class="analytics-card">
+      <header class="analytics-card__head">
+        <div class="analytics-card__text">
+          <h2 class="analytics-card__title">Where the FY @Model.FinancialYearDisplay projects stand</h2>
+          <p class="analytics-card__meta">The @Model.ListedCount listed projects today: @Model.CompletedCount completed, @Model.OngoingCount ongoing by current stage@(Model.CancelledCount > 0 ? $", {Model.CancelledCount} cancelled" : ""). Click a bar or a row to see the projects.</p>
+        </div>
+        <div class="analytics-card__actions">
+          @await Html.PartialAsync("Partials/_ArppYearFilter", Model)
+          <button type="button" class="analytics-icon-btn" data-chart-download-target="arpp-by-stage-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+            <i class="bi bi-download" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
+      <div class="analytics-card__chart">
+        <canvas id="arpp-by-stage-chart"
+                role="img"
+                aria-label="Ongoing ARPP-listed projects by current stage"
+                data-empty-message="No ongoing listed projects."
+                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, json))'></canvas>
+      </div>
+
+      <section class="analytics-drill" aria-label="Listed projects by standing">
+        <h3 class="analytics-drill__title">Projects by standing</h3>
+        @foreach (var group in Model.StandingBoard)
+        {
+          var width = maxStanding > 0 ? (int)Math.Round(100.0 * group.Count / maxStanding) : 0;
+          var tone = group.Key == "COMPLETED" ? "is-completed" : group.Key == "CANCELLED" ? "is-cancelled" : "";
+          <details class="analytics-drill__row @tone" data-drill-key="stage:@group.Key">
+            <summary class="analytics-drill__summary">
+              <span class="analytics-drill__name">@group.Name</span>
+              <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+              <span class="analytics-drill__chips"></span>
+              <span class="analytics-drill__count">@group.Count</span>
+              <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
+            </summary>
+            <div class="analytics-drill__body">
+              <ol class="analytics-drill__list">
+                @foreach (var project in group.Projects)
+                {
+                  <li><a href="@overviewUrl?id=@project.ProjectId">@project.ProjectName</a>@if (project.Detail is not null) { <span class="analytics-drill__stage">@project.Detail</span> }</li>
+                }
+              </ol>
+            </div>
+          </details>
+        }
+      </section>
+    </article>
+    <!-- END SECTION -->
+
+    <div class="analytics-row analytics-row--7-5">
+      <!-- SECTION: By sanctioning authority (CFA) -->
+      <article class="analytics-card">
+        <header class="analytics-card__head">
+          <div class="analytics-card__text">
+            <h2 class="analytics-card__title">By sanctioning authority</h2>
+            <p class="analytics-card__meta">Listed projects and their IPA value under each CFA.</p>
+          </div>
+          <div class="analytics-card__actions">
+            <button type="button" class="analytics-icon-btn" data-chart-download-target="arpp-by-cfa-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+              <i class="bi bi-download" aria-hidden="true"></i>
+            </button>
+          </div>
+        </header>
+        <div class="analytics-card__chart">
+          <canvas id="arpp-by-cfa-chart" role="img" aria-label="Listed projects by CFA" data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByCfa.Select(g => new { g.Key, g.Name, g.Count, g.IpaValue, Value = Crore(g.IpaValue) }), json))'></canvas>
+        </div>
+        <section class="analytics-drill analytics-drill--flush" aria-label="Listed projects by CFA">
+          @foreach (var group in Model.ByCfa)
+          {
+            @await Html.PartialAsync("Partials/_ArppGroupRow", (group, "cfa", overviewUrl, Model.ListedCount))
+          }
+        </section>
+      </article>
+      <!-- END SECTION -->
+
+      <!-- SECTION: By ARPP category and cost band -->
+      <article class="analytics-card">
+        <header class="analytics-card__head">
+          <div class="analytics-card__text">
+            <h2 class="analytics-card__title">By category and cost band</h2>
+            <p class="analytics-card__meta">New, committed liability and carry-forward listings, and the size of each project's IPA.</p>
+          </div>
+          <div class="analytics-card__actions">
+            <button type="button" class="analytics-icon-btn" data-chart-download-target="arpp-by-category-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+              <i class="bi bi-download" aria-hidden="true"></i>
+            </button>
+          </div>
+        </header>
+        <div class="analytics-card__chart analytics-card__chart--short">
+          <canvas id="arpp-by-category-chart" role="img" aria-label="Listed projects by ARPP category" data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByCategory.Select(g => new { g.Key, g.Name, g.Count, g.IpaValue, Value = Crore(g.IpaValue) }), json))'></canvas>
+        </div>
+        <div class="analytics-card__chart analytics-card__chart--short">
+          <canvas id="arpp-by-band-chart" role="img" aria-label="Listed projects by IPA cost band" data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByCostBand.Select(g => new { g.Key, g.Name, g.Count, g.IpaValue, Value = Crore(g.IpaValue) }), json))'></canvas>
+        </div>
+        <section class="analytics-drill analytics-drill--flush" aria-label="Listed projects by category and cost band">
+          @foreach (var group in Model.ByCategory)
+          {
+            @await Html.PartialAsync("Partials/_ArppGroupRow", (group, "cat", overviewUrl, Model.ListedCount))
+          }
+          @foreach (var group in Model.ByCostBand)
+          {
+            @await Html.PartialAsync("Partials/_ArppGroupRow", (group, "band", overviewUrl, Model.ListedCount))
+          }
+        </section>
+      </article>
+      <!-- END SECTION -->
+    </div>
+
+    <div class="analytics-row analytics-row--5-7">
+      <!-- SECTION: Milestones -->
+      <article class="analytics-card">
+        <header class="analytics-card__head">
+          <div class="analytics-card__text">
+            <h2 class="analytics-card__title">Milestones</h2>
+            <p class="analytics-card__meta">How far the listed projects have moved, from the project records.</p>
+          </div>
+        </header>
+        <div class="analytics-minis">
+          <div class="analytics-mini"><b>@Model.PastAonCount</b><span>past AoN</span></div>
+          <div class="analytics-mini"><b>@Model.SupplyOrderCount</b><span>supply order placed</span></div>
+          <div class="analytics-mini"><b>@Model.PdcDueInYearCount</b><span>PDC due this year</span></div>
+          <div class="analytics-mini @(Model.PdcOverdueCount > 0 ? "is-hot" : "")"><b>@Model.PdcOverdueCount</b><span>PDC overdue</span></div>
+        </div>
+        <div class="analytics-meter" title="Supply-order value against listed IPA value">
+          <div class="analytics-meter__line"><span>Supply orders @Crore(Model.SupplyOrderValue)</span><span>of IPA @Crore(Model.ListedIpaValue)</span></div>
+          <span class="analytics-meter__track" aria-hidden="true"><i style="--w:@(Math.Min(100, (int)Math.Round(Model.SupplyOrderShareOfIpa * 100)))%"></i></span>
+        </div>
+        <section class="analytics-drill analytics-drill--flush" aria-label="Listed projects by milestone">
+          @foreach (var group in Model.MilestoneBoard)
+          {
+            var width = maxMilestone > 0 ? (int)Math.Round(100.0 * group.Count / maxMilestone) : 0;
+            <details class="analytics-drill__row @(group.Key == "PDC_OVERDUE" && group.Count > 0 ? "is-hot" : "")" data-drill-key="milestone:@group.Key">
+              <summary class="analytics-drill__summary">
+                <span class="analytics-drill__name">@group.Name</span>
+                <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+                <span class="analytics-drill__chips"></span>
+                <span class="analytics-drill__count">@group.Count</span>
+                <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
+              </summary>
+              <div class="analytics-drill__body">
+                @if (group.Projects.Count == 0)
+                {
+                  <p class="analytics-drill__none">None.</p>
+                }
+                else
+                {
+                  <ol class="analytics-drill__list">
+                    @foreach (var project in group.Projects)
+                    {
+                      <li><a href="@overviewUrl?id=@project.ProjectId">@project.ProjectName</a>@if (project.Detail is not null) { <span class="analytics-drill__stage">@project.Detail</span> }</li>
+                    }
+                  </ol>
+                }
+              </div>
+            </details>
+          }
+        </section>
+      </article>
+      <!-- END SECTION -->
+
+      <!-- SECTION: Fund, DFPDS schedule and parent category -->
+      <article class="analytics-card">
+        <header class="analytics-card__head">
+          <div class="analytics-card__text">
+            <h2 class="analytics-card__title">Fund, schedule and project category</h2>
+            <p class="analytics-card__meta">Where the money is drawn from, the DFPDS schedule applied, and which part of the portfolio the projects belong to.</p>
+          </div>
+        </header>
+        <section class="analytics-drill analytics-drill--flush" aria-label="Listed projects by fund">
+          <h3 class="analytics-drill__title">Fund</h3>
+          @foreach (var group in Model.ByFund)
+          {
+            @await Html.PartialAsync("Partials/_ArppGroupRow", (group, "fund", overviewUrl, Model.ListedCount))
+          }
+          <h3 class="analytics-drill__title">DFPDS schedule</h3>
+          @foreach (var group in Model.ByDfpds)
+          {
+            @await Html.PartialAsync("Partials/_ArppGroupRow", (group, "dfpds", overviewUrl, Model.ListedCount))
+          }
+          <h3 class="analytics-drill__title">Parent category</h3>
+          @foreach (var group in Model.ByParentCategory)
+          {
+            @await Html.PartialAsync("Partials/_ArppGroupRow", (group, "parent", overviewUrl, Model.ListedCount))
+          }
+        </section>
+        <p class="analytics-card__foot">
+          Source: the published ARPP for FY @Model.FinancialYearDisplay (latest row per project; @Model.AddedByAddendumCount added or changed by addendum@(Model.UnlinkedRowCount > 0 ? $"; {Model.UnlinkedRowCount} published rows not linked to a project are excluded" : "")).
+          <a href="@arppLibraryUrl">Open the ARPP library</a> · <a href="@fyReportUrl">FY project update report</a>
+        </p>
+      </article>
+      <!-- END SECTION -->
+    </div>
+  }
+</section>
