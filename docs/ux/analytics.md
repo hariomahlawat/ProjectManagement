@@ -38,6 +38,8 @@ one chart style defined once.
 - **Drill-downs**: the year, stage and sub-category boards are expandable rows
   (`<details class="analytics-drill__row">`): name, a proportional bar, category counts, the total,
   then the project list with links to each project's overview. No horizontal strips of tall cards.
+  A CoE project row shows its current stage only while it is ongoing; completed and cancelled
+  projects are identified by their lifecycle alone.
 - **Insights** has one stage cycle-time chart with two toggles (Median / Mean, All projects / By
   cost band) and the category filter, followed by "Where time goes": the stages ranked slowest
   first with plain-language numbers ("196 days median · 16× portfolio median · 8 projects"). A stage

@@ -110,7 +110,11 @@
                   <li>
                     <a href="@overviewUrl?id=@project.Id">@project.Name</a>
                     <span class="analytics-drill__status @StatusClass(project.LifecycleStatus)">@project.LifecycleStatus</span>
-                    <span class="analytics-drill__stage">@project.CurrentStage</span>
+                    @* A finished or cancelled project is identified by its lifecycle; its last stage is not shown. *@
+                    @if (project.LifecycleStatus == "Ongoing")
+                    {
+                      <span class="analytics-drill__stage">@project.CurrentStage</span>
+                    }
                   </li>
                 }
               </ol>
