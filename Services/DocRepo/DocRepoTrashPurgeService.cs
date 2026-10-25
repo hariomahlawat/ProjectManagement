@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -83,8 +84,9 @@ public sealed class DocRepoTrashPurgeService
         {
             // Directory missing; purge the metadata.
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Locked, read-only or not permitted: keep the row so the purge can be retried.
             return new DocRepoPurgeResult(DocRepoPurgeOutcome.FileError, ex.Message);
         }
 
@@ -108,11 +110,14 @@ public sealed class DocRepoTrashPurgeService
 
         var cutoff = _clock.UtcNow.UtcDateTime.AddDays(-RetentionDays);
         var purged = 0;
+        // Documents whose file could not be deleted in this run are skipped by the next batches,
+        // so they never block newer due documents; the next run tries them again.
+        var failed = new List<Guid>();
         while (!cancellationToken.IsCancellationRequested)
         {
             var due = await _db.Documents
                 .AsNoTracking()
-                .Where(d => d.IsDeleted && d.DeletedAtUtc != null && d.DeletedAtUtc <= cutoff)
+                .Where(d => d.IsDeleted && d.DeletedAtUtc != null && d.DeletedAtUtc <= cutoff && !failed.Contains(d.Id))
                 .OrderBy(d => d.DeletedAtUtc)
                 .ThenBy(d => d.Id)
                 .Select(d => new { d.Id, d.DeletedAtUtc })
@@ -124,7 +129,6 @@ public sealed class DocRepoTrashPurgeService
                 break;
             }
 
-            var progressed = false;
             foreach (var item in due)
             {
                 var result = await PurgeAsync(
@@ -136,17 +140,15 @@ public sealed class DocRepoTrashPurgeService
                 if (result.Outcome == DocRepoPurgeOutcome.Purged)
                 {
                     purged++;
-                    progressed = true;
                 }
                 else if (result.Outcome == DocRepoPurgeOutcome.FileError)
                 {
+                    failed.Add(item.Id);
                     _logger?.LogWarning("Trash retention could not delete the file of document {DocumentId}: {Error}", item.Id, result.Error);
                 }
             }
 
-            // A batch made only of files that cannot be deleted would repeat forever; stop and
-            // let the next run try again.
-            if (!progressed || due.Count < BatchSize)
+            if (due.Count < BatchSize)
             {
                 break;
             }

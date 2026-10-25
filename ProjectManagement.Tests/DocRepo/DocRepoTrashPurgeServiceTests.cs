@@ -77,6 +77,44 @@ public sealed class DocRepoTrashPurgeServiceTests
     }
 
     [Fact]
+    public async Task PurgeExpiredAsync_AFullBatchOfUndeletableFilesDoesNotBlockNewerDocuments()
+    {
+        await using var db = CreateDb();
+        var storage = new RecordingStorage();
+        for (var i = 0; i < 100; i++)
+        {
+            storage.Failing.Add($"docs/{Seed(db, deletedDaysAgo: 200 + i)}.pdf");
+        }
+
+        var newer = Seed(db, deletedDaysAgo: 40);
+        await db.SaveChangesAsync();
+
+        var purged = await CreateService(db, storage).PurgeExpiredAsync();
+
+        Assert.Equal(1, purged);
+        Assert.DoesNotContain(await db.Documents.AsNoTracking().ToListAsync(), d => d.Id == newer);
+        Assert.Equal(100, await db.Documents.AsNoTracking().CountAsync());
+    }
+
+    [Fact]
+    public async Task PurgeAsync_ReportsAPermissionFailureForThatDocumentOnly()
+    {
+        await using var db = CreateDb();
+        var readOnly = Seed(db, deletedDaysAgo: 40);
+        var free = Seed(db, deletedDaysAgo: 40);
+        await db.SaveChangesAsync();
+        var storage = new RecordingStorage { Denied = { $"docs/{readOnly}.pdf" } };
+
+        var purged = await CreateService(db, storage).PurgeExpiredAsync();
+
+        Assert.Equal(1, purged);
+        Assert.Equal(readOnly, (await db.Documents.AsNoTracking().SingleAsync()).Id);
+        var result = await CreateService(db, storage).PurgeAsync(readOnly, "admin");
+        Assert.Equal(DocRepoPurgeOutcome.FileError, result.Outcome);
+        Assert.DoesNotContain(await db.Documents.AsNoTracking().ToListAsync(), d => d.Id == free);
+    }
+
+    [Fact]
     public async Task PurgeDueUtc_IsTheTrashDatePlusTheRetention()
     {
         await using var db = CreateDb();
@@ -128,6 +166,8 @@ public sealed class DocRepoTrashPurgeServiceTests
 
         public HashSet<string> Failing { get; } = new();
 
+        public HashSet<string> Denied { get; } = new();
+
         public Task<string> SaveAsync(Stream source, string safeFileName, DateTime utcNow, CancellationToken ct)
             => Task.FromResult(safeFileName);
 
@@ -139,6 +179,11 @@ public sealed class DocRepoTrashPurgeServiceTests
             if (Failing.Contains(storagePath))
             {
                 throw new IOException("The file is in use.");
+            }
+
+            if (Denied.Contains(storagePath))
+            {
+                throw new UnauthorizedAccessException("Access to the path is denied.");
             }
 
             Deleted.Add(storagePath);
