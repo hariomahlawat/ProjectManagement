@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using ProjectManagement.Application.Ipr;
 using ProjectManagement.Infrastructure.Data;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
@@ -83,7 +84,15 @@ public sealed partial class IndexModel
         string Tone,
         IReadOnlyList<AttentionItem> Items);
 
-    public sealed record AgeBandRow(string Label, int Count, int Percentage, string Tone);
+    public sealed record AgeBandRow(string Label, int Count, int Percentage, string Tone, IprPendingAge Band = IprPendingAge.Any);
+
+    // Filings made in a year and how many of them are granted so far (Insights "Outcome by filing year").
+    public sealed record FilingCohortRow(int Year, int Filed, int Granted)
+    {
+        public int Pending => Filed - Granted;
+
+        public int GrantRatePercent => Filed == 0 ? 0 : (int)Math.Round(Granted * 100d / Filed, MidpointRounding.AwayFromZero);
+    }
 
     public sealed record AnalyticsSummaryModel(
         int GrantRatePercent,

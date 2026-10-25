@@ -111,7 +111,7 @@ test('IPR active scope is removable and visible across module views', () => {
   assert.match(pageSource, /_ActiveFilterChips/);
   assert.match(activeFilterSource, /BuildRemoveFilterRoute/);
   assert.match(activeFilterSource, /BuildClearFiltersRoute/);
-  assert.match(pageSource, /Analytics scope:/);
+  assert.match(pageSource, /"Scope: "/);
   assert.match(pageSource, /ipr-actions__filters/);
 });
 
@@ -126,16 +126,17 @@ test('IPR Action list lists each filing once with a direct fix per issue', () =>
   assert.match(pageSource, /AttentionIssueCounts/);
   assert.match(source, /hashId/);
 });
-test('IPR analytics replaces the repeated grant-rate tile with evidence coverage', () => {
-  const pageSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
-    'utf8'
-  );
-  assert.match(pageSource, /Evidence coverage/);
-  assert.match(pageSource, /recordsWithEvidence/);
+test('IPR Insights draws its charts in HTML and every chart opens the filtered register', () => {
+  assert.match(pageSource, /id="iprInsightsHeading">Insights</);
+  assert.match(pageSource, /IDictionary<string, string\?> RegisterLink\(object overrides\)/);
+  assert.match(pageSource, /RegisterLink\(new \{ year = cohort\.Year/);
+  assert.match(pageSource, /RegisterLink\(new \{ year = row\.Year, dateBasis = "Protected" \}\)/);
+  assert.match(pageSource, /RegisterLink\(new \{ pendingAge = band\.Band\.ToString\(\) \}\)/);
+  assert.match(pageSource, /RegisterLink\(new \{ evidence = "Missing" \}\)/);
+  assert.doesNotMatch(pageSource, /chart\.umd\.js/);
+  assert.doesNotMatch(pageSource, /<canvas/);
+  assert.match(cssSource, /\.ipr-bars__stack/);
 });
-
-
 test('IPR entry workflow provides layered patent and copyright guidance', () => {
   const pageSource = fs.readFileSync(
     path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
@@ -165,7 +166,7 @@ test('IPR workspace shows a four-figure summary and three views without the old 
   assert.match(pageSource, /class="ipr-views"/);
   assert.match(pageSource, />Register</);
   assert.match(pageSource, /Action list/);
-  assert.match(pageSource, />Analytics</);
+  assert.match(pageSource, />Insights</);
   assert.doesNotMatch(pageSource, /Project dossiers/);
   assert.doesNotMatch(pageSource, /ipr-insight-ribbon/);
 });

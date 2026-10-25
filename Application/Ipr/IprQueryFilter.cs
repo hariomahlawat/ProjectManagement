@@ -70,6 +70,7 @@ public static class IprQueryFilter
             }
         }
 
+        query = ApplyPendingAge(query, filter.PendingAge, filter.AsOf);
         query = ApplyFiledRange(query, filter.FiledFrom, filter.FiledTo);
         query = ApplyProtectedRange(query, filter.ProtectedFrom, filter.ProtectedTo);
         return query;
@@ -95,6 +96,41 @@ public static class IprQueryFilter
             (wantsProtected && record.Status == IprStatus.Granted) ||
             (wantsRejected && record.Status == IprStatus.Rejected) ||
             (wantsWithdrawn && record.Status == IprStatus.Withdrawn));
+    }
+
+    /// <summary>Day thresholds of the pending-age bands, shared with the Insights age chart.</summary>
+    public static (int MinDays, int? MaxDays) PendingAgeRange(IprPendingAge band) => band switch
+    {
+        IprPendingAge.UnderOneYear => (0, 365),
+        IprPendingAge.OneToThreeYears => (365, 1095),
+        IprPendingAge.ThreeToFiveYears => (1095, 1825),
+        IprPendingAge.OverFiveYears => (1825, null),
+        _ => (0, null)
+    };
+
+    private static IQueryable<IprRecord> ApplyPendingAge(IQueryable<IprRecord> query, IprPendingAge band, DateOnly? asOf)
+    {
+        if (band == IprPendingAge.Any)
+        {
+            return query;
+        }
+
+        var today = asOf ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ProjectManagement.Utilities.TimeZoneHelper.GetIst()).DateTime);
+        var (minDays, maxDays) = PendingAgeRange(band);
+        // Filed dates are stored as the UTC midnight of the calendar date; age = today - filed date.
+        var filedOnOrBefore = new DateTimeOffset(today.AddDays(-minDays).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+        query = query.Where(record =>
+            (record.Status == IprStatus.FilingUnderProcess || record.Status == IprStatus.Filed) &&
+            record.FiledAtUtc.HasValue &&
+            record.FiledAtUtc <= filedOnOrBefore);
+
+        if (maxDays.HasValue)
+        {
+            var filedAfter = new DateTimeOffset(today.AddDays(-maxDays.Value).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            query = query.Where(record => record.FiledAtUtc > filedAfter);
+        }
+
+        return query;
     }
 
     public static IOrderedQueryable<IprRecord> ApplyRegisterOrdering(IQueryable<IprRecord> query)

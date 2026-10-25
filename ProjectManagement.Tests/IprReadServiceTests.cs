@@ -483,6 +483,29 @@ public sealed class IprReadServiceTests
         Assert.Equal(IprStatus.Filed, rows[1].Status);
     }
 
+    [Theory]
+    [InlineData(IprPendingAge.UnderOneYear, "IPR-AGE-NEW")]
+    [InlineData(IprPendingAge.OneToThreeYears, "IPR-AGE-1Y")]
+    [InlineData(IprPendingAge.ThreeToFiveYears, "IPR-AGE-3Y")]
+    [InlineData(IprPendingAge.OverFiveYears, "IPR-AGE-5Y")]
+    public async Task SearchAsync_FiltersPendingFilingsByAge(IprPendingAge band, string expected)
+    {
+        await using var db = CreateDbContext();
+        var asOf = new DateOnly(2026, 10, 25);
+        DateTimeOffset Filed(int daysAgo) => new(asOf.AddDays(-daysAgo).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+        db.IprRecords.AddRange(
+            new IprRecord { IprFilingNumber = "IPR-AGE-NEW", Title = "364 days", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = Filed(364) },
+            new IprRecord { IprFilingNumber = "IPR-AGE-1Y", Title = "365 days", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = Filed(365) },
+            new IprRecord { IprFilingNumber = "IPR-AGE-3Y", Title = "1095 days", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = Filed(1095) },
+            new IprRecord { IprFilingNumber = "IPR-AGE-5Y", Title = "1825 days", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = Filed(1825) },
+            new IprRecord { IprFilingNumber = "IPR-AGE-GRANTED", Title = "Granted, old", Type = IprType.Patent, Status = IprStatus.Granted, FiledAtUtc = Filed(2000), GrantedAtUtc = Filed(100) });
+        await db.SaveChangesAsync();
+
+        var result = await new IprReadService(db).SearchAsync(new IprFilter { PendingAge = band, AsOf = asOf });
+
+        Assert.Equal(new[] { expected }, result.Items.Select(item => item.FilingNumber).ToArray());
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

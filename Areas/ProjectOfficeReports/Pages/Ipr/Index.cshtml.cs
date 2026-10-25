@@ -92,6 +92,9 @@ public sealed partial class IndexModel : PageModel
     public IprEvidenceFilter Evidence { get; set; } = IprEvidenceFilter.All;
 
     [BindProperty(SupportsGet = true)]
+    public IprPendingAge PendingAge { get; set; } = IprPendingAge.Any;
+
+    [BindProperty(SupportsGet = true)]
     public string? AttentionIssue { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -164,9 +167,10 @@ public sealed partial class IndexModel : PageModel
 
     public IReadOnlyList<AttentionGroup> AttentionGroups { get; private set; } = Array.Empty<AttentionGroup>();
 
-    public IReadOnlyList<AwaitingGrantRow> OldestAwaitingGrant { get; private set; } = Array.Empty<AwaitingGrantRow>();
 
     public IReadOnlyList<AgeBandRow> AwaitingAgeBands { get; private set; } = Array.Empty<AgeBandRow>();
+
+    public IReadOnlyList<FilingCohortRow> FilingCohorts { get; private set; } = Array.Empty<FilingCohortRow>();
 
     public AnalyticsSummaryModel AnalyticsSummary { get; private set; } = new(0, null, null, 0, 0, 0);
 
@@ -207,7 +211,8 @@ public sealed partial class IndexModel : PageModel
             || ProjectId.HasValue
             || Year.HasValue
             || Linkage != IprLinkageFilter.All
-            || Evidence != IprEvidenceFilter.All;
+            || Evidence != IprEvidenceFilter.All
+            || PendingAge != IprPendingAge.Any;
 
     public bool HasAnyFilter
         => !string.IsNullOrWhiteSpace(Query) || HasStructuredFilters;
@@ -218,7 +223,8 @@ public sealed partial class IndexModel : PageModel
             + (ProjectId.HasValue ? 1 : 0)
             + (Year.HasValue ? 1 : 0)
             + (Linkage != IprLinkageFilter.All ? 1 : 0)
-            + (Evidence != IprEvidenceFilter.All ? 1 : 0);
+            + (Evidence != IprEvidenceFilter.All ? 1 : 0)
+            + (PendingAge != IprPendingAge.Any ? 1 : 0);
 
     public IReadOnlyList<ActiveFilterChip> ActiveFilterChips { get; private set; } = Array.Empty<ActiveFilterChip>();
 
@@ -316,6 +322,11 @@ public sealed partial class IndexModel : PageModel
         if (Evidence != IprEvidenceFilter.All)
         {
             values["evidence"] = Evidence.ToString();
+        }
+
+        if (PendingAge != IprPendingAge.Any)
+        {
+            values["pendingAge"] = PendingAge.ToString();
         }
 
         if (!string.IsNullOrEmpty(Group) && string.Equals(Tab, "records", StringComparison.Ordinal))
@@ -444,6 +455,9 @@ public sealed partial class IndexModel : PageModel
             case "evidence":
                 overrides["evidence"] = null;
                 break;
+            case "pendingAge":
+                overrides["pendingAge"] = null;
+                break;
         }
 
         return GetRouteValuesForLinks(overrides, includePage: false, includeModeAndId: false);
@@ -460,6 +474,7 @@ public sealed partial class IndexModel : PageModel
             ["year"] = null,
             ["linkage"] = null,
             ["evidence"] = null,
+            ["pendingAge"] = null,
             ["attentionIssue"] = null,
             ["pageNumber"] = 1,
             ["selectedRecordId"] = null,

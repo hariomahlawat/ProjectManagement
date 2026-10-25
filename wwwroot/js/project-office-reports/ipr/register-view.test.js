@@ -16,14 +16,19 @@ const RECORDS = [
 ];
 
 const ROWS = [
-  { id: 1, type: 'Patent', status: 'Filed', counted: true, closed: false, files: 1, projectId: 10, project: 'Tank Sml', filed: 2021, granted: '' },
+  { id: 1, type: 'Patent', status: 'Filed', counted: true, closed: false, files: 1, projectId: 10, project: 'Tank Sml', filed: 2021, granted: '', days: 1960 },
   { id: 2, type: 'Copyright', status: 'Granted', counted: true, closed: false, files: 0, projectId: 11, project: 'Drill App', filed: 2022, granted: 2023 },
   { id: 3, type: 'Patent', status: 'Withdrawn', counted: false, closed: true, files: 0, projectId: 10, project: 'Tank Sml', filed: 2019, granted: '' },
-  { id: 4, type: 'Patent', status: 'Filed', counted: true, closed: false, files: 0, projectId: '', project: '', filed: 2026, granted: '' }
+  { id: 4, type: 'Patent', status: 'Filed', counted: true, closed: false, files: 0, projectId: '', project: '', filed: 2026, granted: '', days: 200 }
 ];
 // A different project that happens to share a name with project 10.
 const NAMESAKE_ROW = { id: 5, type: 'Patent', status: 'Filed', counted: true, closed: false, files: 1, projectId: 12, project: 'Tank Sml', filed: 2024, granted: '' };
 const NAMESAKE_RECORD = { Id: 5, Title: 'Namesake filing', ApplicationNumber: 'P-005', IprType: 'Patent', Status: 'Patent pending', ProjectId: 12, ProjectName: 'Tank Sml', FiledBy: '', FiledOn: '2024-01-01T00:00:00', GrantedOn: null, ExternalRemark: null, Attachments: [] };
+
+const AGE_BANDS = JSON.stringify({
+  UnderOneYear: { min: 0, max: 365, label: 'Pending under 1 year' },
+  OverFiveYears: { min: 1825, max: null, label: 'Pending over 5 years' }
+}).replace(/"/g, '&quot;');
 
 function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?tab=records', { rowsData = ROWS, recordsData = RECORDS } = {}) {
   const rows = rowsData.map(row => {
@@ -31,7 +36,7 @@ function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?
     return `<tr data-ipr-row data-id="${row.id}" data-type="${row.type}" data-status="${row.status}"
         data-counted="${row.counted}" data-closed="${row.closed}" data-files="${row.files}"
         data-project-id="${row.projectId}" data-project="${row.project}" data-filed-year="${row.filed}"
-        data-granted-year="${row.granted}" data-search="${record.Title}&#10;${record.ApplicationNumber}&#10;${row.project}">
+        data-granted-year="${row.granted}" data-pending-days="${row.days ?? ''}" data-search="${record.Title}&#10;${record.ApplicationNumber}&#10;${row.project}">
         <td><button type="button" data-ipr-open="${row.id}">${record.Title}</button></td></tr>`;
   }).join('');
   const stateJson = JSON.stringify(Object.assign({ query: '', types: [], statuses: [], year: '', dateBasis: 'Filed', linkage: 'All', evidence: 'All', projectId: '', group: '', selectedRecordId: '' }, state))
@@ -40,7 +45,7 @@ function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?
   const dom = new JSDOM(`<!doctype html><html><body>
     <a data-ipr-scope="closed" href="/ProjectOfficeReports/Ipr?tab=records&statuses=Rejected&statuses=Withdrawn">Closed</a>
     <a data-ipr-export href="/ProjectOfficeReports/Ipr?handler=Export">Export</a>
-    <section data-ipr-register data-ipr-state="${stateJson}" data-ipr-project-base-url="/Projects/Overview" data-ipr-download-url="/ProjectOfficeReports/Ipr/Download">
+    <section data-ipr-register data-ipr-state="${stateJson}" data-ipr-age-bands="${AGE_BANDS}" data-ipr-project-base-url="/Projects/Overview" data-ipr-download-url="/ProjectOfficeReports/Ipr/Download">
       <input data-ipr-filter-query />
       <button data-ipr-filter-type="all"></button>
       <button data-ipr-filter-type="Patent"><span data-ipr-count></span></button>
@@ -54,6 +59,7 @@ function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?
       <select data-ipr-filter-year><option value="">Any year</option><option value="2021">2021</option></select>
       <span data-ipr-year-label></span>
       <select data-ipr-group><option value=""></option><option value="project">Project</option><option value="status">Status</option><option value="year">Year</option></select>
+      <span data-ipr-age-chip class="d-none"><span data-ipr-age-chip-label></span><button data-ipr-age-chip-clear></button></span>
       <span data-ipr-project-chip class="d-none"><span data-ipr-project-chip-label></span><button data-ipr-project-chip-clear></button></span>
       <span data-ipr-result-count></span>
       <button data-ipr-clear class="d-none"></button>
@@ -159,6 +165,16 @@ test('group by project inserts one header per project, unlinked first', () => {
   const headers = Array.from(dom.window.document.querySelectorAll('[data-ipr-group-row] span')).map(item => item.textContent);
   assert.deepEqual(headers, ['Not linked to a project', 'Drill App', 'Tank Sml']);
   assert.equal(new URL(dom.window.location.href).searchParams.get('group'), 'project');
+});
+
+test('pending age band keeps pending filings of that age and maps to the pendingAge parameter', () => {
+  const dom = createDom({ pendingAge: 'OverFiveYears' });
+  assert.deepEqual(visibleIds(dom), [1]);
+  assert.equal(dom.window.document.querySelector('[data-ipr-age-chip-label]').textContent, 'Pending over 5 years');
+  assert.equal(new URL(dom.window.location.href).searchParams.get('pendingAge'), 'OverFiveYears');
+  dom.window.document.querySelector('[data-ipr-age-chip-clear]').click();
+  assert.deepEqual(visibleIds(dom), [1, 2, 4]);
+  assert.equal(new URL(dom.window.location.href).searchParams.get('pendingAge'), null);
 });
 
 test('group by project keeps same-named projects apart', () => {

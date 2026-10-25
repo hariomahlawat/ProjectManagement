@@ -25,6 +25,11 @@
   }
   const recordsById = new Map(records.map(record => [String(record.Id), record]));
 
+  // Pending-age bands come from the server (IprQueryFilter.PendingAgeRange), never re-typed here.
+  const ageBands = (() => {
+    try { return JSON.parse(root.dataset.iprAgeBands || '{}'); } catch { return {}; }
+  })();
+
   const initial = (() => {
     try { return JSON.parse(root.dataset.iprState || '{}'); } catch { return {}; }
   })();
@@ -37,6 +42,7 @@
     dateBasis: initial.dateBasis || 'Filed',
     linkage: initial.linkage || 'All',
     evidence: initial.evidence || 'All',
+    pendingAge: initial.pendingAge || 'Any',
     projectId: initial.projectId || '',
     group: initial.group || '',
     selectedId: initial.selectedRecordId || ''
@@ -54,6 +60,7 @@
     project: row.dataset.project || '',
     filedYear: row.dataset.filedYear || '',
     grantedYear: row.dataset.grantedYear || '',
+    pendingDays: row.dataset.pendingDays === undefined || row.dataset.pendingDays === '' ? null : Number(row.dataset.pendingDays),
     // Title, filing number and project, one per line; matched separately like the server.
     searchFields: (row.dataset.search || '').split('\n').map(field => field.toLowerCase())
   }));
@@ -87,6 +94,13 @@
       return false;
     } else if (filters.linkage === 'Linked' && !fact.projectId) {
       return false;
+    }
+    if (filters.pendingAge && filters.pendingAge !== 'Any') {
+      const band = ageBands[filters.pendingAge];
+      if (band) {
+        if (fact.status !== 'Filed' || fact.pendingDays === null) return false;
+        if (fact.pendingDays < band.min || (band.max !== null && fact.pendingDays >= band.max)) return false;
+      }
     }
     if (filters.evidence === 'Missing' && fact.files > 0) return false;
     if (filters.evidence === 'Available' && fact.files === 0) return false;
@@ -188,6 +202,7 @@
   const clearButtons = Array.from(root.querySelectorAll('[data-ipr-clear]'));
   const empty = root.querySelector('[data-ipr-empty]');
   const projectChip = root.querySelector('[data-ipr-project-chip]');
+  const ageChip = root.querySelector('[data-ipr-age-chip]');
 
   const setPressed = (button, on) => {
     button.classList.toggle('is-on', on);
@@ -201,7 +216,7 @@
 
   const hasFilters = () => Boolean(
     state.query || state.types.length || state.statuses.length || state.year ||
-    state.linkage !== 'All' || state.evidence !== 'All' || state.projectId);
+    state.linkage !== 'All' || state.evidence !== 'All' || state.projectId || state.pendingAge !== 'Any');
 
   const renderControls = visibleCount => {
     const typeValue = state.types.length === 1 ? state.types[0] : 'all';
@@ -245,6 +260,13 @@
       if (label) label.textContent = state.projectId ? `Project: ${project?.project || state.projectId}` : '';
     }
 
+    if (ageChip) {
+      const band = ageBands[state.pendingAge];
+      ageChip.classList.toggle('d-none', !band);
+      const label = ageChip.querySelector('[data-ipr-age-chip-label]');
+      if (label) label.textContent = band ? band.label : '';
+    }
+
     if (resultCount) resultCount.textContent = `${visibleCount} ${visibleCount === 1 ? 'record' : 'records'}`;
     clearButtons.forEach(button => button.classList.toggle('d-none', !hasFilters()));
 
@@ -274,6 +296,7 @@
     if (state.projectId) params.set('projectId', state.projectId);
     else if (state.linkage !== 'All') params.set('linkage', state.linkage);
     if (state.evidence !== 'All') params.set('evidence', state.evidence);
+    if (state.pendingAge !== 'Any') params.set('pendingAge', state.pendingAge);
     return params;
   };
 
@@ -342,13 +365,18 @@
     render();
   });
 
+  root.querySelector('[data-ipr-age-chip-clear]')?.addEventListener('click', () => {
+    state.pendingAge = 'Any';
+    render();
+  });
+
   root.querySelector('[data-ipr-project-chip-clear]')?.addEventListener('click', () => {
     state.projectId = '';
     render();
   });
 
   clearButtons.forEach(button => button.addEventListener('click', () => {
-    Object.assign(state, { query: '', types: [], statuses: [], year: '', dateBasis: 'Filed', linkage: 'All', evidence: 'All', projectId: '' });
+    Object.assign(state, { query: '', types: [], statuses: [], year: '', dateBasis: 'Filed', linkage: 'All', evidence: 'All', projectId: '', pendingAge: 'Any' });
     render();
     queryInput?.focus();
   }));

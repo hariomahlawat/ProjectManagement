@@ -51,9 +51,10 @@ public sealed partial class IndexModel
         var grantedOn = ConvertToIstDate(dto.GrantedAtUtc);
         var isPending = status == IprStatus.Filed;
         var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Date;
-        var pendingAge = isPending && filedOn.HasValue
-            ? FormatAge(Math.Max(0, (todayIst - filedOn.Value.Date).Days))
+        int? pendingDays = isPending && filedOn.HasValue
+            ? Math.Max(0, (todayIst - filedOn.Value.Date).Days)
             : null;
+        var pendingAge = pendingDays.HasValue ? FormatAge(pendingDays.Value) : null;
 
         return new IprRecordRowViewModel(
             dto.Id,
@@ -77,7 +78,8 @@ public sealed partial class IndexModel
             isPending,
             pendingAge,
             filedOn?.Year,
-            grantedOn?.Year);
+            grantedOn?.Year,
+            pendingDays);
     }
 
     private IprRecordAttachmentViewModel CreateAttachmentViewModel(IprListAttachmentDto attachment)
@@ -166,6 +168,11 @@ public sealed partial class IndexModel
             chips.Add(new ActiveFilterChip(
                 "evidence",
                 Evidence == IprEvidenceFilter.Available ? "Evidence available" : "Evidence missing"));
+        }
+
+        if (PendingAge != IprPendingAge.Any)
+        {
+            chips.Add(new ActiveFilterChip("pendingAge", GetPendingAgeLabel(PendingAge)));
         }
 
         return chips;
@@ -519,8 +526,6 @@ public sealed partial class IndexModel
             .OrderByDescending(item => item.WaitingDays)
             .ToList();
 
-        OldestAwaitingGrant = waitingRows.Take(8).ToList();
-
         var grantDurations = snapshot
             .Where(item => item.Status == IprStatus.Granted && item.FiledAtUtc.HasValue && item.GrantedAtUtc.HasValue)
             .Select(item =>
@@ -549,6 +554,13 @@ public sealed partial class IndexModel
 
         AwaitingAgeBands = BuildAgeBands(waitingRows);
 
+        FilingCohorts = snapshot
+            .Where(item => item.FiledYear.HasValue)
+            .GroupBy(item => item.FiledYear!.Value)
+            .OrderBy(group => group.Key)
+            .Select(group => new FilingCohortRow(group.Key, group.Count(), group.Count(item => item.Status == IprStatus.Granted)))
+            .ToList();
+
         var years = snapshot
             .SelectMany(item => new[] { item.FiledYear, item.GrantedYear })
             .Where(year => year.HasValue)
@@ -567,23 +579,39 @@ public sealed partial class IndexModel
             .ToList();
     }
 
+    public static string GetPendingAgeLabel(IprPendingAge band) => band switch
+    {
+        IprPendingAge.UnderOneYear => "Pending under 1 year",
+        IprPendingAge.OneToThreeYears => "Pending 1–3 years",
+        IprPendingAge.ThreeToFiveYears => "Pending 3–5 years",
+        IprPendingAge.OverFiveYears => "Pending over 5 years",
+        _ => "Any age"
+    };
+
     private static IReadOnlyList<AgeBandRow> BuildAgeBands(IReadOnlyCollection<AwaitingGrantRow> rows)
     {
         var total = rows.Count;
+        // Same day thresholds as the register's pendingAge filter (IprQueryFilter.PendingAgeRange).
         var bands = new[]
         {
-            (Label: "Under 1 year", Count: rows.Count(item => item.WaitingDays < 365), Tone: "fresh"),
-            (Label: "1–3 years", Count: rows.Count(item => item.WaitingDays >= 365 && item.WaitingDays < 1095), Tone: "watch"),
-            (Label: "3–5 years", Count: rows.Count(item => item.WaitingDays >= 1095 && item.WaitingDays < 1825), Tone: "late"),
-            (Label: "Over 5 years", Count: rows.Count(item => item.WaitingDays >= 1825), Tone: "critical")
+            (Band: IprPendingAge.UnderOneYear, Label: "Under 1 year", Tone: "fresh"),
+            (Band: IprPendingAge.OneToThreeYears, Label: "1–3 years", Tone: "watch"),
+            (Band: IprPendingAge.ThreeToFiveYears, Label: "3–5 years", Tone: "late"),
+            (Band: IprPendingAge.OverFiveYears, Label: "Over 5 years", Tone: "critical")
         };
 
         return bands
-            .Select(band => new AgeBandRow(
-                band.Label,
-                band.Count,
-                total == 0 ? 0 : (int)Math.Round(band.Count * 100d / total, MidpointRounding.AwayFromZero),
-                band.Tone))
+            .Select(band =>
+            {
+                var (minDays, maxDays) = IprQueryFilter.PendingAgeRange(band.Band);
+                var count = rows.Count(item => item.WaitingDays >= minDays && (!maxDays.HasValue || item.WaitingDays < maxDays.Value));
+                return new AgeBandRow(
+                    band.Label,
+                    count,
+                    total == 0 ? 0 : (int)Math.Round(count * 100d / total, MidpointRounding.AwayFromZero),
+                    band.Tone,
+                    band.Band);
+            })
             .ToList();
     }
 
