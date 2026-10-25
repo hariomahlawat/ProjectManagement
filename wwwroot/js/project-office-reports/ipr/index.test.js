@@ -218,3 +218,8 @@ test('IPR Insights links never open more or fewer filings than the chart counts'
   assert.match(pageSource, /bool CanOpenMissingEvidence\(\) => scopeCounts &&/);
   assert.doesNotMatch(pageSource, /<td><a asp-page="\.\/Index" asp-all-route-data="@RegisterLink\(new \{ types/);
 });
+
+test('IPR form posts keep the pending-age and Group by scope', () => {
+  assert.match(stateSource, /@if \(Model\.PendingAge != IprPendingAge\.Any\)\s*\{\s*<input type="hidden" name="PendingAge" value="@Model\.PendingAge" \/>/);
+  assert.match(stateSource, /<input type="hidden" name="Group" value="@Model\.Group" \/>/);
+});
