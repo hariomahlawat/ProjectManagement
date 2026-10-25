@@ -15,6 +15,24 @@ not feel like a drop in quality.
 
 ## Top bar
 
+Polished 2026-10-25 so the step from the sign-in page into the app is not a drop in quality:
+
+- **One header, two tiers.** The top bar (52px) and the module sub-nav (46px) share one surface,
+  a light frost of the card colour (`color-mix` at 94%, `blur(14px) saturate(1.4)`), with a single
+  hairline between them and a soft shadow only where the sub-nav meets the scrolled page. The
+  heights are fixed because other pages offset their sticky elements by them. Reduce Transparency
+  and browsers without `backdrop-filter` get the solid card colour.
+- **The prism signature.** A 2px rule along the top edge of the top bar runs the six spectrum hues
+  (`--pm-spec-1..6`) in refraction order. It is the only spectrum in the shell; the Dashboard title
+  keeps its own rule.
+- **One active language.** Top tabs are 13px (`--pm-text-secondary`, active `--pm-text-strong`)
+  with a short primary underline that grows in; nothing is filled. Sub-nav items are 12.5px pills,
+  the active one a soft primary tint (`--pm-primary-soft` / `--pm-primary-strong`) with no border
+  or bar. The module action (Create project) is the one filled button, in `--pm-primary`.
+- **Brand lockup.** "PRISM ERP" uses the public pages' two-weight wordmark (`PRISM` strong,
+  `ERP` muted) with the crest at 28px; the sub-nav's hidden alignment spacer repeats it.
+- `wwwroot/css/navigation-shell.css` uses site tokens only for the shell, so Dark needs no remap
+  beyond the filled button (dark text on the lifted blue); `node tools/theme-coverage.js` keeps it so.
 - The module tabs (Dashboard, My Workspace, Calendar, Notebook, Photos, Projects, FFC, Documents)
   must fit without clipping on desktop widths. Room is made in this order:
   - **1600px and wider:** search box, avatar and the signed-in name (at most 10rem, then "…").
@@ -34,7 +52,7 @@ not feel like a drop in quality.
   time is the title's tooltip. `IndexModel.Greeting` / `GreetingFor` still exist for other callers
   and tests but the page no longer shows them.
 - A 3px spectrum rule under the title (`--pm-spec-1..6`, the sign-in prism's six hues) is the only
-  place the whole rainbow appears on the page.
+  place the whole rainbow appears in the page content (the top bar's edge rule is the shell's).
 
 ## Dashboard colour rules (2026-10-25)
 
