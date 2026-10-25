@@ -102,7 +102,7 @@ public sealed partial class IndexModel
 
         try
         {
-            var deleted = await _writeService.DeleteAttachmentAsync(RemoveAttachment.AttachmentId, rowVersion, await GetCurrentUserIdAsync(), cancellationToken);
+            var deleted = await _writeService.DeleteAttachmentAsync(RemoveAttachment.AttachmentId, rowVersion, cancellationToken);
             if (deleted)
             {
                 TempData["ToastMessage"] = "Attachment removed.";

@@ -169,7 +169,7 @@ public sealed partial class IndexModel
 
         try
         {
-            var deleted = await _writeService.DeleteAsync(DeleteRequest.Id, rowVersion, await GetCurrentUserIdAsync(), cancellationToken);
+            var deleted = await _writeService.DeleteAsync(DeleteRequest.Id, rowVersion, cancellationToken);
             if (deleted)
             {
                 TempData["ToastMessage"] = "IPR record deleted.";

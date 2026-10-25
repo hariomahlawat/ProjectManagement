@@ -23,7 +23,6 @@ public sealed class IprWriteService : IIprWriteService
     private const string ConcurrencyConflictMessage = "The record was modified by another user. Please reload and try again.";
     private const string RowVersionRequiredMessage = "Row version must be supplied for this operation.";
     private const string FilingNumberUniqueConstraintName = "UX_IprRecords_FilingNumber_Type";
-    private const string DocRepoSourceModule = "IPR";
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -131,7 +130,7 @@ public sealed class IprWriteService : IIprWriteService
         return existing;
     }
 
-    public async Task<bool> DeleteAsync(int id, byte[] rowVersion, string? actorUserId = null, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default)
     {
         if (rowVersion is not { Length: > 0 })
         {
@@ -148,22 +147,12 @@ public sealed class IprWriteService : IIprWriteService
         }
 
         var attachmentKeys = record.Attachments.Select(a => a.StorageKey).ToList();
-        await using var transaction = await BeginDocRepoTransactionAsync(cancellationToken);
-        await StageDocRepoRemovalAsync(
-            record.Attachments.Select(a => a.Id).ToList(),
-            actorUserId,
-            $"IPR record {record.IprFilingNumber} was deleted.",
-            cancellationToken);
         _db.Entry(record).Property(x => x.RowVersion).OriginalValue = rowVersion;
         _db.IprRecords.Remove(record);
 
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
-            if (transaction is not null)
-            {
-                await transaction.CommitAsync(cancellationToken);
-            }
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -238,7 +227,7 @@ public sealed class IprWriteService : IIprWriteService
                 await _docRepoIngestionService.IngestExternalPdfAsync(
                     pdfStream,
                     attachment.OriginalFileName,
-                    DocRepoSourceModule,
+                    "IPR",
                     attachment.Id.ToString(CultureInfo.InvariantCulture),
                     cancellationToken);
             }
@@ -251,7 +240,7 @@ public sealed class IprWriteService : IIprWriteService
         return attachment;
     }
 
-    public async Task<bool> DeleteAttachmentAsync(int attachmentId, byte[] rowVersion, string? actorUserId = null, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAttachmentAsync(int attachmentId, byte[] rowVersion, CancellationToken cancellationToken = default)
     {
         if (rowVersion is not { Length: > 0 })
         {
@@ -265,22 +254,12 @@ public sealed class IprWriteService : IIprWriteService
         }
 
         var storageKey = attachment.StorageKey;
-        await using var transaction = await BeginDocRepoTransactionAsync(cancellationToken);
-        await StageDocRepoRemovalAsync(
-            new[] { attachment.Id },
-            actorUserId,
-            $"IPR attachment {attachment.OriginalFileName} was removed.",
-            cancellationToken);
         _db.Entry(attachment).Property(x => x.RowVersion).OriginalValue = rowVersion;
         _db.IprAttachments.Remove(attachment);
 
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
-            if (transaction is not null)
-            {
-                await transaction.CommitAsync(cancellationToken);
-            }
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -291,28 +270,6 @@ public sealed class IprWriteService : IIprWriteService
         _storage.Delete(storageKey);
         return true;
     }
-
-    // An uploaded PDF is also ingested into the document repository (source "IPR", item = the
-    // attachment id). Deleting it here unlinks that copy and trashes it when nothing else uses it,
-    // in the same save as the delete.
-    private async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?> BeginDocRepoTransactionAsync(CancellationToken cancellationToken)
-        => _db.Database.IsRelational() && _db.Database.CurrentTransaction is null
-            ? await _db.Database.BeginTransactionAsync(cancellationToken)
-            : null;
-
-    private Task StageDocRepoRemovalAsync(
-        IReadOnlyCollection<int> attachmentIds,
-        string? actorUserId,
-        string reason,
-        CancellationToken cancellationToken)
-        => DocRepoSourceLinks.StageRemovalAsync(
-            _db,
-            DocRepoSourceModule,
-            attachmentIds.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToList(),
-            string.IsNullOrWhiteSpace(actorUserId) ? "system" : actorUserId.Trim(),
-            reason,
-            _clock.UtcNow,
-            cancellationToken);
 
     private async Task EnsureUniqueFilingNumberAsync(string filingNumber, IprType type, int? excludeId, CancellationToken cancellationToken)
     {

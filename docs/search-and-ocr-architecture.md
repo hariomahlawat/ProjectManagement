@@ -13,10 +13,6 @@ This document explains how the application performs OCR and full-text search (FT
 ### 2.2 OCR queueing
 - **When set to Pending**: External ingestion seeds new `Document` rows with `OcrStatus = Pending` during save, so every upload is queued immediately.[F:Services/DocRepo/DocRepoIngestionService.csL150-L175]
 
-### 2.2a Source deletes
-- **Unlinking**: When a source module deletes an ingested file it calls `DocRepoSourceLinks.StageRemovalAsync`, which removes that item's `DocRepoExternalLink` rows on the caller's context (saved with the source delete). An external document left with no links is soft-deleted into the trash with a `SourceRemoved` audit entry; documents uploaded directly or still linked by another module are kept. IPR uses this today.
-- **Re-upload and concurrency**: `Sha256` is unique across all rows, so ingestion looks up trashed documents too. A copy whose latest trash event is a source removal is restored (`SourceRestored` audit) when a source ingests the same file again; a document deleted in the repository itself (direct upload, or an approved delete request) stays deleted and only gains the link. A user who uploads a trashed ingested copy on the repository Upload page reclaims it as a repository document (`IsExternal = false`), so later source deletes keep it. Ingestion and source removal both lock the document row (`SELECT … FOR UPDATE` inside a transaction, PostgreSQL only) before reading its links, so a document is never trashed while another request is linking it.[F:Services/DocRepo/DocRepoSourceLinks.cs][F:Application/Ipr/IprWriteService.cs]
-
 ### 2.3 OCR worker
 - **Eligibility**: Picks documents that are **not deleted** and have `OcrStatus == Pending`, loading existing OCR text for overwrite if needed.[F:Hosted/DocRepoOcrWorker.csL34-L39]
 - **Batching & ordering**: Processes the **oldest first** (`OrderBy CreatedAtUtc`) and caps each loop to **3 documents** via `Take(3)`.[F:Hosted/DocRepoOcrWorker.csL34-L39]
