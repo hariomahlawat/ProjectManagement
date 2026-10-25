@@ -12,9 +12,17 @@ desks, chat or media) and used a raster hero image.
 
 **One beam in, every view out.** The PRISM mark (`Pages/Shared/_PrismSpectrum.cshtml`) is an
 inline SVG: one beam, the project record, enters a glass prism and leaves as six coloured
-rays, one per area of the platform (Teamwork, Office records, Media, Documents, Projects,
-Desks). The same six hues colour the workflow track and the feature tiles, so the page reads
-as one system.
+rays, one per area of the platform, in refraction order and leading with the record itself
+(Projects, Desks, Teamwork, Office records, Media, Documents). The same six hues colour the
+workflow track and the feature tiles, so the page reads as one system.
+
+The glass body is drawn to read as crystal in both themes: a light wedge where the beam
+spreads inside, six faint colour wedges from the entry point to each exit segment (the
+spectrum already separating inside the glass), a shaded exit face for thickness, a soft
+ground shadow, and a bright core down the beam and each ray so they read as light rather
+than rods or ribbons. All of it is tokens in `landing.css` (`--lp-fan-alpha`,
+`--lp-split-alpha`, `--lp-glass-face-alpha`, `--lp-ground-alpha`, `--lp-beam-core-alpha`,
+`--lp-ray-core-alpha`).
 
 - The landing hero draws the mark with labels (`model: true`); the sign-in page draws the
   bare artwork (`model: false`), whose rays run on past the SVG box and behind the glass
@@ -85,14 +93,17 @@ Keep the copy true to the current application; update it when a module is added 
 ## Glass
 
 The surfaces follow a Liquid Glass style (translucent, light-catching layers floating over
-the content). One recipe, defined on `.lp` in `landing.css` ("GLASS" section):
+the content). One recipe, defined on `body:has(.lp)` and `.lp` in `landing.css` ("GLASS"
+section), so the floating header capsule outside `.lp` shares it:
 
 | Token | Role |
 | --- | --- |
-| `--lp-glass`, `--lp-glass-strong` | Translucent frost: white at 56% / 74% in Light, 5% / 8% in Dark (smoked glass). |
-| `--lp-glass-filter` | `blur(22px) saturate(1.7)` behind the surface. |
+| `--lp-glass`, `--lp-glass-strong` | Translucent frost: white at 46% / 70% in Light, 6% / 9% in Dark (smoked glass). |
+| `--lp-glass-surface` | The frost with a soft diagonal gleam across its upper-left (`--lp-glass-gleam`). |
+| `--lp-glass-filter` | `blur(18px) saturate(1.7)` in Light, `blur(20px)` in Dark, behind the surface. |
 | `--lp-glass-rim` | Hairline edge: dark at 9% in Light, white at 12% in Dark. |
-| `--lp-glass-shadow` | Top sheen, inner edge and a soft drop shadow. |
+| `--lp-glass-rim-ring` | The directional rim, drawn by each surface's `::before`: bright at the top-left (`--lp-glass-rim-hi`), shaded at the bottom-right (`--lp-glass-rim-lo`), masked to 1px. |
+| `--lp-glass-shadow` | Top sheen, inner edge, the lens (a brighter band just inside the edge, `--lp-glass-lens`) and a soft drop shadow. |
 
 - Used by the floating header capsule, the badge, ghost buttons, the theme switch, the
   feature tiles, the assurance cards, the sign-in card and the status-page cards. Long text and form fields sit on

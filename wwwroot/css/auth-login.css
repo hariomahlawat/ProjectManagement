@@ -23,7 +23,7 @@ body:has(.auth) main > .pm-page-shell {
     align-items: center;
     width: 100%;
     min-height: calc(100dvh - 58px);
-    padding: calc(var(--lp-header-h) + 1.5rem) 0 2.5rem;
+    padding: calc(var(--lp-header-h) + 1rem) 0 1.5rem;
     overflow: hidden;
 }
 
@@ -60,6 +60,10 @@ body:has(.auth) main > .pm-page-shell {
     flex-direction: column;
     gap: 1.5rem;
     min-width: 0;
+}
+
+body:has(.auth) .public-brand__name {
+    display: none;
 }
 
 .auth__crests {
@@ -109,15 +113,10 @@ body:has(.auth) main > .pm-page-shell {
 /* ---------- Glass card ---------- */
 
 .auth__card {
-    position: relative;
     isolation: isolate;
     padding: clamp(1.75rem, 3.5vw, 2.5rem);
-    border: 1px solid var(--lp-glass-rim);
     border-radius: 30px;
-    background: var(--lp-glass);
     box-shadow: var(--lp-glass-shadow), 0 40px 90px -50px color-mix(in srgb, var(--lp-spec-6) 50%, transparent);
-    backdrop-filter: var(--lp-glass-filter);
-    -webkit-backdrop-filter: var(--lp-glass-filter);
 }
 
 .auth__card > * {
@@ -140,8 +139,8 @@ body:has(.auth) main > .pm-page-shell {
 
 .auth__form {
     display: grid;
-    gap: 1.15rem;
-    margin-top: 1.75rem;
+    gap: 1.1rem;
+    margin-top: 1.5rem;
 }
 
 .auth__alert {
@@ -336,8 +335,8 @@ body:has(.auth) main > .pm-page-shell {
 .auth__foot {
     display: grid;
     gap: 0.45rem;
-    margin-top: 1.75rem;
-    padding-top: 1.25rem;
+    margin-top: 1.5rem;
+    padding-top: 1.1rem;
     border-top: 1px solid var(--lp-glass-rim);
     color: var(--lp-muted);
     font-size: 0.84rem;
@@ -365,7 +364,7 @@ body:has(.auth) main > .pm-page-shell {
 
     .auth__prism,
     .auth__strap,
-    .auth__crests span {
+    .auth__crests {
         display: none;
     }
 
