@@ -177,7 +177,7 @@
     <nav class="ipr-views" aria-label="IPR views">
         <a href="@registerUrl" class="@(isRegister ? "is-active" : string.Empty)" aria-current="@(isRegister ? "page" : null)">Register</a>
         <a href="@Url.Page("./Index", new { tab = "followup" })" class="@(Model.Tab == "followup" ? "is-active" : string.Empty)" aria-current="@(Model.Tab == "followup" ? "page" : null)">
-            Follow-up
+            Action list
             @if (Model.AttentionRecordCount > 0)
             {
                 <span class="ipr-views__badge">@Model.AttentionRecordCount</span>
@@ -382,97 +382,111 @@
     }
     else if (Model.Tab == "followup")
     {
-        <section class="ipr-followup-view">
-            <div class="ipr-followup-header">
+        var issueFilters = new[]
+        {
+            (Key: (string?)null, Label: "All issues", Count: Model.FollowUpTotalCount),
+            (Key: (string?)"overdue", Label: "Long pending", Count: Model.AttentionIssueCounts.GetValueOrDefault("overdue")),
+            (Key: (string?)"data", Label: "Details to correct", Count: Model.AttentionIssueCounts.GetValueOrDefault("data")),
+            (Key: (string?)"linkage", Label: "Not linked", Count: Model.AttentionIssueCounts.GetValueOrDefault("linkage")),
+            (Key: (string?)"evidence", Label: "Missing evidence", Count: Model.AttentionIssueCounts.GetValueOrDefault("evidence"))
+        };
+        <section class="ipr-actions" aria-labelledby="iprActionsHeading">
+            <header class="ipr-actions__header">
                 <div>
-                    <h2>IPR follow-up</h2>
-                    <p>Exceptions and long-pending cases that require administrative attention.</p>
-                    <small>Each record is listed once under its highest-priority issue; all detected issues remain visible as labels.</small>
+                    <h2 id="iprActionsHeading">Action list</h2>
+                    <p>Each filing appears once, under its most urgent issue. Fix it from here; other issues on the same filing show as tags.</p>
                 </div>
-                <span>@($"{Model.VisibleAttentionRecordCount} shown · {Model.FollowUpTotalCount} total")</span>
-            </div>
+                <span class="ipr-actions__total">@(Model.FollowUpTotalCount == 1 ? "1 filing needs action" : $"{Model.FollowUpTotalCount} filings need action")</span>
+            </header>
 
-            <nav class="ipr-followup-filters" aria-label="Follow-up issue filters">
-                <a asp-page="./Index"
-                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = (string?)null }, includePage: false, includeModeAndId: false)"
-                   class="@(string.IsNullOrWhiteSpace(Model.AttentionIssue) ? "active" : string.Empty)">All issues</a>
-                <a asp-page="./Index"
-                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "overdue" }, includePage: false, includeModeAndId: false)"
-                   class="@(Model.AttentionIssue == "overdue" ? "active" : string.Empty)">Long pending</a>
-                <a asp-page="./Index"
-                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "data" }, includePage: false, includeModeAndId: false)"
-                   class="@(Model.AttentionIssue == "data" ? "active" : string.Empty)">Data gaps</a>
-                <a asp-page="./Index"
-                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "linkage" }, includePage: false, includeModeAndId: false)"
-                   class="@(Model.AttentionIssue == "linkage" ? "active" : string.Empty)">Unassigned</a>
-                <a asp-page="./Index"
-                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "evidence" }, includePage: false, includeModeAndId: false)"
-                   class="@(Model.AttentionIssue == "evidence" ? "active" : string.Empty)">Missing evidence</a>
+            <nav class="ipr-seg ipr-actions__filters" aria-label="Show issues">
+                @foreach (var filter in issueFilters)
+                {
+                    var isActive = string.Equals(Model.AttentionIssue, filter.Key, StringComparison.Ordinal);
+                    <a class="ipr-seg__item @(isActive ? "is-on" : string.Empty)"
+                       aria-current="@(isActive ? "true" : null)"
+                       asp-page="./Index"
+                       asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = filter.Key }, includePage: false, includeModeAndId: false)">
+                        @filter.Label <span data-ipr-count>@filter.Count</span>
+                    </a>
+                }
             </nav>
 
             @if (Model.AttentionGroups.Count == 0)
             {
-                <div class="ipr-panel ipr-empty-state ipr-empty-state--success"><i class="bi bi-check-circle"></i><h3>No follow-up required</h3><p>All current IPR records have project linkage, supporting evidence and consistent status data.</p></div>
+                <div class="ipr-actions__empty">
+                    <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                    <h3>Nothing needs action</h3>
+                    <p>Every filing in this view is linked to a project, has evidence on file and consistent dates, and none has been pending for more than 3 years.</p>
+                </div>
             }
             else
             {
-                <div class="ipr-followup-groups">
+                <div class="ipr-actions__groups">
                     @foreach (var group in Model.AttentionGroups)
                     {
-                        <article class="ipr-followup-group ipr-followup-group--@group.Tone @(group.Key == "overdue" ? "ipr-followup-group--wide" : string.Empty)">
+                        var actionLabel = group.Key switch
+                        {
+                            "overdue" => "Record outcome",
+                            "data" => "Fix details",
+                            "linkage" => "Assign project",
+                            _ => "Upload PDF"
+                        };
+                        var actionFragment = group.Key switch
+                        {
+                            "linkage" => "Input_ProjectSearch",
+                            "evidence" => "iprEvidenceHeading",
+                            "overdue" => "iprStatusDatesHeading",
+                            _ => null
+                        };
+                        <article class="ipr-actions-group ipr-actions-group--@group.Tone" aria-labelledby="iprActions-@group.Key">
                             <header>
                                 <div>
-                                    <span class="ipr-followup-group__icon"><i class="bi @(group.Key == "overdue" ? "bi-hourglass-split" : group.Key == "data" ? "bi-exclamation-octagon" : group.Key == "linkage" ? "bi-link-45deg" : "bi-paperclip")"></i></span>
-                                    <div><h3>@group.Title</h3><p>@group.Description</p></div>
+                                    <h3 id="iprActions-@group.Key">@group.Title <span class="ipr-actions-group__count">@group.Items.Count</span></h3>
+                                    <p>@group.Description</p>
                                 </div>
-                                <strong>@group.Items.Count</strong>
                             </header>
-                            <div class="ipr-followup-list">
+                            <ul class="ipr-actions-list">
                                 @foreach (var item in group.Items)
                                 {
-                                    var attentionEditRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", mode = "edit", id = item.Id }, includeModeAndId: false);
-                                    <div class="ipr-followup-card ipr-followup-card--@item.Severity">
-                                        <div class="ipr-followup-card__main">
-                                            @if (Model.CanEdit)
-                                            {
-                                                <a asp-page="./Index" asp-all-route-data="attentionEditRoutes">@item.Title</a>
-                                            }
-                                            else
-                                            {
-                                                <strong>@item.Title</strong>
-                                            }
-                                            <span>@item.ProjectName · @item.Type</span>
-                                            <ul>
-                                                @foreach (var reason in item.Reasons)
+                                    var openRoutes = Model.GetRouteValuesForLinks(new { tab = "records", selectedRecordId = item.Id, attentionIssue = (string?)null }, includePage: false, includeModeAndId: false);
+                                    var fixRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", mode = "edit", id = item.Id }, includePage: false, includeModeAndId: false);
+                                    <li class="ipr-actions-item">
+                                        <div class="ipr-actions-item__main">
+                                            <a class="ipr-actions-item__title" asp-page="./Index" asp-all-route-data="openRoutes">@item.Title</a>
+                                            <span class="ipr-actions-item__meta">@item.Type · @item.ProjectName</span>
+                                            <span class="ipr-actions-item__tags">
+                                                @for (var index = 0; index < item.Reasons.Count; index++)
                                                 {
-                                                    <li>@reason</li>
+                                                    <span class="ipr-issue @(index == 0 ? "is-primary" : string.Empty)">@item.Reasons[index]</span>
                                                 }
-                                            </ul>
+                                            </span>
                                         </div>
-                                        <div class="ipr-followup-card__meta">
+                                        <div class="ipr-actions-item__fact">
                                             @if (item.WaitingDays.HasValue)
                                             {
                                                 <strong>@FormatAge(item.WaitingDays.Value)</strong>
-                                                <span>Filed @(item.FiledOn?.ToString("dd MMM yyyy") ?? "date unavailable")</span>
+                                                <span>since filing on @(item.FiledOn?.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) ?? "an unknown date")</span>
+                                            }
+                                            else if (item.FiledOn.HasValue)
+                                            {
+                                                <strong>@item.FiledOn.Value.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</strong>
+                                                <span>filed</span>
+                                            }
+                                        </div>
+                                        <div class="ipr-actions-item__action">
+                                            @if (Model.CanEdit)
+                                            {
+                                                <a class="btn btn-sm btn-outline-primary" asp-page="./Index" asp-all-route-data="fixRoutes" asp-fragment="@actionFragment">@actionLabel</a>
                                             }
                                             else
                                             {
-                                                <strong>@($"{item.AttachmentCount} {(item.AttachmentCount == 1 ? "file" : "files")}")</strong>
-                                                <span>Evidence status</span>
-                                            }
-                                            @if (Model.CanEdit)
-                                            {
-                                                <a asp-page="./Index"
-                                                   asp-all-route-data="attentionEditRoutes"
-                                                   class="ipr-followup-card__open"
-                                                   aria-label="Open @item.Title">
-                                                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                                                </a>
+                                                <a class="btn btn-sm btn-outline-secondary" asp-page="./Index" asp-all-route-data="openRoutes">Open</a>
                                             }
                                         </div>
-                                    </div>
+                                    </li>
                                 }
-                            </div>
+                            </ul>
                         </article>
                     }
                 </div>

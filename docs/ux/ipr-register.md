@@ -23,8 +23,9 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
    **Filed** (patent/copyright split), **Granted** (share of filed), **Pending** (how many are past
    3 years) and **Closed** (rejected and withdrawn, kept as history). Each card filters the register
    to that status; on the Register view it does so in place.
-3. **Views**: **Register**, **Follow-up** (with the attention count) and **Analytics**. The old
-   Projects tab is gone: `?tab=project` opens the register grouped by project.
+3. **Views**: **Register**, **Action list** (`?tab=followup`, with the count of filings needing
+   action) and **Analytics**. The old Projects tab is gone: `?tab=project` opens the register
+   grouped by project.
 
 ## The register (`/ProjectOfficeReports/Ipr`)
 
@@ -59,14 +60,30 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
 - Existing PDFs are listed in the Evidence section; each has its own remove button.
 - After a save the register opens with the saved record's panel and a confirmation.
 
+## The Action list (`?tab=followup`)
+
+- Each filing that needs action appears once, under its most urgent issue, in this order:
+  **Long-pending filings** (pending more than 3 years), **Details to correct** (missing filing
+  number or date, or a granted record without its date), **Not linked to a project**, **Missing
+  evidence**. Its other issues show as tags.
+- Issue filter (**All issues**, **Long pending**, **Details to correct**, **Not linked**,
+  **Missing evidence**) with the number of filings carrying each issue; a filtered view lists
+  every filing with that issue.
+- Each row: title (opens the record's panel on the register), category and project, the issue
+  tags, how long it has been pending (or its filing date) and one fix for editors: **Record
+  outcome**, **Fix details**, **Assign project** or **Upload PDF**. The fix opens the editor at
+  the right field; after saving, the Action list reloads so the next item is one click away.
+  Viewers get **Open** instead.
+- The Filters drawer still scopes this view until the clean-up step.
+
 ## Planned changes
 
 The redesign lands in small PRs; this section lists what is still to come.
 
 1. ~~Register workspace: summary strip, instant filters, Group by, record panel.~~ (done)
 2. ~~Edit inside the record panel with one Save; attach the evidence PDF while creating a record.~~ (done)
-3. **Action list** replaces Follow-up: each filing once, under its most urgent issue, with a direct
-   fix (assign project, upload evidence, record grant, log follow-up).
+3. ~~**Action list** replaces Follow-up: each filing once, under its most urgent issue, with a direct
+   fix (assign project, upload evidence, record outcome).~~ (done; "log follow-up" comes with step 5)
 4. **Insights** replaces Analytics: grant rate, time to grant, outcome by filing year, portfolio
    over time and pending by age; every chart filters the register.
 5. Follow-up log (last followed up / next follow-up) for long-pending filings; needs a migration.

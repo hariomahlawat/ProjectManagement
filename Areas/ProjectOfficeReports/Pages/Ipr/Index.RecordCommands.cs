@@ -204,6 +204,13 @@ public sealed partial class IndexModel
         }
 
         TempData["ToastMessage"] = Input.Evidence is { Length: > 0 } ? $"{savedMessage} PDF attached." : savedMessage;
+
+        // A fix made from the Action list returns to the list, so the next item is one click away.
+        if (string.Equals(Tab, "followup", StringComparison.Ordinal))
+        {
+            return RedirectToPage("./Index", GetRouteValues(new { tab = "followup" }, includePage: false, includeModeAndId: false));
+        }
+
         return RedirectToPage("./Index", GetRouteValues(new { tab = "records", selectedRecordId = recordId }, includePage: true, includeModeAndId: false));
     }
 
