@@ -35,6 +35,27 @@ namespace ProjectManagement.Tests
 {
     public class DashboardPageTests
     {
+        [Theory]
+        [InlineData(9, "Good morning, Lt Col Asha Rao")]
+        [InlineData(12, "Good afternoon, Lt Col Asha Rao")]
+        [InlineData(16, "Good afternoon, Lt Col Asha Rao")]
+        [InlineData(17, "Good evening, Lt Col Asha Rao")]
+        public void GreetingFor_FollowsTheIstTimeOfDayAndUsesRankAndName(int hour, string expected)
+        {
+            var nowIst = new DateTimeOffset(2026, 10, 25, hour, 0, 0, TimeSpan.FromHours(5.5));
+
+            Assert.Equal(expected, IndexModel.GreetingFor(nowIst, " Lt Col ", "Asha Rao", "arao"));
+        }
+
+        [Fact]
+        public void GreetingFor_FallsBackToTheUserNameThenToTheGreetingAlone()
+        {
+            var nowIst = new DateTimeOffset(2026, 10, 25, 8, 0, 0, TimeSpan.FromHours(5.5));
+
+            Assert.Equal("Good morning, arao", IndexModel.GreetingFor(nowIst, null, "  ", "arao"));
+            Assert.Equal("Good morning", IndexModel.GreetingFor(nowIst, null, null, null));
+        }
+
         [Fact]
         public async Task OnGetAsync_FormatsAllDayMultiDayEventWithRange()
         {

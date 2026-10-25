@@ -30,9 +30,11 @@
                     @initials
                 }
             </span>
-            <span class="d-none d-sm-inline">@name</span>
+            <span class="pm-user-name d-none d-sm-inline">@name</span>
         </a>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+            <li><span class="dropdown-item-text pm-user-menu__signed-in">Signed in as <strong>@name</strong></span></li>
+            <li><hr class="dropdown-divider" /></li>
             <li><a class="dropdown-item" asp-area="Identity" asp-page="/Account/Manage/Index">Profile</a></li>
             @if (photoIdentity is not null && !photoIdentity.HasOpenConcern)
             {

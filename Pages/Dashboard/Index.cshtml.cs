@@ -74,6 +74,24 @@ namespace ProjectManagement.Pages.Dashboard
         public DashboardActivitySummaryVm ActivitySummary { get; private set; } = new();
         public DashboardIdeaSummaryVm IdeaSummary { get; private set; } = new();
         public DateTimeOffset DashboardLoadedAtIst { get; private set; }
+
+        /// <summary>"Good morning, Lt Col A Kumar": the header greeting for the signed-in user.</summary>
+        public string Greeting { get; private set; } = "Welcome";
+
+        /// <summary>Morning before 12:00 IST, afternoon before 17:00, evening after.</summary>
+        public static string GreetingFor(DateTimeOffset nowIst, string? rank, string? fullName, string? userName)
+        {
+            var hello = nowIst.Hour < 12 ? "Good morning" : nowIst.Hour < 17 ? "Good afternoon" : "Good evening";
+            var name = string.Join(' ', new[] { rank, fullName }
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .Select(part => part!.Trim()));
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = userName?.Trim() ?? string.Empty;
+            }
+
+            return string.IsNullOrWhiteSpace(name) ? hello : $"{hello}, {name}";
+        }
         // END SECTION
 
         public sealed class DashboardActivitySummaryVm
@@ -149,6 +167,8 @@ namespace ProjectManagement.Pages.Dashboard
         {
             DashboardLoadedAtIst = GetNowIst();
             var uid = _users.GetUserId(User);
+            var viewer = await _users.GetUserAsync(User);
+            Greeting = GreetingFor(DashboardLoadedAtIst, viewer?.Rank, viewer?.FullName, User.Identity?.Name);
             // SECTION: Notebook widget load with fault isolation
             if (uid != null)
             {
