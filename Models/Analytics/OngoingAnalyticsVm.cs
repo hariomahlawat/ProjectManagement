@@ -5,17 +5,11 @@ public sealed class OngoingAnalyticsVm
 {
     public int TotalOngoingProjects { get; init; }
 
-    public IReadOnlyList<AnalyticsStageCountPoint> ByStage { get; init; } =
-        Array.Empty<AnalyticsStageCountPoint>();
-
     public IReadOnlyList<OngoingStageByParentCategoryPoint> ByStageByParentCategory { get; init; } =
         Array.Empty<OngoingStageByParentCategoryPoint>();
 
     public IReadOnlyList<OngoingStageBoardItemVm> StageBoard { get; init; } =
         Array.Empty<OngoingStageBoardItemVm>();
-
-    public IReadOnlyList<AnalyticsStageDurationPoint> AvgStageDurations { get; init; } =
-        Array.Empty<AnalyticsStageDurationPoint>();
 
     // SECTION: Headline figures (computed once in the PageModel from the stage rows)
     /// <summary>Stage holding the most projects in the current selection, or null when empty.</summary>

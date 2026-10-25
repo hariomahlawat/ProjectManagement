@@ -45,15 +45,6 @@ public sealed record CompletedYearBoardItemVm(
 /// <summary>Count for one exact category; <paramref name="Id"/> is null for projects without one. The drill-down key is the id, since names are only unique per parent.</summary>
 public sealed record AnalyticsCategoryCountPoint(string Name, int Count, int? Id = null);
 
-public sealed record AnalyticsStageCountPoint(string Name, int Count);
-
-public sealed record AnalyticsStageDurationPoint(
-    string StageCode,
-    string Name,
-    double Days,
-    double MedianDays,
-    int SampleSize);
-
 public sealed record CompletedPerYearPoint(int Year, int Count);
 
 public sealed record CompletedPerYearByParentCategoryPoint(int Year, string CategoryName, int Count);

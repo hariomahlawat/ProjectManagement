@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -209,6 +210,72 @@ public sealed class CoeAnalyticsTests : IDisposable
         Assert.False(result.HasCoeProjects);
         Assert.Empty(result.ByStage);
         Assert.False(result.HasSubcategoryBreakdown);
+    }
+
+    [Fact]
+    public async Task OngoingAnalytics_ParentCategoryFilter_HeadlineTotalFollowsTheFilter()
+    {
+        var dcd = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        var other = new ProjectCategory { Name = "Other R&D Projects", SortOrder = 2 };
+        _db.ProjectCategories.AddRange(dcd, other);
+        await _db.SaveChangesAsync();
+
+        _db.Projects.AddRange(
+            new Project { Name = "DCD one", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = dcd.Id },
+            new Project { Name = "Other one", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = other.Id },
+            new Project { Name = "Other two", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = other.Id });
+        await _db.SaveChangesAsync();
+
+        _pageModel.OngoingStageParentCategoryIds = new List<int> { dcd.Id };
+        await _pageModel.OnGetAsync("ongoing", CancellationToken.None);
+
+        Assert.True(_pageModel.IsOngoingFiltered);
+        Assert.Equal(3, _pageModel.OngoingCount); // the switcher badge is the portfolio total
+        Assert.Equal(1, _pageModel.Ongoing!.TotalOngoingProjects); // the figures follow the filter
+        Assert.Equal(1, _pageModel.Ongoing.TopStageCount);
+        var figure = _pageModel.Headlines.Single(f => f.Label == "Ongoing projects");
+        Assert.Equal("1", figure.Value);
+        Assert.Equal("of 3 in the portfolio", figure.Hint);
+    }
+
+    [Fact]
+    public async Task OngoingAnalytics_NoFilter_HeadlineTotalIsThePortfolio()
+    {
+        var dcd = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        _db.ProjectCategories.Add(dcd);
+        await _db.SaveChangesAsync();
+        _db.Projects.AddRange(
+            new Project { Name = "A", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = dcd.Id },
+            new Project { Name = "B", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1 });
+        await _db.SaveChangesAsync();
+
+        await _pageModel.OnGetAsync("ongoing", CancellationToken.None);
+
+        Assert.False(_pageModel.IsOngoingFiltered);
+        Assert.Equal(2, _pageModel.Ongoing!.TotalOngoingProjects);
+        Assert.Equal("in the portfolio", _pageModel.Headlines.Single(f => f.Label == "Ongoing projects").Hint);
+    }
+
+    [Fact]
+    public async Task OngoingAnalytics_SelectAllParentCategories_IsNoFilterAndKeepsUncategorizedProjects()
+    {
+        var dcd = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        var other = new ProjectCategory { Name = "Other R&D Projects", SortOrder = 2 };
+        _db.ProjectCategories.AddRange(dcd, other);
+        await _db.SaveChangesAsync();
+        _db.Projects.AddRange(
+            new Project { Name = "DCD one", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = dcd.Id },
+            new Project { Name = "No category", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1 });
+        await _db.SaveChangesAsync();
+
+        _pageModel.OngoingStageParentCategoryIds = new List<int> { dcd.Id, other.Id };
+        await _pageModel.OnGetAsync("ongoing", CancellationToken.None);
+
+        Assert.False(_pageModel.IsOngoingFiltered);
+        Assert.Empty(_pageModel.ActiveOngoingStageParentCategoryIds);
+        Assert.Equal(2, _pageModel.Ongoing!.TotalOngoingProjects);
+        Assert.Equal(2, _pageModel.Ongoing.StageBoard.Sum(stage => stage.StageCount));
+        Assert.Contains(_pageModel.Ongoing.ByStageByParentCategory, point => point.CategoryName == "Uncategorized");
     }
 
     public void Dispose()

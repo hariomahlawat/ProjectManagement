@@ -96,6 +96,9 @@ namespace ProjectManagement.Pages.Analytics
             Array.Empty<AnalyticsFilterOption>();
         public IReadOnlyList<int> ActiveOngoingStageParentCategoryIds { get; private set; } = Array.Empty<int>();
 
+        /// <summary>True when a parent-category filter narrows the Ongoing mode; every Ongoing figure then follows it.</summary>
+        public bool IsOngoingFiltered => ActiveOngoingStageParentCategoryIds.Count > 0;
+
         public int CompletedCount { get; private set; }
         public int OngoingCount { get; private set; }
         public int CoeCount { get; private set; }
@@ -110,6 +113,10 @@ namespace ProjectManagement.Pages.Analytics
 
         /// <summary>When the figures were read, in IST; shown as the page's "as of" date.</summary>
         public DateTimeOffset AsOfIst { get; private set; }
+
+        /// <summary>The IST calendar day every "days in stage" figure is measured against: the "as of" date, or IST now when a caller skipped OnGet.</summary>
+        private DateOnly ReferenceDateIst =>
+            DateOnly.FromDateTime((AsOfIst == default ? TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime) : AsOfIst).DateTime);
 
         /// <summary>Three or four large figures that open the active mode, computed from data already loaded.</summary>
         public IReadOnlyList<HeadlineFigure> Headlines { get; private set; } = Array.Empty<HeadlineFigure>();
@@ -162,8 +169,8 @@ namespace ProjectManagement.Pages.Analytics
                     break;
 
                 case AnalyticsTab.Ongoing:
+                    // OngoingCount (the switcher badge) stays the portfolio total; the figures follow the filter.
                     Ongoing = await BuildOngoingAnalyticsAsync(cancellationToken);
-                    OngoingCount = Ongoing.TotalOngoingProjects;
                     break;
 
                 case AnalyticsTab.Coe:
@@ -237,7 +244,11 @@ namespace ProjectManagement.Pages.Analytics
                 case AnalyticsTab.Ongoing when Ongoing is not null:
                     return new[]
                     {
-                        new HeadlineFigure("Ongoing projects", Ongoing.TotalOngoingProjects.ToString(), "in the portfolio", ongoingUrl),
+                        new HeadlineFigure(
+                            "Ongoing projects",
+                            Ongoing.TotalOngoingProjects.ToString(),
+                            IsOngoingFiltered ? $"of {OngoingCount} in the portfolio" : "in the portfolio",
+                            ongoingUrl),
                         new HeadlineFigure(
                             "Busiest stage",
                             Ongoing.TopStageName ?? "—",
@@ -418,11 +429,15 @@ namespace ProjectManagement.Pages.Analytics
                 .Select(c => new AnalyticsFilterOption(c.Id, c.Name))
                 .ToList();
 
-            ActiveOngoingStageParentCategoryIds = OngoingStageParentCategoryIds
+            var requestedParentCategoryIds = OngoingStageParentCategoryIds
                 .Where(id => id > 0)
                 .Distinct()
                 .Where(id => OngoingStageParentCategoryOptions.Any(option => option.Id == id))
                 .ToList();
+            // "Select all" is no filter: uncategorized projects and inactive roots stay in the figures.
+            ActiveOngoingStageParentCategoryIds = requestedParentCategoryIds.Count >= OngoingStageParentCategoryOptions.Count
+                ? Array.Empty<int>()
+                : requestedParentCategoryIds;
 
             if (ActiveTab != AnalyticsTab.Completed)
             {
@@ -565,12 +580,6 @@ namespace ProjectManagement.Pages.Analytics
         private async Task<OngoingAnalyticsVm> BuildOngoingAnalyticsAsync(CancellationToken cancellationToken)
         {
             // SECTION: Ongoing analytics aggregation
-            var ongoingQuery = _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active);
-
-            var total = await ongoingQuery.CountAsync(cancellationToken);
-            var byStage = await BuildOngoingStageDistributionAsync(cancellationToken);
             var byStageByParentCategory = await BuildOngoingStageDistributionByParentCategoryAsync(
                 ActiveOngoingStageParentCategoryIds,
                 cancellationToken);
@@ -578,10 +587,10 @@ namespace ProjectManagement.Pages.Analytics
                 ActiveOngoingStageParentCategoryIds,
                 OngoingStageParentCategoryOptions,
                 cancellationToken);
-            var stageDurations = await BuildOngoingStageDurationsAsync(cancellationToken);
 
-            // SECTION: Headline figures from the (filtered) stage rows
+            // SECTION: Headline figures from the (filtered) stage rows, the total included
             var stageRows = await BuildOngoingStageRowsAsync(ActiveOngoingStageParentCategoryIds, cancellationToken);
+            var total = stageRows.Count;
             var topStage = stageBoard.OrderByDescending(item => item.StageCount).FirstOrDefault();
             var stageAges = stageRows
                 .Where(row => row.DaysInStage.HasValue)
@@ -592,10 +601,8 @@ namespace ProjectManagement.Pages.Analytics
             return new OngoingAnalyticsVm
             {
                 TotalOngoingProjects = total,
-                ByStage = byStage,
                 ByStageByParentCategory = byStageByParentCategory,
                 StageBoard = stageBoard,
-                AvgStageDurations = stageDurations,
                 TopStageName = topStage?.StageName,
                 TopStageCount = topStage?.StageCount ?? 0,
                 MedianDaysInCurrentStage = stageAges.Count == 0 ? null : CalculateMedian(stageAges),
@@ -716,7 +723,7 @@ namespace ProjectManagement.Pages.Analytics
                     counts.TryGetValue(code, out var count);
                     return new CoeStageBucketVm(
                         StageKey: code,
-                        StageName: StageCodes.DisplayNameOf(code),
+                        StageName: string.Equals(code, UnassignedStageCode, StringComparison.OrdinalIgnoreCase) ? UnassignedStageName : StageCodes.DisplayNameOf(code),
                         ProjectCount: count);
                 })
                 .ToList();
@@ -987,22 +994,23 @@ namespace ProjectManagement.Pages.Analytics
         }
         // END SECTION
 
-        // SECTION: CoE stage drill-down (ongoing projects grouped by current stage, workflow order)
+        // SECTION: CoE stage drill-down (ongoing projects grouped by current stage, workflow order; no stage = the chart's Unassigned bar)
         private static IReadOnlyList<AnalyticsBoardGroupVm> BuildCoeStageBoard(IReadOnlyList<CoeSubcategoryProjectsVm> buckets)
         {
             var ongoing = buckets
                 .SelectMany(bucket => bucket.Projects.Select(project => (bucket.SubcategoryName, Project: project)))
-                .Where(item => item.Project.LifecycleStatus == "Ongoing" && !string.IsNullOrWhiteSpace(item.Project.CurrentStageCode))
+                .Where(item => item.Project.LifecycleStatus == "Ongoing")
+                .Select(item => (item.SubcategoryName, item.Project, StageCode: string.IsNullOrWhiteSpace(item.Project.CurrentStageCode) ? UnassignedStageCode : item.Project.CurrentStageCode!))
                 .ToList();
 
-            var order = BuildStageOrderLookup(BuildOrderedStageCodes(ongoing.Select(item => item.Project.CurrentStageCode!)));
+            var order = BuildStageOrderLookup(BuildOrderedStageCodes(ongoing.Select(item => item.StageCode)));
 
             return ongoing
-                .GroupBy(item => item.Project.CurrentStageCode!, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(group => ResolveStageOrder(group.Key, order))
                 .Select(group => new AnalyticsBoardGroupVm(
                     group.Key,
-                    group.First().Project.CurrentStage,
+                    string.Equals(group.Key, UnassignedStageCode, StringComparison.OrdinalIgnoreCase) ? UnassignedStageName : group.First().Project.CurrentStage,
                     group.Count(),
                     group
                         .OrderBy(item => item.Project.Name, StringComparer.OrdinalIgnoreCase)
@@ -1228,57 +1236,6 @@ namespace ProjectManagement.Pages.Analytics
                 .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
         }
 
-        private async Task<IReadOnlyList<AnalyticsStageCountPoint>> BuildOngoingStageDistributionAsync(
-            CancellationToken cancellationToken)
-        {
-            var stageSnapshots = await _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
-                .Include(p => p.ProjectStages)
-                .Select(p => new ProjectStageSnapshot(
-                    p.LifecycleStatus,
-                    p.WorkflowVersion,
-                    p.ProjectStages
-                        .OrderBy(s => s.SortOrder)
-                        .ThenBy(s => s.StageCode)
-                        .Select(s => new StageSnapshot(
-                            s.StageCode,
-                            s.Status,
-                            s.SortOrder,
-                            s.ActualStart,
-                            s.CompletedOn))
-                        .ToList()))
-                .ToListAsync(cancellationToken);
-
-            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var project in stageSnapshots)
-            {
-                var stage = ResolvePresentStage(project);
-                var stageCode = string.IsNullOrWhiteSpace(stage.CurrentStageCode)
-                    ? UnassignedStageCode
-                    : stage.CurrentStageCode.Trim();
-
-                counts.TryGetValue(stageCode, out var existing);
-                counts[stageCode] = existing + 1;
-            }
-
-            var orderedCodes = StageCodes.All
-                .Where(code => counts.ContainsKey(code))
-                .Concat(counts.Keys.Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            return orderedCodes
-                .Select(code =>
-                    new AnalyticsStageCountPoint(
-                        string.Equals(code, UnassignedStageCode, StringComparison.OrdinalIgnoreCase)
-                            ? UnassignedStageName
-                            : StageCodes.DisplayNameOf(code),
-                        counts[code]))
-                .ToList();
-        }
-
         private async Task<IReadOnlyList<OngoingStageByParentCategoryPoint>>
             BuildOngoingStageDistributionByParentCategoryAsync(
                 IReadOnlyCollection<int>? selectedParentCategoryIds,
@@ -1494,117 +1451,7 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
-        private async Task<IReadOnlyList<AnalyticsStageDurationPoint>> BuildOngoingStageDurationsAsync(
-            CancellationToken cancellationToken)
-        {
-            var stageRows = await _db.ProjectStages
-                .AsNoTracking()
-                .Where(s => s.Project != null
-                    && !s.Project.IsDeleted
-                    && !s.Project.IsArchived
-                    && s.Project.LifecycleStatus == ProjectLifecycleStatus.Active)
-                .Select(s => new
-                {
-                    s.ProjectId,
-                    s.StageCode,
-                    s.SortOrder,
-                    s.Status,
-                    s.ActualStart,
-                    s.CompletedOn
-                })
-                .ToListAsync(cancellationToken);
-
-            // SECTION: Completion-driven stage duration aggregation. Completed-stage starts may be inferred.
-            var durationSamples = new List<(string StageCode, double Duration)>();
-            foreach (var projectStages in stageRows.GroupBy(row => row.ProjectId))
-            {
-                DateOnly? previousCompletion = null;
-                foreach (var row in projectStages.OrderBy(item => item.SortOrder))
-                {
-                    if (string.IsNullOrWhiteSpace(row.StageCode))
-                    {
-                        continue;
-                    }
-
-                    var effectiveStart = row.ActualStart;
-                    if (row.Status == StageStatus.Completed && !effectiveStart.HasValue && row.CompletedOn.HasValue && previousCompletion.HasValue)
-                    {
-                        var inferred = previousCompletion.Value.AddDays(1);
-                        effectiveStart = inferred > row.CompletedOn.Value ? row.CompletedOn.Value : inferred;
-                    }
-
-                    if (effectiveStart.HasValue)
-                    {
-                        durationSamples.Add((row.StageCode, CalculateStageDurationDays(effectiveStart, row.CompletedOn)));
-                    }
-
-                    if (row.Status == StageStatus.Completed && row.CompletedOn.HasValue)
-                    {
-                        previousCompletion = row.CompletedOn;
-                    }
-                }
-            }
-
-            var durationListsByCode = durationSamples
-                .GroupBy(sample => sample.StageCode, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.Select(sample => sample.Duration).ToList(),
-                    StringComparer.OrdinalIgnoreCase);
-
-            var orderedStages = StageCodes.All
-                .Select(code =>
-                {
-                    if (!durationListsByCode.TryGetValue(code, out var durations))
-                    {
-                        return new AnalyticsStageDurationPoint(
-                            code,
-                            StageCodes.DisplayNameOf(code),
-                            0,
-                            0,
-                            0);
-                    }
-
-                    return new AnalyticsStageDurationPoint(
-                        code,
-                        StageCodes.DisplayNameOf(code),
-                        durations.Count > 0 ? durations.Average() : 0,
-                        CalculateMedian(durations),
-                        durations.Count);
-                });
-
-            var adHocStages = durationListsByCode.Keys
-                .Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase))
-                .OrderBy(code => StageCodes.DisplayNameOf(code), StringComparer.OrdinalIgnoreCase)
-                .Select(code =>
-                {
-                    var durations = durationListsByCode[code];
-                    return new AnalyticsStageDurationPoint(
-                        code,
-                        StageCodes.DisplayNameOf(code),
-                        durations.Count > 0 ? durations.Average() : 0,
-                        CalculateMedian(durations),
-                        durations.Count);
-                });
-
-            return orderedStages
-                .Concat(adHocStages)
-                .ToList();
-            // END SECTION
-        }
-
-        // SECTION: Stage duration helpers
-        private static double CalculateStageDurationDays(DateOnly? start, DateOnly? end)
-        {
-            if (!start.HasValue)
-            {
-                return 0;
-            }
-
-            var effectiveEnd = end ?? DateOnly.FromDateTime(DateTime.UtcNow);
-            return StageDurationCalculator.InclusiveCalendarDays(start.Value, effectiveEnd);
-        }
-
+        // SECTION: Median helper
         private static double CalculateMedian(IReadOnlyList<double> values)
         {
             if (values == null || values.Count == 0)
@@ -1635,11 +1482,13 @@ namespace ProjectManagement.Pages.Analytics
                     stage.CompletedOn))
                 .ToList();
 
+            // Measured against the IST "as of" day, the same day the page prints; the helper's own default is UTC.
             return PresentStageHelper.ComputePresentStageAndAge(
                 stages,
                 _workflowStageMetadataProvider,
                 project.WorkflowVersion,
-                project.Status);
+                project.Status,
+                ReferenceDateIst);
         }
 
         private static string ResolveName(int? id, IReadOnlyDictionary<int, string> lookup) =>
