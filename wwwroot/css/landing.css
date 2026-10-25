@@ -58,6 +58,7 @@
     --lp-beam-core-alpha: 0.8;
     --lp-ray-glow-alpha: 0.35;
     --lp-ray-core-alpha: 0.32;
+    --lp-tail-alpha: 0.75;
 
     /* Glass: white frost in Light, smoked glass in Dark (see "Glass" below). */
     --lp-glass-mix: 46%;
@@ -72,6 +73,8 @@
     --lp-gleam-mix: 38%;
     --lp-lens-mix: 85%;
     --lp-aurora-alpha: 0.5;
+    /* The hero carries more light in Light, so the header capsule and pill have colour to blur. */
+    --lp-aurora-hero-alpha: 0.8;
 }
 
 :root[data-bs-theme="dark"] {
@@ -118,6 +121,7 @@
     --lp-beam-core-alpha: 0.75;
     --lp-ray-glow-alpha: 0.7;
     --lp-ray-core-alpha: 0.45;
+    --lp-tail-alpha: 0.55;
 
     --lp-glass-mix: 6%;
     --lp-glass-strong-mix: 9%;
@@ -131,6 +135,7 @@
     --lp-gleam-mix: 7%;
     --lp-lens-mix: 16%;
     --lp-aurora-alpha: 0.42;
+    --lp-aurora-hero-alpha: 0.42;
 }
 
 /* ---------- Page frame ---------- */
@@ -420,6 +425,11 @@ body:has(.lp),
 .lp-prism__ray {
     animation: lp-ray 6s ease-in-out infinite;
     transform-box: fill-box;
+}
+
+/* Past the end point, the light runs on behind the label column and fades. */
+.lp-prism__tails {
+    opacity: var(--lp-tail-alpha);
 }
 
 /* A brighter core along each ray, so the bands read as beams rather than ribbons. */
@@ -1345,6 +1355,7 @@ body:has(.lp),
 
     /* The SVG labels get too small on a phone; show them as chips under the art. */
     .lp-prism--labelled .lp-prism__labels,
+    .lp-prism--labelled .lp-prism__tails,
     .lp-prism--labelled .lp-prism__beam-label {
         display: none;
     }
@@ -1499,11 +1510,14 @@ body:has(.lp),
 }
 
 .lp-aurora--hero {
+    opacity: var(--lp-aurora-hero-alpha);
     background:
         radial-gradient(26% 36% at 70% 30%, color-mix(in srgb, var(--lp-spec-6) 55%, transparent), transparent 70%),
         radial-gradient(24% 30% at 88% 70%, color-mix(in srgb, var(--lp-spec-4) 50%, transparent), transparent 70%),
         radial-gradient(22% 30% at 52% 78%, color-mix(in srgb, var(--lp-spec-1) 40%, transparent), transparent 70%),
-        radial-gradient(30% 34% at 8% 10%, color-mix(in srgb, var(--lp-spec-5) 30%, transparent), transparent 70%);
+        radial-gradient(22% 26% at 82% 6%, color-mix(in srgb, var(--lp-spec-1) 42%, transparent), transparent 70%),
+        radial-gradient(20% 24% at 30% 8%, color-mix(in srgb, var(--lp-spec-4) 40%, transparent), transparent 70%),
+        radial-gradient(30% 34% at 8% 14%, color-mix(in srgb, var(--lp-spec-5) 48%, transparent), transparent 70%);
 }
 
 .lp-aurora--trust {

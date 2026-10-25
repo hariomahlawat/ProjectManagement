@@ -42,7 +42,9 @@
         // Inside the glass: a wedge from the entry point to this ray's exit segment.
         var split = string.Format(inv, "{0:0.#},{1:0.#} {2:0.#},{3:0.#} {4:0.#},{5:0.#}",
             entryX, entryY, sx0, sy0, sx1, sy1);
-        return (Points: points, Core: core, Split: split, label.Y, label.Name, label.Detail);
+        // Beyond the end point the light runs on, level, behind the label column.
+        var tail = string.Format(inv, "520,{0} 760,{0} 760,{1} 520,{1}", label.Y - 7, label.Y + 7);
+        return (Points: points, Core: core, Split: split, Tail: tail, label.Y, label.Name, label.Detail);
     }).ToArray();
 }
 <svg class="lp-prism @(showLabels ? "lp-prism--labelled" : "lp-prism--art")"
@@ -76,6 +78,17 @@
         <filter id="lpPrismSoft" x="-20%" y="-50%" width="140%" height="200%">
             <feGaussianBlur stdDeviation="5" />
         </filter>
+        @if (showLabels)
+        {
+            for (var i = 0; i < rays.Length; i++)
+            {
+                <linearGradient id="lpPrismTail@(i)" gradientUnits="userSpaceOnUse" x1="520" y1="0" x2="760" y2="0">
+                    <stop offset="0" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0.5" />
+                    <stop offset="0.45" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0.14" />
+                    <stop offset="1" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0" />
+                </linearGradient>
+            }
+        }
         @for (var i = 0; i < rays.Length; i++)
         {
             <linearGradient id="lpPrismRay@(i)" gradientUnits="userSpaceOnUse" x1="350" y1="0" x2="@(showLabels ? "520" : "1000")" y2="0">
@@ -112,6 +125,15 @@
             <polygon points="@rays[i].Points" fill="url(#lpPrismRay@(i))" />
         }
     </g>
+    @if (showLabels)
+    {
+        <g class="lp-prism__tails" aria-hidden="true">
+            @for (var i = 0; i < rays.Length; i++)
+            {
+                <polygon points="@rays[i].Tail" fill="url(#lpPrismTail@(i))" filter="url(#lpPrismSoft)" />
+            }
+        </g>
+    }
     <g class="lp-prism__rays">
         @for (var i = 0; i < rays.Length; i++)
         {
