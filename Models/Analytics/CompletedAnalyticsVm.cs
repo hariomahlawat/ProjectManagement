@@ -17,6 +17,11 @@ public sealed class CompletedAnalyticsVm
     /// <summary>Median calendar days from the first stage start to completion; null when no project has both dates.</summary>
     public double? MedianDaysToComplete { get; init; }
     // END SECTION
+
+    // SECTION: In-page drill-downs for the category and technical-category charts
+    public IReadOnlyList<AnalyticsBoardGroupVm> CategoryBoard { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
+    public IReadOnlyList<AnalyticsBoardGroupVm> TechnicalBoard { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
+    // END SECTION
 }
 
 // SECTION: Completed year board DTOs

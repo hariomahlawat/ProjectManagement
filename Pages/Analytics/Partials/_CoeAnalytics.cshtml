@@ -23,7 +23,7 @@
       <header class="analytics-card__head">
         <div class="analytics-card__text">
           <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
-          <p class="analytics-card__meta">Every workflow stage in order; click a bar to open those projects.</p>
+          <p class="analytics-card__meta">Every workflow stage in order; click a bar to see its projects below.</p>
         </div>
         <div class="analytics-card__actions">
           <button type="button" class="analytics-icon-btn" data-chart-download-target="coe-by-stage-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
@@ -38,6 +38,7 @@
                 data-empty-message="No CoE projects yet. Create a CoE project to see it here."
                 data-series='@Html.Raw(JsonSerializer.Serialize(Model.HasCoeProjects ? Model.ByStage : Array.Empty<ProjectManagement.Models.Analytics.CoeStageBucketVm>(), json))'></canvas>
       </div>
+      @await Html.PartialAsync("Partials/_BoardRows", (Model.StageBoard, "stage", overviewUrl, "Projects in each stage"))
     </article>
     <!-- END SECTION -->
 
@@ -91,7 +92,7 @@
           var ongoing = bucket.OngoingCount;
           var completed = bucket.CompletedCount;
           var cancelled = bucket.CancelledCount;
-          <details class="analytics-drill__row">
+          <details class="analytics-drill__row" data-drill-key="sub:@bucket.SubcategoryName">
             <summary class="analytics-drill__summary">
               <span class="analytics-drill__name">@bucket.SubcategoryName</span>
               <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>

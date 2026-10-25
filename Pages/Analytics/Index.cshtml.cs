@@ -14,7 +14,10 @@ using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Analytics;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Reports.ArppFyProjectUpdate;
+using ProjectManagement.Models.Arpp;
 
 using ProjectManagement.Utilities;
 
@@ -45,14 +48,21 @@ namespace ProjectManagement.Pages.Analytics
             "centres of excellence"
         };
 
+        private readonly IArppLibraryService? _arppLibrary;
+        private readonly IArppFyProjectUpdateService? _arppFyUpdate;
+
         public IndexModel(
             ApplicationDbContext db,
             IProjectAnalyticsService projectAnalyticsService,
-            IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+            IArppLibraryService? arppLibrary = null,
+            IArppFyProjectUpdateService? arppFyUpdate = null)
         {
             _db = db;
             _projectAnalyticsService = projectAnalyticsService;
             _workflowStageMetadataProvider = workflowStageMetadataProvider;
+            _arppLibrary = arppLibrary;
+            _arppFyUpdate = arppFyUpdate;
         }
 
         private static readonly ProjectLifecycleFilter[] LifecycleFilters =
@@ -70,6 +80,11 @@ namespace ProjectManagement.Pages.Analytics
 
         [BindProperty(SupportsGet = true, Name = "hotspotCategoryId")]
         public int? StageHotspotCategoryId { get; set; }
+
+        [BindProperty(SupportsGet = true, Name = "financialYearStart")]
+        public int? ArppFinancialYearStart { get; set; }
+
+        public ArppAnalyticsVm? Arpp { get; private set; }
 
         [BindProperty(SupportsGet = true, Name = "ongoingStageParentCategoryIds")]
         public List<int> OngoingStageParentCategoryIds { get; set; } = new();
@@ -122,6 +137,7 @@ namespace ProjectManagement.Pages.Analytics
                 "completed" => AnalyticsTab.Completed,
                 "coe" => AnalyticsTab.Coe,
                 "insights" => AnalyticsTab.Insights,
+                "arpp" => AnalyticsTab.Arpp,
                 _ => AnalyticsTab.Ongoing
             };
 
@@ -175,6 +191,10 @@ namespace ProjectManagement.Pages.Analytics
                     };
                     break;
                 }
+
+                case AnalyticsTab.Arpp:
+                    Arpp = await BuildArppAnalyticsAsync(cancellationToken);
+                    break;
             }
             // END SECTION
 
@@ -259,10 +279,40 @@ namespace ProjectManagement.Pages.Analytics
                             "with recorded start and end dates")
                     };
 
+                case AnalyticsTab.Arpp when Arpp is not null && Arpp.HasData:
+                    return new[]
+                    {
+                        new HeadlineFigure(
+                            "Listed projects",
+                            Arpp.ListedCount.ToString(),
+                            $"IPA {FormatCrore(Arpp.ListedIpaValue)} in FY {Arpp.FinancialYearDisplay}"),
+                        new HeadlineFigure(
+                            "New this year",
+                            Arpp.NewCount.ToString(),
+                            $"CL {Arpp.CommittedLiabilityCount} · CF {Arpp.CarryForwardCount} · delisted {Arpp.DelistedCount}"),
+                        new HeadlineFigure(
+                            "Completed",
+                            Arpp.CompletedCount.ToString(),
+                            $"of the listed projects; {Arpp.OngoingCount} ongoing"),
+                        new HeadlineFigure(
+                            "Supply orders placed",
+                            Arpp.SupplyOrderCount.ToString(),
+                            Arpp.SupplyOrderValue > 0
+                                ? $"{FormatCrore(Arpp.SupplyOrderValue)}, {Math.Round(Arpp.SupplyOrderShareOfIpa * 100):0}% of listed IPA"
+                                : "no supply-order value recorded yet")
+                    };
+
                 default:
                     return Array.Empty<HeadlineFigure>();
             }
         }
+
+        private static string FormatCrore(decimal rupees) =>
+            rupees >= 10_000_000m
+                ? $"\u20b9{rupees / 10_000_000m:0.##} Cr"
+                : rupees >= 100_000m
+                    ? $"\u20b9{rupees / 100_000m:0.##} L"
+                    : $"\u20b9{rupees:0}";
 
         private static IReadOnlyList<StageHotspotRankVm> RankStageHotspots(
             IReadOnlyList<StageHotspotPointVm> points,
@@ -407,6 +457,7 @@ namespace ProjectManagement.Pages.Analytics
             var currentYear = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime).Year;
             var bestYear = perYear.OrderByDescending(point => point.Count).ThenByDescending(point => point.Year).FirstOrDefault();
             var medianDaysToComplete = await BuildMedianDaysToCompleteAsync(completedQuery, cancellationToken);
+            var (categoryBoard, technicalBoard) = await BuildCompletedGroupBoardsAsync(completedQuery, cancellationToken);
             // END SECTION
 
             return new CompletedAnalyticsVm
@@ -420,10 +471,47 @@ namespace ProjectManagement.Pages.Analytics
                 CompletedThisYear = perYear.FirstOrDefault(point => point.Year == currentYear)?.Count ?? 0,
                 BestYear = bestYear?.Year,
                 BestYearCount = bestYear?.Count ?? 0,
-                MedianDaysToComplete = medianDaysToComplete
+                MedianDaysToComplete = medianDaysToComplete,
+                CategoryBoard = categoryBoard,
+                TechnicalBoard = technicalBoard
             };
             // END SECTION
         }
+
+        // SECTION: Completed drill-downs by exact category and technical category (same grouping as the charts)
+        private async Task<(IReadOnlyList<AnalyticsBoardGroupVm> CategoryBoard, IReadOnlyList<AnalyticsBoardGroupVm> TechnicalBoard)>
+            BuildCompletedGroupBoardsAsync(IQueryable<Project> completedQuery, CancellationToken cancellationToken)
+        {
+            var rows = await completedQuery
+                .Select(project => new CompletedBoardRow(
+                    project.Id,
+                    project.Name,
+                    project.Category != null ? project.Category.Name : null,
+                    project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
+                    project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null)))
+                .ToListAsync(cancellationToken);
+
+            IReadOnlyList<AnalyticsBoardGroupVm> Group(Func<CompletedBoardRow, string?> keyOf) => rows
+                .GroupBy(row => string.IsNullOrWhiteSpace(keyOf(row)) ? "Uncategorized" : keyOf(row)!.Trim())
+                .Select(group => new AnalyticsBoardGroupVm(
+                    group.Key,
+                    group.Key,
+                    group.Count(),
+                    group
+                        .OrderByDescending(row => row.Year)
+                        .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(row => new AnalyticsBoardProjectVm(
+                            row.Id,
+                            string.IsNullOrWhiteSpace(row.Name) ? "Untitled project" : row.Name.Trim(),
+                            row.Year?.ToString()))
+                        .ToList()))
+                .OrderByDescending(group => group.Count)
+                .ThenBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return (Group(row => row.CategoryName), Group(row => row.TechnicalName));
+        }
+        // END SECTION
 
         // SECTION: Median time to complete (first stage start to completion)
         private async Task<double?> BuildMedianDaysToCompleteAsync(
@@ -539,6 +627,7 @@ namespace ProjectManagement.Pages.Analytics
                 ByStage = stageBuckets,
                 SubcategoriesByLifecycle = subcategoryBreakdown,
                 SubcategoryProjects = subcategoryProjects,
+                StageBoard = BuildCoeStageBoard(subcategoryProjects),
                 TotalCoeProjects = totalCoeProjects,
                 OngoingCount = ongoingCount,
                 CompletedCount = completedCount,
@@ -822,7 +911,8 @@ namespace ProjectManagement.Pages.Analytics
                             row.Id,
                             row.Name,
                             FormatCoeLifecycleStatus(row.LifecycleStatus),
-                            stageName)
+                            stageName,
+                            string.IsNullOrWhiteSpace(stage.CurrentStageCode) ? null : stage.CurrentStageCode.Trim())
                     };
                 })
                 .GroupBy(item => item.Subcategory, StringComparer.OrdinalIgnoreCase)
@@ -841,6 +931,31 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
+        // SECTION: CoE stage drill-down (ongoing projects grouped by current stage, workflow order)
+        private static IReadOnlyList<AnalyticsBoardGroupVm> BuildCoeStageBoard(IReadOnlyList<CoeSubcategoryProjectsVm> buckets)
+        {
+            var ongoing = buckets
+                .SelectMany(bucket => bucket.Projects.Select(project => (bucket.SubcategoryName, Project: project)))
+                .Where(item => item.Project.LifecycleStatus == "Ongoing" && !string.IsNullOrWhiteSpace(item.Project.CurrentStageCode))
+                .ToList();
+
+            var order = BuildStageOrderLookup(BuildOrderedStageCodes(ongoing.Select(item => item.Project.CurrentStageCode!)));
+
+            return ongoing
+                .GroupBy(item => item.Project.CurrentStageCode!, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => ResolveStageOrder(group.Key, order))
+                .Select(group => new AnalyticsBoardGroupVm(
+                    group.Key,
+                    group.First().Project.CurrentStage,
+                    group.Count(),
+                    group
+                        .OrderBy(item => item.Project.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(item => new AnalyticsBoardProjectVm(item.Project.Id, item.Project.Name, item.SubcategoryName))
+                        .ToList()))
+                .ToList();
+        }
+        // END SECTION
+
         private static string FormatCoeLifecycleStatus(ProjectLifecycleStatus status) => status switch
         {
             ProjectLifecycleStatus.Active => "Ongoing",
@@ -848,6 +963,219 @@ namespace ProjectManagement.Pages.Analytics
             ProjectLifecycleStatus.Cancelled => "Cancelled",
             _ => status.ToString()
         };
+
+        // SECTION: ARPP analytics (current position of one financial year, joined to project standing)
+        private async Task<ArppAnalyticsVm?> BuildArppAnalyticsAsync(CancellationToken cancellationToken)
+        {
+            if (_arppLibrary is null || _arppFyUpdate is null)
+            {
+                return null;
+            }
+
+            var available = await _arppFyUpdate.GetAvailableFinancialYearsAsync(cancellationToken);
+            var currentFy = FinancialYearHelper.GetStartYear(DateOnly.FromDateTime(AsOfIst.DateTime));
+            if (available.Count == 0)
+            {
+                return new ArppAnalyticsVm
+                {
+                    FinancialYearStart = currentFy,
+                    FinancialYearDisplay = FinancialYearHelper.Format(currentFy),
+                    IsCurrentFinancialYear = true
+                };
+            }
+
+            var requested = ArppFinancialYearStart;
+            var selected = requested.HasValue && available.Contains(requested.Value)
+                ? requested.Value
+                : available.Contains(currentFy) ? currentFy : available[0];
+            string? fallbackNote = !requested.HasValue && selected != currentFy
+                ? $"FY {FinancialYearHelper.Format(currentFy)} has no published ARPP yet; showing FY {FinancialYearHelper.Format(selected)}."
+                : null;
+
+            var position = await _arppLibrary.GetCurrentPositionAsync(selected, null, cancellationToken);
+            var report = await _arppFyUpdate.BuildAsync(selected, cancellationToken);
+            if (position is null)
+            {
+                return new ArppAnalyticsVm
+                {
+                    FinancialYearStart = selected,
+                    FinancialYearDisplay = FinancialYearHelper.Format(selected),
+                    AvailableFinancialYears = available,
+                    IsCurrentFinancialYear = selected == currentFy,
+                    FallbackNote = fallbackNote
+                };
+            }
+
+            var standing = (report?.Rows ?? Array.Empty<ArppFyProjectUpdateRow>()).ToDictionary(row => row.ProjectId);
+            var approved = position.ApprovedRows;
+            var approvedIds = approved.Select(row => row.ProjectId).ToList();
+
+            // Parent category per listed project, through the hierarchy the page already loaded.
+            var categoryIds = await _db.Projects
+                .AsNoTracking()
+                .Where(project => approvedIds.Contains(project.Id))
+                .Select(project => new { project.Id, project.CategoryId })
+                .ToListAsync(cancellationToken);
+            var parentCategoryByProject = categoryIds.ToDictionary(
+                row => row.Id,
+                row => ProjectCategoryHierarchyResolver.ResolveRoot(row.CategoryId, _categoryHierarchy)?.Name ?? "Uncategorized");
+
+            static AnalyticsBoardProjectVm ToBoardProject(ArppLibraryCurrentRow row, string? detail = null) =>
+                new(row.ProjectId, row.ProjectName, detail);
+
+            IReadOnlyList<ArppValueGroupVm> GroupBy(Func<ArppLibraryCurrentRow, string> keyOf, Func<ArppLibraryCurrentRow, string>? nameOf = null, IComparer<string>? order = null)
+            {
+                var groups = approved
+                    .GroupBy(row => keyOf(row))
+                    .Select(group => new ArppValueGroupVm(
+                        group.Key,
+                        (nameOf ?? keyOf)(group.First()),
+                        group.Count(),
+                        group.Sum(row => row.IpaCost),
+                        group.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+                            .Select(row => ToBoardProject(row, FormatCrore(row.IpaCost)))
+                            .ToList()));
+                return (order is null
+                        ? groups.OrderByDescending(group => group.Count).ThenBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
+                        : groups.OrderBy(group => group.Key, order))
+                    .ToList();
+            }
+
+            var categoryOrder = Comparer<string>.Create((a, b) => CategoryRank(a).CompareTo(CategoryRank(b)));
+            var byCategory = GroupBy(row => row.Category.ToString(), row => ArppDisplayNames.For(row.Category), categoryOrder);
+            var byCfa = GroupBy(row => Trimmed(row.Cfa));
+            var byFund = GroupBy(row => Trimmed(row.Fund));
+            var byDfpds = GroupBy(row => Trimmed(row.DfpdsSchedule));
+            var bandOrder = Comparer<string>.Create((a, b) => BandRank(a).CompareTo(BandRank(b)));
+            var byCostBand = GroupBy(row => CostBandKey(row.IpaCost), row => CostBandName(CostBandKey(row.IpaCost)), bandOrder);
+            var byParentCategory = GroupBy(row => parentCategoryByProject.TryGetValue(row.ProjectId, out var name) ? name : "Uncategorized");
+
+            // Standing: lifecycle from the published row's project status; stage from the FY update rows.
+            var completedRows = approved.Where(row => row.ProjectStatus == "Completed").ToList();
+            var cancelledRows = approved.Where(row => row.ProjectStatus == "Cancelled").ToList();
+            var ongoingRows = approved.Where(row => row.ProjectStatus != "Completed" && row.ProjectStatus != "Cancelled").ToList();
+
+            var stageOfProject = ongoingRows.ToDictionary(
+                row => row.ProjectId,
+                row => standing.TryGetValue(row.ProjectId, out var update) && !string.IsNullOrWhiteSpace(update.CurrentStageCode)
+                    ? (Code: update.CurrentStageCode!.Trim(), Name: update.CurrentStageLabel)
+                    : (Code: UnassignedStageCode, Name: UnassignedStageName));
+            var stageCodes = BuildOrderedStageCodes(stageOfProject.Values.Select(stage => stage.Code));
+            var stageOrder = BuildStageOrderLookup(stageCodes);
+            var byStage = StageCodes.All
+                .Select(code => new ArppStageCountVm(code, StageCodes.DisplayNameOf(code), stageOfProject.Values.Count(stage => string.Equals(stage.Code, code, StringComparison.OrdinalIgnoreCase))))
+                .Concat(stageCodes
+                    .Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase))
+                    .Select(code => new ArppStageCountVm(code, stageOfProject.Values.First(stage => stage.Code == code).Name, stageOfProject.Values.Count(stage => stage.Code == code))))
+                .ToList();
+
+            var standingBoard = new List<AnalyticsBoardGroupVm>();
+            if (completedRows.Count > 0)
+            {
+                standingBoard.Add(new AnalyticsBoardGroupVm("COMPLETED", "Completed", completedRows.Count,
+                    completedRows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => ToBoardProject(row, ArppDisplayNames.For(row.Category))).ToList()));
+            }
+            standingBoard.AddRange(ongoingRows
+                .GroupBy(row => stageOfProject[row.ProjectId].Code, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => ResolveStageOrder(group.Key, stageOrder))
+                .Select(group => new AnalyticsBoardGroupVm(
+                    group.Key,
+                    stageOfProject[group.First().ProjectId].Name,
+                    group.Count(),
+                    group.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => ToBoardProject(row, ArppDisplayNames.For(row.Category))).ToList())));
+            if (cancelledRows.Count > 0)
+            {
+                standingBoard.Add(new AnalyticsBoardGroupVm("CANCELLED", "Cancelled", cancelledRows.Count,
+                    cancelledRows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => ToBoardProject(row, ArppDisplayNames.For(row.Category))).ToList()));
+            }
+
+            // Milestones from the FY update rows (approved projects only).
+            var today = DateOnly.FromDateTime(AsOfIst.DateTime);
+            var fyEnd = FinancialYearHelper.GetEndDate(selected);
+            var updates = approvedIds.Where(standing.ContainsKey).Select(id => standing[id]).ToList();
+            var pastAon = updates.Where(row => row.AonDate.HasValue).ToList();
+            var withSo = updates.Where(row => row.SupplyOrderAmountInRupees is > 0m || row.SupplyOrderDate.HasValue).ToList();
+            var pdcDue = updates.Where(row => row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value >= today && row.DevelopmentPdcDate.Value <= fyEnd && !row.IsCompleted).ToList();
+            var pdcOverdue = updates.Where(row => row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value < today && !row.IsCompleted).ToList();
+
+            static AnalyticsBoardGroupVm Milestone(string key, string name, IReadOnlyList<ArppFyProjectUpdateRow> rows, Func<ArppFyProjectUpdateRow, string?> detail) =>
+                new(key, name, rows.Count, rows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => new AnalyticsBoardProjectVm(row.ProjectId, row.ProjectName, detail(row))).ToList());
+
+            var milestoneBoard = new[]
+            {
+                Milestone("AON", "Past AoN", pastAon, row => row.AonDate?.ToString("d MMM yyyy")),
+                Milestone("SO", "Supply order placed", withSo, row => row.SupplyOrderAmountInRupees is > 0m ? FormatCrore(row.SupplyOrderAmountInRupees.Value) : row.SupplyOrderDate?.ToString("d MMM yyyy")),
+                Milestone("PDC_DUE", $"PDC due by {fyEnd:d MMM yyyy}", pdcDue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy")),
+                Milestone("PDC_OVERDUE", "PDC overdue", pdcOverdue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy"))
+            };
+
+            return new ArppAnalyticsVm
+            {
+                FinancialYearStart = selected,
+                FinancialYearDisplay = FinancialYearHelper.Format(selected),
+                AvailableFinancialYears = available,
+                IsCurrentFinancialYear = selected == currentFy,
+                FallbackNote = fallbackNote,
+                ListedCount = approved.Count,
+                ListedIpaValue = position.ApprovedIpaValue,
+                NewCount = approved.Count(row => row.Category == ArppCategory.New),
+                CommittedLiabilityCount = approved.Count(row => row.Category == ArppCategory.CommittedLiability),
+                CarryForwardCount = approved.Count(row => row.Category == ArppCategory.CarryForward),
+                DelistedCount = position.DelistedRows.Count,
+                DelistedIpaValue = position.DelistedIpaValue,
+                AddedByAddendumCount = approved.Count(row => row.SourceKind == ArppIssueKind.Addendum),
+                UnlinkedRowCount = position.TotalUnlinkedDocumentRows,
+                OngoingCount = ongoingRows.Count,
+                CompletedCount = completedRows.Count,
+                CancelledCount = cancelledRows.Count,
+                ByStage = byStage,
+                StandingBoard = standingBoard,
+                ByCategory = byCategory,
+                ByCfa = byCfa,
+                ByFund = byFund,
+                ByDfpds = byDfpds,
+                ByCostBand = byCostBand,
+                ByParentCategory = byParentCategory,
+                PastAonCount = pastAon.Count,
+                SupplyOrderCount = withSo.Count,
+                SupplyOrderValue = withSo.Sum(row => row.SupplyOrderAmountInRupees ?? 0m),
+                PdcDueInYearCount = pdcDue.Count,
+                PdcOverdueCount = pdcOverdue.Count,
+                MilestoneBoard = milestoneBoard
+            };
+        }
+
+        private static string Trimmed(string? value) => string.IsNullOrWhiteSpace(value) ? "Not recorded" : value.Trim();
+
+        private static int CategoryRank(string key) => key switch
+        {
+            nameof(ArppCategory.New) => 0,
+            nameof(ArppCategory.CommittedLiability) => 1,
+            nameof(ArppCategory.CarryForward) => 2,
+            _ => 3
+        };
+
+        // IPA cost bands in rupees: under 1 crore, 1 to 5 crore, 5 to 20 crore, 20 crore and above.
+        private static string CostBandKey(decimal rupees) => rupees switch
+        {
+            < 10_000_000m => "lt1",
+            < 50_000_000m => "1to5",
+            < 200_000_000m => "5to20",
+            _ => "ge20"
+        };
+
+        private static string CostBandName(string key) => key switch
+        {
+            "lt1" => "Under \u20b91 Cr",
+            "1to5" => "\u20b91 to 5 Cr",
+            "5to20" => "\u20b95 to 20 Cr",
+            _ => "\u20b920 Cr and above"
+        };
+
+        private static int BandRank(string key) => key switch { "lt1" => 0, "1to5" => 1, "5to20" => 2, _ => 3 };
+        // END SECTION
+
+        private sealed record CompletedBoardRow(int Id, string? Name, string? CategoryName, string? TechnicalName, int? Year);
 
         private sealed record CoeCategoryDescriptor(int Id, int? ParentId, string Name);
         private sealed record CoeCategoryLookup(

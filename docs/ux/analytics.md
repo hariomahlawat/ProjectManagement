@@ -1,7 +1,7 @@
 # Projects → Analytics
 
-The Analytics page (`Pages/Analytics/Index.cshtml`) shows the project portfolio in four modes:
-Ongoing, Completed, CoE and Insights. Redesigned on 2026-10-25 to the same ink-and-white rules as
+The Analytics page (`Pages/Analytics/Index.cshtml`) shows the project portfolio in five modes:
+Ongoing, Completed, CoE, Insights and ARPP. Redesigned on 2026-10-25 to the same ink-and-white rules as
 the [Dashboard](app-shell-and-dashboard.md): numbers first, colour only where it means something,
 one chart style defined once.
 
@@ -46,6 +46,24 @@ one chart style defined once.
   at two times the portfolio median or more is marked in the status red. The old Ongoing
   "Average time spent in each stage" chart is folded into this view.
 
+- **ARPP** (fifth mode, added 2026-10-25): the projects listed in one financial year's published
+  ARPP (the latest published row per project, as the ARPP library's current position) joined to
+  where each project stands today. A Financial year chip picks the year; the page opens on the
+  current financial year when it has a published ARPP, else on the latest published year with a
+  note. Cards: where the projects stand (ongoing by stage, with Completed / stage / Cancelled rows),
+  by sanctioning authority (CFA), by category and IPA cost band, milestones (past AoN, supply
+  orders and their value against listed IPA, development PDC due and overdue), and fund, DFPDS
+  schedule and parent category rows. Data comes from `IArppLibraryService.GetCurrentPositionAsync`
+  and `IArppFyProjectUpdateService.BuildAsync`; the grouping is in `IndexModel.BuildArppAnalyticsAsync`.
+
+## Staying on the page
+
+Nobody has to leave Analytics to see which projects a figure is made of. Every chart has
+expandable rows beneath it (`details[data-drill-key]`): a bar click opens and scrolls to its row
+(`drillAction` in `analytics-projects.js`), and the rows list the project names with links to
+each project's overview. Ongoing stages, completed years, completed categories and technical
+categories, CoE stages and sub-categories, and every ARPP grouping all have rows.
+
 ## Chart rules (every Chart.js canvas in PRISM)
 
 `applyPmChartDefaults(Chart)` in `pm-chart-defaults.js` sets the look once, from tokens:
@@ -59,10 +77,9 @@ one chart style defined once.
   `prefers-reduced-motion`).
 - Legends are HTML chips above the chart (`renderLegend`), with the series total; clicking a chip
   toggles the series.
-- Click-through: `enableClickThrough(chart, urlFor)` opens the filtered list (Ongoing by present
-  stage and parent category; completed by year, category or technical category) using the URLs on
-  `#analytics-root`. Do not call `chart.update()` right after creating a chart; it freezes the first
-  animation mid-frame.
+- Bar clicks: `enableBarClick(chart, resolve)` runs an action (open the row on the page) or opens a
+  URL. Do not call `chart.update()` right after creating a chart; it freezes the first animation
+  mid-frame.
 - A theme switch (user menu → Theme) re-reads the tokens and redraws every chart (`watchTheme`).
 - Every stage chart draws the same axis: all workflow stages in `StageCodes.All` order (from
   `data-stages` on `#analytics-root`), with the same short labels, then any ad hoc stage found in

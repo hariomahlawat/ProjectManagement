@@ -6,6 +6,7 @@ public enum AnalyticsTab
     Completed,
     Ongoing,
     Coe,
-    Insights
+    Insights,
+    Arpp
 }
 // END SECTION

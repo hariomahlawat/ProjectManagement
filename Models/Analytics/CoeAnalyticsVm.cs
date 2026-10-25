@@ -30,6 +30,11 @@ public sealed class CoeAnalyticsVm
     public IReadOnlyList<CoeSubcategoryProjectsVm> SubcategoryProjects { get; init; } =
         Array.Empty<CoeSubcategoryProjectsVm>();
     // END SECTION
+
+    // SECTION: In-page drill-down for the stage chart (ongoing CoE projects by current stage)
+    public IReadOnlyList<AnalyticsBoardGroupVm> StageBoard { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
+    // END SECTION
+
 }
 // END SECTION
 
@@ -62,5 +67,6 @@ public sealed record CoeProjectSummaryVm(
     int Id,
     string Name,
     string LifecycleStatus,
-    string CurrentStage);
+    string CurrentStage,
+    string? CurrentStageCode = null);
 // END SECTION

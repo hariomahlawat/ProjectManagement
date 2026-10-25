@@ -1,0 +1,19 @@
+@model ProjectManagement.Models.Analytics.ArppAnalyticsVm
+@using ProjectManagement.Utilities
+@if (Model.AvailableFinancialYears.Count > 0)
+{
+  <form method="get" asp-page="./Index" class="analytics-filter-form" aria-label="Choose the ARPP financial year">
+    <input type="hidden" name="tab" value="Arpp" />
+    <label class="analytics-filter analytics-filter--select">
+      <span>Financial year</span>
+      <b>@Model.FinancialYearDisplay</b>
+      <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      <select name="financialYearStart" class="analytics-filter__select" data-page-handled data-auto-submit="change" aria-label="Financial year">
+        @foreach (var year in Model.AvailableFinancialYears)
+        {
+          <option value="@year" selected="@(year == Model.FinancialYearStart ? "selected" : null)">@FinancialYearHelper.Format(year)</option>
+        }
+      </select>
+    </label>
+  </form>
+}

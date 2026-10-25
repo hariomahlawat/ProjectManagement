@@ -12,7 +12,7 @@ import {
   categoryColor,
   categorySeriesColors,
   chartTokens,
-  enableClickThrough,
+  enableBarClick,
   lifecycleColor,
   renderLegend,
   sizeChartHost,
@@ -41,16 +41,25 @@ function getCssVar(name, fallback) {
   return value ? value.trim() : fallback;
 }
 
-function withQuery(baseUrl, params) {
-  if (!baseUrl) return null;
-  const url = new URL(baseUrl, window.location.origin);
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
-  });
-  return url.pathname + url.search;
-}
-
 const root = () => document.getElementById('analytics-root');
+
+// SECTION: In-page drill-down
+// A chart bar opens the matching row (details[data-drill-key]) on the page instead of leaving
+// it; the row's project links are the way out. Returns a click action, or null when the page
+// has no row for that key (the bar is then inert).
+function drillAction(scope, key) {
+  const row = (scope ?? document).querySelector(`[data-drill-key="${CSS.escape(key)}"]`);
+  if (!row) return null;
+  return () => {
+    row.open = true;
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    row.classList.remove('is-flash');
+    void row.offsetWidth; // restart the highlight
+    row.classList.add('is-flash');
+    row.querySelector('summary')?.focus({ preventScroll: true });
+  };
+}
+// END SECTION
 const chartRegistry = new Map(); // canvas id → () => Chart, so a theme switch can redraw
 
 function mount(canvas, build) {
@@ -127,16 +136,6 @@ function paintCategoryDots(scope) {
   });
 }
 
-function parentCategoryId(name) {
-  const options = readJson(root(), 'parentCategories', []);
-  return options.find((option) => option.name === name)?.id ?? null;
-}
-
-// The CoE root category, so CoE charts open lists scoped the same way they are counted.
-function coeParentCategoryId() {
-  const options = readJson(root(), 'parentCategories', []);
-  return options.find((option) => /\bcoe\b|cent(?:re|er)s? of excellence/i.test(String(option.name ?? '')))?.id ?? null;
-}
 // END SECTION
 
 // SECTION: Ongoing mode
@@ -155,7 +154,6 @@ function initOngoing(panel) {
   const stageNames = new Map(points.map((p) => [p.stageCode, p.stageName]));
   const axis = stageAxis(points.map((p) => p.stageCode), stageNames);
   const categories = orderCategories(points.map((p) => p.categoryName ?? 'Unassigned'));
-  const ongoingUrl = root()?.dataset.ongoingIndexUrl;
 
   sizeChartHost(canvas.parentElement, { min: 300, max: 340 });
   mount(canvas, () => {
@@ -191,10 +189,7 @@ function initOngoing(panel) {
       value: dataset.data.reduce((sum, value) => sum + value, 0),
       datasetIndex: index
     })));
-    enableClickThrough(chart, (index, datasetIndex) => withQuery(ongoingUrl, {
-      PresentStageCode: axis[index]?.code,
-      ProjectCategoryId: parentCategoryId(datasets[datasetIndex]?.label)
-    }));
+    enableBarClick(chart, (index) => drillAction(panel, `stage:${axis[index]?.code ?? ''}`));
     return chart;
   });
 }
@@ -254,9 +249,6 @@ function initCompleted(panel) {
   const data = readJson(panel, 'completedAnalytics', null);
   if (!data) return;
   paintCategoryDots(panel);
-  const projectsUrl = root()?.dataset.projectsIndexUrl;
-  const technicalOptions = readJson(root(), 'technicalCategories', []);
-  const categoryOptions = readJson(root(), 'categories', []);
 
   // Projects completed per year: the big chart, stacked by parent category.
   const perYearCanvas = panel.querySelector('#completedPerYearChart');
@@ -303,7 +295,7 @@ function initCompleted(panel) {
           value: dataset.data.reduce((sum, value) => sum + value, 0),
           datasetIndex: index
         })));
-        enableClickThrough(chart, (index) => withQuery(projectsUrl, { Lifecycle: 'Completed', CompletedYear: years[index] }));
+        enableBarClick(chart, (index) => drillAction(panel, `year:${years[index]}`));
         return chart;
       });
     }
@@ -348,11 +340,7 @@ function initCompleted(panel) {
           color: colors[index],
           value: ensureNumber(p.count)
         })));
-        enableClickThrough(chart, (index) => {
-          const option = categoryOptions.find((c) => c.name === byCategory[index]?.name);
-          // The doughnut counts the project's exact category, so the list must not expand descendants.
-          return option ? withQuery(projectsUrl, { Lifecycle: 'Completed', CategoryId: option.id }) : null;
-        });
+        enableBarClick(chart, (index) => drillAction(panel, `cat:${byCategory[index]?.name ?? ''}`));
         return chart;
       });
     }
@@ -383,10 +371,7 @@ function initCompleted(panel) {
             plugins: { tooltip: { callbacks: { label: (item) => `${item.formattedValue} completed` } } }
           }
         });
-        enableClickThrough(chart, (index) => {
-          const option = technicalOptions.find((t) => t.name === byTechnical[index]?.name);
-          return option ? withQuery(projectsUrl, { Lifecycle: 'Completed', TechnicalCategoryId: option.id }) : null;
-        });
+        enableBarClick(chart, (index) => drillAction(panel, `tech:${byTechnical[index]?.name ?? ''}`));
         return chart;
       });
     }
@@ -396,7 +381,6 @@ function initCompleted(panel) {
 
 // SECTION: CoE mode
 function initCoe(panel) {
-  const ongoingUrl = root()?.dataset.ongoingIndexUrl;
 
   const stageCanvas = panel.querySelector('#coe-by-stage-chart');
   const stageSeries = readJson(stageCanvas, 'series', []);
@@ -426,7 +410,7 @@ function initCoe(panel) {
             plugins: { tooltip: { callbacks: { title: stageTooltipTitle(axis), label: (item) => `${item.formattedValue} ongoing` } } }
           }
         });
-        enableClickThrough(chart, (index) => withQuery(ongoingUrl, { PresentStageCode: axis[index]?.code, ProjectCategoryId: coeParentCategoryId() }));
+        enableBarClick(chart, (index) => drillAction(panel, `stage:${axis[index]?.code ?? ''}`));
         return chart;
       });
     }
@@ -472,6 +456,7 @@ function initCoe(panel) {
             }
           }
         });
+        enableBarClick(chart, (index) => drillAction(panel, `sub:${rows[index]?.name ?? ''}`));
         renderLegend(panel.querySelector('[data-legend="coe-subcategories-by-lifecycle-chart"]'), chart, datasets.map((dataset, index) => ({
           label: dataset.label,
           color: dataset.backgroundColor,
@@ -485,6 +470,87 @@ function initCoe(panel) {
 }
 // END SECTION
 
+// SECTION: ARPP mode (one financial year's listed projects)
+function initArpp(panel) {
+  // Where they stand: ongoing listed projects by current stage, same axis as every stage chart.
+  const stageCanvas = panel.querySelector('#arpp-by-stage-chart');
+  const stageSeries = readJson(stageCanvas, 'series', []);
+  if (stageCanvas) {
+    if (!stageSeries.some((p) => ensureNumber(p.count) > 0)) {
+      renderEmptyState(stageCanvas);
+    } else {
+      const names = new Map(stageSeries.map((p) => [p.stageCode, p.stageName]));
+      const axis = stageAxis(stageSeries.map((p) => p.stageCode), names);
+      sizeChartHost(stageCanvas.parentElement, { min: 280, max: 300 });
+      mount(stageCanvas, () => {
+        const tokens = chartTokens();
+        const chart = new window.Chart(stageCanvas, {
+          type: 'bar',
+          data: {
+            labels: axis.map((stage) => stage.short),
+            datasets: [{
+              label: 'Ongoing listed projects',
+              data: axis.map((stage) => stageSeries
+                .filter((p) => String(p.stageCode).toUpperCase() === stage.code.toUpperCase())
+                .reduce((sum, p) => sum + ensureNumber(p.count), 0)),
+              backgroundColor: tokens.primary
+            }]
+          },
+          options: {
+            scales: barScales(),
+            plugins: { tooltip: { callbacks: { title: stageTooltipTitle(axis), label: (item) => `${item.formattedValue} ongoing` } } }
+          }
+        });
+        enableBarClick(chart, (index) => drillAction(panel, `stage:${axis[index]?.code ?? ''}`));
+        return chart;
+      });
+    }
+  }
+
+  // Composition charts: count per group, IPA value in the tooltip, each bar opening its row.
+  const groupChart = (canvasId, prefix, { horizontal = false, rowHeight = 34, color } = {}) => {
+    const canvas = panel.querySelector(`#${canvasId}`);
+    const groups = readJson(canvas, 'series', []);
+    if (!canvas) return;
+    if (!groups.length) {
+      renderEmptyState(canvas);
+      return;
+    }
+    sizeChartHost(canvas.parentElement, horizontal
+      ? { horizontal: true, rows: groups.length, min: 160, max: 360, rowHeight }
+      : { min: 170, max: 190 });
+    mount(canvas, () => {
+      const tokens = chartTokens();
+      const chart = new window.Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: groups.map((g) => g.name),
+          datasets: [{ label: 'Listed projects', data: groups.map((g) => ensureNumber(g.count)), backgroundColor: color?.(tokens) ?? tokens.primary, maxBarThickness: horizontal ? 22 : 44 }]
+        },
+        options: {
+          indexAxis: horizontal ? 'y' : 'x',
+          layout: { padding: horizontal ? { right: 36, top: 4 } : undefined },
+          scales: barScales({ horizontal }),
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: (item) => `${item.formattedValue} project${item.parsed[horizontal ? 'x' : 'y'] === 1 ? '' : 's'} · IPA ${groups[item.dataIndex]?.value ?? ''}`
+              }
+            }
+          }
+        }
+      });
+      enableBarClick(chart, (index) => drillAction(panel, `${prefix}:${groups[index]?.key ?? ''}`));
+      return chart;
+    });
+  };
+
+  groupChart('arpp-by-cfa-chart', 'cfa', { horizontal: true });
+  groupChart('arpp-by-category-chart', 'cat');
+  groupChart('arpp-by-band-chart', 'band', { color: (tokens) => tokens.primarySoft });
+}
+// END SECTION
+
 // SECTION: Insights mode (one stage cycle-time chart with toggles, plus the ranked list)
 const costBands = [
   { key: 'Below1Cr', label: 'Below ₹1 crore' },
@@ -492,7 +558,6 @@ const costBands = [
 ];
 
 function initInsights(panel) {
-  enableAutoSubmit(panel);
   const canvas = panel.querySelector('#stage-cycle-time-chart');
   if (!canvas) return;
   const rows = readJson(canvas, 'rows', []);     // per stage × cost band
@@ -600,10 +665,13 @@ function hydrate() {
   const completed = document.querySelector('.analytics-panel--completed');
   const coe = document.querySelector('.analytics-panel--coe');
   const insights = document.querySelector('.analytics-panel--insights');
+  const arpp = document.querySelector('.analytics-panel--arpp');
+  enableAutoSubmit(document);
   if (ongoing) initOngoing(ongoing);
   else if (completed) initCompleted(completed);
   else if (coe) initCoe(coe);
   else if (insights) initInsights(insights);
+  else if (arpp) initArpp(arpp);
 }
 
 function boot() {

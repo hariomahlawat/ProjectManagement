@@ -29,7 +29,7 @@
     <header class="analytics-card__head">
       <div class="analytics-card__text">
         <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
-        <p class="analytics-card__meta">Every workflow stage in order; click a bar to open those projects.</p>
+        <p class="analytics-card__meta">Every workflow stage in order; click a bar to see its projects below.</p>
       </div>
       <div class="analytics-card__actions">
         <form method="get" asp-page="/Analytics/Index" class="analytics-filter-form" data-stage-filter-form aria-label="Filter by parent category">
@@ -91,7 +91,7 @@
         @foreach (var stage in stageBoard)
         {
           var width = maxStageCount > 0 ? (int)Math.Round(100.0 * stage.StageCount / maxStageCount) : 0;
-          <details class="analytics-drill__row">
+          <details class="analytics-drill__row" data-drill-key="stage:@stage.StageCode">
             <summary class="analytics-drill__summary">
               <span class="analytics-drill__name">@stage.StageName</span>
               <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>

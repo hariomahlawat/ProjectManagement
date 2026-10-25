@@ -340,7 +340,25 @@ export function renderLegend(container, chart, items) {
 }
 // END SECTION
 
-// SECTION: Click-through
+// SECTION: Bar clicks
+// resolve(index, datasetIndex) returns what a click on that bar does: a function to run (open
+// a drill-down row on the page), a URL string to open, or null for nothing.
+export function enableBarClick(chart, resolve) {
+  const hit = (event) => chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false)[0] ?? null;
+  chart.options.onHover = (event) => {
+    const target = hit(event);
+    const action = target ? resolve(target.index, target.datasetIndex) : null;
+    event.native.target.style.cursor = action ? 'pointer' : 'default';
+  };
+  chart.options.onClick = (event) => {
+    const target = hit(event);
+    if (!target) return;
+    const action = resolve(target.index, target.datasetIndex);
+    if (typeof action === 'function') action();
+    else if (typeof action === 'string' && action) window.location.assign(action);
+  };
+}
+
 // Bars open the filtered projects list. urlFor(index, datasetIndex) returns a URL or null.
 export function enableClickThrough(chart, urlFor) {
   // Handlers are read from chart.options at event time, so no update() is needed here;

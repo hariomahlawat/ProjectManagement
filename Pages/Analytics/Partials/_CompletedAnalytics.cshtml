@@ -19,7 +19,7 @@
     <header class="analytics-card__head">
       <div class="analytics-card__text">
         <h2 class="analytics-card__title">Projects completed per year</h2>
-        <p class="analytics-card__meta">By parent category; click a year to open its projects.</p>
+        <p class="analytics-card__meta">By parent category; click a year to see its projects below.</p>
       </div>
       <div class="analytics-card__actions">
         <button type="button" class="analytics-icon-btn" data-chart-download-target="completedPerYearChart" aria-label="Download chart as PNG" title="Download chart as PNG">
@@ -40,7 +40,7 @@
         @foreach (var year in years)
         {
           var width = maxYearCount > 0 ? (int)Math.Round(100.0 * year.YearCount / maxYearCount) : 0;
-          <details class="analytics-drill__row">
+          <details class="analytics-drill__row" data-drill-key="year:@year.Year">
             <summary class="analytics-drill__summary">
               <span class="analytics-drill__name">@year.Year</span>
               <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
@@ -99,6 +99,7 @@
         <canvas id="completedByCategoryChart" role="img" aria-label="Completed projects by category" data-empty-message="No completed projects yet."></canvas>
       </div>
       <div class="analytics-card__legend analytics-card__legend--below" data-legend="completedByCategoryChart"></div>
+      @await Html.PartialAsync("Partials/_BoardRows", (Model.CategoryBoard, "cat", overviewUrl, "Projects in each category"))
     </article>
     <!-- END SECTION -->
 
@@ -107,7 +108,7 @@
       <header class="analytics-card__head">
         <div class="analytics-card__text">
           <h2 class="analytics-card__title">By technical category</h2>
-          <p class="analytics-card__meta">Most completed first; click a bar to open those projects.</p>
+          <p class="analytics-card__meta">Most completed first; click a bar to see its projects below.</p>
         </div>
         <div class="analytics-card__actions">
           <button type="button" class="analytics-icon-btn" data-chart-download-target="completedByTechnicalChart" aria-label="Download chart as PNG" title="Download chart as PNG">
@@ -118,6 +119,7 @@
       <div class="analytics-card__chart">
         <canvas id="completedByTechnicalChart" role="img" aria-label="Completed projects by technical category" data-empty-message="No completed projects yet."></canvas>
       </div>
+      @await Html.PartialAsync("Partials/_BoardRows", (Model.TechnicalBoard, "tech", overviewUrl, "Projects in each technical category"))
     </article>
     <!-- END SECTION -->
   </div>
