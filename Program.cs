@@ -486,8 +486,13 @@ builder.Services
     .Validate(
         options => !options.EnableOcrWorker || !string.IsNullOrWhiteSpace(options.OcrWorkRoot),
         "DocRepo:OcrWorkRoot must be configured when OCR worker is enabled.")
+    .Validate(
+        options => options.TrashRetentionDays == 0 || options.TrashRetentionDays >= 7,
+        "DocRepo:TrashRetentionDays must be 0 (off) or at least 7.")
     .ValidateOnStart();
 builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
+builder.Services.AddScoped<DocRepoTrashPurgeService>();
+builder.Services.AddHostedService<DocRepoTrashPurgeWorker>();
 builder.Services.AddSingleton<IUrlBuilder, UrlBuilder>();
 builder.Services.AddScoped<IDocumentOcrService, DocumentOcrService>();
 builder.Services.AddSingleton<IOcrmypdfInvoker, ProcessOcrmypdfInvoker>();

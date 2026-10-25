@@ -36,6 +36,10 @@
     <!-- SECTION: Help text -->
     <div class="alert alert-warning">
         Purging permanently removes the document and its file from storage. Restore to bring a document back into circulation without purging.
+        @if (Model.RetentionDays > 0)
+        {
+            <text>Documents are purged automatically @Model.RetentionDays days after they were moved to the trash.</text>
+        }
     </div>
 
     <!-- SECTION: Table -->
@@ -54,6 +58,7 @@
                         <th>Category</th>
                         <th>Deleted at</th>
                         <th>Deleted by</th>
+                        <th>Purged on</th>
                         <th>Reason</th>
                         <th class="text-end">Size</th>
                         <th class="text-end pm-util-col-180">Actions</th>
@@ -68,6 +73,7 @@
                             <td>@item.Category</td>
                             <td>@(item.DeletedAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</td>
                             <td>@(string.IsNullOrWhiteSpace(item.DeletedByUserId) ? "—" : item.DeletedByUserId)</td>
+                            <td>@(Model.PurgeDueUtc(item.DeletedAtUtc)?.ToLocalTime().ToString("dd MMM yyyy") ?? "Not scheduled")</td>
                             <td class="small">@(string.IsNullOrWhiteSpace(item.DeleteReason) ? "—" : item.DeleteReason)</td>
                             <td class="text-end">@FormatSize(item.FileSizeBytes)</td>
                             <td class="text-end">
