@@ -47,7 +47,7 @@ public sealed class UploadRootProviderTests : IDisposable
                 throw new UnauthorizedAccessException("restricted");
             }
 
-            Directory.CreateDirectory(path);
+            // Record only: the fallback can be the real per-user folder on Windows.
             return new DirectoryInfo(path);
         }
 
@@ -58,7 +58,12 @@ public sealed class UploadRootProviderTests : IDisposable
             NullLogger<UploadRootProvider>.Instance,
             Factory);
 
-        var expectedFallback = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "uploads"));
+        // The fallback is per-user LocalAppData on Windows and the content root elsewhere
+        // (UploadRootProvider.GetFallbackRoot).
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var expectedFallback = OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(localAppData)
+            ? Path.GetFullPath(Path.Combine(localAppData, "ProjectManagement", "uploads"))
+            : Path.GetFullPath(Path.Combine(environment.ContentRootPath, "uploads"));
 
         Assert.Equal(expectedFallback, provider.RootPath);
         Assert.Equal(Path.GetFullPath(primaryRoot), attempted[0]);
