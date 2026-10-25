@@ -60,13 +60,26 @@ public sealed class DocRepoTrashPurgeService
     public DateTime? PurgeDueUtc(DateTime? deletedAtUtc)
         => RetentionDays > 0 && deletedAtUtc.HasValue ? deletedAtUtc.Value.AddDays(RetentionDays) : null;
 
+    /// <param name="trashedOnOrBefore">
+    /// For automatic purging: the document is purged only if it is still in the trash with a
+    /// trash date on or before this cutoff, so one restored and deleted again since it was
+    /// selected keeps its full retention period.
+    /// </param>
     public async Task<DocRepoPurgeResult> PurgeAsync(
         Guid documentId,
         string actorUserId,
         object? details = null,
+        DateTime? trashedOnOrBefore = null,
         CancellationToken cancellationToken = default)
     {
-        var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == documentId && d.IsDeleted, cancellationToken);
+        var query = _db.Documents.Where(d => d.Id == documentId && d.IsDeleted);
+        if (trashedOnOrBefore.HasValue)
+        {
+            var cutoff = trashedOnOrBefore.Value;
+            query = query.Where(d => d.DeletedAtUtc != null && d.DeletedAtUtc <= cutoff);
+        }
+
+        var document = await query.FirstOrDefaultAsync(cancellationToken);
         if (document is null)
         {
             return new DocRepoPurgeResult(DocRepoPurgeOutcome.NotFound);
@@ -135,6 +148,7 @@ public sealed class DocRepoTrashPurgeService
                     item.Id,
                     SystemActor,
                     new { item.Id, Reason = "TrashRetention", RetentionDays, item.DeletedAtUtc },
+                    cutoff,
                     cancellationToken);
 
                 if (result.Outcome == DocRepoPurgeOutcome.Purged)

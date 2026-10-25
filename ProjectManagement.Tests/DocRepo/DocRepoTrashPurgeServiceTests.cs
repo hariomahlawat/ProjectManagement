@@ -115,6 +115,23 @@ public sealed class DocRepoTrashPurgeServiceTests
     }
 
     [Fact]
+    public async Task PurgeAsync_WithACutoff_SkipsADocumentTrashedAgainSinceItWasSelected()
+    {
+        await using var db = CreateDb();
+        // Selected as due, then restored and deleted again today: its trash date is new.
+        var retrashed = Seed(db, deletedDaysAgo: 0);
+        await db.SaveChangesAsync();
+        var storage = new RecordingStorage();
+
+        var result = await CreateService(db, storage).PurgeAsync(
+            retrashed, DocRepoTrashPurgeService.SystemActor, trashedOnOrBefore: Now.UtcDateTime.AddDays(-30));
+
+        Assert.Equal(DocRepoPurgeOutcome.NotFound, result.Outcome);
+        Assert.Single(await db.Documents.AsNoTracking().ToListAsync());
+        Assert.Empty(storage.Deleted);
+    }
+
+    [Fact]
     public async Task PurgeDueUtc_IsTheTrashDatePlusTheRetention()
     {
         await using var db = CreateDb();
