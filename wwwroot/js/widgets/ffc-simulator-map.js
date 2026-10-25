@@ -312,11 +312,14 @@
     var highlightColor = host.getAttribute('data-highlight-color') || '#3255d2';
     var autoFit = readFlag(host, 'data-auto-fit', false);
     var autoFitMaxZoom = readNumber(host, 'data-auto-fit-max-zoom', 4);
+    // Fractional zoom steps let a wide, short map frame the footprint instead of the whole world.
+    var zoomSnap = readNumber(host, 'data-zoom-snap', 1);
     var deconflictMarkers = readFlag(host, 'data-deconflict-markers', false);
     var scope = host.closest('[data-ffc-map-scope]') || host.parentElement || host;
 
     var map = L.map(canvas, {
       attributionControl: false,
+      zoomSnap: zoomSnap > 0 ? zoomSnap : 1,
       boxZoom: false,
       doubleClickZoom: false,
       dragging: true,

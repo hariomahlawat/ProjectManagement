@@ -29,12 +29,29 @@ not feel like a drop in quality.
 
 ## Dashboard header
 
-- The IST date (uppercase eyebrow), a greeting by IST time of day ("Good morning" before 12:00,
-  "Good afternoon" before 17:00, "Good evening" after) with the user's rank and full name (falls
-  back to the user name), and one line on what the page covers.
-- A short spectrum rule under the greeting uses the Dashboard's own accent tokens, echoing the prism
-  on the sign-in page.
-- The load time and **Open analytics** stay on the right.
+- One line: the page title ("Dashboard"), the IST date beside it, and the one action (**Open
+  analytics**) on the right. There is no greeting, eyebrow, subtitle or "Loaded …" stamp; the load
+  time is the title's tooltip. `IndexModel.Greeting` / `GreetingFor` still exist for other callers
+  and tests but the page no longer shows them.
+- A 3px spectrum rule under the title (`--pm-spec-1..6`, the sign-in prism's six hues) is the only
+  place the whole rainbow appears on the page.
+
+## Dashboard colour rules (2026-10-25)
+
+Ink and white with a few small jewels, so the page does not read as a downgrade after the public
+pages, and never as a barber pole:
+
+- The page is neutral (`--pm-main-bg`); cards are white (graphite in Dark) with a visible hairline
+  edge and a soft shadow (`--pm-shadow-card`). Card titles and headline figures use
+  `--pm-text-strong`; captions use `--pm-text-muted` (5:1 or better) at 12px or above.
+- Each card owns **one** hue from the spectrum tokens (`db-hue-4` cyan, `db-hue-5` blue, `db-hue-6`
+  violet; `--db-hue` inside the card). It appears only on the card's icon and its sparkline or lead
+  bar (meters, the lifecycle bar, a 3px rule on the primary tile). No tinted fills behind text, and
+  never two hues inside one card. Sparklines read `--db-hue` and `--db-surface` from the stylesheet
+  (`wwwroot/js/pages/dashboard.js`), so Dark gets the lifted hues automatically.
+- Green, amber and red mean good, waiting and failed (the change arrows, the document-processing
+  card, the map's planned units) and are not used as decoration.
+- `wwwroot/css/pages/dashboard.css` uses site tokens only; `node tools/theme-coverage.js` keeps it so.
 
 ## Type sizes
 
