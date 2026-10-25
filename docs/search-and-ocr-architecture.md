@@ -13,6 +13,10 @@ This document explains how the application performs OCR and full-text search (FT
 ### 2.2 OCR queueing
 - **When set to Pending**: External ingestion seeds new `Document` rows with `OcrStatus = Pending` during save, so every upload is queued immediately.[F:Services/DocRepo/DocRepoIngestionService.csL150-L175]
 
+### 2.2a Trash and retention
+- **Lifecycle**: an approved delete request moves a document to the trash (`IsDeleted`, `DeletedAtUtc`); it leaves search and lists but its file stays. Admins restore or purge it from **Admin → Trash**; the page shows each document's automatic purge date.
+- **Automatic purge**: `DocRepoTrashPurgeWorker` runs every 6 hours and purges documents trashed more than `DocRepo:TrashRetentionDays` (default 30) days ago, oldest first, in batches of 100, through the same `DocRepoTrashPurgeService` the Trash page uses. A file that cannot be deleted leaves its row for the next run. Documents outside the trash, including IPR copies kept as an archive, are never touched.[F:Services/DocRepo/DocRepoTrashPurgeService.cs][F:Hosted/DocRepoTrashPurgeWorker.cs]
+
 ### 2.3 OCR worker
 - **Eligibility**: Picks documents that are **not deleted** and have `OcrStatus == Pending`, loading existing OCR text for overwrite if needed.[F:Hosted/DocRepoOcrWorker.csL34-L39]
 - **Batching & ordering**: Processes the **oldest first** (`OrderBy CreatedAtUtc`) and caps each loop to **3 documents** via `Take(3)`.[F:Hosted/DocRepoOcrWorker.csL34-L39]

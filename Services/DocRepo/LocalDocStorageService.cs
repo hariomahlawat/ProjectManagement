@@ -16,6 +16,10 @@ public class DocRepoOptions
     public int? IngestionDocumentCategoryId { get; set; }
         = null;
     public string IngestionUserId { get; set; } = "system";
+    // SECTION: Trash retention
+    // Days a deleted document stays in the trash before DocRepoTrashPurgeWorker deletes it for
+    // good. 0 turns automatic purging off; otherwise at least 7.
+    public int TrashRetentionDays { get; set; } = 30;
     // SECTION: Upload constraints
     public long MaxFileSizeBytes { get; set; } = 104_857_600;
     public string? OcrExecutablePath { get; set; }

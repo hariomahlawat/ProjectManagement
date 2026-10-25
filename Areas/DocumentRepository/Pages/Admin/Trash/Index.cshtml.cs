@@ -18,16 +18,21 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.Trash;
 public sealed class IndexModel : PageModel
 {
     private readonly ApplicationDbContext _db;
-    private readonly IDocStorage _storage;
     private readonly IDocRepoAuditService _audit;
+    private readonly DocRepoTrashPurgeService _purge;
 
     // SECTION: Constructor
-    public IndexModel(ApplicationDbContext db, IDocStorage storage, IDocRepoAuditService audit)
+    public IndexModel(ApplicationDbContext db, IDocRepoAuditService audit, DocRepoTrashPurgeService purge)
     {
         _db = db;
-        _storage = storage;
         _audit = audit;
+        _purge = purge;
     }
+
+    /// <summary>Days before a trashed document is purged automatically; 0 when that is off.</summary>
+    public int RetentionDays => _purge.RetentionDays;
+
+    public DateTime? PurgeDueUtc(DateTime? deletedAtUtc) => _purge.PurgeDueUtc(deletedAtUtc);
 
     // SECTION: View data
     public IReadOnlyList<DeletedDocumentRow> Items { get; private set; } = Array.Empty<DeletedDocumentRow>();
@@ -87,38 +92,20 @@ public sealed class IndexModel : PageModel
     // SECTION: Purge handler
     public async Task<IActionResult> OnPostPurgeAsync(Guid id, CancellationToken cancellationToken)
     {
-        var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id && d.IsDeleted, cancellationToken);
-        if (document == null)
+        var result = await _purge.PurgeAsync(id, GetActorUserId(), cancellationToken: cancellationToken);
+        switch (result.Outcome)
         {
-            ErrorMessage = "Document not found or already purged.";
-            return RedirectToPage();
+            case DocRepoPurgeOutcome.NotFound:
+                ErrorMessage = "Document not found or already purged.";
+                break;
+            case DocRepoPurgeOutcome.FileError:
+                ErrorMessage = $"Failed to delete file: {result.Error}";
+                break;
+            default:
+                StatusMessage = "Document permanently deleted.";
+                break;
         }
 
-        var actorId = GetActorUserId();
-
-        try
-        {
-            await _storage.DeleteAsync(document.StoragePath, cancellationToken);
-        }
-        catch (FileNotFoundException)
-        {
-            // File already removed – continue purging metadata.
-        }
-        catch (DirectoryNotFoundException)
-        {
-            // Directory missing – continue purging metadata.
-        }
-        catch (IOException ex)
-        {
-            ErrorMessage = $"Failed to delete file: {ex.Message}";
-            return RedirectToPage();
-        }
-
-        _db.Documents.Remove(document);
-        await _audit.WriteAsync(document.Id, actorId, "Purged", new { document.Id }, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        StatusMessage = "Document permanently deleted.";
         return RedirectToPage();
     }
 
