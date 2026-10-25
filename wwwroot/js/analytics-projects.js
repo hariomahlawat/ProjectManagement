@@ -130,6 +130,12 @@ function parentCategoryId(name) {
   const options = readJson(root(), 'parentCategories', []);
   return options.find((option) => option.name === name)?.id ?? null;
 }
+
+// The CoE root category, so CoE charts open lists scoped the same way they are counted.
+function coeParentCategoryId() {
+  const options = readJson(root(), 'parentCategories', []);
+  return options.find((option) => /\bcoe\b|cent(?:re|er)s? of excellence/i.test(String(option.name ?? '')))?.id ?? null;
+}
 // END SECTION
 
 // SECTION: Ongoing mode
@@ -418,7 +424,7 @@ function initCoe(panel) {
             plugins: { tooltip: { callbacks: { title: stageTooltipTitle(axis), label: (item) => `${item.formattedValue} ongoing` } } }
           }
         });
-        enableClickThrough(chart, (index) => withQuery(ongoingUrl, { PresentStageCode: axis[index]?.code }));
+        enableClickThrough(chart, (index) => withQuery(ongoingUrl, { PresentStageCode: axis[index]?.code, ProjectCategoryId: coeParentCategoryId() }));
         return chart;
       });
     }

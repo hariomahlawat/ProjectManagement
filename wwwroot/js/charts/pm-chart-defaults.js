@@ -328,13 +328,16 @@ export function renderLegend(container, chart, items) {
 export function enableClickThrough(chart, urlFor) {
   // Handlers are read from chart.options at event time, so no update() is needed here;
   // an update during the first animation would freeze the chart mid-frame.
-  chart.options.onHover = (event, elements) => {
-    const target = elements?.[0];
+  // The tooltip may use index mode (every dataset at that label), so the clicked segment
+  // is resolved separately: the one element actually under the pointer.
+  const hit = (event) => chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false)[0] ?? null;
+  chart.options.onHover = (event) => {
+    const target = hit(event);
     const url = target ? urlFor(target.index, target.datasetIndex) : null;
     event.native.target.style.cursor = url ? 'pointer' : 'default';
   };
-  chart.options.onClick = (event, elements) => {
-    const target = elements?.[0];
+  chart.options.onClick = (event) => {
+    const target = hit(event);
     if (!target) return;
     const url = urlFor(target.index, target.datasetIndex);
     if (url) window.location.assign(url);
