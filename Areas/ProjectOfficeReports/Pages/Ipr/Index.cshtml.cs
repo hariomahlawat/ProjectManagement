@@ -104,12 +104,6 @@ public sealed partial class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Group { get; set; }
 
-    [BindProperty(Name = "pageNumber", SupportsGet = true)]
-    public int PageNumber { get; set; } = 1;
-
-    [BindProperty(SupportsGet = true)]
-    public int PageSize { get; set; } = 15;
-
     [BindProperty(SupportsGet = true)]
     public string? Mode
     {
@@ -135,27 +129,13 @@ public sealed partial class IndexModel : PageModel
     [BindProperty]
     public RemoveAttachmentInput RemoveAttachment { get; set; } = new();
 
-    public IReadOnlyList<SelectListItem> TypeOptions { get; private set; } = Array.Empty<SelectListItem>();
-
     public IReadOnlyList<SelectListItem> TypeFormOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<SelectListItem> StatusOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> StatusFormOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> ProjectOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<ProjectPickerOption> ProjectPickerOptions { get; private set; } = Array.Empty<ProjectPickerOption>();
-
-    public IReadOnlyList<SelectListItem> DateBasisOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<IprYearOption> DateYearOptions { get; private set; } = Array.Empty<IprYearOption>();
-
-    public IReadOnlyList<SelectListItem> YearOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<SelectListItem> LinkageOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<SelectListItem> EvidenceOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     private static readonly TimeZoneInfo IstTimeZone = TimeZoneHelper.GetIst();
 
@@ -166,7 +146,6 @@ public sealed partial class IndexModel : PageModel
     public IReadOnlyList<TypeBreakdownRow> TypeBreakdown { get; private set; } = Array.Empty<TypeBreakdownRow>();
 
     public IReadOnlyList<AttentionGroup> AttentionGroups { get; private set; } = Array.Empty<AttentionGroup>();
-
 
     public IReadOnlyList<AgeBandRow> AwaitingAgeBands { get; private set; } = Array.Empty<AgeBandRow>();
 
@@ -198,7 +177,6 @@ public sealed partial class IndexModel : PageModel
 
     public int TotalCount { get; private set; }
 
-    public int TotalPages { get; private set; }
 
     public bool CanEdit { get; private set; }
 
@@ -216,15 +194,6 @@ public sealed partial class IndexModel : PageModel
 
     public bool HasAnyFilter
         => !string.IsNullOrWhiteSpace(Query) || HasStructuredFilters;
-
-    public int StructuredFilterCount
-        => Types.Count
-            + Statuses.Count
-            + (ProjectId.HasValue ? 1 : 0)
-            + (Year.HasValue ? 1 : 0)
-            + (Linkage != IprLinkageFilter.All ? 1 : 0)
-            + (Evidence != IprEvidenceFilter.All ? 1 : 0)
-            + (PendingAge != IprPendingAge.Any ? 1 : 0);
 
     public IReadOnlyList<ActiveFilterChip> ActiveFilterChips { get; private set; } = Array.Empty<ActiveFilterChip>();
 
@@ -280,7 +249,7 @@ public sealed partial class IndexModel : PageModel
         return File(file.Content, file.ContentType, file.FileName);
     }
 
-    public RouteValueDictionary GetRouteValues(object? additionalValues = null, bool includePage = true, bool includeModeAndId = true)
+    public RouteValueDictionary GetRouteValues(object? additionalValues = null, bool includeModeAndId = true)
     {
         var values = new RouteValueDictionary();
 
@@ -344,12 +313,6 @@ public sealed partial class IndexModel : PageModel
             values["tab"] = Tab;
         }
 
-        if (includePage)
-        {
-            values["pageNumber"] = PageNumber;
-            values["pageSize"] = PageSize;
-        }
-
         if (includeModeAndId)
         {
             if (SelectedRecordId.HasValue)
@@ -383,10 +346,9 @@ public sealed partial class IndexModel : PageModel
 
     public IDictionary<string, string?> GetRouteValuesForLinks(
         object? additionalValues = null,
-        bool includePage = true,
         bool includeModeAndId = true)
     {
-        var values = GetRouteValues(additionalValues, includePage, includeModeAndId);
+        var values = GetRouteValues(additionalValues, includeModeAndId);
         var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (key, value) in values)
@@ -460,7 +422,7 @@ public sealed partial class IndexModel : PageModel
                 break;
         }
 
-        return GetRouteValuesForLinks(overrides, includePage: false, includeModeAndId: false);
+        return GetRouteValuesForLinks(overrides, includeModeAndId: false);
     }
 
     public IDictionary<string, string?> BuildClearFiltersRoute(bool includeQuery = true)
@@ -486,7 +448,7 @@ public sealed partial class IndexModel : PageModel
             overrides["query"] = null;
         }
 
-        return GetRouteValuesForLinks(overrides, includePage: false, includeModeAndId: false);
+        return GetRouteValuesForLinks(overrides, includeModeAndId: false);
     }
 
     private static void AddIndexedValues(IDictionary<string, string?> destination, string key, IEnumerable<string> values)

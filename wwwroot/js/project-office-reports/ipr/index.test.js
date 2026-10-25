@@ -20,10 +20,6 @@ const cssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/site-ipr.css'),
   'utf8'
 );
-const filterDrawerSource = fs.readFileSync(
-  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml'),
-  'utf8'
-);
 const activeFilterSource = fs.readFileSync(
   path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_ActiveFilterChips.cshtml'),
   'utf8'
@@ -32,12 +28,10 @@ const pageSource = fs.readFileSync(
   path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
   'utf8'
 );
-const selectListsSource = fs.readFileSync(
-  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs'),
-  'utf8'
-);
+const registerViewSource = fs.readFileSync(path.resolve(__dirname, 'register-view.js'), 'utf8');
+const iprDir = path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr');
 
-test('IPR drawer uses a container-aware two-column form instead of Bootstrap viewport columns', () => {
+test('IPR editor uses a container-aware two-column form instead of Bootstrap viewport columns', () => {
   assert.match(cssSource, /\.ipr-form-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(cssSource, /@media\s*\(max-width:\s*720px\)[\s\S]*\.ipr-form-grid[\s\S]*grid-template-columns:\s*1fr/);
   assert.doesNotMatch(formSource, /col-md-/);
@@ -49,8 +43,8 @@ test('IPR mutation forms explicitly target the Index Razor Page and named handle
   assert.match(formSource, /asp-page-handler="RemoveAttachment"/);
   assert.match(formSource, /asp-page-handler="Delete"/);
   assert.doesNotMatch(formSource, /asp-all-route-data="formRoutes"/);
-  assert.match(stateSource, /name="pageNumber"/);
-  assert.match(stateSource, /name="PageSize"/);
+  // Paging was retired with the all-records register; old pageNumber/pageSize links are ignored.
+  assert.doesNotMatch(stateSource, /pageNumber|PageSize/);
   assert.match(stateSource, /name="Tab"/);
 });
 
@@ -98,15 +92,6 @@ test('IPR editor opens in the record panel and confirms before discarding change
   assert.match(source, /Discard your changes to this record\?/);
   assert.match(formSource, /data-ipr-editor-close/);
 });
-test('IPR filter drawer supports filed and grant-registration year bases', () => {
-  assert.match(filterDrawerSource, /asp-for="DateBasis"/);
-  assert.match(selectListsSource, /Grant \/ registration year/);
-  assert.match(filterDrawerSource, /data-has-filed/);
-  assert.match(filterDrawerSource, /data-has-protected/);
-  assert.match(source, /syncDateYears/);
-  assert.match(source, /patent grant or copyright registration date/);
-});
-
 test('IPR active scope is removable and visible across module views', () => {
   assert.match(pageSource, /_ActiveFilterChips/);
   assert.match(activeFilterSource, /BuildRemoveFilterRoute/);
@@ -182,11 +167,19 @@ test('IPR register filters in the browser from server-rendered row facts', () =>
   assert.doesNotMatch(pageSource, /data-ipr-record-inspector/);
 });
 
-test('IPR structured filter drawer stays for Follow-up and Analytics only', () => {
-  assert.match(pageSource, /@if \(!isRegister\)[\s\S]*data-bs-target="#iprFilterOffcanvas"/);
-  assert.match(pageSource, /@if \(!isRegister\)\s*\{\s*<partial name="_IprFilterDrawer"/);
-  assert.match(filterDrawerSource, /data-ipr-filter-form/);
-  assert.match(filterDrawerSource, /Apply filters/);
+test('IPR Filters drawer is retired; the view tabs carry the Register filters', () => {
+  assert.equal(fs.existsSync(path.join(iprDir, '_IprFilterDrawer.cshtml')), false);
+  assert.equal(fs.existsSync(path.join(iprDir, '_ProjectFilterPicker.cshtml')), false);
+  assert.doesNotMatch(pageSource, /iprFilterOffcanvas|_IprFilterDrawer/);
+  assert.doesNotMatch(source, /initialiseFilterDrawer/);
+  assert.match(pageSource, /asp-all-route-data="registerTabRoute" data-ipr-view="records"/);
+  assert.match(pageSource, /asp-all-route-data="actionListTabRoute" data-ipr-view="followup"/);
+  assert.match(pageSource, /asp-all-route-data="insightsTabRoute" data-ipr-view="analytics"/);
+  // Search text and Group by stay with the Register.
+  assert.match(pageSource, /actionListTabRoute = Model\.GetRouteValuesForLinks\(new \{ tab = "followup",.*query = \(string\?\)null, group = \(string\?\)null/);
+  assert.match(registerViewSource, /document\.querySelectorAll\('\[data-ipr-view\]'\)/);
+  assert.match(registerViewSource, /if \(view === 'records' \|\| key !== 'query'\) viewParams\.append\(key, value\);/);
+  assert.match(activeFilterSource, /Change in Register/);
 });
 
 test('IPR register styles use tokens and collapse to title and status on phones', () => {

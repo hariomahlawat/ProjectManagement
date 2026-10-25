@@ -13,12 +13,6 @@ public sealed partial class IndexModel
 {
     public sealed record ActiveFilterChip(string Key, string Label, string? Value = null);
 
-    public sealed record IprYearOption(int Year, bool HasFiled, bool HasProtected)
-    {
-        public string Value => Year.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        public string Label => Value;
-    }
-
     public sealed class YearlyRow
     {
         public int Year { get; set; }

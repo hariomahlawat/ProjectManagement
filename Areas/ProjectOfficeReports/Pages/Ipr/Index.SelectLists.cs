@@ -19,13 +19,6 @@ public sealed partial class IndexModel
     {
         var supportedTypes = new[] { IprType.Patent, IprType.Copyright };
 
-        TypeOptions = supportedTypes
-            .Select(type => new SelectListItem(GetTypeLabel(type), type.ToString())
-            {
-                Selected = Types.Contains(type)
-            })
-            .ToList();
-
         TypeFormOptions = supportedTypes
             .Select(type => new SelectListItem(GetTypeLabel(type), type.ToString())
             {
@@ -34,19 +27,6 @@ public sealed partial class IndexModel
             .ToList();
 
         var supportedStatuses = IprStatusPolicy.SelectableStatuses;
-
-        var currentScope = CurrentStatusScope();
-        var statusOptions = supportedStatuses
-            .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
-            {
-                Selected = string.Equals(currentScope, status.ToString(), StringComparison.Ordinal)
-            })
-            .ToList();
-        statusOptions.Insert(2, new SelectListItem("Rejected or withdrawn", ClosedStatusScope)
-        {
-            Selected = string.Equals(currentScope, ClosedStatusScope, StringComparison.Ordinal)
-        });
-        StatusOptions = statusOptions;
 
         var selectedFormType = Input.Type;
         StatusFormOptions = supportedStatuses
@@ -96,74 +76,6 @@ public sealed partial class IndexModel
             }));
         ProjectOptions = projectOptions;
 
-        DateBasisOptions = new[]
-        {
-            new SelectListItem("Filed year", IprDateBasis.Filed.ToString())
-            {
-                Selected = DateBasis == IprDateBasis.Filed
-            },
-            new SelectListItem("Grant / registration year", IprDateBasis.Protected.ToString())
-            {
-                Selected = DateBasis == IprDateBasis.Protected
-            }
-        };
-
-        // Offer the years of closed history too while a closed status is being browsed;
-        // otherwise a year holding only rejected or withdrawn records could not be selected.
-        var yearScope = _db.IprRecords.AsNoTracking();
-        if (!Statuses.Any(IprStatusPolicy.IsClosed))
-        {
-            yearScope = yearScope.Where(IprStatusPolicy.CountedPredicate);
-        }
-
-        var dateYears = await yearScope
-            .Select(record => new
-            {
-                FiledYear = record.FiledAtUtc.HasValue ? (int?)record.FiledAtUtc.Value.Year : null,
-                ProtectedYear = record.GrantedAtUtc.HasValue ? (int?)record.GrantedAtUtc.Value.Year : null
-            })
-            .ToListAsync(cancellationToken);
-
-        DateYearOptions = dateYears
-            .SelectMany(item => new[] { item.FiledYear, item.ProtectedYear })
-            .Where(year => year.HasValue)
-            .Select(year => year!.Value)
-            .Distinct()
-            .OrderByDescending(year => year)
-            .Select(year => new IprYearOption(
-                year,
-                dateYears.Any(item => item.FiledYear == year),
-                dateYears.Any(item => item.ProtectedYear == year)))
-            .ToList();
-
-        var yearOptions = new List<SelectListItem>
-        {
-            new("All years", string.Empty)
-            {
-                Selected = !Year.HasValue
-            }
-        };
-        yearOptions.AddRange(DateYearOptions
-            .Where(option => DateBasis == IprDateBasis.Protected ? option.HasProtected : option.HasFiled)
-            .Select(option => new SelectListItem(option.Label, option.Value)
-            {
-                Selected = Year.HasValue && Year.Value == option.Year
-            }));
-        YearOptions = yearOptions;
-
-        LinkageOptions = new[]
-        {
-            new SelectListItem("All records", IprLinkageFilter.All.ToString()) { Selected = Linkage == IprLinkageFilter.All },
-            new SelectListItem("Linked to a project", IprLinkageFilter.Linked.ToString()) { Selected = Linkage == IprLinkageFilter.Linked },
-            new SelectListItem("Unassigned", IprLinkageFilter.Unassigned.ToString()) { Selected = Linkage == IprLinkageFilter.Unassigned }
-        };
-
-        EvidenceOptions = new[]
-        {
-            new SelectListItem("All evidence states", IprEvidenceFilter.All.ToString()) { Selected = Evidence == IprEvidenceFilter.All },
-            new SelectListItem("Evidence available", IprEvidenceFilter.Available.ToString()) { Selected = Evidence == IprEvidenceFilter.Available },
-            new SelectListItem("Evidence missing", IprEvidenceFilter.Missing.ToString()) { Selected = Evidence == IprEvidenceFilter.Missing }
-        };
     }
 
     private async Task EvaluateAuthorizationAsync()
@@ -173,24 +85,6 @@ public sealed partial class IndexModel
     }
 
     private const string ClosedStatusScope = "Closed";
-
-    // The drawer's single status choice that matches the current Statuses; empty means
-    // the default Filed and granted view.
-    private string CurrentStatusScope()
-    {
-        if (Statuses.Count == 0 ||
-            (Statuses.Count == 2 && Statuses.Contains(IprStatus.Filed) && Statuses.Contains(IprStatus.Granted)))
-        {
-            return string.Empty;
-        }
-
-        if (Statuses.All(IprStatusPolicy.IsClosed))
-        {
-            return Statuses.Count == 1 ? Statuses[0].ToString() : ClosedStatusScope;
-        }
-
-        return Statuses.Count == 1 ? Statuses[0].ToString() : string.Empty;
-    }
 
     private void NormalizeFilters()
     {
@@ -331,19 +225,6 @@ public sealed partial class IndexModel
         }
     }
 
-    private void NormalizePaging()
-    {
-        if (PageNumber < 1)
-        {
-            PageNumber = 1;
-        }
-
-        if (PageSize is not (10 or 15 or 25 or 50))
-        {
-            PageSize = 15;
-        }
-    }
-
     private IprFilter BuildFilter(bool includeQuery = true)
     {
         var filter = new IprFilter
@@ -358,11 +239,6 @@ public sealed partial class IndexModel
             Evidence = Evidence,
             PendingAge = PendingAge
         };
-
-        filter.Page = PageNumber;
-        filter.PageSize = PageSize;
-        PageNumber = filter.Page;
-        PageSize = filter.PageSize;
 
         return filter;
     }

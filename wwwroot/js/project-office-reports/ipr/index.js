@@ -115,7 +115,7 @@
 
     document.addEventListener('keydown', event => {
       trapFocus(element, event);
-      if (event.key !== 'Escape' || document.querySelector('.modal.show, .offcanvas.show')) return;
+      if (event.key !== 'Escape' || document.querySelector('.modal.show')) return;
       if (event.target.closest?.('[data-ipr-project-picker]')) return;
       event.preventDefault();
       close();
@@ -464,69 +464,6 @@
     });
   };
 
-  const initialiseFilterDrawer = () => {
-    const drawer = document.getElementById('iprFilterOffcanvas');
-    const form = drawer?.querySelector('[data-ipr-filter-form]');
-    if (!drawer || !form) return;
-
-    const dateBasis = form.querySelector('[data-ipr-date-basis]');
-    const year = form.querySelector('[data-ipr-date-year]');
-    const help = form.querySelector('[data-ipr-date-basis-help]');
-    const project = form.querySelector('[data-ipr-project-value]');
-    const linkage = form.querySelector('[data-ipr-linkage-filter]');
-
-    const syncDateYears = () => {
-      if (!dateBasis || !year) return;
-      const protectedBasis = normalizeText(dateBasis.value) === 'protected';
-      let selectedAvailable = !year.value;
-
-      Array.from(year.options).forEach(option => {
-        if (!option.value) {
-          option.hidden = false;
-          option.disabled = false;
-          return;
-        }
-
-        const available = protectedBasis
-          ? option.dataset.hasProtected === 'true'
-          : option.dataset.hasFiled === 'true';
-        option.hidden = !available;
-        option.disabled = !available;
-        if (option.selected && available) selectedAvailable = true;
-      });
-
-      if (!selectedAvailable) year.value = '';
-      if (help) {
-        help.textContent = protectedBasis
-          ? 'Uses the patent grant or copyright registration date; pending records are excluded.'
-          : 'Uses the original filing date.';
-      }
-    };
-
-    const syncLinkage = () => {
-      if (!project || !linkage) return;
-      const projectSelected = Boolean(project.value);
-      if (projectSelected) linkage.value = 'All';
-      linkage.disabled = projectSelected;
-      linkage.closest('.ipr-filter-field')?.classList.toggle('is-disabled', projectSelected);
-    };
-
-    dateBasis?.addEventListener('change', syncDateYears);
-    project?.addEventListener('change', syncLinkage);
-    form.addEventListener('submit', () => {
-      const page = form.querySelector('input[name="pageNumber"]');
-      if (page) page.value = '1';
-      if (linkage?.disabled) linkage.disabled = false;
-    });
-
-    drawer.addEventListener('shown.bs.offcanvas', () => {
-      drawer.querySelector('select, input:not([type="hidden"])')?.focus?.();
-    });
-
-    syncDateYears();
-    syncLinkage();
-  };
-
   const initialiseTypeGuidance = () => {
     const guidanceByType = {
       patent: {
@@ -606,7 +543,6 @@
   initialiseEditor();
   initialiseDensity();
   initialiseConfirmations();
-  initialiseFilterDrawer();
   initialiseTypeGuidance();
   initialiseGrantedDate();
 })();

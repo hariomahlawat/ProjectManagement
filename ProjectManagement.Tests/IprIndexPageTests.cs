@@ -370,31 +370,6 @@ public sealed class IprIndexPageTests
     }
 
     [Fact]
-    public async Task OnGetAsync_PopulatesPatentAndCopyrightTypeOptions()
-    {
-        await using var db = CreateDbContext();
-        var readService = new StubIprReadService();
-        var writeService = new StubIprWriteService();
-        var authorizationService = new AllowAuthorizationService();
-        using var userManager = CreateUserManager(db);
-        var exportService = new StubIprExportService();
-
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions());
-        ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
-
-        var result = await page.OnGetAsync(CancellationToken.None);
-
-        Assert.IsType<PageResult>(result);
-
-        var expectedValues = new[] { IprType.Patent.ToString(), IprType.Copyright.ToString() };
-        var optionValues = page.TypeOptions.Select(o => o.Value).ToArray();
-        Assert.Equal(expectedValues, optionValues);
-
-        var formOptionValues = page.TypeFormOptions.Select(o => o.Value).ToArray();
-        Assert.Equal(expectedValues, formOptionValues);
-    }
-
-    [Fact]
     public async Task OnGetAsync_BuildsPatentAndCopyrightBreakdownForFiledProtectedAndPending()
     {
         await using var db = CreateDbContext();
@@ -563,7 +538,6 @@ public sealed class IprIndexPageTests
         Assert.Equal(1, page.Kpis.Total);
         Assert.Equal(1, page.Kpis.Rejected);
         Assert.Equal(0, page.Kpis.Withdrawn);
-        Assert.Contains(page.DateYearOptions, option => option.Year == 2023 && option.HasFiled);
     }
 
     [Fact]
@@ -588,40 +562,6 @@ public sealed class IprIndexPageTests
 
         Assert.Equal(new[] { IprStatus.Rejected, IprStatus.Withdrawn }, page.Statuses.OrderBy(status => status).ToArray());
         Assert.Equal(3, page.TotalCount);
-        var selected = Assert.Single(page.StatusOptions, option => option.Selected);
-        Assert.Equal("Closed", selected.Value);
-    }
-
-    [Fact]
-    public async Task OnGetAsync_DefaultView_OffersOnlyYearsOfCountedRecords()
-    {
-        await using var db = CreateDbContext();
-        db.IprRecords.AddRange(
-            new IprRecord
-            {
-                IprFilingNumber = "IPR-YEAR-OPEN",
-                Title = "Open filing",
-                Type = IprType.Patent,
-                Status = IprStatus.Filed,
-                FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
-            },
-            new IprRecord
-            {
-                IprFilingNumber = "IPR-YEAR-WITHDRAWN",
-                Title = "Withdrawn filing",
-                Type = IprType.Patent,
-                Status = IprStatus.Withdrawn,
-                FiledAtUtc = new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero)
-            });
-        await db.SaveChangesAsync();
-
-        using var userManager = CreateUserManager(db);
-        var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions());
-        ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
-
-        await page.OnGetAsync(CancellationToken.None);
-
-        Assert.Equal(new[] { 2024 }, page.DateYearOptions.Select(option => option.Year).ToArray());
     }
 
     [Fact]
@@ -655,9 +595,7 @@ public sealed class IprIndexPageTests
         using var userManager = CreateUserManager(db);
         var page = new IndexModel(db, new IprReadService(db), new StubIprWriteService(), new AllowAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
         {
-            Tab = "records",
-            PageSize = 10,
-            PageNumber = 3
+            Tab = "records"
         };
         ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
 

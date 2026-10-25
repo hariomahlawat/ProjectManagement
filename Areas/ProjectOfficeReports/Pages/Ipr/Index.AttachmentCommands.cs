@@ -59,7 +59,7 @@ public sealed partial class IndexModel
                 cancellationToken);
 
             TempData["ToastMessage"] = "Attachment uploaded.";
-            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = UploadInput.RecordId.Value, mode = "edit", id = UploadInput.RecordId.Value }, includePage: true, includeModeAndId: false));
+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = UploadInput.RecordId.Value, mode = "edit", id = UploadInput.RecordId.Value }, includeModeAndId: false));
         }
         catch (InvalidOperationException ex)
         {
@@ -90,14 +90,14 @@ public sealed partial class IndexModel
         if (!RemoveAttachment.RecordId.HasValue)
         {
             TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
-            return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: false));
+            return RedirectToPage("./Index", GetRouteValues(includeModeAndId: false));
         }
 
         var rowVersion = DecodeRowVersion(RemoveAttachment.RowVersion);
         if (rowVersion is null)
         {
             TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
-            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = RemoveAttachment.RecordId.Value, mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = RemoveAttachment.RecordId.Value, mode = "edit", id = RemoveAttachment.RecordId.Value }, includeModeAndId: false));
         }
 
         try
@@ -117,7 +117,7 @@ public sealed partial class IndexModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = RemoveAttachment.RecordId.Value, mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
+        return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = RemoveAttachment.RecordId.Value, mode = "edit", id = RemoveAttachment.RecordId.Value }, includeModeAndId: false));
     }
 
 

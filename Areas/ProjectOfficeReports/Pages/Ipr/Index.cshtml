@@ -65,10 +65,12 @@
     var closedCount = Model.Kpis.Rejected + Model.Kpis.Withdrawn;
     var registerTotal = Model.Kpis.Total + closedCount;
     double Share(int part, int whole) => whole == 0 ? 0 : Math.Round(part * 100d / whole, 1);
-    var filterButtonAriaLabel = Model.StructuredFilterCount > 0
-        ? $"Open IPR filters, {Model.StructuredFilterCount} active"
-        : "Open IPR filters";
     var registerUrl = Url.Page("./Index", new { tab = "records" });
+    // The view tabs carry the Register's filters, so the Action list and Insights show the same
+    // scope. Search text applies to the Register only.
+    var registerTabRoute = Model.GetRouteValuesForLinks(new { tab = "records", attentionIssue = (string?)null, selectedRecordId = (int?)null }, includeModeAndId: false);
+    var actionListTabRoute = Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = (string?)null, selectedRecordId = (int?)null, query = (string?)null, group = (string?)null }, includeModeAndId: false);
+    var insightsTabRoute = Model.GetRouteValuesForLinks(new { tab = "analytics", attentionIssue = (string?)null, selectedRecordId = (int?)null, query = (string?)null, group = (string?)null }, includeModeAndId: false);
     var summaryCards = new[]
     {
         new { Scope = "counted", Statuses = Array.Empty<string>(), Label = "Filed", Value = Model.Kpis.Total, Unit = "filings",
@@ -135,22 +137,6 @@
                     data-bs-target="#iprGuidanceModal">
                 <i class="bi bi-info-circle" aria-hidden="true"></i> Patent or copyright?
             </button>
-            @if (!isRegister)
-            {
-                <button type="button"
-                        class="btn btn-outline-primary ipr-header-filter-button @(Model.HasStructuredFilters ? "is-active" : string.Empty)"
-                        data-bs-toggle="offcanvas"
-                        data-bs-target="#iprFilterOffcanvas"
-                        aria-controls="iprFilterOffcanvas"
-                        aria-label="@filterButtonAriaLabel">
-                    <i class="bi bi-funnel" aria-hidden="true"></i>
-                    <span>Filters</span>
-                    @if (Model.StructuredFilterCount > 0)
-                    {
-                        <span class="ipr-header-filter-button__count">@Model.StructuredFilterCount</span>
-                    }
-                </button>
-            }
             <a asp-page="./Index" asp-page-handler="Export" asp-all-route-data="exportRouteValues" class="btn btn-outline-secondary" data-ipr-export>
                 <i class="bi bi-download" aria-hidden="true"></i> Export
             </a>
@@ -187,15 +173,15 @@
     </section>
 
     <nav class="ipr-views" aria-label="IPR views">
-        <a href="@registerUrl" class="@(isRegister ? "is-active" : string.Empty)" aria-current="@(isRegister ? "page" : null)">Register</a>
-        <a href="@Url.Page("./Index", new { tab = "followup" })" class="@(Model.Tab == "followup" ? "is-active" : string.Empty)" aria-current="@(Model.Tab == "followup" ? "page" : null)">
+        <a asp-page="./Index" asp-all-route-data="registerTabRoute" data-ipr-view="records" class="@(isRegister ? "is-active" : string.Empty)" aria-current="@(isRegister ? "page" : null)">Register</a>
+        <a asp-page="./Index" asp-all-route-data="actionListTabRoute" data-ipr-view="followup" class="@(Model.Tab == "followup" ? "is-active" : string.Empty)" aria-current="@(Model.Tab == "followup" ? "page" : null)">
             Action list
             @if (Model.AttentionRecordCount > 0)
             {
                 <span class="ipr-views__badge">@Model.AttentionRecordCount</span>
             }
         </a>
-        <a href="@Url.Page("./Index", new { tab = "analytics" })" class="@(Model.Tab == "analytics" ? "is-active" : string.Empty)" aria-current="@(Model.Tab == "analytics" ? "page" : null)">Insights</a>
+        <a asp-page="./Index" asp-all-route-data="insightsTabRoute" data-ipr-view="analytics" class="@(Model.Tab == "analytics" ? "is-active" : string.Empty)" aria-current="@(Model.Tab == "analytics" ? "page" : null)">Insights</a>
     </nav>
 
     @if (!isRegister)
@@ -424,7 +410,7 @@
                     <a class="ipr-seg__item @(isActive ? "is-on" : string.Empty)"
                        aria-current="@(isActive ? "true" : null)"
                        asp-page="./Index"
-                       asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = filter.Key }, includePage: false, includeModeAndId: false)">
+                       asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = filter.Key }, includeModeAndId: false)">
                         @filter.Label <span data-ipr-count>@filter.Count</span>
                     </a>
                 }
@@ -467,8 +453,8 @@
                             <ul class="ipr-actions-list">
                                 @foreach (var item in group.Items)
                                 {
-                                    var openRoutes = Model.GetRouteValuesForLinks(new { tab = "records", selectedRecordId = item.Id, attentionIssue = (string?)null }, includePage: false, includeModeAndId: false);
-                                    var fixRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", mode = "edit", id = item.Id }, includePage: false, includeModeAndId: false);
+                                    var openRoutes = Model.GetRouteValuesForLinks(new { tab = "records", selectedRecordId = item.Id, attentionIssue = (string?)null }, includeModeAndId: false);
+                                    var fixRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", mode = "edit", id = item.Id }, includeModeAndId: false);
                                     <li class="ipr-actions-item">
                                         <div class="ipr-actions-item__main">
                                             <a class="ipr-actions-item__title" asp-page="./Index" asp-all-route-data="openRoutes">@item.Title</a>
@@ -535,7 +521,7 @@
             {
                 values["statuses"] = scopedCountedStatuses.Length > 0 ? scopedCountedStatuses : null;
             }
-            return Model.GetRouteValuesForLinks(values, includePage: false, includeModeAndId: false);
+            return Model.GetRouteValuesForLinks(values, includeModeAndId: false);
         }
 
         // A link replaces the scope's value for the filter it sets. It is offered only when the
@@ -793,10 +779,6 @@
         </aside>
     }
 
-    @if (!isRegister)
-    {
-        <partial name="_IprFilterDrawer" model="Model" />
-    }
     <partial name="_IprGuidanceModal" />
 </div>
 

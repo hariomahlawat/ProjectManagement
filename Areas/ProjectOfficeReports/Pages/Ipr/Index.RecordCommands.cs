@@ -164,7 +164,7 @@ public sealed partial class IndexModel
         if (rowVersion is null)
         {
             TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
-            return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: false));
+            return RedirectToPage("./Index", GetRouteValues(includeModeAndId: false));
         }
 
         try
@@ -187,7 +187,7 @@ public sealed partial class IndexModel
         Mode = null;
         SelectedRecordId = null;
         Id = null;
-        return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: false));
+        return RedirectToPage("./Index", GetRouteValues(includeModeAndId: false));
     }
 
 
@@ -200,7 +200,7 @@ public sealed partial class IndexModel
         if (evidenceError is not null)
         {
             TempData["ToastError"] = $"Record saved, but the PDF was not attached: {evidenceError}";
-            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = recordId, mode = "edit", id = recordId }, includePage: true, includeModeAndId: false));
+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = recordId, mode = "edit", id = recordId }, includeModeAndId: false));
         }
 
         TempData["ToastMessage"] = Input.Evidence is { Length: > 0 } ? $"{savedMessage} PDF attached." : savedMessage;
@@ -208,10 +208,10 @@ public sealed partial class IndexModel
         // A fix made from the Action list returns to the list, so the next item is one click away.
         if (string.Equals(Tab, "followup", StringComparison.Ordinal))
         {
-            return RedirectToPage("./Index", GetRouteValues(new { tab = "followup" }, includePage: false, includeModeAndId: false));
+            return RedirectToPage("./Index", GetRouteValues(new { tab = "followup" }, includeModeAndId: false));
         }
 
-        return RedirectToPage("./Index", GetRouteValues(new { tab = "records", selectedRecordId = recordId }, includePage: true, includeModeAndId: false));
+        return RedirectToPage("./Index", GetRouteValues(new { tab = "records", selectedRecordId = recordId }, includeModeAndId: false));
     }
 
     private async Task<string?> AttachEvidenceAsync(int recordId, CancellationToken cancellationToken)

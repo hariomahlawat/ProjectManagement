@@ -45,6 +45,7 @@ function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?
   const dom = new JSDOM(`<!doctype html><html><body>
     <a data-ipr-scope="closed" href="/ProjectOfficeReports/Ipr?tab=records&statuses=Rejected&statuses=Withdrawn">Closed</a>
     <a data-ipr-export href="/ProjectOfficeReports/Ipr?handler=Export">Export</a>
+    <nav><a data-ipr-view="records" href="/ProjectOfficeReports/Ipr?tab=records">Register</a><a data-ipr-view="followup" href="/ProjectOfficeReports/Ipr?tab=followup">Action list</a><a data-ipr-view="analytics" href="/ProjectOfficeReports/Ipr?tab=analytics">Insights</a></nav>
     <section data-ipr-register data-ipr-state="${stateJson}" data-ipr-age-bands="${AGE_BANDS}" data-ipr-project-base-url="/Projects/Overview" data-ipr-download-url="/ProjectOfficeReports/Ipr/Download">
       <input data-ipr-filter-query />
       <button data-ipr-filter-type="all"></button>
@@ -113,6 +114,30 @@ test('closed status lists history only and keeps the server parameter names in t
   const exportUrl = new URL(dom.window.document.querySelector('[data-ipr-export]').href);
   assert.equal(exportUrl.searchParams.get('handler'), 'Export');
   assert.deepEqual(exportUrl.searchParams.getAll('statuses'), ['Rejected', 'Withdrawn']);
+});
+
+test('view tabs carry the register filters; search and Group by stay with the Register', async () => {
+  const dom = createDom();
+  const doc = dom.window.document;
+  doc.querySelector('[data-ipr-filter-type="Patent"]').click();
+  doc.querySelector('[data-ipr-filter-flag="missing"]').click();
+  const query = doc.querySelector('[data-ipr-filter-query]');
+  query.value = 'sim';
+  query.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await new Promise(resolve => setTimeout(resolve, 400));
+
+  const tab = view => new URL(doc.querySelector(`[data-ipr-view="${view}"]`).href);
+  const register = tab('records');
+  assert.equal(register.searchParams.get('tab'), 'records');
+  assert.equal(register.searchParams.get('query'), 'sim');
+  for (const view of ['followup', 'analytics']) {
+    const url = tab(view);
+    assert.equal(url.searchParams.get('tab'), view);
+    assert.deepEqual(url.searchParams.getAll('types'), ['Patent']);
+    assert.equal(url.searchParams.get('evidence'), 'Missing');
+    assert.equal(url.searchParams.has('query'), false);
+    assert.equal(url.searchParams.has('group'), false);
+  }
 });
 
 test('summary card filters in place instead of reloading', () => {

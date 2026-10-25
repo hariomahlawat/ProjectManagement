@@ -123,7 +123,7 @@ public sealed partial class IndexModel
     {
         var chips = new List<ActiveFilterChip>();
 
-        if (!string.IsNullOrWhiteSpace(Query))
+        if (!string.IsNullOrWhiteSpace(Query) && string.Equals(Tab, "records", StringComparison.Ordinal))
         {
             chips.Add(new ActiveFilterChip("query", $"Search: “{Query}”"));
         }
@@ -180,7 +180,6 @@ public sealed partial class IndexModel
 
     private async Task LoadPageAsync(CancellationToken cancellationToken, bool loadRecordInput)
     {
-        NormalizePaging();
         await LoadRegisterOverviewAsync(cancellationToken);
 
         switch (Tab)
@@ -231,8 +230,6 @@ public sealed partial class IndexModel
         var rows = await _readService.ListRegisterAsync(cancellationToken);
         Records = rows.Select(CreateRowViewModel).ToList();
         TotalCount = Records.Count;
-        TotalPages = TotalCount == 0 ? 0 : 1;
-        PageNumber = 1;
     }
 
     private void ResolveSelectedRecord()
