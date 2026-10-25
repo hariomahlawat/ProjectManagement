@@ -26,7 +26,7 @@
             sequenceInput.min = "1";
             sequenceField?.classList.remove("d-none");
             if (Number(sequenceInput.value) <= 0) sequenceInput.value = String(Math.max(1, suggestedAddendumSequence));
-            if (sequenceHelp) sequenceHelp.textContent = "Enter the addendum number shown in the issued document.";
+            if (sequenceHelp) sequenceHelp.textContent = "Enter the addendum number shown in the issued letter.";
         }
     };
 

@@ -23,8 +23,8 @@
     <header class="arpp-v2-page-header">
         <div>
             <span class="arpp-v2-page-header__eyebrow">Administration</span>
-            <h1>Create issued document</h1>
-            <p>Create the original ARPP or an addendum, then enter its rows in the document workspace.</p>
+            <h1>Create issued letter</h1>
+            <p>Record the original ARPP letter or an addendum as issued by HQ, then enter its rows in the workspace.</p>
         </div>
         <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
             <span class="bi bi-arrow-left" aria-hidden="true"></span>
@@ -42,8 +42,8 @@
         <section>
             <div class="arpp-v2-form-panel__header">
                 <div>
-                    <h2>Document identity</h2>
-                    <p>Enter the identity exactly as shown on the issued HQ document.</p>
+                    <h2>Letter identity</h2>
+                    <p>Enter the identity exactly as shown on the issued letter.</p>
                 </div>
             </div>
 
@@ -79,7 +79,7 @@
                     <span asp-validation-for="Input.IssueDate" class="text-danger"></span>
                 </div>
                 <div class="col-12">
-                    <label asp-for="Input.Name" class="form-label">Document name / letter description</label>
+                    <label asp-for="Input.Name" class="form-label">Letter number / description</label>
                     <input asp-for="Input.Name" class="form-control" maxlength="300" placeholder="e.g. ARPP/IR&amp;D/ARTRAC dated 25 Feb 2026" />
                     <span asp-validation-for="Input.Name" class="text-danger"></span>
                 </div>

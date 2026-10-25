@@ -123,7 +123,7 @@
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#arppPasteModal"><span class="bi bi-clipboard" aria-hidden="true"></span> Paste rows from Excel</button></li>
                     <li><button type="button" class="dropdown-item" data-arpp-apply-common><span class="bi bi-arrow-down-square" aria-hidden="true"></span> Fill common fields</button></li>
-                    <li><button type="button" class="dropdown-item" data-arpp-details-toggle><span class="bi bi-file-earmark-text" aria-hidden="true"></span> Edit document details</button></li>
+                    <li><button type="button" class="dropdown-item" data-arpp-details-toggle><span class="bi bi-file-earmark-text" aria-hidden="true"></span> Edit letter details</button></li>
                     @if (Model.CanManageReferenceData)
                     {
                         <li><hr class="dropdown-divider" /></li>
@@ -250,7 +250,7 @@
                                         </div>
                                         <label asp-for="Input.Entries[index].ProjectReference" class="visually-hidden">Project reference as issued</label>
                                         <textarea asp-for="Input.Entries[index].ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" placeholder="Project reference as issued" data-arpp-project-reference></textarea>
-                                        <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
+                                        <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued letter.</div>
                                         <div class="arpp-row-warning d-none" data-arpp-row-warning></div>
                                         <span asp-validation-for="Input.Entries[index].ProjectReference" class="text-danger small"></span>
                                     </div>
@@ -386,14 +386,14 @@
             <div class="arpp-workspace-v2__drawer-header">
                 <div>
                     <span>Working copy</span>
-                    <h2 id="arppDocumentDetailsTitle">Document details</h2>
+                    <h2 id="arppDocumentDetailsTitle">Letter details</h2>
                 </div>
-                <button type="button" class="btn btn-sm btn-light" data-arpp-details-close aria-label="Close document details">
+                <button type="button" class="btn btn-sm btn-light" data-arpp-details-close aria-label="Close letter details">
                     <span class="bi bi-x-lg" aria-hidden="true"></span>
                 </button>
             </div>
             <div class="arpp-workspace-v2__drawer-body">
-                <p class="arpp-workspace-v2__drawer-intro">Enter the identity exactly as shown on the issued HQ document.</p>
+                <p class="arpp-workspace-v2__drawer-intro">Enter the identity exactly as shown on the issued letter.</p>
                 <div>
                     <label asp-for="Input.FinancialYearStart" class="form-label">Financial year</label>
                     <select asp-for="Input.FinancialYearStart" class="form-select" data-arpp-financial-year>
@@ -424,7 +424,7 @@
                     <span asp-validation-for="Input.IssueDate" class="text-danger small"></span>
                 </div>
                 <div>
-                    <label asp-for="Input.Name" class="form-label">Document name / letter description</label>
+                    <label asp-for="Input.Name" class="form-label">Letter number / description</label>
                     <textarea asp-for="Input.Name" class="form-control" rows="3" maxlength="300"></textarea>
                     <span asp-validation-for="Input.Name" class="text-danger small"></span>
                 </div>
@@ -433,7 +433,7 @@
                 <button type="button" class="btn btn-primary" data-arpp-details-close>Done</button>
             </div>
         </aside>
-        <button type="button" class="arpp-workspace-v2__drawer-backdrop" data-arpp-details-backdrop aria-label="Close document details" tabindex="-1"></button>
+        <button type="button" class="arpp-workspace-v2__drawer-backdrop" data-arpp-details-backdrop aria-label="Close letter details" tabindex="-1"></button>
 
             <template data-arpp-row-template>
                 <tr data-arpp-entry-row>
@@ -456,7 +456,7 @@
                             </div>
                             <label for="Input_Entries___INDEX____ProjectReference" class="visually-hidden">Project reference as issued</label>
                             <textarea name="Input.Entries[__INDEX__].ProjectReference" id="Input_Entries___INDEX____ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" placeholder="Project reference as issued" required data-val="true" data-val-required="Enter the project reference." data-val-length="The project reference cannot exceed 300 characters." data-val-length-max="300" data-arpp-project-reference></textarea>
-                            <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
+                            <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued letter.</div>
                             <div class="arpp-row-warning d-none" data-arpp-row-warning></div>
                             <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].ProjectReference" data-valmsg-replace="true"></span>
                         </div>

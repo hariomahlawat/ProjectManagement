@@ -402,7 +402,7 @@ public sealed class ArppCommandService : IArppCommandService
 
         if (issue.Attachment is null)
         {
-            AddError(errors, "Attachment", "Attach the issued HQ PDF before verification.");
+            AddError(errors, "Attachment", "Attach the issued letter before verification.");
         }
 
         var unresolvedReferenceRows = issue.Entries.Count(entry =>
@@ -720,7 +720,7 @@ public sealed class ArppCommandService : IArppCommandService
         var normalizedName = name?.Trim() ?? string.Empty;
         if (normalizedName.Length == 0)
         {
-            AddError(errors, nameof(name), "Enter the issued document name or letter description.");
+            AddError(errors, nameof(name), "Enter the letter number or description.");
         }
         else if (normalizedName.Length > 300)
         {
@@ -889,7 +889,7 @@ public sealed class ArppCommandService : IArppCommandService
             .ToArray();
         if (duplicateSerials.Length > 0)
         {
-            warnings.Add($"Duplicate serial number(s) detected: {string.Join(", ", duplicateSerials)}. Verify these against the issued document.");
+            warnings.Add($"Duplicate serial number(s) detected: {string.Join(", ", duplicateSerials)}. Verify these against the issued letter.");
         }
 
         var duplicatePppNumbers = command.Entries
@@ -900,7 +900,7 @@ public sealed class ArppCommandService : IArppCommandService
             .ToArray();
         if (duplicatePppNumbers.Length > 0)
         {
-            warnings.Add($"Duplicate PPP number(s) detected: {string.Join(", ", duplicatePppNumbers)}. Verify these against the issued document.");
+            warnings.Add($"Duplicate PPP number(s) detected: {string.Join(", ", duplicatePppNumbers)}. Verify these against the issued letter.");
         }
 
         var duplicateUnlinkedReferences = command.Entries

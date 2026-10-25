@@ -63,7 +63,7 @@
                 <h2>No published ARPP documents</h2>
                 @if (Model.CanManageArpp)
                 {
-                    <p>Verified ARPPs and addenda appear here after publication. Create the original ARPP, enter its rows, attach the HQ PDF and verify it in Administration.</p>
+                    <p>Verified ARPPs and addenda appear here after publication. Create the original ARPP, enter its rows, attach the issued letter and verify it in Administration.</p>
                     <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-primary project-arpp-empty__action"><span class="bi bi-sliders" aria-hidden="true"></span> Open ARPP administration</a>
                 }
                 else
@@ -203,7 +203,7 @@
                                target="_blank"
                                rel="noopener noreferrer">
                                 <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
-                                Open issued PDF
+                                Open issued letter
                             </a>
                             <a class="btn btn-outline-success btn-sm"
                                asp-page="./Index"

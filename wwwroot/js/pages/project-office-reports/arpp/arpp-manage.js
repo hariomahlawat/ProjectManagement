@@ -581,7 +581,7 @@
             sequence.min = "1";
             sequenceField?.classList.remove("d-none");
             if (Number(sequence.value) <= 0) sequence.value = "1";
-            if (help) help.textContent = "Enter the addendum number shown in the issued document.";
+            if (help) help.textContent = "Enter the addendum number shown in the issued letter.";
         }
     };
 
@@ -634,8 +634,8 @@
 
             if (!delisted && !serial) messages.push("Serial No. is required for approved rows.");
             if (!delisted && !pppNumber) messages.push("PPP No. is required for approved rows.");
-            if (serial && serialCounts.get(serial) > 1) messages.push("Duplicate serial number — verify against the issued document.");
-            if (pppNumber && pppCounts.get(pppNumber) > 1) messages.push("Duplicate PPP number — verify against the issued document.");
+            if (serial && serialCounts.get(serial) > 1) messages.push("Duplicate serial number — verify against the issued letter.");
+            if (pppNumber && pppCounts.get(pppNumber) > 1) messages.push("Duplicate PPP number — verify against the issued letter.");
             if (projectReference && !projectId) messages.push("PRISM linkage pending; this may be reconciled later.");
             const unresolvedReferences = Array.from(row.querySelectorAll("[data-arpp-reference-select]"))
                 .some(select => select.value === "-1");

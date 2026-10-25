@@ -76,14 +76,14 @@ public sealed class ArppExcelWorkbookBuilder
         {
             source.Value = issue.Attachment is null
                 ? "Published structured representation"
-                : $"Published structured representation · Issued PDF: {issue.Attachment.OriginalFileName}";
+                : $"Published structured representation · Issued letter: {issue.Attachment.OriginalFileName}";
             source.Style.Font.FontColor = XLColor.FromHtml("#526174");
             return;
         }
 
         var sourceLabel = issue.Attachment is null
-            ? "Issued HQ PDF: not attached in PRISM"
-            : $"Issued HQ PDF: {issue.Attachment.OriginalFileName} · SHA-256 {issue.Attachment.Sha256[..Math.Min(12, issue.Attachment.Sha256.Length)]}…";
+            ? "Issued letter: not attached in PRISM"
+            : $"Issued letter: {issue.Attachment.OriginalFileName} · SHA-256 {issue.Attachment.Sha256[..Math.Min(12, issue.Attachment.Sha256.Length)]}…";
         var verifiedAtIst = IstClock.ToIst(issue.VerifiedAtUtc);
         var verificationLabel = issue.IsVerified
             ? $"Record status: Verified and locked" +

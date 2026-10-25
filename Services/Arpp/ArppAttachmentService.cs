@@ -60,7 +60,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
         if (file is null || file.Length <= 0)
         {
             return ArppAttachmentCommandResult.Failed(
-                "Select the issued HQ PDF.",
+                "Select the issued letter (PDF).",
                 "UploadFile",
                 "Select a non-empty PDF file.");
         }
@@ -77,7 +77,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
         if (issue.IsVerified)
         {
             return ArppAttachmentCommandResult.Failed(
-                "This ARPP issue is verified and locked. Unlock it with a recorded reason before replacing the issued PDF.");
+                "This ARPP issue is verified and locked. Unlock it with a recorded reason before replacing the issued letter.");
         }
 
         ArppStoredAttachment stored;
@@ -95,7 +95,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
         catch (InvalidDataException exception)
         {
             return ArppAttachmentCommandResult.Failed(
-                "The issued document could not be uploaded.",
+                "The issued letter could not be uploaded.",
                 "UploadFile",
                 exception.Message);
         }
@@ -110,7 +110,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
                 "Failed to store the ARPP attachment for issue {IssueId}.",
                 issueId);
             return ArppAttachmentCommandResult.Failed(
-                "The issued document could not be stored. No attachment was changed.",
+                "The issued letter could not be stored. No attachment was changed.",
                 "UploadFile",
                 "Try again or contact the administrator.");
         }
@@ -156,7 +156,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
         {
             await _storage.DeleteAsync(stored.StorageKey, cancellationToken);
             return ArppAttachmentCommandResult.Failed(
-                "The issued PDF was changed by another user. Reload the page before trying again.");
+                "The issued letter was changed by another user. Reload the page before trying again.");
         }
         catch (Exception exception)
         {
@@ -166,7 +166,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
                 "Failed to persist the ARPP attachment for issue {IssueId}.",
                 issueId);
             return ArppAttachmentCommandResult.Failed(
-                "The issued PDF could not be recorded. The existing attachment was retained.");
+                "The issued letter could not be recorded. The existing attachment was retained.");
         }
 
         if (!string.IsNullOrWhiteSpace(oldStorageKey) &&
@@ -223,7 +223,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
             userName);
 
         return ArppAttachmentCommandResult.Succeeded(
-            oldStorageKey is null ? "Issued HQ PDF attached." : "Issued HQ PDF replaced.",
+            oldStorageKey is null ? "Issued letter attached." : "Issued letter replaced.",
             warning);
     }
 
@@ -252,13 +252,13 @@ public sealed class ArppAttachmentService : IArppAttachmentService
 
         if (attachment is null)
         {
-            return ArppAttachmentCommandResult.Failed("The issued PDF was not found.");
+            return ArppAttachmentCommandResult.Failed("The issued letter was not found.");
         }
 
         if (attachment.Issue.IsVerified)
         {
             return ArppAttachmentCommandResult.Failed(
-                "This ARPP issue is verified and locked. Unlock it with a recorded reason before removing the issued PDF.");
+                "This ARPP issue is verified and locked. Unlock it with a recorded reason before removing the issued letter.");
         }
 
         var storageKey = attachment.StorageKey;
@@ -284,7 +284,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
         catch (DbUpdateConcurrencyException)
         {
             return ArppAttachmentCommandResult.Failed(
-                "The issued PDF was changed by another user. Reload the page before trying again.");
+                "The issued letter was changed by another user. Reload the page before trying again.");
         }
         catch (Exception exception)
         {
@@ -294,7 +294,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
                 attachmentId,
                 issueId);
             return ArppAttachmentCommandResult.Failed(
-                "The issued PDF could not be removed. The existing attachment was retained.");
+                "The issued letter could not be removed. The existing attachment was retained.");
         }
 
         // A published snapshot may still expose the previously verified PDF while the
@@ -308,7 +308,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
         {
             await _audit.LogAsync(
                 action: "Arpp.AttachmentDeleted",
-                message: $"Removed the issued HQ PDF from {issue.Name}.",
+                message: $"Removed the issued letter from {issue.Name}.",
                 userId: userId,
                 userName: userName,
                 data: auditData);
@@ -321,7 +321,7 @@ public sealed class ArppAttachmentService : IArppAttachmentService
                 issueId);
         }
 
-        return ArppAttachmentCommandResult.Succeeded("Issued HQ PDF removed.");
+        return ArppAttachmentCommandResult.Succeeded("Issued letter removed.");
     }
 
     public async Task<ArppAttachmentDownload?> OpenDownloadAsync(

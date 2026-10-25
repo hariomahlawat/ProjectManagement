@@ -35,11 +35,11 @@
 
             const accepted = window.PrismConfirm?.show
                 ? await window.PrismConfirm.show({
-                    title: "Remove issued HQ PDF?",
+                    title: "Remove issued letter?",
                     message: "The structured ARPP issue and all rows will remain unchanged.",
                     detail: "The file will no longer be available from this ARPP record.",
-                    confirmText: "Remove PDF",
-                    cancelText: "Keep PDF",
+                    confirmText: "Remove letter",
+                    cancelText: "Keep letter",
                     tone: "danger"
                 })
                 : false;
