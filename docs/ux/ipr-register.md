@@ -97,15 +97,16 @@ and Granted are the positive count, Rejected and Withdrawn are closed history.
 - Scoped by the Register's filters (removable chips; search text does not apply); the summary
   strip above stays register-wide.
 
-## Planned changes
+## Redesign steps
 
-The redesign lands in small PRs; this section lists what is still to come.
+The redesign landed in small PRs; nothing further is planned.
 
 1. ~~Register workspace: summary strip, instant filters, Group by, record panel.~~ (done)
 2. ~~Edit inside the record panel with one Save; attach the evidence PDF while creating a record.~~ (done)
 3. ~~**Action list** replaces Follow-up: each filing once, under its most urgent issue, with a direct
-   fix (assign project, upload evidence, record outcome).~~ (done; "log follow-up" comes with step 5)
+   fix (assign project, upload evidence, record outcome).~~ (done)
 4. ~~**Insights** replaces Analytics; every chart filters the register.~~ (done)
-5. Follow-up log (last followed up / next follow-up) for long-pending filings; needs a migration.
+5. ~~Follow-up log (last followed up / next follow-up) for long-pending filings.~~ Dropped
+   (2026-10-25): not needed; the Action list's long-pending group covers old filings.
 6. ~~Clean-up: retire the Filters drawer (the view tabs carry the Register filters), the unused
    styles left in `site-ipr.css`, the unused scripts and the paging parameters.~~ (done)
