@@ -1061,7 +1061,11 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   };
   exportConfig.options.plugins.datalabels = false;
   exportConfig.options.plugins.pmValueLabels = { display: false }; // the export draws its own, larger labels
-  exportConfig.options.plugins.legend = { ...(exportConfig.options.plugins.legend || {}), display: (exportConfig.data?.datasets?.length ?? 0) > 1 };
+  // The HTML legend chips are not part of the canvas, so the export draws Chart.js's own legend
+  // whenever there is more than one series, or more than one slice of a doughnut.
+  const exportNeedsLegend = (exportConfig.data?.datasets?.length ?? 0) > 1
+    || (exportConfig.type === 'doughnut' && (exportConfig.data?.labels?.length ?? 0) > 1);
+  exportConfig.options.plugins.legend = { ...(exportConfig.options.plugins.legend || {}), display: exportNeedsLegend };
   delete exportConfig.options.onClick;
   delete exportConfig.options.onHover;
   // END SECTION
