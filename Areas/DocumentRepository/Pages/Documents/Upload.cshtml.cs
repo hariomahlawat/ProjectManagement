@@ -255,6 +255,9 @@ public class UploadModel : PageModel
             existingWithSameHash.UpdatedAtUtc = utcNow;
             existingWithSameHash.IsDeleted = false;
             existingWithSameHash.IsActive = true;
+            // A user uploading the file here owns it now, even if a module ingested it first, so it
+            // is listed in the repository and a later source delete does not trash it.
+            existingWithSameHash.IsExternal = false;
             existingWithSameHash.OcrStatus = DocOcrStatus.Pending;
             existingWithSameHash.OcrFailureReason = null;
             existingWithSameHash.OcrLastTriedUtc = null;
