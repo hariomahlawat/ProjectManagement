@@ -349,7 +349,8 @@ function initCompleted(panel) {
         })));
         enableClickThrough(chart, (index) => {
           const option = categoryOptions.find((c) => c.name === byCategory[index]?.name);
-          return option ? withQuery(projectsUrl, { Lifecycle: 'Completed', CategoryId: option.id, IncludeCategoryDescendants: true }) : null;
+          // The doughnut counts the project's exact category, so the list must not expand descendants.
+          return option ? withQuery(projectsUrl, { Lifecycle: 'Completed', CategoryId: option.id }) : null;
         });
         return chart;
       });

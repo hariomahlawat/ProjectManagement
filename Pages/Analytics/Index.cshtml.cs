@@ -817,6 +817,7 @@ namespace ProjectManagement.Pages.Analytics
                     return new
                     {
                         Subcategory = NormalizeCoeSubcategoryName(row.CategoryName),
+                        row.LifecycleStatus,
                         Project = new CoeProjectSummaryVm(
                             row.Id,
                             row.Name,
@@ -829,7 +830,10 @@ namespace ProjectManagement.Pages.Analytics
                     group.Key,
                     group.Select(item => item.Project)
                         .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
-                        .ToList()))
+                        .ToList(),
+                    OngoingCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Active),
+                    CompletedCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Completed),
+                    CancelledCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Cancelled)))
                 .OrderBy(bucket => bucket.SubcategoryName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
