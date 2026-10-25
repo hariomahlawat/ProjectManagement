@@ -10,8 +10,9 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         var markup = ReadRepoFile("Pages", "Shared", "_ProjectProcurementAtAGlance.cshtml");
 
         Assert.Contains("Current IPA source:", markup, StringComparison.Ordinal);
-        Assert.Contains("Original ARPP", markup, StringComparison.Ordinal);
-        Assert.Contains("Addendum No.", markup, StringComparison.Ordinal);
+        // The letter label (Original ARPP / Addendum No. n / Amendment No. n) comes from the
+        // shared helper so every surface names the source the same way.
+        Assert.Contains("ArppDisplayNames.IssueLabel(ipaPosition.IssueKind, ipaPosition.IssueSequence)", markup, StringComparison.Ordinal);
         Assert.Contains("IssueDate.Value.ToString", markup, StringComparison.Ordinal);
         Assert.Contains("Ser No.", markup, StringComparison.Ordinal);
         Assert.Contains("PPP No.", markup, StringComparison.Ordinal);
@@ -25,8 +26,7 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         var pageModel = ReadRepoFile("Services", "Projects", "ProcurementEditVmFactory.cs");
 
         Assert.Contains("BuildIpaManagementMessage", pageModel, StringComparison.Ordinal);
-        Assert.Contains("Original ARPP", pageModel, StringComparison.Ordinal);
-        Assert.Contains("Addendum No.", pageModel, StringComparison.Ordinal);
+        Assert.Contains("ArppDisplayNames.IssueLabel(position.IssueKind, position.IssueSequence)", pageModel, StringComparison.Ordinal);
         Assert.Contains("position.IssueDate.Value.ToString", pageModel, StringComparison.Ordinal);
         Assert.Contains("Ser No.", pageModel, StringComparison.Ordinal);
         Assert.Contains("PPP No.", pageModel, StringComparison.Ordinal);

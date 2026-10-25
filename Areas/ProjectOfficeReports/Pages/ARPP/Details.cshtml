@@ -9,9 +9,7 @@
     ViewData["ArppSection"] = "administration";
     ViewData["CanManageArpp"] = Model.CanManage;
 
-    var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
-        ? "Original ARPP"
-        : $"Addendum No. {Model.Issue.IssueSequence}";
+    var issueTypeLabel = ArppDisplayNames.IssueLabel(Model.Issue.Kind, Model.Issue.IssueSequence);
     var isCorrection = !Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot;
     var valueStateLabel = Model.Issue.IsVerified ? "Published" : "Working";
     var statusLabel = Model.Issue.IsVerified
@@ -47,6 +45,12 @@
             {
                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary btn-sm">
                     <span class="bi bi-pencil-square" aria-hidden="true"></span> Edit working copy
+                </a>
+            }
+            @if (Model.Issue.HasPublishedSnapshot)
+            {
+                <a asp-area="" asp-page="/Projects/Arpp/Index" asp-route-issueId="@Model.Issue.Id" class="btn btn-outline-primary btn-sm">
+                    <span class="bi bi-book" aria-hidden="true"></span> View in Published library
                 </a>
             }
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Excel" asp-route-id="@Model.Issue.Id" class="btn btn-outline-success btn-sm">
@@ -86,14 +90,35 @@
                 }
                 else
                 {
-                    <p>Complete the issued rows, attach the HQ PDF and map controlled values before publication.</p>
+                    <p>Complete the issued rows, attach the issued letter and map controlled values before publication.</p>
                 }
                 @if (!Model.Issue.IsVerified)
                 {
                     <ul class="arpp-record-v2__readiness" aria-label="Verification readiness">
-                        <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")"><span class="bi @(Model.Issue.Entries.Count > 0 ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span> Rows recorded</li>
-                        <li class="@(Model.Issue.Attachment is not null ? "is-ready" : "is-pending")"><span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span> HQ PDF attached</li>
-                        <li class="@(Model.ReferenceDataReady ? "is-ready" : "is-pending")"><span class="bi @(Model.ReferenceDataReady ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span> Reference values mapped</li>
+                        <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.Issue.Entries.Count > 0 ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            <span>Rows recorded</span>
+                            @if (Model.Issue.Entries.Count == 0 && Model.CanManage)
+                            {
+                                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="arpp-record-v2__readiness-action">Enter rows</a>
+                            }
+                        </li>
+                        <li class="@(Model.Issue.Attachment is not null ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            <span>Issued letter attached</span>
+                            @if (Model.Issue.Attachment is null && Model.CanManage)
+                            {
+                                <a href="#arpp-document" data-arpp-open-tab="arpp-document-tab" class="arpp-record-v2__readiness-action">Attach the letter</a>
+                            }
+                        </li>
+                        <li class="@(Model.ReferenceDataReady ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.ReferenceDataReady ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            <span>Reference values mapped</span>
+                            @if (!Model.ReferenceDataReady && Model.CanManage)
+                            {
+                                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="arpp-record-v2__readiness-action">Map CFA, Fund and DFPDS</a>
+                            }
+                        </li>
                     </ul>
                 }
             </div>
@@ -126,7 +151,7 @@
     <nav class="nav arpp-record-v2__tabs" role="tablist" aria-label="Record sections">
         <button class="nav-link active" id="arpp-overview-tab" data-bs-toggle="tab" data-bs-target="#arpp-overview" type="button" role="tab" aria-controls="arpp-overview" aria-selected="true"><span class="bi bi-grid" aria-hidden="true"></span> Overview</button>
         <button class="nav-link" id="arpp-rows-tab" data-bs-toggle="tab" data-bs-target="#arpp-rows" type="button" role="tab" aria-controls="arpp-rows" aria-selected="false"><span class="bi bi-table" aria-hidden="true"></span> Issued rows <span class="badge text-bg-light">@Model.Issue.Entries.Count</span></button>
-        <button class="nav-link" id="arpp-document-tab" data-bs-toggle="tab" data-bs-target="#arpp-document" type="button" role="tab" aria-controls="arpp-document" aria-selected="false"><span class="bi bi-file-earmark-pdf" aria-hidden="true"></span> HQ document</button>
+        <button class="nav-link" id="arpp-document-tab" data-bs-toggle="tab" data-bs-target="#arpp-document" type="button" role="tab" aria-controls="arpp-document" aria-selected="false"><span class="bi bi-file-earmark-pdf" aria-hidden="true"></span> Issued letter</button>
         <button class="nav-link" id="arpp-audit-tab" data-bs-toggle="tab" data-bs-target="#arpp-audit" type="button" role="tab" aria-controls="arpp-audit" aria-selected="false"><span class="bi bi-clock-history" aria-hidden="true"></span> Audit</button>
     </nav>
 
@@ -162,7 +187,7 @@
 
         <section class="tab-pane fade arpp-record-v2__panel" id="arpp-rows" role="tabpanel" aria-labelledby="arpp-rows-tab" tabindex="0">
             <h2 class="visually-hidden">Issued rows</h2>
-            <div class="arpp-record-v2__tab-intro">Wording and order are preserved from the HQ document.</div>
+            <div class="arpp-record-v2__tab-intro">Wording and order are preserved from the issued letter.</div>
             @if (Model.Issue.Entries.Count == 0)
             {
                 <div class="arpp-record-v2__panel-body text-center py-5">
@@ -221,8 +246,8 @@
         </section>
 
         <section class="tab-pane fade arpp-record-v2__panel" id="arpp-document" role="tabpanel" aria-labelledby="arpp-document-tab" tabindex="0">
-            <h2 class="visually-hidden">Issued HQ document</h2>
-            <div class="arpp-record-v2__tab-intro">Evidentiary source for the structured record.</div>
+            <h2 class="visually-hidden">Issued letter</h2>
+            <div class="arpp-record-v2__tab-intro">The scanned letter issued by HQ. The rows above are its structured record.</div>
             <div class="arpp-record-v2__panel-body">
                 @if (Model.Issue.Attachment is not null)
                 {
@@ -235,25 +260,25 @@
                     @if (Model.CanManage && !Model.Issue.IsVerified)
                     {
                         <details class="arpp-document-management mt-3" data-arpp-document-management open="@(!ViewData.ModelState.IsValid ? "open" : null)">
-                            <summary><span class="bi bi-gear" aria-hidden="true"></span> Manage document <span class="bi bi-chevron-down" aria-hidden="true"></span></summary>
+                            <summary><span class="bi bi-gear" aria-hidden="true"></span> Manage letter <span class="bi bi-chevron-down" aria-hidden="true"></span></summary>
                             <div class="arpp-document-management__body">
                                 <form method="post" enctype="multipart/form-data" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="UploadPdf" asp-route-id="@Model.Issue.Id" class="arpp-document-upload arpp-document-upload--compact">
-                                    <div class="arpp-document-upload__field"><label asp-for="UploadFile" class="form-label">Replace issued PDF</label><input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input /><span asp-validation-for="UploadFile" class="text-danger small"></span><div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div></div>
-                                    <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> Replace PDF</button>
+                                    <div class="arpp-document-upload__field"><label asp-for="UploadFile" class="form-label">Replace issued letter</label><input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input /><span asp-validation-for="UploadFile" class="text-danger small"></span><div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div></div>
+                                    <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> Replace letter</button>
                                 </form>
-                                <form method="post" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="DeletePdf" asp-route-id="@Model.Issue.Id" asp-route-attachmentId="@attachment.Id" data-arpp-delete-pdf-form><button type="submit" class="btn btn-outline-danger btn-sm"><span class="bi bi-trash3" aria-hidden="true"></span> Remove PDF</button></form>
+                                <form method="post" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="DeletePdf" asp-route-id="@Model.Issue.Id" asp-route-attachmentId="@attachment.Id" data-arpp-delete-pdf-form><button type="submit" class="btn btn-outline-danger btn-sm"><span class="bi bi-trash3" aria-hidden="true"></span> Remove letter</button></form>
                             </div>
                         </details>
                     }
                 }
                 else
                 {
-                    <div class="text-center py-4"><span class="bi bi-file-earmark-arrow-up fs-2 text-warning" aria-hidden="true"></span><h3 class="fs-6 mt-2">No HQ PDF attached</h3><p class="small text-body-secondary">Attach the issued source document before verification.</p></div>
+                    <div class="text-center py-4"><span class="bi bi-file-earmark-arrow-up fs-2 text-warning" aria-hidden="true"></span><h3 class="fs-6 mt-2">No issued letter attached</h3><p class="small text-body-secondary">Attach the scanned ARPP letter issued by HQ before verification.</p></div>
                     @if (Model.CanManage && !Model.Issue.IsVerified)
                     {
                         <form method="post" enctype="multipart/form-data" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="UploadPdf" asp-route-id="@Model.Issue.Id" class="arpp-document-upload">
-                            <div class="arpp-document-upload__field"><label asp-for="UploadFile" class="form-label">Attach issued PDF</label><input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input /><span asp-validation-for="UploadFile" class="text-danger small"></span><div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div></div>
-                            <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> Attach PDF</button>
+                            <div class="arpp-document-upload__field"><label asp-for="UploadFile" class="form-label">Attach issued letter</label><input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input /><span asp-validation-for="UploadFile" class="text-danger small"></span><div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div></div>
+                            <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> Attach letter</button>
                         </form>
                     }
                 }
@@ -283,7 +308,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <p>Confirm that the structured rows have been checked against the attached HQ PDF. This working copy will become the published position and will be locked.</p>
+                        <p>Confirm that the structured rows have been checked against the attached issued letter. This working copy will become the published position and will be locked.</p>
                         <label asp-for="VerificationNote" class="form-label">Verification note <span class="text-body-secondary">optional</span></label>
                         <textarea asp-for="VerificationNote" class="form-control" rows="3" maxlength="500"></textarea>
                     </div>

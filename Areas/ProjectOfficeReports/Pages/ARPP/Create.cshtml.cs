@@ -40,20 +40,27 @@ public sealed class CreateModel : PageModel
         Input.IssueDate = todayIst;
         BuildFinancialYearOptions(Input.FinancialYearStart);
 
-        var suggestedSequence = await _readService.GetSuggestedIssueSequenceAsync(
-            Input.FinancialYearStart,
-            cancellationToken);
         var originalExists = await _readService.HasOriginalIssueAsync(
             Input.FinancialYearStart,
             cancellationToken);
 
         Input.Kind = originalExists ? ArppIssueKind.Addendum : ArppIssueKind.Original;
-        Input.IssueSequence = originalExists ? suggestedSequence : 0;
+        var suggestedSequence = await _readService.GetSuggestedIssueSequenceAsync(
+            Input.FinancialYearStart,
+            Input.Kind.Value,
+            cancellationToken);
+        Input.IssueSequence = suggestedSequence;
         ViewData["SuggestedAddendumSequence"] = suggestedSequence;
     }
 
+    /// <summary>
+    /// Suggests the issue type and next number for a financial year. When <paramref name="kind"/>
+    /// is given, the number is for that kind (addenda and amendment letters are numbered separately);
+    /// otherwise the kind itself is suggested from whether an original already exists.
+    /// </summary>
     public async Task<IActionResult> OnGetSuggestionAsync(
         int financialYearStart,
+        ArppIssueKind? kind,
         CancellationToken cancellationToken)
     {
         if (financialYearStart is < FinancialYearHelper.MinimumSupportedStartYear or > FinancialYearHelper.MaximumSupportedStartYear)
@@ -61,18 +68,25 @@ public sealed class CreateModel : PageModel
             return BadRequest(new { message = "Select a valid financial year." });
         }
 
+        if (kind.HasValue && !Enum.IsDefined(kind.Value))
+        {
+            return BadRequest(new { message = "Select a valid issue type." });
+        }
+
         var originalExists = await _readService.HasOriginalIssueAsync(
             financialYearStart,
             cancellationToken);
+        var suggestedKind = kind ?? (originalExists ? ArppIssueKind.Addendum : ArppIssueKind.Original);
         var suggestedSequence = await _readService.GetSuggestedIssueSequenceAsync(
             financialYearStart,
+            suggestedKind,
             cancellationToken);
 
         return new JsonResult(new
         {
             originalExists,
-            suggestedKind = (int)(originalExists ? ArppIssueKind.Addendum : ArppIssueKind.Original),
-            suggestedSequence = originalExists ? suggestedSequence : 0
+            suggestedKind = (int)suggestedKind,
+            suggestedSequence
         });
     }
 
@@ -84,6 +98,7 @@ public sealed class CreateModel : PageModel
         {
             ViewData["SuggestedAddendumSequence"] = await _readService.GetSuggestedIssueSequenceAsync(
                 Input.FinancialYearStart,
+                Input.Kind ?? ArppIssueKind.Addendum,
                 cancellationToken);
             return Page();
         }
@@ -104,6 +119,7 @@ public sealed class CreateModel : PageModel
             ApplyErrors(result);
             ViewData["SuggestedAddendumSequence"] = await _readService.GetSuggestedIssueSequenceAsync(
                 Input.FinancialYearStart,
+                Input.Kind ?? ArppIssueKind.Addendum,
                 cancellationToken);
             return Page();
         }

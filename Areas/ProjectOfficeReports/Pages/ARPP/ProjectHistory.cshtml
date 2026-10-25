@@ -89,7 +89,7 @@
                                 <td data-label="FY" class="text-nowrap">@FinancialYearHelper.Format(item.FinancialYearStart)</td>
                                 <td data-label="Document">
                                     <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@item.IssueId">@item.IssueName</a>
-                                    <div class="small text-body-secondary">@(item.Kind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum {item.IssueSequence}")</div>
+                                    <div class="small text-body-secondary">@ArppDisplayNames.IssueLabel(item.Kind, item.IssueSequence)</div>
                                 </td>
                                 <td data-label="Issue date" class="text-nowrap">@item.IssueDate.ToString("dd MMM yyyy")</td>
                                 <td data-label="Serial"><span class="arpp-serial">@(item.Category == ArppCategory.Delisted ? "—" : item.SerialNumber)</span></td>

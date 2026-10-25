@@ -55,10 +55,7 @@ public static class ProcurementEditVmFactory
             return null;
         }
 
-        var issueSequence = position.IssueSequence.GetValueOrDefault();
-        var documentLabel = issueSequence == 0
-            ? "Original ARPP"
-            : $"Addendum No. {issueSequence}";
+        var documentLabel = ArppDisplayNames.IssueLabel(position.IssueKind, position.IssueSequence);
 
         var parts = new List<string>
         {

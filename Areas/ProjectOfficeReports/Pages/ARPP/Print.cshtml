@@ -7,9 +7,7 @@
 @{
     Layout = null;
     var financialYear = FinancialYearHelper.Format(Model.Issue.FinancialYearStart);
-    var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
-        ? "Original ARPP"
-        : $"Addendum No. {Model.Issue.IssueSequence}";
+    var issueTypeLabel = ArppDisplayNames.IssueLabel(Model.Issue.Kind, Model.Issue.IssueSequence);
     var approvedRowValue =
         Model.Issue.CategorySummary[ArppCategory.New].TotalIpaCost +
         Model.Issue.CategorySummary[ArppCategory.CommittedLiability].TotalIpaCost +
@@ -92,7 +90,7 @@
             <div class="arpp-print-summary__metric">
                 <span>Rows</span>
                 <strong>@Model.Issue.Entries.Count</strong>
-                <small>Issued document rows</small>
+                <small>Issued letter rows</small>
             </div>
             <div class="arpp-print-summary__metric arpp-print-summary__metric--approved">
                 <span>@valueStateLabel approved value</span>
@@ -255,7 +253,7 @@
 
         <footer class="arpp-print-footer">
             <span>Generated from PRISM on @Model.GeneratedAtIst.ToString("dd MMM yyyy, HH:mm") IST</span>
-            <span>Structured representation of the issued HQ document</span>
+            <span>Structured representation of the issued letter</span>
         </footer>
     </main>
 </body>

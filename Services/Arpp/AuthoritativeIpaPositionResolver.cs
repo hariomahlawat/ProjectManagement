@@ -57,6 +57,7 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
                 EntryId = entry.Id,
                 IssueId = entry.ArppIssueId,
                 entry.PublishedIssue.FinancialYearStart,
+                entry.PublishedIssue.Kind,
                 entry.PublishedIssue.IssueSequence,
                 entry.PublishedIssue.IssueDate,
                 IssueName = entry.PublishedIssue.Name
@@ -67,8 +68,8 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
             .GroupBy(row => row.ProjectId)
             .Select(group => group
                 .OrderByDescending(row => row.FinancialYearStart)
-                .ThenByDescending(row => row.IssueSequence)
                 .ThenByDescending(row => row.IssueDate)
+                .ThenByDescending(row => row.IssueSequence)
                 .ThenByDescending(row => row.IssueId)
                 .ThenByDescending(row => row.EntryId)
                 .First())
@@ -86,7 +87,10 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
                     row.IssueSequence,
                     row.EntryId,
                     row.SerialNumber,
-                    row.PppNumber));
+                    row.PppNumber)
+                {
+                    IssueKind = row.Kind
+                });
 
         var unresolvedIds = ids
             .Where(projectId => !result.ContainsKey(projectId))

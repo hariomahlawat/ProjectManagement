@@ -12,9 +12,7 @@
     ViewData["CanManageArpp"] = Model.CanManageArpp;
 
     static string IssueLabel(ArppLibraryDocumentLink document)
-        => document.Kind == ArppIssueKind.Original
-            ? "Original ARPP"
-            : $"Addendum No. {document.IssueSequence}";
+        => ArppDisplayNames.IssueLabel(document.Kind, document.IssueSequence);
 
     var hasQuery = !string.IsNullOrWhiteSpace(Model.Query);
 }
@@ -32,7 +30,7 @@
             <span class="project-arpp-page__eyebrow">Projects · Published reference</span>
             <div class="project-arpp-page__title-row">
                 <h1>ARPP / PPP</h1>
-                <p>Verified annual procurement plans and addenda.</p>
+                <p>Verified annual procurement plans, addenda and amendment letters.</p>
             </div>
         </div>
         <div class="project-arpp-page__actions">
@@ -61,7 +59,15 @@
             {
                 <i class="bi bi-journal-check" aria-hidden="true"></i>
                 <h2>No published ARPP documents</h2>
-                <p>Verified ARPPs and addenda will appear here after publication.</p>
+                @if (Model.CanManageArpp)
+                {
+                    <p>Verified ARPPs and addenda appear here after publication. Create the original ARPP, enter its rows, attach the issued letter and verify it in Administration.</p>
+                    <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-primary project-arpp-empty__action"><span class="bi bi-sliders" aria-hidden="true"></span> Open ARPP administration</a>
+                }
+                else
+                {
+                    <p>Verified ARPPs and addenda will appear here after the Project Office publishes them.</p>
+                }
             }
         </section>
     }
@@ -179,9 +185,7 @@
             <main class="project-arpp-reader" id="arppLibraryReaderStart" data-arpp-library-reader-start tabindex="-1">
                 @if (Model.Document is { } document)
                 {
-                    var issueLabel = document.Kind == ArppIssueKind.Original
-                        ? "Original ARPP"
-                        : $"Addendum No. {document.IssueSequence}";
+                    var issueLabel = ArppDisplayNames.IssueLabel(document.Kind, document.IssueSequence);
                     <header class="project-arpp-reader__header project-arpp-reader__header--document">
                         <div>
                             <span class="project-arpp-reader__label">@issueLabel · FY @FinancialYearHelper.Format(document.FinancialYearStart) · Issued @document.IssueDate.ToString("dd MMM yyyy")</span>
@@ -195,7 +199,7 @@
                                target="_blank"
                                rel="noopener noreferrer">
                                 <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
-                                Open issued PDF
+                                Open issued letter
                             </a>
                             <a class="btn btn-outline-success btn-sm"
                                asp-page="./Index"

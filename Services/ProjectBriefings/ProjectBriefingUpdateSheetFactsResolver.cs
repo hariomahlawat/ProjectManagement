@@ -130,9 +130,12 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
             .ToDictionary(
                 group => group.Key,
                 group => group
+                    // Same authority order as AuthoritativeIpaPositionResolver and the published
+                    // library: the latest issued letter wins; addenda and amendment letters are
+                    // numbered separately, so the sequence is only a tie-break.
                     .OrderByDescending(row => row.FinancialYearStart)
-                    .ThenByDescending(row => row.IssueSequence)
                     .ThenByDescending(row => row.IssueDate)
+                    .ThenByDescending(row => row.IssueSequence)
                     .ThenByDescending(row => row.ArppIssueId)
                     .ThenByDescending(row => row.Id)
                     .First());

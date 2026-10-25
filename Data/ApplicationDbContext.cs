@@ -2263,7 +2263,7 @@ namespace ProjectManagement.Data
                         "\"IssueSequence\" >= 0");
                     table.HasCheckConstraint(
                         "CK_ArppIssues_KindSequence",
-                        "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+                        "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" IN (2, 3) AND \"IssueSequence\" > 0)");
                     table.HasCheckConstraint(
                         "CK_ArppIssues_VerificationState",
                         "(NOT \"IsVerified\" AND \"VerifiedAtUtc\" IS NULL AND \"VerifiedByUserId\" IS NULL AND \"VerificationNote\" IS NULL) OR " +
@@ -2286,7 +2286,7 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(x => x.UpdatedByUserId).HasMaxLength(450).IsRequired();
 
-                entity.HasIndex(x => new { x.FinancialYearStart, x.IssueSequence })
+                entity.HasIndex(x => new { x.FinancialYearStart, x.Kind, x.IssueSequence })
                     .HasDatabaseName("UX_ArppIssues_FinancialYear_Sequence")
                     .IsUnique();
                 entity.HasIndex(x => new { x.FinancialYearStart, x.IssueDate });
@@ -2461,7 +2461,7 @@ namespace ProjectManagement.Data
                     table.HasCheckConstraint("CK_ArppPublishedIssues_IssueSequence", "\"IssueSequence\" >= 0");
                     table.HasCheckConstraint(
                         "CK_ArppPublishedIssues_KindSequence",
-                        "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+                        "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" IN (2, 3) AND \"IssueSequence\" > 0)");
                     table.HasCheckConstraint("CK_ArppPublishedIssues_PdfContentType", "\"AttachmentContentType\" = 'application/pdf'");
                     table.HasCheckConstraint("CK_ArppPublishedIssues_AttachmentSize", "\"AttachmentSizeBytes\" > 0");
                     table.HasCheckConstraint("CK_ArppPublishedIssues_AttachmentSha256", "length(\"AttachmentSha256\") = 64");

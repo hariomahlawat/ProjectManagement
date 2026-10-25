@@ -241,7 +241,7 @@
             DfpdsSchedule: "DFPDS",
             FinancialYearStart: "Financial year",
             Kind: "Issue type",
-            IssueSequence: "Addendum number",
+            IssueSequence: "Letter number",
             IssueDate: "Issue date",
             Name: "Document name"
         })[suffix] || suffix.replace(/([a-z])([A-Z])/g, "$1 $2");
@@ -274,6 +274,17 @@
             }
         });
 
+        // Rows whose CFA, Fund or DFPDS value is "Not listed" cannot be verified until an
+        // Admin maps the value, so they count as needing attention even though the form is valid.
+        const pendingReferenceControls = new Set();
+        form.querySelectorAll("[data-arpp-reference-pending]:not(.d-none)").forEach(marker => {
+            const control = marker.closest("td")?.querySelector("[data-arpp-reference-snapshot]");
+            if (control instanceof HTMLInputElement && !controls.has(control)) {
+                controls.add(control);
+                pendingReferenceControls.add(control);
+            }
+        });
+
         return Array.from(controls).map(control => {
             const row = control.closest("[data-arpp-entry-row]");
             const rowNumber = row?.querySelector("[data-arpp-row-number]")?.textContent?.trim();
@@ -282,7 +293,9 @@
                 control,
                 row,
                 label: rowNumber ? `Row ${rowNumber} · ${field}` : field,
-                message: validationMessageFor(control)
+                message: pendingReferenceControls.has(control)
+                    ? "Not listed — Admin mapping required before verification."
+                    : validationMessageFor(control)
             };
         });
     };
@@ -555,6 +568,7 @@
         const kind = root.querySelector("[data-arpp-issue-kind]");
         const sequence = root.querySelector("[data-arpp-issue-sequence]");
         const help = root.querySelector("[data-arpp-sequence-help]");
+        const label = root.querySelector("[data-arpp-sequence-label]");
         const sequenceField = root.querySelector("[data-arpp-addendum-number-field]");
         if (!kind || !sequence) return;
         if (kind.value === "1") {
@@ -564,11 +578,17 @@
             sequenceField?.classList.add("d-none");
             if (help) help.textContent = "Original ARPP; internal sequence 0 is stored automatically.";
         } else {
+            const isAmendment = kind.value === "3";
             sequence.readOnly = false;
             sequence.min = "1";
             sequenceField?.classList.remove("d-none");
             if (Number(sequence.value) <= 0) sequence.value = "1";
-            if (help) help.textContent = "Enter the addendum number shown in the issued document.";
+            if (label) label.textContent = isAmendment ? "Amendment number" : "Addendum number";
+            if (help) {
+                help.textContent = isAmendment
+                    ? "PRISM numbers amendment letters separately from addenda within the financial year."
+                    : "Enter the addendum number shown in the issued letter.";
+            }
         }
     };
 
@@ -621,8 +641,8 @@
 
             if (!delisted && !serial) messages.push("Serial No. is required for approved rows.");
             if (!delisted && !pppNumber) messages.push("PPP No. is required for approved rows.");
-            if (serial && serialCounts.get(serial) > 1) messages.push("Duplicate serial number — verify against the issued document.");
-            if (pppNumber && pppCounts.get(pppNumber) > 1) messages.push("Duplicate PPP number — verify against the issued document.");
+            if (serial && serialCounts.get(serial) > 1) messages.push("Duplicate serial number — verify against the issued letter.");
+            if (pppNumber && pppCounts.get(pppNumber) > 1) messages.push("Duplicate PPP number — verify against the issued letter.");
             if (projectReference && !projectId) messages.push("PRISM linkage pending; this may be reconciled later.");
             const unresolvedReferences = Array.from(row.querySelectorAll("[data-arpp-reference-select]"))
                 .some(select => select.value === "-1");
@@ -692,7 +712,29 @@
         const amount = parseMoney(input.value);
         if (amount !== null) input.value = amount.toFixed(2);
         updateMoneyHelper(input);
+        // The unobtrusive validator may have judged the raw text ("45,00,000"); judge the
+        // normalised value instead so a valid amount never keeps a stale error.
+        if (window.jQuery?.validator && form.contains(input)) window.jQuery(input).valid();
     };
+
+    // jQuery Validate's range rule parses the raw text, so an Indian-grouped amount such as
+    // "45,00,000" reads as NaN and fails with the "cannot be negative" message. Money inputs
+    // are judged on their parsed amount instead.
+    const patchMoneyRangeValidation = () => {
+        const validator = window.jQuery?.validator;
+        if (!validator?.methods?.range || validator.arppMoneyRangePatched) return;
+        const originalRange = validator.methods.range;
+        validator.methods.range = function (value, element, param) {
+            if (element instanceof HTMLElement && element.hasAttribute("data-arpp-money")) {
+                const amount = parseMoney(value);
+                if (amount === null) return this.optional(element) || false;
+                return originalRange.call(this, amount, element, param);
+            }
+            return originalRange.call(this, value, element, param);
+        };
+        validator.arppMoneyRangePatched = true;
+    };
+    patchMoneyRangeValidation();
 
     const autosizeReference = textarea => {
         textarea.style.height = "auto";
@@ -890,17 +932,28 @@
         return row;
     };
 
+    // A new row inherits the previous row's CFA, Fund and DFPDS only when those are mapped
+    // controlled values. A "Not listed" wording is specific to its row and would otherwise
+    // carry its Admin-mapping block into every row added after it.
+    const mappedReference = (row, idField, textField) => {
+        const id = Number(getField(row, idField)?.value || 0);
+        return id > 0 ? { id, text: getField(row, textField)?.value || "" } : { id: 0, text: "" };
+    };
+
     const addManualRow = () => {
         const previous = rows().at(-1);
-        const row = addRow(previous ? {
-            cfa: getField(previous, "Cfa")?.value || "",
-            cfaOptionId: Number(getField(previous, "CfaOptionId")?.value || 0),
-            fund: getField(previous, "Fund")?.value || "",
-            fundOptionId: Number(getField(previous, "FundOptionId")?.value || 0),
-            dfpdsSchedule: getField(previous, "DfpdsSchedule")?.value || "",
-            dfpdsScheduleId: Number(getField(previous, "DfpdsScheduleId")?.value || 0),
+        const cfa = previous ? mappedReference(previous, "CfaOptionId", "Cfa") : { id: 0, text: "" };
+        const fund = previous ? mappedReference(previous, "FundOptionId", "Fund") : { id: 0, text: "" };
+        const dfpds = previous ? mappedReference(previous, "DfpdsScheduleId", "DfpdsSchedule") : { id: 0, text: "" };
+        const row = addRow({
+            cfa: cfa.text,
+            cfaOptionId: cfa.id,
+            fund: fund.text,
+            fundOptionId: fund.id,
+            dfpdsSchedule: dfpds.text,
+            dfpdsScheduleId: dfpds.id,
             category: "1"
-        } : { category: "1" });
+        });
         const firstControl = getField(row, "SerialNumber");
         window.requestAnimationFrame(() => {
             window.requestAnimationFrame(() => {

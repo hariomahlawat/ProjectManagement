@@ -44,6 +44,7 @@ public sealed class ArppReadService : IArppReadService
 
         var rows = await visibleIssues
             .OrderByDescending(issue => issue.FinancialYearStart)
+            .ThenBy(issue => issue.IssueDate)
             .ThenBy(issue => issue.IssueSequence)
             .Select(issue => new ArppIssueListItem(
                 issue.Id,
@@ -179,7 +180,7 @@ public sealed class ArppReadService : IArppReadService
 
                 return new ArppFinancialYearGroup(
                     group.Key,
-                    group.OrderBy(row => row.IssueSequence).ToArray(),
+                    group.OrderBy(row => row.IssueDate).ThenBy(row => row.IssueSequence).ToArray(),
                     group.Sum(row => row.EntryCount),
                     groupApproved.Sum(entry => entry.IpaCost),
                     groupDelisted.Sum(entry => entry.IpaCost),
@@ -369,6 +370,7 @@ public sealed class ArppReadService : IArppReadService
             .AsNoTracking()
             .Where(entry => entry.ProjectId == projectId)
             .OrderByDescending(entry => entry.Issue.FinancialYearStart)
+            .ThenByDescending(entry => entry.Issue.IssueDate)
             .ThenByDescending(entry => entry.Issue.IssueSequence)
             .ThenByDescending(entry => entry.Id)
             .Select(entry => new
@@ -419,11 +421,18 @@ public sealed class ArppReadService : IArppReadService
 
     public async Task<int> GetSuggestedIssueSequenceAsync(
         int financialYearStart,
+        ArppIssueKind kind,
         CancellationToken cancellationToken = default)
     {
+        if (kind == ArppIssueKind.Original)
+        {
+            return 0;
+        }
+
+        // Addenda and amendment letters carry their own numbering within a financial year.
         var maximum = await _db.ArppIssues
             .AsNoTracking()
-            .Where(issue => issue.FinancialYearStart == financialYearStart)
+            .Where(issue => issue.FinancialYearStart == financialYearStart && issue.Kind == kind)
             .Select(issue => (int?)issue.IssueSequence)
             .MaxAsync(cancellationToken);
 
@@ -447,8 +456,8 @@ public sealed class ArppReadService : IArppReadService
             .GroupBy(entry => entry.ProjectId!.Value)
             .Select(group => group
                 .OrderByDescending(entry => entry.FinancialYearStart)
-                .ThenByDescending(entry => entry.IssueSequence)
                 .ThenByDescending(entry => entry.IssueDate)
+                .ThenByDescending(entry => entry.IssueSequence)
                 .ThenByDescending(entry => entry.IssueId)
                 .ThenByDescending(entry => entry.EntryId)
                 .First())

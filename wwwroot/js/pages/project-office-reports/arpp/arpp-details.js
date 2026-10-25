@@ -17,6 +17,17 @@
         uploadButton.disabled = !(uploadInput.files?.length > 0);
     }
 
+    root.querySelectorAll("[data-arpp-open-tab]").forEach(link => {
+        link.addEventListener("click", event => {
+            const tabButton = document.getElementById(link.getAttribute("data-arpp-open-tab") || "");
+            const Tab = window.bootstrap?.Tab;
+            if (!tabButton || !Tab) return;
+            event.preventDefault();
+            Tab.getOrCreateInstance(tabButton).show();
+            tabButton.focus();
+        });
+    });
+
     root.querySelectorAll("[data-arpp-delete-pdf-form]").forEach(form => {
         form.addEventListener("submit", async event => {
             if (form.dataset.confirmed === "true") return;
@@ -24,11 +35,11 @@
 
             const accepted = window.PrismConfirm?.show
                 ? await window.PrismConfirm.show({
-                    title: "Remove issued HQ PDF?",
+                    title: "Remove issued letter?",
                     message: "The structured ARPP issue and all rows will remain unchanged.",
                     detail: "The file will no longer be available from this ARPP record.",
-                    confirmText: "Remove PDF",
-                    cancelText: "Keep PDF",
+                    confirmText: "Remove letter",
+                    cancelText: "Keep letter",
                     tone: "danger"
                 })
                 : false;

@@ -25,7 +25,7 @@
         <div class="arpp-v2-page-header__identity">
             <span class="arpp-v2-page-header__eyebrow">Administration</span>
             <h1>ARPP administration</h1>
-            <p>Create, correct, verify and publish HQ-issued annual procurement plans and addenda.</p>
+            <p>Create, correct, verify and publish the annual procurement plans, addenda and amendment letters issued by HQ.</p>
         </div>
         @if (Model.CanManage)
         {
@@ -39,6 +39,24 @@
     @if (TempData["ArppWarningMessage"] is string warningMessage)
     {
         <div class="alert alert-warning arpp-alert" role="alert"><span class="bi bi-exclamation-triangle" aria-hidden="true"></span><span>@warningMessage</span></div>
+    }
+    @if (Model.ReferenceListsIncomplete)
+    {
+        <div class="alert alert-warning arpp-alert" role="status" data-arpp-reference-setup>
+            <span class="bi bi-list-check" aria-hidden="true"></span>
+            <span>
+                <strong>Controlled lists are not set up.</strong>
+                Every row must map to a CFA, Fund and DFPDS value before a record can be verified, and at least one list has no active value.
+                @if (Model.CanManageReferenceData)
+                {
+                    <a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="alert-link">Add the values in ARPP reference data</a><text>.</text>
+                }
+                else
+                {
+                    <text>Ask an Admin to add them under Admin › Master data › ARPP reference data. Rows can still be entered as issued in the meantime.</text>
+                }
+            </span>
+        </div>
     }
 
     <section class="arpp-v2-summary" aria-label="Administration summary">
@@ -57,7 +75,24 @@
 
     @if (Model.Register.FinancialYears.Count == 0)
     {
-        <section class="arpp-empty"><span class="bi bi-journal-text" aria-hidden="true"></span><h2>No ARPP records found</h2><p>Create the original ARPP or change the current filters.</p></section>
+        <section class="arpp-empty">
+            <span class="bi bi-journal-text" aria-hidden="true"></span>
+            <h2>No ARPP records found</h2>
+            @if (Model.FinancialYearStart.HasValue || !string.IsNullOrWhiteSpace(Model.Query))
+            {
+                <p>No record matches the current filters.</p>
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-primary">Clear filters</a>
+            }
+            else if (Model.CanManage)
+            {
+                <p>Start with the original ARPP for a financial year: create the record, enter its rows, attach the issued letter, then verify and publish it.</p>
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Create" class="btn btn-primary"><span class="bi bi-plus-lg" aria-hidden="true"></span> Create the original ARPP</a>
+            }
+            else
+            {
+                <p>Records appear here once the Project Office creates them.</p>
+            }
+        </section>
     }
     else
     {
@@ -107,13 +142,13 @@
                         var stateLabel = issue.IsVerified ? "Verified and published" : isCorrection ? "Unlocked for correction" : isSetupIncomplete ? "Setup incomplete" : needsReferenceReview ? "Reference review required" : isReadyForVerification ? "Ready for verification" : "Working copy";
                         var stateBadgeClass = issue.IsVerified ? "arpp-badge--verified" : isCorrection ? "arpp-badge--correction" : isSetupIncomplete ? "arpp-badge--incomplete" : needsReferenceReview ? "arpp-badge--reference-review" : isReadyForVerification ? "arpp-badge--ready" : "arpp-badge--unverified";
                         var stateIcon = issue.IsVerified ? "bi-lock-fill" : isCorrection ? "bi-pencil-square" : isSetupIncomplete ? "bi-exclamation-circle" : needsReferenceReview ? "bi-list-check" : isReadyForVerification ? "bi-shield-check" : "bi-hourglass-split";
-                        var continuity = isCorrection && issue.PublishedRevisionNumber.HasValue ? $"Revision {issue.PublishedRevisionNumber} remains published" : isSetupIncomplete ? "Rows and HQ PDF required" : !issue.IsVerified && !issue.HasAttachment ? "HQ PDF required before verification" : needsReferenceReview ? "Map CFA, Fund and DFPDS values" : null;
+                        var continuity = isCorrection && issue.PublishedRevisionNumber.HasValue ? $"Revision {issue.PublishedRevisionNumber} remains published" : isSetupIncomplete ? "Rows and issued letter required" : !issue.IsVerified && !issue.HasAttachment ? "Issued letter required before verification" : needsReferenceReview ? "Map CFA, Fund and DFPDS values" : null;
 
                         <article class="arpp-v2-record">
                             <div class="arpp-v2-record__main">
                                 <div class="arpp-v2-record__badges">
                                     <span class="arpp-badge arpp-badge--issue">@ArppDisplayNames.For(issue.Kind)</span>
-                                    @if (issue.Kind == ArppIssueKind.Addendum) { <span class="arpp-sequence">Addendum @issue.IssueSequence</span> }
+                                    @if (issue.Kind != ArppIssueKind.Original) { <span class="arpp-sequence">@ArppDisplayNames.IssueLabel(issue.Kind, issue.IssueSequence)</span> }
                                     <span class="arpp-badge @stateBadgeClass"><span class="bi @stateIcon" aria-hidden="true"></span> @stateLabel</span>
                                     @if (!string.IsNullOrWhiteSpace(continuity)) { <span class="arpp-v2-record__continuity">@continuity</span> }
                                 </div>
@@ -122,7 +157,7 @@
                                     <span><i class="bi bi-calendar3" aria-hidden="true"></i> @issue.IssueDate.ToString("dd MMM yyyy")</span>
                                     <span><i class="bi bi-list-ol" aria-hidden="true"></i> @issue.EntryCount @(issue.EntryCount == 1 ? "row" : "rows")</span>
                                     <span><i class="bi bi-link-45deg" aria-hidden="true"></i> @issue.LinkedCount linked</span>
-                                    <span class="@(issue.HasAttachment ? "text-success-emphasis" : "text-warning-emphasis")"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> @(issue.HasAttachment ? "HQ PDF attached" : "HQ PDF pending")</span>
+                                    <span class="@(issue.HasAttachment ? "text-success-emphasis" : "text-warning-emphasis")"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> @(issue.HasAttachment ? "Letter attached" : "Letter pending")</span>
                                     @if (issue.UnlinkedCount > 0) { <span class="text-warning-emphasis"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> @issue.UnlinkedCount unlinked</span> }
                                 </div>
                                 <div class="arpp-v2-record__categories"><span>New @issue.NewCount</span><span>CL @issue.CommittedLiabilityCount</span><span>CF @issue.CarryForwardCount</span><span class="arpp-category-chip--delisted">Delisted @issue.DelistedCount</span></div>

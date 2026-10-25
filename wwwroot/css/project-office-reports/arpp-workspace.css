@@ -24,7 +24,7 @@ body.arpp-workspace-active {
 
 .arpp-workspace-v2__form {
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
     width: 100%;
     height: 100%;
     min-height: 0;
@@ -127,23 +127,18 @@ body.arpp-workspace-active {
     box-shadow: none;
 }
 
-/* Notices --------------------------------------------------------- */
+/* Notices ---------------------------------------------------------
+   Notices sit in the layout flow between the header and the toolbar, so
+   they never cover the Add row / Tools buttons or the first grid row. */
 .arpp-workspace-v2__notices {
-    position: absolute;
-    top: 4.55rem;
-    right: 1rem;
-    z-index: 1095;
     display: grid;
     gap: .4rem;
-    width: min(36rem, calc(100vw - 2rem));
-    pointer-events: none;
+    padding: 0 1rem;
 }
 
 .arpp-workspace-v2__notices > .alert,
 .arpp-workspace-v2__notices > .pm-status-message {
-    margin: 0;
-    box-shadow: 0 .5rem 1.4rem rgba(15, 23, 42, .16);
-    pointer-events: auto;
+    margin: .5rem 0 0;
 }
 
 .arpp-workspace-v2__notices .validation-summary-valid {
@@ -693,6 +688,22 @@ body.arpp-workspace-active {
 }
 
 /* Responsive ------------------------------------------------------ */
+/* Laptop widths: every column stays on screen with the row navigator open
+   (19rem) at 1366px; the identity and project cells give up the slack. */
+@media (max-width: 1599.98px) {
+    .arpp-workspace-v2__table { min-width: 63.5rem; }
+    .arpp-workspace-v2__table .arpp-col-order { width: 2.25rem; min-width: 2.25rem; }
+    .arpp-workspace-v2__table .arpp-col-issued { width: 15rem; min-width: 15rem; }
+    .arpp-workspace-v2__table .arpp-col-project { width: 10.5rem; min-width: 10.5rem; }
+    .arpp-workspace-v2__table .arpp-col-category { width: 5.25rem; min-width: 5.25rem; }
+    .arpp-workspace-v2__table .arpp-col-cost { width: 7.5rem; min-width: 7.5rem; }
+    .arpp-workspace-v2__table .arpp-col-cfa { width: 7.25rem; min-width: 7.25rem; }
+    .arpp-workspace-v2__table .arpp-col-fund { width: 6rem; min-width: 6rem; }
+    .arpp-workspace-v2__table .arpp-col-dfpds { width: 6.25rem; min-width: 6.25rem; }
+    .arpp-workspace-v2__table .arpp-col-actions { width: 3.5rem; min-width: 3.5rem; }
+    .arpp-issued-identity__identifiers { grid-template-columns: minmax(4.25rem, .6fr) minmax(8rem, 1.4fr); }
+}
+
 @media (max-width: 1199.98px) {
     .arpp-workspace-v2__toolbar {
         grid-template-columns: auto minmax(14rem, 1fr) auto auto auto;

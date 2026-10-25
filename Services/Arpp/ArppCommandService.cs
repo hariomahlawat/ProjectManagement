@@ -58,13 +58,14 @@ public sealed class ArppCommandService : IArppCommandService
 
         if (await _db.ArppIssues.AsNoTracking().AnyAsync(
                 issue => issue.FinancialYearStart == command.FinancialYearStart &&
+                         issue.Kind == command.Kind &&
                          issue.IssueSequence == command.IssueSequence,
                 cancellationToken))
         {
             AddError(
                 errors,
                 nameof(command.IssueSequence),
-                "An ARPP issue with this financial year and sequence already exists.");
+                DuplicateSequenceMessage(command.Kind));
         }
 
         if (errors.Count > 0)
@@ -108,11 +109,11 @@ public sealed class ArppCommandService : IArppCommandService
         {
             await transaction.RollbackAsync(cancellationToken);
             return ArppCommandResult.Failed(
-                "An ARPP issue with this financial year and sequence already exists.",
+                DuplicateSequenceMessage(command.Kind),
                 new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
                 {
                     [nameof(command.IssueSequence)] =
-                    ["Choose a different addendum number for this financial year."]
+                    ["Choose a different number for this financial year."]
                 });
         }
 
@@ -172,6 +173,7 @@ public sealed class ArppCommandService : IArppCommandService
             .AnyAsync(
                 issue => issue.Id != command.IssueId &&
                          issue.FinancialYearStart == command.FinancialYearStart &&
+                         issue.Kind == command.Kind &&
                          issue.IssueSequence == command.IssueSequence,
                 cancellationToken);
 
@@ -180,7 +182,7 @@ public sealed class ArppCommandService : IArppCommandService
             AddError(
                 errors,
                 nameof(command.IssueSequence),
-                "Another ARPP issue already uses this addendum number in the selected financial year.");
+                DuplicateSequenceMessage(command.Kind));
         }
 
         var linkedProjectIds = command.Entries
@@ -402,7 +404,7 @@ public sealed class ArppCommandService : IArppCommandService
 
         if (issue.Attachment is null)
         {
-            AddError(errors, "Attachment", "Attach the issued HQ PDF before verification.");
+            AddError(errors, "Attachment", "Attach the issued letter before verification.");
         }
 
         var unresolvedReferenceRows = issue.Entries.Count(entry =>
@@ -484,6 +486,7 @@ public sealed class ArppCommandService : IArppCommandService
         published.AttachmentSizeBytes = issue.Attachment.SizeBytes;
         published.AttachmentSha256 = issue.Attachment.Sha256;
 
+        var stageSynchronization = ArppIpaStageSynchronizationResult.Empty;
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         try
         {
@@ -523,7 +526,7 @@ public sealed class ArppCommandService : IArppCommandService
                 .Distinct()
                 .ToArray();
 
-            var stageSynchronization = await _ipaStageSynchronizer.SynchronizeProjectsAsync(
+            stageSynchronization = await _ipaStageSynchronizer.SynchronizeProjectsAsync(
                 affectedProjectIds,
                 cancellationToken);
 
@@ -564,7 +567,44 @@ public sealed class ArppCommandService : IArppCommandService
             }));
 
         await transaction.CommitAsync(cancellationToken);
-        return ArppCommandResult.Succeeded(issue.Id, "ARPP issue verified and locked.");
+        return ArppCommandResult.Succeeded(
+            issue.Id,
+            BuildVerificationMessage(published.RevisionNumber, stageSynchronization),
+            BuildVerificationWarnings(stageSynchronization));
+    }
+
+    private static string BuildVerificationMessage(
+        int revisionNumber,
+        ArppIpaStageSynchronizationResult synchronization)
+    {
+        var message = revisionNumber > 1
+            ? $"ARPP issue verified and locked. Published revision {revisionNumber} is now visible to PRISM users."
+            : "ARPP issue verified and locked. It is now visible in the published ARPP library.";
+
+        if (synchronization.ChangedProjectCount > 0)
+        {
+            message += $" The IPA stage of {synchronization.ChangedProjectCount} linked {Pluralize(synchronization.ChangedProjectCount, "project", "projects")} now follows this published position.";
+        }
+
+        return message;
+    }
+
+    private static IReadOnlyList<string> BuildVerificationWarnings(ArppIpaStageSynchronizationResult synchronization)
+    {
+        var warnings = new List<string>();
+        if (synchronization.DataQualityIssueCount > 0)
+        {
+            warnings.Add(
+                $"{synchronization.DataQualityIssueCount} linked {Pluralize(synchronization.DataQualityIssueCount, "project has", "projects have")} an IPA actual start later than the ARPP date. The completion date was applied; the start date is recorded in the audit log for correction.");
+        }
+
+        if (synchronization.SupersededRequestCount > 0)
+        {
+            warnings.Add(
+                $"{synchronization.SupersededRequestCount} pending IPA stage {Pluralize(synchronization.SupersededRequestCount, "request was", "requests were")} superseded because the published ARPP record is now authoritative.");
+        }
+
+        return warnings;
     }
 
     public async Task<ArppCommandResult> UnlockAsync(
@@ -666,7 +706,7 @@ public sealed class ArppCommandService : IArppCommandService
 
         if (!Enum.IsDefined(kind))
         {
-            AddError(errors, nameof(kind), "Select Original ARPP or Addendum.");
+            AddError(errors, nameof(kind), "Select Original ARPP, Addendum or Amendment letter.");
         }
 
         if (kind == ArppIssueKind.Original && issueSequence != 0)
@@ -679,10 +719,15 @@ public sealed class ArppCommandService : IArppCommandService
             AddError(errors, nameof(issueSequence), "Enter a valid addendum number.");
         }
 
+        if (kind == ArppIssueKind.Amendment && issueSequence <= 0)
+        {
+            AddError(errors, nameof(issueSequence), "Enter a valid amendment letter number.");
+        }
+
         var normalizedName = name?.Trim() ?? string.Empty;
         if (normalizedName.Length == 0)
         {
-            AddError(errors, nameof(name), "Enter the issued document name or letter description.");
+            AddError(errors, nameof(name), "Enter the letter number or description.");
         }
         else if (normalizedName.Length > 300)
         {
@@ -851,7 +896,7 @@ public sealed class ArppCommandService : IArppCommandService
             .ToArray();
         if (duplicateSerials.Length > 0)
         {
-            warnings.Add($"Duplicate serial number(s) detected: {string.Join(", ", duplicateSerials)}. Verify these against the issued document.");
+            warnings.Add($"Duplicate serial number(s) detected: {string.Join(", ", duplicateSerials)}. Verify these against the issued letter.");
         }
 
         var duplicatePppNumbers = command.Entries
@@ -862,7 +907,7 @@ public sealed class ArppCommandService : IArppCommandService
             .ToArray();
         if (duplicatePppNumbers.Length > 0)
         {
-            warnings.Add($"Duplicate PPP number(s) detected: {string.Join(", ", duplicatePppNumbers)}. Verify these against the issued document.");
+            warnings.Add($"Duplicate PPP number(s) detected: {string.Join(", ", duplicatePppNumbers)}. Verify these against the issued letter.");
         }
 
         var duplicateUnlinkedReferences = command.Entries
@@ -894,7 +939,9 @@ public sealed class ArppCommandService : IArppCommandService
                 projectIds.Contains(entry.ProjectId.Value) &&
                 (entry.Issue.FinancialYearStart < command.FinancialYearStart ||
                  (entry.Issue.FinancialYearStart == command.FinancialYearStart &&
-                  entry.Issue.IssueSequence < command.IssueSequence)))
+                  (entry.Issue.IssueDate < command.IssueDate ||
+                   (entry.Issue.IssueDate == command.IssueDate &&
+                    entry.Issue.IssueSequence < command.IssueSequence)))))
             .Select(entry => new
             {
                 ProjectId = entry.ProjectId!.Value,
@@ -914,8 +961,8 @@ public sealed class ArppCommandService : IArppCommandService
                 group => group.Key,
                 group => group
                     .OrderByDescending(row => row.FinancialYearStart)
-                    .ThenByDescending(row => row.IssueSequence)
                     .ThenByDescending(row => row.IssueDate)
+                    .ThenByDescending(row => row.IssueSequence)
                     .ThenByDescending(row => row.IssueId)
                     .ThenByDescending(row => row.EntryId)
                     .First());
@@ -977,12 +1024,13 @@ public sealed class ArppCommandService : IArppCommandService
             .Where(issue =>
                 issue.FinancialYearStart == financialYearStart &&
                 (!excludedIssueId.HasValue || issue.Id != excludedIssueId.Value))
-            .Select(issue => new { issue.IssueSequence, issue.IssueDate, issue.Name })
+            .Select(issue => new { issue.Kind, issue.IssueSequence, issue.IssueDate, issue.Name })
             .ToListAsync(cancellationToken);
 
-        if (kind == ArppIssueKind.Addendum)
+        if (kind is ArppIssueKind.Addendum or ArppIssueKind.Amendment)
         {
-            var original = sameYearIssues.FirstOrDefault(issue => issue.IssueSequence == 0);
+            var original = sameYearIssues.FirstOrDefault(issue => issue.Kind == ArppIssueKind.Original);
+            var kindLabel = kind == ArppIssueKind.Addendum ? "addendum" : "amendment letter";
             if (original is null)
             {
                 warnings.Add($"No original ARPP is recorded for FY {FinancialYearHelper.Format(financialYearStart)}.");
@@ -990,32 +1038,45 @@ public sealed class ArppCommandService : IArppCommandService
             else if (issueDate < original.IssueDate)
             {
                 warnings.Add(
-                    $"The addendum date {issueDate:dd MMM yyyy} precedes the original ARPP dated {original.IssueDate:dd MMM yyyy}.");
+                    $"The {kindLabel} date {issueDate:dd MMM yyyy} precedes the original ARPP dated {original.IssueDate:dd MMM yyyy}.");
             }
         }
 
-        var previous = sameYearIssues
+        // Addenda and amendment letters are numbered separately, so chronology is checked
+        // against the neighbours of the same kind only.
+        var sameKindIssues = sameYearIssues.Where(issue => issue.Kind == kind).ToArray();
+        var chronologyLabel = kind == ArppIssueKind.Amendment ? "amendment" : "addendum";
+
+        var previous = sameKindIssues
             .Where(issue => issue.IssueSequence < issueSequence)
             .OrderByDescending(issue => issue.IssueSequence)
             .FirstOrDefault();
         if (previous is not null && issueDate < previous.IssueDate)
         {
             warnings.Add(
-                $"The issue date precedes {previous.Name} dated {previous.IssueDate:dd MMM yyyy}. Verify the addendum chronology.");
+                $"The issue date precedes {previous.Name} dated {previous.IssueDate:dd MMM yyyy}. Verify the {chronologyLabel} chronology.");
         }
 
-        var next = sameYearIssues
+        var next = sameKindIssues
             .Where(issue => issue.IssueSequence > issueSequence)
             .OrderBy(issue => issue.IssueSequence)
             .FirstOrDefault();
         if (next is not null && issueDate > next.IssueDate)
         {
             warnings.Add(
-                $"The issue date follows {next.Name} dated {next.IssueDate:dd MMM yyyy}. Verify the addendum chronology.");
+                $"The issue date follows {next.Name} dated {next.IssueDate:dd MMM yyyy}. Verify the {chronologyLabel} chronology.");
         }
 
         return warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
+
+    private static string DuplicateSequenceMessage(ArppIssueKind kind)
+        => kind switch
+        {
+            ArppIssueKind.Original => "An original ARPP already exists for this financial year.",
+            ArppIssueKind.Amendment => "Another amendment letter already uses this number in the selected financial year.",
+            _ => "Another addendum already uses this number in the selected financial year."
+        };
 
     private static byte[] ParseRowVersion(
         string? value,

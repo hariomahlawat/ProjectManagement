@@ -43,9 +43,7 @@ public sealed record ArppIpaStageAuthority(
     string? SerialNumber,
     string? PppNumber)
 {
-    public string DocumentLabel => IssueKind == ArppIssueKind.Original
-        ? "Original ARPP"
-        : $"Addendum No. {IssueSequence}";
+    public string DocumentLabel => ArppDisplayNames.IssueLabel(IssueKind, IssueSequence);
 }
 
 public sealed class ArppManagedIpaStageException : InvalidOperationException

@@ -6,9 +6,7 @@
 @{
     Layout = null;
     var financialYear = FinancialYearHelper.Format(Model.Document.FinancialYearStart);
-    var issueLabel = Model.Document.Kind == ArppIssueKind.Original
-        ? "Original ARPP"
-        : $"Addendum No. {Model.Document.IssueSequence}";
+    var issueLabel = ArppDisplayNames.IssueLabel(Model.Document.Kind, Model.Document.IssueSequence);
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -72,7 +70,7 @@
 
         <footer>
             <span>Generated from PRISM on @Model.GeneratedAtIst.ToString("dd MMM yyyy, HH:mm") IST</span>
-            <span>Published structured representation of the issued HQ document</span>
+            <span>Published structured representation of the issued letter</span>
         </footer>
     </main>
 </body>

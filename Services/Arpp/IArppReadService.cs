@@ -1,3 +1,5 @@
+using ProjectManagement.Models.Arpp;
+
 namespace ProjectManagement.Services.Arpp;
 
 public interface IArppReadService
@@ -17,6 +19,7 @@ public interface IArppReadService
 
     Task<int> GetSuggestedIssueSequenceAsync(
         int financialYearStart,
+        ArppIssueKind kind,
         CancellationToken cancellationToken = default);
 
     Task<bool> HasOriginalIssueAsync(

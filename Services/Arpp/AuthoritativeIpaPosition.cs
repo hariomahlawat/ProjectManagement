@@ -22,6 +22,11 @@ public sealed record AuthoritativeIpaPosition(
     string? SerialNumber,
     string? PppNumber)
 {
+    /// <summary>
+    /// Kind of the issued letter the position comes from; null for legacy facts.
+    /// </summary>
+    public ArppIssueKind? IssueKind { get; init; }
+
     public bool IsManagedByArpp => Source == IpaPositionSource.Arpp;
 
     public bool IsLegacyFallback => Source == IpaPositionSource.LegacyProjectFact;

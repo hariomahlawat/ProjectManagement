@@ -78,7 +78,7 @@ else
                                data-arpp-library-reader-link>
                                 @row.SourceIssueName
                             </a>
-                            <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
+                            <small>@ArppDisplayNames.IssueLabel(row.SourceKind, row.SourceSequence) · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
                         </td>
                         @if (showIssuedIdentifiers)
                         {

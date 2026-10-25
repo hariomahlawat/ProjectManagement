@@ -23,8 +23,8 @@
     <header class="arpp-v2-page-header">
         <div>
             <span class="arpp-v2-page-header__eyebrow">Administration</span>
-            <h1>Create issued document</h1>
-            <p>Create the original ARPP or an addendum, then enter its rows in the document workspace.</p>
+            <h1>Create issued letter</h1>
+            <p>Record the original ARPP letter, an addendum or an intermediate amendment letter as issued by HQ, then enter its rows in the workspace.</p>
         </div>
         <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
             <span class="bi bi-arrow-left" aria-hidden="true"></span>
@@ -42,8 +42,8 @@
         <section>
             <div class="arpp-v2-form-panel__header">
                 <div>
-                    <h2>Document identity</h2>
-                    <p>Enter the identity exactly as shown on the issued HQ document.</p>
+                    <h2>Letter identity</h2>
+                    <p>Enter the identity exactly as shown on the issued letter.</p>
                 </div>
             </div>
 
@@ -64,11 +64,12 @@
                     <select asp-for="Input.Kind" class="form-select" data-arpp-issue-kind>
                         <option value="@((int)ArppIssueKind.Original)">Original ARPP</option>
                         <option value="@((int)ArppIssueKind.Addendum)">Addendum</option>
+                        <option value="@((int)ArppIssueKind.Amendment)">Amendment letter</option>
                     </select>
                     <span asp-validation-for="Input.Kind" class="text-danger"></span>
                 </div>
                 <div class="col-md-3 @(Model.Input.Kind == ArppIssueKind.Original ? "d-none" : string.Empty)" data-arpp-addendum-number-field>
-                    <label asp-for="Input.IssueSequence" class="form-label">Addendum number</label>
+                    <label asp-for="Input.IssueSequence" class="form-label" data-arpp-sequence-label>@(Model.Input.Kind == ArppIssueKind.Amendment ? "Amendment number" : "Addendum number")</label>
                     <input asp-for="Input.IssueSequence" class="form-control" type="number" min="0" data-arpp-issue-sequence />
                     <div class="form-text" data-arpp-sequence-help>Original ARPP uses internal sequence 0.</div>
                     <span asp-validation-for="Input.IssueSequence" class="text-danger"></span>
@@ -79,7 +80,7 @@
                     <span asp-validation-for="Input.IssueDate" class="text-danger"></span>
                 </div>
                 <div class="col-12">
-                    <label asp-for="Input.Name" class="form-label">Document name / letter description</label>
+                    <label asp-for="Input.Name" class="form-label">Letter number / description</label>
                     <input asp-for="Input.Name" class="form-control" maxlength="300" placeholder="e.g. ARPP/IR&amp;D/ARTRAC dated 25 Feb 2026" />
                     <span asp-validation-for="Input.Name" class="text-danger"></span>
                 </div>

@@ -1,4 +1,5 @@
 @page
+@using ProjectManagement.Models.Arpp
 @using ProjectManagement.Utilities
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.ReconcileModel
 @{
@@ -23,7 +24,7 @@
         <div>
             <span class="arpp-v2-page-header__eyebrow">Reconciliation</span>
             <h1>Project reconciliation</h1>
-            <p>Link issued ARPP rows to existing PRISM projects without changing the project reference recorded in the HQ document.</p>
+            <p>Link issued ARPP rows to existing PRISM projects without changing the project reference recorded in the issued letter.</p>
         </div>
         <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
             <span class="bi bi-arrow-left" aria-hidden="true"></span>
@@ -104,7 +105,7 @@
                         <div class="arpp-reconciliation-card__issued">
                             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                                 <span class="arpp-badge arpp-badge--issue">@FinancialYearHelper.Format(item.FinancialYearStart)</span>
-                                <span class="arpp-sequence">@(item.IssueSequence == 0 ? "Original" : $"Addendum {item.IssueSequence}")</span>
+                                <span class="arpp-sequence">@ArppDisplayNames.IssueLabel(item.IssueKind, item.IssueSequence)</span>
                                 @if (item.IssueIsVerified)
                                 {
                                     <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified</span>

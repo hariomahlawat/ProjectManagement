@@ -159,6 +159,10 @@ public sealed class DetailsModel : PageModel
         else
         {
             TempData["StatusMessage"] = result.Message;
+            if (result.Warnings.Count > 0)
+            {
+                TempData["ArppWarningMessage"] = string.Join(" ", result.Warnings);
+            }
         }
 
         return RedirectToPage("/ARPP/Details", new { area = "ProjectOfficeReports", id });

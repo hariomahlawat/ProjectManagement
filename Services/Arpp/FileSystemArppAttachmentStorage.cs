@@ -50,7 +50,7 @@ public sealed class FileSystemArppAttachmentStorage : IArppAttachmentStorage
         var normalizedContentType = contentType?.Trim().ToLowerInvariant() ?? string.Empty;
         if (!string.Equals(normalizedContentType, "application/pdf", StringComparison.Ordinal))
         {
-            throw new InvalidDataException("Only PDF files are supported for the issued HQ document.");
+            throw new InvalidDataException("Only PDF files are supported for the issued letter.");
         }
 
         var sanitizedOriginalName = SanitizePdfFileName(originalFileName);
