@@ -39,6 +39,17 @@
     @await Html.PartialAsync("_CommandWorkspaceRail", Model.NavigationRail)
 
     <main class="cw-workspace-content">
+        @if (!isMyActivity && !isAdoption && !isUsagePattern)
+        {
+            @* Same page header as Conference review and Briefing decks, so every command view opens the same way. *@
+            <header class="cw-page-header">
+                <span class="cw-page-header__eyebrow">Command oversight</span>
+                <h1>@(isPortfolio ? "Project portfolio" : "Officer workload")</h1>
+                <p>@(isPortfolio
+                    ? "Every active project by its current stage, with its Project Officer."
+                    : "What each Project Officer is carrying: projects, ideas and other tasks.")</p>
+            </header>
+        }
 
         @if (isMyActivity)
         {
@@ -300,7 +311,7 @@
         {
         <section class="cw-panel cw-officer-panel">
             <header class="cw-panel__header cw-panel__header--compact">
-                <h2>Officer workload</h2>
+                <h2>By officer</h2>
                 <div class="cw-panel__actions">
                     <span class="cw-result-count">@vm.Officers.Count officers</span>
                 </div>
