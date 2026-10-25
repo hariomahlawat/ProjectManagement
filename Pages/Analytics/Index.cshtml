@@ -37,7 +37,7 @@
         (Tab: AnalyticsTab.Coe, Label: "CoE", Count: Model.CoeCount.ToString(), Route: "Coe"),
         (Tab: AnalyticsTab.Insights, Label: "Insights", Count: "Cycle time", Route: "Insights"),
         (Tab: AnalyticsTab.Arpp, Label: "ARPP", Count: Model.Arpp is not null ? $"FY {Model.Arpp.FinancialYearDisplay}" : "By year", Route: "Arpp")
-    };
+    }.Where(mode => mode.Tab != AnalyticsTab.Arpp || Model.CanViewArpp).ToList();
 }
 
 @section Styles {

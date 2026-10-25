@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -46,17 +47,23 @@ namespace ProjectManagement.Pages.Analytics
         };
 
         private readonly IArppAnalyticsService? _arppAnalytics;
+        private readonly IAuthorizationService? _authorization;
+
+        /// <summary>True when the signed-in user may see the ARPP mode (the ARPP report's ViewArpp policy). Decides the switcher item; the server check is in OnGetAsync.</summary>
+        public bool CanViewArpp { get; private set; }
 
         public IndexModel(
             ApplicationDbContext db,
             IProjectAnalyticsService projectAnalyticsService,
             IWorkflowStageMetadataProvider workflowStageMetadataProvider,
-            IArppAnalyticsService? arppAnalytics = null)
+            IArppAnalyticsService? arppAnalytics = null,
+            IAuthorizationService? authorization = null)
         {
             _db = db;
             _projectAnalyticsService = projectAnalyticsService;
             _workflowStageMetadataProvider = workflowStageMetadataProvider;
             _arppAnalytics = arppAnalytics;
+            _authorization = authorization;
         }
 
         private static readonly ProjectLifecycleFilter[] LifecycleFilters =
@@ -124,7 +131,7 @@ namespace ProjectManagement.Pages.Analytics
 
         public int TechnicalGroupCount => TechnicalCategories.Count;
 
-        public async Task OnGetAsync(string? tab, CancellationToken cancellationToken)
+        public async Task<IActionResult> OnGetAsync(string? tab, CancellationToken cancellationToken)
         {
             ActiveTab = tab?.ToLowerInvariant() switch
             {
@@ -134,6 +141,14 @@ namespace ProjectManagement.Pages.Analytics
                 "arpp" => AnalyticsTab.Arpp,
                 _ => AnalyticsTab.Ongoing
             };
+
+            // SECTION: ARPP mode authorization (same policy as the ARPP library and the FY report)
+            CanViewArpp = await CanViewArppAsync();
+            if (ActiveTab == AnalyticsTab.Arpp && !CanViewArpp)
+            {
+                return Forbid();
+            }
+            // END SECTION
 
             AsOfIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime);
             await LoadAnalyticsAsync(cancellationToken);
@@ -196,6 +211,19 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
 
             Headlines = BuildHeadlines();
+            return Page();
+        }
+
+        private async Task<bool> CanViewArppAsync()
+        {
+            // Fail closed: without an authorization service or a signed-in principal there is no ARPP mode.
+            if (_authorization is null || User?.Identity?.IsAuthenticated != true)
+            {
+                return false;
+            }
+
+            var result = await _authorization.AuthorizeAsync(User, ProjectOfficeReportsPolicies.ViewArpp);
+            return result.Succeeded;
         }
 
         // SECTION: Headline figures
