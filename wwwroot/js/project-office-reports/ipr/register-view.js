@@ -514,7 +514,9 @@
   panel?.querySelector('[data-ipr-panel-close]')?.addEventListener('click', closePanel);
   scrim?.addEventListener('click', closePanel);
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && panel && !panel.hidden && !document.querySelector('.offcanvas.show, .modal.show')) {
+    if (!panel || panel.hidden) return;
+    if (event.key === 'Tab') window.iprTrapFocus?.(panel, event);
+    if (event.key === 'Escape' && !document.querySelector('.offcanvas.show, .modal.show')) {
       closePanel();
     }
   });

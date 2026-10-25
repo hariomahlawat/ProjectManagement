@@ -55,6 +55,31 @@
     htmlInvalid?.focus?.({ preventScroll: true });
   };
 
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  // Keeps Tab and Shift+Tab inside an open panel (it is a modal dialog over the register).
+  // A Bootstrap modal opened from the panel (the patent/copyright guidance) manages its own focus.
+  const trapFocus = (container, event) => {
+    if (event.key !== 'Tab' || document.querySelector('.modal.show')) return;
+    const items = Array.from(container.querySelectorAll(FOCUSABLE))
+      .filter(item => !item.closest('[hidden], .d-none') && window.getComputedStyle(item).display !== 'none');
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (!container.contains(active)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+  window.iprTrapFocus = trapFocus;
+
   // The record editor opens in the record panel's place (server-rendered for mode=create/edit).
   const initialiseEditor = () => {
     const element = document.getElementById('iprRecordEditor');
@@ -64,6 +89,7 @@
     const form = element.querySelector('[data-ipr-record-form]');
     let dirty = false;
     let submitting = false;
+    let leaving = false;
 
     document.body.classList.add('ipr-panel-open');
     if (form?.querySelector('.field-validation-error, .input-validation-error, [data-ipr-form-summary] li')) {
@@ -77,10 +103,12 @@
 
     const close = () => {
       if (dirty && !submitting && !window.confirm('Discard your changes to this record?')) return;
+      leaving = true;
       window.location.assign(closeUrl);
     };
 
     document.addEventListener('keydown', event => {
+      trapFocus(element, event);
       if (event.key !== 'Escape' || document.querySelector('.modal.show, .offcanvas.show')) return;
       if (event.target.closest?.('[data-ipr-project-picker]')) return;
       event.preventDefault();
@@ -89,9 +117,19 @@
 
     document.querySelectorAll('[data-ipr-editor-close]').forEach(link => {
       link.addEventListener('click', event => {
-        if (!dirty || submitting) return;
-        if (!window.confirm('Discard your changes to this record?')) event.preventDefault();
+        if (dirty && !submitting && !window.confirm('Discard your changes to this record?')) {
+          event.preventDefault();
+          return;
+        }
+        leaving = true;
       });
+    });
+
+    // Any other way out (site navigation, back, closing the tab) asks the browser's own question.
+    window.addEventListener('beforeunload', event => {
+      if (!dirty || submitting || leaving) return;
+      event.preventDefault();
+      event.returnValue = '';
     });
 
     if (!form) return;
