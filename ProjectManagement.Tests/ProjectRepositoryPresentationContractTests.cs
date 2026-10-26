@@ -129,6 +129,9 @@ public sealed class ProjectRepositoryPresentationContractTests
         // Marked applied only after a successful refresh, right before the drawer closes.
         Assert.Contains("if (closeFilters) {\n                drawerApplied = true;", script.Replace("\r\n", "\n"), StringComparison.Ordinal);
         Assert.DoesNotContain("if (fromFilterDrawer) drawerApplied = true;", script, StringComparison.Ordinal);
+        // Dismissing while the apply is still loading cancels that request.
+        Assert.Contains("if (drawerApplyPending) {", script, StringComparison.Ordinal);
+        Assert.Contains("cancelActiveRequest();", script, StringComparison.Ordinal);
     }
 
     [Fact]

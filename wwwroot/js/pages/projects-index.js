@@ -541,6 +541,7 @@
     // normalised them), so a later search or page-size change cannot pick up a choice the user
     // did not apply.
     let drawerApplied = false;
+    let drawerApplyPending = false;
     let drawerSnapshot = [];
     function drawerControls() {
         return Array.from(filterDrawer.querySelectorAll('input, select, textarea')).filter(control => control.name);
@@ -555,6 +556,12 @@
     });
     filterDrawer?.addEventListener('hidden.bs.offcanvas', () => {
         if (drawerApplied) return;
+        // Dismissed while "Show results" is still loading: cancel that request so it cannot
+        // apply filters the restored controls no longer show.
+        if (drawerApplyPending) {
+            drawerApplyPending = false;
+            cancelActiveRequest();
+        }
         drawerSnapshot.forEach(({ control, checked, value }) => {
             if (control.type === 'checkbox' || control.type === 'radio') {
                 control.checked = checked;
@@ -643,9 +650,12 @@
         event.preventDefault();
         const url = formToPublicUrl({ resetPage: true });
         const fromFilterDrawer = event.submitter?.matches('[data-project-filter-apply]') === true;
+        if (fromFilterDrawer) drawerApplyPending = true;
         refreshProjects(url, {
             historyMode: fromFilterDrawer ? 'push' : 'replace',
             closeFilters: fromFilterDrawer
+        }).finally(() => {
+            if (fromFilterDrawer) drawerApplyPending = false;
         });
     });
 
