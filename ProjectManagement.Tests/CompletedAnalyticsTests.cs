@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Analytics;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Analytics;
 using Xunit;
@@ -118,6 +119,31 @@ public sealed class CompletedAnalyticsTests : IDisposable
         Assert.Equal((2023, 2025, 6), (result.RecentYearlyAverage!.FromYear, result.RecentYearlyAverage.ToYear, result.RecentYearlyAverage.Count));
         Assert.Equal(2.0, result.RecentYearlyAverage.PerYear, 3);
         Assert.Null(result.PreviousYearlyAverage);
+    }
+
+    [Fact]
+    public async Task BuildCompletedAsync_MedianTimeToComplete_CountsAnInferredFirstStart()
+    {
+        // No stage start was ever recorded: SoW is taken to start on 11 Jan, the day after FS finished.
+        _db.Projects.Add(new Project
+        {
+            Name = "Completed, starts not recorded",
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            CompletedYear = 2026,
+            CompletedOn = new DateOnly(2026, 3, 1),
+            ProjectStages =
+            {
+                new ProjectStage { StageCode = StageCodes.FS, SortOrder = 10, Status = StageStatus.Completed, CompletedOn = new DateOnly(2026, 1, 10) },
+                new ProjectStage { StageCode = StageCodes.SOW, SortOrder = 20, Status = StageStatus.Completed, CompletedOn = new DateOnly(2026, 1, 20) }
+            }
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.BuildCompletedAsync(new DateOnly(2026, 10, 26), CancellationToken.None);
+
+        Assert.Equal(50, result.MedianDaysToComplete); // 11 Jan to 1 Mar, inclusive
     }
 
     public void Dispose()

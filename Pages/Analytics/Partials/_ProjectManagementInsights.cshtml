@@ -73,7 +73,8 @@
     @if (hasData)
     {
       <p class="analytics-card__foot">
-        Only stages with both a start and an end date count. Parent category is the project's root category (DCD, CoE or Other R&D). Cost bands split at ₹2 crore (a project costing exactly ₹2 crore is in the lower band) using the latest AoN, benchmark, PNC, L1 or IPA figure recorded for the project; a project with no cost figure yet counts under All projects and By parent category but in neither band.
+        A stage counts once it has a completion date. Where no start was recorded, the stage is measured from the day after the stage before it finished, so any wait between stages counts as that stage's delay@(Model.InferredStartStageCount > 0 ? $" ({Model.InferredStartStageCount} of {Model.MeasuredStageCount} stages here)" : "").
+        Parent category is the project's root category (DCD, CoE or Other R&D). Cost bands split at ₹2 crore (a project costing exactly ₹2 crore is in the lower band) using the latest AoN, benchmark, PNC, L1 or IPA figure recorded for the project; a project with no cost figure yet counts under All projects and By parent category but in neither band.
       </p>
     }
   </article>

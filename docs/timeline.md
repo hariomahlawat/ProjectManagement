@@ -122,6 +122,8 @@ Measure actual duration in **calendar days**. Do not apply project working-day o
 
 If `ActualStart` is absent and an effective/inferred start is displayed, clearly distinguish inferred/estimated duration from duration based entirely on recorded actual facts. Do not persist an inferred start as though it were observed `ActualStart`.
 
+The inferred start is the day after the stage's required predecessors finished, never later than the stage's own completion, and never for an ARPP-managed IPA. `StageStartInference` (`Services/Stages/StageStartInference.cs`) is the one rule: the timeline shows it for completed stages, and Projects → Analytics measures every stage figure with it (see [Analytics](ux/analytics.md)).
+
 ### 16. Optional dependencies
 
 Omitted/skipped optional stages must not break downstream chronology. Resolve dependencies through the workflow graph, not the previous displayed row. If an optional stage is actually planned or executed, normal date rules apply.

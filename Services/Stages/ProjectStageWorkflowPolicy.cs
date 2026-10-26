@@ -23,6 +23,14 @@ public interface IProjectStageWorkflowPolicy
         int projectId,
         bool pncApplicable,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The workflow of each listed project, for read paths that span the portfolio.
+    /// Each workflow version is read once; a project that does not exist is left out.
+    /// </summary>
+    Task<IReadOnlyDictionary<int, ProjectStageWorkflowSnapshot>> GetManyAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
@@ -72,15 +80,65 @@ public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
         return await GetSnapshotAsync(projectId, workflowVersion, pncApplicable, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<int, ProjectStageWorkflowSnapshot>> GetManyAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(projectIds);
+
+        var ids = projectIds
+            .Where(projectId => projectId > 0)
+            .Distinct()
+            .ToArray();
+
+        var result = new Dictionary<int, ProjectStageWorkflowSnapshot>();
+        if (ids.Length == 0)
+        {
+            return result;
+        }
+
+        var projects = await _db.Projects
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.Id))
+            .Select(item => new
+            {
+                item.Id,
+                item.WorkflowVersion,
+                item.PncApplicable
+            })
+            .ToListAsync(cancellationToken);
+
+        // Projects on the same version and PNC applicability share one snapshot.
+        var byShape = new Dictionary<(string Version, bool PncApplicable), ProjectStageWorkflowSnapshot>();
+        foreach (var project in projects)
+        {
+            var workflowVersion = NormalizeVersion(project.WorkflowVersion);
+            var shape = (workflowVersion.ToUpperInvariant(), project.PncApplicable);
+            if (!byShape.TryGetValue(shape, out var snapshot))
+            {
+                snapshot = await BuildSnapshotAsync(workflowVersion, project.PncApplicable, cancellationToken);
+                byShape[shape] = snapshot;
+            }
+
+            _cache[project.Id] = snapshot;
+            result[project.Id] = snapshot;
+        }
+
+        return result;
+    }
+
+    private static string NormalizeVersion(string? configuredWorkflowVersion) =>
+        string.IsNullOrWhiteSpace(configuredWorkflowVersion)
+            ? PlanConstants.DefaultStageTemplateVersion
+            : configuredWorkflowVersion;
+
     private async Task<ProjectStageWorkflowSnapshot> GetSnapshotAsync(
         int projectId,
         string? configuredWorkflowVersion,
         bool pncApplicable,
         CancellationToken cancellationToken)
     {
-        var workflowVersion = string.IsNullOrWhiteSpace(configuredWorkflowVersion)
-            ? PlanConstants.DefaultStageTemplateVersion
-            : configuredWorkflowVersion;
+        var workflowVersion = NormalizeVersion(configuredWorkflowVersion);
 
         // Re-read persisted publication state even in a reused scope. AsNoTracking
         // deliberately ignores unsaved changes on tracked Project entities.
@@ -91,6 +149,16 @@ public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
             return cached;
         }
 
+        var snapshot = await BuildSnapshotAsync(workflowVersion, pncApplicable, cancellationToken);
+        _cache[projectId] = snapshot;
+        return snapshot;
+    }
+
+    private async Task<ProjectStageWorkflowSnapshot> BuildSnapshotAsync(
+        string workflowVersion,
+        bool pncApplicable,
+        CancellationToken cancellationToken)
+    {
         var stageDefinitions = _metadataProvider
             .GetStages(workflowVersion)
             .ToArray();
@@ -123,15 +191,12 @@ public sealed class ProjectStageWorkflowPolicy : IProjectStageWorkflowPolicy
             ? configuredOptionalStages.ToHashSet(StringComparer.OrdinalIgnoreCase)
             : BuildFallbackOptionalStages();
 
-        var snapshot = new ProjectStageWorkflowSnapshot(
+        return new ProjectStageWorkflowSnapshot(
             workflowVersion,
             stageDefinitions,
             dependencies,
             optionalStageCodes,
             pncApplicable);
-
-        _cache[projectId] = snapshot;
-        return snapshot;
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<string>> BuildFallbackDependencies(string workflowVersion)

@@ -12,6 +12,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Arpp;
+using ProjectManagement.Services.Stages;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Analytics;
@@ -34,6 +35,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
     private readonly ProjectCategoryHierarchyService _categoryHierarchy;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
     private readonly IAuthoritativeIpaPositionResolver _ipaResolver;
+    private readonly IStageStartInferenceService _stageStarts;
 
     public ProjectAnalyticsService(
         ApplicationDbContext db,
@@ -55,12 +57,32 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         ProjectCategoryHierarchyService categoryHierarchy,
         IWorkflowStageMetadataProvider workflowStageMetadataProvider,
         IAuthoritativeIpaPositionResolver ipaResolver)
+        : this(
+            db,
+            clock,
+            categoryHierarchy,
+            workflowStageMetadataProvider,
+            ipaResolver,
+            new StageStartInferenceService(
+                new ProjectStageWorkflowPolicy(db, workflowStageMetadataProvider),
+                new ArppIpaStageAuthorityService(db)))
+    {
+    }
+
+    public ProjectAnalyticsService(
+        ApplicationDbContext db,
+        IClock clock,
+        ProjectCategoryHierarchyService categoryHierarchy,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IAuthoritativeIpaPositionResolver ipaResolver,
+        IStageStartInferenceService stageStarts)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _categoryHierarchy = categoryHierarchy ?? throw new ArgumentNullException(nameof(categoryHierarchy));
         _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
+        _stageStarts = stageStarts ?? throw new ArgumentNullException(nameof(stageStarts));
     }
 
     public async Task<CategoryShareResult> GetCategoryShareAsync(
@@ -334,9 +356,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 && !s.Project.IsDeleted
                 && !s.Project.IsArchived
                 && (s.Project.LifecycleStatus == ProjectLifecycleStatus.Active
-                    || s.Project.LifecycleStatus == ProjectLifecycleStatus.Completed))
-            .Where(s => s.ActualStart.HasValue && s.CompletedOn.HasValue)
-            .Where(s => !string.Equals(s.StageCode, StageCodes.TOT));
+                    || s.Project.LifecycleStatus == ProjectLifecycleStatus.Completed));
 
         if (categoryId.HasValue)
         {
@@ -345,16 +365,47 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             stageQuery = stageQuery.Where(s => s.Project != null && s.Project.CategoryId.HasValue && categoryIds.Contains(s.Project.CategoryId.Value));
         }
 
-        var stageRows = await stageQuery
-            .Select(s => new StageTimeSpanRow(
+        // Every stage of the eligible projects is read, not only the finished ones: a stage
+        // with no recorded start is measured from the day after its predecessors finished.
+        var allStages = await stageQuery
+            .Select(s => new StageTimeStageRow(
                 s.ProjectId,
                 s.StageCode,
+                s.Status,
                 s.SortOrder,
-                s.ActualStart!.Value,
-                s.CompletedOn!.Value,
+                s.ActualStart,
+                s.CompletedOn,
                 s.Project!.LifecycleStatus == ProjectLifecycleStatus.Completed,
                 s.Project!.CategoryId))
             .ToListAsync(cancellationToken);
+
+        var starts = await _stageStarts.ResolveAsync(
+            allStages
+                .GroupBy(row => row.ProjectId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyList<StageStartFact>)group
+                        .Select(row => new StageStartFact(row.StageCode, row.Status, row.ActualStart, row.CompletedOn))
+                        .ToList()),
+            cancellationToken);
+
+        var stageRows = allStages
+            .Where(row => row.CompletedOn.HasValue && !string.Equals(row.StageCode, StageCodes.TOT))
+            .Select(row => (Row: row, Start: starts.TryGetValue(row.ProjectId, out var projectStarts)
+                && projectStarts.TryGetValue(row.StageCode ?? string.Empty, out var start)
+                    ? start
+                    : (EffectiveStageStart?)null))
+            .Where(item => item.Start.HasValue)
+            .Select(item => new StageTimeSpanRow(
+                item.Row.ProjectId,
+                item.Row.StageCode,
+                item.Row.StageOrder,
+                item.Start!.Value.Date,
+                item.Row.CompletedOn!.Value,
+                item.Start!.Value.IsInferred,
+                item.Row.IsCompletedProject,
+                item.Row.CategoryId))
+            .ToList();
 
         if (stageRows.Count == 0)
         {
@@ -394,7 +445,9 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             Rows = rows,
             CategoryRows = categoryRows,
             StageHotspots = hotspots,
-            SelectedCategoryId = categoryId
+            SelectedCategoryId = categoryId,
+            MeasuredStageCount = stageRows.Count,
+            InferredStartStageCount = stageRows.Count(row => row.IsStartInferred)
         };
     }
 
@@ -781,12 +834,23 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         return 2;
     }
 
+    private sealed record StageTimeStageRow(
+        int ProjectId,
+        string StageCode,
+        StageStatus Status,
+        int StageOrder,
+        DateOnly? ActualStart,
+        DateOnly? CompletedOn,
+        bool IsCompletedProject,
+        int? CategoryId);
+
     private sealed record StageTimeSpanRow(
         int ProjectId,
         string StageCode,
         int StageOrder,
         DateOnly ActualStart,
         DateOnly CompletedOn,
+        bool IsStartInferred,
         bool IsCompletedProject,
         int? CategoryId);
 

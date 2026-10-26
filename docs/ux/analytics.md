@@ -86,6 +86,18 @@ one chart style defined once.
   costing exactly ₹2 crore in the lower band. Every finished stage counts in the All projects and
   By parent category views and in the ranked list; a project with no cost figure yet falls in
   neither cost band. The category filter means the category and everything under it.
+- **Stage start dates** (every mode): stages run back to back, so a stage whose start was never
+  recorded is measured from the day after its required predecessors finished, and any wait between
+  stages counts as that stage's delay. The rule is `StageStartInference` in
+  `Services/Stages/StageStartInference.cs` (`ProjectManagement.Tests/Stages/StageStartInferenceTests.cs`),
+  the same one the project timeline uses for its "Inferred from preceding completion" start; it
+  reads the project's own workflow graph, so parallel branches (TEC and BM before COB) take the
+  later completion and a skipped stage is looked past. A completed stage never starts after its
+  own completion (a same-day handoff is one day), a stage whose predecessor has no date is left
+  out, and an ARPP-managed IPA keeps its start as recorded. It feeds the Insights cycle times and
+  ranking, the Completed median time to complete (from the earliest recorded or inferred start)
+  and the Ongoing days in stage. The inferred start is never stored. The Insights footnote says
+  how many of the measured stages used one.
 
 - **ARPP** (fifth mode, added 2026-10-25): the projects listed in one financial year's published
   ARPP (the latest published row per project, as the ARPP library's current position) joined to

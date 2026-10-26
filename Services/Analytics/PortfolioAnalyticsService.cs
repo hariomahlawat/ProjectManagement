@@ -9,7 +9,9 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Stages;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Analytics
@@ -66,13 +68,28 @@ namespace ProjectManagement.Services.Analytics
 
         private readonly ApplicationDbContext _db;
         private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+        private readonly IStageStartInferenceService _stageStarts;
 
         public PortfolioAnalyticsService(
             ApplicationDbContext db,
             IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+            : this(
+                db,
+                workflowStageMetadataProvider,
+                new StageStartInferenceService(
+                    new ProjectStageWorkflowPolicy(db, workflowStageMetadataProvider),
+                    new ArppIpaStageAuthorityService(db)))
+        {
+        }
+
+        public PortfolioAnalyticsService(
+            ApplicationDbContext db,
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+            IStageStartInferenceService stageStarts)
         {
             _db = db;
             _workflowStageMetadataProvider = workflowStageMetadataProvider;
+            _stageStarts = stageStarts ?? throw new ArgumentNullException(nameof(stageStarts));
         }
 
         /// <summary>The drill-down key the charts use for a category: its id, or "none" for projects without one.</summary>
@@ -180,13 +197,19 @@ namespace ProjectManagement.Services.Analytics
                 return Array.Empty<OngoingStageRow>();
             }
 
+            // A running stage with no recorded start is aged from the day after its predecessors finished.
+            var starts = await ResolveStageStartsAsync(
+                stageSnapshots.ToDictionary(snapshot => snapshot.Id, snapshot => (IReadOnlyList<StageSnapshot>)snapshot.Stages),
+                cancellationToken);
+
             var rows = stageSnapshots
                 .Select(snapshot =>
                 {
                     var rootCategory = ProjectCategoryHierarchyResolver.ResolveRoot(snapshot.CategoryId, hierarchy);
                     var stage = ResolvePresentStage(
                         new ProjectStageSnapshot(snapshot.LifecycleStatus, snapshot.WorkflowVersion, snapshot.Stages),
-                        referenceDateIst);
+                        referenceDateIst,
+                        starts.GetValueOrDefault(snapshot.Id));
                     var stageCode = string.IsNullOrWhiteSpace(stage.CurrentStageCode)
                         ? UnassignedStageCode
                         : stage.CurrentStageCode.Trim();
@@ -425,7 +448,7 @@ namespace ProjectManagement.Services.Analytics
         // END SECTION
 
         // SECTION: Median time to complete (first stage start to completion)
-        private static async Task<double?> BuildMedianDaysToCompleteAsync(
+        private async Task<double?> BuildMedianDaysToCompleteAsync(
             IQueryable<Project> completedQuery,
             CancellationToken cancellationToken)
         {
@@ -433,14 +456,30 @@ namespace ProjectManagement.Services.Analytics
                 .Where(project => project.CompletedOn.HasValue)
                 .Select(project => new
                 {
+                    project.Id,
                     project.CompletedOn,
-                    FirstStart = project.ProjectStages
-                        .Where(stage => stage.ActualStart.HasValue)
-                        .Min(stage => stage.ActualStart)
+                    Stages = project.ProjectStages
+                        .Select(stage => new StageSnapshot(
+                            stage.StageCode,
+                            stage.Status,
+                            stage.SortOrder,
+                            stage.ActualStart,
+                            stage.CompletedOn))
+                        .ToList()
                 })
                 .ToListAsync(cancellationToken);
 
+            // The first start is the earliest recorded or inferred stage start, as every stage figure uses.
+            var starts = await ResolveStageStartsAsync(
+                rows.ToDictionary(row => row.Id, row => (IReadOnlyList<StageSnapshot>)row.Stages),
+                cancellationToken);
+
             var spans = rows
+                .Select(row => (
+                    row.CompletedOn,
+                    FirstStart: starts.TryGetValue(row.Id, out var projectStarts) && projectStarts.Count > 0
+                        ? projectStarts.Values.Min(start => start.Date)
+                        : (DateOnly?)null))
                 .Where(row => row.FirstStart.HasValue && row.CompletedOn.HasValue && row.CompletedOn.Value >= row.FirstStart.Value)
                 .Select(row => (double)StageDurationCalculator.InclusiveCalendarDays(row.FirstStart!.Value, row.CompletedOn!.Value))
                 .ToList();
@@ -1142,14 +1181,32 @@ namespace ProjectManagement.Services.Analytics
                 category => new ProjectCategoryHierarchyNode(category.Id, category.Name, category.ParentId));
         }
 
-        private PresentStageSnapshot ResolvePresentStage(ProjectStageSnapshot project, DateOnly referenceDateIst)
+        /// <summary>The recorded or inferred start of each stage, per project (<see cref="StageStartInference"/>).</summary>
+        private Task<IReadOnlyDictionary<int, IReadOnlyDictionary<string, EffectiveStageStart>>> ResolveStageStartsAsync(
+            IReadOnlyDictionary<int, IReadOnlyList<StageSnapshot>> stagesByProject,
+            CancellationToken cancellationToken) =>
+            _stageStarts.ResolveAsync(
+                stagesByProject.ToDictionary(
+                    pair => pair.Key,
+                    pair => (IReadOnlyList<StageStartFact>)pair.Value
+                        .Select(stage => new StageStartFact(stage.StageCode, stage.Status, stage.ActualStart, stage.CompletedOn))
+                        .ToList()),
+                cancellationToken);
+
+        /// <param name="starts">The project's effective stage starts; without them only recorded starts age a stage.</param>
+        private PresentStageSnapshot ResolvePresentStage(
+            ProjectStageSnapshot project,
+            DateOnly referenceDateIst,
+            IReadOnlyDictionary<string, EffectiveStageStart>? starts = null)
         {
             var stages = project.Stages
                 .Select(stage => new ProjectStageStatusSnapshot(
                     stage.StageCode,
                     stage.Status,
                     stage.SortOrder,
-                    stage.ActualStart,
+                    starts is not null && starts.TryGetValue(stage.StageCode ?? string.Empty, out var start)
+                        ? start.Date
+                        : stage.ActualStart,
                     stage.CompletedOn))
                 .ToList();
 
