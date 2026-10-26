@@ -876,6 +876,7 @@ builder.Services.AddScoped<IPortfolioAnalyticsService, PortfolioAnalyticsService
 builder.Services.AddScoped<IArVrImpactAnalyticsService, ArVrImpactAnalyticsService>();
 builder.Services.AddSingleton<IProjectTotExcelWorkbookBuilder, ProjectTotExcelWorkbookBuilder>();
 builder.Services.AddScoped<OngoingProjectsReadService>();
+builder.Services.AddScoped<ProjectRegisterFactsService>();
 builder.Services.AddScoped<IOngoingProjectsExcelBuilder, OngoingProjectsExcelBuilder>();
 
 builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuilder>();
