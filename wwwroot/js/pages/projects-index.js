@@ -359,14 +359,13 @@
         }
     }
 
-    // Puts the form's controls (or only those inside scope) back to the filters in the URL.
-    function syncFormFromUrl(url, scope = form) {
+    function syncFormFromUrl(url) {
         const params = url.searchParams;
         const radioGroups = new Map();
 
         Array.from(form.elements).forEach(element => {
             if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) return;
-            if (!element.name || element.disabled || !scope.contains(element)) return;
+            if (!element.name || element.disabled) return;
 
             if (element instanceof HTMLInputElement && element.type === 'radio') {
                 if (!radioGroups.has(element.name)) radioGroups.set(element.name, []);
@@ -533,15 +532,33 @@
     initialiseCoverImages();
 
     // Drawer choices apply only with "Show results". Closing the drawer any other way puts its
-    // controls back to the applied filters, so a later search or page-size change cannot pick
-    // up a choice the user did not apply.
+    // controls back to what they held when it opened (the applied filters, as the server
+    // normalised them), so a later search or page-size change cannot pick up a choice the user
+    // did not apply.
     let drawerApplied = false;
+    let drawerSnapshot = [];
+    function drawerControls() {
+        return Array.from(filterDrawer.querySelectorAll('input, select, textarea')).filter(control => control.name);
+    }
     filterDrawer?.addEventListener('show.bs.offcanvas', () => {
         drawerApplied = false;
+        drawerSnapshot = drawerControls().map(control => ({
+            control,
+            checked: control.checked,
+            value: control.value
+        }));
     });
     filterDrawer?.addEventListener('hidden.bs.offcanvas', () => {
         if (drawerApplied) return;
-        syncFormFromUrl(new URL(window.location.href), filterDrawer);
+        drawerSnapshot.forEach(({ control, checked, value }) => {
+            if (control.type === 'checkbox' || control.type === 'radio') {
+                control.checked = checked;
+            } else {
+                control.value = value;
+            }
+        });
+        normaliseProjectTypeControls();
+        updateFilterSummary();
     });
 
     root.addEventListener('click', event => {

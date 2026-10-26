@@ -122,7 +122,10 @@ public sealed class ProjectRepositoryPresentationContractTests
         var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
 
         Assert.Contains("'hidden.bs.offcanvas'", script, StringComparison.Ordinal);
-        Assert.Contains("syncFormFromUrl(new URL(window.location.href), filterDrawer)", script, StringComparison.Ordinal);
+        // Restores what the drawer held when it opened, not the raw URL (the server normalises
+        // values such as Build=repeat, which a URL comparison would not match).
+        Assert.Contains("drawerSnapshot = drawerControls()", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("syncFormFromUrl(new URL(window.location.href), filterDrawer)", script, StringComparison.Ordinal);
         Assert.Contains("if (fromFilterDrawer) drawerApplied = true;", script, StringComparison.Ordinal);
     }
 
