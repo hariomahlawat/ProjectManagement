@@ -127,4 +127,23 @@
     }
   </article>
   <!-- END SECTION -->
+
+  <!-- SECTION: AR/VR projects outside the CoE categories (by name; completed first) -->
+  <article class="analytics-card">
+    <header class="analytics-card__head">
+      <div class="analytics-card__text">
+        <h2 class="analytics-card__title">AR/VR projects outside the CoE</h2>
+        <p class="analytics-card__meta">AR/VR projects (by technical category) that are not in a CoE category: the earlier ones, completed before the formal CoE (AR/VR) nomination in 2025, and the AR/VR projects under DCD as fresh projects and repeat builds. Completed projects first. Not counted in the CoE figures above.</p>
+      </div>
+    </header>
+    @if (Model.ArVrOutsideCoe.Sum(group => group.Count) == 0)
+    {
+      <p class="analytics-empty" role="status">No AR/VR projects outside the CoE categories.</p>
+    }
+    else
+    {
+      @await Html.PartialAsync("Partials/_BoardRows", (Model.ArVrOutsideCoe, "arvr", overviewUrl, "Outside the CoE categories"))
+    }
+  </article>
+  <!-- END SECTION -->
 </section>
