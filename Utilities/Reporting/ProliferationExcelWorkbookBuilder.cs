@@ -28,9 +28,11 @@ public sealed record ProliferationExcelRow(
     string? UnitName,
     DateOnly? Date,
     int Quantity,
-    int EffectiveTotal,
+    // The project/source/year reported total, written once on the first row of that
+    // combination so a column sum or pivot does not count it repeatedly.
+    int? ReportedTotal,
     string ApprovalStatus,
-    YearPreferenceMode? PreferenceMode);
+    string CountingRule);
 
 public sealed record ProliferationExportFilterMetadata(
     IReadOnlyList<int> Years,
@@ -72,9 +74,9 @@ public sealed class ProliferationExcelWorkbookBuilder : IProliferationExcelWorkb
             "Unit",
             "Date",
             "Quantity",
-            "Effective total",
+            "Reported total (project, source, year)",
             "Approval state",
-            "Preference mode"
+            "Counting rule"
         };
 
         for (var column = 0; column < headers.Length; column++)
@@ -114,9 +116,12 @@ public sealed class ProliferationExcelWorkbookBuilder : IProliferationExcelWorkb
                 worksheet.Cell(rowNumber, 6).Style.DateFormat.Format = "yyyy-MM-dd";
             }
             worksheet.Cell(rowNumber, 7).Value = row.Quantity;
-            worksheet.Cell(rowNumber, 8).Value = row.EffectiveTotal;
+            if (row.ReportedTotal.HasValue)
+            {
+                worksheet.Cell(rowNumber, 8).Value = row.ReportedTotal.Value;
+            }
             worksheet.Cell(rowNumber, 9).Value = row.ApprovalStatus;
-            worksheet.Cell(rowNumber, 10).Value = row.PreferenceMode?.ToString() ?? YearPreferenceMode.UseYearlyAndGranular.ToString();
+            worksheet.Cell(rowNumber, 10).Value = row.CountingRule;
         }
 
         worksheet.Columns(2, 5).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;

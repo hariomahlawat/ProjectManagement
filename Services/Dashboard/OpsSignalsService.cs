@@ -172,10 +172,14 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // END SECTION
 
             // SECTION: Proliferation aggregation
-            // Approved entries only, as the headline total and the Command desk count them.
+            // Approved entries only, on projects that count in proliferation totals, as the
+            // headline total and the Command desk count them. Annual figures carry no month,
+            // so the monthly trend is built from dated detailed entries.
+            var prolifProjectIds = ProliferationProjectEligibility.CountedProjects(_db.Projects).Select(p => p.Id);
             var prolifByMonth = await _db.ProliferationGranularEntries
                 .Where(p => p.ApprovalStatus == ApprovalStatus.Approved
-                    && p.ProliferationDate >= start && p.ProliferationDate <= end)
+                    && p.ProliferationDate >= start && p.ProliferationDate <= end
+                    && prolifProjectIds.Contains(p.ProjectId))
                 .GroupBy(p => new { p.ProliferationDate.Year, p.ProliferationDate.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Sum(x => x.Quantity) })
                 .ToListAsync(ct);

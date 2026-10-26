@@ -88,9 +88,9 @@ public sealed class ProliferationAggregateReadService
         }
 
         var projectIds = keys.Select(x => x.ProjectId).Distinct().ToArray();
-        var projects = await _db.Projects
-            .AsNoTracking()
-            .Where(x => projectIds.Contains(x.Id) && !x.IsDeleted && !x.IsArchived)
+        var projects = await ProliferationProjectEligibility
+            .CountedProjects(_db.Projects.AsNoTracking())
+            .Where(x => projectIds.Contains(x.Id))
             .Select(x => new ProjectAggregate(
                 x.Id,
                 x.Name,

@@ -9,6 +9,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services.Dashboard;
 using Xunit;
 
@@ -45,10 +46,15 @@ public sealed class OpsSignalsServiceTests
     public async Task Proliferation_CountsApprovedUnits_NeverEntries()
     {
         await using var db = NewDb();
+        db.Projects.AddRange(
+            new Project { Id = 1, Name = "Simulator", CreatedByUserId = "seed", RowVersion = new byte[] { 1 } },
+            new Project { Id = 2, Name = "Deleted simulator", CreatedByUserId = "seed", IsDeleted = true, RowVersion = new byte[] { 1 } });
         db.ProliferationGranularEntries.AddRange(
             Entry(new DateOnly(2026, 9, 10), 5, ApprovalStatus.Approved),
             Entry(new DateOnly(2026, 9, 12), 9, ApprovalStatus.Pending),
-            Entry(new DateOnly(2026, 10, 2), 4, ApprovalStatus.Rejected));
+            Entry(new DateOnly(2026, 10, 2), 4, ApprovalStatus.Rejected),
+            // Approved, but its project is deleted: it no longer counts anywhere.
+            Entry(new DateOnly(2026, 9, 20), 7, ApprovalStatus.Approved, projectId: 2));
         await db.SaveChangesAsync();
 
         // The summary has no approved totals: the headline is 0 units, not 3 entries.
@@ -62,10 +68,10 @@ public sealed class OpsSignalsServiceTests
         Assert.Null(proliferation.DeltaBasis);
     }
 
-    private static ProliferationGranular Entry(DateOnly on, int quantity, ApprovalStatus status) => new()
+    private static ProliferationGranular Entry(DateOnly on, int quantity, ApprovalStatus status, int projectId = 1) => new()
     {
         Id = Guid.NewGuid(),
-        ProjectId = 1,
+        ProjectId = projectId,
         Source = ProliferationSource.Sdd,
         UnitName = "Unit",
         ProliferationDate = on,

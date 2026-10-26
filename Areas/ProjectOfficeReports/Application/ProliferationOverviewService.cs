@@ -34,9 +34,7 @@ public sealed class ProliferationOverviewService
         var page = request.Page < 1 ? 1 : request.Page;
         var pageSize = request.PageSize < 1 ? 20 : Math.Min(request.PageSize, 100);
 
-        var projectsQuery = _db.Projects
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+        var projectsQuery = ProliferationProjectEligibility.CountedProjects(_db.Projects.AsNoTracking());
 
         if (request.ProjectId.HasValue)
         {

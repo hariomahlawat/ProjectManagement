@@ -25,4 +25,9 @@ public sealed class ProliferationTrackerReadService
 
         return aggregate?.ReportedTotal ?? 0;
     }
+
+    public Task<IReadOnlyList<ProliferationAggregateRow>> GetApprovedAggregatesAsync(
+        int? projectId,
+        CancellationToken cancellationToken)
+        => _aggregateReadService.GetApprovedAggregatesAsync(projectId, cancellationToken);
 }

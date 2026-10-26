@@ -186,7 +186,8 @@ public sealed class ProliferationExportServiceTests
         Assert.Equal(70, firstDataRow.Cell(7).GetValue<int>());
         Assert.Equal(70, firstDataRow.Cell(8).GetValue<int>());
         Assert.Equal("Approved", firstDataRow.Cell(9).GetString());
-        Assert.Equal("UseYearlyAndGranular", firstDataRow.Cell(10).GetString());
+        // The year has a UseGranular counting rule, so every row of it says so.
+        Assert.Equal("Detailed entries only", firstDataRow.Cell(10).GetString());
 
         Assert.True(worksheet.Cell(3, 4).IsEmpty()); // the yearly row does not match the unit search
 
@@ -287,6 +288,77 @@ public sealed class ProliferationExportServiceTests
 
         Assert.True(result.Success);
         Assert.NotNull(result.File);
+    }
+
+    [Fact]
+    public async Task ExportAsync_StatesSourceDefaultRule_AndReportsEachYearTotalOnce_ForReopenedProject()
+    {
+        using var context = CreateContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 9, 30, 0, TimeSpan.Zero));
+        var now = clock.UtcNow.UtcDateTime;
+
+        // Reopened after completion: its approved units still count.
+        context.Projects.Add(new Project
+        {
+            Id = 77,
+            Name = "Reopened Simulator",
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        });
+        context.ProliferationYearlies.Add(new ProliferationYearly
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 77,
+            Source = ProliferationSource.Abw515,
+            Year = 2024,
+            TotalQuantity = 10,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "seed",
+            CreatedOnUtc = now,
+            LastUpdatedOnUtc = now,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        });
+        foreach (var (unit, quantity) in new[] { ("Alpha", 3), ("Bravo", 2) })
+        {
+            context.ProliferationGranularEntries.Add(new ProliferationGranular
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = 77,
+                Source = ProliferationSource.Abw515,
+                UnitName = unit,
+                ProliferationDate = new DateOnly(2024, 4, 1),
+                Quantity = quantity,
+                ApprovalStatus = ApprovalStatus.Approved,
+                SubmittedByUserId = "seed",
+                CreatedOnUtc = now,
+                LastUpdatedOnUtc = now,
+                RowVersion = Guid.NewGuid().ToByteArray()
+            });
+        }
+        await context.SaveChangesAsync();
+
+        var service = new ProliferationExportService(
+            context,
+            new ProliferationTrackerReadService(new ProliferationAggregateReadService(context)),
+            new ProliferationExcelWorkbookBuilder(),
+            clock,
+            new RecordingAudit(),
+            NullLogger<ProliferationExportService>.Instance);
+
+        var result = await service.ExportAsync(
+            new ProliferationExportRequest(new[] { 2024 }, null, null, null, null, null, null, null, "user-1"),
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        using var workbook = new XLWorkbook(new MemoryStream(result.File!.Content));
+        var worksheet = workbook.Worksheet(1);
+        var dataRows = Enumerable.Range(2, 3).Select(worksheet.Row).ToList();
+
+        // 515 ABW counts the annual quantity only, whatever kind of row it is.
+        Assert.All(dataRows, row => Assert.Equal("Annual quantity only", row.Cell(10).GetString()));
+        // The year's reported total (10, not 10 + 5) appears once, so the column sums correctly.
+        Assert.Equal(10, dataRows.Sum(row => row.Cell(8).IsEmpty() ? 0 : row.Cell(8).GetValue<int>()));
+        Assert.Single(dataRows, row => !row.Cell(8).IsEmpty());
     }
 
     private static ApplicationDbContext CreateContext()

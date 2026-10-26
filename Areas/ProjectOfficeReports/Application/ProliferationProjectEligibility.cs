@@ -17,6 +17,15 @@ public static class ProliferationProjectEligibility
     public const string RepeatBuildPreferenceError =
         "Repeat-build/remanufacture projects cannot be used for new proliferation counting rules. Configure the rule against the original completed project.";
 
+    /// <summary>
+    /// Projects whose approved proliferation counts in totals, reports and analysis.
+    /// Approved units are delivered history, so they keep counting if the project is later
+    /// reopened or cancelled; only deleted and archived projects drop out. New records still
+    /// require <see cref="EligibleForNewRecords"/>.
+    /// </summary>
+    public static IQueryable<Project> CountedProjects(IQueryable<Project> projects)
+        => projects.Where(project => !project.IsDeleted && !project.IsArchived);
+
     public static IQueryable<Project> CompletedVisibleProjects(IQueryable<Project> projects)
         => projects.Where(project =>
             !project.IsDeleted &&

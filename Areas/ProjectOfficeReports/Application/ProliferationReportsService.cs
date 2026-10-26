@@ -266,9 +266,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
         private IQueryable<Project> EligibleProjectsQuery(int? projectCategoryId, int? technicalCategoryId)
         {
-            var projects = _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+            var projects = ProliferationProjectEligibility.CountedProjects(_db.Projects.AsNoTracking());
 
             if (projectCategoryId.HasValue)
             {
@@ -736,6 +734,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                                 m.Year,
                                 m.YearlyTotal,
                                 m.GranularTotal,
+                                // Translated to SQL for sorting, so it cannot call
+                                // ProliferationAggregateReadService.GetDefaultMode; keep the two in step.
                                 Mode = pref != null
                                     ? pref.Mode
                                     : (m.Source == ProliferationSource.Abw515
@@ -792,7 +792,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var rows = pageRows.Select(x =>
             {
-                var effective = ComputeEffectiveTotal(x.Mode, x.YearlyTotal, x.GranularTotal);
+                var effective = ProliferationAggregateReadService.CalculateReportedTotal(x.Mode, x.YearlyTotal, x.GranularTotal);
                 return new ProliferationReportRowDto
                 {
                     ProjectId = x.Id,
@@ -816,18 +816,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 Total = total,
                 Page = page,
                 PageSize = pageSize
-            };
-        }
-
-        private static int ComputeEffectiveTotal(YearPreferenceMode mode, int yearly, int granular)
-        {
-            return mode switch
-            {
-                YearPreferenceMode.UseYearly => yearly,
-                YearPreferenceMode.UseGranular => granular,
-                YearPreferenceMode.Auto => granular > 0 ? granular : yearly,
-                YearPreferenceMode.UseYearlyAndGranular => yearly + granular,
-                _ => yearly + granular
             };
         }
 

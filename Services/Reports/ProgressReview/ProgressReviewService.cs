@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
@@ -821,15 +822,19 @@ public sealed class ProgressReviewService : IProgressReviewService
         DateOnly rangeTo,
         CancellationToken cancellationToken)
     {
+        // Progress is approved delivery only, on projects that count in proliferation totals;
+        // pending and rejected entries are still working data.
+        var countedProjects = ProliferationProjectEligibility.CountedProjects(_db.Projects.AsNoTracking());
         var rows = await (from entry in _db.ProliferationGranularEntries.AsNoTracking()
-                          where entry.ProliferationDate >= rangeFrom && entry.ProliferationDate <= rangeTo
-                          join project in _db.Projects.AsNoTracking()
-                              on entry.ProjectId equals project.Id into projectGroup
-                          from project in projectGroup.DefaultIfEmpty()
+                          where entry.ProliferationDate >= rangeFrom
+                                && entry.ProliferationDate <= rangeTo
+                                && entry.ApprovalStatus == ApprovalStatus.Approved
+                          join project in countedProjects
+                              on entry.ProjectId equals project.Id
                           select new ProliferationRowVm(
                               entry.Id,
                               entry.ProjectId,
-                              project != null ? project.Name : $"Project {entry.ProjectId}",
+                              project.Name,
                               entry.UnitName,
                               entry.Source,
                               entry.ApprovalStatus,

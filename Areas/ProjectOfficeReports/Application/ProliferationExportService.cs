@@ -175,9 +175,7 @@ public sealed class ProliferationExportService : IProliferationExportService
 
     private async Task<ExportQueryResult> LoadRowsAsync(NormalizedFilters filters, CancellationToken cancellationToken)
     {
-        var projectsQuery = _db.Projects
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived);
+        var projectsQuery = ProliferationProjectEligibility.CountedProjects(_db.Projects.AsNoTracking());
 
         if (filters.ProjectId.HasValue)
         {
@@ -196,12 +194,8 @@ public sealed class ProliferationExportService : IProliferationExportService
 
         var yearlyBase = from y in _db.Set<ProliferationYearly>().AsNoTracking()
                          join p in projectsQuery on y.ProjectId equals p.Id
-                         join pref in _db.Set<ProliferationYearPreference>().AsNoTracking()
-                             on new { y.ProjectId, y.Source, y.Year } equals new { pref.ProjectId, pref.Source, pref.Year }
-                             into prefJoin
-                         from pref in prefJoin.DefaultIfEmpty()
                          where y.ApprovalStatus == ApprovalStatus.Approved
-                         select new { Yearly = y, Project = p, Preference = pref };
+                         select new { Yearly = y, Project = p };
 
         var granularBase = from g in _db.Set<ProliferationGranular>().AsNoTracking()
                            join p in projectsQuery on g.ProjectId equals p.Id
@@ -280,10 +274,7 @@ public sealed class ProliferationExportService : IProliferationExportService
             UnitName = (string?)null,
             Date = (DateOnly?)null,
             Quantity = x.Yearly.TotalQuantity,
-            ApprovalStatus = x.Yearly.ApprovalStatus,
-            PreferenceMode = x.Preference != null
-                ? (YearPreferenceMode?)x.Preference.Mode
-                : (YearPreferenceMode?)null
+            ApprovalStatus = x.Yearly.ApprovalStatus
         });
 
         var granularRowsQuery = granularBase.Select(x => new
@@ -297,8 +288,7 @@ public sealed class ProliferationExportService : IProliferationExportService
             UnitName = (string?)x.Granular.UnitName,
             Date = (DateOnly?)x.Granular.ProliferationDate,
             Quantity = x.Granular.Quantity,
-            ApprovalStatus = x.Granular.ApprovalStatus,
-            PreferenceMode = (YearPreferenceMode?)null
+            ApprovalStatus = x.Granular.ApprovalStatus
         });
 
         var combinedQuery = yearlyRowsQuery.Concat(granularRowsQuery)
@@ -317,27 +307,22 @@ public sealed class ProliferationExportService : IProliferationExportService
                 r.UnitName,
                 r.Date,
                 r.Quantity,
-                r.ApprovalStatus,
-                r.PreferenceMode));
+                r.ApprovalStatus));
 
         var projections = await combinedQuery.ToListAsync(cancellationToken);
 
-        var combinations = projections
-            .Select(r => new Combination(r.ProjectId, r.Source, r.Year))
-            .Distinct()
-            .ToList();
-
-        var totalsLookup = new Dictionary<Combination, int>(combinations.Count);
-        foreach (var combo in combinations)
-        {
-            var total = await _trackerReadService.GetEffectiveTotalAsync(combo.ProjectId, combo.Source, combo.Year, cancellationToken);
-            totalsLookup[combo] = total;
-        }
+        // Reported totals and counting rules come from the one aggregate the pages use,
+        // read in a single pass rather than once per project/source/year.
+        var aggregates = await _trackerReadService.GetApprovedAggregatesAsync(filters.ProjectId, cancellationToken);
+        var aggregateLookup = aggregates.ToDictionary(a => new Combination(a.ProjectId, a.Source, a.Year));
 
         var rows = new List<ProliferationExcelRow>(projections.Count);
+        var combinationsWritten = new HashSet<Combination>();
         foreach (var projection in projections)
         {
-            totalsLookup.TryGetValue(new Combination(projection.ProjectId, projection.Source, projection.Year), out var effective);
+            var combination = new Combination(projection.ProjectId, projection.Source, projection.Year);
+            aggregateLookup.TryGetValue(combination, out var aggregate);
+            var mode = aggregate?.EffectiveMode ?? ProliferationAggregateReadService.GetDefaultMode(projection.Source);
             rows.Add(new ProliferationExcelRow(
                 projection.Year,
                 projection.Project,
@@ -347,9 +332,9 @@ public sealed class ProliferationExportService : IProliferationExportService
                 projection.UnitName,
                 projection.Date,
                 projection.Quantity,
-                effective,
+                combinationsWritten.Add(combination) ? aggregate?.ReportedTotal ?? 0 : null,
                 projection.ApprovalStatus.ToString(),
-                projection.PreferenceMode));
+                ProliferationAggregateReadService.GetCalculationLabel(mode, projection.Source)));
         }
 
         return new ExportQueryResult(rows, filters.Years);
@@ -434,8 +419,7 @@ public sealed class ProliferationExportService : IProliferationExportService
         string? UnitName,
         DateOnly? Date,
         int Quantity,
-        ApprovalStatus ApprovalStatus,
-        YearPreferenceMode? PreferenceMode);
+        ApprovalStatus ApprovalStatus);
 }
 
 public sealed record ProliferationExportRequest(

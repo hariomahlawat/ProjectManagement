@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
@@ -171,10 +172,14 @@ public sealed class CommandDeskService
             }
         }
 
+        var proliferationProjectIds = ProliferationProjectEligibility
+            .CountedProjects(_db.Projects.AsNoTracking())
+            .Select(project => project.Id);
         var proliferation = await _db.ProliferationGranularEntries
             .AsNoTracking()
             .Where(entry => entry.ApprovalStatus == ApprovalStatus.Approved
-                && entry.ProliferationDate >= from && entry.ProliferationDate <= today)
+                && entry.ProliferationDate >= from && entry.ProliferationDate <= today
+                && proliferationProjectIds.Contains(entry.ProjectId))
             .Select(entry => new { entry.ProliferationDate, entry.Quantity })
             .ToListAsync(ct);
         events.AddRange(proliferation

@@ -361,12 +361,7 @@ public sealed class ProliferationAnalysisService
         ProliferationAnalysisRequestDto request,
         CancellationToken cancellationToken)
     {
-        var query = _db.Projects
-            .AsNoTracking()
-            .Where(x =>
-                !x.IsDeleted
-                && !x.IsArchived
-                && x.LifecycleStatus == ProjectLifecycleStatus.Completed);
+        var query = ProliferationProjectEligibility.CountedProjects(_db.Projects.AsNoTracking());
 
         string label;
 
