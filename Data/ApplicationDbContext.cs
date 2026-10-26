@@ -1227,6 +1227,8 @@ namespace ProjectManagement.Data
                 b.Property(x => x.Source).HasConversion<int>();
                 b.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
                     .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
+                b.HasIndex(x => x.AmendsId)
+                    .HasDatabaseName("IX_ProlifYearly_AmendsId");
             });
 
             builder.Entity<ProliferationGranular>(b =>
@@ -1242,6 +1244,8 @@ namespace ProjectManagement.Data
                     .HasDatabaseName("IX_ProlifGranular_UnitName");
                 b.HasIndex(x => new { x.UnitName, x.ProliferationDate })
                     .HasDatabaseName("IX_ProlifGranular_UnitName_ProliferationDate");
+                b.HasIndex(x => x.AmendsId)
+                    .HasDatabaseName("IX_ProlifGranular_AmendsId");
             });
 
             builder.Entity<ProliferationYearPreference>(b =>

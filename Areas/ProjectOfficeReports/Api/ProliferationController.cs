@@ -95,7 +95,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     ApprovalStatus = item.ApprovalStatus.ToString(),
                     CreatedOnUtc = item.CreatedOnUtc,
                     LastUpdatedOnUtc = item.LastUpdatedOnUtc,
-                    ApprovedOnUtc = item.ApprovedOnUtc
+                    ApprovedOnUtc = item.ApprovedOnUtc,
+                    AmendsId = item.AmendsId
                 })
                 .ToList();
 
@@ -222,7 +223,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 ApprovedByUserId = detail.ApprovedByUserId,
                 CreatedOnUtc = detail.CreatedOnUtc,
                 LastUpdatedOnUtc = detail.LastUpdatedOnUtc,
-                ApprovedOnUtc = detail.ApprovedOnUtc
+                ApprovedOnUtc = detail.ApprovedOnUtc,
+                AmendsId = detail.AmendsId,
+                PendingAmendmentId = detail.PendingAmendmentId
             };
         }
 
@@ -251,7 +254,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 ApprovedByUserId = detail.ApprovedByUserId,
                 CreatedOnUtc = detail.CreatedOnUtc,
                 LastUpdatedOnUtc = detail.LastUpdatedOnUtc,
-                ApprovedOnUtc = detail.ApprovedOnUtc
+                ApprovedOnUtc = detail.ApprovedOnUtc,
+                AmendsId = detail.AmendsId,
+                PendingAmendmentId = detail.PendingAmendmentId
             };
         }
 

@@ -114,7 +114,8 @@ public sealed class ProliferationManageService
                               ApprovalStatus = y.ApprovalStatus,
                               CreatedOnUtc = y.CreatedOnUtc,
                               LastUpdatedOnUtc = y.LastUpdatedOnUtc,
-                              ApprovedOnUtc = y.ApprovedOnUtc
+                              ApprovedOnUtc = y.ApprovedOnUtc,
+                              AmendsId = y.AmendsId
                           };
 
         var granularQuery = from g in _db.ProliferationGranularEntries.AsNoTracking()
@@ -135,7 +136,8 @@ public sealed class ProliferationManageService
                                 ApprovalStatus = g.ApprovalStatus,
                                 CreatedOnUtc = g.CreatedOnUtc,
                                 LastUpdatedOnUtc = g.LastUpdatedOnUtc,
-                                ApprovedOnUtc = g.ApprovedOnUtc
+                                ApprovedOnUtc = g.ApprovedOnUtc,
+                                AmendsId = g.AmendsId
                             };
 
         if (request.ProjectId.HasValue)
@@ -218,7 +220,8 @@ public sealed class ProliferationManageService
                 x.ApprovalStatus,
                 x.CreatedOnUtc,
                 x.LastUpdatedOnUtc,
-                x.ApprovedOnUtc))
+                x.ApprovedOnUtc,
+                x.AmendsId))
             .ToList();
 
         return new PagedResult<ProliferationManageListItem>(items, total, page, pageSize);
@@ -235,6 +238,12 @@ public sealed class ProliferationManageService
 
         await EnsureRowVersionAsync(entity, ct);
 
+        var pendingAmendmentId = await _db.ProliferationYearlies
+            .AsNoTracking()
+            .Where(x => x.AmendsId == entity.Id && x.ApprovalStatus == ApprovalStatus.Pending)
+            .Select(x => (Guid?)x.Id)
+            .FirstOrDefaultAsync(ct);
+
         return new ProliferationYearlyDetail(
             entity.Id,
             entity.ProjectId,
@@ -248,7 +257,9 @@ public sealed class ProliferationManageService
             entity.ApprovedOnUtc,
             entity.CreatedOnUtc,
             entity.LastUpdatedOnUtc,
-            entity.RowVersion);
+            entity.RowVersion,
+            entity.AmendsId,
+            pendingAmendmentId);
     }
 
     public async Task<ProliferationGranularDetail?> GetGranularAsync(Guid id, CancellationToken ct)
@@ -261,6 +272,12 @@ public sealed class ProliferationManageService
         }
 
         await EnsureRowVersionAsync(entity, ct);
+
+        var pendingAmendmentId = await _db.ProliferationGranularEntries
+            .AsNoTracking()
+            .Where(x => x.AmendsId == entity.Id && x.ApprovalStatus == ApprovalStatus.Pending)
+            .Select(x => (Guid?)x.Id)
+            .FirstOrDefaultAsync(ct);
 
         return new ProliferationGranularDetail(
             entity.Id,
@@ -276,7 +293,9 @@ public sealed class ProliferationManageService
             entity.ApprovedOnUtc,
             entity.CreatedOnUtc,
             entity.LastUpdatedOnUtc,
-            entity.RowVersion);
+            entity.RowVersion,
+            entity.AmendsId,
+            pendingAmendmentId);
     }
 
     private static string EscapeLikePattern(string value)
@@ -338,5 +357,6 @@ public sealed class ProliferationManageService
         public DateTime CreatedOnUtc { get; init; }
         public DateTime LastUpdatedOnUtc { get; init; }
         public DateTime? ApprovedOnUtc { get; init; }
+        public Guid? AmendsId { get; init; }
     }
 }

@@ -28,12 +28,16 @@
     status: document.querySelector('[data-approval-status]'),
     submitted: document.querySelector('[data-approval-submitted]'),
     updated: document.querySelector('[data-approval-updated]'),
-    decided: document.querySelector('[data-approval-decided]')
+    decided: document.querySelector('[data-approval-decided]'),
+    amendment: document.querySelector('[data-approval-amendment]'),
+    amendmentText: document.querySelector('[data-approval-amendment-text]'),
+    amendmentOpen: document.querySelector('[data-approval-amendment-open]')
   };
   const currentRecord = {
     id: '',
     kind: '',
     status: '',
+    amendsId: '',
     rowVersion: '',
     sourceLabel: '',
     projectId: '',
@@ -1104,6 +1108,38 @@
       approvalElements.decided.textContent = 'Decision: —';
       approvalElements.decided.hidden = true;
     }
+    updateAmendmentUi(null);
+  }
+
+  // An amendment is a separate pending record linked to the approved record it changes;
+  // the panel says which side of that link is open and offers the other one.
+  function updateAmendmentUi(detail) {
+    if (!approvalElements.amendment) return;
+    const statusRaw = (detail?.approvalStatus ?? detail?.ApprovalStatus ?? '').toString().toLowerCase();
+    const amendsId = detail?.amendsId ?? detail?.AmendsId ?? null;
+    const pendingAmendmentId = detail?.pendingAmendmentId ?? detail?.PendingAmendmentId ?? null;
+    let text = '';
+    let label = '';
+    let targetId = '';
+    if (amendsId) {
+      text = statusRaw === 'rejected'
+        ? 'Rejected amendment. The approved record was not changed.'
+        : 'Amendment of an approved record. The approved figure keeps counting until this is decided.';
+      label = 'Open approved record';
+      targetId = String(amendsId);
+    } else if (pendingAmendmentId) {
+      text = 'An amendment to this record is awaiting approval.';
+      label = 'Open amendment';
+      targetId = String(pendingAmendmentId);
+    }
+
+    approvalElements.amendment.hidden = !text;
+    if (approvalElements.amendmentText) approvalElements.amendmentText.textContent = text;
+    if (approvalElements.amendmentOpen) {
+      approvalElements.amendmentOpen.textContent = label;
+      approvalElements.amendmentOpen.dataset.targetId = targetId;
+      approvalElements.amendmentOpen.hidden = !targetId;
+    }
   }
 
   function updateApprovalUi(detail) {
@@ -1159,6 +1195,8 @@
         approvalElements.decided.hidden = true;
       }
     }
+
+    updateAmendmentUi(detail);
   }
 
   function getSaveActionText() {
@@ -2446,15 +2484,17 @@
       const dateText = item.proliferationDateUtc ? formatDate(item.proliferationDateUtc) : (item.year ?? '');
       const unitName = kind === 'granular' ? (item.unitName ?? '').trim() : '';
       const subtitleParts = [sourceLabel, dateText, unitName].filter(Boolean);
-      const approval = item.approvalStatus ? `Status: ${item.approvalStatus}` : '';
+      const approval = item.approvalStatus
+        ? `Status: ${item.approvalStatus}${item.amendsId ? ' amendment' : ''}`
+        : '';
       const subtitle = [subtitleParts.join(' · '), approval].filter(Boolean).join(' • ');
       const updatedValue = item.lastUpdatedOnUtc ?? item.LastUpdatedOnUtc ?? '';
-      const updatedAttr = updatedValue ? ` data-updated="${updatedValue}"` : '';
+      const updatedAttr = updatedValue ? ` data-updated="${escapeHtml(String(updatedValue))}"` : '';
       const isActive = currentRecord.id && currentRecord.id === String(item.id ?? '') && currentRecord.kind === kind;
       const activeClass = isActive ? ' active' : '';
       const currentAttr = isActive ? ' aria-current="true"' : '';
       return `
-        <button class="list-group-item list-group-item-action${activeClass}" data-id="${item.id}" data-kind="${kind}"${updatedAttr}${currentAttr} type="button">
+        <button class="list-group-item list-group-item-action${activeClass}" data-id="${escapeHtml(String(item.id ?? ''))}" data-kind="${kind}"${updatedAttr}${currentAttr} type="button">
           <div class="d-flex justify-content-between align-items-start gap-3">
             <div>
               <div class="fw-semibold">${escapeHtml(project)}</div>
@@ -2708,6 +2748,7 @@
     currentRecord.id = String(detail.id ?? '');
     currentRecord.kind = kind;
     currentRecord.status = statusValue;
+    currentRecord.amendsId = String(detail.amendsId ?? detail.AmendsId ?? '');
     currentRecord.rowVersion = detail.rowVersion ?? '';
     currentRecord.sourceLabel = getOptionLabel(editor.source, editor.source.value) || '';
     currentRecord.projectId = String(detail.projectId ?? '');
@@ -2727,6 +2768,16 @@
     scheduleEditorImpact();
     scheduleDuplicateCheck();
   }
+
+  approvalElements.amendmentOpen?.addEventListener('click', async () => {
+    const targetId = approvalElements.amendmentOpen.dataset.targetId;
+    if (!targetId || !confirmDiscardChanges()) return;
+    try {
+      await loadIntoEditor(currentRecord.kind === 'yearly' ? 'yearly' : 'granular', targetId);
+    } catch (error) {
+      toast(error.message || 'Unable to load entry', 'danger');
+    }
+  });
 
   editor.form?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -2754,16 +2805,20 @@
         throw new Error(await readErrorResponse(response, 'Save failed'));
       }
       const result = await response.json().catch(() => ({}));
-      const savedId = id || result.id;
+      // The server answers with the record the change landed on: a new amendment when an
+      // approved record is amended, or the approved record when an amendment is applied.
+      const savedId = result.id || id;
       await fetchList();
       if (savedId) {
         await loadIntoEditor(kind, savedId);
         const normalizedStatus = String(currentRecord.status || '').toLowerCase();
         const message = normalizedStatus === 'approved'
           ? 'Entry saved and approved.'
-          : normalizedStatus === 'pending'
-            ? 'Entry saved and submitted for approval.'
-            : 'Entry saved successfully.';
+          : normalizedStatus === 'pending' && currentRecord.amendsId
+            ? 'Amendment submitted for approval. The approved figure stays in place until it is decided.'
+            : normalizedStatus === 'pending'
+              ? 'Entry saved and submitted for approval.'
+              : 'Entry saved successfully.';
         toast(message, 'success');
         if (!id) editor.btnAddAnother?.classList.remove('d-none');
       } else {
@@ -2807,9 +2862,12 @@
       if (!response.ok) {
         throw new Error(await readErrorResponse(response, 'Unable to update approval status'));
       }
-      toast(approve ? 'Entry approved.' : 'Entry rejected.', approve ? 'success' : 'warning');
+      const result = await response.json().catch(() => ({}));
+      const wasAmendment = Boolean(currentRecord.amendsId);
+      const approvedMessage = wasAmendment ? 'Amendment approved and applied to the record.' : 'Entry approved.';
+      toast(approve ? approvedMessage : 'Entry rejected.', approve ? 'success' : 'warning');
       await fetchList();
-      await loadIntoEditor(kind, id);
+      await loadIntoEditor(kind, result.id || id);
       window.dispatchEvent(new CustomEvent('proliferation:recordchanged'));
       return true;
     } catch (error) {
@@ -2971,6 +3029,7 @@
     currentRecord.id = '';
     currentRecord.kind = preferredKind === 'yearly' ? 'yearly' : 'granular';
     currentRecord.status = '';
+    currentRecord.amendsId = '';
     currentRecord.rowVersion = '';
     currentRecord.sourceLabel = '';
     currentRecord.projectId = '';

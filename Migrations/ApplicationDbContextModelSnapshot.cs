@@ -729,6 +729,9 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AmendsId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("ApprovalStatus")
                         .HasColumnType("integer");
 
@@ -774,6 +777,9 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AmendsId")
+                        .HasDatabaseName("IX_ProlifGranular_AmendsId");
 
                     b.HasIndex("UnitName")
                         .HasDatabaseName("IX_ProlifGranular_UnitName");
@@ -826,6 +832,9 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AmendsId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("ApprovalStatus")
                         .HasColumnType("integer");
 
@@ -866,6 +875,9 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AmendsId")
+                        .HasDatabaseName("IX_ProlifYearly_AmendsId");
 
                     b.HasIndex("ProjectId", "Source", "Year")
                         .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");

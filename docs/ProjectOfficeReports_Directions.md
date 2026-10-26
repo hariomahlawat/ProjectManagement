@@ -11,8 +11,10 @@ The Project Office Reports area bundles multiple operational trackers under a si
 | `ViewVisits` / `ManageVisits` | Admin, HoD, Project Office |
 | `ManageSocialMediaEvents` | Admin, HoD, Project Office |
 | `ViewTotTracker` / `ManageTotTracker` / `ApproveTotTracker` | Admin, HoD, Project Office |
-| `ViewProliferationTracker` / `SubmitProliferationTracker` / `ApproveProliferationTracker` | Admin, HoD, Project Office |
-| `ManageProliferationPreferences` | Admin |
+| `ViewProliferationTracker` | Any signed-in user (approved figures only) |
+| `SubmitProliferationTracker` | Admin, HoD, Project Office, Project Office Alternate |
+| `ApproveProliferationTracker` | Admin, HoD |
+| `ManageProliferationPreferences` | Admin, HoD, Project Office, Project Office Alternate (opens the counting-rules screen; saving a rule currently requires `ApproveProliferationTracker`) |
 | `Policies.Ipr.View` | Admin, HoD, Project Office (aliases `Project Office`/`ProjectOffice`), Comdt, MCO |
 | `Policies.Ipr.Edit` | Admin, HoD, Project Office (aliases `Project Office`/`ProjectOffice`) |
 
@@ -47,10 +49,13 @@ Navigation is generated dynamically by `RoleBasedNavigationProvider`, which hide
 
 ## Proliferation tracker
 
-- **Domain** – `ProliferationYearly`, `ProliferationSubmission`, `ProliferationSource`, and preference entities capture yearly rollups, submission status, and reference data. (see Areas/ProjectOfficeReports/Domain/ProliferationYearly.cs lines 1-120)
-- **Services** – `ProliferationOverviewService` aggregates summaries, `ProliferationManageService` mutates submissions with audit history, `ProliferationSubmissionService` handles approval decisions, and `ProliferationSummaryReadService` feeds dashboards. (see Areas/ProjectOfficeReports/Application/ProliferationOverviewService.cs lines 16-180)
+- **Domain** – `ProliferationYearly` (annual totals per project, source and year), `ProliferationGranular` (detailed entries per receiving unit and date), `ProliferationYearPreference` (per-year counting rules) and `ProliferationSource` (SDD, 515 ABW). Annual and detailed records carry an `ApprovalStatus`; only approved records count in any total. (see Areas/ProjectOfficeReports/Domain/ProliferationYearly.cs)
+- **Services** – `ProliferationSubmissionService` creates, updates, decides and deletes records; `ProliferationManageService` lists and loads them for the Records workspace; `ProliferationAggregateReadService` applies the counting rules once for every total; `ProliferationSummaryReadService` feeds the Summary page. (see Areas/ProjectOfficeReports/Application/ProliferationSubmissionService.cs)
+- **Approval workflow** – Admin and HoD entries are approved on save. Project Office entries are saved as Pending, and only Admin or HoD can approve or reject them. Only a Pending record can be decided; approving or rejecting an approved or rejected record is refused.
+- **Amendments** – Project Office never edits an approved record in place. Saving a change to one files a separate Pending amendment (`AmendsId` points at the approved record), and the approved figure keeps counting. Approving the amendment applies its values to the approved record, which keeps its identity, and removes the amendment row. Rejecting it leaves the approved record untouched. One amendment per record can be pending at a time; Project Office can withdraw (delete) its own pending or rejected amendment. Only Admin or HoD can delete an approved record, and doing so also removes its amendments.
+- **Legacy report endpoints** – `api/proliferation/reports/run` and `/export` return approved records to any viewer; asking for Pending, Rejected or All records requires `SubmitProliferationTracker`. Report exports are audited as `ProjectOfficeReports.Proliferation.ReportExported`.
 - **Pages** – `Proliferation/Index.cshtml` provides filterable grids, submission/approval modals, and export buttons; partials render year pickers and approval queues. Preferences pages let admins set active years and defaults. (see Areas/ProjectOfficeReports/Pages/Proliferation/Index.cshtml.cs lines 23-220)
-- **Exports** – Excel and PDF exports reuse `ProliferationExportService` and reporting builders to guarantee consistent layout. (see Areas/ProjectOfficeReports/Application/ProliferationExportService.cs lines 14-160)
+- **Exports** – Excel exports reuse `ProliferationExportService` and the reporting builders under `Utilities/Reporting` to keep layout consistent. (see Areas/ProjectOfficeReports/Application/ProliferationExportService.cs)
 
 ## Intellectual property (IPR) tracker
 

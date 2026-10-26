@@ -177,6 +177,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public DateTime CreatedOnUtc { get; set; }
         public DateTime LastUpdatedOnUtc { get; set; }
         public DateTime? ApprovedOnUtc { get; set; }
+        public Guid? AmendsId { get; set; }
     }
 
     public sealed class ProliferationManageListResponseDto
@@ -234,6 +235,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public DateTime CreatedOnUtc { get; set; }
         public DateTime LastUpdatedOnUtc { get; set; }
         public DateTime? ApprovedOnUtc { get; set; }
+        public Guid? AmendsId { get; set; }
+        public Guid? PendingAmendmentId { get; set; }
     }
 
     public sealed class ProliferationGranularDetailDto
@@ -252,6 +255,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public DateTime CreatedOnUtc { get; set; }
         public DateTime LastUpdatedOnUtc { get; set; }
         public DateTime? ApprovedOnUtc { get; set; }
+        public Guid? AmendsId { get; set; }
+        public Guid? PendingAmendmentId { get; set; }
     }
 
     public sealed class ProliferationApprovalDecisionDto

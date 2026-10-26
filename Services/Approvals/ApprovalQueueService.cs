@@ -1414,14 +1414,19 @@ public sealed class ApprovalQueueService : IApprovalQueueService
 
         var requester = await GetUserSnapshotAsync(record.SubmittedByUserId, ct);
 
+        // An amendment is compared with the record it amends; other submissions with the
+        // approved figure already held for the same project, source and year.
+        var amendedId = record.AmendsId;
         var previous = await _db.ProliferationYearlies
             .AsNoTracking()
             .Where(y =>
-                y.ProjectId == record.ProjectId &&
-                y.Source == record.Source &&
-                y.Year == record.Year &&
                 y.ApprovalStatus == ApprovalStatus.Approved &&
-                y.Id != record.Id)
+                y.Id != record.Id &&
+                (amendedId != null
+                    ? y.Id == amendedId.Value
+                    : y.ProjectId == record.ProjectId &&
+                      y.Source == record.Source &&
+                      y.Year == record.Year))
             .Select(y => new ProliferationYearlySnapshotVm(
                 y.TotalQuantity,
                 y.Remarks,
@@ -1485,15 +1490,18 @@ public sealed class ApprovalQueueService : IApprovalQueueService
 
         var requester = await GetUserSnapshotAsync(record.SubmittedByUserId, ct);
 
+        var amendedId = record.AmendsId;
         var previous = await _db.ProliferationGranularEntries
             .AsNoTracking()
             .Where(g =>
-                g.ProjectId == record.ProjectId &&
-                g.Source == record.Source &&
-                g.ProliferationDate == record.ProliferationDate &&
-                g.UnitName == record.UnitName &&
                 g.ApprovalStatus == ApprovalStatus.Approved &&
-                g.Id != record.Id)
+                g.Id != record.Id &&
+                (amendedId != null
+                    ? g.Id == amendedId.Value
+                    : g.ProjectId == record.ProjectId &&
+                      g.Source == record.Source &&
+                      g.ProliferationDate == record.ProliferationDate &&
+                      g.UnitName == record.UnitName))
             .Select(g => new ProliferationGranularSnapshotVm(
                 g.Quantity,
                 g.Remarks,
