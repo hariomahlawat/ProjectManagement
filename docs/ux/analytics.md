@@ -52,6 +52,10 @@ one chart style defined once.
     nomination, and the AR/VR projects under DCD as fresh projects and as repeat builds (the
     project's repeat-build flag). Each group lists completed projects first, oldest completion first, then ongoing with
     their current stage, then cancelled. These are not part of the CoE counts.
+  - ARPP: listed projects (IPA value, New / CL / CF split, delisted), completed (their supply-order
+    value), supply orders placed (ongoing projects, their value) and "AoN to SO stage" (ongoing
+    projects not yet at a supply order, noting how many are still before AoN). Cancelled projects
+    are in no card; the standing board lists them.
   - Insights: the three slowest stages (median days, ratio to the portfolio median, project
     count) and the portfolio median (median of the stage medians) with the number of stages
     measured.
@@ -83,9 +87,11 @@ one chart style defined once.
   by sanctioning authority (CFA), by category and IPA cost band, milestones (past AoN, supply
   orders and their value against listed IPA, development PDC due and overdue), and fund, DFPDS
   schedule and parent category rows. The rules (year choice, cost bands, standing by
-  lifecycle, milestone eligibility: a supply order counts as placed on a supply-order date or a stage
-  beyond Supply Order, not on a resolved amount alone; PDC due and overdue count only projects still
-  in work, and a closed year says so rather than showing an empty due window) live in
+  lifecycle, milestone eligibility: a supply order counts as placed for a project still in work, on a
+  supply-order date or a stage beyond Supply Order, not on a resolved amount alone; completed
+  projects are not in that count and carry their own supply-order value, shown on the Completed card
+  and in the meter beside the ongoing value; PDC due and overdue count only projects still in work,
+  and a closed year says so rather than showing an empty due window) live in
   `Services/Analytics/ArppAnalyticsService.cs` over `IArppLibraryService.GetCurrentPositionAsync` and
   `IArppFyProjectUpdateService.BuildAsync`; the page only binds the year.
 

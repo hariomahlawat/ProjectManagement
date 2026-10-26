@@ -153,7 +153,7 @@
         <header class="analytics-card__head">
           <div class="analytics-card__text">
             <h2 class="analytics-card__title">Milestones</h2>
-            <p class="analytics-card__meta">How far the listed projects have moved, from the project records. PDC figures count projects still in work.</p>
+            <p class="analytics-card__meta">How far the listed projects have moved, from the project records. Supply-order and PDC figures count projects still in work; completed projects carry their own supply-order value.</p>
           </div>
         </header>
         <div class="analytics-minis">
@@ -163,7 +163,7 @@
           <div class="analytics-mini @(Model.PdcOverdueCount > 0 ? "is-hot" : "")"><b>@Model.PdcOverdueCount</b><span>PDC overdue</span></div>
         </div>
         <div class="analytics-meter" title="Supply-order value against listed IPA value">
-          <div class="analytics-meter__line"><span>Supply orders @Crore(Model.SupplyOrderValue)</span><span>of IPA @Crore(Model.ListedIpaValue)</span></div>
+          <div class="analytics-meter__line"><span>Supply orders @Crore(Model.SupplyOrderValue) ongoing · @Crore(Model.CompletedSupplyOrderValue) completed</span><span>of IPA @Crore(Model.ListedIpaValue) listed</span></div>
           <span class="analytics-meter__track" aria-hidden="true"><i style="--w:@(Math.Min(100, (int)Math.Round(Model.SupplyOrderShareOfIpa * 100)))%"></i></span>
         </div>
         <section class="analytics-drill analytics-drill--flush" aria-label="Listed projects by milestone">

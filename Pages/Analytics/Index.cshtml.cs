@@ -291,24 +291,30 @@ namespace ProjectManagement.Pages.Analytics
                 case AnalyticsTab.Arpp when Arpp is not null && Arpp.HasData:
                     return new[]
                     {
+                        // Listed, then where they stand: completed, supply order placed, and the rest still before
+                        // a supply order. Cancelled projects are in no card; the standing board lists them.
                         new HeadlineFigure(
                             "Listed projects",
                             Arpp.ListedCount.ToString(),
-                            $"IPA {IndianCurrencyFormatter.FormatCompact(Arpp.ListedIpaValue)} in FY {Arpp.FinancialYearDisplay}"),
-                        new HeadlineFigure(
-                            "New this year",
-                            Arpp.NewCount.ToString(),
-                            $"CL {Arpp.CommittedLiabilityCount} · CF {Arpp.CarryForwardCount} · delisted {Arpp.DelistedCount}"),
+                            $"IPA {IndianCurrencyFormatter.FormatCompact(Arpp.ListedIpaValue)} · New {Arpp.NewCount} · CL {Arpp.CommittedLiabilityCount} · CF {Arpp.CarryForwardCount} · delisted {Arpp.DelistedCount}"),
                         new HeadlineFigure(
                             "Completed",
                             Arpp.CompletedCount.ToString(),
-                            $"of the listed projects; {Arpp.OngoingCount} ongoing"),
+                            Arpp.CompletedSupplyOrderValue > 0
+                                ? $"supply orders {IndianCurrencyFormatter.FormatCompact(Arpp.CompletedSupplyOrderValue)}"
+                                : "no supply-order value recorded"),
                         new HeadlineFigure(
                             "Supply orders placed",
                             Arpp.SupplyOrderCount.ToString(),
                             Arpp.SupplyOrderValue > 0
-                                ? $"{IndianCurrencyFormatter.FormatCompact(Arpp.SupplyOrderValue)}, {Math.Round(Arpp.SupplyOrderShareOfIpa * 100):0}% of listed IPA"
-                                : "no supply-order value recorded yet")
+                                ? $"supply orders {IndianCurrencyFormatter.FormatCompact(Arpp.SupplyOrderValue)} · ongoing"
+                                : "ongoing; no value recorded yet"),
+                        new HeadlineFigure(
+                            "AoN to SO stage",
+                            Arpp.BeforeSupplyOrderCount.ToString(),
+                            Arpp.BeforeAonCount > 0
+                                ? $"ongoing, supply order not yet placed · {Arpp.BeforeAonCount} still before AoN"
+                                : "ongoing, supply order not yet placed")
                     };
 
                 default:

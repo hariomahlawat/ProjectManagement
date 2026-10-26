@@ -96,20 +96,30 @@ public sealed class ArppAnalyticsServiceTests
     public async Task BuildAsync_CountsASupplyOrderOnlyOnEvidenceOfPlacement()
     {
         await using var db = CreateDb();
-        var library = new FakeLibrary(2026, Row(1, "Dated", ArppCategory.New, 10_000_000m), Row(2, "Beyond SO", ArppCategory.New, 10_000_000m), Row(3, "At SO", ArppCategory.New, 10_000_000m), Row(4, "Amount only", ArppCategory.New, 10_000_000m), Row(5, "Done", ArppCategory.New, 10_000_000m));
+        var library = new FakeLibrary(2026, Row(1, "Dated", ArppCategory.New, 10_000_000m), Row(2, "Beyond SO", ArppCategory.New, 10_000_000m), Row(3, "At SO", ArppCategory.New, 10_000_000m), Row(4, "Amount only", ArppCategory.New, 10_000_000m), Row(5, "Done", ArppCategory.New, 10_000_000m), Row(6, "Dropped after SO", ArppCategory.New, 10_000_000m), Row(7, "Early", ArppCategory.New, 10_000_000m));
         var fy = new FakeFyUpdate(new[] { 2026 },
             Update(1, "Dated", ProjectLifecycleStatus.Active, StageCodes.AON, supplyOrderDate: new DateOnly(2026, 6, 1), supplyOrderAmount: 8_000_000m),
             Update(2, "Beyond SO", ProjectLifecycleStatus.Active, StageCodes.DEVP),
             Update(3, "At SO", ProjectLifecycleStatus.Active, StageCodes.SO),
             Update(4, "Amount only", ProjectLifecycleStatus.Active, StageCodes.PNC, supplyOrderAmount: 9_000_000m),
-            Update(5, "Done", ProjectLifecycleStatus.Completed, null));
+            Update(5, "Done", ProjectLifecycleStatus.Completed, null, supplyOrderAmount: 5_000_000m),
+            Update(6, "Dropped after SO", ProjectLifecycleStatus.Cancelled, StageCodes.DEVP, supplyOrderAmount: 4_000_000m),
+            Update(7, "Early", ProjectLifecycleStatus.Active, StageCodes.SOW));
 
         var vm = await new ArppAnalyticsService(db, library, fy).BuildAsync(2026, Today);
 
+        // Only projects still in work count as "placed"; the completed project's value is reported on its own.
         var placed = vm.MilestoneBoard.Single(group => group.Key == "SO");
-        Assert.Equal(new[] { "Beyond SO", "Dated", "Done" }, placed.Projects.Select(project => project.ProjectName).ToArray());
-        Assert.Equal(3, vm.SupplyOrderCount);
+        Assert.Equal(new[] { "Beyond SO", "Dated" }, placed.Projects.Select(project => project.ProjectName).ToArray());
+        Assert.Equal(2, vm.SupplyOrderCount);
         Assert.Equal(8_000_000m, vm.SupplyOrderValue); // only the dated order carries an amount
+        Assert.Equal(5_000_000m, vm.CompletedSupplyOrderValue);
+        Assert.Equal(13_000_000m, vm.TotalSupplyOrderValue);
+        Assert.Equal(13_000_000m / 70_000_000m, (decimal)vm.SupplyOrderShareOfIpa, 6);
+        // The rest: ongoing without a supply order ("At SO", "Amount only", "Early"); the cancelled one is in no card.
+        Assert.Equal(3, vm.BeforeSupplyOrderCount);
+        Assert.Equal(1, vm.BeforeAonCount);
+        Assert.Equal(vm.OngoingCount, vm.SupplyOrderCount + vm.BeforeSupplyOrderCount);
     }
 
     [Fact]
