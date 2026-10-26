@@ -389,6 +389,16 @@
                         <form method="post" asp-page-handler="Decide">
                             <input asp-for="DecideInput.ProjectId" type="hidden" />
                             <input asp-for="DecideInput.RowVersion" type="hidden" />
+                            @* The register state, as the submit modal carries it, so the decision's redirect keeps the filters and a Command desk completion window. *@
+                            <input type="hidden" asp-for="TotStatusFilter" />
+                            <input type="hidden" asp-for="RequestStateFilter" />
+                            <input type="hidden" asp-for="SearchTerm" />
+                            <input type="hidden" asp-for="OnlyPending" />
+                            <input type="hidden" asp-for="RequiresTotOnly" />
+                            <input type="hidden" asp-for="MetCompletedOnly" />
+                            <input type="hidden" asp-for="ViewMode" />
+                            <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
+                            <input type="hidden" name="CompletedTo" value="@completedToValue" />
 
                             <div class="mb-2">
                                 <label asp-for="DecideContextBody" class="form-label small mb-1">Decision context (optional)</label>
