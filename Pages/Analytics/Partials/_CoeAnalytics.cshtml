@@ -141,7 +141,7 @@
   </article>
   <!-- END SECTION -->
 
-  @if (ViewData["CoeArVrImpact"] is ProjectManagement.Models.Analytics.ArVrImpactVm impact)
+  @if (ViewData["CoeArVrImpact"] is ProjectManagement.Models.Analytics.ArVrImpactVm impact && impact.ShowsAnything)
   {
     @await Html.PartialAsync("Partials/_CoeArVrImpact", impact)
   }

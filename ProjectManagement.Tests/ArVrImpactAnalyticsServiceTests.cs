@@ -82,7 +82,7 @@ public sealed class ArVrImpactAnalyticsServiceTests : IDisposable
         AddGranular(vrRl, new DateOnly(25, 3, 1), "Typo unit", 7);         // a mistyped year the tracker's policy rejects: ignored
         await _db.SaveChangesAsync();
 
-        var vm = await _service.BuildAsync(AsOf);
+        var vm = await _service.BuildAsync(AsOf, includeProliferation: true, includeTraining: true);
 
         Assert.Equal(new[] { 2022, 2023, 2024, 2026 }, vm.ProliferationByYear.Select(point => point.Year));
         Assert.Equal(new[] { 100, 23, 0, 2 }, vm.ProliferationByYear.Select(point => point.Sdd));
@@ -114,7 +114,7 @@ public sealed class ArVrImpactAnalyticsServiceTests : IDisposable
         AddTraining(null, 9, 9, 9, vrRl);                                  // no date at all: cannot be placed in a year
         await _db.SaveChangesAsync();
 
-        var vm = await _service.BuildAsync(AsOf);
+        var vm = await _service.BuildAsync(AsOf, includeProliferation: true, includeTraining: true);
 
         Assert.Equal(new[] { "2023-24", "2024-25", "2026-27" }, vm.TrainingByYear.Select(point => point.Label));
         Assert.Equal(new[] { 15, 10, 6 }, vm.TrainingByYear.Select(point => point.People));
@@ -141,11 +141,33 @@ public sealed class ArVrImpactAnalyticsServiceTests : IDisposable
         AddProject("Firing range", _firing);
         await _db.SaveChangesAsync();
 
-        var vm = await _service.BuildAsync(AsOf);
+        var vm = await _service.BuildAsync(AsOf, includeProliferation: true, includeTraining: true);
 
         Assert.False(vm.HasData);
         Assert.Equal(2026, vm.ProliferationCurrentYear);
         Assert.Equal("2026-27", vm.TrainingCurrentYearLabel);
+    }
+
+    [Fact]
+    public async Task ACallerWithoutTheTrainingPolicy_GetsNoTrainingFigures()
+    {
+        var vrRl = AddProject("VR RL", _arVr);
+        AddYearly(vrRl, 2023, 10);
+        AddTraining(new DateOnly(2024, 5, 10), 1, 1, 8, vrRl);
+        await _db.SaveChangesAsync();
+
+        var vm = await _service.BuildAsync(AsOf, includeProliferation: true, includeTraining: false);
+
+        Assert.True(vm.CanViewProliferation);
+        Assert.False(vm.CanViewTraining);
+        Assert.Equal(10, vm.ProliferationUnitsDelivered);
+        Assert.Equal(0, vm.TrainingPeople);
+        Assert.Empty(vm.TrainingByYear);
+        Assert.Empty(vm.TrainingBoard);
+
+        var neither = await _service.BuildAsync(AsOf, includeProliferation: false, includeTraining: false);
+        Assert.False(neither.ShowsAnything);
+        Assert.False(neither.HasData);
     }
 
     public void Dispose()

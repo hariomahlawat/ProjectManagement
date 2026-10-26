@@ -10,6 +10,11 @@ namespace ProjectManagement.Models.Analytics;
 /// </summary>
 public sealed class ArVrImpactVm
 {
+    /// <summary>The caller passed the proliferation tracker's view policy; otherwise the proliferation part is empty and not drawn.</summary>
+    public bool CanViewProliferation { get; init; }
+    /// <summary>The caller passed the training tracker's view policy; otherwise the training part is empty and not drawn.</summary>
+    public bool CanViewTraining { get; init; }
+
     // SECTION: Proliferation (approved rows only, calendar years, the tracker's year-preference rule per project, source and year)
     public int ProliferationUnitsDelivered { get; init; }
     /// <summary>Distinct receiving units named in the approved granular ledger.</summary>
@@ -38,6 +43,7 @@ public sealed class ArVrImpactVm
     // END SECTION
 
     public bool HasData => HasProliferation || HasTraining;
+    public bool ShowsAnything => CanViewProliferation || CanViewTraining;
 }
 
 /// <summary>Units delivered in one calendar year, by source (SDD and ABW 515).</summary>

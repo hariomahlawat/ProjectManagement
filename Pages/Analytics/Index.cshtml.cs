@@ -167,7 +167,15 @@ namespace ProjectManagement.Pages.Analytics
                 case AnalyticsTab.Coe:
                     Coe = await _portfolioAnalytics.BuildCoeAsync(ReferenceDateIst, cancellationToken);
                     CoeCount = Coe.TotalCoeProjects;
-                    CoeArVrImpact = _arVrImpact is null ? null : await _arVrImpact.BuildAsync(ReferenceDateIst, cancellationToken);
+                    // The two trackers keep their own view policies on this page: a card is built and drawn only for a caller its tracker admits.
+                    if (_arVrImpact is not null)
+                    {
+                        var canViewProliferation = await PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewProliferationTracker);
+                        var canViewTraining = await PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewTrainingTracker);
+                        CoeArVrImpact = canViewProliferation || canViewTraining
+                            ? await _arVrImpact.BuildAsync(ReferenceDateIst, canViewProliferation, canViewTraining, cancellationToken)
+                            : null;
+                    }
                     break;
 
                 case AnalyticsTab.Insights:
@@ -215,15 +223,17 @@ namespace ProjectManagement.Pages.Analytics
             return Page();
         }
 
-        private async Task<bool> CanViewArppAsync()
+        private Task<bool> CanViewArppAsync() => PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewArpp);
+
+        /// <summary>Fail closed: without an authorization service or a signed-in principal, no policy passes.</summary>
+        private async Task<bool> PassesPolicyAsync(string policy)
         {
-            // Fail closed: without an authorization service or a signed-in principal there is no ARPP mode.
             if (_authorization is null || User?.Identity?.IsAuthenticated != true)
             {
                 return false;
             }
 
-            var result = await _authorization.AuthorizeAsync(User, ProjectOfficeReportsPolicies.ViewArpp);
+            var result = await _authorization.AuthorizeAsync(User, policy);
             return result.Succeeded;
         }
 

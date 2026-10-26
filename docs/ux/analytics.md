@@ -56,7 +56,9 @@ one chart style defined once.
     approved records only, counted by the tracker's year-preference rule; receiving units from the
     granular ledger) and **AR/VR training** (people trained per training year, April to March,
     stacked officers / JCOs / other ranks; each course counted once in the totals and listed under
-    each project it is linked to). A bar opens that year's row of projects. Each group lists completed projects first, oldest completion first, then ongoing with
+    each project it is linked to). A bar opens that year's row of projects. Each card is built and
+    drawn only for a user its tracker's own view policy admits (ViewProliferationTracker,
+    ViewTrainingTracker), checked server-side on the page. Each group lists completed projects first, oldest completion first, then ongoing with
     their current stage, then cancelled. These are not part of the CoE counts.
   - ARPP: listed projects (IPA value, New / CL / CF split, delisted), completed (their supply-order
     value), supply orders placed (ongoing projects, their value) and "AoN to SO stage" (ongoing

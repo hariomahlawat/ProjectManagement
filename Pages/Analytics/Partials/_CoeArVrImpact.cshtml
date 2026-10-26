@@ -7,8 +7,10 @@
     var overviewUrl = Url.Page("/Projects/Overview");
 }
 
-<!-- SECTION: AR/VR proliferation and training (every AR/VR project, in or out of a CoE category) -->
-<div class="analytics-row analytics-row--6-6" data-arvr-impact>
+<!-- SECTION: AR/VR proliferation and training (every AR/VR project, in or out of a CoE category); each card only for a caller its tracker's view policy admits -->
+<div class="analytics-row @(Model.CanViewProliferation && Model.CanViewTraining ? "analytics-row--6-6" : "")" data-arvr-impact>
+  @if (Model.CanViewProliferation)
+  {
   <article class="analytics-card">
     <header class="analytics-card__head">
       <div class="analytics-card__text">
@@ -37,7 +39,10 @@
     </div>
     @await Html.PartialAsync("Partials/_BoardRows", (Model.ProliferationBoard, "prolif-year", overviewUrl, "Units delivered each year"))
   </article>
+  }
 
+  @if (Model.CanViewTraining)
+  {
   <article class="analytics-card">
     <header class="analytics-card__head">
       <div class="analytics-card__text">
@@ -66,5 +71,6 @@
     </div>
     @await Html.PartialAsync("Partials/_BoardRows", (Model.TrainingBoard, "training-year", overviewUrl, "People trained each year"))
   </article>
+  }
 </div>
 <!-- END SECTION -->

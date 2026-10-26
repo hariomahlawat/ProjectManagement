@@ -19,7 +19,9 @@ namespace ProjectManagement.Services.Analytics
     public interface IArVrImpactAnalyticsService
     {
         /// <param name="referenceDateIst">The IST "as of" day; its calendar year and training year are "this year".</param>
-        Task<ArVrImpactVm> BuildAsync(DateOnly referenceDateIst, CancellationToken cancellationToken = default);
+        /// <param name="includeProliferation">Whether the caller may see the proliferation tracker (its ViewProliferationTracker policy); false leaves that part empty.</param>
+        /// <param name="includeTraining">Whether the caller may see the training tracker (its ViewTrainingTracker policy); false leaves that part empty.</param>
+        Task<ArVrImpactVm> BuildAsync(DateOnly referenceDateIst, bool includeProliferation, bool includeTraining, CancellationToken cancellationToken = default);
     }
 
     public sealed class ArVrImpactAnalyticsService : IArVrImpactAnalyticsService
@@ -33,23 +35,34 @@ namespace ProjectManagement.Services.Analytics
             _proliferationAggregates = proliferationAggregates;
         }
 
-        public async Task<ArVrImpactVm> BuildAsync(DateOnly referenceDateIst, CancellationToken cancellationToken = default)
+        public async Task<ArVrImpactVm> BuildAsync(DateOnly referenceDateIst, bool includeProliferation, bool includeTraining, CancellationToken cancellationToken = default)
         {
-            var projects = await LoadArVrProjectsAsync(cancellationToken);
+            // Each tracker's figures are read only for a caller its own view policy admits; the page decides that server-side.
+            var projects = includeProliferation || includeTraining
+                ? await LoadArVrProjectsAsync(cancellationToken)
+                : new Dictionary<int, string>();
             if (projects.Count == 0)
             {
                 return new ArVrImpactVm
                 {
+                    CanViewProliferation = includeProliferation,
+                    CanViewTraining = includeTraining,
                     ProliferationCurrentYear = referenceDateIst.Year,
                     TrainingCurrentYearLabel = TrainingReach.TrainingYearLabel(TrainingReach.TrainingYearStartOf(referenceDateIst))
                 };
             }
 
-            var proliferation = await BuildProliferationAsync(projects, referenceDateIst, cancellationToken);
-            var training = await BuildTrainingAsync(projects, referenceDateIst, cancellationToken);
+            var proliferation = includeProliferation
+                ? await BuildProliferationAsync(projects, referenceDateIst, cancellationToken)
+                : (Array.Empty<ArVrProliferationYearVm>(), Array.Empty<AnalyticsBoardGroupVm>(), 0, 0);
+            var training = includeTraining
+                ? await BuildTrainingAsync(projects, referenceDateIst, cancellationToken)
+                : (Array.Empty<ArVrTrainingYearVm>(), Array.Empty<AnalyticsBoardGroupVm>(), 0, 0);
 
             return new ArVrImpactVm
             {
+                CanViewProliferation = includeProliferation,
+                CanViewTraining = includeTraining,
                 ProliferationUnitsDelivered = proliferation.ByYear.Sum(point => point.Total),
                 ProliferationReceivingUnits = proliferation.ReceivingUnits,
                 ProliferationProjects = proliferation.ProjectCount,
