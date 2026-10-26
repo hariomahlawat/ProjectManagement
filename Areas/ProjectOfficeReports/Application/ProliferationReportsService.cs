@@ -239,6 +239,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return filters;
         }
 
+        public static string NormalizeApprovalStatus(string? status) => NormalizeStatus(status);
+
+        public static bool RequestsUnapprovedRecords(string? status)
+            => !string.Equals(NormalizeStatus(status), nameof(ApprovalStatus.Approved), StringComparison.Ordinal);
+
         private static string NormalizeStatus(string? status)
         {
             var s = (status ?? string.Empty).Trim();

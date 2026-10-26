@@ -28,12 +28,16 @@
     status: document.querySelector('[data-approval-status]'),
     submitted: document.querySelector('[data-approval-submitted]'),
     updated: document.querySelector('[data-approval-updated]'),
-    decided: document.querySelector('[data-approval-decided]')
+    decided: document.querySelector('[data-approval-decided]'),
+    amendment: document.querySelector('[data-approval-amendment]'),
+    amendmentText: document.querySelector('[data-approval-amendment-text]'),
+    amendmentOpen: document.querySelector('[data-approval-amendment-open]')
   };
   const currentRecord = {
     id: '',
     kind: '',
     status: '',
+    amendsId: '',
     rowVersion: '',
     sourceLabel: '',
     projectId: '',
@@ -1104,6 +1108,38 @@
       approvalElements.decided.textContent = 'Decision: —';
       approvalElements.decided.hidden = true;
     }
+    updateAmendmentUi(null);
+  }
+
+  // An amendment is a separate pending record linked to the approved record it changes;
+  // the panel says which side of that link is open and offers the other one.
+  function updateAmendmentUi(detail) {
+    if (!approvalElements.amendment) return;
+    const statusRaw = (detail?.approvalStatus ?? detail?.ApprovalStatus ?? '').toString().toLowerCase();
+    const amendsId = detail?.amendsId ?? detail?.AmendsId ?? null;
+    const pendingAmendmentId = detail?.pendingAmendmentId ?? detail?.PendingAmendmentId ?? null;
+    let text = '';
+    let label = '';
+    let targetId = '';
+    if (amendsId) {
+      text = statusRaw === 'rejected'
+        ? 'Rejected amendment. The approved record was not changed.'
+        : 'Amendment of an approved record. The approved figure keeps counting until this is decided.';
+      label = 'Open approved record';
+      targetId = String(amendsId);
+    } else if (pendingAmendmentId) {
+      text = 'An amendment to this record is awaiting approval.';
+      label = 'Open amendment';
+      targetId = String(pendingAmendmentId);
+    }
+
+    approvalElements.amendment.hidden = !text;
+    if (approvalElements.amendmentText) approvalElements.amendmentText.textContent = text;
+    if (approvalElements.amendmentOpen) {
+      approvalElements.amendmentOpen.textContent = label;
+      approvalElements.amendmentOpen.dataset.targetId = targetId;
+      approvalElements.amendmentOpen.hidden = !targetId;
+    }
   }
 
   function updateApprovalUi(detail) {
@@ -1159,6 +1195,8 @@
         approvalElements.decided.hidden = true;
       }
     }
+
+    updateAmendmentUi(detail);
   }
 
   function getSaveActionText() {
@@ -1809,18 +1847,22 @@
       const response = await fetch(`${api.groups}?${params}`, { headers: { Accept: 'application/json' }, signal: editorImpactController.signal });
       if (!response.ok) throw new Error('Unable to load calculation preview');
       const data = await response.json();
-      const row = Array.isArray(data.items) ? data.items.find((x) => Number(x.projectId) === projectId && Number(x.source) === source && Number(x.year) === year) : null;
+      // The groups API serialises the source as its enum name ("Sdd", "Abw515").
+      const sourceName = { 1: 'Sdd', 2: 'Abw515' }[source];
+      const matchesSource = (value) => Number(value) === source || String(value) === sourceName;
+      const row = Array.isArray(data.items) ? data.items.find((x) => Number(x.projectId) === projectId && matchesSource(x.source) && Number(x.year) === year) : null;
       let annual = Number(row?.annualQuantity || 0);
       let detailed = Number(row?.detailedQuantity || 0);
       const current = Number(row?.reportedTotal || 0);
-      const sameCombination = currentRecord.id &&
-        Number(currentRecord.projectId) === projectId &&
-        Number(currentRecord.source) === source &&
-        Number(currentRecord.year) === year;
-      if (sameCombination && (currentRecord.status || '').toLowerCase() === 'approved') {
-        const previousQuantity = Number(currentRecord.quantity || 0);
-        if (currentRecord.kind === 'yearly') annual = Math.max(0, annual - previousQuantity);
-        else detailed = Math.max(0, detailed - previousQuantity);
+      // The quantity this save replaces in the approved totals: the approved record being
+      // amended, or the amendment's approved record when an amendment is open.
+      const replaced = await getReplacedApprovedQuantity(kind, editorImpactController.signal);
+      if (replaced &&
+        Number(replaced.projectId) === projectId &&
+        matchesSource(replaced.source) &&
+        Number(replaced.year) === year) {
+        if (kind === 'yearly') annual = Math.max(0, annual - replaced.quantity);
+        else detailed = Math.max(0, detailed - replaced.quantity);
       }
       if (kind === 'yearly') annual += quantity;
       else detailed += quantity;
@@ -1852,6 +1894,34 @@
       if (error.name === 'AbortError') return;
       hideEditorImpact();
     }
+  }
+
+  async function getReplacedApprovedQuantity(kind, signal) {
+    if (!currentRecord.id || currentRecord.kind !== kind) return null;
+    if ((currentRecord.status || '').toLowerCase() === 'approved') {
+      return {
+        projectId: currentRecord.projectId,
+        source: currentRecord.source,
+        year: currentRecord.year,
+        quantity: Number(currentRecord.quantity || 0)
+      };
+    }
+    if (!currentRecord.amendsId) return null;
+
+    const response = await fetch(kind === 'yearly' ? api.yearly(currentRecord.amendsId) : api.granular(currentRecord.amendsId), {
+      headers: { Accept: 'application/json' },
+      signal
+    });
+    if (!response.ok) return null;
+    const amended = await response.json();
+    if ((amended.approvalStatus ?? '').toString().toLowerCase() !== 'approved') return null;
+    const amendedDate = formatDate(amended.proliferationDateUtc ?? '');
+    return {
+      projectId: amended.projectId,
+      source: amended.source,
+      year: kind === 'yearly' ? amended.year : Number(amendedDate.slice(0, 4)),
+      quantity: Number((kind === 'yearly' ? amended.totalQuantity : amended.quantity) || 0)
+    };
   }
 
   function scheduleEditorImpact() {
@@ -2446,15 +2516,17 @@
       const dateText = item.proliferationDateUtc ? formatDate(item.proliferationDateUtc) : (item.year ?? '');
       const unitName = kind === 'granular' ? (item.unitName ?? '').trim() : '';
       const subtitleParts = [sourceLabel, dateText, unitName].filter(Boolean);
-      const approval = item.approvalStatus ? `Status: ${item.approvalStatus}` : '';
+      const approval = item.approvalStatus
+        ? `Status: ${item.approvalStatus}${item.amendsId ? ' amendment' : ''}`
+        : '';
       const subtitle = [subtitleParts.join(' · '), approval].filter(Boolean).join(' • ');
       const updatedValue = item.lastUpdatedOnUtc ?? item.LastUpdatedOnUtc ?? '';
-      const updatedAttr = updatedValue ? ` data-updated="${updatedValue}"` : '';
+      const updatedAttr = updatedValue ? ` data-updated="${escapeHtml(String(updatedValue))}"` : '';
       const isActive = currentRecord.id && currentRecord.id === String(item.id ?? '') && currentRecord.kind === kind;
       const activeClass = isActive ? ' active' : '';
       const currentAttr = isActive ? ' aria-current="true"' : '';
       return `
-        <button class="list-group-item list-group-item-action${activeClass}" data-id="${item.id}" data-kind="${kind}"${updatedAttr}${currentAttr} type="button">
+        <button class="list-group-item list-group-item-action${activeClass}" data-id="${escapeHtml(String(item.id ?? ''))}" data-kind="${kind}"${updatedAttr}${currentAttr} type="button">
           <div class="d-flex justify-content-between align-items-start gap-3">
             <div>
               <div class="fw-semibold">${escapeHtml(project)}</div>
@@ -2708,6 +2780,7 @@
     currentRecord.id = String(detail.id ?? '');
     currentRecord.kind = kind;
     currentRecord.status = statusValue;
+    currentRecord.amendsId = String(detail.amendsId ?? detail.AmendsId ?? '');
     currentRecord.rowVersion = detail.rowVersion ?? '';
     currentRecord.sourceLabel = getOptionLabel(editor.source, editor.source.value) || '';
     currentRecord.projectId = String(detail.projectId ?? '');
@@ -2727,6 +2800,16 @@
     scheduleEditorImpact();
     scheduleDuplicateCheck();
   }
+
+  approvalElements.amendmentOpen?.addEventListener('click', async () => {
+    const targetId = approvalElements.amendmentOpen.dataset.targetId;
+    if (!targetId || !confirmDiscardChanges()) return;
+    try {
+      await loadIntoEditor(currentRecord.kind === 'yearly' ? 'yearly' : 'granular', targetId);
+    } catch (error) {
+      toast(error.message || 'Unable to load entry', 'danger');
+    }
+  });
 
   editor.form?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -2754,16 +2837,20 @@
         throw new Error(await readErrorResponse(response, 'Save failed'));
       }
       const result = await response.json().catch(() => ({}));
-      const savedId = id || result.id;
+      // The server answers with the record the change landed on: a new amendment when an
+      // approved record is amended, or the approved record when an amendment is applied.
+      const savedId = result.id || id;
       await fetchList();
       if (savedId) {
         await loadIntoEditor(kind, savedId);
         const normalizedStatus = String(currentRecord.status || '').toLowerCase();
         const message = normalizedStatus === 'approved'
           ? 'Entry saved and approved.'
-          : normalizedStatus === 'pending'
-            ? 'Entry saved and submitted for approval.'
-            : 'Entry saved successfully.';
+          : normalizedStatus === 'pending' && currentRecord.amendsId
+            ? 'Amendment submitted for approval. The approved figure stays in place until it is decided.'
+            : normalizedStatus === 'pending'
+              ? 'Entry saved and submitted for approval.'
+              : 'Entry saved successfully.';
         toast(message, 'success');
         if (!id) editor.btnAddAnother?.classList.remove('d-none');
       } else {
@@ -2807,9 +2894,12 @@
       if (!response.ok) {
         throw new Error(await readErrorResponse(response, 'Unable to update approval status'));
       }
-      toast(approve ? 'Entry approved.' : 'Entry rejected.', approve ? 'success' : 'warning');
+      const result = await response.json().catch(() => ({}));
+      const wasAmendment = Boolean(currentRecord.amendsId);
+      const approvedMessage = wasAmendment ? 'Amendment approved and applied to the record.' : 'Entry approved.';
+      toast(approve ? approvedMessage : 'Entry rejected.', approve ? 'success' : 'warning');
       await fetchList();
-      await loadIntoEditor(kind, id);
+      await loadIntoEditor(kind, result.id || id);
       window.dispatchEvent(new CustomEvent('proliferation:recordchanged'));
       return true;
     } catch (error) {
@@ -2971,6 +3061,7 @@
     currentRecord.id = '';
     currentRecord.kind = preferredKind === 'yearly' ? 'yearly' : 'granular';
     currentRecord.status = '';
+    currentRecord.amendsId = '';
     currentRecord.rowVersion = '';
     currentRecord.sourceLabel = '';
     currentRecord.projectId = '';

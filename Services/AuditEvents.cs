@@ -570,6 +570,24 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.Proliferation.ExportGenerated", userId, data);
         }
 
+        public static AuditEvent ProliferationReportExported(
+            string userId,
+            string report,
+            string approvalStatus,
+            int? projectId,
+            string fileName)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["Report"] = report,
+                ["ApprovalStatus"] = approvalStatus,
+                ["ProjectId"] = projectId?.ToString(CultureInfo.InvariantCulture),
+                ["FileName"] = fileName
+            };
+
+            return new AuditEvent("ProjectOfficeReports.Proliferation.ReportExported", userId, data);
+        }
+
         public static AuditEvent ProliferationYearlySubmitted(
             int projectId,
             ProliferationSource source,
@@ -592,7 +610,9 @@ public static class Audit
             int year,
             bool approved,
             string decidedByUserId,
-            string? reason = null)
+            string? reason = null,
+            Guid? recordId = null,
+            Guid? appliedToRecordId = null)
         {
             var data = new Dictionary<string, string?>
             {
@@ -602,6 +622,7 @@ public static class Audit
                 ["Approved"] = approved ? "true" : "false",
                 ["Reason"] = reason
             };
+            AddProliferationRecordIds(data, recordId, "AppliedToRecordId", appliedToRecordId);
 
             return new AuditEvent("ProjectOfficeReports.ProliferationYearlyDecided", decidedByUserId, data);
         }
@@ -612,7 +633,9 @@ public static class Audit
             DateOnly proliferationDate,
             bool approved,
             string decidedByUserId,
-            string? reason = null)
+            string? reason = null,
+            Guid? recordId = null,
+            Guid? appliedToRecordId = null)
         {
             var data = new Dictionary<string, string?>
             {
@@ -622,6 +645,7 @@ public static class Audit
                 ["Approved"] = approved ? "true" : "false",
                 ["Reason"] = reason
             };
+            AddProliferationRecordIds(data, recordId, "AppliedToRecordId", appliedToRecordId);
 
             return new AuditEvent("ProjectOfficeReports.ProliferationGranularDecided", decidedByUserId, data);
         }
@@ -633,7 +657,9 @@ public static class Audit
             int totalQuantity,
             ApprovalStatus status,
             string actorUserId,
-            string action)
+            string action,
+            Guid? recordId = null,
+            Guid? amendsRecordId = null)
         {
             var data = new Dictionary<string, string?>
             {
@@ -644,6 +670,7 @@ public static class Audit
                 ["ApprovalStatus"] = status.ToString(),
                 ["Action"] = action
             };
+            AddProliferationRecordIds(data, recordId, "AmendsRecordId", amendsRecordId);
 
             return new AuditEvent("ProjectOfficeReports.Proliferation.YearlyRecorded", actorUserId, data);
         }
@@ -685,7 +712,9 @@ public static class Audit
             int quantity,
             ApprovalStatus status,
             string actorUserId,
-            string action)
+            string action,
+            Guid? recordId = null,
+            Guid? amendsRecordId = null)
         {
             var data = new Dictionary<string, string?>
             {
@@ -698,8 +727,28 @@ public static class Audit
                 ["ApprovalStatus"] = status.ToString(),
                 ["Action"] = action
             };
+            AddProliferationRecordIds(data, recordId, "AmendsRecordId", amendsRecordId);
 
             return new AuditEvent("ProjectOfficeReports.Proliferation.GranularRecorded", actorUserId, data);
+        }
+
+        // Record identifiers are added only when known, so older and newer audit rows
+        // share the same keys for everything else.
+        private static void AddProliferationRecordIds(
+            IDictionary<string, string?> data,
+            Guid? recordId,
+            string linkedKey,
+            Guid? linkedRecordId)
+        {
+            if (recordId.HasValue)
+            {
+                data["RecordId"] = recordId.Value.ToString();
+            }
+
+            if (linkedRecordId.HasValue)
+            {
+                data[linkedKey] = linkedRecordId.Value.ToString();
+            }
         }
     }
 }

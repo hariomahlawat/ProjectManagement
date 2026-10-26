@@ -1227,6 +1227,18 @@ namespace ProjectManagement.Data
                 b.Property(x => x.Source).HasConversion<int>();
                 b.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
                     .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
+                b.HasIndex(x => x.AmendsId)
+                    .HasDatabaseName("IX_ProlifYearly_AmendsId");
+                // At most one pending amendment per approved record, enforced by the database
+                // so two concurrent amendments cannot both be filed.
+                b.HasIndex(x => x.AmendsId, "UX_ProlifYearly_PendingAmendment")
+                    .IsUnique()
+                    .HasFilter("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
+                // An amendment cannot outlive, or be filed against, a deleted record.
+                b.HasOne<ProliferationYearly>()
+                    .WithMany()
+                    .HasForeignKey(x => x.AmendsId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ProliferationGranular>(b =>
@@ -1242,6 +1254,15 @@ namespace ProjectManagement.Data
                     .HasDatabaseName("IX_ProlifGranular_UnitName");
                 b.HasIndex(x => new { x.UnitName, x.ProliferationDate })
                     .HasDatabaseName("IX_ProlifGranular_UnitName_ProliferationDate");
+                b.HasIndex(x => x.AmendsId)
+                    .HasDatabaseName("IX_ProlifGranular_AmendsId");
+                b.HasIndex(x => x.AmendsId, "UX_ProlifGranular_PendingAmendment")
+                    .IsUnique()
+                    .HasFilter("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
+                b.HasOne<ProliferationGranular>()
+                    .WithMany()
+                    .HasForeignKey(x => x.AmendsId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ProliferationYearPreference>(b =>

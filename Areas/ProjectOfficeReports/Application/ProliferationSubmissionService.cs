@@ -30,6 +30,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         private readonly IClock _clock;
         private readonly IAuditService _audit;
         private static readonly DateTime MinimumProliferationDateUtc = new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        private const string ConcurrencyError = "The record was modified by another user. Refresh and try again.";
+        private const string PendingAmendmentExistsError = "An amendment to this record is already awaiting approval. Open it under Pending approval to change it.";
+        private const string NotPendingError = "This record is no longer pending approval. Refresh and try again.";
+        private const string DuplicateYearlyError = "Another approved yearly entry already exists for this project, source, and year.";
+        private const string AmendedRecordDeletedError = "This record was deleted while you were editing it. Refresh and try again.";
 
         public ProliferationSubmissionService(
             ApplicationDbContext db,
@@ -340,22 +345,73 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var now = _clock.UtcNow.UtcDateTime;
 
             var canApproveImmediately = RequiresImmediateApproval(user);
-            if (canApproveImmediately)
-            {
-                var duplicate = await _db.ProliferationYearlies
-                    .AsNoTracking()
-                    .AnyAsync(y =>
-                        y.Id != entity.Id &&
-                        y.ProjectId == project.Id &&
-                        y.Source == dto.Source &&
-                        y.Year == dto.Year &&
-                        y.ApprovalStatus == ApprovalStatus.Approved,
-                        ct);
 
-                if (duplicate)
+            // SECTION: Amendment of an approved record
+            // Project Office never changes an approved figure in place. The change is filed
+            // as its own pending row linked to the approved record, which keeps counting
+            // until the amendment is approved and is left untouched if it is rejected.
+            if (!canApproveImmediately && entity.ApprovalStatus == ApprovalStatus.Approved)
+            {
+                if (!entity.RowVersion.AsSpan().SequenceEqual(rowVersion))
                 {
-                    return ServiceResult.Fail("An approved yearly entry already exists for this project, source, and year.");
+                    return ServiceResult.Fail(ConcurrencyError);
                 }
+
+                if (await HasPendingYearlyAmendmentAsync(entity.Id, null, ct))
+                {
+                    return ServiceResult.Fail(PendingAmendmentExistsError);
+                }
+
+                var amendment = new ProliferationYearly
+                {
+                    Id = Guid.NewGuid(),
+                    ProjectId = project.Id,
+                    Source = dto.Source,
+                    Year = dto.Year,
+                    TotalQuantity = dto.TotalQuantity,
+                    Remarks = remarks,
+                    AmendsId = entity.Id,
+                    ApprovalStatus = ApprovalStatus.Pending,
+                    SubmittedByUserId = actor.Id,
+                    CreatedOnUtc = now,
+                    LastUpdatedOnUtc = now,
+                    RowVersion = Array.Empty<byte>()
+                };
+
+                _db.ProliferationYearlies.Add(amendment);
+                try
+                {
+                    await _db.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException) when (!ct.IsCancellationRequested)
+                {
+                    // A concurrent amendment won the unique pending-amendment index, or the
+                    // record was deleted meanwhile and the AmendsId foreign key refused the row.
+                    if (await HasPendingYearlyAmendmentAsync(entity.Id, amendment.Id, ct))
+                    {
+                        return ServiceResult.Fail(PendingAmendmentExistsError);
+                    }
+
+                    if (!await _db.ProliferationYearlies.AsNoTracking().AnyAsync(y => y.Id == entity.Id, ct))
+                    {
+                        return ServiceResult.Fail(AmendedRecordDeletedError);
+                    }
+
+                    throw;
+                }
+
+                await Audit.Events
+                    .ProliferationYearlyRecorded(amendment.ProjectId, amendment.Source, amendment.Year, amendment.TotalQuantity, amendment.ApprovalStatus, actor.Id, "Amend", amendment.Id, entity.Id)
+                    .WriteAsync(_audit, userName: actor.UserName);
+
+                return ServiceResult.Ok(amendment.Id);
+            }
+
+            if (!canApproveImmediately
+                && entity.AmendsId.HasValue
+                && await HasPendingYearlyAmendmentAsync(entity.AmendsId.Value, entity.Id, ct))
+            {
+                return ServiceResult.Fail(PendingAmendmentExistsError);
             }
 
             entity.ProjectId = project.Id;
@@ -364,11 +420,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             entity.TotalQuantity = dto.TotalQuantity;
             entity.Remarks = remarks;
             entity.LastUpdatedOnUtc = now;
+            _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
+
+            var amendedRecordId = entity.AmendsId;
+            var saved = entity;
             if (canApproveImmediately)
             {
-                entity.ApprovalStatus = ApprovalStatus.Approved;
-                entity.ApprovedByUserId = actor.Id;
-                entity.ApprovedOnUtc = now;
+                var approval = await ApplyYearlyApprovalAsync(entity, actor.Id, now, ct);
+                if (approval.Error is not null)
+                {
+                    return ServiceResult.Fail(approval.Error);
+                }
+
+                saved = approval.Record!;
             }
             else
             {
@@ -377,22 +441,30 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 entity.ApprovedOnUtc = null;
             }
 
-            _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
-
             try
             {
                 await _db.SaveChangesAsync(ct);
             }
             catch (DbUpdateConcurrencyException)
             {
-                return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
+                return ServiceResult.Fail(ConcurrencyError);
+            }
+            catch (DbUpdateException) when (amendedRecordId.HasValue && !ct.IsCancellationRequested)
+            {
+                // Resubmitting a rejected amendment raced another pending amendment.
+                if (await HasPendingYearlyAmendmentAsync(amendedRecordId.Value, entity.Id, ct))
+                {
+                    return ServiceResult.Fail(PendingAmendmentExistsError);
+                }
+
+                throw;
             }
 
             await Audit.Events
-                .ProliferationYearlyRecorded(entity.ProjectId, entity.Source, entity.Year, entity.TotalQuantity, entity.ApprovalStatus, actor.Id, "Update")
+                .ProliferationYearlyRecorded(saved.ProjectId, saved.Source, saved.Year, saved.TotalQuantity, saved.ApprovalStatus, actor.Id, "Update", entity.Id, amendedRecordId)
                 .WriteAsync(_audit, userName: actor.UserName);
 
-            return ServiceResult.Ok(entity.Id);
+            return ServiceResult.Ok(saved.Id);
         }
 
         public async Task<ServiceResult> UpdateGranularAsync(Guid id, ProliferationGranularUpdateDto dto, ClaimsPrincipal user, CancellationToken ct)
@@ -463,6 +535,73 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var date = DateOnly.FromDateTime(normalizedDateTime);
             var remarks = Normalize(dto.Remarks, 500);
+            var canApproveImmediately = RequiresImmediateApproval(user);
+
+            // SECTION: Amendment of an approved record
+            // Same rule as annual records: an approved detailed entry is amended through a
+            // linked pending row, never edited in place by Project Office.
+            if (!canApproveImmediately && entity.ApprovalStatus == ApprovalStatus.Approved)
+            {
+                if (!entity.RowVersion.AsSpan().SequenceEqual(rowVersion))
+                {
+                    return ServiceResult.Fail(ConcurrencyError);
+                }
+
+                if (await HasPendingGranularAmendmentAsync(entity.Id, null, ct))
+                {
+                    return ServiceResult.Fail(PendingAmendmentExistsError);
+                }
+
+                var amendment = new ProliferationGranular
+                {
+                    Id = Guid.NewGuid(),
+                    ProjectId = project.Id,
+                    Source = dto.Source,
+                    UnitName = unit,
+                    ProliferationDate = date,
+                    Quantity = dto.Quantity,
+                    Remarks = remarks,
+                    AmendsId = entity.Id,
+                    ApprovalStatus = ApprovalStatus.Pending,
+                    SubmittedByUserId = actor.Id,
+                    CreatedOnUtc = now,
+                    LastUpdatedOnUtc = now,
+                    RowVersion = Array.Empty<byte>()
+                };
+
+                _db.ProliferationGranularEntries.Add(amendment);
+                try
+                {
+                    await _db.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException) when (!ct.IsCancellationRequested)
+                {
+                    if (await HasPendingGranularAmendmentAsync(entity.Id, amendment.Id, ct))
+                    {
+                        return ServiceResult.Fail(PendingAmendmentExistsError);
+                    }
+
+                    if (!await _db.ProliferationGranularEntries.AsNoTracking().AnyAsync(g => g.Id == entity.Id, ct))
+                    {
+                        return ServiceResult.Fail(AmendedRecordDeletedError);
+                    }
+
+                    throw;
+                }
+
+                await Audit.Events
+                    .ProliferationGranularRecorded(amendment.ProjectId, project.Name, amendment.Source, amendment.UnitName, amendment.ProliferationDate, amendment.Quantity, amendment.ApprovalStatus, actor.Id, "Amend", amendment.Id, entity.Id)
+                    .WriteAsync(_audit, userName: actor.UserName);
+
+                return ServiceResult.Ok(amendment.Id);
+            }
+
+            if (!canApproveImmediately
+                && entity.AmendsId.HasValue
+                && await HasPendingGranularAmendmentAsync(entity.AmendsId.Value, entity.Id, ct))
+            {
+                return ServiceResult.Fail(PendingAmendmentExistsError);
+            }
 
             entity.ProjectId = project.Id;
             entity.Source = dto.Source;
@@ -471,11 +610,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             entity.Quantity = dto.Quantity;
             entity.Remarks = remarks;
             entity.LastUpdatedOnUtc = now;
-            if (RequiresImmediateApproval(user))
+            _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
+
+            var amendedRecordId = entity.AmendsId;
+            var saved = entity;
+            if (canApproveImmediately)
             {
-                entity.ApprovalStatus = ApprovalStatus.Approved;
-                entity.ApprovedByUserId = actor.Id;
-                entity.ApprovedOnUtc = now;
+                saved = await ApplyGranularApprovalAsync(entity, actor.Id, now, ct);
             }
             else
             {
@@ -484,22 +625,29 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 entity.ApprovedOnUtc = null;
             }
 
-            _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
-
             try
             {
                 await _db.SaveChangesAsync(ct);
             }
             catch (DbUpdateConcurrencyException)
             {
-                return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
+                return ServiceResult.Fail(ConcurrencyError);
+            }
+            catch (DbUpdateException) when (amendedRecordId.HasValue && !ct.IsCancellationRequested)
+            {
+                if (await HasPendingGranularAmendmentAsync(amendedRecordId.Value, entity.Id, ct))
+                {
+                    return ServiceResult.Fail(PendingAmendmentExistsError);
+                }
+
+                throw;
             }
 
             await Audit.Events
-                .ProliferationGranularRecorded(entity.ProjectId, project.Name, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Update")
+                .ProliferationGranularRecorded(saved.ProjectId, project.Name, saved.Source, saved.UnitName, saved.ProliferationDate, saved.Quantity, saved.ApprovalStatus, actor.Id, "Update", entity.Id, amendedRecordId)
                 .WriteAsync(_audit, userName: actor.UserName);
 
-            return ServiceResult.Ok(entity.Id);
+            return ServiceResult.Ok(saved.Id);
         }
 
         public async Task<ServiceResult> DecideYearlyAsync(Guid id, bool approve, string? rowVersionBase64, string? reason, ClaimsPrincipal user, CancellationToken ct)
@@ -524,6 +672,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("Record not found.");
             }
 
+            // Only a pending record can be decided; approved and rejected records change
+            // through an amendment or a resubmission, never by deciding them again.
+            if (entity.ApprovalStatus != ApprovalStatus.Pending)
+            {
+                return ServiceResult.Fail(NotPendingError);
+            }
+
             if (!TryDecodeRowVersion(rowVersionBase64, out var rowVersion))
             {
                 return ServiceResult.Fail("The record is out of date. Refresh and try again.");
@@ -532,27 +687,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
 
             var now = _clock.UtcNow.UtcDateTime;
+            var decided = entity;
 
             if (approve)
             {
-                var duplicate = await _db.ProliferationYearlies
-                    .AsNoTracking()
-                    .AnyAsync(y =>
-                        y.Id != entity.Id &&
-                        y.ProjectId == entity.ProjectId &&
-                        y.Source == entity.Source &&
-                        y.Year == entity.Year &&
-                        y.ApprovalStatus == ApprovalStatus.Approved,
-                        ct);
-
-                if (duplicate)
+                var approval = await ApplyYearlyApprovalAsync(entity, actor.Id, now, ct);
+                if (approval.Error is not null)
                 {
-                    return ServiceResult.Fail("Another approved yearly entry already exists for this project, source, and year.");
+                    return ServiceResult.Fail(approval.Error);
                 }
 
-                entity.ApprovalStatus = ApprovalStatus.Approved;
-                entity.ApprovedByUserId = actor.Id;
-                entity.ApprovedOnUtc = now;
+                decided = approval.Record!;
             }
             else
             {
@@ -569,14 +714,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
             catch (DbUpdateConcurrencyException)
             {
-                return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
+                return ServiceResult.Fail(ConcurrencyError);
             }
 
             await Audit.Events
-                .ProliferationYearlyDecided(entity.ProjectId, entity.Source, entity.Year, approve, actor.Id, normalizedReason)
+                .ProliferationYearlyDecided(decided.ProjectId, decided.Source, decided.Year, approve, actor.Id, normalizedReason, entity.Id, decided.Id == entity.Id ? null : decided.Id)
                 .WriteAsync(_audit, userName: actor.UserName);
 
-            return ServiceResult.Ok();
+            return ServiceResult.Ok(decided.Id);
         }
 
         public async Task<ServiceResult> DecideGranularAsync(Guid id, bool approve, string? rowVersionBase64, string? reason, ClaimsPrincipal user, CancellationToken ct)
@@ -601,6 +746,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("Record not found.");
             }
 
+            if (entity.ApprovalStatus != ApprovalStatus.Pending)
+            {
+                return ServiceResult.Fail(NotPendingError);
+            }
+
             if (!TryDecodeRowVersion(rowVersionBase64, out var rowVersion))
             {
                 return ServiceResult.Fail("The record is out of date. Refresh and try again.");
@@ -609,12 +759,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
 
             var now = _clock.UtcNow.UtcDateTime;
+            var decided = entity;
 
             if (approve)
             {
-                entity.ApprovalStatus = ApprovalStatus.Approved;
-                entity.ApprovedByUserId = actor.Id;
-                entity.ApprovedOnUtc = now;
+                decided = await ApplyGranularApprovalAsync(entity, actor.Id, now, ct);
             }
             else
             {
@@ -631,14 +780,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
             catch (DbUpdateConcurrencyException)
             {
-                return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
+                return ServiceResult.Fail(ConcurrencyError);
             }
 
             await Audit.Events
-                .ProliferationGranularDecided(entity.ProjectId, entity.Source, entity.ProliferationDate, approve, actor.Id, normalizedReason)
+                .ProliferationGranularDecided(decided.ProjectId, decided.Source, decided.ProliferationDate, approve, actor.Id, normalizedReason, entity.Id, decided.Id == entity.Id ? null : decided.Id)
                 .WriteAsync(_audit, userName: actor.UserName);
 
-            return ServiceResult.Ok();
+            return ServiceResult.Ok(decided.Id);
         }
 
         public async Task<ServiceResult> DeleteYearlyAsync(Guid id, string? rowVersionBase64, ClaimsPrincipal user, CancellationToken ct)
@@ -670,18 +819,28 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
             _db.ProliferationYearlies.Remove(entity);
 
+            // Amendments of a deleted record have nothing left to amend; leaving them would
+            // let a later approval bring the deleted figure back as a new record.
+            var linkedAmendments = await _db.ProliferationYearlies
+                .Where(x => x.AmendsId == entity.Id)
+                .ToListAsync(ct);
+            _db.ProliferationYearlies.RemoveRange(linkedAmendments);
+
             try
             {
                 await _db.SaveChangesAsync(ct);
             }
             catch (DbUpdateConcurrencyException)
             {
-                return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
+                return ServiceResult.Fail(ConcurrencyError);
             }
 
-            await Audit.Events
-                .ProliferationYearlyRecorded(entity.ProjectId, entity.Source, entity.Year, entity.TotalQuantity, entity.ApprovalStatus, actor.Id, "Delete")
-                .WriteAsync(_audit, userName: actor.UserName);
+            foreach (var removed in linkedAmendments.Prepend(entity))
+            {
+                await Audit.Events
+                    .ProliferationYearlyRecorded(removed.ProjectId, removed.Source, removed.Year, removed.TotalQuantity, removed.ApprovalStatus, actor.Id, "Delete", removed.Id, removed.AmendsId)
+                    .WriteAsync(_audit, userName: actor.UserName);
+            }
 
             return ServiceResult.Ok();
         }
@@ -715,13 +874,18 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
             _db.ProliferationGranularEntries.Remove(entity);
 
+            var linkedAmendments = await _db.ProliferationGranularEntries
+                .Where(x => x.AmendsId == entity.Id)
+                .ToListAsync(ct);
+            _db.ProliferationGranularEntries.RemoveRange(linkedAmendments);
+
             try
             {
                 await _db.SaveChangesAsync(ct);
             }
             catch (DbUpdateConcurrencyException)
             {
-                return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
+                return ServiceResult.Fail(ConcurrencyError);
             }
 
             var project = await _db.Projects
@@ -730,12 +894,119 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var projectName = project?.Name ?? "(unknown)";
 
-            await Audit.Events
-                .ProliferationGranularRecorded(entity.ProjectId, projectName, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Delete")
-                .WriteAsync(_audit, userName: actor.UserName);
+            foreach (var removed in linkedAmendments.Prepend(entity))
+            {
+                await Audit.Events
+                    .ProliferationGranularRecorded(removed.ProjectId, projectName, removed.Source, removed.UnitName, removed.ProliferationDate, removed.Quantity, removed.ApprovalStatus, actor.Id, "Delete", removed.Id, removed.AmendsId)
+                    .WriteAsync(_audit, userName: actor.UserName);
+            }
 
             return ServiceResult.Ok();
         }
+
+        // SECTION: Approval and amendment helpers
+        // Approves a yearly record. An amendment is applied onto the approved record it
+        // amends and then removed, so the record keeps its identity and is counted once.
+        private async Task<(ProliferationYearly? Record, string? Error)> ApplyYearlyApprovalAsync(
+            ProliferationYearly entity,
+            string approverUserId,
+            DateTime now,
+            CancellationToken ct)
+        {
+            var amendedId = entity.AmendsId;
+            var duplicate = await _db.ProliferationYearlies
+                .AsNoTracking()
+                .AnyAsync(y =>
+                    y.Id != entity.Id &&
+                    (amendedId == null || y.Id != amendedId.Value) &&
+                    y.ProjectId == entity.ProjectId &&
+                    y.Source == entity.Source &&
+                    y.Year == entity.Year &&
+                    y.ApprovalStatus == ApprovalStatus.Approved,
+                    ct);
+
+            if (duplicate)
+            {
+                return (null, DuplicateYearlyError);
+            }
+
+            var amended = amendedId.HasValue
+                ? await _db.ProliferationYearlies.FirstOrDefaultAsync(y => y.Id == amendedId.Value, ct)
+                : null;
+
+            if (amended is { ApprovalStatus: ApprovalStatus.Approved })
+            {
+                amended.ProjectId = entity.ProjectId;
+                amended.Source = entity.Source;
+                amended.Year = entity.Year;
+                amended.TotalQuantity = entity.TotalQuantity;
+                amended.Remarks = entity.Remarks;
+                amended.SubmittedByUserId = entity.SubmittedByUserId;
+                amended.ApprovedByUserId = approverUserId;
+                amended.ApprovedOnUtc = now;
+                amended.LastUpdatedOnUtc = now;
+                _db.ProliferationYearlies.Remove(entity);
+                return (amended, null);
+            }
+
+            // The amended record is gone (or no longer approved): the amendment stands alone.
+            entity.AmendsId = null;
+            entity.ApprovalStatus = ApprovalStatus.Approved;
+            entity.ApprovedByUserId = approverUserId;
+            entity.ApprovedOnUtc = now;
+            return (entity, null);
+        }
+
+        private async Task<ProliferationGranular> ApplyGranularApprovalAsync(
+            ProliferationGranular entity,
+            string approverUserId,
+            DateTime now,
+            CancellationToken ct)
+        {
+            var amended = entity.AmendsId.HasValue
+                ? await _db.ProliferationGranularEntries.FirstOrDefaultAsync(g => g.Id == entity.AmendsId.Value, ct)
+                : null;
+
+            if (amended is { ApprovalStatus: ApprovalStatus.Approved })
+            {
+                amended.ProjectId = entity.ProjectId;
+                amended.Source = entity.Source;
+                amended.UnitName = entity.UnitName;
+                amended.ProliferationDate = entity.ProliferationDate;
+                amended.Quantity = entity.Quantity;
+                amended.Remarks = entity.Remarks;
+                amended.SubmittedByUserId = entity.SubmittedByUserId;
+                amended.ApprovedByUserId = approverUserId;
+                amended.ApprovedOnUtc = now;
+                amended.LastUpdatedOnUtc = now;
+                _db.ProliferationGranularEntries.Remove(entity);
+                return amended;
+            }
+
+            entity.AmendsId = null;
+            entity.ApprovalStatus = ApprovalStatus.Approved;
+            entity.ApprovedByUserId = approverUserId;
+            entity.ApprovedOnUtc = now;
+            return entity;
+        }
+
+        private Task<bool> HasPendingYearlyAmendmentAsync(Guid amendedId, Guid? excludeId, CancellationToken ct)
+            => _db.ProliferationYearlies
+                .AsNoTracking()
+                .AnyAsync(y =>
+                    y.AmendsId == amendedId &&
+                    y.ApprovalStatus == ApprovalStatus.Pending &&
+                    (excludeId == null || y.Id != excludeId.Value),
+                    ct);
+
+        private Task<bool> HasPendingGranularAmendmentAsync(Guid amendedId, Guid? excludeId, CancellationToken ct)
+            => _db.ProliferationGranularEntries
+                .AsNoTracking()
+                .AnyAsync(g =>
+                    g.AmendsId == amendedId &&
+                    g.ApprovalStatus == ApprovalStatus.Pending &&
+                    (excludeId == null || g.Id != excludeId.Value),
+                    ct);
 
         private async Task<Project?> GetCompletedProjectAsync(int projectId, CancellationToken ct)
         {

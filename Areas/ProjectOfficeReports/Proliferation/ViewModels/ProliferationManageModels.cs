@@ -71,7 +71,8 @@ public sealed record ProliferationManageListItem(
     ApprovalStatus ApprovalStatus,
     DateTime CreatedOnUtc,
     DateTime LastUpdatedOnUtc,
-    DateTime? ApprovedOnUtc);
+    DateTime? ApprovedOnUtc,
+    Guid? AmendsId = null);
 
 public sealed record ProliferationPreferenceOverrideItem(
     Guid Id,
@@ -104,7 +105,9 @@ public sealed record ProliferationYearlyDetail(
     DateTime? ApprovedOnUtc,
     DateTime CreatedOnUtc,
     DateTime LastUpdatedOnUtc,
-    byte[] RowVersion);
+    byte[] RowVersion,
+    Guid? AmendsId = null,
+    Guid? PendingAmendmentId = null);
 
 public sealed record ProliferationGranularDetail(
     Guid Id,
@@ -120,7 +123,9 @@ public sealed record ProliferationGranularDetail(
     DateTime? ApprovedOnUtc,
     DateTime CreatedOnUtc,
     DateTime LastUpdatedOnUtc,
-    byte[] RowVersion);
+    byte[] RowVersion,
+    Guid? AmendsId = null,
+    Guid? PendingAmendmentId = null);
 
 public static class ProliferationCompletedProjectOptionExtensions
 {

@@ -239,7 +239,8 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
                 RecordEntryAuditActions.Contains(x.Action) &&
                 x.DataJson != null &&
                 (x.DataJson.Contains("\"Action\":\"Create\"") ||
-                 x.DataJson.Contains("\"Action\":\"Update\"")))
+                 x.DataJson.Contains("\"Action\":\"Update\"") ||
+                 x.DataJson.Contains("\"Action\":\"Amend\"")))
             .OrderByDescending(x => x.TimeUtc)
             .Select(x => (DateTime?)x.TimeUtc)
             .FirstOrDefaultAsync(cancellationToken);
@@ -476,6 +477,7 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             {
                 "create" => "Added annual quantity",
                 "update" => "Updated annual quantity",
+                "amend" => "Submitted amendment to annual quantity",
                 "delete" => "Deleted annual quantity",
                 _ => "Maintained annual quantity"
             };
@@ -487,6 +489,7 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             {
                 "create" => "Added detailed entry",
                 "update" => "Updated detailed entry",
+                "amend" => "Submitted amendment to detailed entry",
                 "delete" => "Deleted detailed entry",
                 _ => "Maintained detailed entry"
             };

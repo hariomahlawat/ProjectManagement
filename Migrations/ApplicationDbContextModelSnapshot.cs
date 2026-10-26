@@ -729,6 +729,9 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AmendsId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("ApprovalStatus")
                         .HasColumnType("integer");
 
@@ -774,6 +777,13 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AmendsId")
+                        .HasDatabaseName("IX_ProlifGranular_AmendsId");
+
+                    b.HasIndex(new[] { "AmendsId" }, "UX_ProlifGranular_PendingAmendment")
+                        .IsUnique()
+                        .HasFilter("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
 
                     b.HasIndex("UnitName")
                         .HasDatabaseName("IX_ProlifGranular_UnitName");
@@ -826,6 +836,9 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AmendsId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("ApprovalStatus")
                         .HasColumnType("integer");
 
@@ -866,6 +879,13 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AmendsId")
+                        .HasDatabaseName("IX_ProlifYearly_AmendsId");
+
+                    b.HasIndex(new[] { "AmendsId" }, "UX_ProlifYearly_PendingAmendment")
+                        .IsUnique()
+                        .HasFilter("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
 
                     b.HasIndex("ProjectId", "Source", "Year")
                         .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
@@ -8812,6 +8832,22 @@ namespace ProjectManagement.Migrations
                         .IsRequired();
 
                     b.Navigation("Country");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationGranular", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationGranular", null)
+                        .WithMany()
+                        .HasForeignKey("AmendsId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationYearly", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationYearly", null)
+                        .WithMany()
+                        .HasForeignKey("AmendsId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEvent", b =>
