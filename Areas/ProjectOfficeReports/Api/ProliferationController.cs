@@ -1333,7 +1333,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return NotFound();
             }
 
-            return BadRequest(result.Error);
+            // JSON so the Records and data-quality pages can show the service's own message;
+            // they deliberately ignore plain-text bodies.
+            return BadRequest(new { message = result.Error });
         }
 
         private static string CsvEscape(string? value)

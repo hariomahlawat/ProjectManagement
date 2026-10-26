@@ -1847,18 +1847,22 @@
       const response = await fetch(`${api.groups}?${params}`, { headers: { Accept: 'application/json' }, signal: editorImpactController.signal });
       if (!response.ok) throw new Error('Unable to load calculation preview');
       const data = await response.json();
-      const row = Array.isArray(data.items) ? data.items.find((x) => Number(x.projectId) === projectId && Number(x.source) === source && Number(x.year) === year) : null;
+      // The groups API serialises the source as its enum name ("Sdd", "Abw515").
+      const sourceName = { 1: 'Sdd', 2: 'Abw515' }[source];
+      const matchesSource = (value) => Number(value) === source || String(value) === sourceName;
+      const row = Array.isArray(data.items) ? data.items.find((x) => Number(x.projectId) === projectId && matchesSource(x.source) && Number(x.year) === year) : null;
       let annual = Number(row?.annualQuantity || 0);
       let detailed = Number(row?.detailedQuantity || 0);
       const current = Number(row?.reportedTotal || 0);
-      const sameCombination = currentRecord.id &&
-        Number(currentRecord.projectId) === projectId &&
-        Number(currentRecord.source) === source &&
-        Number(currentRecord.year) === year;
-      if (sameCombination && (currentRecord.status || '').toLowerCase() === 'approved') {
-        const previousQuantity = Number(currentRecord.quantity || 0);
-        if (currentRecord.kind === 'yearly') annual = Math.max(0, annual - previousQuantity);
-        else detailed = Math.max(0, detailed - previousQuantity);
+      // The quantity this save replaces in the approved totals: the approved record being
+      // amended, or the amendment's approved record when an amendment is open.
+      const replaced = await getReplacedApprovedQuantity(kind, editorImpactController.signal);
+      if (replaced &&
+        Number(replaced.projectId) === projectId &&
+        matchesSource(replaced.source) &&
+        Number(replaced.year) === year) {
+        if (kind === 'yearly') annual = Math.max(0, annual - replaced.quantity);
+        else detailed = Math.max(0, detailed - replaced.quantity);
       }
       if (kind === 'yearly') annual += quantity;
       else detailed += quantity;
@@ -1890,6 +1894,34 @@
       if (error.name === 'AbortError') return;
       hideEditorImpact();
     }
+  }
+
+  async function getReplacedApprovedQuantity(kind, signal) {
+    if (!currentRecord.id || currentRecord.kind !== kind) return null;
+    if ((currentRecord.status || '').toLowerCase() === 'approved') {
+      return {
+        projectId: currentRecord.projectId,
+        source: currentRecord.source,
+        year: currentRecord.year,
+        quantity: Number(currentRecord.quantity || 0)
+      };
+    }
+    if (!currentRecord.amendsId) return null;
+
+    const response = await fetch(kind === 'yearly' ? api.yearly(currentRecord.amendsId) : api.granular(currentRecord.amendsId), {
+      headers: { Accept: 'application/json' },
+      signal
+    });
+    if (!response.ok) return null;
+    const amended = await response.json();
+    if ((amended.approvalStatus ?? '').toString().toLowerCase() !== 'approved') return null;
+    const amendedDate = formatDate(amended.proliferationDateUtc ?? '');
+    return {
+      projectId: amended.projectId,
+      source: amended.source,
+      year: kind === 'yearly' ? amended.year : Number(amendedDate.slice(0, 4)),
+      quantity: Number((kind === 'yearly' ? amended.totalQuantity : amended.quantity) || 0)
+    };
   }
 
   function scheduleEditorImpact() {

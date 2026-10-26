@@ -257,10 +257,21 @@
             {
                 <section class="decision-panel">
                     <header class="decision-panel__header"><div><h2>Yearly proliferation record</h2><p>@yearly.Source · @yearly.Year</p></div></header>
-                    <dl class="decision-definition-list">
-                        <div><dt>Total quantity</dt><dd>@yearly.TotalQuantity</dd></div>
-                        <div><dt>Remarks</dt><dd>@(yearly.Remarks ?? "—")</dd></div>
-                    </dl>
+                    @if (yearly.PreviousSnapshot is { } previousYearly)
+                    {
+                        <div class="decision-change-table">
+                            <div class="decision-change-row decision-change-row--head"><span>Field</span><span>Approved</span><span>Proposed</span></div>
+                            <div class="decision-change-row"><strong>Total quantity</strong><span>@previousYearly.TotalQuantity</span><span class="is-proposed">@yearly.TotalQuantity</span></div>
+                            <div class="decision-change-row"><strong>Remarks</strong><span>@(previousYearly.Remarks ?? "—")</span><span class="is-proposed">@(yearly.Remarks ?? "—")</span></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <dl class="decision-definition-list">
+                            <div><dt>Total quantity</dt><dd>@yearly.TotalQuantity</dd></div>
+                            <div><dt>Remarks</dt><dd>@(yearly.Remarks ?? "—")</dd></div>
+                        </dl>
+                    }
                 </section>
             }
 
@@ -271,9 +282,20 @@
                     <dl class="decision-definition-list">
                         <div><dt>Unit</dt><dd>@granular.UnitName</dd></div>
                         <div><dt>Date</dt><dd>@Model.FormatDate(granular.ProliferationDate)</dd></div>
-                        <div><dt>Quantity</dt><dd>@granular.Quantity</dd></div>
-                        <div><dt>Remarks</dt><dd>@(granular.Remarks ?? "—")</dd></div>
+                        @if (granular.PreviousSnapshot is null)
+                        {
+                            <div><dt>Quantity</dt><dd>@granular.Quantity</dd></div>
+                            <div><dt>Remarks</dt><dd>@(granular.Remarks ?? "—")</dd></div>
+                        }
                     </dl>
+                    @if (granular.PreviousSnapshot is { } previousGranular)
+                    {
+                        <div class="decision-change-table">
+                            <div class="decision-change-row decision-change-row--head"><span>Field</span><span>Approved</span><span>Proposed</span></div>
+                            <div class="decision-change-row"><strong>Quantity</strong><span>@previousGranular.Quantity</span><span class="is-proposed">@granular.Quantity</span></div>
+                            <div class="decision-change-row"><strong>Remarks</strong><span>@(previousGranular.Remarks ?? "—")</span><span class="is-proposed">@(granular.Remarks ?? "—")</span></div>
+                        </div>
+                    }
                 </section>
             }
 
