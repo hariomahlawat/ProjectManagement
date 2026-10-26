@@ -133,11 +133,11 @@
     <header class="analytics-card__head">
       <div class="analytics-card__text">
         <h2 class="analytics-card__title">AR/VR projects started before the CoE nomination</h2>
-        <p class="analytics-card__meta">AR/VR projects (by technical category) that are not in a CoE category: those started before the formal CoE (AR/VR) nomination, and the AR/VR projects under DCD as fresh projects and repeat builds. Completed projects first. Not counted in the CoE figures above.</p>
+        <p class="analytics-card__meta">AR/VR projects that are not in a CoE category: those started before the formal CoE (AR/VR) nomination, and the AR/VR projects under DCD as fresh projects and repeat builds.</p>
       </div>
     </header>
     @* The three groups are always drawn, at zero when empty, so the structure reads the same on every portfolio. *@
-    @await Html.PartialAsync("Partials/_BoardRows", (Model.ArVrOutsideCoe, "arvr", overviewUrl, "Before the CoE nomination"))
+    @await Html.PartialAsync("Partials/_BoardRows", (Model.ArVrOutsideCoe, "arvr", overviewUrl, ""))
   </article>
   <!-- END SECTION -->
 </section>

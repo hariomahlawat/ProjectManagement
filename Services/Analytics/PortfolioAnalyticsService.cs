@@ -746,9 +746,9 @@ namespace ProjectManagement.Services.Analytics
 
             return new[]
             {
-                Group(CoeAnalyticsVm.ArVrEarlierKey, "Started before the CoE nomination"),
-                Group(CoeAnalyticsVm.ArVrDcdFreshKey, "AR/VR under DCD · Fresh projects"),
-                Group(CoeAnalyticsVm.ArVrDcdRepeatKey, "AR/VR under DCD · Repeat builds")
+                Group(CoeAnalyticsVm.ArVrEarlierKey, "Before the CoE nomination"),
+                Group(CoeAnalyticsVm.ArVrDcdFreshKey, "DCD · Fresh projects"),
+                Group(CoeAnalyticsVm.ArVrDcdRepeatKey, "DCD · Repeat builds")
             };
         }
 
