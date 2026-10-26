@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
@@ -271,6 +272,10 @@ public sealed class IndexModel : PageModel
         List
     }
 
+    // Redirects carry the completion window as yyyy-MM-dd, not the server culture's short date.
+    private static string? DayValue(DateOnly? date)
+        => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await PopulateAsync(cancellationToken);
@@ -425,8 +430,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
-            CompletedFrom,
-            CompletedTo,
+            CompletedFrom = DayValue(CompletedFrom),
+            CompletedTo = DayValue(CompletedTo),
             SelectedProjectId = SubmitInput.ProjectId,
             ViewMode
         });
@@ -626,8 +631,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
-            CompletedFrom,
-            CompletedTo,
+            CompletedFrom = DayValue(CompletedFrom),
+            CompletedTo = DayValue(CompletedTo),
             SelectedProjectId = DecideInput.ProjectId,
             ViewMode
         });
@@ -743,8 +748,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
-            CompletedFrom,
-            CompletedTo,
+            CompletedFrom = DayValue(CompletedFrom),
+            CompletedTo = DayValue(CompletedTo),
             SelectedProjectId = projectId ?? SelectedProjectId,
             ViewMode
         });
