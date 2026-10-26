@@ -18,19 +18,15 @@ public sealed class WorkspaceNudgeService
     public static int? GetCurrentStageAgeDays(Project project, DateOnly today)
     {
         var current = GetCurrentStage(project);
-        if (current?.Status == StageStatus.InProgress && current.ActualStart is { } actualStart)
-        {
-            return Math.Max(0, today.DayNumber - actualStart.DayNumber);
-        }
-
-        var lastCompleted = project.ProjectStages
+        var latestCompletion = project.ProjectStages
             .Where(s => s.Status == StageStatus.Completed && s.CompletedOn.HasValue)
-            .OrderByDescending(s => s.CompletedOn)
-            .FirstOrDefault();
+            .Max(s => s.CompletedOn);
 
-        return lastCompleted?.CompletedOn is { } completedOn
-            ? Math.Max(0, today.DayNumber - completedOn.DayNumber)
-            : null;
+        return PresentStageHelper.CurrentStageAgeDays(
+            current?.Status ?? StageStatus.NotStarted,
+            current?.ActualStart,
+            latestCompletion,
+            today);
     }
 
     // SECTION: Workspace project update remark
