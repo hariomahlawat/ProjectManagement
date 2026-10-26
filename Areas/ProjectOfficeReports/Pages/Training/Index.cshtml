@@ -687,6 +687,8 @@ else
                             </div>
 
                             <div class="col-md-3">
+                                @* The register's date basis (Reference from a Command desk drill-down) applies to the export too. *@
+                                <input type="hidden" asp-for="Export.DateBasis" />
                                 <label asp-for="Export.From" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <input asp-for="Export.From" class="form-control" />
                                 <span asp-validation-for="Export.From" class="text-danger small"></span>

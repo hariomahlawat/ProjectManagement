@@ -232,7 +232,8 @@ public class IndexModel : PageModel
             Export.RosterScope,
             userId,
             displayName,
-            applicationBaseUrl);
+            applicationBaseUrl,
+            Export.DateBasis ?? TrainingDateBasis.Overlap);
 
         var result = await _exportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
@@ -469,6 +470,7 @@ public class IndexModel : PageModel
     {
         Export.From ??= Filter.From;
         Export.To ??= Filter.To;
+        Export.DateBasis ??= Filter.DateBasis;
         Export.ProjectId ??= Filter.ProjectId;
         Export.ProjectTechnicalCategoryId ??= Filter.ProjectTechnicalCategoryId;
         Export.TypeId ??= Filter.TypeId;
@@ -580,6 +582,9 @@ public class IndexModel : PageModel
         [DataType(DataType.Date)]
         [Display(Name = "To")]
         public DateOnly? To { get; set; }
+
+        // Null until the export form posts or the register's basis is backfilled into it.
+        public TrainingDateBasis? DateBasis { get; set; }
 
         [Display(Name = "Project technical category")]
         public int? ProjectTechnicalCategoryId { get; set; }

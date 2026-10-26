@@ -14,6 +14,9 @@
                     <!-- keep current project + view -->
                     <input type="hidden" asp-for="SelectedProjectId" />
                     <input type="hidden" asp-for="ViewMode" />
+                    @* Keep a Command desk completion window while refining the other filters. *@
+                    <input type="hidden" name="CompletedFrom" value="@Model.CompletedFrom?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+                    <input type="hidden" name="CompletedTo" value="@Model.CompletedTo?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
 
                     <!-- Search -->
                     <div>
