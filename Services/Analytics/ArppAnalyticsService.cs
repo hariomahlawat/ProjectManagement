@@ -187,10 +187,14 @@ namespace ProjectManagement.Services.Analytics
             var fyEnd = FinancialYearHelper.GetEndDate(selected);
             var updates = approvedIds.Where(standing.ContainsKey).Select(id => standing[id]).ToList();
             var pastAon = updates.Where(row => row.AonDate.HasValue).ToList();
-            // A supply order counts as placed on evidence of placement: a supply-order date, or the project
-            // having reached the Supply Order stage or beyond (including completion). A resolved amount alone
-            // can be an L1 or PNC cost recorded before any order exists.
-            var withSo = updates.Where(IsSupplyOrderPlaced).ToList();
+            // "Supply order placed" is a milestone of projects still in work: a supply-order date, or the
+            // project having reached the Supply Order stage or beyond. A resolved amount alone can be an L1
+            // or PNC cost recorded before any order exists. Completed projects are not in this count; their
+            // supply-order value is reported on its own (CompletedSupplyOrderValue).
+            var withSo = updates.Where(row => IsInWork(row) && HasSupplyOrderEvidence(row)).ToList();
+            var completedUpdates = updates.Where(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed).ToList();
+            // The rest: ongoing listed projects that have not reached a supply order (cancelled projects are in no card).
+            var beforeSo = updates.Where(row => IsInWork(row) && !HasSupplyOrderEvidence(row)).ToList();
             // PDC milestones concern projects still in work: a completed, cancelled or archived project has no
             // development PDC to meet. "Due" is a PDC still ahead and within the year; once the year has closed
             // nothing is ahead, and the row says so instead of showing an empty window as a zero.
@@ -240,6 +244,9 @@ namespace ProjectManagement.Services.Analytics
                 PastAonCount = pastAon.Count,
                 SupplyOrderCount = withSo.Count,
                 SupplyOrderValue = withSo.Sum(row => row.SupplyOrderAmountInRupees ?? 0m),
+                CompletedSupplyOrderValue = completedUpdates.Sum(row => row.SupplyOrderAmountInRupees ?? 0m),
+                BeforeSupplyOrderCount = beforeSo.Count,
+                BeforeAonCount = beforeSo.Count(row => StagePhases.Of(row.CurrentStageCode) == StagePhase.PreAon),
                 PdcDueInYearCount = pdcDue.Count,
                 PdcOverdueCount = pdcOverdue.Count,
                 MilestoneBoard = milestoneBoard
@@ -249,9 +256,9 @@ namespace ProjectManagement.Services.Analytics
         private static bool IsInWork(ArppFyProjectUpdateRow row) =>
             row.LifecycleStatus == ProjectLifecycleStatus.Active && !row.IsArchived;
 
-        private static bool IsSupplyOrderPlaced(ArppFyProjectUpdateRow row)
+        private static bool HasSupplyOrderEvidence(ArppFyProjectUpdateRow row)
         {
-            if (row.SupplyOrderDate.HasValue || row.IsCompleted)
+            if (row.SupplyOrderDate.HasValue)
             {
                 return true;
             }
