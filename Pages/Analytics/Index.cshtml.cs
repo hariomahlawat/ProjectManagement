@@ -180,6 +180,7 @@ namespace ProjectManagement.Pages.Analytics
                         StageCycleTime = new StageTimeCycleChartVm
                         {
                             Rows = stageCycleResult.Rows,
+                            CategoryRows = stageCycleResult.CategoryRows,
                             SelectedCategoryId = insightCategoryId ?? stageCycleResult.SelectedCategoryId
                         },
                         StageHotspots = new StageHotspotChartVm
@@ -266,27 +267,26 @@ namespace ProjectManagement.Pages.Analytics
                     };
 
                 case AnalyticsTab.Insights when Insights is not null:
-                    var slowest = Insights.SlowestStage;
-                    var fastest = Insights.FastestStage;
-                    return new[]
-                    {
-                        new HeadlineFigure(
-                            "Slowest stage",
-                            slowest?.StageName ?? "—",
-                            slowest is null ? null : $"{FormatDays(slowest.MedianDays)} {Plural((int)Math.Round(slowest.MedianDays), "day")} median"),
-                        new HeadlineFigure(
-                            "Fastest stage",
-                            fastest?.StageName ?? "—",
-                            fastest is null ? null : $"{FormatDays(fastest.MedianDays)} {Plural((int)Math.Round(fastest.MedianDays), "day")} median"),
-                        new HeadlineFigure(
-                            "Portfolio median",
-                            FormatDays(Insights.RankedHotspots.Count > 0 ? Insights.PortfolioMedianDays : null),
-                            "days per stage, across all stages"),
-                        new HeadlineFigure(
-                            "Stages measured",
-                            Insights.RankedHotspots.Count.ToString(),
-                            "with recorded start and end dates")
-                    };
+                {
+                    // The three stages where the most time goes, then the baseline they are read against.
+                    var labels = new[] { "Slowest stage", "Second slowest", "Third slowest" };
+                    var figures = labels
+                        .Select((label, index) =>
+                        {
+                            var stage = index < Insights.RankedHotspots.Count ? Insights.RankedHotspots[index] : null;
+                            return new HeadlineFigure(
+                                label,
+                                stage?.StageName ?? "—",
+                                stage is null ? null : HotspotHint(stage));
+                        })
+                        .ToList();
+                    var measured = Insights.RankedHotspots.Count;
+                    figures.Add(new HeadlineFigure(
+                        "Portfolio median",
+                        FormatDays(measured > 0 ? Insights.PortfolioMedianDays : null),
+                        measured > 0 ? $"days per stage, across {measured} {Plural(measured, "stage")} measured" : "no finished stages yet"));
+                    return figures;
+                }
 
                 case AnalyticsTab.Arpp when Arpp is not null && Arpp.HasData:
                     return new[]
@@ -348,6 +348,15 @@ namespace ProjectManagement.Pages.Analytics
             PageContext?.HttpContext is null ? null : (values is null ? Url.Page(page) : Url.Page(page, values));
 
         private static string Plural(int count, string noun) => count == 1 ? noun : noun + "s";
+
+        /// <summary>"75 days median · 3.6× portfolio median · 12 projects", with "small sample" under three projects.</summary>
+        private static string HotspotHint(StageHotspotRankVm stage)
+        {
+            var days = (int)Math.Round(stage.MedianDays);
+            var ratio = stage.RatioToPortfolioMedian >= 10 ? $"{stage.RatioToPortfolioMedian:0}×" : $"{stage.RatioToPortfolioMedian:0.0}×";
+            var sample = stage.ProjectCount < 3 ? ", small sample" : "";
+            return $"{days} {Plural(days, "day")} median · {ratio} portfolio median · {stage.ProjectCount} {Plural(stage.ProjectCount, "project")}{sample}";
+        }
 
         /// <summary>"2021 to 2025 · 61 completed · 8.4 a year in the five before"; the comparison names its span when it is shorter.</summary>
         private static string YearlyAverageHint(CompletedYearlyAverageVm? recent, CompletedYearlyAverageVm? previous)

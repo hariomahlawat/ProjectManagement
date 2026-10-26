@@ -17,7 +17,7 @@
 }
 
 <section class="analytics-panel analytics-panel--insights" aria-label="Project management insights">
-  <!-- SECTION: Stage cycle time (mean/median, all projects or by cost band) -->
+  <!-- SECTION: Stage cycle time (mean/median; all projects, by parent category or by cost band) -->
   <article class="analytics-card">
     <header class="analytics-card__head">
       <div class="analytics-card__text">
@@ -55,6 +55,7 @@
         </div>
         <div class="analytics-seg" role="group" aria-label="Split" data-cycle-toggle="split">
           <button type="button" data-value="all" aria-pressed="true">All projects</button>
+          <button type="button" data-value="category" aria-pressed="false">By parent category</button>
           <button type="button" data-value="band" aria-pressed="false">By cost band</button>
         </div>
         <div class="analytics-card__legend analytics-card__legend--inline" data-legend="stage-cycle-time-chart"></div>
@@ -66,12 +67,13 @@
               aria-label="Days per workflow stage"
               data-empty-message="Not enough finished stages yet to measure cycle time."
               data-rows='@Html.Raw(JsonSerializer.Serialize(Model.StageCycleTime.Rows, json))'
+              data-category-rows='@Html.Raw(JsonSerializer.Serialize(Model.StageCycleTime.CategoryRows, json))'
               data-points='@Html.Raw(JsonSerializer.Serialize(Model.StageHotspots.Points, json))'></canvas>
     </div>
     @if (hasData)
     {
       <p class="analytics-card__foot">
-        Only stages with both a start and an end date count. Cost bands use the latest AoN, benchmark, PNC, L1 or IPA figure recorded for the project; a project with no cost figure yet counts under All projects but in neither band.
+        Only stages with both a start and an end date count. Parent category is the project's root category (DCD, CoE or Other R&D). Cost bands split at ₹2 crore (a project costing exactly ₹2 crore is in the lower band) using the latest AoN, benchmark, PNC, L1 or IPA figure recorded for the project; a project with no cost figure yet counts under All projects and By parent category but in neither band.
       </p>
     }
   </article>

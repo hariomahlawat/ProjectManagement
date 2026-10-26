@@ -67,7 +67,7 @@ public class ProjectAnalyticsServiceStageTimeTests
         db.ProjectCommercialFacts.Add(new ProjectCommercialFact
         {
             ProjectId = highCostProject.Id,
-            L1Cost = 20_000_000m,
+            L1Cost = 30_000_000m,
             CreatedByUserId = "seed",
             CreatedOnUtc = DateTime.UtcNow
         });
@@ -90,8 +90,8 @@ public class ProjectAnalyticsServiceStageTimeTests
         var fsRows = result.Rows.Where(r => r.StageKey == StageCodes.FS).ToList();
         Assert.True(fsRows.Count >= 2);
 
-        var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveOrEqualOneCrore);
-        var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.BelowOneCrore);
+        var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveTwoCrore);
+        var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.UpToTwoCrore);
 
         Assert.Equal(11, aboveRow.MedianDays);
         Assert.Equal(1, aboveRow.ProjectCount);
@@ -161,7 +161,7 @@ public class ProjectAnalyticsServiceStageTimeTests
         db.ProjectCommercialFacts.Add(new ProjectCommercialFact
         {
             ProjectId = designProject.Id,
-            L1Cost = 20_000_000m,
+            L1Cost = 30_000_000m,
             CreatedByUserId = "seed",
             CreatedOnUtc = DateTime.UtcNow
         });
@@ -184,10 +184,10 @@ public class ProjectAnalyticsServiceStageTimeTests
         var fsRows = result.Rows.Where(r => r.StageKey == StageCodes.FS).ToList();
         Assert.NotEmpty(fsRows);
 
-        var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveOrEqualOneCrore);
+        var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveTwoCrore);
         Assert.Equal(1, aboveRow.ProjectCount);
 
-        var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.BelowOneCrore);
+        var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.UpToTwoCrore);
         Assert.Equal(0, belowRow.ProjectCount);
 
         Assert.Equal(designCategoryId, result.SelectedCategoryId);
@@ -363,10 +363,10 @@ public class ProjectAnalyticsServiceStageTimeTests
 
         // By cost band: only the costed project has a band.
         var fsRows = result.Rows.Where(r => r.StageKey == StageCodes.FS).ToList();
-        var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.BelowOneCrore);
+        var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.UpToTwoCrore);
         Assert.Equal(1, belowRow.ProjectCount);
         Assert.Equal(10, belowRow.MedianDays);
-        var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveOrEqualOneCrore);
+        var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveTwoCrore);
         Assert.Equal(0, aboveRow.ProjectCount);
     }
 
@@ -414,5 +414,73 @@ public class ProjectAnalyticsServiceStageTimeTests
         Assert.Equal(2, hotspot.ProjectCount);
         Assert.Equal(15, hotspot.MedianDays);
         Assert.Equal(coeRoot.Id, result.SelectedCategoryId);
+    }
+
+    [Fact]
+    public async Task GetStageTimeInsightsAsync_ExactlyTwoCroreIsInTheLowerBand()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+        var atBoundary = new Project { Id = 1, Name = "Exactly 2 Cr", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed };
+        var justAbove = new Project { Id = 2, Name = "2 Cr and a rupee", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed };
+        db.Projects.AddRange(atBoundary, justAbove);
+        db.ProjectStages.AddRange(
+            new ProjectStage { Id = 1, ProjectId = 1, Project = atBoundary, StageCode = StageCodes.FS, SortOrder = 1, ActualStart = new DateOnly(2024, 1, 1), CompletedOn = new DateOnly(2024, 1, 10) },
+            new ProjectStage { Id = 2, ProjectId = 2, Project = justAbove, StageCode = StageCodes.FS, SortOrder = 1, ActualStart = new DateOnly(2024, 1, 1), CompletedOn = new DateOnly(2024, 1, 30) });
+        db.ProjectCommercialFacts.AddRange(
+            new ProjectCommercialFact { ProjectId = 1, L1Cost = 20_000_000m, CreatedByUserId = "seed", CreatedOnUtc = DateTime.UtcNow },
+            new ProjectCommercialFact { ProjectId = 2, L1Cost = 20_000_001m, CreatedByUserId = "seed", CreatedOnUtc = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectAnalyticsService(db, FakeClock.AtUtc(DateTimeOffset.UtcNow), new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
+
+        var result = await service.GetStageTimeInsightsAsync();
+
+        var fsRows = result.Rows.Where(r => r.StageKey == StageCodes.FS).ToList();
+        var lower = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.UpToTwoCrore);
+        var upper = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveTwoCrore);
+        Assert.Equal(10, lower.MedianDays);
+        Assert.Equal(1, lower.ProjectCount);
+        Assert.Equal(30, upper.MedianDays);
+        Assert.Equal(1, upper.ProjectCount);
+    }
+
+    [Fact]
+    public async Task GetStageTimeInsightsAsync_SplitsByRootCategory_AndKeepsUncostedProjects()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+        var dcd = new ProjectCategory { Id = 1, Name = "DCD Projects" };
+        var dcdChild = new ProjectCategory { Id = 2, Name = "AR / VR", ParentId = dcd.Id };
+        var coe = new ProjectCategory { Id = 3, Name = "CoE" };
+        db.ProjectCategories.AddRange(dcd, dcdChild, coe);
+
+        var onDcdChild = new Project { Id = 1, Name = "DCD via child", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed, CategoryId = dcdChild.Id };
+        var onDcdRoot = new Project { Id = 2, Name = "DCD on root", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Active, CategoryId = dcd.Id };
+        var onCoe = new Project { Id = 3, Name = "CoE", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed, CategoryId = coe.Id };
+        var uncategorized = new Project { Id = 4, Name = "No category", CreatedByUserId = "system", LifecycleStatus = ProjectLifecycleStatus.Completed };
+        db.Projects.AddRange(onDcdChild, onDcdRoot, onCoe, uncategorized);
+
+        var id = 1;
+        foreach (var (project, days) in new[] { (onDcdChild, 10), (onDcdRoot, 20), (onCoe, 40), (uncategorized, 80) })
+        {
+            db.ProjectStages.Add(new ProjectStage { Id = id++, ProjectId = project.Id, Project = project, StageCode = StageCodes.FS, SortOrder = 1, ActualStart = new DateOnly(2024, 1, 1), CompletedOn = new DateOnly(2024, 1, 1).AddDays(days - 1) });
+        }
+        await db.SaveChangesAsync(); // no cost figures at all: the category split must not depend on them
+
+        var service = new ProjectAnalyticsService(db, FakeClock.AtUtc(DateTimeOffset.UtcNow), new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
+
+        var result = await service.GetStageTimeInsightsAsync();
+
+        var fs = result.CategoryRows.Where(r => r.StageKey == StageCodes.FS).ToDictionary(r => r.Bucket);
+        Assert.Equal(new[] { "CoE", "DCD Projects", "Uncategorized" }, fs.Keys.OrderBy(k => k));
+        Assert.Equal(15, fs["DCD Projects"].MedianDays); // the child category rolls up to its root
+        Assert.Equal(2, fs["DCD Projects"].ProjectCount);
+        Assert.Equal(1, fs["DCD Projects"].OngoingProjectCount);
+        Assert.Equal(40, fs["CoE"].MedianDays);
+        Assert.Equal(80, fs["Uncategorized"].MedianDays);
+        // Every other workflow stage is padded at zero for each category present, as the cost bands are.
+        Assert.Equal(3, result.CategoryRows.Count(r => r.StageKey == StageCodes.IPA && r.ProjectCount == 0));
+        Assert.Empty(result.Rows.Where(r => r.ProjectCount > 0)); // no cost figure: no project in either band
     }
 }

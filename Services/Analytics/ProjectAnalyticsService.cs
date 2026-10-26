@@ -21,11 +21,13 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
     private static readonly string[] StageOrder = StageCodes.All;
     private static readonly string[] StageTimeBuckets =
     {
-        StageTimeBucketKeys.BelowOneCrore,
-        StageTimeBucketKeys.AboveOrEqualOneCrore
+        StageTimeBucketKeys.UpToTwoCrore,
+        StageTimeBucketKeys.AboveTwoCrore
     };
 
-    private const decimal OneCroreRupees = 10_000_000m;
+    /// <summary>The cost-band boundary; a project costing exactly this much is in the lower band.</summary>
+    private const decimal TwoCroreRupees = 20_000_000m;
+    private const string UncategorizedRootName = "Uncategorized";
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -350,7 +352,8 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 s.SortOrder,
                 s.ActualStart!.Value,
                 s.CompletedOn!.Value,
-                s.Project!.LifecycleStatus == ProjectLifecycleStatus.Completed))
+                s.Project!.LifecycleStatus == ProjectLifecycleStatus.Completed,
+                s.Project!.CategoryId))
             .ToListAsync(cancellationToken);
 
         if (stageRows.Count == 0)
@@ -362,9 +365,11 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         }
 
         var projectCosts = await LoadProjectCostLookupAsync(stageRows.Select(row => row.ProjectId).Distinct().ToArray(), cancellationToken);
+        var categoryHierarchy = await LoadCategoryHierarchyAsync(cancellationToken);
 
         // Every finished stage is a span. The cost band is null for a project with no cost figure
-        // yet: such a span still counts in the all-projects hotspots, and only the by-band rows skip it.
+        // yet: such a span still counts in the all-projects hotspots and the category rows, and only
+        // the by-band rows skip it. The category bucket is the project's root category (every project has one, or "Uncategorized").
         var spans = stageRows
             .Select(row => new StageTimeBucketSpan(
                 row.ProjectId,
@@ -372,15 +377,38 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 _workflowStageMetadataProvider.GetDisplayName(null, row.StageCode ?? string.Empty),
                 row.StageOrder,
                 TryResolveCostBucket(projectCosts.TryGetValue(row.ProjectId, out var cost) ? cost : null),
+                ProjectCategoryHierarchyResolver.ResolveRoot(row.CategoryId, categoryHierarchy)?.Name ?? UncategorizedRootName,
                 CalculateStageDurationDays(row.ActualStart, row.CompletedOn),
                 row.IsCompletedProject))
             .ToList();
 
-        var rows = spans
-            .Where(span => span.Bucket is not null)
-            // One row per stage and band. The same stage can carry different sort orders across
+        var rows = EnsureAllStageBuckets(BuildBucketRows(spans, span => span.CostBucket), StageTimeBuckets);
+        var categoryRows = EnsureAllStageBuckets(
+            BuildBucketRows(spans, span => span.CategoryBucket),
+            spans.Select(span => span.CategoryBucket).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray());
+
+        var hotspots = BuildStageHotspots(spans);
+
+        return new StageTimeInsightsVm
+        {
+            Rows = rows,
+            CategoryRows = categoryRows,
+            StageHotspots = hotspots,
+            SelectedCategoryId = categoryId
+        };
+    }
+
+    /// <summary>One row per stage and bucket; spans whose bucket is null are left out.</summary>
+    private static List<StageTimeBucketRowVm> BuildBucketRows(
+        IReadOnlyCollection<StageTimeBucketSpan> spans,
+        Func<StageTimeBucketSpan, string?> bucketOf)
+    {
+        return spans
+            .Select(span => (Span: span, Bucket: bucketOf(span)))
+            .Where(item => item.Bucket is not null)
+            // One row per stage and bucket. The same stage can carry different sort orders across
             // workflow versions, so the order is not part of the key; the earliest is kept for sorting.
-            .GroupBy(span => new StageTimeBucketKey(span.StageKey, span.StageName, span.Bucket!))
+            .GroupBy(item => new StageTimeBucketKey(item.Span.StageKey, item.Span.StageName, item.Bucket!), item => item.Span)
             .Select(group =>
             {
                 var durations = group
@@ -412,17 +440,6 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 };
             })
             .ToList();
-
-        rows = EnsureAllStageBuckets(rows);
-
-        var hotspots = BuildStageHotspots(spans);
-
-        return new StageTimeInsightsVm
-        {
-            Rows = rows,
-            StageHotspots = hotspots,
-            SelectedCategoryId = categoryId
-        };
     }
 
     private static IReadOnlyList<StageHotspotPointVm> BuildStageHotspots(IReadOnlyCollection<StageTimeBucketSpan> spans)
@@ -472,7 +489,8 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         return points;
     }
 
-    private List<StageTimeBucketRowVm> EnsureAllStageBuckets(List<StageTimeBucketRowVm> rows)
+    /// <summary>Every workflow stage (ToT excepted) gets a row for every bucket, at zero where nothing finished.</summary>
+    private List<StageTimeBucketRowVm> EnsureAllStageBuckets(List<StageTimeBucketRowVm> rows, IReadOnlyList<string> buckets)
     {
         var comparer = StringComparer.OrdinalIgnoreCase;
 
@@ -494,7 +512,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
             var stageName = _workflowStageMetadataProvider.GetDisplayName(null, stageCode);
 
-            foreach (var bucket in StageTimeBuckets)
+            foreach (var bucket in buckets)
             {
                 var exists = rows.Any(row => comparer.Equals(row.StageKey, stageCode)
                     && comparer.Equals(row.Bucket, bucket));
@@ -708,7 +726,19 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         };
     }
 
-    // The project's cost (in rupees) under the one shared rule, for the < 1 Cr / >= 1 Cr buckets.
+    private async Task<IReadOnlyDictionary<int, ProjectCategoryHierarchyNode>> LoadCategoryHierarchyAsync(CancellationToken cancellationToken)
+    {
+        var categories = await _db.ProjectCategories
+            .AsNoTracking()
+            .Select(c => new { c.Id, c.Name, c.ParentId })
+            .ToListAsync(cancellationToken);
+
+        return categories.ToDictionary(
+            category => category.Id,
+            category => new ProjectCategoryHierarchyNode(category.Id, category.Name, category.ParentId));
+    }
+
+    // The project's cost (in rupees) under the one shared rule, for the up-to-2-Cr / above-2-Cr buckets.
     private async Task<Dictionary<int, decimal?>> LoadProjectCostLookupAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken)
@@ -728,9 +758,9 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             return null;
         }
 
-        return projectCost.Value < OneCroreRupees
-            ? StageTimeBucketKeys.BelowOneCrore
-            : StageTimeBucketKeys.AboveOrEqualOneCrore;
+        return projectCost.Value <= TwoCroreRupees
+            ? StageTimeBucketKeys.UpToTwoCrore
+            : StageTimeBucketKeys.AboveTwoCrore;
     }
 
     private static double CalculateStageDurationDays(DateOnly start, DateOnly end)
@@ -738,12 +768,12 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
     private static int BucketSortOrder(string bucket)
     {
-        if (bucket.Equals(StageTimeBucketKeys.BelowOneCrore, StringComparison.OrdinalIgnoreCase))
+        if (bucket.Equals(StageTimeBucketKeys.UpToTwoCrore, StringComparison.OrdinalIgnoreCase))
         {
             return 0;
         }
 
-        if (bucket.Equals(StageTimeBucketKeys.AboveOrEqualOneCrore, StringComparison.OrdinalIgnoreCase))
+        if (bucket.Equals(StageTimeBucketKeys.AboveTwoCrore, StringComparison.OrdinalIgnoreCase))
         {
             return 1;
         }
@@ -757,14 +787,16 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         int StageOrder,
         DateOnly ActualStart,
         DateOnly CompletedOn,
-        bool IsCompletedProject);
+        bool IsCompletedProject,
+        int? CategoryId);
 
     private sealed record StageTimeBucketSpan(
         int ProjectId,
         string StageKey,
         string StageName,
         int StageOrder,
-        string? Bucket,
+        string? CostBucket,
+        string CategoryBucket,
         double Days,
         bool IsCompletedProject);
 

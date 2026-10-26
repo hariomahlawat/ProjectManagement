@@ -625,22 +625,24 @@ function initArpp(panel) {
 
 // SECTION: Insights mode (one stage cycle-time chart with toggles, plus the ranked list)
 const costBands = [
-  { key: 'Below1Cr', label: 'Below ₹1 crore' },
-  { key: 'AboveOrEqual1Cr', label: '₹1 crore and above' }
+  { key: 'UpTo2Cr', label: 'Up to ₹2 crore' },
+  { key: 'Above2Cr', label: 'Above ₹2 crore' }
 ];
 
 function initInsights(panel) {
   const canvas = panel.querySelector('#stage-cycle-time-chart');
   if (!canvas) return;
-  const rows = readJson(canvas, 'rows', []);     // per stage × cost band
-  const points = readJson(canvas, 'points', []); // per stage, all projects
+  const rows = readJson(canvas, 'rows', []);                     // per stage × cost band
+  const categoryRows = readJson(canvas, 'categoryRows', []);     // per stage × parent category
+  const points = readJson(canvas, 'points', []);                 // per stage, all projects
   if (!points.length && !rows.length) {
     renderEmptyState(canvas);
     return;
   }
 
-  const names = new Map([...points, ...rows].map((p) => [p.stageKey, p.stageName]));
-  const codes = Array.from(new Set([...points, ...rows].map((p) => p.stageKey)));
+  const names = new Map([...points, ...rows, ...categoryRows].map((p) => [p.stageKey, p.stageName]));
+  const codes = Array.from(new Set([...points, ...rows, ...categoryRows].map((p) => p.stageKey)));
+  const categories = orderCategories(categoryRows.map((r) => r.bucket));
   const axis = stageAxis(codes, names);
   const state = { measure: 'median', split: 'all' };
   const legend = panel.querySelector('[data-legend="stage-cycle-time-chart"]');
@@ -658,8 +660,18 @@ function initInsights(panel) {
       datasets = costBands.map((band, index) => ({
         label: band.label,
         bandKey: band.key,
+        source: rows,
         data: axis.map((stage) => ensureNumber(rows.find((r) => matchStage(r, stage) && r.bucket === band.key)?.[field()])),
         backgroundColor: tints[index]
+      }));
+    } else if (state.split === 'category') {
+      // The same category colours as the Ongoing chart: DCD blue, CoE green, Other R&D amber, anything else grey.
+      datasets = categories.map((category) => ({
+        label: category,
+        bandKey: category,
+        source: categoryRows,
+        data: axis.map((stage) => ensureNumber(categoryRows.find((r) => matchStage(r, stage) && r.bucket === category)?.[field()])),
+        backgroundColor: categoryColor(category, tokens)
       }));
     } else {
       datasets = [{
@@ -682,7 +694,7 @@ function initInsights(panel) {
               label(item) {
                 const stage = axis[item.dataIndex];
                 const source = item.dataset.bandKey
-                  ? rows.find((r) => matchStage(r, stage) && r.bucket === item.dataset.bandKey)
+                  ? item.dataset.source.find((r) => matchStage(r, stage) && r.bucket === item.dataset.bandKey)
                   : points.find((p) => matchStage(p, stage));
                 if (!source) return `${item.dataset.label}: no finished stages yet`;
                 return [
