@@ -14,7 +14,7 @@ The Project Office Reports area bundles multiple operational trackers under a si
 | `ViewProliferationTracker` | Any signed-in user (approved figures only) |
 | `SubmitProliferationTracker` | Admin, HoD, Project Office, Project Office Alternate |
 | `ApproveProliferationTracker` | Admin, HoD |
-| `ManageProliferationPreferences` | Admin, HoD, Project Office, Project Office Alternate (opens the counting-rules screen; saving a rule currently requires `ApproveProliferationTracker`) |
+| `ManageProliferationPreferences` | Admin, HoD (the counting-rules workspace, its exceptions list and export, and saving a rule; Project Office does not see it) |
 | `Policies.Ipr.View` | Admin, HoD, Project Office (aliases `Project Office`/`ProjectOffice`), Comdt, MCO |
 | `Policies.Ipr.Edit` | Admin, HoD, Project Office (aliases `Project Office`/`ProjectOffice`) |
 
