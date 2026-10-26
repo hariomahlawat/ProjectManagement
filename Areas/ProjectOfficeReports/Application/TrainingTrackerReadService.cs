@@ -1342,14 +1342,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return false;
         }
 
-        private static int GetTrainingYearStartYear(DateOnly date)
-            => date.Month >= 4 ? date.Year : date.Year - 1;
+        private static int GetTrainingYearStartYear(DateOnly date) => TrainingReach.TrainingYearStartOf(date);
 
-        private static string FormatTrainingYearLabel(int startYear)
-        {
-            var endYear = startYear + 1;
-            return $"{startYear}-{endYear % 100:00}";
-        }
+        private static string FormatTrainingYearLabel(int startYear) => TrainingReach.TrainingYearLabel(startYear);
 
         // ============================================================
         // UNIT HELPERS

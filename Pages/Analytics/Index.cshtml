@@ -127,6 +127,7 @@
           @await Html.PartialAsync("Partials/_CompletedAnalytics", Model.Completed!)
           break;
         case AnalyticsTab.Coe:
+          ViewData["CoeArVrImpact"] = Model.CoeArVrImpact;
           @await Html.PartialAsync("Partials/_CoeAnalytics", Model.Coe!)
           break;
         case AnalyticsTab.Insights:

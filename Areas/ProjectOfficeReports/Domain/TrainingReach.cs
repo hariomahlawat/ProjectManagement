@@ -49,6 +49,22 @@ public static class TrainingReach
                 && training.TrainingYear.Value * 12 + training.TrainingMonth.Value <= toMonthIndex);
     }
 
+    /// <summary>
+    /// The training year (April to March) a training falls in, as its start year: from the start
+    /// date, else the end date, else the recorded month; null when it has none. The tracker's KPIs,
+    /// its export and the Analytics page place trainings by this one rule.
+    /// </summary>
+    public static int? TrainingYearStart(TrainingReachRow row)
+    {
+        var reference = ReferenceDate(row);
+        return reference.HasValue ? TrainingYearStartOf(reference.Value) : null;
+    }
+
+    public static int TrainingYearStartOf(DateOnly date) => date.Month >= 4 ? date.Year : date.Year - 1;
+
+    /// <summary>"2024-25" for the training year starting April 2024.</summary>
+    public static string TrainingYearLabel(int startYear) => $"{startYear}-{(startYear + 1) % 100:00}";
+
     /// <summary>The start date, else the end date, else the first of the recorded month.</summary>
     public static DateOnly? ReferenceDate(TrainingReachRow row)
         => row.StartDate

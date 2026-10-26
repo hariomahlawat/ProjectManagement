@@ -1,0 +1,76 @@
+@model ProjectManagement.Models.Analytics.ArVrImpactVm
+@using System.Linq
+@using System.Text.Json
+
+@{
+    var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var overviewUrl = Url.Page("/Projects/Overview");
+}
+
+<!-- SECTION: AR/VR proliferation and training (every AR/VR project, in or out of a CoE category); each card only for a caller its tracker's view policy admits -->
+<div class="analytics-row @(Model.CanViewProliferation && Model.CanViewTraining ? "analytics-row--6-6" : "")" data-arvr-impact>
+  @if (Model.CanViewProliferation)
+  {
+  <article class="analytics-card">
+    <header class="analytics-card__head">
+      <div class="analytics-card__text">
+        <h2 class="analytics-card__title">AR/VR proliferation</h2>
+        <p class="analytics-card__meta">Builds delivered to units, by calendar year, for every AR/VR project. Approved proliferation records only, counted as the tracker counts them. Click a bar to see that year's projects.</p>
+      </div>
+      <div class="analytics-card__actions">
+        <button type="button" class="analytics-icon-btn" data-chart-download-target="arvr-proliferation-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+    <div class="analytics-minis">
+      <div class="analytics-mini"><b>@Model.ProliferationUnitsDelivered</b><span>units delivered</span></div>
+      <div class="analytics-mini"><b>@Model.ProliferationReceivingUnits</b><span>receiving units</span></div>
+      <div class="analytics-mini"><b>@Model.ProliferationProjects</b><span>projects proliferated</span></div>
+      <div class="analytics-mini"><b>@Model.ProliferationThisYear</b><span>delivered in @Model.ProliferationCurrentYear</span></div>
+    </div>
+    <div class="analytics-card__legend" data-legend="arvr-proliferation-chart"></div>
+    <div class="analytics-card__chart">
+      <canvas id="arvr-proliferation-chart"
+              role="img"
+              aria-label="AR/VR units delivered per year"
+              data-empty-message="No approved proliferation records for AR/VR projects yet."
+              data-series='@Html.Raw(JsonSerializer.Serialize(Model.ProliferationByYear, json))'></canvas>
+    </div>
+    @await Html.PartialAsync("Partials/_BoardRows", (Model.ProliferationBoard, "prolif-year", overviewUrl, "Units delivered each year"))
+  </article>
+  }
+
+  @if (Model.CanViewTraining)
+  {
+  <article class="analytics-card">
+    <header class="analytics-card__head">
+      <div class="analytics-card__text">
+        <h2 class="analytics-card__title">AR/VR training</h2>
+        <p class="analytics-card__meta">People trained on AR/VR projects, by training year (April to March), as the training tracker counts them. A course linked to several projects is counted once in the totals and listed under each project. Click a bar to see that year's projects.</p>
+      </div>
+      <div class="analytics-card__actions">
+        <button type="button" class="analytics-icon-btn" data-chart-download-target="arvr-training-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+    <div class="analytics-minis">
+      <div class="analytics-mini"><b>@Model.TrainingPeople</b><span>people trained</span></div>
+      <div class="analytics-mini"><b>@Model.TrainingCourses</b><span>courses</span></div>
+      <div class="analytics-mini"><b>@Model.TrainingProjects</b><span>projects with training</span></div>
+      <div class="analytics-mini"><b>@Model.TrainingPeopleThisYear</b><span>trained in @Model.TrainingCurrentYearLabel</span></div>
+    </div>
+    <div class="analytics-card__legend" data-legend="arvr-training-chart"></div>
+    <div class="analytics-card__chart">
+      <canvas id="arvr-training-chart"
+              role="img"
+              aria-label="People trained on AR/VR projects per training year"
+              data-empty-message="No training linked to AR/VR projects yet."
+              data-series='@Html.Raw(JsonSerializer.Serialize(Model.TrainingByYear, json))'></canvas>
+    </div>
+    @await Html.PartialAsync("Partials/_BoardRows", (Model.TrainingBoard, "training-year", overviewUrl, "People trained each year"))
+  </article>
+  }
+</div>
+<!-- END SECTION -->

@@ -27,6 +27,7 @@ namespace ProjectManagement.Pages.Analytics
         private readonly IProjectAnalyticsService _projectAnalyticsService;
         private readonly IPortfolioAnalyticsService _portfolioAnalytics;
         private readonly IArppAnalyticsService? _arppAnalytics;
+        private readonly IArVrImpactAnalyticsService? _arVrImpact;
         private readonly IAuthorizationService? _authorization;
 
         /// <summary>True when the signed-in user may see the ARPP mode (the ARPP report's ViewArpp policy). Decides the switcher item; the server check is in OnGetAsync.</summary>
@@ -37,8 +38,10 @@ namespace ProjectManagement.Pages.Analytics
             IProjectAnalyticsService projectAnalyticsService,
             IPortfolioAnalyticsService portfolioAnalytics,
             IArppAnalyticsService? arppAnalytics = null,
-            IAuthorizationService? authorization = null)
+            IAuthorizationService? authorization = null,
+            IArVrImpactAnalyticsService? arVrImpact = null)
         {
+            _arVrImpact = arVrImpact;
             _db = db;
             _projectAnalyticsService = projectAnalyticsService;
             _portfolioAnalytics = portfolioAnalytics;
@@ -86,6 +89,9 @@ namespace ProjectManagement.Pages.Analytics
         public CompletedAnalyticsVm? Completed { get; private set; }
         public OngoingAnalyticsVm? Ongoing { get; private set; }
         public CoeAnalyticsVm? Coe { get; private set; }
+
+        /// <summary>CoE (AR/VR) mode: proliferation and training of every AR/VR project; null when the service is not wired (unit tests).</summary>
+        public ArVrImpactVm? CoeArVrImpact { get; private set; }
         public StageTimeInsightsPanelVm? Insights { get; private set; }
 
         // SECTION: Page header and headline figures
@@ -161,6 +167,15 @@ namespace ProjectManagement.Pages.Analytics
                 case AnalyticsTab.Coe:
                     Coe = await _portfolioAnalytics.BuildCoeAsync(ReferenceDateIst, cancellationToken);
                     CoeCount = Coe.TotalCoeProjects;
+                    // The two trackers keep their own view policies on this page: a card is built and drawn only for a caller its tracker admits.
+                    if (_arVrImpact is not null)
+                    {
+                        var canViewProliferation = await PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewProliferationTracker);
+                        var canViewTraining = await PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewTrainingTracker);
+                        CoeArVrImpact = canViewProliferation || canViewTraining
+                            ? await _arVrImpact.BuildAsync(ReferenceDateIst, canViewProliferation, canViewTraining, cancellationToken)
+                            : null;
+                    }
                     break;
 
                 case AnalyticsTab.Insights:
@@ -208,15 +223,17 @@ namespace ProjectManagement.Pages.Analytics
             return Page();
         }
 
-        private async Task<bool> CanViewArppAsync()
+        private Task<bool> CanViewArppAsync() => PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewArpp);
+
+        /// <summary>Fail closed: without an authorization service or a signed-in principal, no policy passes.</summary>
+        private async Task<bool> PassesPolicyAsync(string policy)
         {
-            // Fail closed: without an authorization service or a signed-in principal there is no ARPP mode.
             if (_authorization is null || User?.Identity?.IsAuthenticated != true)
             {
                 return false;
             }
 
-            var result = await _authorization.AuthorizeAsync(User, ProjectOfficeReportsPolicies.ViewArpp);
+            var result = await _authorization.AuthorizeAsync(User, policy);
             return result.Succeeded;
         }
 
