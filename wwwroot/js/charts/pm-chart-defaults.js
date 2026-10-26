@@ -192,8 +192,11 @@ export function barScales({ horizontal = false, stacked = false, integer = true,
 // SECTION: Value labels
 // Every count on these pages is small, so the number is printed on the bar and the
 // grid can stay faint. Stacked bars get their total above the stack and a segment
-// value inside a segment when there is room; single bars get the value above (or to
-// the right, for horizontal bars). Doughnuts get the total in the hole.
+// value inside a segment when it fits; single bars get the value above (or to the
+// right, for horizontal bars); side-by-side bars get a value each, shrunk or left out
+// where it would run into its neighbour. Doughnuts get the total in the hole.
+// options.scale grows every font and gap together, for the PNG export (1 on screen);
+// options.slices also prints each doughnut slice's value where it fits.
 export const valueLabelsPlugin = {
   id: 'pmValueLabels',
   afterDatasetsDraw(chart, _args, options) {
@@ -202,13 +205,16 @@ export const valueLabelsPlugin = {
     const { ctx } = chart;
     const format = typeof options?.format === 'function' ? options.format : (v) => String(v);
     const type = chart.config.type;
+    const s = Number(options?.scale) || 1;
+    const font = (weight, size) => `${weight} ${size * s}px ${t.font}`;
 
     ctx.save();
-    ctx.font = `700 12px ${t.font}`;
+    ctx.font = font(700, 12);
     ctx.textBaseline = 'middle';
 
     if (type === 'doughnut') {
-      drawDoughnutCentre(chart, ctx, t, options);
+      if (options?.slices) drawDoughnutSlices(chart, ctx, t, format, font, s);
+      drawDoughnutCentre(chart, ctx, t, options, font, s);
       ctx.restore();
       return;
     }
@@ -223,21 +229,37 @@ export const valueLabelsPlugin = {
     // Grouped bars (several datasets side by side): each bar carries its own value.
     if (!stacked && metas.length > 1) {
       ctx.fillStyle = t.label;
-      ctx.font = `700 11px ${t.font}`;
+      ctx.font = font(700, 11);
+      const items = [];
       metas.forEach((meta) => {
         meta.data.forEach((bar, index) => {
           const value = Number(meta.controller.getParsed(index)?.[horizontal ? 'x' : 'y']);
           if (!Number.isFinite(value) || value <= 0) return;
           const props = bar.getProps(['x', 'y'], true);
-          if (horizontal) {
-            ctx.textAlign = 'left';
-            ctx.fillText(format(value), props.x + 6, props.y);
-          } else {
-            ctx.textAlign = 'center';
-            ctx.fillText(format(value), props.x, props.y - 9);
-          }
+          items.push({ value, text: format(value), x: props.x, y: props.y });
         });
       });
+      if (horizontal) {
+        ctx.textAlign = 'left';
+        items.forEach((item) => ctx.fillText(item.text, item.x + 6 * s, item.y));
+        ctx.restore();
+        return;
+      }
+      // Side by side, a label can run into its neighbour's. The larger value is placed first and
+      // a label that would overlap one already placed is left out, so the tallest bars keep theirs.
+      ctx.textAlign = 'center';
+      const placed = [];
+      const half = (11 * s) / 2;
+      items
+        .sort((a, b) => b.value - a.value)
+        .forEach((item) => {
+          const width = ctx.measureText(item.text).width;
+          const cy = item.y - 9 * s;
+          const box = { left: item.x - width / 2 - s, right: item.x + width / 2 + s, top: cy - half, bottom: cy + half };
+          if (placed.some((p) => box.left < p.right && box.right > p.left && box.top < p.bottom && box.bottom > p.top)) return;
+          placed.push(box);
+          ctx.fillText(item.text, item.x, cy);
+        });
       ctx.restore();
       return;
     }
@@ -245,6 +267,8 @@ export const valueLabelsPlugin = {
     for (let index = 0; index < labelCount; index += 1) {
       let total = 0;
       let outerEdge = null;
+      // A stack with one non-zero segment already shows that value as its total.
+      const segmentCount = metas.filter((meta) => Number(meta.controller.getParsed(index)?.[horizontal ? 'x' : 'y']) > 0).length;
       metas.forEach((meta) => {
         const value = Number(meta.controller.getParsed(index)?.[horizontal ? 'x' : 'y']);
         if (!Number.isFinite(value) || value <= 0) return;
@@ -257,10 +281,16 @@ export const valueLabelsPlugin = {
         } else {
           outerEdge = outerEdge === null ? props.y : Math.min(outerEdge, props.y);
         }
-        if (stacked && metas.length > 1 && options?.segments !== false) {
-          const size = horizontal ? Math.abs(props.x - props.base) : Math.abs(props.base - props.y);
+        if (stacked && segmentCount > 1 && options?.segments !== false) {
+          const length = horizontal ? Math.abs(props.x - props.base) : Math.abs(props.base - props.y);
+          const thickness = horizontal ? props.height : props.width;
           const text = format(value);
-          const fits = horizontal ? size >= ctx.measureText(text).width + 10 : size >= 18;
+          ctx.font = font(700, 12);
+          const textWidth = ctx.measureText(text).width;
+          // The value must fit inside the segment both ways, or it would spill off a thin bar.
+          const fits = horizontal
+            ? length >= textWidth + 10 * s && thickness >= 14 * s
+            : length >= 18 * s && thickness >= textWidth + 4 * s;
           if (fits) {
             ctx.fillStyle = t.labelOnFill;
             ctx.textAlign = 'center';
@@ -273,31 +303,57 @@ export const valueLabelsPlugin = {
       if (total <= 0 || outerEdge === null) continue;
       const anchor = metas[0].data[index]?.getProps(['x', 'y'], true);
       if (!anchor) continue;
+      ctx.font = font(700, 12);
       ctx.fillStyle = t.label;
       if (horizontal) {
         ctx.textAlign = 'left';
-        ctx.fillText(format(total), outerEdge + 8, anchor.y);
+        ctx.fillText(format(total), outerEdge + 8 * s, anchor.y);
       } else {
         ctx.textAlign = 'center';
-        ctx.fillText(format(total), anchor.x, outerEdge - 10);
+        ctx.fillText(format(total), anchor.x, outerEdge - 10 * s);
       }
     }
     ctx.restore();
   }
 };
 
-function drawDoughnutCentre(chart, ctx, t, options) {
+function drawDoughnutCentre(chart, ctx, t, options, font, s) {
   const meta = chart.getDatasetMeta(0);
   if (!meta?.data?.length) return;
   const { x, y } = meta.data[0];
   const total = chart.data.datasets[0].data.reduce((sum, v) => sum + (Number(v) || 0), 0);
   ctx.textAlign = 'center';
   ctx.fillStyle = t.textStrong;
-  ctx.font = `800 28px ${t.font}`;
-  ctx.fillText(String(total), x, y - 8);
+  ctx.font = font(800, 28);
+  ctx.fillText(String(total), x, y - 8 * s);
   ctx.fillStyle = t.text;
-  ctx.font = `600 12px ${t.font}`;
-  ctx.fillText(options?.centreLabel ?? 'projects', x, y + 14);
+  ctx.font = font(600, 12);
+  ctx.fillText(options?.centreLabel ?? 'projects', x, y + 14 * s);
+}
+
+// Each slice's value and share on the ring, where the slice is long and thick enough to hold it;
+// a smaller slice keeps only its legend entry.
+function drawDoughnutSlices(chart, ctx, t, format, font, s) {
+  const meta = chart.getDatasetMeta(0);
+  const values = (chart.data.datasets[0]?.data ?? []).map((v) => Number(v) || 0);
+  const total = values.reduce((sum, v) => sum + v, 0);
+  if (!meta?.data?.length || total <= 0) return;
+  ctx.font = font(700, 12);
+  ctx.fillStyle = t.labelOnFill;
+  ctx.textAlign = 'center';
+  meta.data.forEach((arc, index) => {
+    const value = values[index];
+    if (!value || !chart.getDataVisibility(index)) return;
+    const { startAngle, endAngle, innerRadius, outerRadius, x, y } = arc.getProps(['startAngle', 'endAngle', 'innerRadius', 'outerRadius', 'x', 'y'], true);
+    if (outerRadius - innerRadius < 18 * s) return;
+    const radius = (innerRadius + outerRadius) / 2;
+    const room = (endAngle - startAngle) * radius - 8 * s;
+    const withShare = `${format(value)} (${Math.round((value / total) * 100)}%)`;
+    const text = ctx.measureText(withShare).width <= room ? withShare : format(value);
+    if (ctx.measureText(text).width > room) return;
+    const angle = (startAngle + endAngle) / 2;
+    ctx.fillText(text, x + Math.cos(angle) * radius, y + Math.sin(angle) * radius);
+  });
 }
 // END SECTION
 
