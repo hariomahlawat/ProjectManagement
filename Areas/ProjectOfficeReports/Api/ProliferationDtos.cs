@@ -27,48 +27,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public int PageSize { get; set; } = 50;
     }
 
-    // KPIs payload
-    public sealed class ProliferationKpisDto
-    {
-        public int TotalCompletedProjects { get; set; }
-        public int TotalProliferationAllTime { get; set; }
-        public int TotalProliferationSdd { get; set; }
-        public int TotalProliferationAbw515 { get; set; }
-
-        public int LastYearProjectsProliferated { get; set; }
-        public int LastYearTotalProliferation { get; set; }
-        public int LastYearSdd { get; set; }
-        public int LastYearAbw515 { get; set; }
-    }
-
-    // One row in the results table
-    public sealed class ProliferationOverviewRowDto
-    {
-        public int ProjectId { get; set; }
-        public int Year { get; set; }
-        public string Project { get; set; } = default!;
-        public string ProjectName => Project;
-        public string? ProjectCode { get; set; }
-        public ProliferationSource Source { get; set; }
-        public string DataType { get; set; } = default!; // "Yearly" or "Granular"
-        public string? UnitName { get; set; }
-        public DateTime? DateUtc { get; set; } // null for Yearly
-        public string? ProliferationDate => DateUtc?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        public int Quantity { get; set; }
-        public int EffectiveTotal { get; set; }
-        public string ApprovalStatus { get; set; } = default!;
-        public string? Mode { get; set; } // only for consolidated rows in exports if needed
-    }
-
-    public sealed class ProliferationOverviewDto
-    {
-        public ProliferationKpisDto Kpis { get; set; } = new();
-        public int TotalCount { get; set; }
-        public int Page { get; set; }
-        public int PageSize { get; set; }
-        public IReadOnlyList<ProliferationOverviewRowDto> Rows { get; set; } = Array.Empty<ProliferationOverviewRowDto>();
-    }
-
     public sealed class ProliferationLookupOptionDto
     {
         public int Id { get; set; }

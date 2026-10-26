@@ -4,11 +4,9 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -483,52 +481,6 @@ public sealed class ProliferationApprovalWorkflowTests
         Assert.Null(approved.AmendsId);
     }
 
-    [Theory]
-    [InlineData(null, false)]
-    [InlineData("", false)]
-    [InlineData("Approved", false)]
-    [InlineData("approved", false)]
-    [InlineData("unknown", false)]
-    [InlineData("All", true)]
-    [InlineData("pending", true)]
-    [InlineData("Rejected", true)]
-    public void LegacyReports_TreatOnlyApprovedAsOpenToViewers(string? status, bool requestsUnapproved)
-    {
-        Assert.Equal(requestsUnapproved, ProliferationReportsService.RequestsUnapprovedRecords(status));
-    }
-
-    [Theory]
-    [InlineData("All")]
-    [InlineData("Pending")]
-    [InlineData("Rejected")]
-    public async Task LegacyReportsExport_ForbidsUnapprovedRecordsToViewersWhoCannotSubmit(string status)
-    {
-        var controller = new ProliferationReportsController(
-            svc: null!,
-            new DenyingAuthorizationService(),
-            new NoOpAuditService())
-        {
-            ControllerContext = new ControllerContext
-            {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(new ClaimsIdentity(
-                        new[] { new Claim(ClaimTypes.NameIdentifier, "viewer") },
-                        "Test"))
-                }
-            }
-        };
-
-        var query = new ProliferationReportQueryDto
-        {
-            Report = ProliferationReportKind.GranularLedger,
-            ApprovalStatus = status
-        };
-
-        Assert.IsType<ForbidResult>(await controller.Export(query, CancellationToken.None));
-        Assert.IsType<ForbidResult>((await controller.Run(query, CancellationToken.None)).Result);
-    }
-
     private static ProliferationYearlyUpdateDto YearlyUpdate(int quantity, byte[] rowVersion, string? remarks = null, int year = 2025)
         => new()
         {
@@ -707,14 +659,5 @@ public sealed class ProliferationApprovalWorkflowTests
             IDictionary<string, string?>? data = null,
             HttpContext? http = null)
             => Task.CompletedTask;
-    }
-
-    private sealed class DenyingAuthorizationService : IAuthorizationService
-    {
-        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, IEnumerable<IAuthorizationRequirement> requirements)
-            => Task.FromResult(AuthorizationResult.Failed());
-
-        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, string policyName)
-            => Task.FromResult(AuthorizationResult.Failed());
     }
 }

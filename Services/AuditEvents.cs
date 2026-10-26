@@ -570,24 +570,6 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.Proliferation.ExportGenerated", userId, data);
         }
 
-        public static AuditEvent ProliferationReportExported(
-            string userId,
-            string report,
-            string approvalStatus,
-            int? projectId,
-            string fileName)
-        {
-            var data = new Dictionary<string, string?>
-            {
-                ["Report"] = report,
-                ["ApprovalStatus"] = approvalStatus,
-                ["ProjectId"] = projectId?.ToString(CultureInfo.InvariantCulture),
-                ["FileName"] = fileName
-            };
-
-            return new AuditEvent("ProjectOfficeReports.Proliferation.ReportExported", userId, data);
-        }
-
         public static AuditEvent ProliferationYearlySubmitted(
             int projectId,
             ProliferationSource source,
