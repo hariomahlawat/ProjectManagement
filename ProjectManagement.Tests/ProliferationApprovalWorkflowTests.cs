@@ -218,6 +218,23 @@ public sealed class ProliferationApprovalWorkflowTests
         Assert.Equal(1, await scope.Db.ProliferationYearlies.CountAsync(y => y.AmendsId == approved.Id));
     }
 
+    [Theory]
+    [InlineData(typeof(ProliferationYearly), "UX_ProlifYearly_PendingAmendment")]
+    [InlineData(typeof(ProliferationGranular), "UX_ProlifGranular_PendingAmendment")]
+    public async Task Database_AllowsOnlyOnePendingAmendmentPerRecord(Type entityType, string indexName)
+    {
+        // Concurrent amendments can both pass the service check; this index decides the race.
+        await using var scope = await TestScope.CreateAsync();
+        var index = scope.Db.Model.FindEntityType(entityType)!
+            .GetIndexes()
+            .Single(i => i.Name == indexName);
+
+        Assert.True(index.IsUnique);
+        Assert.Equal(new[] { "AmendsId" }, index.Properties.Select(p => p.Name));
+        Assert.Equal("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0", index.GetFilter());
+        Assert.Equal(0, (int)ApprovalStatus.Pending);
+    }
+
     [Fact]
     public async Task AmendmentOfStaleApprovedRecord_IsRefused()
     {

@@ -378,7 +378,20 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 };
 
                 _db.ProliferationYearlies.Add(amendment);
-                await _db.SaveChangesAsync(ct);
+                try
+                {
+                    await _db.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException) when (!ct.IsCancellationRequested)
+                {
+                    // A concurrent amendment won the unique pending-amendment index.
+                    if (await HasPendingYearlyAmendmentAsync(entity.Id, amendment.Id, ct))
+                    {
+                        return ServiceResult.Fail(PendingAmendmentExistsError);
+                    }
+
+                    throw;
+                }
 
                 await Audit.Events
                     .ProliferationYearlyRecorded(amendment.ProjectId, amendment.Source, amendment.Year, amendment.TotalQuantity, amendment.ApprovalStatus, actor.Id, "Amend", amendment.Id, entity.Id)
@@ -428,6 +441,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             catch (DbUpdateConcurrencyException)
             {
                 return ServiceResult.Fail(ConcurrencyError);
+            }
+            catch (DbUpdateException) when (amendedRecordId.HasValue && !ct.IsCancellationRequested)
+            {
+                // Resubmitting a rejected amendment raced another pending amendment.
+                if (await HasPendingYearlyAmendmentAsync(amendedRecordId.Value, entity.Id, ct))
+                {
+                    return ServiceResult.Fail(PendingAmendmentExistsError);
+                }
+
+                throw;
             }
 
             await Audit.Events
@@ -540,7 +563,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 };
 
                 _db.ProliferationGranularEntries.Add(amendment);
-                await _db.SaveChangesAsync(ct);
+                try
+                {
+                    await _db.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException) when (!ct.IsCancellationRequested)
+                {
+                    if (await HasPendingGranularAmendmentAsync(entity.Id, amendment.Id, ct))
+                    {
+                        return ServiceResult.Fail(PendingAmendmentExistsError);
+                    }
+
+                    throw;
+                }
 
                 await Audit.Events
                     .ProliferationGranularRecorded(amendment.ProjectId, project.Name, amendment.Source, amendment.UnitName, amendment.ProliferationDate, amendment.Quantity, amendment.ApprovalStatus, actor.Id, "Amend", amendment.Id, entity.Id)
@@ -585,6 +620,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             catch (DbUpdateConcurrencyException)
             {
                 return ServiceResult.Fail(ConcurrencyError);
+            }
+            catch (DbUpdateException) when (amendedRecordId.HasValue && !ct.IsCancellationRequested)
+            {
+                if (await HasPendingGranularAmendmentAsync(amendedRecordId.Value, entity.Id, ct))
+                {
+                    return ServiceResult.Fail(PendingAmendmentExistsError);
+                }
+
+                throw;
             }
 
             await Audit.Events

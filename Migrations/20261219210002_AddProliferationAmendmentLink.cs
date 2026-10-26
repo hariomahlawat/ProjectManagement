@@ -35,11 +35,34 @@ namespace ProjectManagement.Migrations
                 name: "IX_ProlifGranular_AmendsId",
                 table: "ProliferationGranular",
                 column: "AmendsId");
+
+            // At most one pending amendment (ApprovalStatus 0) per approved record.
+            migrationBuilder.CreateIndex(
+                name: "UX_ProlifYearly_PendingAmendment",
+                table: "ProliferationYearly",
+                column: "AmendsId",
+                unique: true,
+                filter: "\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_ProlifGranular_PendingAmendment",
+                table: "ProliferationGranular",
+                column: "AmendsId",
+                unique: true,
+                filter: "\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropIndex(
+                name: "UX_ProlifYearly_PendingAmendment",
+                table: "ProliferationYearly");
+
+            migrationBuilder.DropIndex(
+                name: "UX_ProlifGranular_PendingAmendment",
+                table: "ProliferationGranular");
+
             migrationBuilder.DropIndex(
                 name: "IX_ProlifYearly_AmendsId",
                 table: "ProliferationYearly");

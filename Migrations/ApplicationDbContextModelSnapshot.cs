@@ -781,6 +781,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("AmendsId")
                         .HasDatabaseName("IX_ProlifGranular_AmendsId");
 
+                    b.HasIndex(new[] { "AmendsId" }, "UX_ProlifGranular_PendingAmendment")
+                        .IsUnique()
+                        .HasFilter("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
+
                     b.HasIndex("UnitName")
                         .HasDatabaseName("IX_ProlifGranular_UnitName");
 
@@ -878,6 +882,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("AmendsId")
                         .HasDatabaseName("IX_ProlifYearly_AmendsId");
+
+                    b.HasIndex(new[] { "AmendsId" }, "UX_ProlifYearly_PendingAmendment")
+                        .IsUnique()
+                        .HasFilter("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
 
                     b.HasIndex("ProjectId", "Source", "Year")
                         .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
