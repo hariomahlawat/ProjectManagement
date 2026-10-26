@@ -138,13 +138,82 @@ function paintCategoryDots(scope) {
 
 // END SECTION
 
+// SECTION: Workflow phases (brackets under the stage axis; the phase cards open the same stages)
+// The phases come from the server (Models/Stages/StagePhases.cs) through data-phases; the chart
+// only draws them. Space for the brackets is layout padding below the axis.
+const PHASE_BRACKET_HEIGHT = 42;
+
+function phaseBracketsPlugin(axis, phases) {
+  const indexOf = new Map(axis.map((stage, index) => [stage.code.toUpperCase(), index]));
+  return {
+    id: 'pmPhaseBrackets',
+    afterDraw(chart, _args, options) {
+      const x = chart.scales?.x;
+      if (!x || !phases.length || axis.length === 0) return;
+      const scale = Number(options?.scale) || 1;
+      const t = chartTokens();
+      const ctx = chart.ctx;
+      const slot = axis.length > 1 ? (x.getPixelForValue(1) - x.getPixelForValue(0)) / 2 : (x.right - x.left) / 2;
+      const top = x.bottom + 6 * scale;
+      ctx.save();
+      ctx.lineWidth = 1.5 * scale;
+      ctx.strokeStyle = t.grid;
+      ctx.fillStyle = t.text;
+      ctx.font = `600 ${Math.round(11 * scale)}px ${t.font}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      // A label wider than its bracket (Development spans one stage; any phase on a phone) drops to a
+      // second row, and two overflowing neighbours alternate rows so they never overlap.
+      let previousOverflowRow = 2;
+      phases.forEach((phase) => {
+        const indexes = (phase.stageCodes ?? []).map((code) => indexOf.get(String(code).toUpperCase())).filter((i) => i !== undefined);
+        if (!indexes.length) return;
+        const x0 = x.getPixelForValue(Math.min(...indexes)) - slot + 4 * scale;
+        const x1 = x.getPixelForValue(Math.max(...indexes)) + slot - 4 * scale;
+        ctx.beginPath();
+        ctx.moveTo(x0, top);
+        ctx.lineTo(x0, top + 5 * scale);
+        ctx.lineTo(x1, top + 5 * scale);
+        ctx.lineTo(x1, top);
+        ctx.stroke();
+        const name = String(phase.name ?? '');
+        const fits = ctx.measureText(name).width <= x1 - x0;
+        const row = fits ? 1 : (previousOverflowRow === 2 ? 1 : 2);
+        if (!fits) previousOverflowRow = row;
+        // Keep the label inside the canvas when its bracket sits at an edge.
+        const half = ctx.measureText(name).width / 2 + 2 * scale;
+        const cx = Math.min(Math.max((x0 + x1) / 2, half), chart.width - half);
+        ctx.fillText(name, cx, top + (9 + (row - 1) * 13) * scale);
+      });
+      ctx.restore();
+    }
+  };
+}
+
+// A phase card opens every stage row of that phase in the board and scrolls to the first.
+function enablePhaseCards(panel) {
+  document.querySelectorAll('[data-phase-drill]').forEach((card) => {
+    card.addEventListener('click', () => {
+      const codes = String(card.dataset.phaseDrill ?? '').split(',').map((code) => code.trim()).filter(Boolean);
+      const rows = codes
+        .map((code) => panel.querySelector(`[data-drill-key="${CSS.escape(`stage:${code}`)}"]`))
+        .filter(Boolean);
+      rows.forEach((row) => { row.open = true; });
+      rows[0]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+// END SECTION
+
 // SECTION: Ongoing mode
 function initOngoing(panel) {
   initOngoingStageFilterPopover(panel);
   paintCategoryDots(panel);
+  enablePhaseCards(panel);
 
   const canvas = panel.querySelector('#ongoing-by-stage-chart');
   const points = readJson(canvas, 'series', []);
+  const phases = readJson(canvas, 'phases', []);
   if (!canvas) return;
   if (!points.length) {
     renderEmptyState(canvas);
@@ -155,7 +224,7 @@ function initOngoing(panel) {
   const axis = stageAxis(points.map((p) => p.stageCode), stageNames);
   const categories = orderCategories(points.map((p) => p.categoryName ?? 'Unassigned'));
 
-  sizeChartHost(canvas.parentElement, { min: 300, max: 340 });
+  sizeChartHost(canvas.parentElement, { min: 300 + PHASE_BRACKET_HEIGHT, max: 340 + PHASE_BRACKET_HEIGHT });
   mount(canvas, () => {
     const tokens = chartTokens();
     const datasets = categories.map((category) => ({
@@ -171,8 +240,10 @@ function initOngoing(panel) {
       data: { labels: axis.map((stage) => stage.short), datasets },
       options: {
         interaction: { mode: 'index', intersect: true },
+        layout: { padding: { bottom: PHASE_BRACKET_HEIGHT } },
         scales: barScales({ stacked: true }),
         plugins: {
+          pmPhaseBrackets: { scale: 1 },
           tooltip: {
             callbacks: {
               title: stageTooltipTitle(axis),
@@ -181,7 +252,8 @@ function initOngoing(panel) {
             }
           }
         }
-      }
+      },
+      plugins: [phaseBracketsPlugin(axis, phases)]
     });
     renderLegend(panel.querySelector('[data-legend="ongoing-by-stage-chart"]'), chart, datasets.map((dataset, index) => ({
       label: dataset.label,
@@ -1130,6 +1202,10 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   };
   exportConfig.options.plugins.datalabels = false;
   exportConfig.options.plugins.pmValueLabels = { display: false }; // the export draws its own, larger labels
+  if (exportConfig.options.plugins.pmPhaseBrackets) {
+    exportConfig.options.plugins.pmPhaseBrackets = { scale };
+    exportConfig.options.layout.padding.bottom += PHASE_BRACKET_HEIGHT * scale;
+  }
   // The HTML legend chips are not part of the canvas, so the export draws Chart.js's own legend
   // whenever there is more than one series, or more than one slice of a doughnut.
   const exportNeedsLegend = (exportConfig.data?.datasets?.length ?? 0) > 1

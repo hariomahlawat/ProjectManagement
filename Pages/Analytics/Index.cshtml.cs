@@ -106,7 +106,8 @@ namespace ProjectManagement.Pages.Analytics
             .Select(code => new WorkflowStageOption(code, StageCodes.DisplayNameOf(code)))
             .ToList();
 
-        public sealed record HeadlineFigure(string Label, string Value, string? Hint = null, string? Href = null);
+        /// <param name="DrillStageCodes">When set, the figure is a button that opens those stages' rows in the board on the page.</param>
+        public sealed record HeadlineFigure(string Label, string Value, string? Hint = null, string? Href = null, string? DrillStageCodes = null);
         public sealed record WorkflowStageOption(string Code, string Name);
         // END SECTION
 
@@ -221,32 +222,20 @@ namespace ProjectManagement.Pages.Analytics
         // SECTION: Headline figures
         private IReadOnlyList<HeadlineFigure> BuildHeadlines()
         {
-            var ongoingUrl = PageUrl("/Projects/Ongoing/Index");
             var completedUrl = PageUrl("/Projects/Index", new { Lifecycle = ProjectLifecycleFilter.Completed });
 
             switch (ActiveTab)
             {
                 case AnalyticsTab.Ongoing when Ongoing is not null:
-                    return new[]
-                    {
-                        new HeadlineFigure(
-                            "Ongoing projects",
-                            Ongoing.TotalOngoingProjects.ToString(),
-                            IsOngoingFiltered ? $"of {OngoingCount} in the portfolio" : "in the portfolio",
-                            ongoingUrl),
-                        new HeadlineFigure(
-                            "Busiest stage",
-                            Ongoing.TopStageName ?? "—",
-                            Ongoing.TopStageName is null ? null : $"{Ongoing.TopStageCount} {Plural(Ongoing.TopStageCount, "project")} there now"),
-                        new HeadlineFigure(
-                            "Median time in stage",
-                            FormatDays(Ongoing.MedianDaysInCurrentStage),
-                            "days in the current stage"),
-                        new HeadlineFigure(
-                            $"Past {OngoingAnalyticsVm.LongStageThresholdDays} days",
-                            Ongoing.ProjectsPastThreshold.ToString(),
-                            $"{Plural(Ongoing.ProjectsPastThreshold, "project")} in one stage longer than that")
-                    };
+                    // One card per workflow phase; the total is the switcher badge and the header line.
+                    // A card opens that phase's stage rows in the board (data-phase-drill).
+                    return Ongoing.Phases
+                        .Select(phase => new HeadlineFigure(
+                            phase.Name,
+                            phase.Count.ToString(),
+                            $"{phase.Span} · {(phase.PastThresholdCount == 0 ? "none" : phase.PastThresholdCount.ToString())} past {OngoingAnalyticsVm.LongStageThresholdDays} days",
+                            DrillStageCodes: string.Join(",", phase.StageCodes)))
+                        .ToList();
 
                 case AnalyticsTab.Completed when Completed is not null:
                     return new[]

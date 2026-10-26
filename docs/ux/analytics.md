@@ -32,7 +32,13 @@ one chart style defined once.
 - **Headline figures**: three or four large figures open every mode. They are computed once in
   `IndexModel.BuildHeadlines()` from data the page already loads and link to the filtered projects
   list where a list exists.
-  - Ongoing: projects, busiest stage, median days in the current stage, projects past 180 days.
+  - Ongoing: one card per workflow phase, Pre-AoN (FS to AoN), Procurement (Bid to SO),
+    Development (Devp) and Post-development (ATP to ToT), each with its project count and how many
+    of those have sat in one stage past 180 days. The phase follows the project's current stage
+    (the stage after the last completed one); a project with no stage at all is Pre-AoN. The one
+    mapping is `Models/Stages/StagePhases.cs`; the chart draws the same four phases as brackets
+    under its stage axis, and a card opens that phase's rows in the stage board. The total is the
+    switcher badge and the header line (which says "n of N" when a parent-category filter is on).
     All four follow the parent-category filter (selecting every category is no filter); only the
     switcher badge stays the portfolio total. Days in stage are measured against the IST "as of" day.
   - Completed: total, this year, best year, median time from first stage start to completion.

@@ -27,7 +27,7 @@
     <header class="analytics-card__head">
       <div class="analytics-card__text">
         <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
-        <p class="analytics-card__meta">Every workflow stage in order; click a bar to see its projects below.</p>
+        <p class="analytics-card__meta">Every workflow stage in order, grouped by phase under the axis; click a bar to see its projects below.</p>
       </div>
       <div class="analytics-card__actions">
         <form method="get" asp-page="/Analytics/Index" class="analytics-filter-form" data-stage-filter-form aria-label="Filter by parent category">
@@ -78,7 +78,8 @@
               role="img"
               aria-label="Ongoing projects by current stage"
               data-empty-message="No ongoing projects in the selected parent categories."
-              data-series='@Html.Raw(JsonSerializer.Serialize(stageSeries, json))'></canvas>
+              data-series='@Html.Raw(JsonSerializer.Serialize(stageSeries, json))'
+              data-phases='@Html.Raw(JsonSerializer.Serialize(ongoing.Phases.Select(phase => new { phase.Key, phase.Name, phase.StageCodes }), json))'></canvas>
     </div>
 
     <!-- SECTION: Stage drill-down (stage → category → projects) -->

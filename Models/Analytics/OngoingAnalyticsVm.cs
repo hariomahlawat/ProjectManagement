@@ -22,8 +22,20 @@ public sealed class OngoingAnalyticsVm
     /// <summary>Projects whose current stage has run longer than <see cref="LongStageThresholdDays"/>.</summary>
     public int ProjectsPastThreshold { get; init; }
     public const int LongStageThresholdDays = 180;
+
+    /// <summary>The four workflow phases (Pre-AoN, Procurement, Development, Post-development) in order, with how many of the selected projects stand in each.</summary>
+    public IReadOnlyList<OngoingPhaseVm> Phases { get; init; } = Array.Empty<OngoingPhaseVm>();
     // END SECTION
 }
+
+/// <summary>One phase card: the stages it spans (workflow order), its project count and how many of those have sat in one stage past the threshold.</summary>
+public sealed record OngoingPhaseVm(
+    string Key,
+    string Name,
+    string Span,
+    IReadOnlyList<string> StageCodes,
+    int Count,
+    int PastThresholdCount);
 
 public sealed record OngoingStageBoardItemVm(
     string StageCode,

@@ -243,9 +243,11 @@ public sealed class CoeAnalyticsTests : IDisposable
         Assert.Equal(3, _pageModel.OngoingCount); // the switcher badge is the portfolio total
         Assert.Equal(1, _pageModel.Ongoing!.TotalOngoingProjects); // the figures follow the filter
         Assert.Equal(1, _pageModel.Ongoing.TopStageCount);
-        var figure = _pageModel.Headlines.Single(f => f.Label == "Ongoing projects");
-        Assert.Equal("1", figure.Value);
-        Assert.Equal("of 3 in the portfolio", figure.Hint);
+        // The phase cards follow the filter too: one new project, so one in Pre-AoN and none elsewhere.
+        Assert.Equal(new[] { "Pre-AoN", "Procurement", "Development", "Post-development" }, _pageModel.Headlines.Select(f => f.Label));
+        Assert.Equal(new[] { "1", "0", "0", "0" }, _pageModel.Headlines.Select(f => f.Value));
+        Assert.Equal("FS to AoN · none past 180 days", _pageModel.Headlines[0].Hint);
+        Assert.Equal("FS,IPA,SOW,AON", _pageModel.Headlines[0].DrillStageCodes);
     }
 
     [Fact]
@@ -263,7 +265,69 @@ public sealed class CoeAnalyticsTests : IDisposable
 
         Assert.False(_pageModel.IsOngoingFiltered);
         Assert.Equal(2, _pageModel.Ongoing!.TotalOngoingProjects);
-        Assert.Equal("in the portfolio", _pageModel.Headlines.Single(f => f.Label == "Ongoing projects").Hint);
+        Assert.Equal(2, _pageModel.Ongoing.Phases.Sum(phase => phase.Count));
+    }
+
+    [Fact]
+    public async Task BuildOngoingAsync_PartitionsProjectsIntoTheFourPhasesByCurrentStage()
+    {
+        var root = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        _db.ProjectCategories.Add(root);
+        await _db.SaveChangesAsync();
+        var started = new DateOnly(2026, 1, 1);
+
+        Project At(string name, params (string Code, StageStatus Status)[] stages) => new()
+        {
+            Name = name,
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            WorkflowVersion = ProcurementWorkflow.VersionV1,
+            CategoryId = root.Id,
+            ProjectStages = stages
+                .Select((stage, index) => new ProjectStage
+                {
+                    StageCode = stage.Code,
+                    SortOrder = (index + 1) * 10,
+                    Status = stage.Status,
+                    ActualStart = started,
+                    CompletedOn = stage.Status == StageStatus.Completed ? started.AddDays(1) : null
+                })
+                .ToList()
+        };
+
+        _db.Projects.AddRange(
+            At("No stages at all"),
+            At("In SoW", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.InProgress)),
+            At("AoN done, in Bid", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.Completed), (StageCodes.AON, StageStatus.Completed), (StageCodes.BID, StageStatus.InProgress)),
+            At("In SO", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.Completed), (StageCodes.AON, StageStatus.Completed), (StageCodes.BID, StageStatus.Completed), (StageCodes.TEC, StageStatus.Completed), (StageCodes.BM, StageStatus.Completed), (StageCodes.COB, StageStatus.Completed), (StageCodes.PNC, StageStatus.Completed), (StageCodes.EAS, StageStatus.Completed), (StageCodes.SO, StageStatus.InProgress)),
+            At("In Devp", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.Completed), (StageCodes.AON, StageStatus.Completed), (StageCodes.BID, StageStatus.Completed), (StageCodes.TEC, StageStatus.Completed), (StageCodes.BM, StageStatus.Completed), (StageCodes.COB, StageStatus.Completed), (StageCodes.PNC, StageStatus.Completed), (StageCodes.EAS, StageStatus.Completed), (StageCodes.SO, StageStatus.Completed), (StageCodes.DEVP, StageStatus.InProgress)),
+            At("Devp done, in ATP", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.Completed), (StageCodes.AON, StageStatus.Completed), (StageCodes.BID, StageStatus.Completed), (StageCodes.TEC, StageStatus.Completed), (StageCodes.BM, StageStatus.Completed), (StageCodes.COB, StageStatus.Completed), (StageCodes.PNC, StageStatus.Completed), (StageCodes.EAS, StageStatus.Completed), (StageCodes.SO, StageStatus.Completed), (StageCodes.DEVP, StageStatus.Completed), (StageCodes.ATP, StageStatus.InProgress)));
+        await _db.SaveChangesAsync();
+
+        var result = await _service.BuildOngoingAsync(Array.Empty<int>(), new[] { root.Id }, started.AddDays(OngoingAnalyticsVm.LongStageThresholdDays + 10), CancellationToken.None);
+
+        Assert.Equal(new[] { "pre-aon", "procurement", "development", "post-development" }, result.Phases.Select(phase => phase.Key));
+        Assert.Equal(new[] { 2, 2, 1, 1 }, result.Phases.Select(phase => phase.Count));
+        Assert.Equal(result.TotalOngoingProjects, result.Phases.Sum(phase => phase.Count));
+        // Every project with a start date has sat in its stage past the threshold; the one without stages has no age.
+        Assert.Equal(new[] { 1, 2, 1, 1 }, result.Phases.Select(phase => phase.PastThresholdCount));
+        Assert.Equal(new[] { StageCodes.FS, StageCodes.IPA, StageCodes.SOW, StageCodes.AON }, result.Phases[0].StageCodes);
+        Assert.Equal(new[] { StageCodes.DEVP }, result.Phases[2].StageCodes);
+    }
+
+    [Fact]
+    public void StagePhases_CoverEveryWorkflowStageExactlyOnce_AndNoStageIsPreAon()
+    {
+        var mapped = StagePhases.All.SelectMany(definition => definition.StageCodes).ToList();
+
+        Assert.Equal(StageCodes.All.OrderBy(code => code), mapped.OrderBy(code => code));
+        Assert.Equal(mapped.Count, mapped.Distinct().Count());
+        Assert.Equal(StagePhase.PreAon, StagePhases.Of(null));
+        Assert.Equal(StagePhase.PreAon, StagePhases.Of(StageCodes.AON));
+        Assert.Equal(StagePhase.Procurement, StagePhases.Of(StageCodes.SO));
+        Assert.Equal(StagePhase.Development, StagePhases.Of("devp"));
+        Assert.Equal(StagePhase.PostDevelopment, StagePhases.Of(StageCodes.TOT));
+        Assert.Null(StagePhases.Of("ADHOC"));
     }
 
     [Fact]

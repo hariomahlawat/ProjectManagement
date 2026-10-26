@@ -27,6 +27,20 @@ test('workspace and analytics resolve project categories through the same recurs
   assert.match(analytics, /ProjectCategoryHierarchyResolver\.ResolveRoot\s*\(/);
 });
 
+test('analytics phase cards and chart brackets take the phases from the one server-side mapping', () => {
+  const phases = read('Models/Stages/StagePhases.cs');
+  const service = read('Services/Analytics/PortfolioAnalyticsService.cs');
+  const partial = read('Pages/Analytics/Partials/_OngoingAnalytics.cshtml');
+  const analyticsJs = read('wwwroot/js/analytics-projects.js');
+
+  assert.match(phases, /StagePhase\.PreAon[\s\S]*StageCodes\.AON/);
+  assert.match(service, /StagePhases\.Of\s*\(/);
+  assert.match(partial, /data-phases=/);
+  assert.match(analyticsJs, /readJson\(canvas, 'phases'/);
+  // No stage-to-phase table in the script: it draws what the server sends.
+  assert.doesNotMatch(analyticsJs, /['"]AON['"]\s*[,\]]\s*[,\]]?[\s\S]{0,40}phase/i);
+});
+
 test('workspace stage chart uses balanced dashboard geometry rather than the old thin-bar cap', () => {
   const workspaceJs = read('wwwroot/js/pages/command-workspace.js');
 
