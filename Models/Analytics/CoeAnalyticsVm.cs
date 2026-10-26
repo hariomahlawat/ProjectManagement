@@ -43,8 +43,8 @@ public sealed class CoeAnalyticsVm
     // SECTION: AR/VR projects outside the CoE categories (by technical category), listed by name
     /// <summary>
     /// Three groups, each with completed projects first: AR/VR projects outside DCD and the CoE
-    /// (the ones completed before the formal CoE (AR/VR) nomination in 2025), then the AR/VR
-    /// projects under DCD as fresh projects and as repeat builds. The groups are always present,
+    /// (started before the formal CoE (AR/VR) nomination), then the AR/VR projects under DCD as
+    /// fresh projects and as repeat builds. The groups are always present,
     /// at zero when empty; they are not part of the CoE counts above.
     /// </summary>
     public IReadOnlyList<AnalyticsBoardGroupVm> ArVrOutsideCoe { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();

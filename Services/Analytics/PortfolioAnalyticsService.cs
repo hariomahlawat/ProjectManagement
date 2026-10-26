@@ -667,7 +667,7 @@ namespace ProjectManagement.Services.Analytics
             };
         }
 
-        // SECTION: AR/VR projects outside the CoE categories (earlier Other R&D work; DCD fresh projects and repeat builds)
+        // SECTION: AR/VR projects started before the CoE nomination (outside the CoE categories; DCD fresh projects and repeat builds)
         private async Task<IReadOnlyList<AnalyticsBoardGroupVm>> BuildArVrOutsideCoeAsync(
             List<int> coeCategoryIds,
             DateOnly referenceDateIst,
@@ -746,7 +746,7 @@ namespace ProjectManagement.Services.Analytics
 
             return new[]
             {
-                Group(CoeAnalyticsVm.ArVrEarlierKey, "Earlier AR/VR projects (before the CoE)"),
+                Group(CoeAnalyticsVm.ArVrEarlierKey, "Started before the CoE nomination"),
                 Group(CoeAnalyticsVm.ArVrDcdFreshKey, "AR/VR under DCD · Fresh projects"),
                 Group(CoeAnalyticsVm.ArVrDcdRepeatKey, "AR/VR under DCD · Repeat builds")
             };

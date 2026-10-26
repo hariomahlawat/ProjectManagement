@@ -46,11 +46,11 @@ one chart style defined once.
     averages over what it has) with the five years before it for comparison, and the median time
     from first stage start to completion.
   - CoE (AR/VR): total, ongoing, completed (with this year), sub-categories. The switcher item is
-    "CoE (AR/VR)". Below the sub-category board, "AR/VR projects outside the CoE" lists by name the
-    AR/VR projects (technical category) that are not in a CoE category, in three always-present
-    groups: the earlier ones (completed before the formal CoE (AR/VR) nomination in 2025), and the
-    AR/VR projects under DCD as fresh projects and as repeat builds (the project's repeat-build
-    flag). Each group lists completed projects first, oldest completion first, then ongoing with
+    "CoE (AR/VR)". Below the sub-category board, "AR/VR projects started before the CoE
+    nomination" lists by name the AR/VR projects (technical category) that are not in a CoE
+    category, in three always-present groups: those started before the formal CoE (AR/VR)
+    nomination, and the AR/VR projects under DCD as fresh projects and as repeat builds (the
+    project's repeat-build flag). Each group lists completed projects first, oldest completion first, then ongoing with
     their current stage, then cancelled. These are not part of the CoE counts.
   - Insights: the three slowest stages (median days, ratio to the portfolio median, project
     count) and the portfolio median (median of the stage medians) with the number of stages
