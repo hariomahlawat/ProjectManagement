@@ -746,9 +746,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             DateOnly? fromDateOnly = from.HasValue ? DateOnly.FromDateTime(from.Value) : null;
             DateOnly? toDateOnly = to.HasValue ? DateOnly.FromDateTime(to.Value) : null;
 
-            var projectsQuery = _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && !p.IsArchived);
+            var projectsQuery = ProliferationProjectEligibility.CountedProjects(_db.Projects.AsNoTracking());
 
             if (q.ProjectId.HasValue)
             {
@@ -948,18 +946,20 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .ToList();
 
             var kpis = new ProliferationKpisDto();
-            var completedProjectIds = await projectsQuery
-                .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            kpis.TotalCompletedProjects = await projectsQuery
+                .CountAsync(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed, ct);
+
+            // Totals follow ProliferationProjectEligibility.CountedProjects: a project that was
+            // reopened or cancelled keeps its approved units.
+            var countedProjectIds = await projectsQuery
                 .Select(p => p.Id)
                 .ToListAsync(ct);
 
-            kpis.TotalCompletedProjects = completedProjectIds.Count;
-
             var yearlyCombosQuery = _db.Set<ProliferationYearly>().AsNoTracking()
-                .Where(y => completedProjectIds.Contains(y.ProjectId) && y.ApprovalStatus == ApprovalStatus.Approved);
+                .Where(y => countedProjectIds.Contains(y.ProjectId) && y.ApprovalStatus == ApprovalStatus.Approved);
 
             var granularCombosQuery = _db.Set<ProliferationGranular>().AsNoTracking()
-                .Where(g => completedProjectIds.Contains(g.ProjectId) && g.ApprovalStatus == ApprovalStatus.Approved);
+                .Where(g => countedProjectIds.Contains(g.ProjectId) && g.ApprovalStatus == ApprovalStatus.Approved);
 
             if (kind == ProliferationRecordKind.Yearly)
             {
@@ -1052,12 +1052,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             var lastYearCombos = new HashSet<CombinationKey>();
 
-            if (completedProjectIds.Count > 0 && windowYears.Length > 0)
+            if (countedProjectIds.Count > 0 && windowYears.Length > 0)
             {
                 var lastYearlyQuery = _db.Set<ProliferationYearly>().AsNoTracking()
                     .Where(y =>
                         y.ApprovalStatus == ApprovalStatus.Approved &&
-                        completedProjectIds.Contains(y.ProjectId) &&
+                        countedProjectIds.Contains(y.ProjectId) &&
                         windowYears.Contains(y.Year));
 
                 if (q.Source.HasValue)
@@ -1077,7 +1077,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 var lastGranularQuery = _db.Set<ProliferationGranular>().AsNoTracking()
                     .Where(g =>
                         g.ApprovalStatus == ApprovalStatus.Approved &&
-                        completedProjectIds.Contains(g.ProjectId) &&
+                        countedProjectIds.Contains(g.ProjectId) &&
                         g.ProliferationDate >= fromCutoff &&
                         g.ProliferationDate <= toCutoff);
 

@@ -44,7 +44,9 @@ public sealed class ProliferationChronologyQualityService
             projectId: null,
             cancellationToken);
 
-        var scopeProjectIds = projectIdArray.Length > 0
+        // null means "every project"; an empty scope (e.g. a category with no counted
+        // projects) must not fall back to disclosing the whole register's records.
+        var scopeProjectIds = projectIds is not null
             ? projectIdArray
             : aggregates.Select(row => row.ProjectId).Distinct().ToArray();
 
