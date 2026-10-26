@@ -46,7 +46,8 @@ one chart style defined once.
     averages over what it has) with the five years before it for comparison, and the median time
     from first stage start to completion.
   - CoE: total, ongoing, completed (with this year), sub-categories.
-  - Insights: slowest stage, fastest stage, portfolio median (median of the stage medians), stages
+  - Insights: the three slowest stages (median days, ratio to the portfolio median, project
+    count) and the portfolio median (median of the stage medians) with the number of stages
     measured.
 - **Cards**: white (graphite in Dark) sheets with a hairline edge and `--pm-shadow-card`. Every
   card has the same header (title, one-line meta, actions on the right) and the Download button in
@@ -57,13 +58,16 @@ one chart style defined once.
   then the project list with links to each project's overview. No horizontal strips of tall cards.
   A CoE project row shows its current stage only while it is ongoing; completed and cancelled
   projects are identified by their lifecycle alone.
-- **Insights** has one stage cycle-time chart with two toggles (Median / Mean, All projects / By
-  cost band) and the category filter, followed by "Where time goes": the stages ranked slowest
-  first with plain-language numbers ("196 days median · 16× portfolio median · 8 projects"). A stage
-  at two times the portfolio median or more is marked in the status red. The old Ongoing
-  "Average time spent in each stage" chart is folded into this view. Every finished stage counts in
-  the All projects view and in the ranked list; a project with no cost figure yet falls in neither
-  cost band. The category filter means the category and everything under it.
+- **Insights** has one stage cycle-time chart with two toggles (Median / Mean; All projects / By
+  parent category / By cost band) and the category filter, followed by "Where time goes": the
+  stages ranked slowest first with plain-language numbers ("196 days median · 16× portfolio
+  median · 8 projects"). A stage at two times the portfolio median or more is marked in the status
+  red. The old Ongoing "Average time spent in each stage" chart is folded into this view. By parent
+  category draws one series per root category (DCD, CoE, Other R&D, in the chart's category
+  colours; "Uncategorized" in grey when it exists). The cost bands split at ₹2 crore, with a project
+  costing exactly ₹2 crore in the lower band. Every finished stage counts in the All projects and
+  By parent category views and in the ranked list; a project with no cost figure yet falls in
+  neither cost band. The category filter means the category and everything under it.
 
 - **ARPP** (fifth mode, added 2026-10-25): the projects listed in one financial year's published
   ARPP (the latest published row per project, as the ARPP library's current position) joined to

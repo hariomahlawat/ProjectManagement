@@ -4,15 +4,20 @@ using System.Collections.Generic;
 namespace ProjectManagement.Models.Analytics;
 
 // SECTION: Stage time insight view models
+/// <summary>The two cost bands of the Insights chart: up to and including ₹2 crore, and above it.</summary>
 public static class StageTimeBucketKeys
 {
-    public const string BelowOneCrore = "Below1Cr";
-    public const string AboveOrEqualOneCrore = "AboveOrEqual1Cr";
+    public const string UpToTwoCrore = "UpTo2Cr";
+    public const string AboveTwoCrore = "Above2Cr";
 }
 
 public sealed class StageTimeInsightsVm
 {
+    /// <summary>One row per stage and cost band.</summary>
     public IReadOnlyList<StageTimeBucketRowVm> Rows { get; init; } = Array.Empty<StageTimeBucketRowVm>();
+
+    /// <summary>One row per stage and parent (root) category; <see cref="StageTimeBucketRowVm.Bucket"/> is the root category name.</summary>
+    public IReadOnlyList<StageTimeBucketRowVm> CategoryRows { get; init; } = Array.Empty<StageTimeBucketRowVm>();
 
     public IReadOnlyList<StageHotspotPointVm> StageHotspots { get; init; } = Array.Empty<StageHotspotPointVm>();
 
@@ -38,8 +43,6 @@ public sealed class StageTimeInsightsPanelVm
     /// <summary>Stages ranked slowest first, with their ratio to the portfolio median.</summary>
     public IReadOnlyList<StageHotspotRankVm> RankedHotspots { get; init; } = Array.Empty<StageHotspotRankVm>();
 
-    public StageHotspotRankVm? SlowestStage => RankedHotspots.Count > 0 ? RankedHotspots[0] : null;
-    public StageHotspotRankVm? FastestStage => RankedHotspots.Count > 0 ? RankedHotspots[^1] : null;
     // END SECTION
 }
 
@@ -56,6 +59,8 @@ public sealed record StageHotspotRankVm(
 public sealed class StageTimeCycleChartVm
 {
     public IReadOnlyList<StageTimeBucketRowVm> Rows { get; init; } = Array.Empty<StageTimeBucketRowVm>();
+
+    public IReadOnlyList<StageTimeBucketRowVm> CategoryRows { get; init; } = Array.Empty<StageTimeBucketRowVm>();
 
     public bool HasData => Rows.Count > 0;
 
