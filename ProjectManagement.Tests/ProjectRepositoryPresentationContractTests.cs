@@ -116,6 +116,54 @@ public sealed class ProjectRepositoryPresentationContractTests
         Assert.Contains("LoadFilterCountsAsync", model, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Repository_FilterDrawerResetsUnappliedChoicesWhenClosed()
+    {
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+
+        Assert.Contains("'hidden.bs.offcanvas'", script, StringComparison.Ordinal);
+        // Restores what the drawer held when it opened, not the raw URL (the server normalises
+        // values such as Build=repeat, which a URL comparison would not match).
+        Assert.Contains("drawerSnapshot = drawerControls()", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("syncFormFromUrl(new URL(window.location.href), filterDrawer)", script, StringComparison.Ordinal);
+        // Marked applied only after a successful refresh, right before the drawer closes.
+        Assert.Contains("if (closeFilters) {\n                drawerApplied = true;", script.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain("if (fromFilterDrawer) drawerApplied = true;", script, StringComparison.Ordinal);
+        // Dismissing while the apply is still loading cancels that request.
+        Assert.Contains("if (drawerApplyPending) {", script, StringComparison.Ordinal);
+        Assert.Contains("cancelActiveRequest();", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Repository_UrlOnlyFiltersKeepTheirChipsOnLiveRefresh()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+
+        foreach (var field in new[] { "StageCode", "SlipBucket", "IncludeCategoryDescendants", "CompletedFrom", "StageCompletedFrom" })
+        {
+            Assert.Matches($"name=\"{field}\"[^>]*data-project-filter-label=", view);
+        }
+
+        Assert.Contains("data-project-filter-requires=\"CategoryId\"", view, StringComparison.Ordinal);
+        Assert.Contains("[data-project-filter-label]", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-project-window-label", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("projectWindowLabel", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Repository_ViewChoiceIsRenderedByTheServer()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
+        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+
+        Assert.Contains("data-project-view-cookie=\"@ProjectManagement.Pages.Projects.IndexModel.ViewCookieName\"", view, StringComparison.Ordinal);
+        Assert.Contains("hidden=\"@Model.ShowTableView\"", results, StringComparison.Ordinal);
+        Assert.Contains("hidden=\"@(!Model.ShowTableView)\"", results, StringComparison.Ordinal);
+        Assert.Contains("writeViewCookie(resolved);", script, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

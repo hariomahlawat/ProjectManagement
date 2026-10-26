@@ -387,6 +387,86 @@ namespace ProjectManagement.Tests
             Assert.Equal("Parent Project", directOnly.Projects.Single().Name);
         }
 
+        [Fact]
+        public async Task UrlOnlyFilters_HaveChipLabels()
+        {
+            await using var context = CreateContext();
+            var stages = new WorkflowStageMetadataProvider();
+
+            var reached = CreateModel(context);
+            reached.StageCode = "TEC";
+            reached.SlipBucket = "8-30";
+            await reached.OnGetAsync();
+
+            Assert.Equal($"Reached {stages.GetDisplayName(null, "TEC")}", reached.StageFilterLabel);
+            Assert.Equal("Slip: 8-30 days", reached.SlipBucketFilterLabel);
+
+            var completedInMonth = CreateModel(context);
+            completedInMonth.StageCode = "TEC";
+            completedInMonth.StageCompletedMonth = "2026-09";
+            await completedInMonth.OnGetAsync();
+
+            Assert.Equal($"{stages.GetDisplayName(null, "TEC")} completed in Sep 2026", completedInMonth.StageFilterLabel);
+
+            var none = CreateModel(context);
+            none.StageCompletedMonth = "2026-09";
+            none.IncludeCategoryDescendants = true;
+            await none.OnGetAsync();
+
+            // A month without a stage, or sub-categories without a category, does not filter.
+            Assert.Null(none.StageFilterLabel);
+            Assert.Null(none.SlipBucketFilterLabel);
+            Assert.False(none.AppliesCategoryDescendants);
+        }
+
+        [Fact]
+        public async Task ViewCookie_SelectsTheRenderedView()
+        {
+            await using var context = CreateContext();
+
+            var withoutCookie = CreateModel(context);
+            await withoutCookie.OnGetAsync();
+            Assert.False(withoutCookie.ShowTableView);
+
+            var table = CreateModel(context);
+            table.HttpContext.Request.Headers["Cookie"] = $"{IndexModel.ViewCookieName}=table";
+            await table.OnGetAsync();
+            Assert.True(table.ShowTableView);
+
+            var unknown = CreateModel(context);
+            unknown.HttpContext.Request.Headers["Cookie"] = $"{IndexModel.ViewCookieName}=wall";
+            await unknown.OnGetAsync();
+            Assert.False(unknown.ShowTableView);
+        }
+
+        [Fact]
+        public async Task OfficerAndHodOptions_ListEachPersonOnce()
+        {
+            await using var context = CreateContext();
+            context.Users.AddRange(
+                new ApplicationUser { Id = "hod-1", UserName = "hod1", FullName = "Col A Verma" },
+                new ApplicationUser { Id = "po-1", UserName = "po1", FullName = "K Srinath" });
+            for (var i = 0; i < 3; i++)
+            {
+                context.Projects.Add(new Project
+                {
+                    Name = $"Project {i}",
+                    HodUserId = "hod-1",
+                    LeadPoUserId = "po-1",
+                    CreatedByUserId = "creator",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            await context.SaveChangesAsync();
+
+            var model = CreateModel(context);
+            await model.OnGetAsync();
+
+            Assert.Equal(new[] { "Any HoD", "Col A Verma" }, model.HodOptions.Select(o => o.Text));
+            Assert.Equal(new[] { "Any Project Officer", "K Srinath" }, model.LeadPoOptions.Select(o => o.Text));
+        }
+
         private static IndexModel CreateModel(ApplicationDbContext context)
         {
             var categories = new ProjectCategoryHierarchyService(context);

@@ -24,12 +24,17 @@
     if (!string.IsNullOrWhiteSpace(selectedLeadPo)) activeFilters.Add($"Project Officer: {selectedLeadPo}");
     var selectedCompletionYear = Model.CompletionYearOptions.FirstOrDefault(o => o.Selected && !string.IsNullOrEmpty(o.Value))?.Text;
     if (!string.IsNullOrWhiteSpace(selectedCompletionYear)) activeFilters.Add($"Completion year: {selectedCompletionYear}");
+    var selectedTotStatus = Model.TotStatusOptions.FirstOrDefault(o => o.Selected && !string.IsNullOrEmpty(o.Value))?.Text;
+    if (!string.IsNullOrWhiteSpace(selectedTotStatus)) activeFilters.Add($"ToT: {selectedTotStatus}");
+    // URL-only filters, in the order of their hidden fields below (the live refresh rebuilds the chips from those fields).
     var completedWindow = ProjectManagement.Pages.Projects.IndexModel.DescribeWindow(Model.CompletedFrom, Model.CompletedTo);
     if (completedWindow is not null) activeFilters.Add($"Completed {completedWindow}");
     var stageWindow = ProjectManagement.Pages.Projects.IndexModel.DescribeWindow(Model.StageCompletedFrom, Model.StageCompletedTo);
     if (stageWindow is not null) activeFilters.Add($"Stage completed {stageWindow}");
-    var selectedTotStatus = Model.TotStatusOptions.FirstOrDefault(o => o.Selected && !string.IsNullOrEmpty(o.Value))?.Text;
-    if (!string.IsNullOrWhiteSpace(selectedTotStatus)) activeFilters.Add($"ToT: {selectedTotStatus}");
+    if (Model.StageFilterLabel is { } stageFilterLabel) activeFilters.Add(stageFilterLabel);
+    if (Model.SlipBucketFilterLabel is { } slipBucketFilterLabel) activeFilters.Add(slipBucketFilterLabel);
+    const string categoryDescendantsLabel = "Including sub-categories";
+    if (Model.AppliesCategoryDescendants) activeFilters.Add(categoryDescendantsLabel);
     if (Model.ProjectTypeUnclassified) activeFilters.Add("Project type: Unclassified");
     else if (Model.ProjectTypeId.HasValue)
     {
@@ -54,11 +59,11 @@
                 </div>
             </div>
             <div class="projects-header__actions">
-                <div class="projects-view-toggle" role="group" aria-label="Project result view">
-                    <button type="button" class="projects-view-toggle__button is-active" data-project-view="cards" aria-pressed="true" title="Card view">
+                <div class="projects-view-toggle" role="group" aria-label="Project result view" data-project-view-cookie="@ProjectManagement.Pages.Projects.IndexModel.ViewCookieName">
+                    <button type="button" class="projects-view-toggle__button @(Model.ShowTableView ? null : "is-active")" data-project-view="cards" aria-pressed="@(Model.ShowTableView ? "false" : "true")" title="Card view">
                         <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span class="visually-hidden">Card view</span>
                     </button>
-                    <button type="button" class="projects-view-toggle__button" data-project-view="table" aria-pressed="false" title="Table view">
+                    <button type="button" class="projects-view-toggle__button @(Model.ShowTableView ? "is-active" : null)" data-project-view="table" aria-pressed="@(Model.ShowTableView ? "true" : "false")" title="Table view">
                         <i class="bi bi-list-ul" aria-hidden="true"></i><span class="visually-hidden">Table view</span>
                     </button>
                 </div>
@@ -73,16 +78,17 @@
             <input type="hidden" name="Lifecycle" value="@(Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString())" />
             <input type="hidden" name="Sort" value="@Model.Sort" data-project-sort-field />
             <input type="hidden" name="Dir" value="@Model.Dir" data-project-sort-direction-field />
-            @if (!string.IsNullOrWhiteSpace(Model.StageCode)) { <input type="hidden" name="StageCode" value="@Model.StageCode" /> }
+            @* URL-only filters ride along as hidden fields. A field's data-project-filter-label lets the
+               live refresh (projects-index.js) keep its chip when it rebuilds the filter summary; a
+               window's label sits on its first field only. *@
+            @if (Model.CompletedFrom.HasValue) { <input type="hidden" name="CompletedFrom" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.CompletedFrom)" data-project-filter-label="Completed @completedWindow" /> }
+            @if (Model.CompletedTo.HasValue) { <input type="hidden" name="CompletedTo" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.CompletedTo)" data-project-filter-label="@(Model.CompletedFrom.HasValue ? null : "Completed " + completedWindow)" /> }
+            @if (Model.StageCompletedFrom.HasValue) { <input type="hidden" name="StageCompletedFrom" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.StageCompletedFrom)" data-project-filter-label="Stage completed @stageWindow" /> }
+            @if (Model.StageCompletedTo.HasValue) { <input type="hidden" name="StageCompletedTo" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.StageCompletedTo)" data-project-filter-label="@(Model.StageCompletedFrom.HasValue ? null : "Stage completed " + stageWindow)" /> }
+            @if (!string.IsNullOrWhiteSpace(Model.StageCode)) { <input type="hidden" name="StageCode" value="@Model.StageCode" data-project-filter-label="@Model.StageFilterLabel" /> }
             @if (!string.IsNullOrWhiteSpace(Model.StageCompletedMonth)) { <input type="hidden" name="StageCompletedMonth" value="@Model.StageCompletedMonth" /> }
-            @* The date windows ride along as hidden fields; the label on the first field of each window lets
-               the live refresh (projects-index.js) keep its chip when it rebuilds the filter summary. *@
-            @if (Model.CompletedFrom.HasValue) { <input type="hidden" name="CompletedFrom" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.CompletedFrom)" data-project-window-label="Completed @completedWindow" /> }
-            @if (Model.CompletedTo.HasValue) { <input type="hidden" name="CompletedTo" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.CompletedTo)" data-project-window-label="@(Model.CompletedFrom.HasValue ? null : "Completed " + completedWindow)" /> }
-            @if (Model.StageCompletedFrom.HasValue) { <input type="hidden" name="StageCompletedFrom" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.StageCompletedFrom)" data-project-window-label="Stage completed @stageWindow" /> }
-            @if (Model.StageCompletedTo.HasValue) { <input type="hidden" name="StageCompletedTo" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.StageCompletedTo)" data-project-window-label="@(Model.StageCompletedFrom.HasValue ? null : "Stage completed " + stageWindow)" /> }
-            @if (!string.IsNullOrWhiteSpace(Model.SlipBucket)) { <input type="hidden" name="SlipBucket" value="@Model.SlipBucket" /> }
-            @if (Model.IncludeCategoryDescendants) { <input type="hidden" name="IncludeCategoryDescendants" value="true" /> }
+            @if (!string.IsNullOrWhiteSpace(Model.SlipBucket)) { <input type="hidden" name="SlipBucket" value="@Model.SlipBucket" data-project-filter-label="@Model.SlipBucketFilterLabel" /> }
+            @if (Model.IncludeCategoryDescendants) { <input type="hidden" name="IncludeCategoryDescendants" value="true" data-project-filter-label="@categoryDescendantsLabel" data-project-filter-requires="CategoryId" /> }
 
             <div class="projects-toolbar__main">
                 <label class="projects-search" for="Query">

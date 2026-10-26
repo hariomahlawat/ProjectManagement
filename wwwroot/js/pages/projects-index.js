@@ -9,7 +9,9 @@
     const liveStatus = root.querySelector('[data-project-live-status]');
     const searchActivity = root.querySelector('[data-project-search-activity]');
     const viewButtons = root.querySelectorAll('[data-project-view]');
+    const filterDrawer = root.querySelector('#projectFilters');
     const storageKey = 'prism.projects.view';
+    const viewCookieName = root.querySelector('[data-project-view-cookie]')?.dataset.projectViewCookie || '';
     const debounceMilliseconds = 300;
     const replaceableSelectors = [
         '[data-project-header-summary]',
@@ -34,7 +36,24 @@
         typeof window.URLSearchParams === 'function' &&
         typeof window.history?.replaceState === 'function';
 
+    function readViewCookie() {
+        if (!viewCookieName) return '';
+        const prefix = `${viewCookieName}=`;
+        const entry = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+        return entry ? entry.slice(prefix.length) : '';
+    }
+
+    // The server reads this cookie to render the chosen view on first paint.
+    function writeViewCookie(view) {
+        if (!viewCookieName) return;
+        const path = new URL(form.action || window.location.href, window.location.href).pathname;
+        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `${viewCookieName}=${view}; Path=${path}; Max-Age=31536000; SameSite=Lax${secure}`;
+    }
+
     function readPreferredView() {
+        const fromCookie = readViewCookie();
+        if (fromCookie) return fromCookie;
         try {
             return window.localStorage.getItem(storageKey) || 'cards';
         } catch {
@@ -60,6 +79,7 @@
 
         if (!persist) return;
 
+        writeViewCookie(resolved);
         try {
             window.localStorage.setItem(storageKey, resolved);
         } catch {
@@ -196,10 +216,14 @@
             if (value) chips.push(`${label}: ${value}`);
         });
 
-        // Date windows from a Command desk drill-down: hidden fields with their server-rendered label.
-        form.querySelectorAll('input[type="hidden"][data-project-window-label]').forEach(input => {
-            const label = input.dataset.projectWindowLabel;
-            if (label) chips.push(label);
+        // URL-only filters (Command desk and Analytics links): hidden fields with their server-rendered
+        // label. A field that only narrows another filter (sub-categories of a category) needs it set.
+        form.querySelectorAll('input[type="hidden"][data-project-filter-label]').forEach(input => {
+            const label = input.dataset.projectFilterLabel;
+            if (!label || !input.value) return;
+            const requires = input.dataset.projectFilterRequires;
+            if (requires && !form.elements.namedItem(requires)?.value) return;
+            chips.push(label);
         });
 
         const unclassified = form.querySelector('[data-project-type-unclassified]');
@@ -438,7 +462,12 @@
             initialiseCoverImages();
             updateHistory(publicUrl, historyMode);
 
-            if (closeFilters) closeFilterDrawer();
+            // Only a successful refresh applies the drawer; after a failure, dismissing it
+            // restores the filters still in force.
+            if (closeFilters) {
+                drawerApplied = true;
+                closeFilterDrawer();
+            }
 
             if (announceResults) {
                 const results = root.querySelector('[data-project-results-region]');
@@ -503,8 +532,46 @@
     viewButtons.forEach(button => {
         button.addEventListener('click', () => setView(button.dataset.projectView));
     });
-    setView(preferredView, false);
+    // Persisting on load also moves an older local-storage choice into the cookie.
+    setView(preferredView, true);
     initialiseCoverImages();
+
+    // Drawer choices apply only with "Show results". Closing the drawer any other way puts its
+    // controls back to what they held when it opened (the applied filters, as the server
+    // normalised them), so a later search or page-size change cannot pick up a choice the user
+    // did not apply.
+    let drawerApplied = false;
+    let drawerApplyPending = false;
+    let drawerSnapshot = [];
+    function drawerControls() {
+        return Array.from(filterDrawer.querySelectorAll('input, select, textarea')).filter(control => control.name);
+    }
+    filterDrawer?.addEventListener('show.bs.offcanvas', () => {
+        drawerApplied = false;
+        drawerSnapshot = drawerControls().map(control => ({
+            control,
+            checked: control.checked,
+            value: control.value
+        }));
+    });
+    filterDrawer?.addEventListener('hidden.bs.offcanvas', () => {
+        if (drawerApplied) return;
+        // Dismissed while "Show results" is still loading: cancel that request so it cannot
+        // apply filters the restored controls no longer show.
+        if (drawerApplyPending) {
+            drawerApplyPending = false;
+            cancelActiveRequest();
+        }
+        drawerSnapshot.forEach(({ control, checked, value }) => {
+            if (control.type === 'checkbox' || control.type === 'radio') {
+                control.checked = checked;
+            } else {
+                control.value = value;
+            }
+        });
+        normaliseProjectTypeControls();
+        updateFilterSummary();
+    });
 
     root.addEventListener('click', event => {
         const row = event.target.closest('[data-project-row]');
@@ -583,9 +650,12 @@
         event.preventDefault();
         const url = formToPublicUrl({ resetPage: true });
         const fromFilterDrawer = event.submitter?.matches('[data-project-filter-apply]') === true;
+        if (fromFilterDrawer) drawerApplyPending = true;
         refreshProjects(url, {
             historyMode: fromFilterDrawer ? 'push' : 'replace',
             closeFilters: fromFilterDrawer
+        }).finally(() => {
+            if (fromFilterDrawer) drawerApplyPending = false;
         });
     });
 
