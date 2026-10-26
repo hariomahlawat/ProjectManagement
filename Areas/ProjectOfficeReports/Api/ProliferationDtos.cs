@@ -103,6 +103,39 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Range(2000, 3000)] public int Year { get; set; }
         [Required] public YearPreferenceMode Mode { get; set; } // Auto, UseYearly, UseGranular, UseYearlyAndGranular
         [MaxLength(500)] public string? Reason { get; set; }
+
+        // Restores the source's default rule; the server chooses the mode, so the browser
+        // never needs to know which default each source has.
+        public bool UseSourceDefault { get; set; }
+    }
+
+    // Preview of one project/source/year total under a save or a different counting rule.
+    public sealed class ProliferationCountingPreviewQueryDto
+    {
+        [Required] public int ProjectId { get; set; }
+        [Required] public ProliferationSource Source { get; set; }
+        [Required] public int Year { get; set; }
+        // A YearPreferenceMode name, or "default" for the source default; omit for the current rule.
+        public string? Mode { get; set; }
+        // "yearly" or "granular" with Quantity: the value being saved.
+        public string? Kind { get; set; }
+        public int? Quantity { get; set; }
+        // The record being edited, so its approved quantity is replaced rather than added.
+        public Guid? RecordId { get; set; }
+    }
+
+    public sealed class ProliferationCountingPreviewDto
+    {
+        public int AnnualQuantity { get; set; }
+        public int DetailedQuantity { get; set; }
+        public int CurrentTotal { get; set; }
+        public string CurrentRuleLabel { get; set; } = default!;
+        public YearPreferenceMode PreviewMode { get; set; }
+        public string PreviewRuleLabel { get; set; } = default!;
+        public int PreviewTotal { get; set; }
+        public string PreviewCountedBasis { get; set; } = default!;
+        public bool? QuantityCounted { get; set; }
+        public bool HasBothRecordTypes { get; set; }
     }
 
     public sealed class ProliferationManageListQueryDto
@@ -275,6 +308,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public int ReportedTotal { get; set; }
         public string CalculationLabel { get; set; } = default!;
         public string EffectiveMode { get; set; } = default!;
+        // Annual, Detailed or AnnualAndDetailed: which quantities the reported total adds.
+        public string CountedBasis { get; set; } = default!;
         public bool HasCountingException { get; set; }
         public DateTime? LastUpdatedOnUtc { get; set; }
         public IReadOnlyList<ProliferationGroupedDetailedEntryDto> DetailedEntries { get; set; }

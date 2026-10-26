@@ -574,6 +574,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     ReportedTotal = row.ReportedTotal,
                     CalculationLabel = row.CalculationLabel,
                     EffectiveMode = row.EffectiveMode.ToString(),
+                    CountedBasis = row.CountedBasis.ToString(),
                     HasCountingException = row.HasCountingException,
                     LastUpdatedOnUtc = row.LastUpdatedOnUtc
                 })
@@ -825,6 +826,63 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         {
             var result = await _submitSvc.DeleteGranularAsync(id, rowVersion, User, ct);
             return ToActionResult(result, noContent: true);
+        }
+
+        // SECTION: Counting preview
+        // The Records editor and the counting-rule editor ask the server what a save or a
+        // different rule would do to a total, so the counting rule is never repeated in JS.
+        [HttpGet("counting-preview")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<ActionResult<ProliferationCountingPreviewDto>> GetCountingPreview(
+            [FromQuery] ProliferationCountingPreviewQueryDto query,
+            CancellationToken ct)
+        {
+            if (query.ProjectId <= 0
+                || query.Source is not (ProliferationSource.Sdd or ProliferationSource.Abw515)
+                || !ProliferationYearPolicy.IsValid(query.Year, DateTimeOffset.UtcNow))
+            {
+                return BadRequest(new { message = "Select a project, source and valid year." });
+            }
+
+            YearPreferenceMode? previewMode = null;
+            if (string.Equals(query.Mode, "default", StringComparison.OrdinalIgnoreCase))
+            {
+                previewMode = ProliferationAggregateReadService.GetDefaultMode(query.Source);
+            }
+            else if (!string.IsNullOrWhiteSpace(query.Mode))
+            {
+                if (!Enum.TryParse<YearPreferenceMode>(query.Mode, ignoreCase: true, out var parsed)
+                    || !Enum.IsDefined(parsed))
+                {
+                    return BadRequest(new { message = "Select a valid counting rule." });
+                }
+
+                previewMode = parsed;
+            }
+
+            var preview = await _aggregateSvc.GetCountingPreviewAsync(
+                query.ProjectId,
+                query.Source,
+                query.Year,
+                previewMode,
+                ParseKind(query.Kind),
+                query.Quantity,
+                query.RecordId,
+                ct);
+
+            return new ProliferationCountingPreviewDto
+            {
+                AnnualQuantity = preview.AnnualQuantity,
+                DetailedQuantity = preview.DetailedQuantity,
+                CurrentTotal = preview.CurrentTotal,
+                CurrentRuleLabel = ProliferationAggregateReadService.GetCalculationLabel(preview.CurrentMode, query.Source),
+                PreviewMode = preview.PreviewMode,
+                PreviewRuleLabel = ProliferationAggregateReadService.GetCalculationLabel(preview.PreviewMode, query.Source),
+                PreviewTotal = preview.PreviewTotal,
+                PreviewCountedBasis = preview.PreviewBasis.ToString(),
+                QuantityCounted = preview.QuantityCounted,
+                HasBothRecordTypes = preview.HasBothRecordTypes
+            };
         }
 
         [HttpGet("year-preference")]

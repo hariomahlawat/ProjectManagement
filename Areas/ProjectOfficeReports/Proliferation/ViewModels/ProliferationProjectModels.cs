@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
@@ -38,7 +39,8 @@ public sealed record ProliferationProjectSourceYearViewModel(
     bool HasCountingException,
     string? AnnualRemarks,
     DateTime? LastUpdatedOnUtc,
-    IReadOnlyList<ProliferationProjectDetailedEntryViewModel> DetailedEntries);
+    IReadOnlyList<ProliferationProjectDetailedEntryViewModel> DetailedEntries,
+    ProliferationCountedBasis CountedBasis = ProliferationCountedBasis.AnnualAndDetailed);
 
 public sealed record ProliferationProjectDetailedEntryViewModel(
     Guid Id,

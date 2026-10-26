@@ -91,7 +91,8 @@ public sealed class ProliferationProjectReadService : IProliferationProjectReadS
                             row.HasCountingException,
                             remarks,
                             row.LastUpdatedOnUtc,
-                            Array.Empty<ProliferationProjectDetailedEntryViewModel>());
+                            Array.Empty<ProliferationProjectDetailedEntryViewModel>(),
+                            row.CountedBasis);
                     })
                     .ToList();
 

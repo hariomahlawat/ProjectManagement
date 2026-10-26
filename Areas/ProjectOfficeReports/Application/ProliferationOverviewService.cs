@@ -31,11 +31,14 @@ public sealed class ProliferationOverviewService
             throw new ArgumentNullException(nameof(request));
         }
 
+        // An exception is a stored rule that differs from its source's default.
+        var sddDefault = ProliferationAggregateReadService.GetDefaultMode(ProliferationSource.Sdd);
+        var abwDefault = ProliferationAggregateReadService.GetDefaultMode(ProliferationSource.Abw515);
         var query = _db.ProliferationYearPreferences
             .AsNoTracking()
             .Where(p =>
-                (p.Source == ProliferationSource.Sdd && p.Mode != YearPreferenceMode.UseYearlyAndGranular) ||
-                (p.Source == ProliferationSource.Abw515 && p.Mode != YearPreferenceMode.UseYearly));
+                (p.Source == ProliferationSource.Sdd && p.Mode != sddDefault) ||
+                (p.Source == ProliferationSource.Abw515 && p.Mode != abwDefault));
 
         if (request.ProjectId.HasValue)
         {

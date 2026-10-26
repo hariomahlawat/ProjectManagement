@@ -251,6 +251,29 @@ public sealed class ProliferationApprovalWorkflowTests
     }
 
     [Fact]
+    public async Task RestoringSourceDefault_StoresTheServersDefaultMode()
+    {
+        await using var scope = await TestScope.CreateAsync();
+
+        // The browser no longer knows each source's default; whatever mode it sends is ignored.
+        var result = await scope.Service.SetYearPreferenceAsync(
+            new ProliferationYearPreferenceDto
+            {
+                ProjectId = ProjectId,
+                Source = ProliferationSource.Abw515,
+                Year = 2025,
+                Mode = YearPreferenceMode.UseGranular,
+                UseSourceDefault = true
+            },
+            scope.Admin,
+            CancellationToken.None);
+
+        Assert.True(result.Success, result.Error);
+        var stored = await scope.Db.ProliferationYearPreferences.AsNoTracking().SingleAsync();
+        Assert.Equal(YearPreferenceMode.UseYearly, stored.Mode);
+    }
+
+    [Fact]
     public async Task AmendmentOfStaleApprovedRecord_IsRefused()
     {
         await using var scope = await TestScope.CreateAsync();
