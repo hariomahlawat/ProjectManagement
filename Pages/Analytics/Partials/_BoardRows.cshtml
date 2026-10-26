@@ -6,8 +6,8 @@
 }
 @if (groups.Count > 0)
 {
-  <section class="analytics-drill" aria-label="@Model.Title">
-    <h3 class="analytics-drill__title">@Model.Title</h3>
+  <section class="analytics-drill" aria-label="@(string.IsNullOrEmpty(Model.Title) ? "Projects by group" : Model.Title)">
+    @if (!string.IsNullOrEmpty(Model.Title)) { <h3 class="analytics-drill__title">@Model.Title</h3> }
     @foreach (var group in groups)
     {
       var width = max > 0 ? (int)Math.Round(100.0 * group.Count / max) : 0;
