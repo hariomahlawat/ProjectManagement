@@ -462,7 +462,12 @@
             initialiseCoverImages();
             updateHistory(publicUrl, historyMode);
 
-            if (closeFilters) closeFilterDrawer();
+            // Only a successful refresh applies the drawer; after a failure, dismissing it
+            // restores the filters still in force.
+            if (closeFilters) {
+                drawerApplied = true;
+                closeFilterDrawer();
+            }
 
             if (announceResults) {
                 const results = root.querySelector('[data-project-results-region]');
@@ -638,7 +643,6 @@
         event.preventDefault();
         const url = formToPublicUrl({ resetPage: true });
         const fromFilterDrawer = event.submitter?.matches('[data-project-filter-apply]') === true;
-        if (fromFilterDrawer) drawerApplied = true;
         refreshProjects(url, {
             historyMode: fromFilterDrawer ? 'push' : 'replace',
             closeFilters: fromFilterDrawer

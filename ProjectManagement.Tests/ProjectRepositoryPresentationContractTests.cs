@@ -126,7 +126,9 @@ public sealed class ProjectRepositoryPresentationContractTests
         // values such as Build=repeat, which a URL comparison would not match).
         Assert.Contains("drawerSnapshot = drawerControls()", script, StringComparison.Ordinal);
         Assert.DoesNotContain("syncFormFromUrl(new URL(window.location.href), filterDrawer)", script, StringComparison.Ordinal);
-        Assert.Contains("if (fromFilterDrawer) drawerApplied = true;", script, StringComparison.Ordinal);
+        // Marked applied only after a successful refresh, right before the drawer closes.
+        Assert.Contains("if (closeFilters) {\n                drawerApplied = true;", script.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain("if (fromFilterDrawer) drawerApplied = true;", script, StringComparison.Ordinal);
     }
 
     [Fact]
