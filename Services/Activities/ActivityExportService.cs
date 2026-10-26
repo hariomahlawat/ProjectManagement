@@ -58,7 +58,8 @@ public sealed class ActivityExportService : IActivityExportService
             request.CreatedByUserId,
             ActivityAttachmentTypeFilter.Any,
             request.Search,
-            request.MediaFilter);
+            request.MediaFilter,
+            request.OccurredByUtc);
 
         var result = await _activityRepository.ListAsync(listRequest, cancellationToken);
 

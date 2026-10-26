@@ -288,7 +288,8 @@ public sealed class IndexModel : PageModel
             CreatedByUserId: null,
             AttachmentType: ActivityAttachmentTypeFilter.Any,
             Search: Search,
-            MediaFilter: MediaFilter);
+            MediaFilter: MediaFilter,
+            OccurredByUtc: UpToNow ? DateTimeOffset.UtcNow : null);
 
         var export = await _activityExportService.ExportAsync(exportRequest, cancellationToken);
 
