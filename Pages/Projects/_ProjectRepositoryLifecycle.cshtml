@@ -26,9 +26,10 @@
                asp-page="/Projects/Index"
                asp-all-route-data="legacyRouteValues"
                aria-current="@(Model.LegacyArchive.IsActive ? "page" : null)"
-               title="Projects retained as institutional records">
+               title="Completed projects recorded from the earlier archive. They are included in Completed.">
                 <i class="bi bi-archive" aria-hidden="true"></i>
                 <span>@Model.LegacyArchive.Label</span>
                 <span class="projects-lifecycle__count">@Model.LegacyArchive.Count</span>
+                <span class="visually-hidden">, included in Completed</span>
             </a>
         </div>

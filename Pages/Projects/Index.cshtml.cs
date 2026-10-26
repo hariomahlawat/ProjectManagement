@@ -182,6 +182,36 @@ namespace ProjectManagement.Pages.Projects
         public LifecycleFilterTab LegacyArchive { get; private set; } =
             new(ProjectLifecycleFilter.Legacy, "Legacy archive", ProjectLifecycleFilter.Legacy.ToString(), false, 0);
 
+        // Section: Result view preference (cards or table), written by projects-index.js so the
+        // server renders the chosen view on first paint.
+        public const string ViewCookieName = "prism_projects_view";
+
+        public bool ShowTableView =>
+            string.Equals(HttpContext?.Request.Cookies[ViewCookieName], "table", StringComparison.Ordinal);
+
+        // Section: Labels for filters that arrive only by URL (Command desk and Analytics links),
+        // so a narrowed list always shows why. A month without a stage does not filter.
+        public string? StageFilterLabel
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(StageCode))
+                {
+                    return null;
+                }
+
+                var name = _workflowStageMetadataProvider.GetDisplayName(null, StageCode.Trim());
+                return ParseStageMonth(StageCompletedMonth) is { } month
+                    ? $"{name} completed in {month.ToString("MMM yyyy", CultureInfo.InvariantCulture)}"
+                    : $"Reached {name}";
+            }
+        }
+
+        public string? SlipBucketFilterLabel =>
+            string.IsNullOrWhiteSpace(SlipBucket) ? null : $"Slip: {SlipBucket.Trim()} days";
+
+        public bool AppliesCategoryDescendants => IncludeCategoryDescendants && CategoryId.HasValue;
+
         public string OrderDescription => BuildOrderDescription();
 
         public string ProjectCountLabel => FilteredTotal == 1 ? "project" : "projects";
@@ -733,27 +763,40 @@ namespace ProjectManagement.Pages.Projects
 
             TechnicalCategoryOptions = BuildTechnicalCategoryOptions(technicalCategories, TechnicalCategoryId);
 
+            // One row per person, not per project.
             var hodUsers = await _db.Projects
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && p.HodUserId != null)
-                .Select(p => new UserOption(
-                    p.HodUserId!,
-                    p.HodUser != null ? p.HodUser.FullName : null,
-                    p.HodUser != null ? p.HodUser.UserName : null))
+                .Select(p => new
+                {
+                    Id = p.HodUserId!,
+                    FullName = p.HodUser != null ? p.HodUser.FullName : null,
+                    UserName = p.HodUser != null ? p.HodUser.UserName : null
+                })
+                .Distinct()
                 .ToListAsync(cancellationToken);
 
-            HodOptions = BuildUserOptions(hodUsers, HodUserId, "Any HoD");
+            HodOptions = BuildUserOptions(
+                hodUsers.Select(u => new UserOption(u.Id, u.FullName, u.UserName)),
+                HodUserId,
+                "Any HoD");
 
             var leadPoUsers = await _db.Projects
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && p.LeadPoUserId != null)
-                .Select(p => new UserOption(
-                    p.LeadPoUserId!,
-                    p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
-                    p.LeadPoUser != null ? p.LeadPoUser.UserName : null))
+                .Select(p => new
+                {
+                    Id = p.LeadPoUserId!,
+                    FullName = p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
+                    UserName = p.LeadPoUser != null ? p.LeadPoUser.UserName : null
+                })
+                .Distinct()
                 .ToListAsync(cancellationToken);
 
-            LeadPoOptions = BuildUserOptions(leadPoUsers, LeadPoUserId, "Any Project Officer");
+            LeadPoOptions = BuildUserOptions(
+                leadPoUsers.Select(u => new UserOption(u.Id, u.FullName, u.UserName)),
+                LeadPoUserId,
+                "Any Project Officer");
 
             var completionYears = await _db.Projects
                 .AsNoTracking()

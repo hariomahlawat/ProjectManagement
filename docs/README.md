@@ -36,6 +36,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
 | [Chat](chat.md) | Person-to-person chat: buddy list, docked windows, API/hub contract, privacy position and configuration. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
+| [Projects repository](ux/projects-register.md) | The `/Projects` list today (tabs, live search, filters, view choice) and the approved register redesign with its PR plan. |
 | [Project Officer briefing desk](ux/project-officer-briefing-desk.md) | PO landing page: brief-ready rules, inline posts and the services they reuse. |
 | [Command desk](ux/command-desk.md) | HoD/Comdt desk: what moved forward, what waits on the viewer, what is lagging and which registers have gone quiet. |
 | [Training tracker](ux/training.md) | The training register (filters, sort, month groups, phone cards), type colours, the Officers / JCOs / ORs split and the theme-aware trend chart. |

@@ -116,6 +116,46 @@ public sealed class ProjectRepositoryPresentationContractTests
         Assert.Contains("LoadFilterCountsAsync", model, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Repository_FilterDrawerResetsUnappliedChoicesWhenClosed()
+    {
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+
+        Assert.Contains("'hidden.bs.offcanvas'", script, StringComparison.Ordinal);
+        Assert.Contains("syncFormFromUrl(new URL(window.location.href), filterDrawer)", script, StringComparison.Ordinal);
+        Assert.Contains("if (fromFilterDrawer) drawerApplied = true;", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Repository_UrlOnlyFiltersKeepTheirChipsOnLiveRefresh()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+
+        foreach (var field in new[] { "StageCode", "SlipBucket", "IncludeCategoryDescendants", "CompletedFrom", "StageCompletedFrom" })
+        {
+            Assert.Matches($"name=\"{field}\"[^>]*data-project-filter-label=", view);
+        }
+
+        Assert.Contains("data-project-filter-requires=\"CategoryId\"", view, StringComparison.Ordinal);
+        Assert.Contains("[data-project-filter-label]", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-project-window-label", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("projectWindowLabel", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Repository_ViewChoiceIsRenderedByTheServer()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
+        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+
+        Assert.Contains("data-project-view-cookie=\"@ProjectManagement.Pages.Projects.IndexModel.ViewCookieName\"", view, StringComparison.Ordinal);
+        Assert.Contains("hidden=\"@Model.ShowTableView\"", results, StringComparison.Ordinal);
+        Assert.Contains("hidden=\"@(!Model.ShowTableView)\"", results, StringComparison.Ordinal);
+        Assert.Contains("writeViewCookie(resolved);", script, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

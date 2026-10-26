@@ -41,7 +41,8 @@
             }
             else
             {
-                <div class="projects-results-view is-active" data-project-results="cards">
+                @* The server renders the view chosen in the view cookie, so it shows without a flash. *@
+                <div class="projects-results-view @(Model.ShowTableView ? null : "is-active")" data-project-results="cards" hidden="@Model.ShowTableView">
                     <div class="projects-grid">
                         @foreach (var project in Model.Projects)
                         {
@@ -58,7 +59,7 @@
                             var categoryName = project.Category?.Name ?? "Uncategorised";
                             var caseFile = string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber;
                             <article class="project-card @(project.IsLegacy ? "project-card--legacy" : null) @(project.IsArchived ? "project-card--archived" : null)">
-                                <a asp-page="/Projects/Overview" asp-route-id="@project.Id" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" class="project-card__link" aria-label="Open @project.Name"></a>
+                                <a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="project-card__link" aria-label="Open @project.Name"></a>
                                 <div class="project-card__topline">
                                     <div class="project-card__visual @(string.IsNullOrEmpty(coverPhotoUrl) ? "project-card__visual--icon" : null)"
                                          data-project-card-cover>
@@ -108,7 +109,7 @@
                     </div>
                 </div>
 
-                <div class="projects-results-view" data-project-results="table" hidden>
+                <div class="projects-results-view @(Model.ShowTableView ? "is-active" : null)" data-project-results="table" hidden="@(!Model.ShowTableView)">
                     <div class="projects-table-wrap">
                         <table class="table projects-table align-middle">
                             <thead>

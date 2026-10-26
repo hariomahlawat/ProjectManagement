@@ -9,7 +9,9 @@
     const liveStatus = root.querySelector('[data-project-live-status]');
     const searchActivity = root.querySelector('[data-project-search-activity]');
     const viewButtons = root.querySelectorAll('[data-project-view]');
+    const filterDrawer = root.querySelector('#projectFilters');
     const storageKey = 'prism.projects.view';
+    const viewCookieName = root.querySelector('[data-project-view-cookie]')?.dataset.projectViewCookie || '';
     const debounceMilliseconds = 300;
     const replaceableSelectors = [
         '[data-project-header-summary]',
@@ -34,7 +36,24 @@
         typeof window.URLSearchParams === 'function' &&
         typeof window.history?.replaceState === 'function';
 
+    function readViewCookie() {
+        if (!viewCookieName) return '';
+        const prefix = `${viewCookieName}=`;
+        const entry = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+        return entry ? entry.slice(prefix.length) : '';
+    }
+
+    // The server reads this cookie to render the chosen view on first paint.
+    function writeViewCookie(view) {
+        if (!viewCookieName) return;
+        const path = new URL(form.action || window.location.href, window.location.href).pathname;
+        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `${viewCookieName}=${view}; Path=${path}; Max-Age=31536000; SameSite=Lax${secure}`;
+    }
+
     function readPreferredView() {
+        const fromCookie = readViewCookie();
+        if (fromCookie) return fromCookie;
         try {
             return window.localStorage.getItem(storageKey) || 'cards';
         } catch {
@@ -60,6 +79,7 @@
 
         if (!persist) return;
 
+        writeViewCookie(resolved);
         try {
             window.localStorage.setItem(storageKey, resolved);
         } catch {
@@ -196,10 +216,14 @@
             if (value) chips.push(`${label}: ${value}`);
         });
 
-        // Date windows from a Command desk drill-down: hidden fields with their server-rendered label.
-        form.querySelectorAll('input[type="hidden"][data-project-window-label]').forEach(input => {
-            const label = input.dataset.projectWindowLabel;
-            if (label) chips.push(label);
+        // URL-only filters (Command desk and Analytics links): hidden fields with their server-rendered
+        // label. A field that only narrows another filter (sub-categories of a category) needs it set.
+        form.querySelectorAll('input[type="hidden"][data-project-filter-label]').forEach(input => {
+            const label = input.dataset.projectFilterLabel;
+            if (!label || !input.value) return;
+            const requires = input.dataset.projectFilterRequires;
+            if (requires && !form.elements.namedItem(requires)?.value) return;
+            chips.push(label);
         });
 
         const unclassified = form.querySelector('[data-project-type-unclassified]');
@@ -335,13 +359,14 @@
         }
     }
 
-    function syncFormFromUrl(url) {
+    // Puts the form's controls (or only those inside scope) back to the filters in the URL.
+    function syncFormFromUrl(url, scope = form) {
         const params = url.searchParams;
         const radioGroups = new Map();
 
         Array.from(form.elements).forEach(element => {
             if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) return;
-            if (!element.name || element.disabled) return;
+            if (!element.name || element.disabled || !scope.contains(element)) return;
 
             if (element instanceof HTMLInputElement && element.type === 'radio') {
                 if (!radioGroups.has(element.name)) radioGroups.set(element.name, []);
@@ -503,8 +528,21 @@
     viewButtons.forEach(button => {
         button.addEventListener('click', () => setView(button.dataset.projectView));
     });
-    setView(preferredView, false);
+    // Persisting on load also moves an older local-storage choice into the cookie.
+    setView(preferredView, true);
     initialiseCoverImages();
+
+    // Drawer choices apply only with "Show results". Closing the drawer any other way puts its
+    // controls back to the applied filters, so a later search or page-size change cannot pick
+    // up a choice the user did not apply.
+    let drawerApplied = false;
+    filterDrawer?.addEventListener('show.bs.offcanvas', () => {
+        drawerApplied = false;
+    });
+    filterDrawer?.addEventListener('hidden.bs.offcanvas', () => {
+        if (drawerApplied) return;
+        syncFormFromUrl(new URL(window.location.href), filterDrawer);
+    });
 
     root.addEventListener('click', event => {
         const row = event.target.closest('[data-project-row]');
@@ -583,6 +621,7 @@
         event.preventDefault();
         const url = formToPublicUrl({ resetPage: true });
         const fromFilterDrawer = event.submitter?.matches('[data-project-filter-apply]') === true;
+        if (fromFilterDrawer) drawerApplied = true;
         refreshProjects(url, {
             historyMode: fromFilterDrawer ? 'push' : 'replace',
             closeFilters: fromFilterDrawer
