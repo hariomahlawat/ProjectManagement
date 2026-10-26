@@ -50,11 +50,37 @@ namespace ProjectManagement.Migrations
                 column: "AmendsId",
                 unique: true,
                 filter: "\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
+
+            // Deleting a record deletes its amendments, and an amendment cannot be filed
+            // against a record that no longer exists.
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProliferationYearly_ProliferationYearly_AmendsId",
+                table: "ProliferationYearly",
+                column: "AmendsId",
+                principalTable: "ProliferationYearly",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProliferationGranular_ProliferationGranular_AmendsId",
+                table: "ProliferationGranular",
+                column: "AmendsId",
+                principalTable: "ProliferationGranular",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropForeignKey(
+                name: "FK_ProliferationYearly_ProliferationYearly_AmendsId",
+                table: "ProliferationYearly");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_ProliferationGranular_ProliferationGranular_AmendsId",
+                table: "ProliferationGranular");
+
             migrationBuilder.DropIndex(
                 name: "UX_ProlifYearly_PendingAmendment",
                 table: "ProliferationYearly");

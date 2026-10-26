@@ -1234,6 +1234,11 @@ namespace ProjectManagement.Data
                 b.HasIndex(x => x.AmendsId, "UX_ProlifYearly_PendingAmendment")
                     .IsUnique()
                     .HasFilter("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
+                // An amendment cannot outlive, or be filed against, a deleted record.
+                b.HasOne<ProliferationYearly>()
+                    .WithMany()
+                    .HasForeignKey(x => x.AmendsId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ProliferationGranular>(b =>
@@ -1254,6 +1259,10 @@ namespace ProjectManagement.Data
                 b.HasIndex(x => x.AmendsId, "UX_ProlifGranular_PendingAmendment")
                     .IsUnique()
                     .HasFilter("\"AmendsId\" IS NOT NULL AND \"ApprovalStatus\" = 0");
+                b.HasOne<ProliferationGranular>()
+                    .WithMany()
+                    .HasForeignKey(x => x.AmendsId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ProliferationYearPreference>(b =>

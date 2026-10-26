@@ -34,6 +34,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         private const string PendingAmendmentExistsError = "An amendment to this record is already awaiting approval. Open it under Pending approval to change it.";
         private const string NotPendingError = "This record is no longer pending approval. Refresh and try again.";
         private const string DuplicateYearlyError = "Another approved yearly entry already exists for this project, source, and year.";
+        private const string AmendedRecordDeletedError = "This record was deleted while you were editing it. Refresh and try again.";
 
         public ProliferationSubmissionService(
             ApplicationDbContext db,
@@ -384,10 +385,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 }
                 catch (DbUpdateException) when (!ct.IsCancellationRequested)
                 {
-                    // A concurrent amendment won the unique pending-amendment index.
+                    // A concurrent amendment won the unique pending-amendment index, or the
+                    // record was deleted meanwhile and the AmendsId foreign key refused the row.
                     if (await HasPendingYearlyAmendmentAsync(entity.Id, amendment.Id, ct))
                     {
                         return ServiceResult.Fail(PendingAmendmentExistsError);
+                    }
+
+                    if (!await _db.ProliferationYearlies.AsNoTracking().AnyAsync(y => y.Id == entity.Id, ct))
+                    {
+                        return ServiceResult.Fail(AmendedRecordDeletedError);
                     }
 
                     throw;
@@ -572,6 +579,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     if (await HasPendingGranularAmendmentAsync(entity.Id, amendment.Id, ct))
                     {
                         return ServiceResult.Fail(PendingAmendmentExistsError);
+                    }
+
+                    if (!await _db.ProliferationGranularEntries.AsNoTracking().AnyAsync(g => g.Id == entity.Id, ct))
+                    {
+                        return ServiceResult.Fail(AmendedRecordDeletedError);
                     }
 
                     throw;

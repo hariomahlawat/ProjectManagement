@@ -235,6 +235,23 @@ public sealed class ProliferationApprovalWorkflowTests
         Assert.Equal(0, (int)ApprovalStatus.Pending);
     }
 
+    [Theory]
+    [InlineData(typeof(ProliferationYearly))]
+    [InlineData(typeof(ProliferationGranular))]
+    public async Task Database_CascadesAmendmentsWithTheirRecord(Type entityType)
+    {
+        // A delete racing an amendment insert is settled by this foreign key: the insert
+        // fails against a deleted record, and a delete takes its amendments with it.
+        await using var scope = await TestScope.CreateAsync();
+        var foreignKey = scope.Db.Model.FindEntityType(entityType)!
+            .GetForeignKeys()
+            .Single(fk => fk.Properties.Single().Name == "AmendsId");
+
+        Assert.Equal(entityType, foreignKey.PrincipalEntityType.ClrType);
+        Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
+        Assert.False(foreignKey.IsRequired);
+    }
+
     [Fact]
     public async Task AmendmentOfStaleApprovedRecord_IsRefused()
     {

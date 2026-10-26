@@ -9610,6 +9610,22 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Country");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationGranular", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationGranular", null)
+                        .WithMany()
+                        .HasForeignKey("AmendsId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationYearly", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationYearly", null)
+                        .WithMany()
+                        .HasForeignKey("AmendsId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEvent", b =>
                 {
                     b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEventPhoto", "CoverPhoto")
