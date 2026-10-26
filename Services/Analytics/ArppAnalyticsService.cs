@@ -154,8 +154,8 @@ namespace ProjectManagement.Services.Analytics
                 row => standing.TryGetValue(row.ProjectId, out var update) && !string.IsNullOrWhiteSpace(update.CurrentStageCode)
                     ? (Code: update.CurrentStageCode!.Trim(), Name: update.CurrentStageLabel)
                     : (Code: UnassignedStageCode, Name: UnassignedStageName));
-            var stageCodes = BuildOrderedStageCodes(stageOfProject.Values.Select(stage => stage.Code));
-            var stageOrder = BuildStageOrderLookup(stageCodes);
+            var stageCodes = AnalyticsAggregation.BuildOrderedStageCodes(stageOfProject.Values.Select(stage => stage.Code));
+            var stageOrder = AnalyticsAggregation.BuildStageOrderLookup(stageCodes);
             var byStage = StageCodes.All
                 .Select(code => new ArppStageCountVm(code, StageCodes.DisplayNameOf(code), stageOfProject.Values.Count(stage => string.Equals(stage.Code, code, StringComparison.OrdinalIgnoreCase))))
                 .Concat(stageCodes
@@ -171,7 +171,7 @@ namespace ProjectManagement.Services.Analytics
             }
             standingBoard.AddRange(ongoingRows
                 .GroupBy(row => stageOfProject[row.ProjectId].Code, StringComparer.OrdinalIgnoreCase)
-                .OrderBy(group => ResolveStageOrder(group.Key, stageOrder))
+                .OrderBy(group => AnalyticsAggregation.ResolveStageOrder(group.Key, stageOrder))
                 .Select(group => new AnalyticsBoardGroupVm(
                     group.Key,
                     stageOfProject[group.First().ProjectId].Name,
@@ -191,8 +191,12 @@ namespace ProjectManagement.Services.Analytics
             // having reached the Supply Order stage or beyond (including completion). A resolved amount alone
             // can be an L1 or PNC cost recorded before any order exists.
             var withSo = updates.Where(IsSupplyOrderPlaced).ToList();
-            var pdcDue = updates.Where(row => row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value >= today && row.DevelopmentPdcDate.Value <= fyEnd && !row.IsCompleted).ToList();
-            var pdcOverdue = updates.Where(row => row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value < today && !row.IsCompleted).ToList();
+            // PDC milestones concern projects still in work: a completed, cancelled or archived project has no
+            // development PDC to meet. "Due" is a PDC still ahead and within the year; once the year has closed
+            // nothing is ahead, and the row says so instead of showing an empty window as a zero.
+            var isYearClosed = fyEnd < today;
+            var pdcDue = updates.Where(row => IsInWork(row) && row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value >= today && row.DevelopmentPdcDate.Value <= fyEnd).ToList();
+            var pdcOverdue = updates.Where(row => IsInWork(row) && row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value < today).ToList();
 
             static AnalyticsBoardGroupVm Milestone(string key, string name, IReadOnlyList<ArppFyProjectUpdateRow> rows, Func<ArppFyProjectUpdateRow, string?> detail) =>
                 new(key, name, rows.Count, rows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => new AnalyticsBoardProjectVm(row.ProjectId, row.ProjectName, detail(row))).ToList());
@@ -201,7 +205,7 @@ namespace ProjectManagement.Services.Analytics
             {
                 Milestone("AON", "Past AoN", pastAon, row => row.AonDate?.ToString("d MMM yyyy")),
                 Milestone("SO", "Supply order placed", withSo, row => row.SupplyOrderAmountInRupees is > 0m ? IndianCurrencyFormatter.FormatCompact(row.SupplyOrderAmountInRupees.Value) : row.SupplyOrderDate?.ToString("d MMM yyyy")),
-                Milestone("PDC_DUE", $"PDC due by {fyEnd:d MMM yyyy}", pdcDue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy")),
+                Milestone("PDC_DUE", isYearClosed ? $"PDC due by {fyEnd:d MMM yyyy} (year closed)" : $"PDC due by {fyEnd:d MMM yyyy}", pdcDue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy")),
                 Milestone("PDC_OVERDUE", "PDC overdue", pdcOverdue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy"))
             };
 
@@ -211,6 +215,7 @@ namespace ProjectManagement.Services.Analytics
                 FinancialYearDisplay = FinancialYearHelper.Format(selected),
                 AvailableFinancialYears = available,
                 IsCurrentFinancialYear = selected == currentFy,
+                IsFinancialYearClosed = isYearClosed,
                 FallbackNote = fallbackNote,
                 ListedCount = approved.Count,
                 ListedIpaValue = position.ApprovedIpaValue,
@@ -240,6 +245,9 @@ namespace ProjectManagement.Services.Analytics
                 MilestoneBoard = milestoneBoard
             };
         }
+
+        private static bool IsInWork(ArppFyProjectUpdateRow row) =>
+            row.LifecycleStatus == ProjectLifecycleStatus.Active && !row.IsArchived;
 
         private static bool IsSupplyOrderPlaced(ArppFyProjectUpdateRow row)
         {
@@ -295,31 +303,5 @@ namespace ProjectManagement.Services.Analytics
                 category => category.Id,
                 category => new ProjectCategoryHierarchyNode(category.Id, category.Name, category.ParentId));
         }
-
-        // SECTION: Stage ordering helpers (workflow order first, then ad hoc stages)
-        private static IReadOnlyList<string> BuildOrderedStageCodes(IEnumerable<string> stageCodes)
-        {
-            var present = stageCodes.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            return StageCodes.All
-                .Where(code => present.Contains(code, StringComparer.OrdinalIgnoreCase))
-                .Concat(present.Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-
-        private static IReadOnlyDictionary<string, int> BuildStageOrderLookup(IReadOnlyList<string> orderedStageCodes)
-        {
-            var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            for (var index = 0; index < orderedStageCodes.Count; index++)
-            {
-                lookup[orderedStageCodes[index]] = index;
-            }
-
-            return lookup;
-        }
-
-        private static int ResolveStageOrder(string stageCode, IReadOnlyDictionary<string, int> stageOrderLookup) =>
-            stageOrderLookup.TryGetValue(stageCode, out var order) ? order : int.MaxValue;
-        // END SECTION
     }
 }

@@ -55,13 +55,16 @@ main[role="main"].analytics-main { background: var(--an-bg); }
 .analytics-modes__item { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 14px 6px 16px; border-radius: 999px; color: var(--an-secondary); font-size: .875rem; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background-color 160ms var(--an-ease), color 160ms var(--an-ease); }
 .analytics-modes__item:hover { color: var(--an-strong); background: var(--an-inset); }
 .analytics-modes__item:focus-visible { outline: none; box-shadow: var(--an-focus); }
-.analytics-modes__item.is-active { color: var(--pm-text-inverted); background: var(--an-strong); }
+/* The active pill is ink on the page in Light and page-on-ink in Dark: the text takes the page colour,
+   not --pm-text-inverted, which stays white in both themes and vanished on the near-white Dark pill. */
+.analytics-modes__item.is-active { color: var(--an-bg); background: var(--an-strong); }
 .analytics-modes__count { display: inline-flex; align-items: center; min-height: 20px; padding: 0 7px; border-radius: 999px; background: var(--an-inset); color: var(--an-muted); font-size: .75rem; font-weight: 700; }
-.analytics-modes__item.is-active .analytics-modes__count { background: color-mix(in srgb, var(--pm-text-inverted) 18%, transparent); color: var(--pm-text-inverted); }
+.analytics-modes__item.is-active .analytics-modes__count { background: color-mix(in srgb, var(--an-bg) 18%, transparent); color: var(--an-bg); }
 
 /* ---------- Headline figures ---------- */
 .analytics-headlines { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .analytics-figure { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 18px 20px 16px; border: 1px solid var(--an-border); border-radius: var(--an-radius-lg); background: var(--an-surface); box-shadow: var(--an-shadow); color: inherit; text-decoration: none; }
+button.analytics-figure { width: 100%; text-align: left; font: inherit; cursor: pointer; appearance: none; }
 .analytics-figure--link { transition: box-shadow 180ms var(--an-ease), transform 180ms var(--an-ease), border-color 180ms var(--an-ease); }
 .analytics-figure--link:hover { border-color: var(--an-border-strong); box-shadow: var(--an-shadow-hover); transform: translateY(-1px); color: inherit; }
 .analytics-figure--link:focus-visible { outline: none; box-shadow: var(--an-focus); }

@@ -18,6 +18,8 @@ public sealed class ArppAnalyticsVm
 
     /// <summary>True when the year shown is the financial year of the "as of" date.</summary>
     public bool IsCurrentFinancialYear { get; init; }
+    /// <summary>True when the year shown ended before the "as of" date, so no PDC can still be "due" in it.</summary>
+    public bool IsFinancialYearClosed { get; init; }
     /// <summary>Set when the current financial year has no published ARPP and an earlier year is shown instead.</summary>
     public string? FallbackNote { get; init; }
 

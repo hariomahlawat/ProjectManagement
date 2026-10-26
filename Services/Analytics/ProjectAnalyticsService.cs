@@ -338,7 +338,9 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            stageQuery = stageQuery.Where(s => s.Project != null && s.Project.CategoryId == categoryId.Value);
+            // The filter means the category and everything under it, as every other filter on this service does.
+            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            stageQuery = stageQuery.Where(s => s.Project != null && s.Project.CategoryId.HasValue && categoryIds.Contains(s.Project.CategoryId.Value));
         }
 
         var stageRows = await stageQuery
@@ -359,43 +361,26 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             };
         }
 
-        var projectCosts = await LoadProjectCostLookupAsync(cancellationToken);
+        var projectCosts = await LoadProjectCostLookupAsync(stageRows.Select(row => row.ProjectId).Distinct().ToArray(), cancellationToken);
 
+        // Every finished stage is a span. The cost band is null for a project with no cost figure
+        // yet: such a span still counts in the all-projects hotspots, and only the by-band rows skip it.
         var spans = stageRows
-            .Select(row =>
-            {
-                var bucket = TryResolveCostBucket(projectCosts.TryGetValue(row.ProjectId, out var cost) ? cost : null);
-                if (bucket is null)
-                {
-                    return null;
-                }
-
-                var days = CalculateStageDurationDays(row.ActualStart, row.CompletedOn);
-                return new StageTimeBucketSpan(
-                    row.ProjectId,
-                    row.StageCode ?? string.Empty,
-                    _workflowStageMetadataProvider.GetDisplayName(null, row.StageCode ?? string.Empty),
-                    row.StageOrder,
-                    bucket,
-                    days,
-                    row.IsCompletedProject);
-            })
-            .Where(span => span is not null)
-            .Select(span => span!)
+            .Select(row => new StageTimeBucketSpan(
+                row.ProjectId,
+                row.StageCode ?? string.Empty,
+                _workflowStageMetadataProvider.GetDisplayName(null, row.StageCode ?? string.Empty),
+                row.StageOrder,
+                TryResolveCostBucket(projectCosts.TryGetValue(row.ProjectId, out var cost) ? cost : null),
+                CalculateStageDurationDays(row.ActualStart, row.CompletedOn),
+                row.IsCompletedProject))
             .ToList();
 
-        if (spans.Count == 0)
-        {
-            return new StageTimeInsightsVm
-            {
-                SelectedCategoryId = categoryId
-            };
-        }
-
         var rows = spans
+            .Where(span => span.Bucket is not null)
             // One row per stage and band. The same stage can carry different sort orders across
             // workflow versions, so the order is not part of the key; the earliest is kept for sorting.
-            .GroupBy(span => new StageTimeBucketKey(span.StageKey, span.StageName, span.Bucket))
+            .GroupBy(span => new StageTimeBucketKey(span.StageKey, span.StageName, span.Bucket!))
             .Select(group =>
             {
                 var durations = group
@@ -419,7 +404,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                     StageName = group.Key.StageName,
                     StageOrder = group.Min(item => item.StageOrder),
                     Bucket = group.Key.Bucket,
-                    MedianDays = CalculateMedian(durations),
+                    MedianDays = AnalyticsAggregation.CalculateMedian(durations),
                     AverageDays = durations.Length == 0 ? 0 : durations.Average(),
                     ProjectCount = projectIds.Length,
                     CompletedProjectCount = completedProjects,
@@ -472,7 +457,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                     StageKey = group.Key.StageKey,
                     StageName = group.Key.StageName,
                     StageOrder = group.Min(item => item.StageOrder),
-                    MedianDays = CalculateMedian(durations),
+                    MedianDays = AnalyticsAggregation.CalculateMedian(durations),
                     AverageDays = durations.Average(),
                     ProjectCount = projectCount
                 };
@@ -724,13 +709,10 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
     }
 
     // The project's cost (in rupees) under the one shared rule, for the < 1 Cr / >= 1 Cr buckets.
-    private async Task<Dictionary<int, decimal?>> LoadProjectCostLookupAsync(CancellationToken cancellationToken)
+    private async Task<Dictionary<int, decimal?>> LoadProjectCostLookupAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
     {
-        var projectIds = await _db.Projects
-            .AsNoTracking()
-            .Select(project => project.Id)
-            .ToArrayAsync(cancellationToken);
-
         var costs = await new ProjectCostResolver(_db, _ipaResolver)
             .ResolveCostInCrAsync(projectIds, cancellationToken);
 
@@ -753,20 +735,6 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
     private static double CalculateStageDurationDays(DateOnly start, DateOnly end)
         => StageDurationCalculator.InclusiveCalendarDays(start, end);
-
-    private static double CalculateMedian(double[] orderedValues)
-    {
-        if (orderedValues.Length == 0)
-        {
-            return 0;
-        }
-
-        var count = orderedValues.Length;
-        var midpoint = count / 2;
-        return count % 2 == 1
-            ? orderedValues[midpoint]
-            : (orderedValues[midpoint - 1] + orderedValues[midpoint]) / 2.0;
-    }
 
     private static int BucketSortOrder(string bucket)
     {
@@ -796,7 +764,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         string StageKey,
         string StageName,
         int StageOrder,
-        string Bucket,
+        string? Bucket,
         double Days,
         bool IsCompletedProject);
 

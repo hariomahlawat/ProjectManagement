@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,17 +7,26 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Pages.Analytics;
-using static ProjectManagement.Tests.ProjectAnalyticsApiTests;
+using ProjectManagement.Services.Analytics;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Tests;
 
+/// <summary>
+/// The Ongoing and CoE modes: the aggregation in <see cref="PortfolioAnalyticsService"/> and the
+/// page rules on top of it (headline hints, the select-all filter rule, the switcher badges).
+/// </summary>
 public sealed class CoeAnalyticsTests : IDisposable
 {
+    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+
     private readonly SqliteConnection _connection;
     private readonly ApplicationDbContext _db;
+    private readonly PortfolioAnalyticsService _service;
     private readonly IndexModel _pageModel;
 
     public CoeAnalyticsTests()
@@ -31,7 +41,8 @@ public sealed class CoeAnalyticsTests : IDisposable
         _db = new ApplicationDbContext(options);
         _db.Database.EnsureCreated();
 
-        _pageModel = new IndexModel(_db, new SpyProjectAnalyticsService(), new WorkflowStageMetadataProvider());
+        _service = new PortfolioAnalyticsService(_db, new WorkflowStageMetadataProvider());
+        _pageModel = new IndexModel(_db, new StubProjectAnalyticsService(), _service);
     }
 
     [Fact]
@@ -66,7 +77,7 @@ public sealed class CoeAnalyticsTests : IDisposable
     }
 
     [Fact]
-    public async Task BuildCoeAnalyticsAsync_ComputesLifecycleStagesAndSubcategories()
+    public async Task BuildCoeAsync_ComputesLifecycleStagesAndSubcategories()
     {
         var coeRoot = new ProjectCategory { Name = "CoE Programs" };
         var ai = new ProjectCategory { Name = "AI Innovation", Parent = coeRoot };
@@ -120,7 +131,7 @@ public sealed class CoeAnalyticsTests : IDisposable
         _db.Projects.AddRange(activeProject, completedProject, cancelledProject);
         await _db.SaveChangesAsync();
 
-        var result = await _pageModel.BuildCoeAnalyticsAsync(CancellationToken.None);
+        var result = await _service.BuildCoeAsync(Today, CancellationToken.None);
 
         Assert.Equal(3, result.TotalCoeProjects);
 
@@ -145,7 +156,7 @@ public sealed class CoeAnalyticsTests : IDisposable
     }
 
     [Fact]
-    public async Task BuildCoeAnalyticsAsync_ReturnsAllSubcategoriesWithoutGrouping()
+    public async Task BuildCoeAsync_ReturnsAllSubcategoriesWithoutGrouping()
     {
         var coeRoot = new ProjectCategory { Name = "Centres of Excellence" };
         _db.ProjectCategories.Add(coeRoot);
@@ -171,7 +182,7 @@ public sealed class CoeAnalyticsTests : IDisposable
 
         await _db.SaveChangesAsync();
 
-        var result = await _pageModel.BuildCoeAnalyticsAsync(CancellationToken.None);
+        var result = await _service.BuildCoeAsync(Today, CancellationToken.None);
 
         Assert.Equal(12, result.TotalCoeProjects);
         Assert.Equal(11, result.SubcategoriesByLifecycle.Count);
@@ -188,7 +199,7 @@ public sealed class CoeAnalyticsTests : IDisposable
     }
 
     [Fact]
-    public async Task BuildCoeAnalyticsAsync_NoCoeCategoriesReturnsEmpty()
+    public async Task BuildCoeAsync_NoCoeCategoriesReturnsEmpty()
     {
         var generalCategory = new ProjectCategory { Name = "General" };
         _db.ProjectCategories.Add(generalCategory);
@@ -204,16 +215,250 @@ public sealed class CoeAnalyticsTests : IDisposable
         });
         await _db.SaveChangesAsync();
 
-        var result = await _pageModel.BuildCoeAnalyticsAsync(CancellationToken.None);
+        var result = await _service.BuildCoeAsync(Today, CancellationToken.None);
 
         Assert.False(result.HasCoeProjects);
         Assert.Empty(result.ByStage);
         Assert.False(result.HasSubcategoryBreakdown);
     }
 
+    [Fact]
+    public async Task OngoingAnalytics_ParentCategoryFilter_HeadlineTotalFollowsTheFilter()
+    {
+        var dcd = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        var other = new ProjectCategory { Name = "Other R&D Projects", SortOrder = 2 };
+        _db.ProjectCategories.AddRange(dcd, other);
+        await _db.SaveChangesAsync();
+
+        _db.Projects.AddRange(
+            new Project { Name = "DCD one", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = dcd.Id },
+            new Project { Name = "Other one", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = other.Id },
+            new Project { Name = "Other two", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = other.Id });
+        await _db.SaveChangesAsync();
+
+        _pageModel.OngoingStageParentCategoryIds = new List<int> { dcd.Id };
+        await _pageModel.OnGetAsync("ongoing", CancellationToken.None);
+
+        Assert.True(_pageModel.IsOngoingFiltered);
+        Assert.Equal(3, _pageModel.OngoingCount); // the switcher badge is the portfolio total
+        Assert.Equal(1, _pageModel.Ongoing!.TotalOngoingProjects); // the figures follow the filter
+        Assert.Equal(1, _pageModel.Ongoing.TopStageCount);
+        // The phase cards follow the filter too: one new project, so one in Pre-AoN and none elsewhere.
+        Assert.Equal(new[] { "Pre-AoN", "Procurement", "Development", "Post-development" }, _pageModel.Headlines.Select(f => f.Label));
+        Assert.Equal(new[] { "1", "0", "0", "0" }, _pageModel.Headlines.Select(f => f.Value));
+        Assert.Equal("FS to AoN · none past 180 days", _pageModel.Headlines[0].Hint);
+        Assert.Equal("FS,IPA,SOW,AON", _pageModel.Headlines[0].DrillStageCodes);
+    }
+
+    [Fact]
+    public async Task OngoingAnalytics_NoFilter_HeadlineTotalIsThePortfolio()
+    {
+        var dcd = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        _db.ProjectCategories.Add(dcd);
+        await _db.SaveChangesAsync();
+        _db.Projects.AddRange(
+            new Project { Name = "A", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = dcd.Id },
+            new Project { Name = "B", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1 });
+        await _db.SaveChangesAsync();
+
+        await _pageModel.OnGetAsync("ongoing", CancellationToken.None);
+
+        Assert.False(_pageModel.IsOngoingFiltered);
+        Assert.Equal(2, _pageModel.Ongoing!.TotalOngoingProjects);
+        Assert.Equal(2, _pageModel.Ongoing.Phases.Sum(phase => phase.Count));
+    }
+
+    [Fact]
+    public async Task BuildOngoingAsync_PartitionsProjectsIntoTheFourPhasesByCurrentStage()
+    {
+        var root = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        _db.ProjectCategories.Add(root);
+        await _db.SaveChangesAsync();
+        var started = new DateOnly(2026, 1, 1);
+
+        Project At(string name, params (string Code, StageStatus Status)[] stages) => new()
+        {
+            Name = name,
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            WorkflowVersion = ProcurementWorkflow.VersionV1,
+            CategoryId = root.Id,
+            ProjectStages = stages
+                .Select((stage, index) => new ProjectStage
+                {
+                    StageCode = stage.Code,
+                    SortOrder = (index + 1) * 10,
+                    Status = stage.Status,
+                    ActualStart = started,
+                    CompletedOn = stage.Status == StageStatus.Completed ? started.AddDays(1) : null
+                })
+                .ToList()
+        };
+
+        _db.Projects.AddRange(
+            At("No stages at all"),
+            At("In SoW", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.InProgress)),
+            At("AoN done, in Bid", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.Completed), (StageCodes.AON, StageStatus.Completed), (StageCodes.BID, StageStatus.InProgress)),
+            At("In SO", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.Completed), (StageCodes.AON, StageStatus.Completed), (StageCodes.BID, StageStatus.Completed), (StageCodes.TEC, StageStatus.Completed), (StageCodes.BM, StageStatus.Completed), (StageCodes.COB, StageStatus.Completed), (StageCodes.PNC, StageStatus.Completed), (StageCodes.EAS, StageStatus.Completed), (StageCodes.SO, StageStatus.InProgress)),
+            At("In Devp", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.Completed), (StageCodes.AON, StageStatus.Completed), (StageCodes.BID, StageStatus.Completed), (StageCodes.TEC, StageStatus.Completed), (StageCodes.BM, StageStatus.Completed), (StageCodes.COB, StageStatus.Completed), (StageCodes.PNC, StageStatus.Completed), (StageCodes.EAS, StageStatus.Completed), (StageCodes.SO, StageStatus.Completed), (StageCodes.DEVP, StageStatus.InProgress)),
+            At("Devp done, in ATP", (StageCodes.FS, StageStatus.Completed), (StageCodes.IPA, StageStatus.Completed), (StageCodes.SOW, StageStatus.Completed), (StageCodes.AON, StageStatus.Completed), (StageCodes.BID, StageStatus.Completed), (StageCodes.TEC, StageStatus.Completed), (StageCodes.BM, StageStatus.Completed), (StageCodes.COB, StageStatus.Completed), (StageCodes.PNC, StageStatus.Completed), (StageCodes.EAS, StageStatus.Completed), (StageCodes.SO, StageStatus.Completed), (StageCodes.DEVP, StageStatus.Completed), (StageCodes.ATP, StageStatus.InProgress)));
+        await _db.SaveChangesAsync();
+
+        var result = await _service.BuildOngoingAsync(Array.Empty<int>(), new[] { root.Id }, started.AddDays(OngoingAnalyticsVm.LongStageThresholdDays + 10), CancellationToken.None);
+
+        Assert.Equal(new[] { "pre-aon", "procurement", "development", "post-development" }, result.Phases.Select(phase => phase.Key));
+        Assert.Equal(new[] { 2, 2, 1, 1 }, result.Phases.Select(phase => phase.Count));
+        Assert.Equal(result.TotalOngoingProjects, result.Phases.Sum(phase => phase.Count));
+        // Every project with a start date has sat in its stage past the threshold; the one without stages has no age.
+        Assert.Equal(new[] { 1, 2, 1, 1 }, result.Phases.Select(phase => phase.PastThresholdCount));
+        Assert.Equal(new[] { StageCodes.FS, StageCodes.IPA, StageCodes.SOW, StageCodes.AON }, result.Phases[0].StageCodes);
+        Assert.Equal(new[] { StageCodes.DEVP }, result.Phases[2].StageCodes);
+    }
+
+    [Fact]
+    public void StagePhases_CoverEveryWorkflowStageExactlyOnce_AndNoStageIsPreAon()
+    {
+        var mapped = StagePhases.All.SelectMany(definition => definition.StageCodes).ToList();
+
+        Assert.Equal(StageCodes.All.OrderBy(code => code), mapped.OrderBy(code => code));
+        Assert.Equal(mapped.Count, mapped.Distinct().Count());
+        Assert.Equal(StagePhase.PreAon, StagePhases.Of(null));
+        Assert.Equal(StagePhase.PreAon, StagePhases.Of(StageCodes.AON));
+        Assert.Equal(StagePhase.Procurement, StagePhases.Of(StageCodes.SO));
+        Assert.Equal(StagePhase.Development, StagePhases.Of("devp"));
+        Assert.Equal(StagePhase.PostDevelopment, StagePhases.Of(StageCodes.TOT));
+        Assert.Null(StagePhases.Of("ADHOC"));
+    }
+
+    [Fact]
+    public async Task OngoingAnalytics_SelectAllParentCategories_IsNoFilterAndKeepsUncategorizedProjects()
+    {
+        var dcd = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        var other = new ProjectCategory { Name = "Other R&D Projects", SortOrder = 2 };
+        _db.ProjectCategories.AddRange(dcd, other);
+        await _db.SaveChangesAsync();
+        _db.Projects.AddRange(
+            new Project { Name = "DCD one", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1, CategoryId = dcd.Id },
+            new Project { Name = "No category", CreatedByUserId = "seed", LifecycleStatus = ProjectLifecycleStatus.Active, WorkflowVersion = ProcurementWorkflow.VersionV1 });
+        await _db.SaveChangesAsync();
+
+        _pageModel.OngoingStageParentCategoryIds = new List<int> { dcd.Id, other.Id };
+        await _pageModel.OnGetAsync("ongoing", CancellationToken.None);
+
+        Assert.False(_pageModel.IsOngoingFiltered);
+        Assert.Empty(_pageModel.ActiveOngoingStageParentCategoryIds);
+        Assert.Equal(2, _pageModel.Ongoing!.TotalOngoingProjects);
+        Assert.Equal(2, _pageModel.Ongoing.StageBoard.Sum(stage => stage.StageCount));
+        Assert.Contains(_pageModel.Ongoing.ByStageByParentCategory, point => point.CategoryName == "Uncategorized");
+    }
+
+    [Fact]
+    public async Task CountCoeProjectsAsync_MatchesTheFullAggregationTotal()
+    {
+        var coeRoot = new ProjectCategory { Name = "CoE Programs" };
+        var ai = new ProjectCategory { Name = "AI Innovation", Parent = coeRoot };
+        var general = new ProjectCategory { Name = "General" };
+        _db.ProjectCategories.AddRange(coeRoot, ai, general);
+        await _db.SaveChangesAsync();
+
+        _db.Projects.AddRange(
+            new Project { Name = "CoE active", CategoryId = ai.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "user" },
+            new Project { Name = "CoE completed", CategoryId = coeRoot.Id, LifecycleStatus = ProjectLifecycleStatus.Completed, CreatedByUserId = "user" },
+            new Project { Name = "CoE archived", CategoryId = ai.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "user", IsArchived = true },
+            new Project { Name = "General", CategoryId = general.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "user" });
+        await _db.SaveChangesAsync();
+
+        var count = await _service.CountCoeProjectsAsync(CancellationToken.None);
+        var full = await _service.BuildCoeAsync(Today, CancellationToken.None);
+
+        Assert.Equal(2, count);
+        Assert.Equal(full.TotalCoeProjects, count);
+    }
+
+    [Fact]
+    public async Task CountCoeProjectsAsync_NoCoeCategoriesIsZero()
+    {
+        _db.ProjectCategories.Add(new ProjectCategory { Name = "General" });
+        await _db.SaveChangesAsync();
+
+        Assert.Equal(0, await _service.CountCoeProjectsAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OngoingTab_CoeBadgeIsTheCoeTotal_AndCoeTabHydratesTheMode()
+    {
+        var coeRoot = new ProjectCategory { Name = "Centre of Excellence" };
+        _db.ProjectCategories.Add(coeRoot);
+        await _db.SaveChangesAsync();
+        _db.Projects.Add(new Project { Name = "CoE one", CategoryId = coeRoot.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "user", WorkflowVersion = ProcurementWorkflow.VersionV1 });
+        await _db.SaveChangesAsync();
+
+        await _pageModel.OnGetAsync("ongoing", CancellationToken.None);
+        Assert.Equal(1, _pageModel.CoeCount);
+        Assert.Null(_pageModel.Coe);
+
+        await _pageModel.OnGetAsync("coe", CancellationToken.None);
+        Assert.Equal(1, _pageModel.CoeCount);
+        Assert.NotNull(_pageModel.Coe);
+        Assert.Equal(1, _pageModel.Coe!.OngoingCount);
+    }
+
+    [Fact]
+    public async Task BuildOngoingAsync_MeasuresDaysInStageAgainstTheReferenceDate()
+    {
+        var root = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        _db.ProjectCategories.Add(root);
+        await _db.SaveChangesAsync();
+        var started = new DateOnly(2026, 1, 1);
+        _db.Projects.Add(new Project
+        {
+            Name = "In FS",
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            WorkflowVersion = ProcurementWorkflow.VersionV1,
+            CategoryId = root.Id,
+            ProjectStages =
+            {
+                new ProjectStage { StageCode = StageCodes.FS, SortOrder = 10, Status = StageStatus.InProgress, ActualStart = started }
+            }
+        });
+        await _db.SaveChangesAsync();
+
+        var tenDaysLater = await _service.BuildOngoingAsync(Array.Empty<int>(), new[] { root.Id }, started.AddDays(10), CancellationToken.None);
+        var pastThreshold = await _service.BuildOngoingAsync(Array.Empty<int>(), new[] { root.Id }, started.AddDays(OngoingAnalyticsVm.LongStageThresholdDays + 20), CancellationToken.None);
+
+        Assert.Equal(1, tenDaysLater.TotalOngoingProjects);
+        Assert.Equal(StageCodes.FS, Assert.Single(tenDaysLater.StageBoard).StageCode);
+        Assert.Equal(0, tenDaysLater.ProjectsPastThreshold);
+        Assert.Equal(1, pastThreshold.ProjectsPastThreshold);
+        Assert.True(pastThreshold.MedianDaysInCurrentStage > tenDaysLater.MedianDaysInCurrentStage);
+    }
+
     public void Dispose()
     {
         _db.Dispose();
         _connection.Dispose();
+    }
+
+    /// <summary>The Insights service is not under test here; the page only needs an instance.</summary>
+    private sealed class StubProjectAnalyticsService : IProjectAnalyticsService
+    {
+        public Task<CategoryShareResult> GetCategoryShareAsync(ProjectLifecycleFilter lifecycle, int? categoryId = null, int? technicalCategoryId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CategoryShareResult(Array.Empty<CategoryShareSlice>(), 0));
+
+        public Task<StageDistributionResult> GetStageDistributionAsync(ProjectLifecycleFilter lifecycle, int? categoryId, int? technicalCategoryId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StageDistributionResult(Array.Empty<StageDistributionItem>(), lifecycle));
+
+        public Task<SlipBucketResult> GetSlipBucketsAsync(ProjectLifecycleFilter lifecycle, int? categoryId, int? technicalCategoryId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SlipBucketResult(Array.Empty<SlipBucketItem>()));
+
+        public Task<IReadOnlyCollection<int>> GetProjectIdsForSlipBucketAsync(ProjectLifecycleFilter lifecycle, int? categoryId, int? technicalCategoryId, string bucketKey, CancellationToken cancellationToken = default, IReadOnlyCollection<int>? expandedCategoryIds = null) =>
+            Task.FromResult<IReadOnlyCollection<int>>(Array.Empty<int>());
+
+        public Task<TopOverdueProjectsResult> GetTopOverdueProjectsAsync(ProjectLifecycleFilter lifecycle, int? categoryId, int? technicalCategoryId, int take, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TopOverdueProjectsResult(Array.Empty<TopOverdueProject>()));
+
+        public Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(int? categoryId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StageTimeInsightsVm { SelectedCategoryId = categoryId });
     }
 }

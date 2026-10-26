@@ -34,7 +34,6 @@ using ProjectManagement.Contracts;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
-using ProjectManagement.Features.Analytics;
 using ProjectManagement.Features.MediaLibrary;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Outbox;
@@ -872,6 +871,7 @@ builder.Services.AddScoped<ProjectCategoryHierarchyService>();
 builder.Services.AddScoped<IProjectImportService, ProjectImportService>();
 builder.Services.AddScoped<IProjectAnalyticsService, ProjectAnalyticsService>();
 builder.Services.AddScoped<IArppAnalyticsService, ArppAnalyticsService>();
+builder.Services.AddScoped<IPortfolioAnalyticsService, PortfolioAnalyticsService>();
 builder.Services.AddSingleton<IProjectTotExcelWorkbookBuilder, ProjectTotExcelWorkbookBuilder>();
 builder.Services.AddScoped<OngoingProjectsReadService>();
 builder.Services.AddScoped<IOngoingProjectsExcelBuilder, OngoingProjectsExcelBuilder>();
@@ -2902,7 +2902,6 @@ app.MapGet("/Projects/Documents/Download", async (
 }).AllowAnonymous();
 
 app.MapRemarkApi();
-app.MapProjectAnalyticsApi();
 app.MapMentionApi();
 app.MapRazorPages();
 

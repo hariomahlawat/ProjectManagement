@@ -67,8 +67,11 @@ Handles threaded project conversations, including file uploads. It validates sta
 ### `Services/LoginAnalyticsService`
 Calculates percentile lines and flags odd login events for the admin scatter chart. It loads `AuthEvents` from the database, joins them to user records to supply friendly names (falling back to email or "(deleted)"), applies working-hour rules and returns points annotated with reasons for anomalies.
 
-### `Services/Analytics/ProjectAnalyticsService`
-Backs the `/api/analytics/projects/*` minimal APIs with pre-aggregated category share, stage distribution, lifecycle, slip bucket, monthly completions, and overdue project datasets. Filters normalise lifecycle enums, optional category IDs, and IST-aware month ranges while excluding archived or trashed projects. Responses power the six-card analytics dashboard and reuse `ProjectLifecycleFilter` constants so the UI and service stay aligned. (see Services/Analytics/ProjectAnalyticsService.cs lines 20-220) (see Features/Analytics/ProjectAnalyticsApi.cs lines 16-120)
+### `Services/Analytics/*`
+* **`PortfolioAnalyticsService`** – the Ongoing, Completed and CoE modes of Projects → Analytics: present stage and days in stage (against the IST "as of" day the page passes in), stage boards, year boards, category counts, medians and CoE category detection. The Ongoing mode is derived from one load of the active projects with their stages; the CoE switcher badge is a count on its own. (see Services/Analytics/PortfolioAnalyticsService.cs)
+* **`ProjectAnalyticsService`** – stage-time insights for the Insights mode, the stage distribution for the Dashboard pulse and the slip-bucket membership the Projects index filters by. Filters normalise lifecycle enums and optional category IDs while excluding archived or trashed projects. There is no analytics HTTP API; the former `/api/analytics/projects/*` endpoints had no caller and were removed. (see Services/Analytics/ProjectAnalyticsService.cs lines 20-220)
+* **`ArppAnalyticsService`** – the ARPP mode (see `docs/ux/analytics.md`).
+* **`AnalyticsAggregation`** – the median and stage-ordering helpers the three services share.
 
 ### `Services/LoginAggregationWorker`
 Nightly background service that aggregates the previous day's successful logins into `DailyLoginStats` to keep reporting queries fast.

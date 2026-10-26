@@ -7,7 +7,7 @@ const root = process.cwd();
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 test('workspace and analytics use the canonical present-stage resolver', () => {
-  const analytics = read('Pages/Analytics/Index.cshtml.cs');
+  const analytics = read('Services/Analytics/PortfolioAnalyticsService.cs');
   const workspace = read('Services/Workspace/CommandWorkspaceService.cs');
 
   assert.match(workspace, /PresentStageHelper\.ComputePresentStageAndAge\s*\(/);
@@ -18,13 +18,27 @@ test('workspace and analytics use the canonical present-stage resolver', () => {
 });
 
 test('workspace and analytics resolve project categories through the same recursive hierarchy helper', () => {
-  const analytics = read('Pages/Analytics/Index.cshtml.cs');
+  const analytics = read('Services/Analytics/PortfolioAnalyticsService.cs');
   const workspace = read('Services/Workspace/CommandWorkspaceService.cs');
   const hierarchy = read('Services/Projects/ProjectCategoryHierarchyResolver.cs');
 
   assert.match(hierarchy, /ResolveRoot\s*\(/);
   assert.match(workspace, /ProjectCategoryHierarchyResolver\.ResolveRoot\s*\(/);
   assert.match(analytics, /ProjectCategoryHierarchyResolver\.ResolveRoot\s*\(/);
+});
+
+test('analytics phase cards and chart brackets take the phases from the one server-side mapping', () => {
+  const phases = read('Models/Stages/StagePhases.cs');
+  const service = read('Services/Analytics/PortfolioAnalyticsService.cs');
+  const partial = read('Pages/Analytics/Partials/_OngoingAnalytics.cshtml');
+  const analyticsJs = read('wwwroot/js/analytics-projects.js');
+
+  assert.match(phases, /StagePhase\.PreAon[\s\S]*StageCodes\.AON/);
+  assert.match(service, /StagePhases\.Of\s*\(/);
+  assert.match(partial, /data-phases=/);
+  assert.match(analyticsJs, /readJson\(canvas, 'phases'/);
+  // No stage-to-phase table in the script: it draws what the server sends.
+  assert.doesNotMatch(analyticsJs, /['"]AON['"]\s*[,\]]\s*[,\]]?[\s\S]{0,40}phase/i);
 });
 
 test('workspace stage chart uses balanced dashboard geometry rather than the old thin-bar cap', () => {

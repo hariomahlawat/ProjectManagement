@@ -27,7 +27,9 @@
         AnalyticsTab.Arpp => Model.Arpp is { HasData: true }
             ? $"The {Model.Arpp.ListedCount} projects listed in the FY {Model.Arpp.FinancialYearDisplay} ARPP and where they stand today"
             : "Projects listed in the year's ARPP and where they stand today",
-        _ => $"Where the {Model.OngoingCount} ongoing projects stand, by stage and parent category"
+        _ => Model.IsOngoingFiltered
+            ? $"Where {Model.Ongoing?.TotalOngoingProjects ?? 0} of the {Model.OngoingCount} ongoing projects (selected parent categories) stand, by phase and stage"
+            : $"Where the {Model.OngoingCount} ongoing projects stand, by phase, stage and parent category"
     };
 
     var modes = new[]
@@ -89,7 +91,15 @@
         @foreach (var figure in Model.Headlines)
         {
           var valueClass = figure.Value.Length > 7 ? "analytics-figure__value analytics-figure__value--text" : "analytics-figure__value";
-          if (!string.IsNullOrEmpty(figure.Href))
+          if (!string.IsNullOrEmpty(figure.DrillStageCodes))
+          {
+            <button type="button" class="analytics-figure analytics-figure--link" data-phase-drill="@figure.DrillStageCodes" title="Show these projects by stage">
+              <span class="@valueClass">@figure.Value</span>
+              <span class="analytics-figure__label">@figure.Label</span>
+              @if (!string.IsNullOrEmpty(figure.Hint)) { <span class="analytics-figure__hint">@figure.Hint</span> }
+            </button>
+          }
+          else if (!string.IsNullOrEmpty(figure.Href))
           {
             <a class="analytics-figure analytics-figure--link" href="@figure.Href">
               <span class="@valueClass">@figure.Value</span>
