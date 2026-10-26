@@ -126,7 +126,10 @@ all have rows.
 
 ## Chart rules (every Chart.js canvas in PRISM)
 
-`applyPmChartDefaults(Chart)` in `pm-chart-defaults.js` sets the look once, from tokens:
+`applyPmChartDefaults(Chart)` in `pm-chart-defaults.js` sets the look once, from tokens. Analytics
+(`analytics-projects.js`) and the Proliferation Summary charts
+(`pages/project-office-reports/proliferation-summary-charts.js`, loaded as an ES module) both use it;
+a new chart page should import it the same way rather than setting `Chart.defaults` or colour literals.
 
 - Mulish 12px axis text in `--pm-chart-text`; horizontal grid only (`--pm-chart-grid-soft`), no
   vertical grid, no chart border, no built-in legend or title.

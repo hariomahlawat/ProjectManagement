@@ -153,8 +153,7 @@
                         <div class="pf-year-card__body">
                             @foreach (var source in year.Sources)
                             {
-                                var countAnnual = source.EffectiveMode == YearPreferenceMode.UseYearly ||
-                                                  (source.EffectiveMode == YearPreferenceMode.Auto && source.DetailedQuantity == 0);
+                                var countAnnual = source.CountedBasis == ProliferationCountedBasis.Annual;
                                 var countedLabel = countAnnual ? "Annual quantity" : "Detailed quantity";
                                 var countedValue = countAnnual ? source.AnnualQuantity : source.DetailedQuantity;
                                 var referenceLabel = countAnnual ? "Detailed quantity" : "Annual quantity";
@@ -178,7 +177,7 @@
                                         </div>
                                     </div>
 
-                                    @if (source.EffectiveMode == YearPreferenceMode.UseYearlyAndGranular)
+                                    @if (source.CountedBasis == ProliferationCountedBasis.AnnualAndDetailed)
                                     {
                                         <div class="pf-calculation-grid" aria-label="Annual quantity plus detailed quantity equals reported total">
                                             <div>

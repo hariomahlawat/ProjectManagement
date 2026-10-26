@@ -1,17 +1,32 @@
-"use strict";
+// Proliferation Summary: project finder, ranked-table disclosure and the two analytics charts.
+// The chart look, colours and value labels come from pm-chart-defaults.js (the one PRISM chart
+// style, token-driven so Dark works and a theme switch redraws the charts).
+import {
+    applyPmChartDefaults,
+    barScales,
+    chartTokens,
+    renderLegend,
+    sizeChartHost,
+    watchTheme
+} from "../../charts/pm-chart-defaults.js";
 
 document.addEventListener("DOMContentLoaded", () => {
     const numberFormatter = new Intl.NumberFormat();
-    const bodyFont = window.getComputedStyle(document.body).fontFamily;
     let yearlyChart = null;
     let categoryChart = null;
+    let renderYearChart = null;
 
     if (typeof Chart !== "undefined") {
-        Chart.defaults.font.family = bodyFont;
-        Chart.defaults.font.size = 12;
-        Chart.defaults.color = window.getComputedStyle(document.documentElement)
-            .getPropertyValue("--bs-secondary-color")
-            .trim() || "#6c757d";
+        applyPmChartDefaults(Chart);
+        watchTheme(Chart, () => {
+            renderYearChart?.();
+            if (categoryChart) {
+                categoryChart.destroy();
+                categoryChart = null;
+                const panel = document.querySelector('[data-analytics-panel="category"]');
+                if (panel && !panel.hidden) renderCategoryChart();
+            }
+        });
     }
 
     const categoryNames = new Map([
@@ -23,34 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
         ["AR/VR", "AR / VR"],
         ["AI", "Artificial Intelligence"]
     ]);
-
-    const categoryValueLabels = {
-        id: "pfCategoryValueLabels",
-        afterDatasetsDraw(chart) {
-            if (chart.options.indexAxis !== "y") return;
-            const dataset = chart.data.datasets[0];
-            const metadata = chart.getDatasetMeta(0);
-            const { ctx, chartArea } = chart;
-
-            ctx.save();
-            ctx.font = `600 12px ${bodyFont}`;
-            ctx.fillStyle = window.getComputedStyle(document.documentElement)
-                .getPropertyValue("--bs-body-color")
-                .trim() || "#212529";
-            ctx.textBaseline = "middle";
-
-            metadata.data.forEach((bar, index) => {
-                const value = Number(dataset.data[index] || 0);
-                const label = numberFormatter.format(value);
-                const width = ctx.measureText(label).width;
-                const preferredX = bar.x + 8;
-                const fitsAfterBar = preferredX + width <= chartArea.right - 4;
-                ctx.textAlign = fitsAfterBar ? "left" : "right";
-                ctx.fillText(label, fitsAfterBar ? preferredX : chartArea.right - 4, bar.y);
-            });
-            ctx.restore();
-        }
-    };
 
     function parseData(host, attribute) {
         if (!host) return [];
@@ -141,40 +128,28 @@ document.addEventListener("DOMContentLoaded", () => {
         let range = 10;
         const render = () => {
             const visible = range === "all" ? rows : rows.slice(-range);
+            const tokens = chartTokens();
+            // SDD and 515 ABW are two tints of the primary hue and are named in the legend
+            // chips and tooltips, so the split never relies on colour alone.
+            const series = [
+                { label: "SDD", color: tokens.primary, values: visible.map(x => x.totals?.sdd ?? 0) },
+                { label: "515 ABW", color: tokens.primarySoft, values: visible.map(x => x.totals?.abw515 ?? 0) }
+            ];
             yearlyChart?.destroy();
             yearlyChart = new Chart(canvas, {
                 type: "bar",
                 data: {
                     labels: visible.map(x => String(x.year)),
-                    datasets: [
-                        {
-                            label: "SDD",
-                            data: visible.map(x => x.totals?.sdd ?? 0),
-                            backgroundColor: "rgba(59, 130, 246, 0.82)",
-                            borderRadius: 3,
-                            maxBarThickness: 36,
-                            stack: "total"
-                        },
-                        {
-                            label: "515 ABW",
-                            data: visible.map(x => x.totals?.abw515 ?? 0),
-                            backgroundColor: "rgba(14, 165, 233, 0.62)",
-                            borderRadius: 3,
-                            maxBarThickness: 36,
-                            stack: "total"
-                        }
-                    ]
+                    datasets: series.map(item => ({
+                        label: item.label,
+                        data: item.values,
+                        backgroundColor: item.color,
+                        stack: "total"
+                    }))
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
                     interaction: { mode: "index", intersect: false },
-                    layout: { padding: { top: 0, right: 4, bottom: 0, left: 0 } },
                     plugins: {
-                        legend: {
-                            position: "top",
-                            labels: { boxWidth: 11, boxHeight: 11, padding: 14, usePointStyle: false }
-                        },
                         tooltip: {
                             callbacks: {
                                 label: context => `${context.dataset.label}: ${numberFormatter.format(Number(context.parsed.y || 0))}`,
@@ -182,22 +157,15 @@ document.addEventListener("DOMContentLoaded", () => {
                             }
                         }
                     },
-                    scales: {
-                        x: {
-                            stacked: true,
-                            grid: { display: false },
-                            ticks: { font: { size: 12 }, maxRotation: 0 }
-                        },
-                        y: {
-                            stacked: true,
-                            beginAtZero: true,
-                            ticks: { precision: 0, font: { size: 12 }, callback: value => numberFormatter.format(value) },
-                            grid: { color: "rgba(148, 163, 184, 0.2)" }
-                        }
-                    }
+                    scales: barScales({ stacked: true })
                 }
             });
+            renderLegend(
+                document.querySelector('[data-legend="proliferation-yearly-chart"]'),
+                yearlyChart,
+                series.map((item, index) => ({ label: item.label, color: item.color, datasetIndex: index })));
         };
+        renderYearChart = render;
 
         document.querySelectorAll("[data-trend-range]").forEach(button => {
             const isActive = button.classList.contains("active");
@@ -236,30 +204,24 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        host.style.height = `${Math.max(245, rows.length * 35 + 58)}px`;
+        sizeChartHost(host, { rows: rows.length, horizontal: true, min: 245, max: 720 });
         const total = rows.reduce((sum, row) => sum + Number(row.total || 0), 0);
 
         categoryChart = new Chart(canvas, {
             type: "bar",
-            plugins: [categoryValueLabels],
             data: {
                 labels: rows.map(x => categoryNames.get(x.name) || x.name),
                 datasets: [{
                     label: "Total proliferation",
                     data: rows.map(x => x.total ?? 0),
-                    backgroundColor: "rgba(59, 130, 246, 0.76)",
-                    borderRadius: 3,
-                    maxBarThickness: 24
+                    backgroundColor: chartTokens().primary
                 }]
             },
             options: {
                 indexAxis: "y",
-                responsive: true,
-                maintainAspectRatio: false,
                 layout: { padding: { right: 52, top: 4, bottom: 0 } },
                 interaction: { mode: "nearest", intersect: true },
                 plugins: {
-                    legend: { display: false },
                     tooltip: {
                         callbacks: {
                             label: context => {
@@ -270,17 +232,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     }
                 },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: { precision: 0, font: { size: 12 }, callback: value => numberFormatter.format(value) },
-                        grid: { color: "rgba(148, 163, 184, 0.2)" }
-                    },
-                    y: {
-                        grid: { display: false },
-                        ticks: { font: { size: 12 }, autoSkip: false }
-                    }
-                }
+                scales: barScales({ horizontal: true })
             }
         });
     }

@@ -133,9 +133,10 @@
     }
 
     function renderCalculation(item, body) {
-        const mode = String(item.effectiveMode || "");
-        const combined = mode === "UseYearlyAndGranular";
-        const annualOnly = mode === "UseYearly" || (mode === "Auto" && Number(item.detailedQuantity || 0) === 0);
+        // The server says which quantities the rule counts; the page only lays them out.
+        const basis = String(item.countedBasis || "");
+        const combined = basis === "AnnualAndDetailed";
+        const annualOnly = basis === "Annual";
 
         if (combined) {
             const calculation = document.createElement("div");

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
@@ -228,21 +229,161 @@ public sealed class ProliferationAggregateReadService
             Latest(annual?.LastUpdatedOnUtc, detailed?.LastUpdatedOnUtc, preference?.SetOnUtc));
     }
 
+    /// <summary>
+    /// What a save, or a different counting rule, would do to one project/source/year total.
+    /// Used by the Records editor and the counting-rule editor so the browser never repeats
+    /// the counting rule. <paramref name="recordId"/> is the record being edited: an approved
+    /// record's own quantity, or the record an amendment amends, is replaced rather than added.
+    /// </summary>
+    public async Task<ProliferationCountingPreview> GetCountingPreviewAsync(
+        int projectId,
+        ProliferationSource source,
+        int year,
+        YearPreferenceMode? previewMode,
+        ProliferationRecordKind? kind,
+        int? quantity,
+        Guid? recordId,
+        CancellationToken cancellationToken)
+    {
+        var aggregate = await GetApprovedAggregateAsync(projectId, source, year, cancellationToken);
+        var currentMode = aggregate?.EffectiveMode
+            ?? await _db.ProliferationYearPreferences
+                .AsNoTracking()
+                .Where(x => x.ProjectId == projectId && x.Source == source && x.Year == year)
+                .Select(x => (YearPreferenceMode?)x.Mode)
+                .FirstOrDefaultAsync(cancellationToken)
+            ?? GetDefaultMode(source);
+
+        var currentAnnual = aggregate?.AnnualQuantity ?? 0;
+        var currentDetailed = aggregate?.DetailedQuantity ?? 0;
+        var annual = currentAnnual;
+        var detailed = currentDetailed;
+        var changesQuantity = kind is ProliferationRecordKind.Yearly or ProliferationRecordKind.Granular
+            && quantity is >= 0;
+
+        if (changesQuantity)
+        {
+            var replaced = await GetReplacedApprovedQuantityAsync(kind!.Value, recordId, projectId, source, year, cancellationToken);
+            if (kind == ProliferationRecordKind.Yearly)
+            {
+                annual = Math.Max(0, annual - replaced) + quantity!.Value;
+            }
+            else
+            {
+                detailed = Math.Max(0, detailed - replaced) + quantity!.Value;
+            }
+        }
+
+        var mode = previewMode ?? currentMode;
+        var basis = GetCountedBasis(mode, detailed);
+        bool? quantityCounted = changesQuantity
+            ? kind == ProliferationRecordKind.Yearly
+                ? basis != ProliferationCountedBasis.Detailed
+                : basis != ProliferationCountedBasis.Annual
+            : null;
+
+        return new ProliferationCountingPreview(
+            currentAnnual,
+            currentDetailed,
+            aggregate?.ReportedTotal ?? 0,
+            currentMode,
+            mode,
+            CalculateReportedTotal(mode, annual, detailed),
+            basis,
+            quantityCounted,
+            currentAnnual > 0 && currentDetailed > 0);
+    }
+
+    private async Task<int> GetReplacedApprovedQuantityAsync(
+        ProliferationRecordKind kind,
+        Guid? recordId,
+        int projectId,
+        ProliferationSource source,
+        int year,
+        CancellationToken cancellationToken)
+    {
+        if (!recordId.HasValue)
+        {
+            return 0;
+        }
+
+        if (kind == ProliferationRecordKind.Yearly)
+        {
+            var record = await _db.ProliferationYearlies
+                .AsNoTracking()
+                .Where(x => x.Id == recordId.Value)
+                .Select(x => new { x.ApprovalStatus, x.AmendsId })
+                .FirstOrDefaultAsync(cancellationToken);
+            var approvedId = record?.ApprovalStatus == ApprovalStatus.Approved ? recordId : record?.AmendsId;
+            if (!approvedId.HasValue)
+            {
+                return 0;
+            }
+
+            return await _db.ProliferationYearlies
+                .AsNoTracking()
+                .Where(x =>
+                    x.Id == approvedId.Value &&
+                    x.ApprovalStatus == ApprovalStatus.Approved &&
+                    x.ProjectId == projectId &&
+                    x.Source == source &&
+                    x.Year == year)
+                .Select(x => (int?)x.TotalQuantity)
+                .FirstOrDefaultAsync(cancellationToken) ?? 0;
+        }
+
+        var entry = await _db.ProliferationGranularEntries
+            .AsNoTracking()
+            .Where(x => x.Id == recordId.Value)
+            .Select(x => new { x.ApprovalStatus, x.AmendsId })
+            .FirstOrDefaultAsync(cancellationToken);
+        var approvedEntryId = entry?.ApprovalStatus == ApprovalStatus.Approved ? recordId : entry?.AmendsId;
+        if (!approvedEntryId.HasValue)
+        {
+            return 0;
+        }
+
+        return await _db.ProliferationGranularEntries
+            .AsNoTracking()
+            .Where(x =>
+                x.Id == approvedEntryId.Value &&
+                x.ApprovalStatus == ApprovalStatus.Approved &&
+                x.ProjectId == projectId &&
+                x.Source == source &&
+                x.ProliferationDate.Year == year)
+            .Select(x => (int?)x.Quantity)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
+    }
+
     public static YearPreferenceMode GetDefaultMode(ProliferationSource source) => source switch
     {
         ProliferationSource.Abw515 => YearPreferenceMode.UseYearly,
         _ => YearPreferenceMode.UseYearlyAndGranular
     };
 
+    /// <summary>
+    /// Which approved quantities a counting rule adds into the reported total. Pages and
+    /// previews use this to label the counted and reference figures instead of re-deriving it.
+    /// </summary>
+    public static ProliferationCountedBasis GetCountedBasis(
+        YearPreferenceMode mode,
+        int detailedQuantity) => mode switch
+    {
+        YearPreferenceMode.UseYearly => ProliferationCountedBasis.Annual,
+        YearPreferenceMode.UseGranular => ProliferationCountedBasis.Detailed,
+        YearPreferenceMode.Auto => detailedQuantity > 0
+            ? ProliferationCountedBasis.Detailed
+            : ProliferationCountedBasis.Annual,
+        _ => ProliferationCountedBasis.AnnualAndDetailed
+    };
+
     public static int CalculateReportedTotal(
         YearPreferenceMode mode,
         int annualQuantity,
-        int detailedQuantity) => mode switch
+        int detailedQuantity) => GetCountedBasis(mode, detailedQuantity) switch
     {
-        YearPreferenceMode.UseYearly => annualQuantity,
-        YearPreferenceMode.UseGranular => detailedQuantity,
-        YearPreferenceMode.Auto => detailedQuantity > 0 ? detailedQuantity : annualQuantity,
-        YearPreferenceMode.UseYearlyAndGranular => checked(annualQuantity + detailedQuantity),
+        ProliferationCountedBasis.Annual => annualQuantity,
+        ProliferationCountedBasis.Detailed => detailedQuantity,
         _ => checked(annualQuantity + detailedQuantity)
     };
 
@@ -323,4 +464,25 @@ public sealed record ProliferationAggregateRow(
 
     public string CalculationLabel =>
         ProliferationAggregateReadService.GetCalculationLabel(EffectiveMode, Source);
+
+    public ProliferationCountedBasis CountedBasis =>
+        ProliferationAggregateReadService.GetCountedBasis(EffectiveMode, DetailedQuantity);
+}
+
+public sealed record ProliferationCountingPreview(
+    int AnnualQuantity,
+    int DetailedQuantity,
+    int CurrentTotal,
+    YearPreferenceMode CurrentMode,
+    YearPreferenceMode PreviewMode,
+    int PreviewTotal,
+    ProliferationCountedBasis PreviewBasis,
+    bool? QuantityCounted,
+    bool HasBothRecordTypes);
+
+public enum ProliferationCountedBasis
+{
+    Annual = 1,
+    Detailed = 2,
+    AnnualAndDetailed = 3
 }

@@ -574,6 +574,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     ReportedTotal = row.ReportedTotal,
                     CalculationLabel = row.CalculationLabel,
                     EffectiveMode = row.EffectiveMode.ToString(),
+                    CountedBasis = row.CountedBasis.ToString(),
                     HasCountingException = row.HasCountingException,
                     LastUpdatedOnUtc = row.LastUpdatedOnUtc
                 })
@@ -730,425 +731,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             return ToActionResult(result);
         }
 
-        [HttpGet("overview")]
-        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
-        public async Task<ActionResult<ProliferationOverviewDto>> GetOverview([FromQuery] ProliferationOverviewQuery q, CancellationToken ct)
-        {
-            var requestedPageSize = q.PageSize;
-            var unpaged = requestedPageSize == 0;
-            var page = q.Page < 1 ? 1 : q.Page;
-            var pageSize = unpaged
-                ? 0
-                : (requestedPageSize < 1 ? 50 : Math.Min(requestedPageSize, 200));
-
-            DateTime? from = q.FromDateUtc;
-            DateTime? to = q.ToDateUtc;
-            DateOnly? fromDateOnly = from.HasValue ? DateOnly.FromDateTime(from.Value) : null;
-            DateOnly? toDateOnly = to.HasValue ? DateOnly.FromDateTime(to.Value) : null;
-
-            var projectsQuery = ProliferationProjectEligibility.CountedProjects(_db.Projects.AsNoTracking());
-
-            if (q.ProjectId.HasValue)
-            {
-                projectsQuery = projectsQuery.Where(p => p.Id == q.ProjectId.Value);
-            }
-
-            if (q.ProjectCategoryId.HasValue)
-            {
-                projectsQuery = projectsQuery.Where(p => p.CategoryId == q.ProjectCategoryId.Value);
-            }
-
-            if (q.TechnicalCategoryId.HasValue)
-            {
-                projectsQuery = projectsQuery.Where(p => p.TechnicalCategoryId == q.TechnicalCategoryId.Value);
-            }
-
-            var yearlyBase = from y in _db.Set<ProliferationYearly>().AsNoTracking()
-                             join p in projectsQuery on y.ProjectId equals p.Id
-                             join pref in _db.Set<ProliferationYearPreference>().AsNoTracking()
-                                 on new { y.ProjectId, y.Source, y.Year } equals new { pref.ProjectId, pref.Source, pref.Year } into prefJoin
-                             from pref in prefJoin.DefaultIfEmpty()
-                             where y.ApprovalStatus == ApprovalStatus.Approved
-                             select new { Yearly = y, Project = p, Preference = pref };
-
-            var granularBase = from g in _db.Set<ProliferationGranular>().AsNoTracking()
-                               join p in projectsQuery on g.ProjectId equals p.Id
-                               where g.ApprovalStatus == ApprovalStatus.Approved
-                               select new { Granular = g, Project = p };
-
-            var kind = ParseKind(q.Kind);
-
-            if (fromDateOnly.HasValue && toDateOnly.HasValue)
-            {
-                yearlyBase = yearlyBase.Where(x => x.Yearly.Year >= fromDateOnly.Value.Year && x.Yearly.Year <= toDateOnly.Value.Year);
-                granularBase = granularBase.Where(x => x.Granular.ProliferationDate >= fromDateOnly && x.Granular.ProliferationDate <= toDateOnly);
-            }
-            else if (q.Years is { Length: > 0 })
-            {
-                var years = q.Years.ToHashSet();
-                yearlyBase = yearlyBase.Where(x => years.Contains(x.Yearly.Year));
-                granularBase = granularBase.Where(x => years.Contains(x.Granular.ProliferationDate.Year));
-            }
-
-            if (q.Source.HasValue)
-            {
-                yearlyBase = yearlyBase.Where(x => x.Yearly.Source == q.Source);
-                granularBase = granularBase.Where(x => x.Granular.Source == q.Source);
-            }
-
-            if (!string.IsNullOrWhiteSpace(q.Search))
-            {
-                var like = $"%{q.Search.Trim()}%";
-                yearlyBase = yearlyBase.Where(x => EF.Functions.ILike(x.Project.Name, like));
-                granularBase = granularBase.Where(x =>
-                    EF.Functions.ILike(x.Project.Name, like) ||
-                    EF.Functions.ILike(x.Granular.UnitName, like));
-            }
-
-            if (kind == ProliferationRecordKind.Yearly)
-            {
-                granularBase = granularBase.Where(_ => false);
-            }
-            else if (kind == ProliferationRecordKind.Granular)
-            {
-                yearlyBase = yearlyBase.Where(_ => false);
-            }
-
-            var yearlyRawQuery = yearlyBase.Select(x => new
-            {
-                ProjectId = x.Project.Id,
-                Year = x.Yearly.Year,
-                Project = x.Project.Name,
-                ProjectCode = x.Project.CaseFileNumber,
-                Source = x.Yearly.Source,
-                DataType = "Yearly",
-                UnitName = (string?)null,
-                Date = (DateOnly?)null,
-                Quantity = x.Yearly.TotalQuantity,
-                ApprovalStatus = x.Yearly.ApprovalStatus,
-                Mode = x.Preference != null ? (YearPreferenceMode?)x.Preference.Mode : null
-            });
-
-            var granularRawQuery = granularBase.Select(x => new
-            {
-                ProjectId = x.Project.Id,
-                Year = x.Granular.ProliferationDate.Year,
-                Project = x.Project.Name,
-                ProjectCode = x.Project.CaseFileNumber,
-                Source = x.Granular.Source,
-                DataType = "Granular",
-                UnitName = (string?)x.Granular.UnitName,
-                Date = (DateOnly?)x.Granular.ProliferationDate,
-                Quantity = x.Granular.Quantity,
-                ApprovalStatus = x.Granular.ApprovalStatus,
-                Mode = (YearPreferenceMode?)null
-            });
-
-            var combinedRowsQuery = yearlyRawQuery.Concat(granularRawQuery);
-
-            var totalCount = await combinedRowsQuery.CountAsync(ct);
-
-            if (!unpaged && pageSize == 0)
-            {
-                pageSize = 50;
-            }
-
-            if (!unpaged && pageSize > 0)
-            {
-                var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-                if (totalPages > 0 && page > totalPages)
-                {
-                    page = totalPages;
-                }
-            }
-            else if (unpaged)
-            {
-                page = 1;
-            }
-
-            var orderedRowsQuery = combinedRowsQuery
-                .OrderByDescending(r => r.Year)
-                .ThenBy(r => r.Project)
-                .ThenBy(r => r.Source)
-                .ThenBy(r => r.DataType)
-                .ThenBy(r => r.Date);
-
-            var pagedRowsQuery = orderedRowsQuery.AsQueryable();
-
-            if (!unpaged && pageSize > 0)
-            {
-                pagedRowsQuery = pagedRowsQuery
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize);
-            }
-
-            var rowProjections = (await pagedRowsQuery.ToListAsync(ct))
-                .Select(r => new OverviewRowProjection(
-                    r.ProjectId,
-                    r.Year,
-                    r.Project,
-                    r.ProjectCode,
-                    r.Source,
-                    r.DataType,
-                    r.UnitName,
-                    r.Date,
-                    r.Quantity,
-                    r.ApprovalStatus,
-                    r.Mode))
-                .ToList();
-
-            var combinationKeys = rowProjections
-                .Select(r => new CombinationKey(r.ProjectId, r.Source, r.Year))
-                .Distinct()
-                .ToList();
-
-            var totalsLookup = new Dictionary<CombinationKey, int>(combinationKeys.Count);
-            foreach (var combo in combinationKeys)
-            {
-                try
-                {
-                    var total = await _readSvc.GetEffectiveTotalAsync(combo.ProjectId, combo.Source, combo.Year, ct);
-                    totalsLookup[combo] = total;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Failed to compute effective proliferation total for project {ProjectId} ({Source}) in {Year}",
-                        combo.ProjectId,
-                        combo.Source,
-                        combo.Year);
-                }
-            }
-
-            var rows = rowProjections
-                .Select(r =>
-                {
-                    totalsLookup.TryGetValue(new CombinationKey(r.ProjectId, r.Source, r.Year), out var effective);
-                    return new ProliferationOverviewRowDto
-                    {
-                        ProjectId = r.ProjectId,
-                        Year = r.Year,
-                        Project = r.Project,
-                        ProjectCode = r.ProjectCode,
-                        Source = r.Source,
-                        DataType = r.DataType,
-                        UnitName = r.UnitName,
-                        DateUtc = r.Date.HasValue
-                            ? r.Date.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)
-                            : null,
-                        Quantity = r.Quantity,
-                        EffectiveTotal = effective,
-                        ApprovalStatus = r.ApprovalStatus.ToString(),
-                        Mode = r.Mode?.ToString()
-                    };
-                })
-                .ToList();
-
-            var kpis = new ProliferationKpisDto();
-            kpis.TotalCompletedProjects = await projectsQuery
-                .CountAsync(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed, ct);
-
-            // Totals follow ProliferationProjectEligibility.CountedProjects: a project that was
-            // reopened or cancelled keeps its approved units.
-            var countedProjectIds = await projectsQuery
-                .Select(p => p.Id)
-                .ToListAsync(ct);
-
-            var yearlyCombosQuery = _db.Set<ProliferationYearly>().AsNoTracking()
-                .Where(y => countedProjectIds.Contains(y.ProjectId) && y.ApprovalStatus == ApprovalStatus.Approved);
-
-            var granularCombosQuery = _db.Set<ProliferationGranular>().AsNoTracking()
-                .Where(g => countedProjectIds.Contains(g.ProjectId) && g.ApprovalStatus == ApprovalStatus.Approved);
-
-            if (kind == ProliferationRecordKind.Yearly)
-            {
-                granularCombosQuery = granularCombosQuery.Where(_ => false);
-            }
-            else if (kind == ProliferationRecordKind.Granular)
-            {
-                yearlyCombosQuery = yearlyCombosQuery.Where(_ => false);
-            }
-
-            if (fromDateOnly.HasValue && toDateOnly.HasValue)
-            {
-                var rangeStartYear = fromDateOnly.Value.Year;
-                var rangeEndYear = toDateOnly.Value.Year;
-                yearlyCombosQuery = yearlyCombosQuery.Where(y => y.Year >= rangeStartYear && y.Year <= rangeEndYear);
-                granularCombosQuery = granularCombosQuery.Where(g =>
-                    g.ProliferationDate >= fromDateOnly.Value &&
-                    g.ProliferationDate <= toDateOnly.Value);
-            }
-            else if (q.Years is { Length: > 0 })
-            {
-                var years = q.Years.ToHashSet();
-                yearlyCombosQuery = yearlyCombosQuery.Where(y => years.Contains(y.Year));
-                granularCombosQuery = granularCombosQuery.Where(g => years.Contains(g.ProliferationDate.Year));
-            }
-
-            if (q.Source.HasValue)
-            {
-                yearlyCombosQuery = yearlyCombosQuery.Where(y => y.Source == q.Source);
-                granularCombosQuery = granularCombosQuery.Where(g => g.Source == q.Source);
-            }
-
-            var yearlyCombos = await yearlyCombosQuery
-                .Select(y => new { y.ProjectId, y.Source, y.Year })
-                .ToListAsync(ct);
-
-            var granularCombos = await granularCombosQuery
-                .Select(g => new { g.ProjectId, g.Source, Year = g.ProliferationDate.Year })
-                .ToListAsync(ct);
-
-            var projYears = yearlyCombos
-                .Concat(granularCombos)
-                .DistinctBy(x => new { x.ProjectId, x.Source, x.Year })
-                .ToList();
-
-            int totalAll = 0, totalSdd = 0, totalAbw = 0;
-            foreach (var item in projYears)
-            {
-                int eff;
-                try
-                {
-                    eff = await _readSvc.GetEffectiveTotalAsync(item.ProjectId, item.Source, item.Year, ct);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Failed to compute effective proliferation total for project {ProjectId} ({Source}) in {Year}",
-                        item.ProjectId,
-                        item.Source,
-                        item.Year);
-                    continue;
-                }
-
-                totalAll += eff;
-                if (item.Source == ProliferationSource.Sdd)
-                {
-                    totalSdd += eff;
-                }
-                else
-                {
-                    totalAbw += eff;
-                }
-            }
-            kpis.TotalProliferationAllTime = totalAll;
-            kpis.TotalProliferationSdd = totalSdd;
-            kpis.TotalProliferationAbw515 = totalAbw;
-
-            var end = DateTime.UtcNow;
-            var start = end.AddDays(-365);
-            var fromCutoff = DateOnly.FromDateTime(start);
-            var toCutoff = DateOnly.FromDateTime(end);
-
-            var windowStartYear = start.Year;
-            var windowEndYear = end.Year;
-            var yearCount = windowEndYear - windowStartYear + 1;
-            var windowYears = yearCount > 0
-                ? Enumerable.Range(windowStartYear, yearCount).ToArray()
-                : Array.Empty<int>();
-
-            var lastYearCombos = new HashSet<CombinationKey>();
-
-            if (countedProjectIds.Count > 0 && windowYears.Length > 0)
-            {
-                var lastYearlyQuery = _db.Set<ProliferationYearly>().AsNoTracking()
-                    .Where(y =>
-                        y.ApprovalStatus == ApprovalStatus.Approved &&
-                        countedProjectIds.Contains(y.ProjectId) &&
-                        windowYears.Contains(y.Year));
-
-                if (q.Source.HasValue)
-                {
-                    lastYearlyQuery = lastYearlyQuery.Where(y => y.Source == q.Source.Value);
-                }
-
-                var lastYearlyCombos = await lastYearlyQuery
-                    .Select(y => new { y.ProjectId, y.Source, y.Year })
-                    .ToListAsync(ct);
-
-                foreach (var item in lastYearlyCombos)
-                {
-                    lastYearCombos.Add(new CombinationKey(item.ProjectId, item.Source, item.Year));
-                }
-
-                var lastGranularQuery = _db.Set<ProliferationGranular>().AsNoTracking()
-                    .Where(g =>
-                        g.ApprovalStatus == ApprovalStatus.Approved &&
-                        countedProjectIds.Contains(g.ProjectId) &&
-                        g.ProliferationDate >= fromCutoff &&
-                        g.ProliferationDate <= toCutoff);
-
-                if (q.Source.HasValue)
-                {
-                    lastGranularQuery = lastGranularQuery.Where(g => g.Source == q.Source.Value);
-                }
-
-                var lastGranularCombos = await lastGranularQuery
-                    .Select(g => new { g.ProjectId, g.Source, Year = g.ProliferationDate.Year })
-                    .ToListAsync(ct);
-
-                foreach (var item in lastGranularCombos)
-                {
-                    lastYearCombos.Add(new CombinationKey(item.ProjectId, item.Source, item.Year));
-                }
-            }
-
-            int lastYearTotal = 0, lastYearSdd = 0, lastYearAbw = 0;
-            var proliferatedProjects = new HashSet<int>();
-
-            foreach (var combo in lastYearCombos)
-            {
-                int eff;
-                try
-                {
-                    eff = await _readSvc.GetEffectiveTotalAsync(combo.ProjectId, combo.Source, combo.Year, ct);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Failed to compute effective proliferation total for project {ProjectId} ({Source}) in {Year}",
-                        combo.ProjectId,
-                        combo.Source,
-                        combo.Year);
-                    continue;
-                }
-
-                lastYearTotal += eff;
-                if (combo.Source == ProliferationSource.Sdd)
-                {
-                    lastYearSdd += eff;
-                }
-                else
-                {
-                    lastYearAbw += eff;
-                }
-
-                if (eff > 0)
-                {
-                    proliferatedProjects.Add(combo.ProjectId);
-                }
-            }
-
-            kpis.LastYearTotalProliferation = lastYearTotal;
-            kpis.LastYearSdd = lastYearSdd;
-            kpis.LastYearAbw515 = lastYearAbw;
-            kpis.LastYearProjectsProliferated = proliferatedProjects.Count;
-
-            var payload = new ProliferationOverviewDto
-            {
-                Kpis = kpis,
-                TotalCount = totalCount,
-                Page = page,
-                PageSize = unpaged ? rows.Count : pageSize,
-                Rows = rows
-            };
-            return Ok(payload);
-        }
-
         [HttpPost("yearly")]
         [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
         public async Task<IActionResult> CreateYearly([FromBody] ProliferationYearlyCreateDto dto, CancellationToken ct)
@@ -1244,6 +826,63 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         {
             var result = await _submitSvc.DeleteGranularAsync(id, rowVersion, User, ct);
             return ToActionResult(result, noContent: true);
+        }
+
+        // SECTION: Counting preview
+        // The Records editor and the counting-rule editor ask the server what a save or a
+        // different rule would do to a total, so the counting rule is never repeated in JS.
+        [HttpGet("counting-preview")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<ActionResult<ProliferationCountingPreviewDto>> GetCountingPreview(
+            [FromQuery] ProliferationCountingPreviewQueryDto query,
+            CancellationToken ct)
+        {
+            if (query.ProjectId <= 0
+                || query.Source is not (ProliferationSource.Sdd or ProliferationSource.Abw515)
+                || !ProliferationYearPolicy.IsValid(query.Year, DateTimeOffset.UtcNow))
+            {
+                return BadRequest(new { message = "Select a project, source and valid year." });
+            }
+
+            YearPreferenceMode? previewMode = null;
+            if (string.Equals(query.Mode, "default", StringComparison.OrdinalIgnoreCase))
+            {
+                previewMode = ProliferationAggregateReadService.GetDefaultMode(query.Source);
+            }
+            else if (!string.IsNullOrWhiteSpace(query.Mode))
+            {
+                if (!Enum.TryParse<YearPreferenceMode>(query.Mode, ignoreCase: true, out var parsed)
+                    || !Enum.IsDefined(parsed))
+                {
+                    return BadRequest(new { message = "Select a valid counting rule." });
+                }
+
+                previewMode = parsed;
+            }
+
+            var preview = await _aggregateSvc.GetCountingPreviewAsync(
+                query.ProjectId,
+                query.Source,
+                query.Year,
+                previewMode,
+                ParseKind(query.Kind),
+                query.Quantity,
+                query.RecordId,
+                ct);
+
+            return new ProliferationCountingPreviewDto
+            {
+                AnnualQuantity = preview.AnnualQuantity,
+                DetailedQuantity = preview.DetailedQuantity,
+                CurrentTotal = preview.CurrentTotal,
+                CurrentRuleLabel = ProliferationAggregateReadService.GetCalculationLabel(preview.CurrentMode, query.Source),
+                PreviewMode = preview.PreviewMode,
+                PreviewRuleLabel = ProliferationAggregateReadService.GetCalculationLabel(preview.PreviewMode, query.Source),
+                PreviewTotal = preview.PreviewTotal,
+                PreviewCountedBasis = preview.PreviewBasis.ToString(),
+                QuantityCounted = preview.QuantityCounted,
+                HasBothRecordTypes = preview.HasBothRecordTypes
+            };
         }
 
         [HttpGet("year-preference")]

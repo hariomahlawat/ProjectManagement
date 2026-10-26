@@ -39,12 +39,12 @@ public sealed class ProliferationAuthorizationTests
     }
 
     [Fact]
-    public async Task NonProjectOfficeUser_CanAccessOverviewApi()
+    public async Task NonProjectOfficeUser_CanAccessRecordsApi()
     {
         using var factory = new ProliferationAuthorizationFactory();
         var client = await CreateClientForUserAsync(factory, "general-user", "General User");
 
-        var response = await client.GetAsync("/api/proliferation/overview");
+        var response = await client.GetAsync("/api/proliferation/groups");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

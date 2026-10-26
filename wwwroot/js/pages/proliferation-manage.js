@@ -64,6 +64,7 @@
     decideYearly: (id) => `/api/proliferation/yearly/${id}/decision`,
     decideGranular: (id) => `/api/proliferation/granular/${id}/decision`,
     groups: '/api/proliferation/groups',
+    countingPreview: '/api/proliferation/counting-preview',
     unitSuggestions: '/api/proliferation/reports/unit-suggestions',
     projects: '/api/proliferation/projects'
   };
@@ -1806,17 +1807,6 @@
     toast('List filters updated for this counting exception.', 'info');
   }
 
-  function getSourceDefaultMode(sourceValue) {
-    return Number(sourceValue) === 2 ? 'UseYearly' : 'UseYearlyAndGranular';
-  }
-
-  function calculateRuleTotal(mode, annual, detailed) {
-    if (mode === 'UseYearly') return annual;
-    if (mode === 'UseGranular') return detailed;
-    if (mode === 'Auto') return detailed > 0 ? detailed : annual;
-    return annual + detailed;
-  }
-
   function getEditorTargetYear() {
     if (editor.kind?.value === 'yearly') {
       return Number(editor.year?.value || 0);
@@ -1827,6 +1817,17 @@
 
   function hideEditorImpact() {
     editor.impact?.classList.add('d-none');
+  }
+
+  // The server applies the counting rule (and replaces the approved quantity of the record
+  // being edited or amended); the page only shows the result.
+  async function fetchCountingPreview(params, signal) {
+    const response = await fetch(`${api.countingPreview}?${new URLSearchParams(params)}`, {
+      headers: { Accept: 'application/json' },
+      signal
+    });
+    if (!response.ok) throw new Error('Unable to load calculation preview');
+    return response.json();
   }
 
   async function refreshEditorImpact() {
@@ -1843,85 +1844,26 @@
     editorImpactController?.abort();
     editorImpactController = new AbortController();
     try {
-      const params = new URLSearchParams({ projectId: String(projectId), source: String(source), year: String(year), page: '1', pageSize: '10' });
-      const response = await fetch(`${api.groups}?${params}`, { headers: { Accept: 'application/json' }, signal: editorImpactController.signal });
-      if (!response.ok) throw new Error('Unable to load calculation preview');
-      const data = await response.json();
-      // The groups API serialises the source as its enum name ("Sdd", "Abw515").
-      const sourceName = { 1: 'Sdd', 2: 'Abw515' }[source];
-      const matchesSource = (value) => Number(value) === source || String(value) === sourceName;
-      const row = Array.isArray(data.items) ? data.items.find((x) => Number(x.projectId) === projectId && matchesSource(x.source) && Number(x.year) === year) : null;
-      let annual = Number(row?.annualQuantity || 0);
-      let detailed = Number(row?.detailedQuantity || 0);
-      const current = Number(row?.reportedTotal || 0);
-      // The quantity this save replaces in the approved totals: the approved record being
-      // amended, or the amendment's approved record when an amendment is open.
-      const replaced = await getReplacedApprovedQuantity(kind, editorImpactController.signal);
-      if (replaced &&
-        Number(replaced.projectId) === projectId &&
-        matchesSource(replaced.source) &&
-        Number(replaced.year) === year) {
-        if (kind === 'yearly') annual = Math.max(0, annual - replaced.quantity);
-        else detailed = Math.max(0, detailed - replaced.quantity);
-      }
-      if (kind === 'yearly') annual += quantity;
-      else detailed += quantity;
-      const mode = row?.effectiveMode || getSourceDefaultMode(source);
-      const afterApproval = calculateRuleTotal(mode, annual, detailed);
-      if (editor.impactCurrent) editor.impactCurrent.textContent = formatNumber(current);
-      if (editor.impactNext) editor.impactNext.textContent = formatNumber(afterApproval);
+      const params = { projectId: String(projectId), source: String(source), year: String(year), kind, quantity: String(quantity) };
+      if (currentRecord.id && currentRecord.kind === kind) params.recordId = currentRecord.id;
+      const preview = await fetchCountingPreview(params, editorImpactController.signal);
+      if (editor.impactCurrent) editor.impactCurrent.textContent = formatNumber(preview.currentTotal);
+      if (editor.impactNext) editor.impactNext.textContent = formatNumber(preview.previewTotal);
       if (editor.impactNextLabel) editor.impactNextLabel.textContent = canApproveRecords ? 'After save' : 'After approval';
       if (editor.impactNote) {
-        const hasBothRecordTypes = Number(row?.annualQuantity || 0) > 0 && Number(row?.detailedQuantity || 0) > 0;
-        const modeLabel = row?.effectiveModeLabel || ({
-          UseYearly: 'Annual quantity only',
-          UseGranular: 'Detailed entries only',
-          UseYearlyAndGranular: 'Annual quantity + detailed entries',
-          Auto: 'Detailed entries where available; otherwise annual quantity'
-        }[mode] || mode);
-        const quantityIsCounted = kind === 'yearly'
-          ? mode === 'UseYearly' || mode === 'UseYearlyAndGranular' || (mode === 'Auto' && detailed <= 0)
-          : mode === 'UseGranular' || mode === 'UseYearlyAndGranular' || mode === 'Auto';
+        const counted = preview.quantityCounted ? 'will' : 'will not';
         const approvalTiming = canApproveRecords
           ? 'The saved record will be approved immediately.'
           : 'The reported total changes only after approval.';
-        editor.impactNote.textContent = hasBothRecordTypes
-          ? `Annual and detailed records already exist for ${year}. Counting rule: ${modeLabel}. This quantity ${quantityIsCounted ? 'will' : 'will not'} affect the reported total. ${approvalTiming}`
-          : `${modeLabel}. This quantity ${quantityIsCounted ? 'will' : 'will not'} affect the reported total. ${approvalTiming}`;
+        editor.impactNote.textContent = preview.hasBothRecordTypes
+          ? `Annual and detailed records already exist for ${year}. Counting rule: ${preview.previewRuleLabel}. This quantity ${counted} affect the reported total. ${approvalTiming}`
+          : `${preview.previewRuleLabel}. This quantity ${counted} affect the reported total. ${approvalTiming}`;
       }
       editor.impact.classList.remove('d-none');
     } catch (error) {
       if (error.name === 'AbortError') return;
       hideEditorImpact();
     }
-  }
-
-  async function getReplacedApprovedQuantity(kind, signal) {
-    if (!currentRecord.id || currentRecord.kind !== kind) return null;
-    if ((currentRecord.status || '').toLowerCase() === 'approved') {
-      return {
-        projectId: currentRecord.projectId,
-        source: currentRecord.source,
-        year: currentRecord.year,
-        quantity: Number(currentRecord.quantity || 0)
-      };
-    }
-    if (!currentRecord.amendsId) return null;
-
-    const response = await fetch(kind === 'yearly' ? api.yearly(currentRecord.amendsId) : api.granular(currentRecord.amendsId), {
-      headers: { Accept: 'application/json' },
-      signal
-    });
-    if (!response.ok) return null;
-    const amended = await response.json();
-    if ((amended.approvalStatus ?? '').toString().toLowerCase() !== 'approved') return null;
-    const amendedDate = formatDate(amended.proliferationDateUtc ?? '');
-    return {
-      projectId: amended.projectId,
-      source: amended.source,
-      year: kind === 'yearly' ? amended.year : Number(amendedDate.slice(0, 4)),
-      quantity: Number((kind === 'yearly' ? amended.totalQuantity : amended.quantity) || 0)
-    };
   }
 
   function scheduleEditorImpact() {
@@ -2022,22 +1964,15 @@
     host.classList.remove('d-none');
     host.textContent = 'Loading calculation impact…';
     try {
-      const qs = new URLSearchParams({ projectId: String(projectId), source: String(source), year: String(year), page: '1', pageSize: '1' });
-      const response = await fetch(`${api.groups}?${qs}`, { headers: { Accept: 'application/json' }, signal: rulePreviewController.signal });
-      if (!response.ok) throw new Error('Unable to load calculation');
-      const data = await response.json();
-      const row = Array.isArray(data.items) ? data.items[0] : null;
-      const annual = Number(row?.annualQuantity || 0);
-      const detailed = Number(row?.detailedQuantity || 0);
-      const current = Number(row?.reportedTotal || 0);
       const selected = overridesElements.ruleMode?.value || 'default';
-      const mode = selected === 'default' ? getSourceDefaultMode(source) : selected;
-      const next = calculateRuleTotal(mode, annual, detailed);
+      const preview = await fetchCountingPreview(
+        { projectId: String(projectId), source: String(source), year: String(year), mode: selected },
+        rulePreviewController.signal);
       host.replaceChildren();
       const title = document.createElement('strong');
       title.textContent = 'Calculation impact';
       const text = document.createElement('span');
-      text.textContent = `Annual ${formatNumber(annual)} · detailed ${formatNumber(detailed)} · current reported total ${formatNumber(current)} · after change ${formatNumber(next)}`;
+      text.textContent = `Annual ${formatNumber(preview.annualQuantity)} · detailed ${formatNumber(preview.detailedQuantity)} · current reported total ${formatNumber(preview.currentTotal)} · after change ${formatNumber(preview.previewTotal)}`;
       host.append(title, text);
     } catch (error) {
       if (error.name === 'AbortError') return;
@@ -2170,9 +2105,9 @@
       return;
     }
 
-    const mode = selected === 'default' ? getSourceDefaultMode(source) : selected;
+    const useSourceDefault = selected === 'default';
     const allowed = ['UseYearlyAndGranular', 'UseYearly', 'UseGranular', 'Auto'];
-    if (!allowed.includes(mode)) {
+    if (!useSourceDefault && !allowed.includes(selected)) {
       toast('Select a valid counting rule.', 'warning');
       overridesElements.ruleMode?.focus();
       return;
@@ -2189,7 +2124,7 @@
       const response = await fetch(api.setPreference, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-        body: JSON.stringify({ projectId, source, year, mode, reason: reason || null })
+        body: JSON.stringify({ projectId, source, year, mode: useSourceDefault ? undefined : selected, useSourceDefault, reason: reason || null })
       });
       if (!response.ok) {
         throw new Error(await readErrorResponse(response, 'Unable to save the counting rule.'));
@@ -2218,7 +2153,7 @@
         projectId: row.projectId,
         source: row.sourceValue ?? row.source,
         year: row.year,
-        mode: Number(row.sourceValue ?? row.source) === 2 ? 'UseYearly' : 'UseYearlyAndGranular',
+        useSourceDefault: true,
         reason: 'Restored source default'
       };
       const response = await fetch(api.setPreference, {

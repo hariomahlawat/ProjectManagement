@@ -253,6 +253,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("User not found.");
             }
 
+            if (dto.UseSourceDefault)
+            {
+                dto.Mode = ProliferationAggregateReadService.GetDefaultMode(dto.Source);
+            }
+
             // SECTION: Required field validation
             var requiredError = ValidatePreferenceRequiredFields(dto, _clock.UtcNow);
             if (requiredError is not null)
@@ -1178,9 +1183,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("Preference mode is required.");
             }
 
-            var sourceDefault = dto.Source == ProliferationSource.Abw515
-                ? YearPreferenceMode.UseYearly
-                : YearPreferenceMode.UseYearlyAndGranular;
+            var sourceDefault = ProliferationAggregateReadService.GetDefaultMode(dto.Source);
             if (dto.Mode != sourceDefault && string.IsNullOrWhiteSpace(dto.Reason))
             {
                 return ServiceResult.Fail("A reason is required for a counting exception.");

@@ -884,7 +884,6 @@ builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcel
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
 builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
 // SECTION: Proliferation reports Excel builder
-builder.Services.AddSingleton<IProliferationReportExcelWorkbookBuilder, ProliferationReportExcelWorkbookBuilder>();
 builder.Services.AddSingleton<IIprExcelWorkbookBuilder, IprExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ICompletedProjectsSummaryExcelBuilder, CompletedProjectsSummaryExcelBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
