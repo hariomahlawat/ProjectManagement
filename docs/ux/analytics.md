@@ -14,6 +14,7 @@ one chart style defined once.
 | Ongoing, Completed and CoE aggregation | `Services/Analytics/PortfolioAnalyticsService.cs` (`ProjectManagement.Tests/CoeAnalyticsTests.cs`); the page passes the IST "as of" day in |
 | Insights aggregation | `Services/Analytics/ProjectAnalyticsService.cs` (`ProjectManagement.Tests/ProjectAnalyticsServiceStageTimeTests.cs`) |
 | ARPP rules | `Services/Analytics/ArppAnalyticsService.cs` (`ProjectManagement.Tests/ArppAnalyticsServiceTests.cs`) |
+| AR/VR proliferation and training (CoE mode) | `Services/Analytics/ArVrImpactAnalyticsService.cs` (`ProjectManagement.Tests/ArVrImpactAnalyticsServiceTests.cs`), over the proliferation tracker's approved aggregates and the training tracker's reach and training-year rules |
 | Median and stage order shared by the three services | `Services/Analytics/AnalyticsAggregation.cs` |
 | Styles | `wwwroot/css/analytics.css` (tokens only) |
 | Chart style, legend chips, value labels, click-through | `wwwroot/js/charts/pm-chart-defaults.js` |
@@ -50,7 +51,12 @@ one chart style defined once.
     nomination" lists by name the AR/VR projects (technical category) that are not in a CoE
     category, in three always-present groups: those started before the formal CoE (AR/VR)
     nomination, and the AR/VR projects under DCD as fresh projects and as repeat builds (the
-    project's repeat-build flag). Each group lists completed projects first, oldest completion first, then ongoing with
+    project's repeat-build flag). Under that, two cards for every AR/VR project (in or out of a CoE
+    category): **AR/VR proliferation** (units delivered per calendar year, stacked SDD / ABW 515,
+    approved records only, counted by the tracker's year-preference rule; receiving units from the
+    granular ledger) and **AR/VR training** (people trained per training year, April to March,
+    stacked officers / JCOs / other ranks; each course counted once in the totals and listed under
+    each project it is linked to). A bar opens that year's row of projects. Each group lists completed projects first, oldest completion first, then ongoing with
     their current stage, then cancelled. These are not part of the CoE counts.
   - ARPP: listed projects (IPA value, New / CL / CF split, delisted), completed (their supply-order
     value), supply orders placed (ongoing projects, their value) and "AoN to SO stage" (ongoing

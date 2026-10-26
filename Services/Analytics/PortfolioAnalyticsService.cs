@@ -52,8 +52,7 @@ namespace ProjectManagement.Services.Analytics
         private const string UnassignedStageCode = "UNASSIGNED";
         private const string UnassignedStageName = "Unassigned";
         // END SECTION
-        // AR/VR is a technical category; the CoE is a project category. The two are matched by name, as CoE categories are.
-        private static readonly string[] ArVrTechnicalCategoryKeywords = { "ar/vr", "arvr", "ar&vr", "augmented", "virtualreality" };
+        // AR/VR is a technical category (ArVrTechnicalCategories); the CoE is a project category. Both are matched by name.
         private const string DcdCategoryKeyword = "dcd";
 
         private static readonly string[] CoeCategoryKeywords =
@@ -677,7 +676,7 @@ namespace ProjectManagement.Services.Analytics
                 .AsNoTracking()
                 .Select(t => new { t.Id, t.Name })
                 .ToListAsync(cancellationToken);
-            var technicalIds = arVrTechnicalIds.Where(t => IsArVrTechnicalCategory(t.Name)).Select(t => t.Id).ToList();
+            var technicalIds = arVrTechnicalIds.Where(t => ArVrTechnicalCategories.Matches(t.Name)).Select(t => t.Id).ToList();
 
             var rows = technicalIds.Count == 0
                 ? new List<ArVrProjectRow>()
@@ -775,17 +774,6 @@ namespace ProjectManagement.Services.Analytics
             ProjectLifecycleStatus.Active => 1,
             _ => 2
         };
-
-        private static bool IsArVrTechnicalCategory(string? name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return false;
-            }
-
-            var compact = name.Replace(" ", string.Empty).ToLowerInvariant();
-            return ArVrTechnicalCategoryKeywords.Any(keyword => compact.Contains(keyword, StringComparison.Ordinal));
-        }
 
         private sealed record ArVrProjectRow(
             int Id,

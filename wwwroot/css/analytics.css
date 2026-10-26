@@ -80,6 +80,7 @@ button.analytics-figure { width: 100%; text-align: left; font: inherit; cursor: 
 @media (min-width: 992px) {
     .analytics-row--5-7 { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
     .analytics-row--7-5 { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+    .analytics-row--6-6 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 .analytics-card { position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 18px 20px 20px; border: 1px solid var(--an-border); border-radius: var(--an-radius-lg); background: var(--an-surface); box-shadow: var(--an-shadow); }
 .analytics-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

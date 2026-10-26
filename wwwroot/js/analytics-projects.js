@@ -451,8 +451,78 @@ function initCompleted(panel) {
 }
 // END SECTION
 
+// SECTION: CoE mode: AR/VR proliferation and training (stacked bars per year; a bar opens the year's row)
+function initArVrImpact(panel) {
+  const stackedByYear = (canvas, { labelOf, series, drillPrefix, yearKey, unit }) => {
+    if (!canvas) return;
+    const points = readJson(canvas, 'series', []);
+    if (!points.length) {
+      renderEmptyState(canvas);
+      return;
+    }
+    sizeChartHost(canvas.parentElement, { min: 240, max: 280 });
+    mount(canvas, () => {
+      const tokens = chartTokens();
+      const datasets = series(tokens).map((s) => ({
+        label: s.label,
+        data: points.map((p) => ensureNumber(p[s.field])),
+        backgroundColor: s.color,
+        stack: 'year'
+      }));
+      const chart = new window.Chart(canvas, {
+        type: 'bar',
+        data: { labels: points.map(labelOf), datasets },
+        options: {
+          interaction: { mode: 'index', intersect: true },
+          scales: barScales({ stacked: true }),
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: (item) => `${item.dataset.label}: ${item.formattedValue}`,
+                footer: (items) => `Total: ${items.reduce((sum, item) => sum + ensureNumber(item.parsed.y), 0)} ${unit}`
+              }
+            }
+          }
+        }
+      });
+      renderLegend(panel.querySelector(`[data-legend="${canvas.id}"]`), chart, datasets.map((dataset, index) => ({
+        label: dataset.label,
+        color: dataset.backgroundColor,
+        value: dataset.data.reduce((sum, value) => sum + value, 0),
+        datasetIndex: index
+      })));
+      enableBarClick(chart, (index) => drillAction(panel, `${drillPrefix}:${points[index]?.[yearKey] ?? ''}`));
+      return chart;
+    });
+  };
+
+  stackedByYear(panel.querySelector('#arvr-proliferation-chart'), {
+    labelOf: (p) => String(p.year),
+    yearKey: 'year',
+    drillPrefix: 'prolif-year',
+    unit: 'units',
+    series: (tokens) => [
+      { label: 'SDD', field: 'sdd', color: tokens.primary },
+      { label: 'ABW 515', field: 'abw515', color: tokens.primarySoft }
+    ]
+  });
+  stackedByYear(panel.querySelector('#arvr-training-chart'), {
+    labelOf: (p) => String(p.label),
+    yearKey: 'startYear',
+    drillPrefix: 'training-year',
+    unit: 'people',
+    series: (tokens) => [
+      { label: 'Officers', field: 'officers', color: tokens.primary },
+      { label: 'JCOs', field: 'jcos', color: tokens.primarySoft },
+      { label: 'Other ranks', field: 'otherRanks', color: tokens.category.neutral }
+    ]
+  });
+}
+// END SECTION
+
 // SECTION: CoE mode
 function initCoe(panel) {
+  initArVrImpact(panel);
 
   const stageCanvas = panel.querySelector('#coe-by-stage-chart');
   const stageSeries = readJson(stageCanvas, 'series', []);
