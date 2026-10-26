@@ -890,6 +890,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ProjectId", "Source", "Year")
                         .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
 
+                    b.HasIndex(new[] { "ProjectId", "Source", "Year" }, "UX_ProlifYearly_ApprovedYear")
+                        .IsUnique()
+                        .HasFilter("\"ApprovalStatus\" = 1");
+
                     b.ToTable("ProliferationYearly", (string)null);
                 });
 

@@ -78,3 +78,20 @@ Correction procedure
 
 Do not infer or bulk-replace an invalid year (for example, year 24) without verifying the source record.
 */
+
+/*
+Approved-year uniqueness index
+------------------------------
+Migration 20261220023003_AddProliferationApprovedYearIndex creates UX_ProlifYearly_ApprovedYear
+only if query 3 returns no rows. If the startup log showed the warning
+"UX_ProlifYearly_ApprovedYear was not created", resolve every row of query 3 first, confirm it
+is empty, and then create the index (it is not part of this read-only audit):
+
+    CREATE UNIQUE INDEX IF NOT EXISTS "UX_ProlifYearly_ApprovedYear"
+        ON "ProliferationYearly" ("ProjectId", "Source", "Year")
+        WHERE "ApprovalStatus" = 1;
+
+Check it exists with:
+
+    SELECT indexname FROM pg_indexes WHERE indexname = 'UX_ProlifYearly_ApprovedYear';
+*/

@@ -545,6 +545,10 @@ public sealed class ProliferationDataQualityService
         entity.LastUpdatedOnUtc = _clock.UtcNow.UtcDateTime;
         _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = rowVersion;
 
+        // The correction and its audit entry commit together.
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -571,6 +575,8 @@ public sealed class ProliferationDataQualityService
                 reason,
                 actor.Id)
             .WriteAsync(_audit, userName: actor.UserName);
+
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
 
         return ServiceResult.Ok(entity.Id);
     }
@@ -614,6 +620,10 @@ public sealed class ProliferationDataQualityService
         entity.LastUpdatedOnUtc = _clock.UtcNow.UtcDateTime;
         _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = rowVersion;
 
+        // The correction and its audit entry commit together.
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -641,6 +651,8 @@ public sealed class ProliferationDataQualityService
                 reason,
                 actor.Id)
             .WriteAsync(_audit, userName: actor.UserName);
+
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
 
         return ServiceResult.Ok(entity.Id);
     }

@@ -1227,6 +1227,11 @@ namespace ProjectManagement.Data
                 b.Property(x => x.Source).HasConversion<int>();
                 b.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
                     .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
+                // One approved annual figure per project, source and year (ApprovalStatus 1 =
+                // Approved). The migration creates it only when live data already complies.
+                b.HasIndex(x => new { x.ProjectId, x.Source, x.Year }, "UX_ProlifYearly_ApprovedYear")
+                    .IsUnique()
+                    .HasFilter("\"ApprovalStatus\" = 1");
                 b.HasIndex(x => x.AmendsId)
                     .HasDatabaseName("IX_ProlifYearly_AmendsId");
                 // At most one pending amendment per approved record, enforced by the database

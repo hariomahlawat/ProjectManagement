@@ -65,6 +65,14 @@ jobs:
           --no-build
           --filter FullyQualifiedName~PostgresMigrationIntegrationTests
 
+      - name: Run proliferation write-transaction PostgreSQL test
+        # Creates, migrates and drops its own prism_test_prolif_* database on this server.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~ProliferationWritePostgresIntegrationTests
+
       - name: Run Search V2 PostgreSQL integration tests
         env:
           # The tests create, migrate and drop their own prism_test_searchv2_* database
