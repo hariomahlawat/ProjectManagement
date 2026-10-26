@@ -83,6 +83,10 @@ public static class ProjectOfficeReportsPolicies
 
     public static readonly string[] TotTrackerApproverRoles = { RoleNames.Admin, RoleNames.HoD };
 
+    // Proliferation counting rules decide how annual and detailed figures combine in every
+    // total, so only Admin and HoD see the counting-rules workspace and change a rule.
+    public static readonly string[] ProliferationCountingRuleRoles = { RoleNames.Admin, RoleNames.HoD };
+
     // SECTION: FFC portfolio governance
     // Full FFC management is intentionally granted to Admin, HoD, Comdt and ITO.
     // Detailed Table inline editing is deliberately narrower: Admin, HoD and
@@ -235,7 +239,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(ProjectOfficeManagerRoles);
+        return builder.RequireRole(ProliferationCountingRuleRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireTrainingTrackerViewer(this AuthorizationPolicyBuilder builder)

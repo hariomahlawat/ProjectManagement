@@ -19,6 +19,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Api;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using Xunit;
@@ -77,6 +78,43 @@ public sealed class ProliferationAuthorizationTests
         var response = await client.PostAsJsonAsync("/api/proliferation/year-preference", payload);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ProjectOffice_DoesNotSeeOrChangeCountingRules()
+    {
+        // Counting rules belong to Admin and HoD; Project Office keeps the Records workspace.
+        using var factory = new ProliferationAuthorizationFactory();
+        var client = await CreateClientForUserAsync(factory, "po-user", "Project Office User", RoleNames.ProjectOffice);
+
+        var page = await client.GetAsync("/ProjectOfficeReports/Proliferation/Manage");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var html = await page.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("data-workspace=\"counting-rules\"", html);
+        Assert.DoesNotContain("id=\"pf-rule-editor\"", html);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/proliferation/preferences/overrides")).StatusCode);
+        var save = await client.PostAsJsonAsync("/api/proliferation/year-preference", new ProliferationYearPreferenceDto
+        {
+            ProjectId = 1,
+            Source = ProliferationSource.Sdd,
+            Year = DateTime.UtcNow.Year,
+            Mode = YearPreferenceMode.UseYearly,
+            Reason = "Attempted by Project Office"
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, save.StatusCode);
+    }
+
+    [Fact]
+    public async Task HoD_SeesCountingRulesWorkspace()
+    {
+        using var factory = new ProliferationAuthorizationFactory();
+        var client = await CreateClientForUserAsync(factory, "hod-user", "HoD User", RoleNames.HoD);
+
+        var page = await client.GetAsync("/ProjectOfficeReports/Proliferation/Manage");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Contains("data-workspace=\"counting-rules\"", await page.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/proliferation/preferences/overrides")).StatusCode);
     }
 
     private static async Task<HttpClient> CreateClientForUserAsync(

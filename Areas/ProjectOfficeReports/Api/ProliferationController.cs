@@ -918,7 +918,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         }
 
         [HttpPost("year-preference")]
-        [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ManageProliferationPreferences)]
         public async Task<IActionResult> SetPreference([FromBody] ProliferationYearPreferenceDto dto, CancellationToken ct)
         {
             var ok = await _submitSvc.SetYearPreferenceAsync(dto, User, ct);
