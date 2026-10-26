@@ -196,6 +196,12 @@
             if (value) chips.push(`${label}: ${value}`);
         });
 
+        // Date windows from a Command desk drill-down: hidden fields with their server-rendered label.
+        form.querySelectorAll('input[type="hidden"][data-project-window-label]').forEach(input => {
+            const label = input.dataset.projectWindowLabel;
+            if (label) chips.push(label);
+        });
+
         const unclassified = form.querySelector('[data-project-type-unclassified]');
         const selectedType = form.querySelector('[data-project-type]:checked');
         if (unclassified instanceof HTMLInputElement && unclassified.checked) {
