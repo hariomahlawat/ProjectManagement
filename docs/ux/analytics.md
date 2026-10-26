@@ -41,7 +41,10 @@ one chart style defined once.
     switcher badge and the header line (which says "n of N" when a parent-category filter is on).
     All four follow the parent-category filter (selecting every category is no filter); only the
     switcher badge stays the portfolio total. Days in stage are measured against the IST "as of" day.
-  - Completed: total, this year, best year, median time from first stage start to completion.
+  - Completed: total, this year, average completions a year over the last five complete calendar
+    years (the partial current year is left out; a year with none counts as zero; a shorter history
+    averages over what it has) with the five years before it for comparison, and the median time
+    from first stage start to completion.
   - CoE: total, ongoing, completed (with this year), sub-categories.
   - Insights: slowest stage, fastest stage, portfolio median (median of the stage medians), stages
     measured.
