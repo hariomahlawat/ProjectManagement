@@ -73,6 +73,11 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public DateOnly? ToDate { get; set; }
 
+    // Only activities that have occurred by now; set by the Command desk's activities drill-down
+    // so an activity scheduled later today is left out, as the desk leaves it out of its count.
+    [BindProperty(SupportsGet = true)]
+    public bool UpToNow { get; set; }
+
     [BindProperty(SupportsGet = true)]
     public int? ActivityTypeId { get; set; }
 
@@ -122,7 +127,8 @@ public sealed class IndexModel : PageModel
             CreatedByUserId: null,
             AttachmentType: ActivityAttachmentTypeFilter.Any,
             Search: Search,
-            MediaFilter: MediaFilter);
+            MediaFilter: MediaFilter,
+            OccurredByUtc: UpToNow ? DateTimeOffset.UtcNow : null);
 
         var result = await _activityService.ListAsync(request, cancellationToken);
         var summaryResult = await _activityService.GetReviewSummaryAsync(request, cancellationToken);
@@ -282,7 +288,8 @@ public sealed class IndexModel : PageModel
             CreatedByUserId: null,
             AttachmentType: ActivityAttachmentTypeFilter.Any,
             Search: Search,
-            MediaFilter: MediaFilter);
+            MediaFilter: MediaFilter,
+            OccurredByUtc: UpToNow ? DateTimeOffset.UtcNow : null);
 
         var export = await _activityExportService.ExportAsync(exportRequest, cancellationToken);
 
@@ -317,6 +324,11 @@ public sealed class IndexModel : PageModel
         if (ToDate.HasValue)
         {
             values["ToDate"] = ToDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        if (UpToNow)
+        {
+            values["UpToNow"] = "true";
         }
 
         if (ActivityTypeId.HasValue)

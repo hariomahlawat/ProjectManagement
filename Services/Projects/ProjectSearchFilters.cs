@@ -51,7 +51,14 @@ namespace ProjectManagement.Services.Projects
         DateOnly? StageCompletedMonth = null,
         string? SlipBucket = null,
         bool IncludeCategoryDescendants = false,
-        IReadOnlyCollection<int>? CategoryIds = null);
+        IReadOnlyCollection<int>? CategoryIds = null,
+        // Inclusive date windows. CompletedFrom/To: the project's completion date.
+        // StageCompletedFrom/To: any stage completed in the window, excluding backfilled
+        // (auto-completed) stages, as the Command desk counts them.
+        DateOnly? CompletedFrom = null,
+        DateOnly? CompletedTo = null,
+        DateOnly? StageCompletedFrom = null,
+        DateOnly? StageCompletedTo = null);
 
     public static class ProjectSearchQueryExtensions
     {
@@ -155,6 +162,30 @@ namespace ProjectManagement.Services.Projects
             {
                 var year = filters.CompletedYear.Value;
                 source = source.Where(p => p.CompletedYear.HasValue && p.CompletedYear == year);
+            }
+
+            if (filters.CompletedFrom.HasValue)
+            {
+                var completedFrom = filters.CompletedFrom.Value;
+                source = source.Where(p => p.CompletedOn.HasValue && p.CompletedOn.Value >= completedFrom);
+            }
+
+            if (filters.CompletedTo.HasValue)
+            {
+                var completedTo = filters.CompletedTo.Value;
+                source = source.Where(p => p.CompletedOn.HasValue && p.CompletedOn.Value <= completedTo);
+            }
+
+            if (filters.StageCompletedFrom.HasValue || filters.StageCompletedTo.HasValue)
+            {
+                var stageFrom = filters.StageCompletedFrom ?? DateOnly.MinValue;
+                var stageTo = filters.StageCompletedTo ?? DateOnly.MaxValue;
+                source = source.Where(p => p.ProjectStages.Any(s =>
+                    s.Status == StageStatus.Completed &&
+                    !s.IsAutoCompleted &&
+                    s.CompletedOn.HasValue &&
+                    s.CompletedOn.Value >= stageFrom &&
+                    s.CompletedOn.Value <= stageTo));
             }
 
             if (!filters.IncludeArchived)

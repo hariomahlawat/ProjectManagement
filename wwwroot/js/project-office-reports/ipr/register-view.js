@@ -41,6 +41,10 @@
     statuses: Array.isArray(initial.statuses) ? initial.statuses.slice() : [],
     year: initial.year || '',
     dateBasis: initial.dateBasis || 'Filed',
+    // Inclusive date window (yyyy-MM-dd) on the basis date, from a Command desk drill-down.
+    from: initial.from || '',
+    to: initial.to || '',
+    rangeLabel: initial.rangeLabel || '',
     linkage: initial.linkage || 'All',
     evidence: initial.evidence || 'All',
     pendingAge: initial.pendingAge || 'Any',
@@ -61,6 +65,9 @@
     project: row.dataset.project || '',
     filedYear: row.dataset.filedYear || '',
     grantedYear: row.dataset.grantedYear || '',
+    // yyyy-MM-dd in IST, so a date window compares as text.
+    filedOn: row.dataset.filedOn || '',
+    grantedOn: row.dataset.grantedOn || '',
     pendingDays: row.dataset.pendingDays === undefined || row.dataset.pendingDays === '' ? null : Number(row.dataset.pendingDays),
     // Title, filing number and project, one per line; matched separately like the server.
     searchFields: (row.dataset.search || '').split('\n').map(field => field.toLowerCase())
@@ -108,6 +115,13 @@
     if (filters.year) {
       const year = filters.dateBasis === 'Protected' ? fact.grantedYear : fact.filedYear;
       if (year !== filters.year) return false;
+    }
+    if (filters.from || filters.to) {
+      // Inclusive window on the basis date, like IprQueryFilter's FiledFrom/To and ProtectedFrom/To.
+      const on = filters.dateBasis === 'Protected' ? fact.grantedOn : fact.filedOn;
+      if (!on) return false;
+      if (filters.from && on < filters.from) return false;
+      if (filters.to && on > filters.to) return false;
     }
     if (filters.query) {
       // Same rule as IprQueryFilter: trimmed, lower-cased, contained in any single field.
@@ -204,6 +218,7 @@
   const empty = root.querySelector('[data-ipr-empty]');
   const projectChip = root.querySelector('[data-ipr-project-chip]');
   const ageChip = root.querySelector('[data-ipr-age-chip]');
+  const rangeChip = root.querySelector('[data-ipr-range-chip]');
 
   const setPressed = (button, on) => {
     button.classList.toggle('is-on', on);
@@ -216,7 +231,7 @@
   };
 
   const hasFilters = () => Boolean(
-    state.query || state.types.length || state.statuses.length || state.year ||
+    state.query || state.types.length || state.statuses.length || state.year || state.from || state.to ||
     state.linkage !== 'All' || state.evidence !== 'All' || state.projectId || state.pendingAge !== 'Any');
 
   const renderControls = visibleCount => {
@@ -268,6 +283,13 @@
       if (label) label.textContent = band ? band.label : '';
     }
 
+    if (rangeChip) {
+      const on = Boolean(state.from || state.to);
+      rangeChip.classList.toggle('d-none', !on);
+      const label = rangeChip.querySelector('[data-ipr-range-chip-label]');
+      if (label) label.textContent = on ? state.rangeLabel : '';
+    }
+
     if (resultCount) resultCount.textContent = `${visibleCount} ${visibleCount === 1 ? 'record' : 'records'}`;
     clearButtons.forEach(button => button.classList.toggle('d-none', !hasFilters()));
 
@@ -293,7 +315,9 @@
     state.types.forEach(type => params.append('types', type));
     state.statuses.forEach(status => params.append('statuses', status));
     if (state.year) params.set('year', state.year);
-    if (state.year && state.dateBasis === 'Protected') params.set('dateBasis', 'Protected');
+    if (state.from) params.set('from', state.from);
+    if (state.to) params.set('to', state.to);
+    if ((state.year || state.from || state.to) && state.dateBasis === 'Protected') params.set('dateBasis', 'Protected');
     if (state.projectId) params.set('projectId', state.projectId);
     else if (state.linkage !== 'All') params.set('linkage', state.linkage);
     if (state.evidence !== 'All') params.set('evidence', state.evidence);
@@ -371,6 +395,13 @@
 
   yearSelect?.addEventListener('change', () => {
     state.year = yearSelect.value;
+    if (!state.year && !state.from && !state.to) state.dateBasis = 'Filed';
+    render();
+  });
+
+  root.querySelector('[data-ipr-range-chip-clear]')?.addEventListener('click', () => {
+    state.from = '';
+    state.to = '';
     if (!state.year) state.dateBasis = 'Filed';
     render();
   });
@@ -391,7 +422,7 @@
   });
 
   clearButtons.forEach(button => button.addEventListener('click', () => {
-    Object.assign(state, { query: '', types: [], statuses: [], year: '', dateBasis: 'Filed', linkage: 'All', evidence: 'All', projectId: '', pendingAge: 'Any' });
+    Object.assign(state, { query: '', types: [], statuses: [], year: '', dateBasis: 'Filed', from: '', to: '', linkage: 'All', evidence: 'All', projectId: '', pendingAge: 'Any' });
     render();
     queryInput?.focus();
   }));

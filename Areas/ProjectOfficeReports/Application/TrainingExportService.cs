@@ -77,6 +77,7 @@ public sealed class TrainingExportService : ITrainingExportService
                 ProjectTechnicalCategoryId = request.ProjectTechnicalCategoryId,
                 From = request.From,
                 To = request.To,
+                DateBasis = request.DateBasis,
                 Search = normalizedSearch,
                 Category = request.Category
             };
@@ -351,7 +352,9 @@ public sealed record TrainingExportRequest(
     TrainingRosterScope RosterScope,
     string RequestedByUserId,
     string RequestedByDisplayName,
-    string ApplicationBaseUrl);
+    string ApplicationBaseUrl,
+    // How From/To apply; Reference matches a Command desk drill-down, Overlap the register's default.
+    TrainingDateBasis DateBasis = TrainingDateBasis.Overlap);
 
 public sealed record TrainingExportFile(string FileName, byte[] Content, string ContentType)
 {

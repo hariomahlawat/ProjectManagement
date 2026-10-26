@@ -23,12 +23,35 @@
 }
 
 <aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Workspace navigation">
+    @* Light behind the glass (an aurora of the prism hues) and the frost that blurs it. *@
+    <span class="cw-local-rail__aurora" aria-hidden="true"></span>
+    <span class="cw-local-rail__frost" aria-hidden="true"></span>
     <div class="cw-local-rail__identity">
-        <span class="cw-local-rail__mark" aria-hidden="true"><i class="bi bi-grid-1x2-fill"></i></span>
+        <span class="cw-local-rail__mark" aria-hidden="true">
+            @* The PRISM mark as a glyph: one beam in, the spectrum out. Rays are coloured in CSS. *@
+            <svg class="cw-prism" viewBox="0 0 32 32" fill="none" focusable="false">
+                <path class="cw-prism__beam" d="M3 17h9" stroke-width="1.6" stroke-linecap="round" />
+                <path class="cw-prism__glass" d="M16 5 26 25H6z" stroke-width="1" />
+                <path class="cw-prism__ray cw-prism__ray--1" d="M20 14 30 9" stroke-width="1.5" stroke-linecap="round" />
+                <path class="cw-prism__ray cw-prism__ray--2" d="M20.5 15.5 30 13" stroke-width="1.5" stroke-linecap="round" />
+                <path class="cw-prism__ray cw-prism__ray--3" d="M21 17h9" stroke-width="1.5" stroke-linecap="round" />
+                <path class="cw-prism__ray cw-prism__ray--4" d="M20.5 18.5 30 21" stroke-width="1.5" stroke-linecap="round" />
+                <path class="cw-prism__ray cw-prism__ray--5" d="M20 20 30 25" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+        </span>
         <div class="cw-local-rail__identity-copy">
             <small>PRISM ERP</small>
             <strong>My Workspace</strong>
-            <span class="cw-local-rail__access">@accessLabel</span>
+            <span class="cw-local-rail__access" title="@accessLabel">
+                @if (Model.HasProjectOfficerAccess)
+                {
+                    <span class="cw-local-rail__role cw-local-rail__role--po">PO</span>
+                }
+                @if (Model.HasCommandAccess)
+                {
+                    <span class="cw-local-rail__role cw-local-rail__role--command">Command</span>
+                }
+            </span>
         </div>
         <button type="button"
                 class="cw-local-rail__toggle"
@@ -43,7 +66,8 @@
 
     @if (Model.CanSwitchWorkspace)
     {
-        <div class="cw-workspace-lens" role="group" aria-label="Workspace lens">
+        <div class="cw-workspace-lens @(activeLens == "command" ? "is-command" : "is-personal")" role="group" aria-label="Workspace lens">
+            <span class="cw-workspace-lens__thumb" aria-hidden="true"></span>
             <a asp-page="/Workspace/Index"
                asp-route-mode="project-officer"
                asp-route-view="overview"
@@ -67,7 +91,7 @@
         @if (Model.HasProjectOfficerAccess)
         {
             <div class="cw-local-rail__group cw-local-rail__group--personal">
-                <span class="cw-local-rail__group-label"><i class="bi bi-person-lines-fill" aria-hidden="true"></i>My work</span>
+                <span class="cw-local-rail__group-label">My work</span>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="project-officer"
                    asp-route-view="overview"
@@ -102,7 +126,7 @@
         @if (Model.HasCommandAccess)
         {
             <div class="cw-local-rail__group cw-local-rail__group--command">
-                <span class="cw-local-rail__group-label"><i class="bi bi-shield-check" aria-hidden="true"></i>Command oversight</span>
+                <span class="cw-local-rail__group-label">Command oversight</span>
                 <a asp-page="/Workspace/CommandDesk"
                    class="@(Active("command-desk"))"
                    aria-current="@(Current("command-desk"))"
@@ -148,7 +172,7 @@
             </div>
 
             <div class="cw-local-rail__group cw-local-rail__group--system">
-                <span class="cw-local-rail__group-label"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i>System adoption</span>
+                <span class="cw-local-rail__group-label">System adoption</span>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="command"
                    asp-route-view="adoption"
@@ -169,7 +193,7 @@
         }
 
         <div class="cw-local-rail__group cw-local-rail__group--resources">
-            <span class="cw-local-rail__group-label"><i class="bi bi-folder2" aria-hidden="true"></i>My resources</span>
+            <span class="cw-local-rail__group-label">My resources</span>
             @if (Model.HasProjectOfficerAccess && Model.CanViewDocuments)
             {
                 <a asp-page="/Workspace/Index"

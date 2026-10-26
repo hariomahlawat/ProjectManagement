@@ -232,7 +232,8 @@ public class IndexModel : PageModel
             Export.RosterScope,
             userId,
             displayName,
-            applicationBaseUrl);
+            applicationBaseUrl,
+            Export.DateBasis ?? TrainingDateBasis.Overlap);
 
         var result = await _exportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
@@ -445,6 +446,7 @@ public class IndexModel : PageModel
             ProjectTechnicalCategoryId = filter.ProjectTechnicalCategoryId,
             From = filter.From,
             To = filter.To,
+            DateBasis = filter.DateBasis,
             Search = string.IsNullOrWhiteSpace(filter.Search) ? null : filter.Search.Trim()
         };
 
@@ -468,6 +470,7 @@ public class IndexModel : PageModel
     {
         Export.From ??= Filter.From;
         Export.To ??= Filter.To;
+        Export.DateBasis ??= Filter.DateBasis;
         Export.ProjectId ??= Filter.ProjectId;
         Export.ProjectTechnicalCategoryId ??= Filter.ProjectTechnicalCategoryId;
         Export.TypeId ??= Filter.TypeId;
@@ -493,6 +496,7 @@ public class IndexModel : PageModel
             ["Category"] = Filter.Category?.ToString(),
             ["From"] = Filter.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["To"] = Filter.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["DateBasis"] = Filter.DateBasis == TrainingDateBasis.Reference ? "Reference" : null,
             ["Search"] = string.IsNullOrWhiteSpace(Filter.Search) ? null : Filter.Search.Trim(),
             ["Sort"] = (sort ?? SortKey) == "newest" ? null : sort ?? SortKey,
             ["PageSize"] = (pageSize ?? PageSize) == DefaultPageSize ? null : (pageSize ?? PageSize).ToString(CultureInfo.InvariantCulture),
@@ -547,6 +551,12 @@ public class IndexModel : PageModel
         [Display(Name = "To")]
         public DateOnly? To { get; set; }
 
+        // How From/To apply: Overlap (the register's default) or Reference, the one date the
+        // Command desk counts a training on. Set by its people-trained drill-down.
+        public TrainingDateBasis DateBasis { get; set; } = TrainingDateBasis.Overlap;
+
+        public bool ByReferenceDate => DateBasis == TrainingDateBasis.Reference && (From.HasValue || To.HasValue);
+
         [Display(Name = "Search")]
         public string? Search { get; set; }
     }
@@ -572,6 +582,9 @@ public class IndexModel : PageModel
         [DataType(DataType.Date)]
         [Display(Name = "To")]
         public DateOnly? To { get; set; }
+
+        // Null until the export form posts or the register's basis is backfilled into it.
+        public TrainingDateBasis? DateBasis { get; set; }
 
         [Display(Name = "Project technical category")]
         public int? ProjectTechnicalCategoryId { get; set; }

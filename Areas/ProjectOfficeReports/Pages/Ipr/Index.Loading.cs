@@ -119,6 +119,27 @@ public sealed partial class IndexModel
             _ => string.Empty
         };
 
+    // "Filed 26 Sep – 25 Oct 2026" / "Granted from 01 Jan 2026"; the basis names the date used.
+    public string DateWindowLabel
+    {
+        get
+        {
+            var inv = CultureInfo.InvariantCulture;
+            var basis = DateBasis == IprDateBasis.Protected ? "Granted" : "Filed";
+            return (From, To) switch
+            {
+                ({ } f, { } t) when f.Year == t.Year => $"{basis} {f.ToString("dd MMM", inv)} – {t.ToString("dd MMM yyyy", inv)}",
+                ({ } f, { } t) => $"{basis} {f.ToString("dd MMM yyyy", inv)} – {t.ToString("dd MMM yyyy", inv)}",
+                ({ } f, null) => $"{basis} from {f.ToString("dd MMM yyyy", inv)}",
+                (null, { } t) => $"{basis} to {t.ToString("dd MMM yyyy", inv)}",
+                _ => string.Empty
+            };
+        }
+    }
+
+    public static string? DayValue(DateOnly? date)
+        => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
     private IReadOnlyList<ActiveFilterChip> BuildActiveFilterChips()
     {
         var chips = new List<ActiveFilterChip>();
@@ -154,6 +175,11 @@ public sealed partial class IndexModel
                 ? "Grant / registration year"
                 : "Filed year";
             chips.Add(new ActiveFilterChip("year", $"{basis}: {Year.Value.ToString(CultureInfo.InvariantCulture)}"));
+        }
+
+        if (HasDateWindow)
+        {
+            chips.Add(new ActiveFilterChip("range", DateWindowLabel));
         }
 
         if (Linkage != IprLinkageFilter.All)

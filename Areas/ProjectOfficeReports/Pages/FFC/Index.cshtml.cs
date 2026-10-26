@@ -55,6 +55,24 @@ public sealed class IndexModel : PageModel
     [FromQuery(Name = "installation")]
     public FfcFilterState InstallationStatus { get; set; } = FfcFilterState.Any;
 
+    // Inclusive date windows (yyyy-MM-dd) on delivery and installation dates; set by Command
+    // desk drill-downs. Shown as removable chips, not as form fields.
+    [FromQuery(Name = "deliveredFrom")]
+    public DateOnly? DeliveredFrom { get; set; }
+
+    [FromQuery(Name = "deliveredTo")]
+    public DateOnly? DeliveredTo { get; set; }
+
+    [FromQuery(Name = "installedFrom")]
+    public DateOnly? InstalledFrom { get; set; }
+
+    [FromQuery(Name = "installedTo")]
+    public DateOnly? InstalledTo { get; set; }
+
+    public bool HasDeliveredWindow => DeliveredFrom.HasValue || DeliveredTo.HasValue;
+
+    public bool HasInstalledWindow => InstalledFrom.HasValue || InstalledTo.HasValue;
+
     public bool CanManageRecords { get; private set; }
 
     public FfcPortfolioPageResult Portfolio { get; private set; } = new(
@@ -99,7 +117,9 @@ public sealed class IndexModel : PageModel
         IpaStatus != FfcFilterState.Any ||
         GslStatus != FfcFilterState.Any ||
         DeliveryStatus != FfcFilterState.Any ||
-        InstallationStatus != FfcFilterState.Any;
+        InstallationStatus != FfcFilterState.Any ||
+        HasDeliveredWindow ||
+        HasInstalledWindow;
 
     public bool HasActiveFilters =>
         HasQuery ||
@@ -160,7 +180,44 @@ public sealed class IndexModel : PageModel
         AddFilterRouteValue(values, "delivery", DeliveryStatus, remove);
         AddFilterRouteValue(values, "installation", InstallationStatus, remove);
 
+        if (!IsRemoved(remove, "delivered"))
+        {
+            AddDateRouteValue(values, "deliveredFrom", DeliveredFrom);
+            AddDateRouteValue(values, "deliveredTo", DeliveredTo);
+        }
+
+        if (!IsRemoved(remove, "installed"))
+        {
+            AddDateRouteValue(values, "installedFrom", InstalledFrom);
+            AddDateRouteValue(values, "installedTo", InstalledTo);
+        }
+
         return values;
+    }
+
+    public static string? DayValue(DateOnly? date)
+        => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    // "26 Sep – 25 Oct 2026" for a chip; one side alone reads "from"/"to".
+    public static string DescribeWindow(DateOnly? from, DateOnly? to)
+    {
+        static string Day(DateOnly d) => d.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        return (from, to) switch
+        {
+            ({ } f, { } t) when f.Year == t.Year => $"{f.ToString("dd MMM", CultureInfo.InvariantCulture)} – {Day(t)}",
+            ({ } f, { } t) => $"{Day(f)} – {Day(t)}",
+            ({ } f, null) => $"from {Day(f)}",
+            (null, { } t) => $"to {Day(t)}",
+            _ => string.Empty
+        };
+    }
+
+    private static void AddDateRouteValue(Dictionary<string, string?> values, string key, DateOnly? date)
+    {
+        if (date.HasValue)
+        {
+            values[key] = DayValue(date);
+        }
     }
 
     public string GetFilterLabel(FfcFilterState state, bool allowsPartial)
@@ -177,7 +234,11 @@ public sealed class IndexModel : PageModel
             IpaStatus: IpaStatus,
             GslStatus: GslStatus,
             DeliveryStatus: DeliveryStatus,
-            InstallationStatus: InstallationStatus);
+            InstallationStatus: InstallationStatus,
+            DeliveredFrom: DeliveredFrom,
+            DeliveredTo: DeliveredTo,
+            InstalledFrom: InstalledFrom,
+            InstalledTo: InstalledTo);
 
     private async Task LoadFilterOptionsAsync(CancellationToken cancellationToken)
     {

@@ -165,6 +165,9 @@ public static class CommandDeskBuilder
         int windowDays)
     {
         var inWindow = progress.Where(item => InWindow(item.On, today, windowDays)).ToList();
+        // Each count opens its register filtered to the same window, so the number on the chip
+        // is the number of rows that open (see CommandDeskRoutes).
+        var from = WindowStart(today, windowDays);
         var counts = new List<CommandDeskCountVm>();
         void Add(CommandDeskProgressKind kind, string singular, string plural, string? url)
         {
@@ -175,17 +178,17 @@ public static class CommandDeskBuilder
             }
         }
 
-        Add(CommandDeskProgressKind.StageCompleted, "stage completed", "stages completed", null);
-        Add(CommandDeskProgressKind.ProjectCompleted, "project completed", "projects completed", "/Projects?Lifecycle=Completed");
-        Add(CommandDeskProgressKind.TotCompleted, "ToT completed", "ToTs completed", CommandDeskRoutes.Tot);
-        Add(CommandDeskProgressKind.IprFiled, "IPR filed", "IPRs filed", CommandDeskRoutes.Ipr);
-        Add(CommandDeskProgressKind.IprGranted, "IPR granted", "IPRs granted", CommandDeskRoutes.Ipr);
-        Add(CommandDeskProgressKind.UnitsProliferated, "unit proliferated", "units proliferated", CommandDeskRoutes.Proliferation);
-        Add(CommandDeskProgressKind.FfcDelivered, "FFC delivery", "FFC deliveries", CommandDeskRoutes.Ffc);
-        Add(CommandDeskProgressKind.FfcInstalled, "FFC installation", "FFC installations", CommandDeskRoutes.Ffc);
-        Add(CommandDeskProgressKind.Visit, "visit", "visits", CommandDeskRoutes.Visits);
-        Add(CommandDeskProgressKind.PeopleTrained, "person trained", "people trained", CommandDeskRoutes.Training);
-        Add(CommandDeskProgressKind.Activity, "activity", "activities", CommandDeskRoutes.Activities);
+        Add(CommandDeskProgressKind.StageCompleted, "stage completed", "stages completed", CommandDeskRoutes.StagesCompleted(from, today));
+        Add(CommandDeskProgressKind.ProjectCompleted, "project completed", "projects completed", CommandDeskRoutes.ProjectsCompleted(from, today));
+        Add(CommandDeskProgressKind.TotCompleted, "ToT completed", "ToTs completed", CommandDeskRoutes.TotCompleted(from, today));
+        Add(CommandDeskProgressKind.IprFiled, "IPR filed", "IPRs filed", CommandDeskRoutes.IprFiled(from, today));
+        Add(CommandDeskProgressKind.IprGranted, "IPR granted", "IPRs granted", CommandDeskRoutes.IprGranted(from, today));
+        Add(CommandDeskProgressKind.UnitsProliferated, "unit proliferated", "units proliferated", CommandDeskRoutes.ProliferationIn(from, today));
+        Add(CommandDeskProgressKind.FfcDelivered, "FFC delivery", "FFC deliveries", CommandDeskRoutes.FfcDelivered(from, today));
+        Add(CommandDeskProgressKind.FfcInstalled, "FFC installation", "FFC installations", CommandDeskRoutes.FfcInstalled(from, today));
+        Add(CommandDeskProgressKind.Visit, "visit", "visits", CommandDeskRoutes.VisitsBetween(from, today));
+        Add(CommandDeskProgressKind.PeopleTrained, "person trained", "people trained", CommandDeskRoutes.TrainingBetween(from, today));
+        Add(CommandDeskProgressKind.Activity, "activity", "activities", CommandDeskRoutes.ActivitiesBetween(from, today));
         return counts;
     }
 
@@ -208,6 +211,10 @@ public static class CommandDeskBuilder
     // Events dated in the future do not count as progress yet.
     private static bool InWindow(DateOnly on, DateOnly today, int windowDays)
         => on <= today && on > today.AddDays(-windowDays);
+
+    // The first day of the window: today and the (windowDays - 1) days before it.
+    public static DateOnly WindowStart(DateOnly today, int windowDays)
+        => today.AddDays(-(windowDays - 1));
 
     // SECTION: PDC watch
     private static IReadOnlyList<CommandDeskPdcVm> BuildPdcWatch(IReadOnlyList<CommandDeskProjectInput> projects, DateOnly today)
@@ -423,6 +430,48 @@ internal static class CommandDeskRoutes
     public const string Ffc = "/ProjectOfficeReports/FFC";
 
     public static string Task(int taskId) => $"/ActionTasks/Details/{taskId}";
+
+    // What moved forward: each count opens its register filtered to the desk's window, with
+    // the register's own query names, so the count on the chip is the count that opens.
+    public static string StagesCompleted(DateOnly from, DateOnly to)
+        => $"/Projects?StageCompletedFrom={Day(from)}&StageCompletedTo={Day(to)}";
+
+    public static string ProjectsCompleted(DateOnly from, DateOnly to)
+        => $"/Projects?Lifecycle=Completed&CompletedFrom={Day(from)}&CompletedTo={Day(to)}";
+
+    public static string TotCompleted(DateOnly from, DateOnly to)
+        => $"{Tot}?TotStatusFilter=Completed&CompletedFrom={Day(from)}&CompletedTo={Day(to)}";
+
+    public static string IprFiled(DateOnly from, DateOnly to)
+        => $"{Ipr}?from={Day(from)}&to={Day(to)}";
+
+    public static string IprGranted(DateOnly from, DateOnly to)
+        => $"{Ipr}?statuses=Granted&dateBasis=Protected&from={Day(from)}&to={Day(to)}";
+
+    // The Proliferation register is a per-year calculation, so the closest it offers is the
+    // year the window ends in.
+    public static string ProliferationIn(DateOnly from, DateOnly to)
+        => $"{Proliferation}?year={to.Year}";
+
+    public static string FfcDelivered(DateOnly from, DateOnly to)
+        => $"{Ffc}?deliveredFrom={Day(from)}&deliveredTo={Day(to)}";
+
+    public static string FfcInstalled(DateOnly from, DateOnly to)
+        => $"{Ffc}?installedFrom={Day(from)}&installedTo={Day(to)}";
+
+    public static string VisitsBetween(DateOnly from, DateOnly to)
+        => $"{Visits}?From={Day(from)}&To={Day(to)}";
+
+    // By reference date (start, else end, else the first of the recorded month), the date the
+    // desk counts a training on; the register's default would be any training overlapping the window.
+    public static string TrainingBetween(DateOnly from, DateOnly to)
+        => $"{Training}?From={Day(from)}&To={Day(to)}&DateBasis=Reference";
+
+    // UpToNow leaves out an activity scheduled later today, as the desk does.
+    public static string ActivitiesBetween(DateOnly from, DateOnly to)
+        => $"{Activities}?FromDate={Day(from)}&ToDate={Day(to)}&UpToNow=true";
+
+    private static string Day(DateOnly date) => date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     public static string Conference(string officerUserId) => $"/Workspace/Conference/{Uri.EscapeDataString(officerUserId)}";
 

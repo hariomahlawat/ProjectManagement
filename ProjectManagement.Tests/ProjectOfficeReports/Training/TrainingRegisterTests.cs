@@ -156,6 +156,65 @@ public sealed class TrainingRegisterTests
         Assert.Equal(expected, results.Count == 1);
     }
 
+    // The Command desk's people-trained drill-down places each training on its reference date
+    // (start, else end, else the first of its month), as the desk counts it. The register's own
+    // From/To lists any training that overlaps the window.
+    [Fact]
+    public async Task DateWindow_ByReferenceDate_MatchesTheDeskCount_WhileOverlapStaysWider()
+    {
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<ProjectManagement.Data.ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ProjectManagement.Data.ApplicationDbContext(options);
+
+        var type = new TrainingType { Id = Guid.NewGuid(), Name = "Simulator", DisplayOrder = 1, IsActive = true, CreatedByUserId = "seed", CreatedAtUtc = DateTimeOffset.UtcNow };
+        ProjectManagement.Areas.ProjectOfficeReports.Domain.Training Training(string notes, DateOnly? start, DateOnly? end, int? year = null, int? month = null) => new()
+        {
+            Id = Guid.NewGuid(),
+            TrainingTypeId = type.Id,
+            TrainingType = type,
+            StartDate = start,
+            EndDate = end,
+            TrainingYear = year,
+            TrainingMonth = month,
+            Notes = notes,
+            CreatedByUserId = "seed",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        db.TrainingTypes.Add(type);
+        db.Trainings.AddRange(
+            Training("straddles the start", new DateOnly(2026, 9, 20), new DateOnly(2026, 9, 28)), // starts before the window, ends inside
+            Training("inside", new DateOnly(2026, 10, 2), new DateOnly(2026, 10, 4)),
+            Training("month only, window starts mid-month", null, null, 2026, 9), // reference date 1 Sep, outside
+            Training("month only, inside", null, null, 2026, 10)); // reference date 1 Oct
+        await db.SaveChangesAsync();
+
+        var service = new TrainingTrackerReadService(db);
+        var from = new DateOnly(2026, 9, 26);
+        var to = new DateOnly(2026, 10, 25);
+
+        var overlap = await service.SearchAsync(new TrainingTrackerQuery { From = from, To = to }, default);
+        var reference = await service.SearchAsync(new TrainingTrackerQuery { From = from, To = to, DateBasis = TrainingDateBasis.Reference }, default);
+
+        Assert.Equal(4, overlap.Count);
+        Assert.Equal(new[] { "inside", "month only, inside" }, reference.Select(item => item.Notes).OrderBy(x => x).ToArray());
+    }
+
+    [Fact]
+    public void RouteWith_CarriesTheReferenceDateBasis_AndDropsTheDefault()
+    {
+        var page = (IndexModel)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(IndexModel));
+        page.Filter = new IndexModel.FilterInput { From = new DateOnly(2026, 9, 26), DateBasis = TrainingDateBasis.Reference };
+        page.PageSize = IndexModel.DefaultPageSize;
+
+        Assert.Equal("Reference", page.RouteWith()["DateBasis"]);
+        Assert.False(page.RouteWith(removeKey: "DateBasis").ContainsKey("DateBasis"));
+
+        page.Filter.DateBasis = TrainingDateBasis.Overlap;
+        Assert.False(page.RouteWith().ContainsKey("DateBasis"));
+    }
+
     [Fact]
     public void Records_RedirectsToTheRegister_KeepingFiltersAndPage()
     {

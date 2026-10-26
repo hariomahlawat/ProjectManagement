@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
@@ -70,6 +71,13 @@ public sealed class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)]
     public bool MetCompletedOnly { get; set; }
+
+    // Inclusive window on the ToT completion date (yyyy-MM-dd); set by Command desk drill-downs.
+    [BindProperty(SupportsGet = true)]
+    public DateOnly? CompletedFrom { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateOnly? CompletedTo { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public int? SelectedProjectId { get; set; }
@@ -264,12 +272,18 @@ public sealed class IndexModel : PageModel
         List
     }
 
+    // Redirects carry the completion window as yyyy-MM-dd, not the server culture's short date.
+    private static string? DayValue(DateOnly? date)
+        => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await PopulateAsync(cancellationToken);
         Export = new ExportRequestInput
         {
-            TotStatus = TotStatusFilter
+            TotStatus = TotStatusFilter,
+            CompletedFrom = CompletedFrom,
+            CompletedTo = CompletedTo
         };
     }
 
@@ -416,6 +430,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
+            CompletedFrom = DayValue(CompletedFrom),
+            CompletedTo = DayValue(CompletedTo),
             SelectedProjectId = SubmitInput.ProjectId,
             ViewMode
         });
@@ -615,6 +631,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
+            CompletedFrom = DayValue(CompletedFrom),
+            CompletedTo = DayValue(CompletedTo),
             SelectedProjectId = DecideInput.ProjectId,
             ViewMode
         });
@@ -634,6 +652,8 @@ public sealed class IndexModel : PageModel
             OnlyPendingRequests = OnlyPending,
             RequiresTotOnly = RequiresTotOnly,
             MetCompletedOnly = MetCompletedOnly,
+            CompletedFrom = CompletedFrom,
+            CompletedTo = CompletedTo,
             SearchTerm = SearchTerm
         };
 
@@ -728,6 +748,8 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             RequiresTotOnly,
             MetCompletedOnly,
+            CompletedFrom = DayValue(CompletedFrom),
+            CompletedTo = DayValue(CompletedTo),
             SelectedProjectId = projectId ?? SelectedProjectId,
             ViewMode
         });

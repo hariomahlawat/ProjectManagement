@@ -17,13 +17,21 @@
 {
     <input type="hidden" name="ProjectId" value="@Model.ProjectId.Value" />
 }
-@if (Model.DateBasis != IprDateBasis.Filed || Model.Year.HasValue)
+@if (Model.DateBasis != IprDateBasis.Filed || Model.Year.HasValue || Model.HasDateWindow)
 {
     <input type="hidden" name="DateBasis" value="@Model.DateBasis" />
 }
 @if (Model.Year.HasValue)
 {
     <input type="hidden" name="Year" value="@Model.Year.Value" />
+}
+@if (Model.From.HasValue)
+{
+    <input type="hidden" name="From" value="@ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel.DayValue(Model.From)" />
+}
+@if (Model.To.HasValue)
+{
+    <input type="hidden" name="To" value="@ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel.DayValue(Model.To)" />
 }
 @if (Model.Linkage != IprLinkageFilter.All)
 {

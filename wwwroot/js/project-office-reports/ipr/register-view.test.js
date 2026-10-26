@@ -36,7 +36,8 @@ function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?
     return `<tr data-ipr-row data-id="${row.id}" data-type="${row.type}" data-status="${row.status}"
         data-counted="${row.counted}" data-closed="${row.closed}" data-files="${row.files}"
         data-project-id="${row.projectId}" data-project="${row.project}" data-filed-year="${row.filed}"
-        data-granted-year="${row.granted}" data-pending-days="${row.days ?? ''}" data-search="${record.Title}&#10;${record.ApplicationNumber}&#10;${row.project}">
+        data-granted-year="${row.granted}" data-filed-on="${(record.FiledOn || '').slice(0, 10)}" data-granted-on="${(record.GrantedOn || '').slice(0, 10)}"
+        data-pending-days="${row.days ?? ''}" data-search="${record.Title}&#10;${record.ApplicationNumber}&#10;${row.project}">
         <td><button type="button" data-ipr-open="${row.id}">${record.Title}</button></td></tr>`;
   }).join('');
   const stateJson = JSON.stringify(Object.assign({ query: '', types: [], statuses: [], year: '', dateBasis: 'Filed', linkage: 'All', evidence: 'All', projectId: '', group: '', selectedRecordId: '' }, state))
@@ -62,6 +63,7 @@ function createDom(state = {}, url = 'http://localhost/ProjectOfficeReports/Ipr?
       <select data-ipr-group><option value=""></option><option value="project">Project</option><option value="status">Status</option><option value="year">Year</option></select>
       <span data-ipr-age-chip class="d-none"><span data-ipr-age-chip-label></span><button data-ipr-age-chip-clear></button></span>
       <span data-ipr-project-chip class="d-none"><span data-ipr-project-chip-label></span><button data-ipr-project-chip-clear></button></span>
+      <span data-ipr-range-chip class="d-none"><span data-ipr-range-chip-label></span><button data-ipr-range-chip-clear></button></span>
       <span data-ipr-result-count></span>
       <button data-ipr-clear class="d-none"></button>
       <table><tbody data-ipr-rows>${rows}</tbody></table>
@@ -162,6 +164,42 @@ test('category, flags and year combine and map to linkage and evidence parameter
   assert.equal(url.searchParams.get('linkage'), 'Unassigned');
   assert.deepEqual(url.searchParams.getAll('types'), ['Patent']);
   assert.deepEqual(visibleIds(dom), [4]);
+});
+
+// A Command desk drill-down arrives with an inclusive date window on the basis date. The script
+// applies it to the rows, shows it as a chip and keeps from/to and the basis in every URL it writes.
+test('a date window narrows the rows by filed date, shows as a chip and stays in the URL', () => {
+  const dom = createDom(
+    { from: '2026-01-01', to: '2026-04-02', rangeLabel: 'Filed 01 Jan – 02 Apr 2026' },
+    'http://localhost/ProjectOfficeReports/Ipr?tab=records&from=2026-01-01&to=2026-04-02');
+  const doc = dom.window.document;
+  assert.deepEqual(visibleIds(dom), [4]); // filed on the last day of the window
+  const chip = doc.querySelector('[data-ipr-range-chip]');
+  assert.equal(chip.classList.contains('d-none'), false);
+  assert.equal(chip.querySelector('[data-ipr-range-chip-label]').textContent, 'Filed 01 Jan – 02 Apr 2026');
+  assert.equal(doc.querySelector('[data-ipr-clear]').classList.contains('d-none'), false);
+
+  doc.querySelector('[data-ipr-filter-type="Patent"]').click();
+  const url = new URL(dom.window.location.href);
+  assert.equal(url.searchParams.get('from'), '2026-01-01');
+  assert.equal(url.searchParams.get('to'), '2026-04-02');
+  assert.equal(url.searchParams.has('dateBasis'), false);
+
+  // Removing the chip restores the full register in place.
+  doc.querySelector('[data-ipr-range-chip-clear]').click();
+  assert.deepEqual(visibleIds(dom), [1, 4]);
+  assert.equal(new URL(dom.window.location.href).searchParams.has('from'), false);
+});
+
+test('a granted window uses the grant date and keeps the Protected basis', () => {
+  const dom = createDom(
+    { from: '2023-08-01', to: '2023-08-31', dateBasis: 'Protected', statuses: ['Granted'], rangeLabel: 'Granted 01 Aug – 31 Aug 2023' },
+    'http://localhost/ProjectOfficeReports/Ipr?tab=records&statuses=Granted&dateBasis=Protected&from=2023-08-01&to=2023-08-31');
+  assert.deepEqual(visibleIds(dom), [2]);
+  dom.window.document.querySelector('[data-ipr-filter-type="Copyright"]').click();
+  const url = new URL(dom.window.location.href);
+  assert.equal(url.searchParams.get('dateBasis'), 'Protected');
+  assert.equal(url.searchParams.get('from'), '2023-08-01');
 });
 
 test('search matches title, filing number and project', async () => {

@@ -80,6 +80,25 @@ pages, and never as a barber pole:
   the other command views (`wwwroot/css/command-workspace.css`) and Conference review
   (`wwwroot/css/officer-conference.css`).
 
+## My Workspace rail
+
+The rail (`Pages/Workspace/_CommandWorkspaceRail.cshtml`, "Workspace rail" section of
+`wwwroot/css/command-workspace.css`) is one sheet of glass in the public pages' style: the frost,
+gleam, directional rim and lens of `landing.css`, scoped here as `--cw-glass-*` tokens because
+`landing.css` is not loaded in the app. An aurora of the prism hues drifts behind the identity
+block for the frost to catch (`.cw-local-rail__aurora`; it stops under Reduce Motion, and Reduce
+Transparency makes the rail solid). Only the rail blurs; its items are tinted solids.
+
+- Identity: the PRISM mark as a glyph (one beam in, five rays out, coloured from the hue tokens)
+  on a frosted tile, then the role chips PO and Command. The one-line role label used to truncate.
+- Lens switch: a frosted pill whose lit pane slides to Personal or Command.
+- One hue per group, from `--cw-hue-*`: My work blue, Command oversight violet, System adoption
+  cyan, My resources amber. The group label carries a hued dot; the active item has a tinted fill,
+  a glowing left rule, its icon on a hued tile and its count badge in the hue. Collapsed, the hues
+  stay on the icons and the rule.
+- Light and Dark both come from the token blocks at the top of the file (lifted hues and smoked
+  glass in Dark); the rail has no separate dark rules.
+
 ## My Workspace page headers
 
 Every command view opens with the same header: a small "Command oversight" / "Project monitoring"

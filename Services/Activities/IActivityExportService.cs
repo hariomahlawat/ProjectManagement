@@ -21,4 +21,6 @@ public sealed record ActivityExportRequest(
     string? CreatedByUserId = null,
     ActivityAttachmentTypeFilter AttachmentType = ActivityAttachmentTypeFilter.Any,
     string? Search = null,
-    ActivityMediaFilter MediaFilter = ActivityMediaFilter.Any);
+    ActivityMediaFilter MediaFilter = ActivityMediaFilter.Any,
+    // Same cutoff as ActivityListRequest.OccurredByUtc, so an export matches the register.
+    DateTimeOffset? OccurredByUtc = null);

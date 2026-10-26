@@ -1,6 +1,7 @@
 @page
 @using System.Globalization
 @using ProjectManagement.Areas.ProjectOfficeReports.Pages.Training
+@using ProjectManagement.Areas.ProjectOfficeReports.Application
 @using TrainingIndex = ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel
 @{
@@ -286,6 +287,10 @@ else
         </div>
 
         <form method="get" class="training-filter" role="search" aria-label="Filter trainings">
+            @if (Model.Filter.DateBasis == TrainingDateBasis.Reference)
+            {
+                <input type="hidden" name="DateBasis" value="Reference" />
+            }
             <div class="training-filter__bar">
                 <div class="training-filter__search">
                     <i class="bi bi-search" aria-hidden="true"></i>
@@ -383,6 +388,12 @@ else
                 {
                     <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "Category")' aria-label="Remove filter: attended by @categoryLabel">
                         <span>Attended by @categoryLabel</span><i class="bi bi-x" aria-hidden="true"></i>
+                    </a>
+                }
+                @if (Model.Filter.ByReferenceDate)
+                {
+                    <a class="training-chip" asp-page="./Index" asp-all-route-data='Model.RouteWith(removeKey: "DateBasis")' aria-label="Remove filter: by reference date" title="Counting each training on its start date, else end date, else the first of its month, as the Command desk does">
+                        <span>By reference date</span><i class="bi bi-x" aria-hidden="true"></i>
                     </a>
                 }
                 @if (Model.Filter.From is { } fromDate)
@@ -676,6 +687,8 @@ else
                             </div>
 
                             <div class="col-md-3">
+                                @* The register's date basis (Reference from a Command desk drill-down) applies to the export too. *@
+                                <input type="hidden" asp-for="Export.DateBasis" />
                                 <label asp-for="Export.From" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <input asp-for="Export.From" class="form-control" />
                                 <span asp-validation-for="Export.From" class="text-danger small"></span>

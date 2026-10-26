@@ -220,6 +220,12 @@ namespace ProjectManagement.Infrastructure.Activities
                 query = query.Where(x => (x.ScheduledStartUtc ?? x.CreatedAtUtc) < toExclusive);
             }
 
+            if (request.OccurredByUtc.HasValue)
+            {
+                var occurredBy = request.OccurredByUtc.Value;
+                query = query.Where(x => (x.ScheduledStartUtc ?? x.CreatedAtUtc) <= occurredBy);
+            }
+
             return request.AttachmentType switch
             {
                 ActivityAttachmentTypeFilter.Pdf => query.Where(x => x.Attachments.AsQueryable().Any(ActivityAttachmentClassifier.IsPdfExpression)),

@@ -24,6 +24,9 @@
     <input type="hidden" asp-for="OnlyPending" />
     <input type="hidden" asp-for="RequiresTotOnly" />
     <input type="hidden" asp-for="MetCompletedOnly" />
+    @* Keep a Command desk completion window through the save and its redirect. *@
+    <input type="hidden" name="CompletedFrom" value="@Model.CompletedFrom?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+    <input type="hidden" name="CompletedTo" value="@Model.CompletedTo?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
     <input type="hidden" asp-for="ViewMode" />
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     @{

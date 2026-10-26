@@ -6,6 +6,10 @@
 
     <form method="get" class="ffc-portfolio-filters__form" data-ffc-filter-form>
         <input type="hidden" name="page" value="1" />
+        @if (Model.DeliveredFrom.HasValue) { <input type="hidden" name="deliveredFrom" value="@ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel.DayValue(Model.DeliveredFrom)" /> }
+        @if (Model.DeliveredTo.HasValue) { <input type="hidden" name="deliveredTo" value="@ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel.DayValue(Model.DeliveredTo)" /> }
+        @if (Model.InstalledFrom.HasValue) { <input type="hidden" name="installedFrom" value="@ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel.DayValue(Model.InstalledFrom)" /> }
+        @if (Model.InstalledTo.HasValue) { <input type="hidden" name="installedTo" value="@ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel.DayValue(Model.InstalledTo)" /> }
 
         <div class="ffc-portfolio-filters__primary">
             <div class="ffc-filter-search">
@@ -227,6 +231,28 @@
                    class="ffc-filter-chip"
                    title="Remove installation filter">
                     <span>Installation: <strong>@Model.GetFilterLabel(Model.InstallationStatus, true)</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            @if (Model.HasDeliveredWindow)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "delivered")'
+                   class="ffc-filter-chip"
+                   title="Remove delivery date filter">
+                    <span>Delivered: <strong>@ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel.DescribeWindow(Model.DeliveredFrom, Model.DeliveredTo)</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            @if (Model.HasInstalledWindow)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "installed")'
+                   class="ffc-filter-chip"
+                   title="Remove installation date filter">
+                    <span>Installed: <strong>@ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel.DescribeWindow(Model.InstalledFrom, Model.InstalledTo)</strong></span>
                     <span class="bi bi-x" aria-hidden="true"></span>
                 </a>
             }
