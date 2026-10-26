@@ -3075,3 +3075,17 @@
 :where([data-bs-theme="dark"]) .pf-project-summary {
     box-shadow: 0 8px 20px -22px rgba(0, 0, 0, 0.6);
 }
+
+/* Legend chips for the Summary charts (rendered by pm-chart-defaults.js renderLegend);
+   the same look as Analytics, built on the global --pm-* tokens. */
+.pf-chart-legend { padding: .75rem 1rem 0; }
+.pm-chart-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.pm-chart-legend:empty { display: none; }
+.pm-chart-legend__chip { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 3px 10px 3px 8px; border: 1px solid var(--pm-border); border-radius: 999px; background: var(--pm-card); color: var(--pm-text-secondary); font-size: .75rem; font-weight: 700; line-height: 1; cursor: pointer; }
+.pm-chart-legend__chip:hover:not(:disabled) { background: var(--pm-surface-subtle); color: var(--pm-text-strong); }
+.pm-chart-legend__chip:focus-visible { outline: none; box-shadow: var(--pm-focus-ring); }
+.pm-chart-legend__chip:disabled { cursor: default; }
+.pm-chart-legend__chip[aria-pressed="false"] { opacity: .45; }
+.pm-chart-legend__chip[aria-pressed="false"] span { text-decoration: line-through; }
+.pm-chart-legend__chip b { color: var(--pm-text-strong); font-weight: 800; }
+.pm-chart-legend__swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--pm-legend-color, var(--pm-chart-primary)); }

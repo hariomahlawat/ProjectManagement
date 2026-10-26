@@ -414,6 +414,7 @@
         <div class="pf-analytics-panel" data-analytics-panel="trend">
             <div class="row g-0">
                 <div class="col-12 col-xl-8 pf-analytics-chart-column">
+                    <div class="pm-chart-legend pf-chart-legend" data-legend="proliferation-yearly-chart"></div>
                     <div id="proliferation-yearly-chart"
                          class="pf-chart-host"
                          data-yearly='@JsonSerializer.Serialize(years, jsonOptions)'>
@@ -464,7 +465,12 @@
 
 </div>
 
-<link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
-<script src="~/lib/chartjs/chart.umd.js" asp-append-version="true" defer></script>
-<script src="~/js/components/proliferation-project-picker.js" asp-append-version="true" defer></script>
-<script src="~/js/pages/project-office-reports/proliferation-summary-charts.js" asp-append-version="true" defer></script>
+@section Styles {
+    <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.js" asp-append-version="true" defer></script>
+    <script src="~/js/components/proliferation-project-picker.js" asp-append-version="true" defer></script>
+    <script type="module" src="~/js/pages/project-office-reports/proliferation-summary-charts.js" asp-append-version="true"></script>
+}
