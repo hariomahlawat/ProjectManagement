@@ -56,10 +56,13 @@ public sealed record ProjectRegisterActiveFacts(
         var currentIndex = Math.Max(0, stages.ToList().FindIndex(stage => stage.IsCurrent));
         var current = stages.Count > 0 ? stages[currentIndex] : null;
 
+        // When every stage is completed or skipped, the ongoing row anchors on the last stage
+        // (the project itself is not yet closed): that stage is finished, not waiting.
         var state = current?.Status switch
         {
             StageStatus.InProgress => ProjectRegisterStageState.InProgress,
             StageStatus.Blocked => ProjectRegisterStageState.Blocked,
+            StageStatus.Completed or StageStatus.Skipped => ProjectRegisterStageState.Finished,
             _ => ProjectRegisterStageState.NotStarted
         };
 
@@ -102,7 +105,8 @@ public sealed record ProjectRegisterActiveFacts(
 
     private static ProjectRegisterStageMarkState MarkOf(StageStatus status, int index, int currentIndex)
     {
-        if (index == currentIndex)
+        // A completed or skipped stage keeps its state even when it is the current anchor.
+        if (index == currentIndex && status is not (StageStatus.Completed or StageStatus.Skipped))
         {
             return status switch
             {
@@ -134,12 +138,16 @@ public enum ProjectRegisterStageMarkState
     Waiting
 }
 
-/// <summary>The current stage: under way, blocked, or not yet started (waiting on its start).</summary>
+/// <summary>
+/// The current stage: under way, blocked, not yet started (waiting on its start), or finished
+/// (every stage completed or skipped while the project is still open).
+/// </summary>
 public enum ProjectRegisterStageState
 {
     InProgress,
     Blocked,
-    NotStarted
+    NotStarted,
+    Finished
 }
 
 public enum ProjectRegisterPlanStatus

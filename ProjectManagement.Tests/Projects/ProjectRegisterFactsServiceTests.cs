@@ -129,6 +129,29 @@ public sealed class ProjectRegisterFactsServiceTests
     }
 
     [Fact]
+    public async Task EveryStageDoneButProjectOpen_KeepsTerminalMarksAndIsFinished()
+    {
+        await using var db = NewDb();
+        AddProject(db, 12);
+        var codes = ProcurementWorkflow.StageCodesFor(null);
+        foreach (var code in codes.Take(codes.Length - 1))
+        {
+            AddStage(db, 12, code, StageStatus.Completed, completed: new DateOnly(2026, 10, 1));
+        }
+
+        AddStage(db, 12, codes[^1], StageStatus.Skipped);
+        await db.SaveChangesAsync();
+
+        var facts = (await CreateService(db).GetActiveFactsAsync(CancellationToken.None))[12];
+
+        Assert.Equal(codes.Length - 1, facts.CurrentStageIndex);
+        Assert.Equal(ProjectRegisterStageState.Finished, facts.CurrentStageState);
+        Assert.Equal(ProjectRegisterStageMarkState.Skipped, facts.Stages[^1].State);
+        Assert.All(facts.Stages.Take(codes.Length - 1), stage => Assert.Equal(ProjectRegisterStageMarkState.Done, stage.State));
+        Assert.DoesNotContain(facts.Stages, stage => stage.State == ProjectRegisterStageMarkState.Waiting);
+    }
+
+    [Fact]
     public async Task LastUpdate_IsTheLatestRemarkOrContentEditElseCreation()
     {
         await using var db = NewDb();

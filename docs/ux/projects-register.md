@@ -84,7 +84,7 @@ last update; archived active projects have no facts and show without timing.
 | Fact | Source |
 | --- | --- |
 | `Stages` (tracker) | The workflow's stages in order, each Done, Skipped, Current, Blocked, Waiting (current but not started) or Upcoming |
-| Current stage and `CurrentStageState` | The ongoing row's current stage: an in-progress stage wins, else the first stage not completed or skipped; In progress, Blocked or Not started |
+| Current stage and `CurrentStageState` | The ongoing row's current stage: an in-progress stage wins, else the first stage not completed or skipped, else the last stage; In progress, Blocked, Not started, or Finished (every stage completed or skipped while the project is still open; the tracker keeps those stages Done or Skipped) |
 | `DaysInStage` | The ongoing row's `DaysInCurrentStage` (`PresentStageHelper`) |
 | `StageAgeFrom` | Today minus `DaysInStage`, so it always agrees with the age |
 | `StagePdc`, `DaysLate`, `DaysLeft` | The current stage's planned due date; `DaysLate` is the row's `DaysPastPdc` |
