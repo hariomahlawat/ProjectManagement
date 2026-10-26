@@ -52,6 +52,10 @@ namespace ProjectManagement.Services.Analytics
         private const string UnassignedStageCode = "UNASSIGNED";
         private const string UnassignedStageName = "Unassigned";
         // END SECTION
+        // AR/VR is a technical category; the CoE is a project category. The two are matched by name, as CoE categories are.
+        private static readonly string[] ArVrTechnicalCategoryKeywords = { "ar/vr", "arvr", "ar&vr", "augmented", "virtualreality" };
+        private const string DcdCategoryKeyword = "dcd";
+
         private static readonly string[] CoeCategoryKeywords =
         {
             "coe",
@@ -620,9 +624,10 @@ namespace ProjectManagement.Services.Analytics
         public async Task<CoeAnalyticsVm> BuildCoeAsync(DateOnly referenceDateIst, CancellationToken cancellationToken = default)
         {
             var coeCategoryIds = await LoadCoeCategoryIdsAsync(cancellationToken);
+            var arVrOutsideCoe = await BuildArVrOutsideCoeAsync(coeCategoryIds, referenceDateIst, cancellationToken);
             if (coeCategoryIds.Count == 0)
             {
-                return BuildEmptyCoeAnalyticsVm();
+                return BuildEmptyCoeAnalyticsVm(arVrOutsideCoe);
             }
 
             var coeProjectsQuery = CoeProjectsQuery(coeCategoryIds);
@@ -630,7 +635,7 @@ namespace ProjectManagement.Services.Analytics
             var totalCoeProjects = await coeProjectsQuery.CountAsync(cancellationToken);
             if (totalCoeProjects == 0)
             {
-                return BuildEmptyCoeAnalyticsVm();
+                return BuildEmptyCoeAnalyticsVm(arVrOutsideCoe);
             }
 
             var stageBuckets = await BuildCoeStageBucketsAsync(coeCategoryIds, referenceDateIst, cancellationToken);
@@ -657,9 +662,141 @@ namespace ProjectManagement.Services.Analytics
                 TotalCoeProjects = totalCoeProjects,
                 OngoingCount = ongoingCount,
                 CompletedCount = completedCount,
-                CompletedThisYearCount = completedThisYear
+                CompletedThisYearCount = completedThisYear,
+                ArVrOutsideCoe = arVrOutsideCoe
             };
         }
+
+        // SECTION: AR/VR projects started before the CoE nomination (outside the CoE categories; DCD fresh projects and repeat builds)
+        private async Task<IReadOnlyList<AnalyticsBoardGroupVm>> BuildArVrOutsideCoeAsync(
+            List<int> coeCategoryIds,
+            DateOnly referenceDateIst,
+            CancellationToken cancellationToken)
+        {
+            var arVrTechnicalIds = await _db.TechnicalCategories
+                .AsNoTracking()
+                .Select(t => new { t.Id, t.Name })
+                .ToListAsync(cancellationToken);
+            var technicalIds = arVrTechnicalIds.Where(t => IsArVrTechnicalCategory(t.Name)).Select(t => t.Id).ToList();
+
+            var rows = technicalIds.Count == 0
+                ? new List<ArVrProjectRow>()
+                : await _db.Projects
+                    .AsNoTracking()
+                    .Where(p => !p.IsDeleted
+                        && !p.IsArchived
+                        && p.TechnicalCategoryId.HasValue
+                        && technicalIds.Contains(p.TechnicalCategoryId.Value)
+                        && (!p.CategoryId.HasValue || !coeCategoryIds.Contains(p.CategoryId.Value)))
+                    .Select(p => new ArVrProjectRow(
+                        p.Id,
+                        p.Name,
+                        p.LifecycleStatus,
+                        p.CompletedYear ?? (p.CompletedOn.HasValue ? p.CompletedOn.Value.Year : (int?)null),
+                        p.IsBuild,
+                        p.CategoryId,
+                        p.WorkflowVersion,
+                        p.ProjectStages
+                            .OrderBy(s => s.SortOrder)
+                            .ThenBy(s => s.StageCode)
+                            .Select(s => new StageSnapshot(s.StageCode, s.Status, s.SortOrder, s.ActualStart, s.CompletedOn))
+                            .ToList()))
+                    .ToListAsync(cancellationToken);
+
+            var hierarchy = rows.Count == 0
+                ? new Dictionary<int, ProjectCategoryHierarchyNode>()
+                : await LoadCategoryHierarchyAsync(cancellationToken);
+
+            var placed = rows
+                .Select(row =>
+                {
+                    var root = ProjectCategoryHierarchyResolver.ResolveRoot(row.CategoryId, hierarchy)?.Name;
+                    var underDcd = root is not null && root.Contains(DcdCategoryKeyword, StringComparison.OrdinalIgnoreCase);
+                    var key = !underDcd ? CoeAnalyticsVm.ArVrEarlierKey : row.IsBuild ? CoeAnalyticsVm.ArVrDcdRepeatKey : CoeAnalyticsVm.ArVrDcdFreshKey;
+                    return (Key: key, Row: row);
+                })
+                .ToList();
+
+            AnalyticsBoardGroupVm Group(string key, string name)
+            {
+                var members = placed.Where(item => item.Key == key).Select(item => item.Row).ToList();
+                // Completed projects first, oldest completion first; then ongoing, then cancelled, each by name.
+                var projects = members
+                    .OrderBy(row => LifecycleRank(row.LifecycleStatus))
+                    .ThenBy(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed ? row.CompletedYear ?? int.MaxValue : 0)
+                    .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(row => new AnalyticsBoardProjectVm(
+                        row.Id,
+                        string.IsNullOrWhiteSpace(row.Name) ? "Untitled project" : row.Name.Trim(),
+                        DescribeArVrProject(row, referenceDateIst)))
+                    .ToList();
+                var completed = members.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed);
+                var ongoing = members.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Active);
+                var cancelled = members.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Cancelled);
+                var hint = members.Count == 0
+                    ? null
+                    : string.Join(" · ", new[]
+                    {
+                        completed > 0 ? $"{completed} completed" : null,
+                        ongoing > 0 ? $"{ongoing} ongoing" : null,
+                        cancelled > 0 ? $"{cancelled} cancelled" : null
+                    }.Where(part => part is not null));
+                return new AnalyticsBoardGroupVm(key, name, projects.Count, projects, hint);
+            }
+
+            return new[]
+            {
+                Group(CoeAnalyticsVm.ArVrEarlierKey, "Started before the CoE nomination"),
+                Group(CoeAnalyticsVm.ArVrDcdFreshKey, "AR/VR under DCD · Fresh projects"),
+                Group(CoeAnalyticsVm.ArVrDcdRepeatKey, "AR/VR under DCD · Repeat builds")
+            };
+        }
+
+        private string DescribeArVrProject(ArVrProjectRow row, DateOnly referenceDateIst)
+        {
+            switch (row.LifecycleStatus)
+            {
+                case ProjectLifecycleStatus.Completed:
+                    return row.CompletedYear.HasValue ? $"Completed {row.CompletedYear}" : "Completed";
+                case ProjectLifecycleStatus.Cancelled:
+                    return "Cancelled";
+                default:
+                    var stage = ResolvePresentStage(new ProjectStageSnapshot(row.LifecycleStatus, row.WorkflowVersion, row.Stages), referenceDateIst);
+                    var stageName = string.IsNullOrWhiteSpace(stage.CurrentStageCode)
+                        ? null
+                        : stage.CurrentStageName ?? StageCodes.DisplayNameOf(stage.CurrentStageCode);
+                    return stageName is null ? "Ongoing" : $"Ongoing · {stageName}";
+            }
+        }
+
+        private static int LifecycleRank(ProjectLifecycleStatus status) => status switch
+        {
+            ProjectLifecycleStatus.Completed => 0,
+            ProjectLifecycleStatus.Active => 1,
+            _ => 2
+        };
+
+        private static bool IsArVrTechnicalCategory(string? name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return false;
+            }
+
+            var compact = name.Replace(" ", string.Empty).ToLowerInvariant();
+            return ArVrTechnicalCategoryKeywords.Any(keyword => compact.Contains(keyword, StringComparison.Ordinal));
+        }
+
+        private sealed record ArVrProjectRow(
+            int Id,
+            string? Name,
+            ProjectLifecycleStatus LifecycleStatus,
+            int? CompletedYear,
+            bool IsBuild,
+            int? CategoryId,
+            string? WorkflowVersion,
+            IReadOnlyList<StageSnapshot> Stages);
+        // END SECTION
 
         private IQueryable<Project> CoeProjectsQuery(List<int> coeCategoryIds) =>
             _db.Projects
@@ -983,12 +1120,13 @@ namespace ProjectManagement.Services.Analytics
         }
         // END SECTION
 
-        private static CoeAnalyticsVm BuildEmptyCoeAnalyticsVm() => new()
+        private static CoeAnalyticsVm BuildEmptyCoeAnalyticsVm(IReadOnlyList<AnalyticsBoardGroupVm> arVrOutsideCoe) => new()
         {
             ByStage = Array.Empty<CoeStageBucketVm>(),
             SubcategoriesByLifecycle = Array.Empty<CoeSubcategoryLifecycleVm>(),
             SubcategoryProjects = Array.Empty<CoeSubcategoryProjectsVm>(),
-            TotalCoeProjects = 0
+            TotalCoeProjects = 0,
+            ArVrOutsideCoe = arVrOutsideCoe
         };
 
         private static string NormalizeCoeSubcategoryName(string? name) =>

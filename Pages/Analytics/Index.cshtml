@@ -22,7 +22,7 @@
     var scope = Model.ActiveTab switch
     {
         AnalyticsTab.Completed => $"{Model.CompletedCount} completed projects by year, category and technical category",
-        AnalyticsTab.Coe => "Centre of Excellence projects by stage, sub-category and lifecycle",
+        AnalyticsTab.Coe => "Centre of Excellence (AR/VR) projects by stage, sub-category and lifecycle",
         AnalyticsTab.Insights => "How long each workflow stage takes, from finished stages across ongoing and completed projects",
         AnalyticsTab.Arpp => Model.Arpp is { HasData: true }
             ? $"The {Model.Arpp.ListedCount} projects listed in the FY {Model.Arpp.FinancialYearDisplay} ARPP and where they stand today"
@@ -36,7 +36,7 @@
     {
         (Tab: AnalyticsTab.Ongoing, Label: "Ongoing", Count: Model.OngoingCount.ToString(), Route: "Ongoing"),
         (Tab: AnalyticsTab.Completed, Label: "Completed", Count: Model.CompletedCount.ToString(), Route: "Completed"),
-        (Tab: AnalyticsTab.Coe, Label: "CoE", Count: Model.CoeCount.ToString(), Route: "Coe"),
+        (Tab: AnalyticsTab.Coe, Label: "CoE (AR/VR)", Count: Model.CoeCount.ToString(), Route: "Coe"),
         (Tab: AnalyticsTab.Insights, Label: "Insights", Count: "Cycle time", Route: "Insights"),
         (Tab: AnalyticsTab.Arpp, Label: "ARPP", Count: Model.Arpp is not null ? $"FY {Model.Arpp.FinancialYearDisplay}" : "By year", Route: "Arpp")
     }.Where(mode => mode.Tab != AnalyticsTab.Arpp || Model.CanViewArpp).ToList();

@@ -434,6 +434,70 @@ public sealed class CoeAnalyticsTests : IDisposable
         Assert.True(pastThreshold.MedianDaysInCurrentStage > tenDaysLater.MedianDaysInCurrentStage);
     }
 
+    [Fact]
+    public async Task BuildCoeAsync_ListsArVrProjectsOutsideTheCoe_EarlierAndUnderDcd_CompletedFirst()
+    {
+        var coeRoot = new ProjectCategory { Name = "CoE" };
+        var coeShort = new ProjectCategory { Name = "CoE Short Term", Parent = coeRoot };
+        var dcd = new ProjectCategory { Name = "DCD Projects" };
+        var dcdChild = new ProjectCategory { Name = "Simulators", Parent = dcd };
+        var other = new ProjectCategory { Name = "Other R&D Projects" };
+        _db.ProjectCategories.AddRange(coeRoot, coeShort, dcd, dcdChild, other);
+        var arVr = new TechnicalCategory { Name = "AR/ VR", IsActive = true };
+        var firing = new TechnicalCategory { Name = "Firing Smls", IsActive = true };
+        _db.TechnicalCategories.AddRange(arVr, firing);
+        await _db.SaveChangesAsync();
+
+        Project P(string name, ProjectCategory? category, TechnicalCategory tech, ProjectLifecycleStatus status, int? year = null, bool build = false) => new()
+        {
+            Name = name, CreatedByUserId = "seed", LifecycleStatus = status, CompletedYear = year, IsBuild = build,
+            CategoryId = category?.Id, TechnicalCategoryId = tech.Id, WorkflowVersion = ProcurementWorkflow.VersionV1
+        };
+        _db.Projects.AddRange(
+            P("In the CoE", coeShort, arVr, ProjectLifecycleStatus.Active),                       // excluded: CoE category
+            P("Other, not AR/VR", other, firing, ProjectLifecycleStatus.Completed, 2020),          // excluded: not AR/VR
+            P("VR Sniper", other, arVr, ProjectLifecycleStatus.Completed, 2022),
+            P("VR Medical", other, arVr, ProjectLifecycleStatus.Completed, 2020),
+            P("VR Tac RPA", other, arVr, ProjectLifecycleStatus.Active),
+            P("AR Dropped", other, arVr, ProjectLifecycleStatus.Cancelled),
+            P("No category VR", null, arVr, ProjectLifecycleStatus.Completed, 2019),
+            P("DCD fresh VR", dcdChild, arVr, ProjectLifecycleStatus.Active),
+            P("DCD VR for Bangladesh", dcd, arVr, ProjectLifecycleStatus.Completed, 2021, build: true));
+        await _db.SaveChangesAsync();
+
+        var result = await _service.BuildCoeAsync(Today, CancellationToken.None);
+
+        Assert.Equal(new[] { "earlier", "dcd-fresh", "dcd-repeat" }, result.ArVrOutsideCoe.Select(group => group.Key));
+        var earlier = result.ArVrOutsideCoe[0];
+        Assert.Equal(5, earlier.Count);
+        Assert.Equal("3 completed · 1 ongoing · 1 cancelled", earlier.Hint);
+        // Completed first, oldest first; then ongoing with its stage; cancelled last.
+        Assert.Equal(new[] { "No category VR", "VR Medical", "VR Sniper", "VR Tac RPA", "AR Dropped" }, earlier.Projects.Select(project => project.ProjectName));
+        Assert.Equal("Completed 2019", earlier.Projects[0].Detail);
+        Assert.Equal("Ongoing · " + StageCodes.DisplayNameOf(StageCodes.FS), earlier.Projects[3].Detail);
+        Assert.Equal("Cancelled", earlier.Projects[4].Detail);
+
+        var fresh = result.ArVrOutsideCoe[1];
+        Assert.Equal("DCD fresh VR", Assert.Single(fresh.Projects).ProjectName); // a DCD child category rolls up to DCD
+        var repeat = result.ArVrOutsideCoe[2];
+        Assert.Equal("DCD VR for Bangladesh", Assert.Single(repeat.Projects).ProjectName);
+        Assert.Equal("Completed 2021", repeat.Projects[0].Detail);
+
+        Assert.Equal(1, result.TotalCoeProjects); // the lists are not part of the CoE counts
+    }
+
+    [Fact]
+    public async Task BuildCoeAsync_ArVrGroupsAreAlwaysPresent_AtZeroWhenEmpty()
+    {
+        _db.ProjectCategories.Add(new ProjectCategory { Name = "General" });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.BuildCoeAsync(Today, CancellationToken.None);
+
+        Assert.Equal(3, result.ArVrOutsideCoe.Count);
+        Assert.All(result.ArVrOutsideCoe, group => { Assert.Equal(0, group.Count); Assert.Null(group.Hint); });
+    }
+
     public void Dispose()
     {
         _db.Dispose();
