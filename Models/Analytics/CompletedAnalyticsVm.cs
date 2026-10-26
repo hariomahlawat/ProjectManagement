@@ -12,8 +12,10 @@ public sealed class CompletedAnalyticsVm
 
     // SECTION: Headline figures
     public int CompletedThisYear { get; init; }
-    public int? BestYear { get; init; }
-    public int BestYearCount { get; init; }
+    /// <summary>Completions a year over the last five complete calendar years (fewer when the history is shorter); null before the first complete year.</summary>
+    public CompletedYearlyAverageVm? RecentYearlyAverage { get; init; }
+    /// <summary>The same figure for the five complete years before that window; null when nothing was completed that early.</summary>
+    public CompletedYearlyAverageVm? PreviousYearlyAverage { get; init; }
     /// <summary>Median calendar days from the first stage start to completion; null when no project has both dates.</summary>
     public double? MedianDaysToComplete { get; init; }
     // END SECTION
@@ -46,6 +48,12 @@ public sealed record CompletedYearBoardItemVm(
 public sealed record AnalyticsCategoryCountPoint(string Name, int Count, int? Id = null);
 
 public sealed record CompletedPerYearPoint(int Year, int Count);
+
+/// <summary>Average completions a year over a window of complete calendar years; a year with no completions counts as zero.</summary>
+public sealed record CompletedYearlyAverageVm(int FromYear, int ToYear, int Count, double PerYear)
+{
+    public int Years => ToYear - FromYear + 1;
+}
 
 public sealed record CompletedPerYearByParentCategoryPoint(int Year, string CategoryName, int Count);
 

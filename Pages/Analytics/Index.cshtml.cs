@@ -247,10 +247,9 @@ namespace ProjectManagement.Pages.Analytics
                             $"completed in {AsOfIst.Year}",
                             PageUrl("/Projects/Index", new { Lifecycle = ProjectLifecycleFilter.Completed, CompletedYear = AsOfIst.Year })),
                         new HeadlineFigure(
-                            "Best year",
-                            Completed.BestYear?.ToString() ?? "—",
-                            Completed.BestYear is null ? null : $"{Completed.BestYearCount} {Plural(Completed.BestYearCount, "project")} completed",
-                            Completed.BestYear is null ? null : PageUrl("/Projects/Index", new { Lifecycle = ProjectLifecycleFilter.Completed, CompletedYear = Completed.BestYear })),
+                            "Average per year",
+                            Completed.RecentYearlyAverage is null ? "—" : Completed.RecentYearlyAverage.PerYear.ToString("0.0"),
+                            YearlyAverageHint(Completed.RecentYearlyAverage, Completed.PreviousYearlyAverage)),
                         new HeadlineFigure(
                             "Median time to complete",
                             FormatYears(Completed.MedianDaysToComplete),
@@ -349,6 +348,25 @@ namespace ProjectManagement.Pages.Analytics
             PageContext?.HttpContext is null ? null : (values is null ? Url.Page(page) : Url.Page(page, values));
 
         private static string Plural(int count, string noun) => count == 1 ? noun : noun + "s";
+
+        /// <summary>"2021 to 2025 · 61 completed · 8.4 a year in the five before"; the comparison names its span when it is shorter.</summary>
+        private static string YearlyAverageHint(CompletedYearlyAverageVm? recent, CompletedYearlyAverageVm? previous)
+        {
+            if (recent is null)
+            {
+                return "no complete year yet";
+            }
+
+            var span = recent.Years == 1 ? recent.ToYear.ToString() : $"{recent.FromYear} to {recent.ToYear}";
+            var hint = $"{span} · {recent.Count} completed";
+            if (previous is not null)
+            {
+                var before = previous.Years == 5 ? "in the five before" : previous.Years == 1 ? $"in {previous.ToYear}" : $"in the {previous.Years} years before";
+                hint += $" · {previous.PerYear:0.0} a year {before}";
+            }
+
+            return hint;
+        }
 
         private static string FormatDays(double? days) =>
             days.HasValue ? Math.Round(days.Value).ToString("0") : "—";

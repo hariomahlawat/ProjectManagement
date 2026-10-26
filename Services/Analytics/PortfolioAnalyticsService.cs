@@ -322,9 +322,9 @@ namespace ProjectManagement.Services.Analytics
                 .ToList();
             // END SECTION
 
-            // SECTION: Headline figures (this year, best year, median time to complete)
+            // SECTION: Headline figures (this year, yearly average, median time to complete)
             var currentYear = referenceDateIst.Year;
-            var bestYear = perYear.OrderByDescending(point => point.Count).ThenByDescending(point => point.Year).FirstOrDefault();
+            var (recentAverage, previousAverage) = BuildYearlyAverages(perYear, currentYear);
             var medianDaysToComplete = await BuildMedianDaysToCompleteAsync(completedQuery, cancellationToken);
             var (categoryBoard, technicalBoard) = await BuildCompletedGroupBoardsAsync(completedQuery, cancellationToken);
             // END SECTION
@@ -338,13 +338,50 @@ namespace ProjectManagement.Services.Analytics
                 YearBoard = yearBoard,
                 TotalCompletedProjects = await completedQuery.CountAsync(cancellationToken),
                 CompletedThisYear = perYear.FirstOrDefault(point => point.Year == currentYear)?.Count ?? 0,
-                BestYear = bestYear?.Year,
-                BestYearCount = bestYear?.Count ?? 0,
+                RecentYearlyAverage = recentAverage,
+                PreviousYearlyAverage = previousAverage,
                 MedianDaysToComplete = medianDaysToComplete,
                 CategoryBoard = categoryBoard,
                 TechnicalBoard = technicalBoard
             };
         }
+
+        // SECTION: Yearly averages over complete calendar years
+        private const int YearlyAverageWindow = 5;
+
+        /// <summary>
+        /// The last five complete calendar years (the current, partial year is left out) and the five
+        /// before them. A window is clipped to the first year anything was completed, so a short history
+        /// averages over the years it has; a year inside a window with no completions counts as zero.
+        /// </summary>
+        internal static (CompletedYearlyAverageVm? Recent, CompletedYearlyAverageVm? Previous) BuildYearlyAverages(
+            IReadOnlyList<CompletedPerYearPoint> perYear,
+            int currentYear)
+        {
+            if (perYear.Count == 0)
+            {
+                return (null, null);
+            }
+
+            var firstYear = perYear.Min(point => point.Year);
+            var recent = Window(perYear, firstYear, toYear: currentYear - 1);
+            var previous = recent is null ? null : Window(perYear, firstYear, toYear: recent.FromYear - 1);
+            return (recent, previous);
+        }
+
+        private static CompletedYearlyAverageVm? Window(IReadOnlyList<CompletedPerYearPoint> perYear, int firstYear, int toYear)
+        {
+            var fromYear = Math.Max(toYear - (YearlyAverageWindow - 1), firstYear);
+            if (fromYear > toYear)
+            {
+                return null;
+            }
+
+            var count = perYear.Where(point => point.Year >= fromYear && point.Year <= toYear).Sum(point => point.Count);
+            var years = toYear - fromYear + 1;
+            return new CompletedYearlyAverageVm(fromYear, toYear, count, (double)count / years);
+        }
+        // END SECTION
 
         // SECTION: Completed drill-downs by exact category and technical category (same grouping as the charts)
         private static async Task<(IReadOnlyList<AnalyticsBoardGroupVm> CategoryBoard, IReadOnlyList<AnalyticsBoardGroupVm> TechnicalBoard)>
