@@ -35,7 +35,8 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
      | ToT completed | ToT tracker, status Completed, `CompletedFrom`/`To` |
      | IPR filed / granted | IPR register, `from`/`to` on the filed date, or on the grant date with `statuses=Granted&dateBasis=Protected` |
      | FFC deliveries / installations | FFC portfolio, `deliveredFrom`/`To` or `installedFrom`/`To` |
-     | Visits, activities | their registers' existing From/To filters |
+     | Visits | the register's existing From/To filters |
+     | Activities | the register's From/To plus `UpToNow=true`, which leaves out an activity scheduled later today, as the desk does |
      | People trained | Training register, From/To with `DateBasis=Reference`: each training placed on its reference date (start, else end, else the first of its month), as the desk counts it; the register's default From/To lists any training overlapping the window |
      | Units proliferated | the Proliferation records page for the year the window ends in: that page is a per-year calculation and has no date window, so this one count is a near miss, not exact |
 

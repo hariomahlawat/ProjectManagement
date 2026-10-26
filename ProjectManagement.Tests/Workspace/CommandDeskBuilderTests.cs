@@ -61,7 +61,7 @@ public sealed class CommandDeskBuilderTests
         Assert.Collection(desk.MovedForward,
             count => Assert.Equal((2, "visits", "/ProjectOfficeReports/Visits?From=2026-09-23&To=2026-10-22"), (count.Count, count.Label, count.Url)),
             count => Assert.Equal((65, "people trained", "/ProjectOfficeReports/Training?From=2026-09-23&To=2026-10-22&DateBasis=Reference"), (count.Count, count.Label, count.Url)),
-            count => Assert.Equal((1, "activity", "/Activities?FromDate=2026-09-23&ToDate=2026-10-22"), (count.Count, count.Label, count.Url)));
+            count => Assert.Equal((1, "activity", "/Activities?FromDate=2026-09-23&ToDate=2026-10-22&UpToNow=true"), (count.Count, count.Label, count.Url)));
     }
 
     // Each count opens its register filtered to the desk's window (the register's own query
@@ -83,7 +83,7 @@ public sealed class CommandDeskBuilderTests
         Assert.Equal("/ProjectOfficeReports/FFC?installedFrom=2026-09-23&installedTo=2026-10-22", urls["FFC installation"]);
         Assert.Equal("/ProjectOfficeReports/Visits?From=2026-09-23&To=2026-10-22", urls["visit"]);
         Assert.Equal("/ProjectOfficeReports/Training?From=2026-09-23&To=2026-10-22&DateBasis=Reference", urls["person trained"]);
-        Assert.Equal("/Activities?FromDate=2026-09-23&ToDate=2026-10-22", urls["activity"]);
+        Assert.Equal("/Activities?FromDate=2026-09-23&ToDate=2026-10-22&UpToNow=true", urls["activity"]);
     }
 
     [Fact]

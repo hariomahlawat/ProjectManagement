@@ -40,7 +40,11 @@ public sealed record ActivityListRequest(
     string? CreatedByUserId = null,
     ActivityAttachmentTypeFilter AttachmentType = ActivityAttachmentTypeFilter.Any,
     string? Search = null,
-    ActivityMediaFilter MediaFilter = ActivityMediaFilter.Any);
+    ActivityMediaFilter MediaFilter = ActivityMediaFilter.Any,
+    // Only activities that occurred by this instant (scheduled start, else creation). The
+    // Command desk's drill-down sets it to "now" so an activity later today is left out, as the
+    // desk leaves it out of its count.
+    DateTimeOffset? OccurredByUtc = null);
 
 public sealed record ActivityListItem(
     int Id,

@@ -12,6 +12,7 @@
     var hasActiveFilters = !string.IsNullOrWhiteSpace(Model.Search)
         || Model.FromDate.HasValue
         || Model.ToDate.HasValue
+        || Model.UpToNow
         || Model.ActivityTypeId.HasValue
         || Model.MediaFilter != ActivityMediaFilter.Any;
     string FormatEventDate(DateTimeOffset? value) => value.HasValue
@@ -39,6 +40,7 @@
                 <input type="hidden" name="Search" value="@Model.Search" />
                 <input type="hidden" name="FromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="ToDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
+                @if (Model.UpToNow) { <input type="hidden" name="UpToNow" value="true" /> }
                 <input type="hidden" name="ActivityTypeId" value="@(Model.ActivityTypeId?.ToString())" />
                 <input type="hidden" name="MediaFilter" value="@Model.MediaFilter" />
                 <input type="hidden" name="SortBy" value="@Model.SortBy" />
@@ -58,6 +60,7 @@
         <form method="get" id="activitiesFilterForm" class="activities-toolbar" aria-label="Activity filters">
             <input type="hidden" name="Page" value="1" />
             <input type="hidden" asp-for="SortDir" />
+            @if (Model.UpToNow) { <input type="hidden" name="UpToNow" value="true" /> }
             <input type="hidden" asp-for="View" />
 
             <div class="activities-search">
@@ -110,6 +113,10 @@
             <div>
                 <strong>@(vm?.TotalCount ?? 0) activities</strong>
                 <span>@(vm?.Summary.WithMedia ?? 0) with supporting records</span>
+                @if (Model.UpToNow)
+                {
+                    <span title="Activities scheduled later today are left out, as on the Command desk">up to now</span>
+                }
             </div>
             @if (hasActiveFilters)
             {

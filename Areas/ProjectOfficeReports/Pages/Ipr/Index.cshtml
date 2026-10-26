@@ -538,8 +538,13 @@
         // otherwise the figure counts nothing there and the link would open filings outside it.
         // A scope of only Rejected or Withdrawn counts nothing here, so no figure links.
         var scopeCounts = Model.Statuses.Count == 0 || scopedCountedStatuses.Length > 0;
+        // A year bar opens the register only when it does not replace a year already in the scope,
+        // and, with a date window in the scope, only on the window's own basis (the link would
+        // otherwise reinterpret the window's from/to on the other date).
         bool CanOpenYear(int year, IprDateBasis basis)
-            => scopeCounts && (!Model.Year.HasValue || (Model.Year == year && Model.DateBasis == basis));
+            => scopeCounts
+                && (!Model.Year.HasValue || (Model.Year == year && Model.DateBasis == basis))
+                && (!Model.HasDateWindow || Model.DateBasis == basis);
         bool CanOpenStatus(IprStatus status)
             => Model.Statuses.Count == 0 || Model.Statuses.Any(scoped => IprStatusPolicy.Normalize(scoped) == status);
         bool CanOpenType(IprType type) => scopeCounts && (Model.Types.Count == 0 || Model.Types.Contains(type));

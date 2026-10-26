@@ -467,8 +467,9 @@ internal static class CommandDeskRoutes
     public static string TrainingBetween(DateOnly from, DateOnly to)
         => $"{Training}?From={Day(from)}&To={Day(to)}&DateBasis=Reference";
 
+    // UpToNow leaves out an activity scheduled later today, as the desk does.
     public static string ActivitiesBetween(DateOnly from, DateOnly to)
-        => $"{Activities}?FromDate={Day(from)}&ToDate={Day(to)}";
+        => $"{Activities}?FromDate={Day(from)}&ToDate={Day(to)}&UpToNow=true";
 
     private static string Day(DateOnly date) => date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 

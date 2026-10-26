@@ -224,6 +224,40 @@ public class ActivityRepositoryTests
         });
     }
 
+    // The Command desk's activities drill-down asks for activities that occurred by now, so one
+    // scheduled later today (inside the day's To date) is left out, as the desk leaves it out.
+    [Fact]
+    public async Task ListAsync_OccurredByUtc_LeavesOutActivitiesScheduledLater()
+    {
+        await using var context = CreateContext(seedCreator: false);
+        var repository = new ActivityRepository(context);
+
+        var type = new ActivityType { Name = "Engagement", CreatedByUserId = "system" };
+        context.ActivityTypes.Add(type);
+        context.Users.Add(new ApplicationUser
+        {
+            Id = "user-1",
+            UserName = "creator",
+            NormalizedUserName = "CREATOR",
+            Email = "creator@example.test",
+            NormalizedEmail = "CREATOR@EXAMPLE.TEST",
+            FullName = "Casey Creator"
+        });
+        await context.SaveChangesAsync();
+
+        var now = DateTimeOffset.UtcNow;
+        context.Activities.AddRange(
+            new Activity { Title = "Earlier", ActivityTypeId = type.Id, CreatedByUserId = "user-1", ScheduledStartUtc = now.AddHours(-2) },
+            new Activity { Title = "Later", ActivityTypeId = type.Id, CreatedByUserId = "user-1", ScheduledStartUtc = now.AddHours(2) });
+        await context.SaveChangesAsync();
+
+        var all = await repository.ListAsync(new ActivityListRequest(PageSize: 10));
+        var byNow = await repository.ListAsync(new ActivityListRequest(PageSize: 10, OccurredByUtc: now));
+
+        Assert.Equal(2, all.TotalCount);
+        Assert.Equal("Earlier", Assert.Single(byNow.Items).Title);
+    }
+
     [Fact]
     public async Task GetByIdAsync_IncludesUserNavigationProperties()
     {
