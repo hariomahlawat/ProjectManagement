@@ -462,8 +462,10 @@ internal static class CommandDeskRoutes
     public static string VisitsBetween(DateOnly from, DateOnly to)
         => $"{Visits}?From={Day(from)}&To={Day(to)}";
 
+    // By reference date (start, else end, else the first of the recorded month), the date the
+    // desk counts a training on; the register's default would be any training overlapping the window.
     public static string TrainingBetween(DateOnly from, DateOnly to)
-        => $"{Training}?Filter.From={Day(from)}&Filter.To={Day(to)}";
+        => $"{Training}?From={Day(from)}&To={Day(to)}&DateBasis=Reference";
 
     public static string ActivitiesBetween(DateOnly from, DateOnly to)
         => $"{Activities}?FromDate={Day(from)}&ToDate={Day(to)}";

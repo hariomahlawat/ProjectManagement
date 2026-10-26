@@ -445,6 +445,7 @@ public class IndexModel : PageModel
             ProjectTechnicalCategoryId = filter.ProjectTechnicalCategoryId,
             From = filter.From,
             To = filter.To,
+            DateBasis = filter.DateBasis,
             Search = string.IsNullOrWhiteSpace(filter.Search) ? null : filter.Search.Trim()
         };
 
@@ -493,6 +494,7 @@ public class IndexModel : PageModel
             ["Category"] = Filter.Category?.ToString(),
             ["From"] = Filter.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["To"] = Filter.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["DateBasis"] = Filter.DateBasis == TrainingDateBasis.Reference ? "Reference" : null,
             ["Search"] = string.IsNullOrWhiteSpace(Filter.Search) ? null : Filter.Search.Trim(),
             ["Sort"] = (sort ?? SortKey) == "newest" ? null : sort ?? SortKey,
             ["PageSize"] = (pageSize ?? PageSize) == DefaultPageSize ? null : (pageSize ?? PageSize).ToString(CultureInfo.InvariantCulture),
@@ -546,6 +548,12 @@ public class IndexModel : PageModel
         [DataType(DataType.Date)]
         [Display(Name = "To")]
         public DateOnly? To { get; set; }
+
+        // How From/To apply: Overlap (the register's default) or Reference, the one date the
+        // Command desk counts a training on. Set by its people-trained drill-down.
+        public TrainingDateBasis DateBasis { get; set; } = TrainingDateBasis.Overlap;
+
+        public bool ByReferenceDate => DateBasis == TrainingDateBasis.Reference && (From.HasValue || To.HasValue);
 
         [Display(Name = "Search")]
         public string? Search { get; set; }

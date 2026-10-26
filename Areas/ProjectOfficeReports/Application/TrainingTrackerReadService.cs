@@ -356,7 +356,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var searchQuery = query ?? TrainingTrackerQuery.Empty;
 
             var filtered = projections
-                .Where(item => MatchesDate(item, searchQuery.From, searchQuery.To))
+                .Where(item => MatchesDate(item, searchQuery.From, searchQuery.To, searchQuery.DateBasis))
                 .Where(item => MatchesCategory(item, searchQuery.Category))
                 .Select(item => ToListItem(item))
                 .ToList();
@@ -1090,7 +1090,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ToListAsync(cancellationToken);
 
             var filtered = projections
-                .Where(item => MatchesDate(item, query?.From, query?.To))
+                .Where(item => MatchesDate(item, query?.From, query?.To, query?.DateBasis ?? TrainingDateBasis.Overlap))
                 .Where(item => MatchesCategory(item, query?.Category))
                 .Select(ToListItem)
                 .ToList();
@@ -1108,6 +1108,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 Category = query?.Category,
                 From = query?.From,
                 To = query?.To,
+                DateBasis = query?.DateBasis ?? TrainingDateBasis.Overlap,
                 Search = query?.Search
             };
 
@@ -1125,11 +1126,20 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // ============================================================
         // MATCH HELPERS
         // ============================================================
-        private static bool MatchesDate(TrainingListProjection projection, DateOnly? from, DateOnly? to)
+        private static bool MatchesDate(TrainingListProjection projection, DateOnly? from, DateOnly? to, TrainingDateBasis basis)
         {
             if (!from.HasValue && !to.HasValue)
             {
                 return true;
+            }
+
+            if (basis == TrainingDateBasis.Reference)
+            {
+                // The one date the Dashboard and Command desk count a training on.
+                var reference = GetDateRange(projection).Start;
+                return reference.HasValue
+                    && (!from.HasValue || reference.Value >= from.Value)
+                    && (!to.HasValue || reference.Value <= to.Value);
             }
 
             var range = GetDateRange(projection);
@@ -1653,6 +1663,22 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
         public DateOnly? To { get; set; }
 
+        /// <summary>How From/To are applied; see <see cref="TrainingDateBasis"/>.</summary>
+        public TrainingDateBasis DateBasis { get; set; } = TrainingDateBasis.Overlap;
+
         public string? Search { get; set; }
+    }
+
+    /// <summary>
+    /// How a training is placed against a From/To window. <see cref="Overlap"/> (the register's
+    /// default) lists any training whose dates overlap the window. <see cref="Reference"/> lists a
+    /// training only when its reference date (start, else end, else the first of its recorded
+    /// month; <see cref="Domain.TrainingReach.ReferenceDate"/>) falls inside the window, which is
+    /// how the Dashboard and the Command desk count people trained.
+    /// </summary>
+    public enum TrainingDateBasis
+    {
+        Overlap = 0,
+        Reference = 1
     }
 }
