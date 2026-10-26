@@ -483,4 +483,71 @@ public class ProjectAnalyticsServiceStageTimeTests
         Assert.Equal(3, result.CategoryRows.Count(r => r.StageKey == StageCodes.IPA && r.ProjectCount == 0));
         Assert.Empty(result.Rows.Where(r => r.ProjectCount > 0)); // no cost figure: no project in either band
     }
+
+    [Fact]
+    public async Task GetStageTimeInsightsAsync_MeasuresAStageWithoutAStartFromTheDayAfterItsPredecessor()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        // V2 order: FS, then SoW, then IPA.
+        var project = new Project
+        {
+            Id = 70,
+            Name = "Back to back",
+            CreatedByUserId = "system",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            WorkflowVersion = ProcurementWorkflow.VersionV2
+        };
+
+        db.Projects.Add(project);
+
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                Id = 700,
+                ProjectId = project.Id,
+                Project = project,
+                StageCode = StageCodes.FS,
+                SortOrder = 10,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2024, 1, 1),
+                CompletedOn = new DateOnly(2024, 1, 10)
+            },
+            new ProjectStage
+            {
+                Id = 701,
+                ProjectId = project.Id,
+                Project = project,
+                StageCode = StageCodes.SOW,
+                SortOrder = 20,
+                Status = StageStatus.Completed,
+                CompletedOn = new DateOnly(2024, 1, 20)
+            },
+            new ProjectStage
+            {
+                Id = 702,
+                ProjectId = project.Id,
+                Project = project,
+                StageCode = StageCodes.IPA,
+                SortOrder = 30,
+                Status = StageStatus.InProgress
+            });
+
+        await db.SaveChangesAsync();
+
+        var service = new ProjectAnalyticsService(db, FakeClock.AtUtc(DateTimeOffset.UtcNow), new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
+
+        var result = await service.GetStageTimeInsightsAsync();
+
+        // SoW is measured from 11 Jan (the day after FS finished) to 20 Jan inclusive.
+        var sow = Assert.Single(result.StageHotspots, point => point.StageKey == StageCodes.SOW);
+        Assert.Equal(10, sow.MedianDays);
+        Assert.DoesNotContain(result.StageHotspots, point => point.StageKey == StageCodes.IPA); // still running
+        Assert.Equal(2, result.MeasuredStageCount);
+        Assert.Equal(1, result.InferredStartStageCount);
+    }
 }

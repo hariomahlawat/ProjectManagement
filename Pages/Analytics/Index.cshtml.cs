@@ -205,7 +205,9 @@ namespace ProjectManagement.Pages.Analytics
                         },
                         SelectedCategoryId = insightCategoryId ?? stageCycleResult.SelectedCategoryId,
                         PortfolioMedianDays = portfolioMedian,
-                        RankedHotspots = ranked
+                        RankedHotspots = ranked,
+                        MeasuredStageCount = stageCycleResult.MeasuredStageCount,
+                        InferredStartStageCount = stageCycleResult.InferredStartStageCount
                     };
                     break;
                 }

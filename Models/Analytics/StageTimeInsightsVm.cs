@@ -24,6 +24,12 @@ public sealed class StageTimeInsightsVm
     public bool HasData => Rows.Count > 0;
 
     public int? SelectedCategoryId { get; init; }
+
+    /// <summary>Finished stages measured, one per project and stage.</summary>
+    public int MeasuredStageCount { get; init; }
+
+    /// <summary>Of <see cref="MeasuredStageCount"/>, the stages measured from an inferred start.</summary>
+    public int InferredStartStageCount { get; init; }
 }
 
 // SECTION: Project management insights panel view models
@@ -42,6 +48,11 @@ public sealed class StageTimeInsightsPanelVm
 
     /// <summary>Stages ranked slowest first, with their ratio to the portfolio median.</summary>
     public IReadOnlyList<StageHotspotRankVm> RankedHotspots { get; init; } = Array.Empty<StageHotspotRankVm>();
+
+    /// <summary>Finished stages measured, and how many of them from an inferred start (the footnote's disclosure).</summary>
+    public int MeasuredStageCount { get; init; }
+
+    public int InferredStartStageCount { get; init; }
 
     // END SECTION
 }

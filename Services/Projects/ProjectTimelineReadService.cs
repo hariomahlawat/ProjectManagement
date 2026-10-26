@@ -307,16 +307,15 @@ public sealed class ProjectTimelineReadService
                 reopenSuggestedStart = candidate >= boundary ? candidate : null;
             }
 
+            // The timeline shows an inferred start for a completed stage only; a running stage
+            // without a recorded start is flagged for the PO to record (NeedsStart).
             DateOnly? effectiveActualStart = actualStart;
             var isActualStartInferred = false;
-            if (!isArppManaged
-                && status == StageStatus.Completed
+            if (status == StageStatus.Completed
                 && !effectiveActualStart.HasValue
-                && actualEnd.HasValue
-                && startSuggestion.SuggestedStartDate.HasValue)
+                && StageStartInference.Infer(code, status, actualEnd, startSuggestion, ipaAuthority) is DateOnly inferred)
             {
-                var inferred = startSuggestion.SuggestedStartDate.Value;
-                effectiveActualStart = inferred > actualEnd.Value ? actualEnd.Value : inferred;
+                effectiveActualStart = inferred;
                 isActualStartInferred = true;
             }
 

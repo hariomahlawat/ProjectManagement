@@ -435,6 +435,34 @@ public sealed class CoeAnalyticsTests : IDisposable
     }
 
     [Fact]
+    public async Task BuildOngoingAsync_AgesARunningStageWithoutAStartFromTheDayAfterItsPredecessor()
+    {
+        var root = new ProjectCategory { Name = "DCD Projects", SortOrder = 1 };
+        _db.ProjectCategories.Add(root);
+        await _db.SaveChangesAsync();
+        var fsDone = new DateOnly(2026, 1, 10);
+        _db.Projects.Add(new Project
+        {
+            Name = "In SoW, start not recorded",
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            CategoryId = root.Id,
+            ProjectStages =
+            {
+                new ProjectStage { StageCode = StageCodes.FS, SortOrder = 10, Status = StageStatus.Completed, ActualStart = new DateOnly(2026, 1, 1), CompletedOn = fsDone },
+                new ProjectStage { StageCode = StageCodes.SOW, SortOrder = 20, Status = StageStatus.InProgress }
+            }
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.BuildOngoingAsync(Array.Empty<int>(), new[] { root.Id }, fsDone.AddDays(21), CancellationToken.None);
+
+        // SoW began on 11 Jan, the day after FS finished: 20 days in stage by 31 Jan.
+        Assert.Equal(20, result.MedianDaysInCurrentStage);
+    }
+
+    [Fact]
     public async Task BuildCoeAsync_ListsArVrProjectsOutsideTheCoe_EarlierAndUnderDcd_CompletedFirst()
     {
         var coeRoot = new ProjectCategory { Name = "CoE" };
