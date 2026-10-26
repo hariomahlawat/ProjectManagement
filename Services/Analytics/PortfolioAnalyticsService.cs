@@ -105,9 +105,34 @@ namespace ProjectManagement.Services.Analytics
                 TopStageName = topStage?.StageName,
                 TopStageCount = topStage?.StageCount ?? 0,
                 MedianDaysInCurrentStage = stageAges.Count == 0 ? null : AnalyticsAggregation.CalculateMedian(stageAges),
-                ProjectsPastThreshold = stageAges.Count(days => days > OngoingAnalyticsVm.LongStageThresholdDays)
+                ProjectsPastThreshold = stageAges.Count(days => days > OngoingAnalyticsVm.LongStageThresholdDays),
+                Phases = BuildOngoingPhases(stageRows)
             };
         }
+
+        // SECTION: Phase cards (the phase of each project follows its current stage; no stage at all is Pre-AoN)
+        private static IReadOnlyList<OngoingPhaseVm> BuildOngoingPhases(IReadOnlyList<OngoingStageRow> stageRows)
+        {
+            var phaseOfRow = stageRows
+                .Select(row => (Row: row, Phase: StagePhases.Of(string.Equals(row.StageCode, UnassignedStageCode, StringComparison.OrdinalIgnoreCase) ? null : row.StageCode)))
+                .Where(item => item.Phase.HasValue)
+                .ToList();
+
+            return StagePhases.All
+                .Select(definition =>
+                {
+                    var rows = phaseOfRow.Where(item => item.Phase == definition.Phase).Select(item => item.Row).ToList();
+                    return new OngoingPhaseVm(
+                        definition.Key,
+                        definition.Name,
+                        definition.Span,
+                        definition.StageCodes,
+                        rows.Count,
+                        rows.Count(row => row.DaysInStage > OngoingAnalyticsVm.LongStageThresholdDays));
+                })
+                .ToList();
+        }
+        // END SECTION
 
         private async Task<IReadOnlyList<OngoingStageRow>> BuildOngoingStageRowsAsync(
             IReadOnlyCollection<int>? selectedParentCategoryIds,
