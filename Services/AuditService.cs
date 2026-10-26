@@ -107,12 +107,41 @@ namespace ProjectManagement.Services
                 return;
             }
 
+            // When the caller saves its change and this audit entry in one transaction, a failed
+            // statement would abort that transaction, so the summary update gets a savepoint.
+            var transaction = _db.Database.CurrentTransaction;
+            const string summarySavepoint = "audit_usage_summary";
             try
             {
+                if (transaction is not null)
+                {
+                    await transaction.CreateSavepointAsync(summarySavepoint);
+                }
+
                 await PersistDailyActionSummaryAsync(userId, occurredUtc, actionKind);
+
+                if (transaction is not null)
+                {
+                    await transaction.ReleaseSavepointAsync(summarySavepoint);
+                }
             }
             catch (Exception exception)
             {
+                if (transaction is not null)
+                {
+                    try
+                    {
+                        await transaction.RollbackToSavepointAsync(summarySavepoint);
+                    }
+                    catch (Exception rollbackException)
+                    {
+                        _logger.LogWarning(
+                            rollbackException,
+                            "Could not roll back the ERP activity summary savepoint for action {Action}.",
+                            action);
+                    }
+                }
+
                 // The formal audit entry has already been written. Failure to update the
                 // derived adoption summary must not turn a successful business action into
                 // an application error; the migration/backfill can recover it from AuditLogs.

@@ -443,6 +443,26 @@ public sealed class ProjectModerationService
         metadata["totCount"] = tots.Count;
         _db.ProjectTots.RemoveRange(tots);
 
+        // Proliferation rows have no foreign key to Projects, so a purge must remove them
+        // itself or they linger as orphans (amendments go with their records).
+        var proliferationYearlies = await _db.ProliferationYearlies
+            .Where(record => record.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        metadata["proliferationYearlyCount"] = proliferationYearlies.Count;
+        _db.ProliferationYearlies.RemoveRange(proliferationYearlies);
+
+        var proliferationEntries = await _db.ProliferationGranularEntries
+            .Where(entry => entry.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        metadata["proliferationEntryCount"] = proliferationEntries.Count;
+        _db.ProliferationGranularEntries.RemoveRange(proliferationEntries);
+
+        var proliferationPreferences = await _db.ProliferationYearPreferences
+            .Where(preference => preference.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        metadata["proliferationCountingRuleCount"] = proliferationPreferences.Count;
+        _db.ProliferationYearPreferences.RemoveRange(proliferationPreferences);
+
         var stages = await _db.ProjectStages
             .Where(stage => stage.ProjectId == projectId)
             .ToListAsync(cancellationToken);

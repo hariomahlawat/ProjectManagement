@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -240,6 +241,80 @@ public sealed class ProjectModerationServiceTests
         Assert.Equal(0, await db.ActualCorrectionItems.CountAsync());
         Assert.Equal(1, await db.ActualCorrectionRevisions.CountAsync(revision => revision.ProjectId == 15));
     }
+
+    [Fact]
+    public async Task PurgeAsync_RemovesProliferationRecordsAmendmentsAndCountingRules()
+    {
+        // Proliferation tables have no foreign key to Projects, so purge removes them itself.
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Projects.Add(new Project
+        {
+            Id = 16,
+            Name = "Purged simulator",
+            CreatedAt = new DateTime(2024, 1, 12),
+            CreatedByUserId = "creator",
+            IsDeleted = true,
+            DeletedAt = new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero),
+            DeleteReason = "Cleanup"
+        });
+        db.Projects.Add(new Project { Id = 17, Name = "Kept", CreatedAt = new DateTime(2024, 1, 12), CreatedByUserId = "creator" });
+        await db.SaveChangesAsync();
+
+        var approved = ProliferationYearly(16, ApprovalStatus.Approved, amendsId: null);
+        db.ProliferationYearlies.Add(approved);
+        await db.SaveChangesAsync();
+        db.ProliferationYearlies.AddRange(
+            ProliferationYearly(16, ApprovalStatus.Pending, amendsId: approved.Id),
+            ProliferationYearly(17, ApprovalStatus.Approved, amendsId: null));
+        db.ProliferationGranularEntries.Add(new ProliferationGranular
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 16,
+            Source = ProliferationSource.Sdd,
+            UnitName = "Unit",
+            ProliferationDate = new DateOnly(2024, 5, 1),
+            Quantity = 3,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "creator",
+            RowVersion = Guid.NewGuid().ToByteArray()
+        });
+        db.ProliferationYearPreferences.Add(new ProliferationYearPreference
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 16,
+            Source = ProliferationSource.Sdd,
+            Year = 2024,
+            Mode = YearPreferenceMode.UseYearly,
+            SetByUserId = "creator"
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var result = await CreateService(db, clock, temp).PurgeAsync(16, "admin", includeAssets: false);
+
+        Assert.Equal(ProjectModerationStatus.Success, result.Status);
+        Assert.False(await db.ProliferationYearlies.AnyAsync(record => record.ProjectId == 16));
+        Assert.False(await db.ProliferationGranularEntries.AnyAsync(entry => entry.ProjectId == 16));
+        Assert.False(await db.ProliferationYearPreferences.AnyAsync(rule => rule.ProjectId == 16));
+        Assert.Equal(1, await db.ProliferationYearlies.CountAsync(record => record.ProjectId == 17));
+    }
+
+    private static ProliferationYearly ProliferationYearly(int projectId, ApprovalStatus status, Guid? amendsId)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            Source = ProliferationSource.Sdd,
+            Year = 2024,
+            TotalQuantity = 5,
+            ApprovalStatus = status,
+            AmendsId = amendsId,
+            SubmittedByUserId = "creator",
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
 
     [Fact]
     public async Task PurgeAsync_RestoresAssetsWhenDatabaseTransactionFails()

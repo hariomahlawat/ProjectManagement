@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using ProjectManagement.Areas.ProjectOfficeReports.Api;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
@@ -118,11 +119,27 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             _db.ProliferationYearlies.Add(entity);
-            await _db.SaveChangesAsync(ct);
+            await using var transaction = await BeginWriteAsync(ct);
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException) when (entity.ApprovalStatus == ApprovalStatus.Approved && !ct.IsCancellationRequested)
+            {
+                await RollbackAsync(transaction, ct);
+                if (await HasOtherApprovedYearlyAsync(entity, ct))
+                {
+                    return ServiceResult.Fail(DuplicateYearlyError);
+                }
+
+                throw;
+            }
 
             await Audit.Events
                 .ProliferationYearlyRecorded(project.Id, entity.Source, entity.Year, entity.TotalQuantity, entity.ApprovalStatus, actor.Id, "Create")
                 .WriteAsync(_audit, userName: actor.UserName);
+
+            await CommitAsync(transaction, ct);
 
             return ServiceResult.Ok(entity.Id);
         }
@@ -213,11 +230,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             _db.ProliferationGranularEntries.Add(entity);
+            await using var transaction = await BeginWriteAsync(ct);
             await _db.SaveChangesAsync(ct);
 
             await Audit.Events
                 .ProliferationGranularRecorded(project.Id, project.Name, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Create")
                 .WriteAsync(_audit, userName: actor.UserName);
+
+            await CommitAsync(transaction, ct);
 
             return ServiceResult.Ok(entity.Id);
         }
@@ -281,6 +301,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 existing.SetOnUtc = now;
             }
 
+            await using var transaction = await BeginWriteAsync(ct);
             await _db.SaveChangesAsync(ct);
 
             await Audit.Events
@@ -293,6 +314,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     isNew ? "Created" : "Updated",
                     Normalize(dto.Reason, 500))
                 .WriteAsync(_audit, userName: actor.UserName);
+
+            await CommitAsync(transaction, ct);
 
             return ServiceResult.Ok();
         }
@@ -379,12 +402,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 };
 
                 _db.ProliferationYearlies.Add(amendment);
+                await using var amendmentTransaction = await BeginWriteAsync(ct);
                 try
                 {
                     await _db.SaveChangesAsync(ct);
                 }
                 catch (DbUpdateException) when (!ct.IsCancellationRequested)
                 {
+                    await RollbackAsync(amendmentTransaction, ct);
+
                     // A concurrent amendment won the unique pending-amendment index, or the
                     // record was deleted meanwhile and the AmendsId foreign key refused the row.
                     if (await HasPendingYearlyAmendmentAsync(entity.Id, amendment.Id, ct))
@@ -403,6 +429,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 await Audit.Events
                     .ProliferationYearlyRecorded(amendment.ProjectId, amendment.Source, amendment.Year, amendment.TotalQuantity, amendment.ApprovalStatus, actor.Id, "Amend", amendment.Id, entity.Id)
                     .WriteAsync(_audit, userName: actor.UserName);
+
+                await CommitAsync(amendmentTransaction, ct);
 
                 return ServiceResult.Ok(amendment.Id);
             }
@@ -441,6 +469,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 entity.ApprovedOnUtc = null;
             }
 
+            await using var transaction = await BeginWriteAsync(ct);
             try
             {
                 await _db.SaveChangesAsync(ct);
@@ -449,12 +478,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             {
                 return ServiceResult.Fail(ConcurrencyError);
             }
-            catch (DbUpdateException) when (amendedRecordId.HasValue && !ct.IsCancellationRequested)
+            catch (DbUpdateException) when (!ct.IsCancellationRequested)
             {
+                await RollbackAsync(transaction, ct);
+
                 // Resubmitting a rejected amendment raced another pending amendment.
-                if (await HasPendingYearlyAmendmentAsync(amendedRecordId.Value, entity.Id, ct))
+                if (amendedRecordId.HasValue
+                    && await HasPendingYearlyAmendmentAsync(amendedRecordId.Value, entity.Id, ct))
                 {
                     return ServiceResult.Fail(PendingAmendmentExistsError);
+                }
+
+                // An approval raced another approved row for the same project, source and year.
+                if (saved.ApprovalStatus == ApprovalStatus.Approved && await HasOtherApprovedYearlyAsync(saved, ct))
+                {
+                    return ServiceResult.Fail(DuplicateYearlyError);
                 }
 
                 throw;
@@ -463,6 +501,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             await Audit.Events
                 .ProliferationYearlyRecorded(saved.ProjectId, saved.Source, saved.Year, saved.TotalQuantity, saved.ApprovalStatus, actor.Id, "Update", entity.Id, amendedRecordId)
                 .WriteAsync(_audit, userName: actor.UserName);
+
+            await CommitAsync(transaction, ct);
 
             return ServiceResult.Ok(saved.Id);
         }
@@ -570,12 +610,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 };
 
                 _db.ProliferationGranularEntries.Add(amendment);
+                await using var amendmentTransaction = await BeginWriteAsync(ct);
                 try
                 {
                     await _db.SaveChangesAsync(ct);
                 }
                 catch (DbUpdateException) when (!ct.IsCancellationRequested)
                 {
+                    await RollbackAsync(amendmentTransaction, ct);
+
                     if (await HasPendingGranularAmendmentAsync(entity.Id, amendment.Id, ct))
                     {
                         return ServiceResult.Fail(PendingAmendmentExistsError);
@@ -592,6 +635,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 await Audit.Events
                     .ProliferationGranularRecorded(amendment.ProjectId, project.Name, amendment.Source, amendment.UnitName, amendment.ProliferationDate, amendment.Quantity, amendment.ApprovalStatus, actor.Id, "Amend", amendment.Id, entity.Id)
                     .WriteAsync(_audit, userName: actor.UserName);
+
+                await CommitAsync(amendmentTransaction, ct);
 
                 return ServiceResult.Ok(amendment.Id);
             }
@@ -625,6 +670,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 entity.ApprovedOnUtc = null;
             }
 
+            await using var transaction = await BeginWriteAsync(ct);
             try
             {
                 await _db.SaveChangesAsync(ct);
@@ -635,6 +681,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
             catch (DbUpdateException) when (amendedRecordId.HasValue && !ct.IsCancellationRequested)
             {
+                await RollbackAsync(transaction, ct);
+
                 if (await HasPendingGranularAmendmentAsync(amendedRecordId.Value, entity.Id, ct))
                 {
                     return ServiceResult.Fail(PendingAmendmentExistsError);
@@ -646,6 +694,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             await Audit.Events
                 .ProliferationGranularRecorded(saved.ProjectId, project.Name, saved.Source, saved.UnitName, saved.ProliferationDate, saved.Quantity, saved.ApprovalStatus, actor.Id, "Update", entity.Id, amendedRecordId)
                 .WriteAsync(_audit, userName: actor.UserName);
+
+            await CommitAsync(transaction, ct);
 
             return ServiceResult.Ok(saved.Id);
         }
@@ -708,6 +758,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             entity.LastUpdatedOnUtc = now;
 
+            await using var transaction = await BeginWriteAsync(ct);
             try
             {
                 await _db.SaveChangesAsync(ct);
@@ -716,10 +767,24 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             {
                 return ServiceResult.Fail(ConcurrencyError);
             }
+            catch (DbUpdateException) when (approve && !ct.IsCancellationRequested)
+            {
+                // Two approvals for the same project, source and year raced; the unique
+                // approved-year index let only one through.
+                await RollbackAsync(transaction, ct);
+                if (await HasOtherApprovedYearlyAsync(decided, ct))
+                {
+                    return ServiceResult.Fail(DuplicateYearlyError);
+                }
+
+                throw;
+            }
 
             await Audit.Events
                 .ProliferationYearlyDecided(decided.ProjectId, decided.Source, decided.Year, approve, actor.Id, normalizedReason, entity.Id, decided.Id == entity.Id ? null : decided.Id)
                 .WriteAsync(_audit, userName: actor.UserName);
+
+            await CommitAsync(transaction, ct);
 
             return ServiceResult.Ok(decided.Id);
         }
@@ -774,6 +839,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             entity.LastUpdatedOnUtc = now;
 
+            await using var transaction = await BeginWriteAsync(ct);
             try
             {
                 await _db.SaveChangesAsync(ct);
@@ -786,6 +852,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             await Audit.Events
                 .ProliferationGranularDecided(decided.ProjectId, decided.Source, decided.ProliferationDate, approve, actor.Id, normalizedReason, entity.Id, decided.Id == entity.Id ? null : decided.Id)
                 .WriteAsync(_audit, userName: actor.UserName);
+
+            await CommitAsync(transaction, ct);
 
             return ServiceResult.Ok(decided.Id);
         }
@@ -826,6 +894,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ToListAsync(ct);
             _db.ProliferationYearlies.RemoveRange(linkedAmendments);
 
+            await using var transaction = await BeginWriteAsync(ct);
             try
             {
                 await _db.SaveChangesAsync(ct);
@@ -841,6 +910,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     .ProliferationYearlyRecorded(removed.ProjectId, removed.Source, removed.Year, removed.TotalQuantity, removed.ApprovalStatus, actor.Id, "Delete", removed.Id, removed.AmendsId)
                     .WriteAsync(_audit, userName: actor.UserName);
             }
+
+            await CommitAsync(transaction, ct);
 
             return ServiceResult.Ok();
         }
@@ -879,6 +950,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ToListAsync(ct);
             _db.ProliferationGranularEntries.RemoveRange(linkedAmendments);
 
+            await using var transaction = await BeginWriteAsync(ct);
             try
             {
                 await _db.SaveChangesAsync(ct);
@@ -901,8 +973,25 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     .WriteAsync(_audit, userName: actor.UserName);
             }
 
+            await CommitAsync(transaction, ct);
+
             return ServiceResult.Ok();
         }
+
+        // SECTION: Write transactions
+        // A change and its audit entry commit together: if the audit insert fails the change
+        // is rolled back, so nobody is told "error" about a change that was in fact saved and
+        // then retries it into a duplicate. Non-relational test providers run without one.
+        private async Task<IDbContextTransaction?> BeginWriteAsync(CancellationToken ct)
+            => _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
+
+        private static Task CommitAsync(IDbContextTransaction? transaction, CancellationToken ct)
+            => transaction?.CommitAsync(ct) ?? Task.CompletedTask;
+
+        // After a failed statement PostgreSQL refuses further commands in the transaction, so
+        // roll back before running the follow-up queries that explain the failure.
+        private static Task RollbackAsync(IDbContextTransaction? transaction, CancellationToken ct)
+            => transaction?.RollbackAsync(ct) ?? Task.CompletedTask;
 
         // SECTION: Approval and amendment helpers
         // Approves a yearly record. An amendment is applied onto the approved record it
@@ -989,6 +1078,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             entity.ApprovedOnUtc = now;
             return entity;
         }
+
+        private Task<bool> HasOtherApprovedYearlyAsync(ProliferationYearly record, CancellationToken ct)
+            => _db.ProliferationYearlies
+                .AsNoTracking()
+                .AnyAsync(y =>
+                    y.Id != record.Id &&
+                    y.ProjectId == record.ProjectId &&
+                    y.Source == record.Source &&
+                    y.Year == record.Year &&
+                    y.ApprovalStatus == ApprovalStatus.Approved,
+                    ct);
 
         private Task<bool> HasPendingYearlyAmendmentAsync(Guid amendedId, Guid? excludeId, CancellationToken ct)
             => _db.ProliferationYearlies
