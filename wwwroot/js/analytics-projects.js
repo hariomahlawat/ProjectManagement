@@ -7,6 +7,7 @@
 // token colours, HTML legend chips, printed values). No colour literals here.
 // =============================================================================
 import {
+  PM_CHART,
   applyPmChartDefaults,
   barScales,
   categoryColor,
@@ -859,8 +860,6 @@ const EXPORT_TYPOGRAPHY = {
   legend: 32,
   axisX: 26,
   axisY: 26,
-  dataLabel: 26,
-  totalLabel: 34,
   footerTitle: 30,
   footerText: 26,
   watermark: 24,
@@ -874,6 +873,12 @@ const EXPORT_PADDING = {
   bottom: 200,
   left: 100
 };
+
+// How much larger than on screen the export draws a chart's own marks, relative to the 1920 px
+// image (the canvas itself is EXPORT_PROFILE.dpr times that). Value labels and phase names print
+// at twice their screen size; bars are 1.6 times as thick, so a stage chart keeps solid bars.
+const EXPORT_LABEL_GROWTH = 2;
+const EXPORT_BAR_GROWTH = 1.6;
 // END SECTION
 
 // SECTION: Export-only helpers
@@ -918,7 +923,8 @@ function createExportHeaderFooterPlugin({
   contextLine,
   timestamp,
   branding,
-  scale = 1
+  scale = 1,
+  footerHeight = EXPORT_PADDING.bottom * scale
 }) {
   return {
     id: 'exportHeaderFooter',
@@ -948,7 +954,8 @@ function createExportHeaderFooterPlugin({
       // END SECTION
 
       // SECTION: Footer content
-      const footerTop = chart.height - bottom + 12 * scale;
+      // The footer has its own band at the bottom; the padding above it may hold phase brackets.
+      const footerTop = chart.height - Math.min(bottom, footerHeight) + 12 * scale;
       let cursorY = footerTop;
 
       ctx.textAlign = 'left';
@@ -995,244 +1002,6 @@ function createExportHeaderFooterPlugin({
   };
 }
 
-function createExportDataLabelsPlugin({
-  maxLabelCount = 15,
-  minSegmentPx = 18,
-  fontSegment = EXPORT_TYPOGRAPHY.dataLabel,
-  fontTotal = EXPORT_TYPOGRAPHY.totalLabel,
-  fontWeight = '700'
-} = {}) {
-  const formatNumber = (value) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) {
-      return '';
-    }
-    return parsed.toLocaleString();
-  };
-
-  const shouldSkipSegmentLabels = (chart) => {
-    const labels = chart.data?.labels ?? [];
-    return labels.length > maxLabelCount;
-  };
-
-  const getBarTotals = (datasets, labelCount) =>
-    Array.from({ length: labelCount }, (_, index) =>
-      datasets.reduce((sum, dataset) => sum + ensureNumber(dataset.data?.[index]), 0)
-    );
-
-  const getNonZeroCount = (datasets, index) =>
-    datasets.reduce((count, dataset) => {
-      const value = ensureNumber(dataset.data?.[index]);
-      return value > 0 ? count + 1 : count;
-    }, 0);
-
-  const getFirstElementAtIndex = (chart, index) => {
-    for (let datasetIndex = 0; datasetIndex < chart.data.datasets.length; datasetIndex += 1) {
-      const meta = chart.getDatasetMeta(datasetIndex);
-      const element = meta?.data?.[index];
-      if (element) {
-        return element;
-      }
-    }
-    return null;
-  };
-
-  return {
-    id: 'exportDataLabels',
-    afterDatasetsDraw(chart) {
-      const ctx = chart.ctx;
-      const type = chart.config.type;
-      const datasets = chart.data?.datasets ?? [];
-      const labels = chart.data?.labels ?? [];
-      const isHorizontal = chart.options?.indexAxis === 'y';
-
-      ctx.save();
-
-      // SECTION: Export label typography
-      const pluginOptions = chart.options?.plugins?.exportValueLabels ?? {};
-      const segmentFontSize = pluginOptions.segmentFontSize ?? fontSegment;
-      const totalFontSize = pluginOptions.totalFontSize ?? fontTotal;
-      const weight = pluginOptions.fontWeight ?? fontWeight;
-      const labelFontFamily = chartTokens().font;
-      // END SECTION
-
-      if (type === 'bar') {
-        const yScale = chart.scales?.y;
-        const xScale = chart.scales?.x;
-        const stacked =
-          Boolean(chart.options?.scales?.x?.stacked) ||
-          Boolean(chart.options?.scales?.y?.stacked) ||
-          datasets.some((dataset) => dataset.stack);
-        const skipSegmentLabels = stacked && shouldSkipSegmentLabels(chart);
-        const totals = stacked ? getBarTotals(datasets, labels.length) : [];
-        const minSegmentHeight = minSegmentPx;
-
-        // SECTION: Segment labels
-        datasets.forEach((dataset, datasetIndex) => {
-          const meta = chart.getDatasetMeta(datasetIndex);
-          if (!meta?.data?.length) {
-            return;
-          }
-
-          meta.data.forEach((element, index) => {
-            const rawValue = ensureNumber(dataset.data?.[index]);
-            if (!rawValue) {
-              return;
-            }
-
-            if (stacked) {
-              if (skipSegmentLabels) {
-                return;
-              }
-
-              const nonZeroCount = getNonZeroCount(datasets, index);
-              if (nonZeroCount <= 1) {
-                return;
-              }
-
-              const size = isHorizontal
-                ? Math.abs(element.base - element.x)
-                : Math.abs(element.base - element.y);
-              if (size < minSegmentHeight) {
-                return;
-              }
-            }
-
-            const valueLabel = formatNumber(rawValue);
-            if (!valueLabel) {
-              return;
-            }
-
-            ctx.font = `${weight} ${segmentFontSize}px ${labelFontFamily}`;
-            ctx.fillStyle = stacked ? chartTokens().labelOnFill : chartTokens().textStrong;
-            ctx.strokeStyle = 'transparent';
-            ctx.lineWidth = stacked ? 3 : 0;
-
-            let x = 0;
-            let y = 0;
-
-            if (stacked) {
-              ctx.textBaseline = 'middle';
-              ctx.textAlign = 'center';
-              x = isHorizontal ? (element.x + element.base) / 2 : element.x;
-              y = isHorizontal ? element.y : (element.y + element.base) / 2;
-              ctx.strokeText(valueLabel, x, y);
-              ctx.fillText(valueLabel, x, y);
-            } else {
-              const offset = 10;
-              if (isHorizontal) {
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                x = element.x + offset;
-                y = element.y;
-              } else {
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                x = element.x;
-                y = element.y - offset;
-              }
-              ctx.fillText(valueLabel, x, y);
-            }
-          });
-        });
-        // END SECTION
-
-        // SECTION: Total labels for stacked bars
-        if (stacked && (yScale || xScale)) {
-          // SECTION: Total label placement guards
-          const chartArea = chart.chartArea || {};
-          const chartTop = chartArea.top ?? 0;
-          const chartBottom = chartArea.bottom ?? chart.height;
-          const chartLeft = chartArea.left ?? 0;
-          const chartRight = chartArea.right ?? chart.width;
-          const horizontalPadding = totalFontSize * 0.6;
-          const verticalPadding = totalFontSize * 0.8;
-          // END SECTION
-
-          totals.forEach((total, index) => {
-            if (!total) {
-              return;
-            }
-
-            const valueLabel = formatNumber(total);
-            if (!valueLabel) {
-              return;
-            }
-
-            const anchor = getFirstElementAtIndex(chart, index);
-            if (!anchor) {
-              return;
-            }
-
-            ctx.font = `${weight} ${totalFontSize}px ${labelFontFamily}`;
-            ctx.fillStyle = chartTokens().textStrong;
-            ctx.textBaseline = 'middle';
-
-            if (isHorizontal && xScale) {
-              const offset = Math.round(totalFontSize * 0.35);
-              let x = xScale.getPixelForValue(total) + offset;
-              let y = anchor.y ?? 0;
-              x = Math.min(Math.max(x, chartLeft + horizontalPadding), chartRight - horizontalPadding);
-              y = Math.min(Math.max(y, chartTop + horizontalPadding), chartBottom - horizontalPadding);
-              ctx.textAlign = 'left';
-              ctx.fillText(valueLabel, x, y);
-            } else if (yScale) {
-              const offset = Math.round(totalFontSize * 0.45);
-              let x = anchor.x ?? 0;
-              let y = yScale.getPixelForValue(total) - offset;
-              x = Math.min(Math.max(x, chartLeft + horizontalPadding), chartRight - horizontalPadding);
-              y = Math.min(Math.max(y, chartTop + verticalPadding), chartBottom - verticalPadding);
-              ctx.textAlign = 'center';
-              ctx.fillText(valueLabel, x, y);
-            }
-          });
-        }
-        // END SECTION
-      }
-
-      if (type === 'doughnut' || type === 'pie') {
-        const dataset = datasets[0];
-        const meta = chart.getDatasetMeta(0);
-        if (!dataset || !meta?.data?.length) {
-          ctx.restore();
-          return;
-        }
-
-        const values = dataset.data?.map((value) => ensureNumber(value)) ?? [];
-        const total = values.reduce((sum, value) => sum + value, 0);
-        const showPercentages = values.length <= 10;
-
-        meta.data.forEach((arc, index) => {
-          const value = values[index];
-          if (!value || !total) {
-            return;
-          }
-
-          const percent = Math.round((value / total) * 100);
-          const labelText = showPercentages
-            ? `${formatNumber(value)} (${percent}%)`
-            : formatNumber(value);
-          if (!labelText) {
-            return;
-          }
-
-          const angle = (arc.startAngle + arc.endAngle) / 2;
-          const radius = (arc.outerRadius + arc.innerRadius) / 2;
-          const x = arc.x + Math.cos(angle) * radius;
-          const y = arc.y + Math.sin(angle) * radius;
-
-          ctx.font = `${weight} ${segmentFontSize}px ${labelFontFamily}`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillStyle = chartTokens().textStrong;
-          ctx.fillText(labelText, x, y);
-        });
-      }
-
-      ctx.restore();
-    }
-  };
-}
 // END SECTION
 
 function sanitizeFilename(name) {
@@ -1283,10 +1052,22 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
     left: EXPORT_PADDING.left * scale
   };
   exportConfig.options.plugins.datalabels = false;
-  exportConfig.options.plugins.pmValueLabels = { display: false }; // the export draws its own, larger labels
+  // The chart's own value labels (its number format and fit rules), drawn larger; a doughnut
+  // also prints each slice's value, since the page's hover is not in a picture.
+  const labelScale = scale * EXPORT_LABEL_GROWTH;
+  if (exportConfig.options.plugins.pmValueLabels?.display !== false) {
+    exportConfig.options.plugins.pmValueLabels = {
+      ...(exportConfig.options.plugins.pmValueLabels || {}),
+      scale: labelScale,
+      slices: true
+    };
+  }
   if (exportConfig.options.plugins.pmPhaseBrackets) {
-    exportConfig.options.plugins.pmPhaseBrackets = { scale };
-    exportConfig.options.layout.padding.bottom += PHASE_BRACKET_HEIGHT * scale;
+    exportConfig.options.plugins.pmPhaseBrackets = { scale: labelScale };
+    exportConfig.options.layout.padding.bottom += PHASE_BRACKET_HEIGHT * labelScale;
+  }
+  if (exportConfig.type === 'bar') {
+    scaleExportBars(exportConfig, scale * EXPORT_BAR_GROWTH);
   }
   // The HTML legend chips are not part of the canvas, so the export draws Chart.js's own legend
   // whenever there is more than one series, or more than one slice of a doughnut.
@@ -1310,6 +1091,14 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   exportConfig.options.plugins.legend.labels.boxHeight = 20 * scale;
   exportConfig.options.plugins.legend.labels.padding = 18 * scale;
   exportConfig.options.plugins.legend.labels.usePointStyle = false;
+  // A slice too thin for its number on the ring still shows it in the legend.
+  if (exportConfig.type === 'doughnut') {
+    const sliceLabels = Chart.overrides.doughnut.plugins.legend.labels.generateLabels;
+    exportConfig.options.plugins.legend.labels.generateLabels = (c) => sliceLabels(c).map((item) => ({
+      ...item,
+      text: `${item.text} · ${ensureNumber(c.data.datasets[0]?.data?.[item.index]).toLocaleString()}`
+    }));
+  }
   // END SECTION
 
   // SECTION: Title/subtitle typography
@@ -1351,13 +1140,28 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   }
   // END SECTION
 
-  // SECTION: Export value label overrides
-  exportConfig.options.plugins.exportValueLabels = {
-    segmentFontSize: EXPORT_TYPOGRAPHY.dataLabel * scale,
-    totalFontSize: EXPORT_TYPOGRAPHY.totalLabel * scale,
-    fontWeight: '700'
+}
+
+// Bar thickness and corner radius are screen pixels in the chart config and in the shared defaults;
+// on the larger export canvas they would come out as hairlines.
+function scaleExportBars(exportConfig, factor) {
+  const options = exportConfig.options;
+  options.datasets = options.datasets || {};
+  options.datasets.bar = {
+    ...(options.datasets.bar || {}),
+    maxBarThickness: (options.datasets.bar?.maxBarThickness ?? PM_CHART.maxBarThickness) * factor
   };
-  // END SECTION
+  options.elements = options.elements || {};
+  const radius = options.elements.bar?.borderRadius;
+  options.elements.bar = {
+    ...(options.elements.bar || {}),
+    borderRadius: (typeof radius === 'number' ? radius : PM_CHART.barRadius) * factor
+  };
+  (exportConfig.data?.datasets ?? []).forEach((dataset) => {
+    ['maxBarThickness', 'barThickness', 'borderRadius'].forEach((key) => {
+      if (typeof dataset[key] === 'number') dataset[key] *= factor;
+    });
+  });
 }
 // END SECTION
 
@@ -1386,6 +1190,10 @@ function exportChartAsPngFullHd(chart, opts = {}) {
     options: cloneForExport(chart.config.options),
     plugins: Array.isArray(chart.config.plugins) ? [...chart.config.plugins] : []
   };
+  // A series switched off with its legend chip stays off in the picture.
+  (exportConfig.data?.datasets ?? []).forEach((dataset, index) => {
+    if (!chart.isDatasetVisible(index)) dataset.hidden = true;
+  });
 
   // SECTION: Export theme overrides
   applyExportChartOverrides(exportConfig, dpr);
@@ -1404,10 +1212,6 @@ function exportChartAsPngFullHd(chart, opts = {}) {
   });
 
   exportConfig.plugins.push(
-    createExportDataLabelsPlugin({
-      fontSegment: EXPORT_TYPOGRAPHY.dataLabel,
-      fontTotal: EXPORT_TYPOGRAPHY.totalLabel
-    }),
     createExportHeaderFooterPlugin({
       title,
       meta,
@@ -1428,6 +1232,34 @@ function exportChartAsPngFullHd(chart, opts = {}) {
 
   exportChart.destroy();
   return dataUrl;
+}
+
+// Card metas end with how to use the chart on the page ("click a bar to see its projects below");
+// a picture has nothing to click, so those clauses are left out of its caption.
+function exportCaption(text) {
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/;\s*click\b[^.]*\.?/gi, '.')
+    .replace(/(^|[.!?])\s*click\b[^.]*\.?/gi, '$1')
+    .trim();
+}
+
+// What the picture shows: the mode as the switcher names it, the card's toggles (Median,
+// By cost band) and its filters (Parent category: DCD Projects). A card without filters of its
+// own takes the panel's (the ARPP year chip sits on the first card but sets the whole mode).
+function exportContextLine(card) {
+  const mode = document.querySelector('.analytics-modes__item.is-active .analytics-modes__label')?.textContent?.trim();
+  const toggles = card
+    ? [...card.querySelectorAll('.analytics-seg [aria-pressed="true"]')].map((button) => button.textContent.trim())
+    : [];
+  const filterScope = card?.querySelector('.analytics-filter') ? card : card?.closest('.analytics-panel');
+  const filters = filterScope
+    ? [...filterScope.querySelectorAll('.analytics-filter')]
+      .map((filter) => [filter.querySelector('span')?.textContent?.trim(), filter.querySelector('b')?.textContent?.trim()])
+      .filter(([name, value]) => name && value)
+      .map(([name, value]) => `${name}: ${value}`)
+    : [];
+  return [mode ? `Analytics · ${mode}` : 'Analytics', ...toggles, ...filters].filter(Boolean).join(' · ');
 }
 
 function triggerDownload(dataUrl, filenameBase) {
@@ -1467,10 +1299,9 @@ function initAnalyticsChartDownloads() {
       const card = btn.closest('.analytics-card');
       const titleEl = card ? card.querySelector('.analytics-card__title') : null;
       const metaEl = card ? card.querySelector('.analytics-card__meta') : null;
-      const titleText = titleEl ? titleEl.textContent : 'chart';
-      const metaText = metaEl ? metaEl.textContent : '';
-      const tabValue = document.querySelector('.analytics-page')?.dataset?.analyticsTab ?? '';
-      const contextLine = tabValue ? `Analytics - ${tabValue}` : 'Analytics';
+      const titleText = titleEl ? titleEl.textContent.trim() : 'chart';
+      const metaText = exportCaption(metaEl ? metaEl.textContent : '');
+      const contextLine = exportContextLine(card);
       const filenameBase = sanitizeFilename(titleText);
 
       const png = exportChartAsPngFullHd(chart, {

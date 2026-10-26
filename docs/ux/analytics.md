@@ -98,6 +98,17 @@ one chart style defined once.
   ranking, the Completed median time to complete (from the earliest recorded or inferred start)
   and the Ongoing days in stage. The inferred start is never stored. The Insights footnote says
   how many of the measured stages used one.
+- **Downloaded charts** (the Download button on every chart card): a 1920 × 1080 PNG drawn by
+  `exportChartAsPngFullHd` in `wwwroot/js/analytics-projects.js`. It uses the chart's own value
+  labels (`pmValueLabels`, so the same number format and fit rules as the page) at twice their
+  screen size, with bars 1.6 times as thick and phase names under the Ongoing stage axis grown
+  to match. A label that does not fit is left out rather than spilling: a segment value too wide
+  for its bar, the inside label of a one-segment stack (the total already says it), and the
+  smaller of two side-by-side values that would collide. A doughnut adds each slice's value on
+  the ring where it fits and in the legend. The caption under the chart is the card's title and
+  meta without its "click a bar…" hint, then the mode, the card's toggles and its filters (or the
+  mode's, for ARPP's financial year) and the time. Series switched off with a legend chip stay
+  off. The export takes the current theme's colours.
 
 - **ARPP** (fifth mode, added 2026-10-25): the projects listed in one financial year's published
   ARPP (the latest published row per project, as the ARPP library's current position) joined to
