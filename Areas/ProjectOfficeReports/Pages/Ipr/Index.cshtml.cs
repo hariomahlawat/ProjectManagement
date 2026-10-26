@@ -430,7 +430,13 @@ public sealed partial class IndexModel : PageModel
                 break;
             case "year":
                 overrides["year"] = null;
-                overrides["dateBasis"] = null;
+                // The basis stays while a date window still needs it.
+                overrides["dateBasis"] = HasDateWindow ? DateBasis.ToString() : null;
+                break;
+            case "range":
+                overrides["from"] = null;
+                overrides["to"] = null;
+                overrides["dateBasis"] = Year.HasValue ? DateBasis.ToString() : null;
                 break;
             case "linkage":
                 overrides["linkage"] = null;
@@ -455,6 +461,8 @@ public sealed partial class IndexModel : PageModel
             ["projectId"] = null,
             ["dateBasis"] = null,
             ["year"] = null,
+            ["from"] = null,
+            ["to"] = null,
             ["linkage"] = null,
             ["evidence"] = null,
             ["pendingAge"] = null,

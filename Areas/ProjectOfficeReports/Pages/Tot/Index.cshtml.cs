@@ -276,7 +276,9 @@ public sealed class IndexModel : PageModel
         await PopulateAsync(cancellationToken);
         Export = new ExportRequestInput
         {
-            TotStatus = TotStatusFilter
+            TotStatus = TotStatusFilter,
+            CompletedFrom = CompletedFrom,
+            CompletedTo = CompletedTo
         };
     }
 

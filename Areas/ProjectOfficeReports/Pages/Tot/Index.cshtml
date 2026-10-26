@@ -439,8 +439,11 @@
                     <input type="hidden" asp-for="OnlyPending" />
                     <input type="hidden" asp-for="RequiresTotOnly" />
                     <input type="hidden" asp-for="MetCompletedOnly" />
+                    @* The export reads its own window (Export.*), prefilled from the page's in OnGet. *@
                     <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
                     <input type="hidden" name="CompletedTo" value="@completedToValue" />
+                    <input type="hidden" name="Export.CompletedFrom" value="@completedFromValue" />
+                    <input type="hidden" name="Export.CompletedTo" value="@completedToValue" />
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>

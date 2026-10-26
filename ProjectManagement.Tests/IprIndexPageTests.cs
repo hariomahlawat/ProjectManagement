@@ -35,6 +35,48 @@ namespace ProjectManagement.Tests;
 
 public sealed class IprIndexPageTests
 {
+    // A Command desk drill-down sets a date window (from/to on the chosen basis). On the Insights
+    // and Action list tabs the chips are server-rendered, so their remove and clear-all links must
+    // drop the window, and the basis stays only while a year filter still needs it.
+    // A removed value stays in the dictionary as null, which asp-all-route-data leaves out of the URL.
+    private static bool Dropped(IDictionary<string, string?> route, string key)
+        => !route.TryGetValue(key, out var value) || value is null;
+
+    [Fact]
+    public void ChipRoutes_DropTheDateWindow_AndKeepTheBasisOnlyForAYear()
+    {
+        using var db = CreateDbContext();
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(db, new StubIprReadService(), new StubIprWriteService(), new DenyAuthorizationService(), userManager, new StubIprExportService(), CreateAttachmentOptions())
+        {
+            From = new DateOnly(2026, 9, 26),
+            To = new DateOnly(2026, 10, 25),
+            DateBasis = IprDateBasis.Protected,
+            Statuses = new List<IprStatus> { IprStatus.Granted }
+        };
+
+        var withoutRange = page.BuildRemoveFilterRoute(new IndexModel.ActiveFilterChip("range", "Granted 26 Sep – 25 Oct 2026"));
+        Assert.True(Dropped(withoutRange, "from"));
+        Assert.True(Dropped(withoutRange, "to"));
+        Assert.True(Dropped(withoutRange, "dateBasis"));
+        Assert.Equal("Granted", withoutRange["statuses[0]"]);
+
+        page.Year = 2026;
+        var withoutRangeKeepingYear = page.BuildRemoveFilterRoute(new IndexModel.ActiveFilterChip("range", "Granted 26 Sep – 25 Oct 2026"));
+        Assert.Equal("Protected", withoutRangeKeepingYear["dateBasis"]);
+        Assert.Equal("2026", withoutRangeKeepingYear["year"]);
+
+        var withoutYear = page.BuildRemoveFilterRoute(new IndexModel.ActiveFilterChip("year", "Grant / registration year: 2026"));
+        Assert.True(Dropped(withoutYear, "year"));
+        Assert.Equal("Protected", withoutYear["dateBasis"]);
+        Assert.Equal("2026-09-26", withoutYear["from"]);
+
+        var cleared = page.BuildClearFiltersRoute();
+        Assert.True(Dropped(cleared, "from"));
+        Assert.True(Dropped(cleared, "to"));
+        Assert.True(Dropped(cleared, "dateBasis"));
+    }
+
     [Fact]
     public async Task OnGetAsync_WhenUserCannotEdit_DisablesEditing()
     {
