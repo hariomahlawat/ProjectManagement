@@ -213,6 +213,22 @@ public sealed class ProjectRepositoryPresentationContractTests
         Assert.Contains("window.history.replaceState(window.history.state", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Repository_ExportLinkCarriesTheViewAndIsAPlainDownload()
+    {
+        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+        var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
+
+        Assert.Contains("asp-page-handler=\"Export\"", results, StringComparison.Ordinal);
+        Assert.Contains("asp-all-route-data=\"Model.BuildExportRoute()\"", results, StringComparison.Ordinal);
+        // Not taken over by the live refresh: it is a file download.
+        Assert.DoesNotContain("projects-results-header__export", script, StringComparison.Ordinal);
+        // The export builds from the same resolved facts and row text as the tables.
+        Assert.Contains("ProjectRegisterExportRow.From(", model, StringComparison.Ordinal);
+        Assert.Contains("ActiveRegisterFacts.TryGetValue", model, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

@@ -84,6 +84,16 @@ plan to turn it into a register that shows which projects need attention.
   in a descending sort). This predates the register.
 - **Phone width**: tables scroll inside their box. `.projects-table-wrap` is positioned, so
   absolutely placed content (visually-hidden labels, progress-bar marks) cannot widen the page.
+- **Export to Excel** (beside the order line, shown when the view has projects) downloads every
+  page of the current view, in the screen order, with the same filters (`?handler=Export` on the
+  page's own query; the page's authorization applies). `ProjectRegisterExcelBuilder` writes a
+  **Projects** sheet whose columns follow the tab: Active writes the register facts as numbers and
+  dates (current stage, stage state, in stage since, days in stage, stage PDC, planned days, days
+  late, days left, plan status, officer, HoD, last update, days since update); Completed adds
+  build, completion, ToT and record; Cancelled the stage where it ceased, date and reason; All the
+  status and current position. Header row frozen, autofilter on. An **About** sheet records the
+  tab, project count, order, export time (IST) and each filter chip. File name:
+  `prism-projects-<tab>-<yyyyMMdd-HHmm>.xlsx`.
 
 ## Approved redesign: the register
 
@@ -99,11 +109,10 @@ principles:
   peer of the lifecycle tabs.
 - Filters apply at once from a quick-filter bar; every applied filter is a removable chip;
   **My projects** is one switch.
-- A quick-look panel opens a project's summary without leaving the list.
 - Business facts are resolved once. Active rows reuse `OngoingProjectsReadService` (current stage,
   `CurrentStagePdc`, `DaysInCurrentStage`, `DaysPastPdc`), which already follows
   `StageStartInference` (a missing start is the day after the predecessors finished; the gap is
-  the stage's own delay). The register, the quick look and the export must not recompute them.
+  the stage's own delay). The register and the export must not recompute them.
 
 ### Delivery plan
 
@@ -119,9 +128,9 @@ bookmarks and links from the Command desk and Analytics keep working.
 | 4 | Pipeline strip and attention filters | Stage columns with on-plan / late / blocked counts over the Active filters; clicking a stage sets the new `CurrentStage` parameter (not `StageCode`, which means "has reached"). Quick filters: late against plan, blocked, not updated in 30+ days (new `Attention` parameter). | Merged (#2821) |
 | 5 | Lifecycle tabs and per-tab columns | Tabs Active, Completed, Cancelled, All; Legacy becomes a Completed sub-filter (`Lifecycle=Legacy` still opens Completed with legacy selected); Completed, Cancelled and All columns. | Merged (#2822) |
 | 6 | Quick-filter bar | Inline Officer, HoD, Category, Build menus with counts replace the drawer for common filters; removable chips; **My projects**; rarer filters stay under **More**. | Merged (#2823) |
-| 7 | Quick look | Side panel loaded from a page handler with the same authorization as the Overview read: current stage card, lifecycle with dates, people, latest remark, links. | Planned |
+| 7 | Quick look | Side panel loaded from a page handler with the same authorization as the Overview read: current stage card, lifecycle with dates, people, latest remark, links. | Dropped (owner decision, 27 Oct 2026: the register row and the Overview page are enough) |
 | 8 | Gallery | Cards become the Gallery view: cover photo, stage tracker and late/left badge for active projects, completion and ToT for completed ones. | Planned |
-| 9 | Export | Excel export of the current filtered view through the resolved facts from PR 2; offline, no new dependency (ClosedXML is already used). | Planned |
+| 9 | Export | Excel export of the current filtered view through the resolved facts from PR 2; offline, no new dependency (ClosedXML is already used). | In review |
 | 10 | Header and phone | Compact header (one count line, search beside the title), `/` focuses search, phone rows stack as cards. | Planned |
 
 ### Active register facts (`Services/Projects/ProjectRegisterFactsService.cs`)
