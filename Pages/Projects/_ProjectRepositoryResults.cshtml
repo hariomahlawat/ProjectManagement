@@ -57,6 +57,19 @@
                            asp-all-route-data="Model.BuildOperationalOrderRoute()"
                            class="projects-results-header__order-reset">Reset order</a>
                     }
+                    @if (Model.FilteredTotal > 0)
+                    {
+                        @* Every page of this view, in this order, as an Excel file (a normal download, not a live refresh). *@
+                        <a asp-page="/Projects/Index"
+                           asp-page-handler="Export"
+                           asp-all-route-data="Model.BuildExportRoute()"
+                           class="projects-results-header__export"
+                           download
+                           title="Download every project in this view, in this order, as an Excel file">
+                            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                            Export to Excel
+                        </a>
+                    }
                 </span>
             </div>
 

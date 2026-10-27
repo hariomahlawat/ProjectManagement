@@ -1893,3 +1893,24 @@ a.projects-pipeline__stage:focus-visible {
 .projects-filter-chip__remove:focus-visible {
     background: var(--pm-primary-soft);
 }
+
+/* Export link in the results header (tokens only). */
+.projects-results-header__export {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-left: 0.6rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 999px;
+    color: var(--pm-text);
+    font-weight: 650;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.projects-results-header__export:hover,
+.projects-results-header__export:focus-visible {
+    border-color: var(--pm-primary);
+    color: var(--pm-primary);
+}
