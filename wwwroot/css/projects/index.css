@@ -155,7 +155,7 @@
 
 .projects-toolbar__main {
     display: grid;
-    grid-template-columns: minmax(260px, 1fr) auto auto;
+    grid-template-columns: minmax(260px, 1fr) auto;
     gap: 0.55rem;
     align-items: center;
     padding: 0.55rem;
@@ -192,26 +192,6 @@
     border-color: rgba(53, 104, 232, 0.4);
     background: var(--pm-card, #fff);
     box-shadow: 0 0 0 0.2rem rgba(53, 104, 232, 0.1);
-}
-
-.projects-toolbar__filter-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.42rem;
-    min-height: 2.45rem;
-    border-radius: 0.62rem;
-    font-weight: 650;
-}
-
-.projects-toolbar__filter-count {
-    display: inline-grid;
-    min-width: 1.3rem;
-    height: 1.3rem;
-    place-items: center;
-    border-radius: 999px;
-    background: var(--projects-primary-soft);
-    color: var(--projects-primary);
-    font-size: 0.7rem;
 }
 
 .projects-toolbar__page-size .form-select {
@@ -356,21 +336,6 @@
     border-top: 1px solid var(--projects-border);
     background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(12px);
-}
-
-.projects-filter-summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-bottom: 0.55rem;
-    padding: 0 0.15rem;
-}
-
-.projects-filter-summary__chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
 }
 
 .projects-filter-chip {
@@ -614,6 +579,9 @@
 }
 
 .projects-table-wrap {
+    /* Positioned so absolutely placed content (visually-hidden labels, bar marks) stays inside
+       the scroll box instead of widening the page on phones. */
+    position: relative;
     overflow: hidden;
     border: 1px solid var(--projects-border);
     border-radius: 0.85rem;
@@ -762,19 +730,11 @@
     }
 
     .projects-toolbar__main {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .projects-toolbar__page-size {
         display: none;
-    }
-
-    .projects-toolbar__filter-button span:not(.projects-toolbar__filter-count) {
-        display: none;
-    }
-
-    .projects-filter-summary {
-        align-items: flex-start;
     }
 
     .projects-grid {
@@ -1791,4 +1751,145 @@ a.projects-pipeline__stage:focus-visible {
     margin: 0;
     color: var(--pm-text-muted);
     font-size: 0.74rem;
+}
+
+/* Quick-filter bar: menus with counts, My projects, More filters, removable chips (tokens only). */
+.projects-quickbar {
+    margin: 0 0 0.9rem;
+}
+
+.projects-quickbar__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.projects-quickbar__button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.1rem;
+    padding: 0 0.75rem;
+    border: 1px dashed var(--pm-border-strong);
+    border-radius: 999px;
+    background: var(--pm-card);
+    color: var(--pm-text-muted);
+    font-size: 0.8rem;
+    font-weight: 650;
+}
+
+.projects-quickbar__button:hover,
+.projects-quickbar__button:focus-visible {
+    border-color: var(--pm-primary);
+    color: var(--pm-text);
+}
+
+.projects-quickbar__button.is-active {
+    border-style: solid;
+    border-color: var(--pm-primary);
+    background: var(--pm-primary-soft);
+    color: var(--pm-text);
+}
+
+.projects-quickbar__options {
+    max-height: 20rem;
+    overflow-y: auto;
+    font-size: 0.82rem;
+}
+
+.projects-quickbar__option {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+}
+
+.projects-quickbar__count {
+    color: var(--pm-text-muted);
+    font-size: 0.74rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.projects-quickbar__option.active .projects-quickbar__count {
+    color: inherit;
+}
+
+.projects-quickbar__mine {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.1rem;
+    padding: 0 0.4rem;
+    color: var(--pm-text-muted);
+    font-size: 0.8rem;
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.projects-quickbar__mine:hover,
+.projects-quickbar__mine.is-active {
+    color: var(--pm-text);
+}
+
+.projects-quickbar__switch {
+    position: relative;
+    display: inline-block;
+    width: 2rem;
+    height: 1.15rem;
+    border-radius: 999px;
+    background: var(--pm-border-strong);
+}
+
+.projects-quickbar__switch span {
+    position: absolute;
+    top: 0.15rem;
+    left: 0.15rem;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+    background: var(--pm-card);
+}
+
+.projects-quickbar__mine.is-active .projects-quickbar__switch {
+    background: var(--pm-primary);
+}
+
+.projects-quickbar__mine.is-active .projects-quickbar__switch span {
+    left: 1rem;
+}
+
+.projects-quickbar__badge {
+    display: inline-grid;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--pm-primary);
+    color: var(--pm-card);
+    font-size: 0.68rem;
+}
+
+.projects-quickbar__chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.45rem;
+    margin-top: 0.6rem;
+}
+
+.projects-filter-chip__remove {
+    display: inline-grid;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: -0.1rem -0.25rem -0.1rem 0.15rem;
+    place-items: center;
+    border-radius: 50%;
+    color: inherit;
+    text-decoration: none;
+}
+
+.projects-filter-chip__remove:hover,
+.projects-filter-chip__remove:focus-visible {
+    background: var(--pm-primary-soft);
 }

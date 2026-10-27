@@ -141,20 +141,29 @@ public sealed class ProjectRepositoryPresentationContractTests
     }
 
     [Fact]
-    public void Repository_UrlOnlyFiltersKeepTheirChipsOnLiveRefresh()
+    public void Repository_ChipsAreServerBuiltAndQuickFiltersRefreshInPlace()
     {
         var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
+        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+        var quickbar = ReadRepoFile("Pages", "Projects", "_ProjectRegisterQuickFilters.cshtml");
         var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
 
-        foreach (var field in new[] { "StageCode", "SlipBucket", "IncludeCategoryDescendants", "CompletedFrom", "StageCompletedFrom", "CurrentStage", "Attention" })
+        // The bar sits in the live results region, so a search refreshes its counts and chips.
+        Assert.Contains("<partial name=\"_ProjectRegisterQuickFilters\" model=\"Model\" />", results, StringComparison.Ordinal);
+        Assert.Contains("asp-all-route-data=\"chip.RemoveRoute\"", quickbar, StringComparison.Ordinal);
+        Assert.Contains("Model.BuildFacetRoute(facet.Key, option.Value)", quickbar, StringComparison.Ordinal);
+        Assert.Contains("data-bs-target=\"#projectFilters\"", quickbar, StringComparison.Ordinal);
+
+        // The menus' values are always form fields, so a live click keeps them for the next search.
+        foreach (var field in new[] { "LeadPoUserId", "HodUserId", "CategoryId", "Build", "Mine" })
         {
-            Assert.Matches($"name=\"{field}\"[^>]*data-project-filter-label=", view);
+            Assert.Contains($"<input type=\"hidden\" name=\"{field}\"", view, StringComparison.Ordinal);
         }
 
-        Assert.Contains("data-project-filter-requires=\"CategoryId\"", view, StringComparison.Ordinal);
-        Assert.Contains("[data-project-filter-label]", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-project-window-label", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("projectWindowLabel", script, StringComparison.Ordinal);
+        Assert.Contains("'[data-project-quickbar] a[href]'", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("updateFilterSummary", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-project-filter-label", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-project-filter-summary", view, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -2,8 +2,6 @@
 @using System.Linq
 
 <div data-project-live-metadata
-     data-new-build-count="@Model.NewBuildCount"
-     data-repeat-build-count="@Model.RepeatBuildCount"
      data-unclassified-count="@Model.ProjectTypeUnclassifiedCount"
      hidden>
     @foreach (var count in Model.ProjectTypeCounts.OrderBy(item => item.Key))

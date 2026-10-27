@@ -594,6 +594,94 @@ namespace ProjectManagement.Tests
             Assert.Equal(3, allTab.FilteredTotal);
         }
 
+        [Fact]
+        public async Task QuickFilters_CountUnderEveryOtherFilterAndChipsRemoveOneFilter()
+        {
+            await using var context = CreateContext();
+            context.Users.AddRange(
+                new ApplicationUser { Id = "po-a", UserName = "poa", FullName = "Officer A" },
+                new ApplicationUser { Id = "po-b", UserName = "pob", FullName = "Officer B" },
+                new ApplicationUser { Id = "hod-x", UserName = "hodx", FullName = "HoD X" });
+            var catA = new ProjectCategory { Name = "Cat A" };
+            var catB = new ProjectCategory { Name = "Cat B" };
+            context.ProjectCategories.AddRange(catA, catB);
+            await context.SaveChangesAsync();
+
+            void Add(string name, string po, ProjectCategory category, bool repeat) => context.Projects.Add(new Project
+            {
+                Name = name,
+                LeadPoUserId = po,
+                HodUserId = "hod-x",
+                CategoryId = category.Id,
+                IsBuild = repeat,
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow
+            });
+
+            Add("One", "po-a", catA, repeat: false);
+            Add("Two", "po-a", catB, repeat: true);
+            Add("Three", "po-b", catA, repeat: false);
+            await context.SaveChangesAsync();
+
+            var model = CreateModel(context);
+            model.LeadPoUserId = "po-a";
+            model.CategoryId = catA.Id;
+            await model.OnGetAsync();
+
+            Assert.Equal(new[] { "One" }, model.Projects.Select(p => p.Name));
+
+            // Officer counts ignore the officer choice but follow the category: both officers have one in Cat A.
+            var officers = model.QuickFacets.Single(f => f.Key == "LeadPoUserId");
+            Assert.Equal(new[] { ("Officer A", 1, true), ("Officer B", 1, false) },
+                officers.Options.Where(o => o.Value is not null).Select(o => (o.Label, o.Count!.Value, o.IsSelected)));
+            Assert.Equal("Officer A", officers.Selected!.Label);
+
+            // Category counts ignore the category choice but follow the officer: A has one in each.
+            var categories = model.QuickFacets.Single(f => f.Key == "CategoryId");
+            Assert.Equal(new[] { ("Cat A", 1), ("Cat B", 1) },
+                categories.Options.Where(o => o.Value is not null).Select(o => (o.Label, o.Count!.Value)));
+
+            // Build counts follow both choices.
+            var build = model.QuickFacets.Single(f => f.Key == "Build");
+            Assert.Equal((1, 0), (build.Options.Single(o => o.Value == "New").Count!.Value, build.Options.Single(o => o.Value == "Repeat").Count!.Value));
+
+            var officerChip = model.FilterChips.Single(c => c.Label == "Project Officer: Officer A");
+            Assert.False(officerChip.RemoveRoute.ContainsKey("LeadPoUserId"));
+            Assert.Equal(catA.Id.ToString(), officerChip.RemoveRoute["CategoryId"]);
+            var categoryChip = model.FilterChips.Single(c => c.Label == "Category: Cat A");
+            Assert.False(categoryChip.RemoveRoute.ContainsKey("CategoryId"));
+            Assert.Equal("po-a", categoryChip.RemoveRoute["LeadPoUserId"]);
+        }
+
+        [Fact]
+        public async Task MyProjects_ListsProjectsWhereTheUserIsOfficerOrHod()
+        {
+            await using var context = CreateContext();
+            context.Projects.AddRange(
+                new Project { Name = "As officer", LeadPoUserId = "me", CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow },
+                new Project { Name = "As HoD", HodUserId = "me", CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow },
+                new Project { Name = "Someone else", LeadPoUserId = "other", CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+
+            var model = CreateModel(context);
+            model.PageContext.HttpContext.User = new System.Security.Claims.ClaimsPrincipal(
+                new System.Security.Claims.ClaimsIdentity(new[] { new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "me") }, "test"));
+            model.Mine = true;
+            await model.OnGetAsync();
+
+            Assert.Equal(new[] { "As HoD", "As officer" }, model.Projects.Select(p => p.Name).OrderBy(n => n));
+            Assert.Equal(2, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.All).Count);
+            Assert.Contains(model.FilterChips, chip => chip.Label == "My projects" && !chip.RemoveRoute.ContainsKey("Mine"));
+            Assert.Equal("true", model.BuildBaseRouteValues()["Mine"]);
+            Assert.False(model.BuildMineRoute().ContainsKey("Mine") && model.BuildMineRoute()["Mine"] is not null);
+
+            // Without a signed-in user, My projects lists nothing rather than everything.
+            var anonymous = CreateModel(context);
+            anonymous.Mine = true;
+            await anonymous.OnGetAsync();
+            Assert.Empty(anonymous.Projects);
+        }
+
         private static void AddActive(ApplicationDbContext context, int id, string name, StageStatus status, DateOnly start, DateOnly? due)
         {
             context.Projects.Add(new Project
