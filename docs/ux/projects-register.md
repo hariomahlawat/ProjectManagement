@@ -19,7 +19,12 @@ plan to turn it into a register that shows which projects need attention.
 ## Current behaviour
 
 - **Lifecycle tabs**: Active, Completed, Cancelled, All, each with a count that follows the other
-  filters (All stays the default until the owner decides). **Legacy** is not a tab: the
+  filters. **Default tab** (owner decision, 27 Oct 2026): a plain `/Projects` (menu, breadcrumb,
+  bookmark) opens the tab last chosen, kept in the `prism_projects_tab` cookie (HttpOnly, path
+  `/Projects`, one year), or Active on a first visit. A link that carries any parameter keeps its
+  meaning, All unless it names a tab, so Command desk and Analytics drill-downs are unchanged;
+  such a link is not remembered unless it names a tab. Links name the All tab explicitly
+  (`Lifecycle=All`) so choosing it is remembered too. **Legacy** is not a tab: the
   Completed tab has a record switch, All completed / Recorded in PRISM / Legacy entries
   (`Record=Prism|Legacy`), with a line saying legacy entries are part of Completed. Older links
   with `Lifecycle=Legacy` open Completed with Legacy entries selected. `Record` applies only on
@@ -113,7 +118,7 @@ bookmarks and links from the Command desk and Analytics keep working.
 | 3 | Active register table | New Active columns (project with case file and category, stage tracker, time in stage, stage PDC, officer, updated); default order blocked first, then most overdue; "No case file" replaces "Not recorded". Card view unchanged. | Merged (#2820) |
 | 4 | Pipeline strip and attention filters | Stage columns with on-plan / late / blocked counts over the Active filters; clicking a stage sets the new `CurrentStage` parameter (not `StageCode`, which means "has reached"). Quick filters: late against plan, blocked, not updated in 30+ days (new `Attention` parameter). | Merged (#2821) |
 | 5 | Lifecycle tabs and per-tab columns | Tabs Active, Completed, Cancelled, All; Legacy becomes a Completed sub-filter (`Lifecycle=Legacy` still opens Completed with legacy selected); Completed, Cancelled and All columns. | Merged (#2822) |
-| 6 | Quick-filter bar | Inline Officer, HoD, Category, Build menus with counts replace the drawer for common filters; removable chips; **My projects**; rarer filters stay under **More**. | In review |
+| 6 | Quick-filter bar | Inline Officer, HoD, Category, Build menus with counts replace the drawer for common filters; removable chips; **My projects**; rarer filters stay under **More**. | Merged (#2823) |
 | 7 | Quick look | Side panel loaded from a page handler with the same authorization as the Overview read: current stage card, lifecycle with dates, people, latest remark, links. | Planned |
 | 8 | Gallery | Cards become the Gallery view: cover photo, stage tracker and late/left badge for active projects, completion and ToT for completed ones. | Planned |
 | 9 | Export | Excel export of the current filtered view through the resolved facts from PR 2; offline, no new dependency (ClosedXML is already used). | Planned |
@@ -139,8 +144,8 @@ the Active tab slows down.
 | `PlanStatus` | No PDC, On plan, or Late (PDC passed). A Finished project is never late or due: its last stage is done, so `DaysLate` and `DaysLeft` are empty and it sorts last |
 | `LastUpdatedOn`, `DaysSinceUpdate`, `IsStale` | Latest of a non-deleted remark written or edited, a content edit, or creation (the activity the operational order uses), as an IST date; stale after 30 days |
 
-Open decision for the owner: which tab opens by default. Recommended: remember each user's last
-tab, with Active as the first-visit default; until decided, All stays the default.
+Decided (27 Oct 2026): the default tab is the one last chosen, Active on a first visit; My
+projects keeps Project Officer or HoD.
 
 ### Deployment and rollback
 

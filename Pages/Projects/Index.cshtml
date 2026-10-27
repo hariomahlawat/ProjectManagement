@@ -43,7 +43,7 @@
 
         <form method="get" class="projects-toolbar" data-project-filter-form>
             <input type="hidden" name="p" value="1" />
-            <input type="hidden" name="Lifecycle" value="@(Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString())" />
+            <input type="hidden" name="Lifecycle" value="@Model.Lifecycle" />
             <input type="hidden" name="Sort" value="@Model.Sort" data-project-sort-field />
             <input type="hidden" name="Dir" value="@Model.Dir" data-project-sort-direction-field />
             @* The quick-filter menus' values. Always present, so a live menu or chip click (which
