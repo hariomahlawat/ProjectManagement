@@ -1,0 +1,76 @@
+@model ProjectManagement.Pages.Projects.IndexModel
+@using ProjectManagement.Services.Projects
+@* Where the active projects stand (docs/ux/projects-register.md): one column per stage with its
+   on-plan, late and blocked counts, and the attention quick filters. Counts come from
+   ProjectRegisterPipeline; choosing a column or a quick filter toggles it. *@
+@{
+    var pipeline = Model.Pipeline!;
+    // Bars share one scale, tallest column = 44px; a non-empty segment stays visible (4px).
+    var tallest = Math.Max(1, pipeline.Stages.Max(stage => stage.Total));
+    int Height(int count) => count == 0 ? 0 : Math.Max(4, (int)Math.Round(count * 44.0 / tallest));
+}
+
+<section class="projects-pipeline" aria-labelledby="projectPipelineTitle">
+    <div class="projects-pipeline__head">
+        <div>
+            <h2 class="projects-pipeline__title" id="projectPipelineTitle">Where the active projects stand</h2>
+            <p class="projects-pipeline__hint">Each column is a stage. Choose one to list only the projects in it.</p>
+        </div>
+        <div class="projects-pipeline__attention" aria-label="Needs attention">
+            @foreach (var item in pipeline.Attention)
+            {
+                var isOn = Model.Attention == item.Attention;
+                <a class="projects-pipeline__attn projects-pipeline__attn--@item.Attention.ToString().ToLowerInvariant() @(isOn ? "is-active" : null)"
+                   asp-page="/Projects/Index"
+                   asp-all-route-data="Model.BuildPipelineRoute(Model.CurrentStage, isOn ? null : item.Attention)"
+                   aria-current="@(isOn ? "true" : null)">
+                    <span class="projects-pipeline__dot" aria-hidden="true"></span>
+                    <strong>@item.Count</strong>
+                    <span>@item.Label.ToLowerInvariant()</span>
+                </a>
+            }
+        </div>
+    </div>
+
+    <div class="projects-pipeline__strip">
+        @foreach (var stage in pipeline.Stages)
+        {
+            var isOn = string.Equals(Model.CurrentStage, stage.Code, StringComparison.OrdinalIgnoreCase);
+            var label = $"{stage.Name}: {stage.Total} project{(stage.Total == 1 ? "" : "s")}"
+                + (stage.Late > 0 ? $", {stage.Late} late" : "")
+                + (stage.Blocked > 0 ? $", {stage.Blocked} blocked" : "");
+            if (stage.Total == 0 && !isOn)
+            {
+                <span class="projects-pipeline__stage is-empty" title="@label">
+                    <span class="projects-pipeline__count">–</span>
+                    <span class="projects-pipeline__bars" aria-hidden="true"><span class="projects-pipeline__base"></span></span>
+                    <span class="projects-pipeline__code">@stage.Code</span>
+                </span>
+            }
+            else
+            {
+                <a class="projects-pipeline__stage @(isOn ? "is-active" : null)"
+                   asp-page="/Projects/Index"
+                   asp-all-route-data="Model.BuildPipelineRoute(isOn ? null : stage.Code, Model.Attention)"
+                   title="@label"
+                   aria-label="@label"
+                   aria-current="@(isOn ? "true" : null)">
+                    <span class="projects-pipeline__count">@stage.Total</span>
+                    <span class="projects-pipeline__bars" aria-hidden="true">
+                        <span class="projects-pipeline__base"></span>
+                        <span class="projects-pipeline__seg projects-pipeline__seg--ok" style="height: @(Height(stage.OnPlan))px"></span>
+                        <span class="projects-pipeline__seg projects-pipeline__seg--late" style="height: @(Height(stage.Late))px"></span>
+                        <span class="projects-pipeline__seg projects-pipeline__seg--blocked" style="height: @(Height(stage.Blocked))px"></span>
+                    </span>
+                    <span class="projects-pipeline__code">@stage.Code</span>
+                </a>
+            }
+        }
+    </div>
+
+    <div class="projects-pipeline__legend" aria-hidden="true">
+        <span><i class="projects-pipeline__key projects-pipeline__key--ok"></i>On plan or no PDC</span>
+        <span><i class="projects-pipeline__key projects-pipeline__key--late"></i>Late against stage PDC</span>
+        <span><i class="projects-pipeline__key projects-pipeline__key--blocked"></i>Blocked</span>
+    </div>
+</section>

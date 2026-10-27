@@ -35,6 +35,8 @@
     if (Model.SlipBucketFilterLabel is { } slipBucketFilterLabel) activeFilters.Add(slipBucketFilterLabel);
     const string categoryDescendantsLabel = "Including sub-categories";
     if (Model.AppliesCategoryDescendants) activeFilters.Add(categoryDescendantsLabel);
+    if (Model.CurrentStageFilterLabel is { } currentStageFilterLabel) activeFilters.Add(currentStageFilterLabel);
+    if (Model.AttentionFilterLabel is { } attentionFilterLabel) activeFilters.Add(attentionFilterLabel);
     if (Model.ProjectTypeUnclassified) activeFilters.Add("Project type: Unclassified");
     else if (Model.ProjectTypeId.HasValue)
     {
@@ -89,6 +91,9 @@
             @if (!string.IsNullOrWhiteSpace(Model.StageCompletedMonth)) { <input type="hidden" name="StageCompletedMonth" value="@Model.StageCompletedMonth" /> }
             @if (!string.IsNullOrWhiteSpace(Model.SlipBucket)) { <input type="hidden" name="SlipBucket" value="@Model.SlipBucket" data-project-filter-label="@Model.SlipBucketFilterLabel" /> }
             @if (Model.IncludeCategoryDescendants) { <input type="hidden" name="IncludeCategoryDescendants" value="true" data-project-filter-label="@categoryDescendantsLabel" data-project-filter-requires="CategoryId" /> }
+            @* The Active pipeline's filters; its links are full page loads, so these fields always match. *@
+            @if (!string.IsNullOrWhiteSpace(Model.CurrentStage)) { <input type="hidden" name="CurrentStage" value="@Model.CurrentStage" data-project-filter-label="@Model.CurrentStageFilterLabel" /> }
+            @if (Model.Attention.HasValue) { <input type="hidden" name="Attention" value="@Model.Attention" data-project-filter-label="@Model.AttentionFilterLabel" /> }
 
             <div class="projects-toolbar__main">
                 <label class="projects-search" for="Query">

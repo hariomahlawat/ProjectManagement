@@ -514,6 +514,57 @@ namespace ProjectManagement.Tests
             Assert.Empty(all.ActiveRegisterRows);
         }
 
+        [Fact]
+        public async Task ActiveRegister_PipelineFiltersNarrowTheListAndOnlyApplyOnActive()
+        {
+            await using var context = CreateContext();
+            AddActive(context, 1, "Alpha on plan", StageStatus.InProgress, new DateOnly(2023, 12, 20), due: new DateOnly(2024, 1, 20));
+            AddActive(context, 2, "Bravo late", StageStatus.InProgress, new DateOnly(2023, 11, 1), due: new DateOnly(2023, 12, 22));
+            AddActive(context, 3, "Charlie blocked", StageStatus.Blocked, new DateOnly(2023, 12, 1), due: null);
+            await context.SaveChangesAsync();
+
+            var all = CreateModel(context);
+            all.Lifecycle = ProjectLifecycleFilter.Active;
+            await all.OnGetAsync();
+            Assert.NotNull(all.Pipeline);
+            Assert.Equal(3, all.Pipeline!.Stages.Single(stage => stage.Code == StageCodes.FS).Total);
+            Assert.Equal(1, all.Pipeline.Attention.Single(item => item.Attention == ProjectRegisterAttention.Late).Count);
+
+            var late = CreateModel(context);
+            late.Lifecycle = ProjectLifecycleFilter.Active;
+            late.Attention = ProjectRegisterAttention.Late;
+            await late.OnGetAsync();
+            Assert.Equal(new[] { "Bravo late" }, late.Projects.Select(p => p.Name));
+            Assert.Equal(1, late.FilteredTotal);
+            Assert.Equal("Late against plan", late.AttentionFilterLabel);
+            Assert.Equal("Late", late.BuildBaseRouteValues()["Attention"]);
+
+            var inFs = CreateModel(context);
+            inFs.Lifecycle = ProjectLifecycleFilter.Active;
+            inFs.CurrentStage = "fs";
+            await inFs.OnGetAsync();
+            Assert.Equal(3, inFs.FilteredTotal);
+            Assert.Equal("FS", inFs.CurrentStage);
+            Assert.StartsWith("Now in ", inFs.CurrentStageFilterLabel);
+
+            var inDevp = CreateModel(context);
+            inDevp.Lifecycle = ProjectLifecycleFilter.Active;
+            inDevp.CurrentStage = StageCodes.DEVP;
+            await inDevp.OnGetAsync();
+            Assert.Equal(0, inDevp.FilteredTotal);
+            Assert.NotNull(inDevp.Pipeline);
+
+            // Outside the Active tab the pipeline filters are dropped.
+            var allTab = CreateModel(context);
+            allTab.Attention = ProjectRegisterAttention.Late;
+            allTab.CurrentStage = StageCodes.DEVP;
+            await allTab.OnGetAsync();
+            Assert.Null(allTab.Pipeline);
+            Assert.Null(allTab.Attention);
+            Assert.Null(allTab.CurrentStage);
+            Assert.Equal(3, allTab.FilteredTotal);
+        }
+
         private static void AddActive(ApplicationDbContext context, int id, string name, StageStatus status, DateOnly start, DateOnly? due)
         {
             context.Projects.Add(new Project
