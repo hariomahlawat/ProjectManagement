@@ -424,6 +424,19 @@
     setView(preferredView, true);
     initialiseCoverImages();
 
+    // A bare /Projects opens the remembered tab (or Active). Name that tab in the address without
+    // adding a history step, so Back and live refreshes (which always carry parameters, and so
+    // would fall back to All) return to the same tab.
+    const lifecycleField = form.elements.namedItem('Lifecycle');
+    if (!window.location.search
+        && lifecycleField instanceof HTMLInputElement
+        && lifecycleField.value
+        && typeof window.history?.replaceState === 'function') {
+        const canonical = new URL(window.location.href);
+        canonical.searchParams.set('Lifecycle', lifecycleField.value);
+        window.history.replaceState(window.history.state, '', `${canonical.pathname}${canonical.search}${canonical.hash}`);
+    }
+
     // Drawer choices apply only with "Show results". Closing the drawer any other way puts its
     // controls back to what they held when it opened (the applied filters, as the server
     // normalised them), so a later search or page-size change cannot pick up a choice the user
