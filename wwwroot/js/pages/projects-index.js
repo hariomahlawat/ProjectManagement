@@ -181,119 +181,9 @@
         });
     }
 
-    function getChoiceLabel(input) {
-        const label = input.closest('label');
-        const source = label?.querySelector('span');
-        if (!source) return '';
-
-        const clone = source.cloneNode(true);
-        clone.querySelectorAll('small').forEach(node => node.remove());
-        return clone.textContent.trim();
-    }
-
-    function selectedOptionText(name) {
-        const select = form.elements.namedItem(name);
-        if (!(select instanceof HTMLSelectElement) || !select.value) return '';
-        return select.selectedOptions[0]?.textContent?.trim() || '';
-    }
-
-    function updateFilterSummary() {
-        const chips = [];
-        const query = search.value.trim();
-        if (query) chips.push(`Search: ${query}`);
-
-        const selectFilters = [
-            ['CategoryId', 'Category'],
-            ['TechnicalCategoryId', 'Technical category'],
-            ['HodUserId', 'HoD'],
-            ['LeadPoUserId', 'Project Officer'],
-            ['CompletedYear', 'Completion year'],
-            ['TotStatus', 'ToT']
-        ];
-
-        selectFilters.forEach(([name, label]) => {
-            const value = selectedOptionText(name);
-            if (value) chips.push(`${label}: ${value}`);
-        });
-
-        // URL-only filters (Command desk and Analytics links): hidden fields with their server-rendered
-        // label. A field that only narrows another filter (sub-categories of a category) needs it set.
-        form.querySelectorAll('input[type="hidden"][data-project-filter-label]').forEach(input => {
-            const label = input.dataset.projectFilterLabel;
-            if (!label || !input.value) return;
-            const requires = input.dataset.projectFilterRequires;
-            if (requires && !form.elements.namedItem(requires)?.value) return;
-            chips.push(label);
-        });
-
-        const unclassified = form.querySelector('[data-project-type-unclassified]');
-        const selectedType = form.querySelector('[data-project-type]:checked');
-        if (unclassified instanceof HTMLInputElement && unclassified.checked) {
-            chips.push('Project type: Unclassified');
-        } else if (selectedType instanceof HTMLInputElement && selectedType.value) {
-            const label = getChoiceLabel(selectedType);
-            if (label) chips.push(`Project type: ${label}`);
-        }
-
-        const selectedBuild = form.querySelector('input[name="Build"]:checked');
-        if (selectedBuild instanceof HTMLInputElement && selectedBuild.value) {
-            chips.push(selectedBuild.value.toLowerCase() === 'repeat' ? 'Repeat build' : 'New development');
-        }
-
-        const includeArchived = form.querySelector('input[type="checkbox"][name="IncludeArchived"]');
-        if (includeArchived instanceof HTMLInputElement && includeArchived.checked) {
-            chips.push('Archived included');
-        }
-
-        const summary = root.querySelector('[data-project-filter-summary]');
-        const chipHost = root.querySelector('[data-project-filter-chips]');
-        const countHost = root.querySelector('[data-project-filter-count-host]');
-
-        if (summary) summary.classList.toggle('d-none', chips.length === 0);
-
-        if (chipHost) {
-            chipHost.replaceChildren(...chips.map(text => {
-                const chip = document.createElement('span');
-                chip.className = 'projects-filter-chip';
-                chip.textContent = text;
-                return chip;
-            }));
-        }
-
-        if (countHost) {
-            countHost.replaceChildren();
-            if (chips.length > 0) {
-                const count = document.createElement('span');
-                count.className = 'projects-toolbar__filter-count';
-                count.dataset.projectFilterCount = '';
-                count.textContent = String(chips.length);
-                countHost.append(count);
-            }
-        }
-
-        const clearLink = root.querySelector('[data-project-clear-filters]');
-        if (clearLink instanceof HTMLAnchorElement) {
-            const clearUrl = new URL(form.action || window.location.href, window.location.href);
-            clearUrl.search = '';
-            const lifecycle = form.elements.namedItem('Lifecycle');
-            if (lifecycle && typeof lifecycle.value === 'string' && lifecycle.value) {
-                clearUrl.searchParams.set('Lifecycle', lifecycle.value);
-            }
-            clearLink.href = clearUrl.toString();
-        }
-    }
-
     function updateFilterCounts() {
         const metadata = root.querySelector('[data-project-live-metadata]');
         if (!(metadata instanceof HTMLElement)) return;
-
-        root.querySelectorAll('[data-project-build-count]').forEach(element => {
-            const build = element.dataset.projectBuildCount;
-            const count = build === 'Repeat'
-                ? metadata.dataset.repeatBuildCount
-                : metadata.dataset.newBuildCount;
-            element.textContent = count || '0';
-        });
 
         const unclassified = root.querySelector('[data-project-type-unclassified-count]');
         if (unclassified) {
@@ -404,7 +294,6 @@
         });
 
         normaliseProjectTypeControls();
-        updateFilterSummary();
     }
 
     function updateHistory(publicUrl, mode) {
@@ -457,7 +346,6 @@
             const documentFragment = new DOMParser().parseFromString(html, 'text/html');
             replaceLiveFragments(documentFragment);
             updateFilterCounts();
-            updateFilterSummary();
             setView(preferredView, false);
             initialiseCoverImages();
             updateHistory(publicUrl, historyMode);
@@ -570,7 +458,6 @@
             }
         });
         normaliseProjectTypeControls();
-        updateFilterSummary();
     });
 
     root.addEventListener('click', event => {
@@ -587,6 +474,7 @@
             '.projects-results-header__order-reset',
             '.projects-pagination a.page-link',
             '[data-project-clear-filters]',
+            '[data-project-quickbar] a[href]',
             '.projects-empty-state a.btn'
         ].join(','));
 

@@ -1,0 +1,85 @@
+@model ProjectManagement.Pages.Projects.IndexModel
+@using ProjectManagement.ViewModels
+@* Quick-filter bar (docs/ux/projects-register.md): Officer, HoD, Category and Build menus whose
+   counts follow every other filter, My projects, More filters (the rarer ones, in the drawer),
+   and one chip per applied filter with its own remove link. Inside the live results region, so a
+   search refreshes it; its links are taken over by the live refresh (projects-index.js). *@
+
+<div class="projects-quickbar" data-project-quickbar>
+    <div class="projects-quickbar__filters" role="group" aria-label="Quick filters">
+        @foreach (var facet in Model.QuickFacets)
+        {
+            var selected = facet.Selected;
+            var menuId = $"projectFacet{facet.Key}";
+            <div class="dropdown projects-quickbar__menu">
+                <button type="button"
+                        class="projects-quickbar__button dropdown-toggle @(selected is null ? null : "is-active")"
+                        id="@menuId"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                    @(selected is null ? facet.Name : $"{facet.Name}: {selected.Label}")
+                </button>
+                <ul class="dropdown-menu projects-quickbar__options" aria-labelledby="@menuId">
+                    @foreach (var option in facet.Options)
+                    {
+                        <li>
+                            <a class="dropdown-item projects-quickbar__option @(option.IsSelected ? "active" : null)"
+                               asp-page="/Projects/Index"
+                               asp-all-route-data="Model.BuildFacetRoute(facet.Key, option.Value)"
+                               aria-current="@(option.IsSelected ? "true" : null)">
+                                <span>@option.Label</span>
+                                @if (option.Count is int count)
+                                {
+                                    <span class="projects-quickbar__count">@count</span>
+                                }
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <a class="projects-quickbar__mine @(Model.Mine ? "is-active" : null)"
+           asp-page="/Projects/Index"
+           asp-all-route-data="Model.BuildMineRoute()"
+           role="switch"
+           aria-checked="@(Model.Mine ? "true" : "false")"
+           title="Projects where you are the Project Officer or the HoD">
+            <span class="projects-quickbar__switch" aria-hidden="true"><span></span></span>
+            My projects
+        </a>
+
+        <button type="button"
+                class="projects-quickbar__button projects-quickbar__more @(Model.MoreFiltersCount > 0 ? "is-active" : null)"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#projectFilters"
+                aria-controls="projectFilters">
+            <i class="bi bi-sliders" aria-hidden="true"></i>
+            More filters
+            @if (Model.MoreFiltersCount > 0)
+            {
+                <span class="projects-quickbar__badge">@Model.MoreFiltersCount</span>
+            }
+        </button>
+    </div>
+
+    @if (Model.FilterChips.Count > 0)
+    {
+        <div class="projects-quickbar__chips" aria-label="Applied filters">
+            @foreach (var chip in Model.FilterChips)
+            {
+                <span class="projects-filter-chip">
+                    @chip.Label
+                    <a class="projects-filter-chip__remove"
+                       asp-page="/Projects/Index"
+                       asp-all-route-data="chip.RemoveRoute"
+                       aria-label="Remove filter: @chip.Label"><i class="bi bi-x" aria-hidden="true"></i></a>
+                </span>
+            }
+            <a class="projects-filter-summary__clear"
+               asp-page="/Projects/Index"
+               asp-all-route-data="Model.BuildClearRoute()"
+               data-project-clear-filters>Clear all</a>
+        </div>
+    }
+</div>
