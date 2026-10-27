@@ -162,18 +162,26 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
-        public async Task LegacyArchive_IsPresentedSeparatelyFromLifecycleTabs()
+        public async Task LegacyLink_OpensCompletedWithLegacyEntriesSelected()
         {
             await using var context = CreateContext();
 
-            context.Projects.Add(new Project
-            {
-                Name = "Legacy",
-                LifecycleStatus = ProjectLifecycleStatus.Completed,
-                IsLegacy = true,
-                CreatedByUserId = "creator",
-                CreatedAt = DateTime.UtcNow
-            });
+            context.Projects.AddRange(
+                new Project
+                {
+                    Name = "Legacy",
+                    LifecycleStatus = ProjectLifecycleStatus.Completed,
+                    IsLegacy = true,
+                    CreatedByUserId = "creator",
+                    CreatedAt = DateTime.UtcNow
+                },
+                new Project
+                {
+                    Name = "Recorded",
+                    LifecycleStatus = ProjectLifecycleStatus.Completed,
+                    CreatedByUserId = "creator",
+                    CreatedAt = DateTime.UtcNow
+                });
             await context.SaveChangesAsync();
 
             var model = CreateModel(context);
@@ -181,9 +189,29 @@ namespace ProjectManagement.Tests
 
             await model.OnGetAsync();
 
-            Assert.True(model.LegacyArchive.IsActive);
+            Assert.Equal(ProjectLifecycleFilter.Completed, model.Lifecycle);
+            Assert.Equal(ProjectRegisterRecord.Legacy, model.Record);
+            Assert.True(model.IsCompletedRegister);
+            Assert.Contains(model.LifecycleTabs, tab => tab.Filter == ProjectLifecycleFilter.Completed && tab.IsActive);
             Assert.DoesNotContain(model.LifecycleTabs, tab => tab.Filter == ProjectLifecycleFilter.Legacy);
-            Assert.Single(model.Projects);
+            Assert.Equal(new[] { "Legacy" }, model.Projects.Select(p => p.Name));
+            Assert.Equal((1, 1), (model.RecordPrismCount, model.RecordLegacyCount));
+            Assert.Equal("Completed · Legacy entries", model.ActiveLifecycleLabel);
+            Assert.Equal("Legacy", model.BuildBaseRouteValues()["Record"]);
+
+            var prism = CreateModel(context);
+            prism.Lifecycle = ProjectLifecycleFilter.Completed;
+            prism.Record = ProjectRegisterRecord.Prism;
+            await prism.OnGetAsync();
+            Assert.Equal(new[] { "Recorded" }, prism.Projects.Select(p => p.Name));
+            Assert.All(prism.Projects, project => Assert.Equal("Recorded in PRISM", prism.ClosedRegisterRows[project.Id].RecordText));
+
+            // The record filter belongs to the Completed tab.
+            var all = CreateModel(context);
+            all.Record = ProjectRegisterRecord.Legacy;
+            await all.OnGetAsync();
+            Assert.Null(all.Record);
+            Assert.Equal(2, all.FilteredTotal);
         }
 
         [Fact]
@@ -235,8 +263,9 @@ namespace ProjectManagement.Tests
             Assert.Equal(2, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Completed).Count);
             Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Cancelled).Count);
             Assert.DoesNotContain(model.LifecycleTabs, tab => tab.Filter == ProjectLifecycleFilter.Legacy);
-            Assert.Equal(ProjectLifecycleFilter.Legacy, model.LegacyArchive.Filter);
-            Assert.Equal(1, model.LegacyArchive.Count);
+            Assert.Equal(
+                new[] { ProjectLifecycleFilter.Active, ProjectLifecycleFilter.Completed, ProjectLifecycleFilter.Cancelled, ProjectLifecycleFilter.All },
+                model.LifecycleTabs.Select(tab => tab.Filter));
         }
 
         [Fact]

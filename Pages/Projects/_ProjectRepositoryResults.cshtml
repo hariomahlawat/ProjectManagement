@@ -15,6 +15,30 @@
             {
                 <partial name="_ProjectRegisterPipeline" model="Model" />
             }
+            @if (Model.IsCompletedRegister)
+            {
+                var recordOptions = new (ProjectRegisterRecord? Record, string Label, int Count)[]
+                {
+                    (null, "All completed", Model.RecordPrismCount + Model.RecordLegacyCount),
+                    (ProjectRegisterRecord.Prism, "Recorded in PRISM", Model.RecordPrismCount),
+                    (ProjectRegisterRecord.Legacy, "Legacy entries", Model.RecordLegacyCount)
+                };
+                <div class="projects-record">
+                    <nav class="projects-record__options" aria-label="Completed records">
+                        @foreach (var option in recordOptions)
+                        {
+                            var isOn = Model.Record == option.Record;
+                            <a class="projects-record__option @(isOn ? "is-active" : null)"
+                               asp-page="/Projects/Index"
+                               asp-all-route-data="Model.BuildRecordRoute(option.Record)"
+                               aria-current="@(isOn ? "true" : null)">
+                                @option.Label <span class="projects-record__count">@option.Count</span>
+                            </a>
+                        }
+                    </nav>
+                    <p class="projects-record__hint">Legacy entries are completed projects recorded from the earlier archive. They are part of Completed.</p>
+                </div>
+            }
             <div class="projects-results-header">
                 <div>
                     <strong>@Model.FilteredTotal @Model.ProjectCountLabel</strong>
@@ -121,77 +145,7 @@
                     }
                     else
                     {
-                    <div class="projects-table-wrap">
-                        <table class="table projects-table align-middle">
-                            <thead>
-                                <tr>
-                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Project)">
-                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Project) ? "is-active" : null)"
-                                           asp-page="/Projects/Index"
-                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Project)"
-                                           title="Sort the complete result by project name">
-                                            Project <i class="@Model.GetSortIconClass(ProjectRepositorySort.Project)" aria-hidden="true"></i>
-                                        </a>
-                                    </th>
-                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Status)">
-                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Status) ? "is-active" : null)"
-                                           asp-page="/Projects/Index"
-                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Status)"
-                                           title="Sort the complete result by lifecycle status">
-                                            Status <i class="@Model.GetSortIconClass(ProjectRepositorySort.Status)" aria-hidden="true"></i>
-                                        </a>
-                                    </th>
-                                    <th scope="col">Current position</th>
-                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Officer)">
-                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Officer) ? "is-active" : null)"
-                                           asp-page="/Projects/Index"
-                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Officer)"
-                                           title="Sort the complete result by project officer">
-                                            Project Officer <i class="@Model.GetSortIconClass(ProjectRepositorySort.Officer)" aria-hidden="true"></i>
-                                        </a>
-                                    </th>
-                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Category)">
-                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Category) ? "is-active" : null)"
-                                           asp-page="/Projects/Index"
-                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Category)"
-                                           title="Sort the complete result by category">
-                                            Category <i class="@Model.GetSortIconClass(ProjectRepositorySort.Category)" aria-hidden="true"></i>
-                                        </a>
-                                    </th>
-                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.CaseFile)">
-                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.CaseFile) ? "is-active" : null)"
-                                           asp-page="/Projects/Index"
-                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.CaseFile)"
-                                           title="Sort the complete result by case file">
-                                            Case file <i class="@Model.GetSortIconClass(ProjectRepositorySort.CaseFile)" aria-hidden="true"></i>
-                                        </a>
-                                    </th>
-                                    <th scope="col" class="projects-table__action"><span class="visually-hidden">Open</span></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var project in Model.Projects)
-                                {
-                                    var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
-                                        ? resolvedStageDisplay
-                                        : ProjectRepositoryStagePositionVm.Missing;
-                                    var rowHref = Url.Page("/Projects/Overview", new { id = project.Id });
-                                    <tr class="projects-table__row @(project.IsLegacy ? "is-legacy" : null)" data-project-row data-href="@rowHref" tabindex="0">
-                                        <td data-sort-value="@project.Name"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a></td>
-                                        <td data-sort-value="@Model.FormatLifecycleStatus(project.LifecycleStatus)"><span class="badge rounded-pill @Model.GetLifecycleBadgeClass(project.LifecycleStatus)">@Model.FormatLifecycleStatus(project.LifecycleStatus)</span></td>
-                                        <td class="projects-table__stage">
-                                            <strong>@stageDisplay.Primary</strong>
-                                            @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary)) { <small>@stageDisplay.Secondary</small> }
-                                        </td>
-                                        <td data-sort-value="@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")">@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</td>
-                                        <td data-sort-value="@(project.Category?.Name ?? "Uncategorised")">@(project.Category?.Name ?? "Uncategorised")</td>
-                                        <td data-sort-value="@(project.CaseFileNumber ?? string.Empty)" class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "projects-table__missing" : null)">@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber)</td>
-                                        <td class="projects-table__action"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="btn btn-sm btn-link" aria-label="Open @project.Name"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                        <partial name="_ProjectRegisterClosedTable" model="Model" />
                     }
                 </div>
 

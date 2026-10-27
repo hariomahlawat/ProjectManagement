@@ -94,6 +94,8 @@
             @* The Active pipeline's filters; its links are full page loads, so these fields always match. *@
             @if (!string.IsNullOrWhiteSpace(Model.CurrentStage)) { <input type="hidden" name="CurrentStage" value="@Model.CurrentStage" data-project-filter-label="@Model.CurrentStageFilterLabel" /> }
             @if (Model.Attention.HasValue) { <input type="hidden" name="Attention" value="@Model.Attention" data-project-filter-label="@Model.AttentionFilterLabel" /> }
+            @* The Completed tab's record switch shows the choice itself, so it has no chip. *@
+            @if (Model.Record.HasValue) { <input type="hidden" name="Record" value="@Model.Record" /> }
 
             <div class="projects-toolbar__main">
                 <label class="projects-search" for="Query">

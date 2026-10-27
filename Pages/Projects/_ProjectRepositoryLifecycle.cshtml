@@ -14,6 +14,11 @@
                         routeValues.Remove("CurrentStage");
                         routeValues.Remove("Attention");
                     }
+                    if (lifecycle.Filter != ProjectLifecycleFilter.Completed)
+                    {
+                        // The record filter (PRISM or legacy entries) belongs to the Completed tab.
+                        routeValues.Remove("Record");
+                    }
                     <a class="projects-lifecycle__tab @(lifecycle.IsActive ? "is-active" : null)"
                        asp-page="/Projects/Index"
                        asp-all-route-data="routeValues"
@@ -23,21 +28,4 @@
                     </a>
                 }
             </nav>
-            @{
-                var legacyRouteValues = Model.BuildBaseRouteValues();
-                legacyRouteValues["Lifecycle"] = Model.LegacyArchive.RouteValue;
-                legacyRouteValues["p"] = "1";
-                legacyRouteValues.Remove("CurrentStage");
-                legacyRouteValues.Remove("Attention");
-            }
-            <a class="projects-archive-filter @(Model.LegacyArchive.IsActive ? "is-active" : null)"
-               asp-page="/Projects/Index"
-               asp-all-route-data="legacyRouteValues"
-               aria-current="@(Model.LegacyArchive.IsActive ? "page" : null)"
-               title="Completed projects recorded from the earlier archive. They are included in Completed.">
-                <i class="bi bi-archive" aria-hidden="true"></i>
-                <span>@Model.LegacyArchive.Label</span>
-                <span class="projects-lifecycle__count">@Model.LegacyArchive.Count</span>
-                <span class="visually-hidden">, included in Completed</span>
-            </a>
         </div>
