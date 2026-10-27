@@ -8,8 +8,8 @@ plan to turn it into a register that shows which projects need attention.
 
 | Concern | Code |
 | --- | --- |
-| Page | `Pages/Projects/Index.cshtml(.cs)`; partials `_ProjectRepositoryHeaderSummary`, `_ProjectRepositoryLifecycle`, `_ProjectRepositoryResults`, `_ProjectRegisterActiveTable` (Active tab's table), `_ProjectRepositoryLive` (live refresh), `_ProjectRepositoryLiveMetadata` |
-| Active register | `Services/Projects/ProjectRegisterFactsService.cs` and `ProjectRegisterActiveFacts.cs` (facts and the attention order); `ViewModels/ProjectRegisterActiveRowVm.cs` (row text) |
+| Page | `Pages/Projects/Index.cshtml(.cs)`; partials `_ProjectRepositoryHeaderSummary`, `_ProjectRepositoryLifecycle`, `_ProjectRepositoryResults`, `_ProjectRegisterActiveTable` (Active tab's table), `_ProjectRegisterPipeline` (Active tab's stage strip and quick filters), `_ProjectRepositoryLive` (live refresh), `_ProjectRepositoryLiveMetadata` |
+| Active register | `Services/Projects/ProjectRegisterFactsService.cs` and `ProjectRegisterActiveFacts.cs` (facts and the attention order); `ProjectRegisterPipeline.cs` (stage strip counts, quick filters); `ViewModels/ProjectRegisterActiveRowVm.cs` (row text) |
 | Query | `Services/Projects/ProjectSearchFilters.cs` (`ApplyProjectSearch`, `ApplyProjectOrdering`) |
 | Current position text | `ViewModels/ProjectRepositoryStagePositionVm.cs` over `ProjectLifecyclePositionResolver` |
 | Script | `wwwroot/js/pages/projects-index.js` (live search, filter drawer, chips, view switch) |
@@ -47,6 +47,16 @@ plan to turn it into a register that shows which projects need attention.
   applied in memory to the filtered Active set before paging. Elsewhere the default (Operational)
   puts active projects first by latest remark or update, then completed by latest completion,
   then cancelled. A search orders by relevance first, and a column sort overrides both.
+- **Active tab: where the projects stand** (above the results, cards and table): one column per
+  workflow stage (the default workflow's order, then any other stage in use) with the number of
+  active projects in it, split into on plan or no PDC, late against the stage PDC, and blocked;
+  finished projects are in no column. Choosing a column lists only the projects now in that stage
+  (`CurrentStage`; `StageCode` still means "has reached" for older links). Three quick filters,
+  late against plan, blocked and not updated in 30+ days (`Attention`), combine with a stage. Each
+  control's counts follow the other's choice and every other filter, but not its own choice. Both
+  filters show as chips, count in the Filters badge, survive a live search, and apply only on the
+  Active tab: the other tabs' links drop them. Their links are full page loads. The lifecycle tab
+  counts ignore them; the results count shows the narrowed list.
 - **Known issue (phone)**: the page scrolls sideways at phone width because the filter drawer's
   hidden radio buttons sit outside the viewport. This predates the register; PR 6 replaces the
   drawer.
@@ -81,8 +91,8 @@ bookmarks and links from the Command desk and Analytics keep working.
 | --- | --- | --- | --- |
 | 1 | Repository fixes | Drawer changes no longer leak into search (including a failed or still-loading apply); URL-only filters get chips; the view choice is rendered by the server; the Legacy pill says it is part of Completed; officer/HoD lists de-duplicated in the database; dead `TechnicalCategoryId` link parameter removed. | Merged (#2817) |
 | 2 | Active register facts | `ProjectRegisterFactsService` / `ProjectRegisterActiveFacts` (below). Tests: late, on plan, waiting to start, blocked, no PDC, every stage done, last update, scope. No UI change. | Merged (#2818) |
-| 3 | Active register table | New Active columns (project with case file and category, stage tracker, time in stage, stage PDC, officer, updated); default order blocked first, then most overdue; "No case file" replaces "Not recorded". Card view unchanged. | In review |
-| 4 | Pipeline strip and attention filters | Stage columns with on-plan / late / blocked counts over the Active filters; clicking a stage sets `StageCode`. Quick filters: late against plan, blocked, not updated in 30+ days (new `Attention` parameter). | Planned |
+| 3 | Active register table | New Active columns (project with case file and category, stage tracker, time in stage, stage PDC, officer, updated); default order blocked first, then most overdue; "No case file" replaces "Not recorded". Card view unchanged. | Merged (#2820) |
+| 4 | Pipeline strip and attention filters | Stage columns with on-plan / late / blocked counts over the Active filters; clicking a stage sets the new `CurrentStage` parameter (not `StageCode`, which means "has reached"). Quick filters: late against plan, blocked, not updated in 30+ days (new `Attention` parameter). | In review |
 | 5 | Lifecycle tabs and per-tab columns | Tabs Active, Completed, Cancelled, All; Legacy becomes a Completed sub-filter (`Lifecycle=Legacy` still opens Completed with legacy selected); Completed, Cancelled and All columns. | Planned |
 | 6 | Quick-filter bar | Inline Officer, HoD, Category, Build menus with counts replace the drawer for common filters; removable chips; **My projects**; rarer filters stay under **More**. | Planned |
 | 7 | Quick look | Side panel loaded from a page handler with the same authorization as the Overview read: current stage card, lifecycle with dates, people, latest remark, links. | Planned |

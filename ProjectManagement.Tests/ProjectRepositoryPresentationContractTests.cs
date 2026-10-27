@@ -140,7 +140,7 @@ public sealed class ProjectRepositoryPresentationContractTests
         var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
         var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
 
-        foreach (var field in new[] { "StageCode", "SlipBucket", "IncludeCategoryDescendants", "CompletedFrom", "StageCompletedFrom" })
+        foreach (var field in new[] { "StageCode", "SlipBucket", "IncludeCategoryDescendants", "CompletedFrom", "StageCompletedFrom", "CurrentStage", "Attention" })
         {
             Assert.Matches($"name=\"{field}\"[^>]*data-project-filter-label=", view);
         }

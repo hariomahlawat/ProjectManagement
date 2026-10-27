@@ -1586,3 +1586,197 @@
     color: var(--pm-text-muted) !important;
     font-style: italic;
 }
+
+/* Active pipeline strip and attention quick filters (tokens only). */
+.projects-pipeline {
+    margin: 0 0 1rem;
+    padding: 0.9rem 1rem 0.75rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 0.85rem;
+    background: var(--pm-card);
+}
+
+.projects-pipeline__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.projects-pipeline__title {
+    margin: 0;
+    color: var(--pm-text);
+    font-size: 0.92rem;
+    font-weight: 750;
+}
+
+.projects-pipeline__hint {
+    margin: 0.1rem 0 0;
+    color: var(--pm-text-muted);
+    font-size: 0.74rem;
+}
+
+.projects-pipeline__attention {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.projects-pipeline__attn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2rem;
+    padding: 0 0.7rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 0.6rem;
+    color: var(--pm-text-muted);
+    font-size: 0.76rem;
+    text-decoration: none;
+}
+
+.projects-pipeline__attn strong {
+    color: var(--pm-text);
+    font-size: 0.84rem;
+}
+
+.projects-pipeline__attn:hover,
+.projects-pipeline__attn:focus-visible {
+    border-color: var(--pm-primary);
+    color: var(--pm-text);
+}
+
+.projects-pipeline__attn.is-active {
+    border-color: var(--pm-primary);
+    background: var(--pm-primary-soft);
+    color: var(--pm-text);
+}
+
+.projects-pipeline__dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--pm-text-muted);
+}
+
+.projects-pipeline__attn--late .projects-pipeline__dot {
+    background: var(--pm-warning);
+}
+
+.projects-pipeline__attn--blocked .projects-pipeline__dot {
+    background: var(--pm-danger-emphasis);
+}
+
+.projects-pipeline__strip {
+    display: grid;
+    grid-auto-columns: minmax(2.9rem, 1fr);
+    grid-auto-flow: column;
+    gap: 0.25rem;
+    overflow-x: auto;
+}
+
+.projects-pipeline__stage {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    padding: 0.45rem 0.2rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    color: var(--pm-text);
+    text-decoration: none;
+}
+
+a.projects-pipeline__stage:hover,
+a.projects-pipeline__stage:focus-visible {
+    background: var(--pm-surface-subtle);
+}
+
+.projects-pipeline__stage.is-active {
+    border-color: var(--pm-primary);
+    background: var(--pm-primary-soft);
+}
+
+.projects-pipeline__stage.is-empty {
+    opacity: 0.5;
+}
+
+.projects-pipeline__count {
+    font-size: 1rem;
+    font-weight: 750;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.projects-pipeline__bars {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 2px;
+    height: 3.6rem;
+}
+
+.projects-pipeline__base {
+    width: 100%;
+    height: 1px;
+    flex: none;
+    background: var(--pm-border);
+}
+
+.projects-pipeline__seg {
+    display: block;
+    width: 1.3rem;
+    flex: none;
+    border-radius: 3px;
+}
+
+.projects-pipeline__seg--ok,
+.projects-pipeline__key--ok {
+    background: var(--pm-primary);
+}
+
+.projects-pipeline__seg--late,
+.projects-pipeline__key--late {
+    background: var(--pm-warning);
+}
+
+.projects-pipeline__seg--blocked,
+.projects-pipeline__key--blocked {
+    background: var(--pm-danger-emphasis);
+}
+
+.projects-pipeline__code {
+    color: var(--pm-text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.projects-pipeline__stage.is-active .projects-pipeline__code {
+    color: var(--pm-primary);
+}
+
+.projects-pipeline__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 0.45rem;
+    color: var(--pm-text-muted);
+    font-size: 0.7rem;
+}
+
+.projects-pipeline__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.projects-pipeline__key {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 2px;
+}

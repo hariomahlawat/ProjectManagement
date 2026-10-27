@@ -10,6 +10,11 @@
      data-project-results-region
      data-project-result-count="@Model.FilteredTotal"
      data-project-result-label="@Model.ProjectCountLabel">
+            @* Inside the results region so a live search refreshes its counts. *@
+            @if (Model.Pipeline is not null)
+            {
+                <partial name="_ProjectRegisterPipeline" model="Model" />
+            }
             <div class="projects-results-header">
                 <div>
                     <strong>@Model.FilteredTotal @Model.ProjectCountLabel</strong>

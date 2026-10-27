@@ -57,6 +57,22 @@ namespace ProjectManagement.Pages.Projects
         public IReadOnlyDictionary<int, ProjectRegisterActiveRowVm> ActiveRegisterRows { get; private set; }
             = new Dictionary<int, ProjectRegisterActiveRowVm>();
 
+        // Active-tab filters from the pipeline strip and its quick filters. CurrentStage is the stage
+        // a project is in now (StageCode, kept for older links, means "has reached").
+        [BindProperty(SupportsGet = true)]
+        public string? CurrentStage { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public ProjectRegisterAttention? Attention { get; set; }
+
+        public ProjectRegisterPipeline? Pipeline { get; private set; }
+
+        public string? CurrentStageFilterLabel => string.IsNullOrWhiteSpace(CurrentStage)
+            ? null
+            : $"Now in {_workflowStageMetadataProvider.GetDisplayName(null, CurrentStage)}";
+
+        public string? AttentionFilterLabel => Attention?.Label();
+
         // Blocked first, then most overdue, unless a search or an explicit sort orders the list.
         private bool UsesAttentionOrder =>
             IsActiveRegister && Sort == ProjectRepositorySort.Operational && string.IsNullOrWhiteSpace(Query);
@@ -177,7 +193,9 @@ namespace ProjectManagement.Pages.Projects
             !string.IsNullOrWhiteSpace(SlipBucket) ||
             ProjectTypeId.HasValue ||
             ProjectTypeUnclassified ||
-            !string.IsNullOrWhiteSpace(Build);
+            !string.IsNullOrWhiteSpace(Build) ||
+            !string.IsNullOrWhiteSpace(CurrentStage) ||
+            Attention.HasValue;
 
         public IEnumerable<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -265,6 +283,7 @@ namespace ProjectManagement.Pages.Projects
             // Section: Normalize query parameters
             NormalizeProjectTypeFilters();
             NormalizeOrdering();
+            NormalizeRegisterFilters();
             var buildFilter = NormalizeBuildFilter();
 
             // Full page loads need the selectable option lists. Live result
@@ -333,6 +352,41 @@ namespace ProjectManagement.Pages.Projects
                 cancellationToken: cancellationToken);
 
             var filteredQuery = ApplyProjectTypeFilter(baseQuery);
+
+            // Section: Active register facts, pipeline and its filters (resolved in memory; the
+            // Active set is small). The pipeline counts the Active set under every other filter.
+            var registerFacts = IsActiveRegister
+                ? await _registerFacts.GetActiveFactsAsync(cancellationToken)
+                : new Dictionary<int, ProjectRegisterActiveFacts>();
+
+            if (IsActiveRegister)
+            {
+                var inScope = await filteredQuery.Select(p => p.Id).ToListAsync(cancellationToken);
+                var scopedFacts = inScope
+                    .Where(registerFacts.ContainsKey)
+                    .Select(id => registerFacts[id])
+                    .ToList();
+
+                Pipeline = ProjectRegisterPipeline.Build(
+                    scopedFacts,
+                    _workflowStageMetadataProvider.GetStages(null),
+                    CurrentStage,
+                    Attention);
+
+                if (!string.IsNullOrWhiteSpace(CurrentStage) || Attention.HasValue)
+                {
+                    var stage = CurrentStage;
+                    var attention = Attention;
+                    var matchingIds = scopedFacts
+                        .Where(f => stage is null || f.IsCurrentlyIn(stage))
+                        .Where(f => attention is null || f.Matches(attention.Value))
+                        .Select(f => f.ProjectId)
+                        .ToList();
+
+                    filteredQuery = filteredQuery.Where(p => matchingIds.Contains(p.Id));
+                }
+            }
+
             FilteredTotal = await filteredQuery.CountAsync(cancellationToken);
             TotalCount = FilteredTotal;
 
@@ -394,10 +448,6 @@ namespace ProjectManagement.Pages.Projects
                 CurrentPage = TotalPages;
                 skip = Math.Max(0, (CurrentPage - 1) * PageSize);
             }
-
-            var registerFacts = IsActiveRegister
-                ? await _registerFacts.GetActiveFactsAsync(cancellationToken)
-                : new Dictionary<int, ProjectRegisterActiveFacts>();
 
             if (UsesAttentionOrder)
             {
@@ -522,6 +572,8 @@ namespace ProjectManagement.Pages.Projects
             AddValue(values, "Build", Build);
             AddValue(values, "ProjectTypeId", ProjectTypeId);
             AddValue(values, "ProjectTypeUnclassified", ProjectTypeUnclassified ? "true" : null);
+            AddValue(values, "CurrentStage", CurrentStage);
+            AddValue(values, "Attention", Attention?.ToString());
             AddValue(values, "PageSize", PageSize);
 
             if (Sort != ProjectRepositorySort.Operational)
@@ -547,6 +599,34 @@ namespace ProjectManagement.Pages.Projects
             var values = BuildBaseRouteValues();
             values.Remove("Sort");
             values.Remove("Dir");
+            values["p"] = "1";
+            return values;
+        }
+
+        // The pipeline filters belong to the Active tab; elsewhere (and when unreadable) they are dropped.
+        private void NormalizeRegisterFilters()
+        {
+            if (ModelState.TryGetValue(nameof(Attention), out var entry) && entry.Errors.Count > 0)
+            {
+                Attention = null;
+                ModelState.Remove(nameof(Attention));
+            }
+
+            CurrentStage = string.IsNullOrWhiteSpace(CurrentStage) ? null : CurrentStage.Trim().ToUpperInvariant();
+
+            if (!IsActiveRegister)
+            {
+                CurrentStage = null;
+                Attention = null;
+            }
+        }
+
+        // Route values for a pipeline control: toggles that one filter, keeps the rest, back to page 1.
+        public IDictionary<string, string?> BuildPipelineRoute(string? currentStage, ProjectRegisterAttention? attention)
+        {
+            var values = BuildBaseRouteValues();
+            values["CurrentStage"] = currentStage;
+            values["Attention"] = attention?.ToString();
             values["p"] = "1";
             return values;
         }

@@ -8,6 +8,12 @@
                     var routeValues = Model.BuildBaseRouteValues();
                     routeValues["Lifecycle"] = lifecycle.Filter == ProjectLifecycleFilter.All ? null : lifecycle.RouteValue;
                     routeValues["p"] = "1";
+                    if (lifecycle.Filter != ProjectLifecycleFilter.Active)
+                    {
+                        // The pipeline filters belong to the Active tab.
+                        routeValues.Remove("CurrentStage");
+                        routeValues.Remove("Attention");
+                    }
                     <a class="projects-lifecycle__tab @(lifecycle.IsActive ? "is-active" : null)"
                        asp-page="/Projects/Index"
                        asp-all-route-data="routeValues"
@@ -21,6 +27,8 @@
                 var legacyRouteValues = Model.BuildBaseRouteValues();
                 legacyRouteValues["Lifecycle"] = Model.LegacyArchive.RouteValue;
                 legacyRouteValues["p"] = "1";
+                legacyRouteValues.Remove("CurrentStage");
+                legacyRouteValues.Remove("Attention");
             }
             <a class="projects-archive-filter @(Model.LegacyArchive.IsActive ? "is-active" : null)"
                asp-page="/Projects/Index"
