@@ -76,7 +76,7 @@ pages, and never as a barber pole:
 - Dashboard text is at least 12px (`.75rem`); small uppercase labels at least 11px (`.6875rem`);
   what used to be 11–12.5px is now 13px (`.8125rem`). The same floor applies to the FFC map widget
   (`wwwroot/css/widgets/ffc-simulator-map.css`). Keep new Dashboard text at or above these floors.
-- My Workspace uses the same floors: the workspace rail, Officer workload, Project portfolio and
+- My Workspace uses the same floors: the workspace rail, Officer workload and
   the other command views (`wwwroot/css/command-workspace.css`) and Conference review
   (`wwwroot/css/officer-conference.css`).
 
@@ -102,5 +102,11 @@ Transparency makes the rail solid). Only the rail blurs; its items are tinted so
 ## My Workspace page headers
 
 Every command view opens with the same header: a small "Command oversight" / "Project monitoring"
-label, a large title and one line on what the view shows (`cw-page-header` for Officer workload and
-Project portfolio, matching Conference review and Briefing decks; the Command desk has its own).
+label, a large title and one line on what the view shows (`cw-page-header` for Officer workload,
+matching Conference review and Briefing decks; the Command desk has its own).
+
+**Project analytics** in the Command oversight group opens the Analytics page (Ongoing tab). It
+replaced Project portfolio on 27 Oct 2026, which drew a second, thinner copy of the same stage
+chart; `/Workspace?mode=command&view=portfolio` now redirects there, carrying any chosen parent
+categories (`ParentCategoryIds` → `ongoingStageParentCategoryIds`). The stage-wise project list
+is the Projects register's Active tab (choose a stage in its pipeline).
