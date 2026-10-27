@@ -13,6 +13,16 @@ public enum ProjectRegisterAttention
     Stale
 }
 
+/// <summary>
+/// The Completed tab's record filter: projects recorded in PRISM, or entries imported from the
+/// earlier archive (the old Legacy archive view).
+/// </summary>
+public enum ProjectRegisterRecord
+{
+    Prism,
+    Legacy
+}
+
 public static class ProjectRegisterFilters
 {
     public static bool Matches(this ProjectRegisterActiveFacts facts, ProjectRegisterAttention attention) => attention switch

@@ -67,6 +67,30 @@ namespace ProjectManagement.Pages.Projects
 
         public ProjectRegisterPipeline? Pipeline { get; private set; }
 
+        // Completed tab: all completed, recorded in PRISM, or legacy entries. Lifecycle=Legacy (older
+        // links) opens Completed with the legacy entries selected.
+        [BindProperty(SupportsGet = true)]
+        public ProjectRegisterRecord? Record { get; set; }
+
+        public bool IsCompletedRegister => Lifecycle == ProjectLifecycleFilter.Completed;
+
+        public bool IsCancelledRegister => Lifecycle == ProjectLifecycleFilter.Cancelled;
+
+        public int RecordPrismCount { get; private set; }
+
+        public int RecordLegacyCount { get; private set; }
+
+        public IDictionary<string, string?> BuildRecordRoute(ProjectRegisterRecord? record)
+        {
+            var values = BuildBaseRouteValues();
+            values["Record"] = record?.ToString();
+            values["p"] = "1";
+            return values;
+        }
+
+        public IReadOnlyDictionary<int, ProjectRegisterClosedRowVm> ClosedRegisterRows { get; private set; }
+            = new Dictionary<int, ProjectRegisterClosedRowVm>();
+
         public string? CurrentStageFilterLabel => string.IsNullOrWhiteSpace(CurrentStage)
             ? null
             : $"Now in {_workflowStageMetadataProvider.GetDisplayName(null, CurrentStage)}";
@@ -211,9 +235,6 @@ namespace ProjectManagement.Pages.Projects
 
         public IReadOnlyList<LifecycleFilterTab> LifecycleTabs { get; private set; } = Array.Empty<LifecycleFilterTab>();
 
-        public LifecycleFilterTab LegacyArchive { get; private set; } =
-            new(ProjectLifecycleFilter.Legacy, "Legacy archive", ProjectLifecycleFilter.Legacy.ToString(), false, 0);
-
         // Section: Result view preference (cards or table), written by projects-index.js so the
         // server renders the chosen view on first paint.
         public const string ViewCookieName = "prism_projects_view";
@@ -252,9 +273,9 @@ namespace ProjectManagement.Pages.Projects
         {
             get
             {
-                if (LegacyArchive.IsActive)
+                if (IsCompletedRegister && Record is { } record)
                 {
-                    return LegacyArchive.Label;
+                    return record == ProjectRegisterRecord.Legacy ? "Completed · Legacy entries" : "Completed · Recorded in PRISM";
                 }
 
                 var activeLifecycle = LifecycleTabs.FirstOrDefault(tab => tab.IsActive);
@@ -327,7 +348,6 @@ namespace ProjectManagement.Pages.Projects
                 buildFilter,
                 cancellationToken);
             LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);
-            LegacyArchive = CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Legacy archive", lifecycleCounts);
 
             var filters = baseFilters with { Lifecycle = Lifecycle };
 
@@ -352,6 +372,19 @@ namespace ProjectManagement.Pages.Projects
                 cancellationToken: cancellationToken);
 
             var filteredQuery = ApplyProjectTypeFilter(baseQuery);
+
+            // Section: Completed tab record filter (counts follow every other filter)
+            if (IsCompletedRegister)
+            {
+                RecordLegacyCount = await filteredQuery.CountAsync(p => p.IsLegacy, cancellationToken);
+                RecordPrismCount = await filteredQuery.CountAsync(p => !p.IsLegacy, cancellationToken);
+                filteredQuery = Record switch
+                {
+                    ProjectRegisterRecord.Legacy => filteredQuery.Where(p => p.IsLegacy),
+                    ProjectRegisterRecord.Prism => filteredQuery.Where(p => !p.IsLegacy),
+                    _ => filteredQuery
+                };
+            }
 
             // Section: Active register facts, pipeline and its filters (resolved in memory; the
             // Active set is small). The pipeline counts the Active set under every other filter.
@@ -487,6 +520,10 @@ namespace ProjectManagement.Pages.Projects
                     project => project.Id,
                     project => ProjectRegisterActiveRowVm.Create(registerFacts[project.Id]));
 
+            ClosedRegisterRows = IsActiveRegister
+                ? new Dictionary<int, ProjectRegisterClosedRowVm>()
+                : Projects.ToDictionary(project => project.Id, ProjectRegisterClosedRowVm.Create);
+
             StagePositions = Projects.ToDictionary(
                 project => project.Id,
                 project => ProjectRepositoryStagePositionVm.Create(
@@ -574,6 +611,7 @@ namespace ProjectManagement.Pages.Projects
             AddValue(values, "ProjectTypeUnclassified", ProjectTypeUnclassified ? "true" : null);
             AddValue(values, "CurrentStage", CurrentStage);
             AddValue(values, "Attention", Attention?.ToString());
+            AddValue(values, "Record", Record?.ToString());
             AddValue(values, "PageSize", PageSize);
 
             if (Sort != ProjectRepositorySort.Operational)
@@ -606,10 +644,28 @@ namespace ProjectManagement.Pages.Projects
         // The pipeline filters belong to the Active tab; elsewhere (and when unreadable) they are dropped.
         private void NormalizeRegisterFilters()
         {
-            if (ModelState.TryGetValue(nameof(Attention), out var entry) && entry.Errors.Count > 0)
+            if (ModelState.TryGetValue(nameof(Attention), out var attentionEntry) && attentionEntry.Errors.Count > 0)
             {
                 Attention = null;
                 ModelState.Remove(nameof(Attention));
+            }
+
+            if (ModelState.TryGetValue(nameof(Record), out var recordEntry) && recordEntry.Errors.Count > 0)
+            {
+                Record = null;
+                ModelState.Remove(nameof(Record));
+            }
+
+            // The Legacy archive is now part of Completed.
+            if (Lifecycle == ProjectLifecycleFilter.Legacy)
+            {
+                Lifecycle = ProjectLifecycleFilter.Completed;
+                Record ??= ProjectRegisterRecord.Legacy;
+            }
+
+            if (!IsCompletedRegister)
+            {
+                Record = null;
             }
 
             CurrentStage = string.IsNullOrWhiteSpace(CurrentStage) ? null : CurrentStage.Trim().ToUpperInvariant();
@@ -1051,8 +1107,7 @@ namespace ProjectManagement.Pages.Projects
                          ProjectLifecycleFilter.All,
                          ProjectLifecycleFilter.Active,
                          ProjectLifecycleFilter.Completed,
-                         ProjectLifecycleFilter.Cancelled,
-                         ProjectLifecycleFilter.Legacy
+                         ProjectLifecycleFilter.Cancelled
                      })
             {
                 var countFilters = baseFilters with { Lifecycle = filter };
@@ -1073,10 +1128,10 @@ namespace ProjectManagement.Pages.Projects
         {
             return new[]
             {
-                CreateLifecycleTab(ProjectLifecycleFilter.All, "All", counts),
                 CreateLifecycleTab(ProjectLifecycleFilter.Active, "Active", counts),
                 CreateLifecycleTab(ProjectLifecycleFilter.Completed, "Completed", counts),
-                CreateLifecycleTab(ProjectLifecycleFilter.Cancelled, "Cancelled", counts)
+                CreateLifecycleTab(ProjectLifecycleFilter.Cancelled, "Cancelled", counts),
+                CreateLifecycleTab(ProjectLifecycleFilter.All, "All", counts)
             };
         }
 

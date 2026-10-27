@@ -1,0 +1,132 @@
+@model ProjectManagement.Pages.Projects.IndexModel
+@using ProjectManagement.Services.Projects
+@using ProjectManagement.ViewModels
+@* The Completed, Cancelled and All register tables (docs/ux/projects-register.md). Values come
+   from ProjectRegisterClosedRowVm and the resolved stage positions; the view computes nothing. *@
+@{
+    var completed = Model.IsCompletedRegister;
+    var cancelled = Model.IsCancelledRegister;
+    var tableLabel = completed ? "Completed projects" : cancelled ? "Cancelled projects" : "All projects";
+
+    async Task SortHeader(ProjectRepositorySort sort, string label, string title)
+    {
+        <th scope="col" aria-sort="@Model.GetSortAria(sort)">
+            <a class="projects-sort @(Model.IsSortActive(sort) ? "is-active" : null)"
+               asp-page="/Projects/Index"
+               asp-all-route-data="Model.BuildSortRoute(sort)"
+               title="@title">
+                @label <i class="@Model.GetSortIconClass(sort)" aria-hidden="true"></i>
+            </a>
+        </th>
+    }
+}
+
+<div class="projects-table-wrap">
+    <table class="table projects-table projects-register align-middle" aria-label="@tableLabel">
+        <thead>
+            <tr>
+                @{ await SortHeader(ProjectRepositorySort.Project, "Project", "Sort the complete result by project name"); }
+                @if (completed)
+                {
+                    <th scope="col">Completed</th>
+                    await SortHeader(ProjectRepositorySort.Category, "Category", "Sort the complete result by category");
+                    await SortHeader(ProjectRepositorySort.Officer, "Project Officer", "Sort the complete result by project officer");
+                    <th scope="col">ToT</th>
+                    <th scope="col">Record</th>
+                }
+                else if (cancelled)
+                {
+                    <th scope="col">Ceased at</th>
+                    <th scope="col">Cancelled on</th>
+                    await SortHeader(ProjectRepositorySort.Officer, "Project Officer", "Sort the complete result by project officer");
+                    <th scope="col">Reason</th>
+                }
+                else
+                {
+                    await SortHeader(ProjectRepositorySort.Status, "Status", "Sort the complete result by lifecycle status");
+                    <th scope="col">Current position</th>
+                    await SortHeader(ProjectRepositorySort.Officer, "Project Officer", "Sort the complete result by project officer");
+                }
+                <th scope="col" class="projects-table__action"><span class="visually-hidden">Open</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var project in Model.Projects)
+            {
+                var row = Model.ClosedRegisterRows[project.Id];
+                var position = Model.StagePositions.TryGetValue(project.Id, out var resolvedPosition)
+                    ? resolvedPosition
+                    : ProjectRepositoryStagePositionVm.Missing;
+                var rowHref = Url.Page("/Projects/Overview", new { id = project.Id });
+                var officerName = project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName;
+                <tr class="projects-table__row" data-project-row data-href="@rowHref" tabindex="0">
+                    <td>
+                        <a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a>
+                        <div class="projects-register__meta">
+                            @if (string.IsNullOrWhiteSpace(project.CaseFileNumber))
+                            {
+                                <span class="projects-register__no-case">No case file</span>
+                            }
+                            else
+                            {
+                                <span class="projects-register__case">@project.CaseFileNumber</span>
+                            }
+                            <span aria-hidden="true">·</span>
+                            <span>@(completed ? row.BuildText : project.Category?.Name ?? "Uncategorised")</span>
+                        </div>
+                    </td>
+                    @if (completed)
+                    {
+                        <td class="projects-register__strong">@row.CompletedText</td>
+                        <td>@(project.Category?.Name ?? "Uncategorised")</td>
+                    }
+                    else if (cancelled)
+                    {
+                        <td>
+                            <span class="projects-register__stage">@position.Primary</span>
+                            @if (!string.IsNullOrWhiteSpace(position.Secondary))
+                            {
+                                <span class="projects-register__state">@position.Secondary</span>
+                            }
+                        </td>
+                        <td class="projects-register__strong">@row.CancelledText</td>
+                    }
+                    else
+                    {
+                        <td><span class="projects-register__pill projects-register__pill--@row.StatusTone">@row.StatusText</span></td>
+                        <td>
+                            <span class="projects-register__stage">@position.Primary</span>
+                            @if (!string.IsNullOrWhiteSpace(position.Secondary))
+                            {
+                                <span class="projects-register__state">@position.Secondary</span>
+                            }
+                        </td>
+                    }
+                    <td>
+                        @if (officerName is null)
+                        {
+                            <span class="projects-register__sub">Not assigned</span>
+                        }
+                        else
+                        {
+                            <span class="projects-register__officer">
+                                <span class="projects-register__avatar" aria-hidden="true">@ProjectRegisterActiveRowVm.Initials(officerName)</span>
+                                @officerName
+                            </span>
+                        }
+                    </td>
+                    @if (completed)
+                    {
+                        <td><span class="projects-register__pill projects-register__pill--@row.TotTone">@row.TotText</span></td>
+                        <td><span class="projects-register__pill projects-register__pill--@(row.IsLegacy ? "none" : "accent")">@row.RecordText</span></td>
+                    }
+                    else if (cancelled)
+                    {
+                        <td class="projects-register__reason">@row.ReasonText</td>
+                    }
+                    <td class="projects-table__action"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="btn btn-sm btn-link" aria-label="Open @project.Name"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -30,27 +30,33 @@ public sealed class ProjectRepositoryPresentationContractTests
     }
 
     [Fact]
-    public void Repository_HasOneCreateActionAndSeparatesLegacyArchive()
+    public void Repository_HasOneCreateActionAndLegacyLivesInsideCompleted()
     {
         var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
         var lifecycle = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryLifecycle.cshtml");
+        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
 
         Assert.DoesNotContain("projects-header__create", view, StringComparison.Ordinal);
-        Assert.Contains("projects-archive-filter", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("projects-archive-filter", lifecycle, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Project lifecycle filters\"", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("routeValues.Remove(\"Record\")", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Completed records\"", results, StringComparison.Ordinal);
+        Assert.Contains("Model.BuildRecordRoute(option.Record)", results, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Repository_UsesServerSideOrderingAcrossViewsAndPagination()
     {
         var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+        var closedTable = ReadRepoFile("Pages", "Projects", "_ProjectRegisterClosedTable.cshtml");
         var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
         var query = ReadRepoFile("Services", "Projects", "ProjectSearchFilters.cs");
         var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
 
         Assert.Contains("query.ApplyProjectOrdering(filters, Sort, Dir, _db.Database.IsNpgsql())", model, StringComparison.Ordinal);
         Assert.Contains("OperationalLifecycleRank", query, StringComparison.Ordinal);
-        Assert.Contains("asp-all-route-data=\"Model.BuildSortRoute(ProjectRepositorySort.Project)\"", results, StringComparison.Ordinal);
+        Assert.Contains("asp-all-route-data=\"Model.BuildSortRoute(sort)\"", closedTable, StringComparison.Ordinal);
+        Assert.Contains("SortHeader(ProjectRepositorySort.Project,", closedTable, StringComparison.Ordinal);
         Assert.Contains("The order is applied to the complete filtered result before pagination.", results, StringComparison.Ordinal);
         Assert.DoesNotContain("sortTable", script, StringComparison.Ordinal);
         Assert.DoesNotContain("data-project-sort-table", results, StringComparison.Ordinal);
