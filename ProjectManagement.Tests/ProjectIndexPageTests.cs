@@ -654,32 +654,60 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
-        public async Task MyProjects_ListsProjectsWhereTheUserIsOfficerOrHod()
+        public async Task QuickFilters_TechnicalCategoryMenuReplacesHodAndCountsUnderTheOtherFilters()
         {
             await using var context = CreateContext();
-            context.Projects.AddRange(
-                new Project { Name = "As officer", LeadPoUserId = "me", CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow },
-                new Project { Name = "As HoD", HodUserId = "me", CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow },
-                new Project { Name = "Someone else", LeadPoUserId = "other", CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow });
+            var simulators = new TechnicalCategory { Name = "Simulators" };
+            context.TechnicalCategories.Add(simulators);
+            await context.SaveChangesAsync();
+            var driving = new TechnicalCategory { Name = "Driving", ParentId = simulators.Id };
+            var software = new TechnicalCategory { Name = "Software" };
+            context.TechnicalCategories.AddRange(driving, software);
+            await context.SaveChangesAsync();
+
+            void Add(string name, string po, TechnicalCategory? technical) => context.Projects.Add(new Project
+            {
+                Name = name,
+                LeadPoUserId = po,
+                HodUserId = "hod-x",
+                TechnicalCategoryId = technical?.Id,
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow
+            });
+
+            Add("Tank driving sim", "po-a", driving);
+            Add("Truck driving sim", "po-b", driving);
+            Add("Range app", "po-a", software);
+            Add("Untagged", "po-a", null);
             await context.SaveChangesAsync();
 
             var model = CreateModel(context);
-            model.PageContext.HttpContext.User = new System.Security.Claims.ClaimsPrincipal(
-                new System.Security.Claims.ClaimsIdentity(new[] { new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "me") }, "test"));
-            model.Mine = true;
+            model.LeadPoUserId = "po-a";
+            model.TechnicalCategoryId = driving.Id;
             await model.OnGetAsync();
 
-            Assert.Equal(new[] { "As HoD", "As officer" }, model.Projects.Select(p => p.Name).OrderBy(n => n));
-            Assert.Equal(2, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.All).Count);
-            Assert.Contains(model.FilterChips, chip => chip.Label == "My projects" && !chip.RemoveRoute.ContainsKey("Mine"));
-            Assert.Equal("true", model.BuildBaseRouteValues()["Mine"]);
-            Assert.False(model.BuildMineRoute().ContainsKey("Mine") && model.BuildMineRoute()["Mine"] is not null);
+            Assert.Equal(new[] { "Tank driving sim" }, model.Projects.Select(p => p.Name));
+            Assert.Equal(new[] { "LeadPoUserId", "CategoryId", "TechnicalCategoryId", "Build" }, model.QuickFacets.Select(f => f.Key));
 
-            // Without a signed-in user, My projects lists nothing rather than everything.
-            var anonymous = CreateModel(context);
-            anonymous.Mine = true;
-            await anonymous.OnGetAsync();
-            Assert.Empty(anonymous.Projects);
+            // Counts ignore the technical category choice but follow the officer; a sub-category
+            // is labelled with its parent.
+            var technical = model.QuickFacets.Single(f => f.Key == "TechnicalCategoryId");
+            Assert.Equal("Technical category", technical.Name);
+            Assert.Equal(new[] { ("Simulators › Driving", 1, true), ("Software", 1, false) },
+                technical.Options.Where(o => o.Value is not null).Select(o => (o.Label, o.Count!.Value, o.IsSelected)));
+            Assert.Equal("Simulators › Driving", technical.Selected!.Label);
+
+            var chip = model.FilterChips.Single(c => c.Label == "Technical category: Driving");
+            Assert.False(chip.RemoveRoute.ContainsKey("TechnicalCategoryId"));
+            Assert.Equal("po-a", chip.RemoveRoute["LeadPoUserId"]);
+
+            // HoD is now a More filters choice: it still filters, counts on the More badge and has a chip.
+            var withHod = CreateModel(context);
+            withHod.HodUserId = "hod-x";
+            await withHod.OnGetAsync();
+            Assert.Equal(4, withHod.Projects.Count);
+            Assert.Equal(1, withHod.MoreFiltersCount);
+            Assert.Contains(withHod.FilterChips, c => c.Label.StartsWith("HoD:", StringComparison.Ordinal));
         }
 
         private static void AddActive(ApplicationDbContext context, int id, string name, StageStatus status, DateOnly start, DateOnly? due)

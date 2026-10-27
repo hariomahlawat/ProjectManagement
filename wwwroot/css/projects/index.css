@@ -1815,50 +1815,6 @@ a.projects-pipeline__stage:focus-visible {
     color: inherit;
 }
 
-.projects-quickbar__mine {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.1rem;
-    padding: 0 0.4rem;
-    color: var(--pm-text-muted);
-    font-size: 0.8rem;
-    font-weight: 650;
-    text-decoration: none;
-}
-
-.projects-quickbar__mine:hover,
-.projects-quickbar__mine.is-active {
-    color: var(--pm-text);
-}
-
-.projects-quickbar__switch {
-    position: relative;
-    display: inline-block;
-    width: 2rem;
-    height: 1.15rem;
-    border-radius: 999px;
-    background: var(--pm-border-strong);
-}
-
-.projects-quickbar__switch span {
-    position: absolute;
-    top: 0.15rem;
-    left: 0.15rem;
-    width: 0.85rem;
-    height: 0.85rem;
-    border-radius: 50%;
-    background: var(--pm-card);
-}
-
-.projects-quickbar__mine.is-active .projects-quickbar__switch {
-    background: var(--pm-primary);
-}
-
-.projects-quickbar__mine.is-active .projects-quickbar__switch span {
-    left: 1rem;
-}
-
 .projects-quickbar__badge {
     display: inline-grid;
     min-width: 1.2rem;

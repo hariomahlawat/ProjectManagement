@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -92,20 +91,14 @@ namespace ProjectManagement.Pages.Projects
         public IReadOnlyDictionary<int, ProjectRegisterClosedRowVm> ClosedRegisterRows { get; private set; }
             = new Dictionary<int, ProjectRegisterClosedRowVm>();
 
-        // Section: Quick-filter bar (docs/ux/projects-register.md). My projects = projects where the
-        // signed-in user is the Project Officer or the HoD.
-        [BindProperty(SupportsGet = true)]
-        public bool Mine { get; set; }
-
-        private string? CurrentUserId => User?.FindFirstValue(ClaimTypes.NameIdentifier);
-
+        // Section: Quick-filter bar (docs/ux/projects-register.md)
         public IReadOnlyList<ProjectRegisterFacet> QuickFacets { get; private set; } = Array.Empty<ProjectRegisterFacet>();
 
         public IReadOnlyList<ProjectRegisterFilterChip> FilterChips { get; private set; } = Array.Empty<ProjectRegisterFilterChip>();
 
         // The rarer filters kept in the More filters drawer.
         public int MoreFiltersCount =>
-            (TechnicalCategoryId.HasValue ? 1 : 0)
+            (string.IsNullOrWhiteSpace(HodUserId) ? 0 : 1)
             + (ProjectTypeId.HasValue || ProjectTypeUnclassified ? 1 : 0)
             + (CompletedYear.HasValue ? 1 : 0)
             + (TotStatus.HasValue ? 1 : 0)
@@ -121,14 +114,6 @@ namespace ProjectManagement.Pages.Projects
                 values.Remove("IncludeCategoryDescendants");
             }
 
-            values["p"] = "1";
-            return values;
-        }
-
-        public IDictionary<string, string?> BuildMineRoute()
-        {
-            var values = BuildBaseRouteValues();
-            values["Mine"] = Mine ? null : "true";
             values["p"] = "1";
             return values;
         }
@@ -267,12 +252,9 @@ namespace ProjectManagement.Pages.Projects
             ProjectTypeUnclassified ||
             !string.IsNullOrWhiteSpace(Build) ||
             !string.IsNullOrWhiteSpace(CurrentStage) ||
-            Attention.HasValue ||
-            Mine;
+            Attention.HasValue;
 
         public IEnumerable<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-        public IEnumerable<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
         public IEnumerable<SelectListItem> LeadPoOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -528,11 +510,14 @@ namespace ProjectManagement.Pages.Projects
                 .Select(g => new FacetRow(g.Key.Id, g.Key.Name, g.Count()))
                 .ToListAsync(cancellationToken);
 
-            var hodRows = await (await FacetScopeAsync(filters with { HodUserId = null }, applyBuild: true))
-                .Where(p => p.HodUserId != null)
-                .GroupBy(p => new { Id = p.HodUserId!, Name = p.HodUser != null ? (p.HodUser.FullName ?? p.HodUser.UserName) : null })
-                .Select(g => new FacetRow(g.Key.Id, g.Key.Name, g.Count()))
+            // The technical category filter matches the category itself, so each option counts its
+            // own projects; a sub-category is labelled with its parent ("Parent › Child").
+            var technicalRows = await (await FacetScopeAsync(filters with { TechnicalCategoryId = null }, applyBuild: true))
+                .Where(p => p.TechnicalCategoryId != null)
+                .GroupBy(p => p.TechnicalCategoryId!.Value)
+                .Select(g => new { Id = g.Key, Count = g.Count() })
                 .ToListAsync(cancellationToken);
+            var technicalPaths = await LoadTechnicalCategoryPathsAsync(cancellationToken);
 
             var categoryRows = await (await FacetScopeAsync(
                     filters with { CategoryId = null, IncludeCategoryDescendants = false, CategoryIds = null },
@@ -554,7 +539,6 @@ namespace ProjectManagement.Pages.Projects
             QuickFacets = new[]
             {
                 BuildFacet("LeadPoUserId", "Project Officer", "Any project officer", officerRows, LeadPoUserId, selectedNames.Officer),
-                BuildFacet("HodUserId", "HoD", "Any HoD", hodRows, HodUserId, selectedNames.Hod),
                 BuildFacet(
                     "CategoryId",
                     "Category",
@@ -562,6 +546,18 @@ namespace ProjectManagement.Pages.Projects
                     categoryRows.Select(r => new FacetRow(r.Id.ToString(CultureInfo.InvariantCulture), r.Name, r.Count)).ToList(),
                     CategoryId?.ToString(CultureInfo.InvariantCulture),
                     selectedNames.Category),
+                BuildFacet(
+                    "TechnicalCategoryId",
+                    "Technical category",
+                    "Any technical category",
+                    technicalRows.Select(r => new FacetRow(
+                        r.Id.ToString(CultureInfo.InvariantCulture),
+                        technicalPaths.TryGetValue(r.Id, out var path) ? path : null,
+                        r.Count)).ToList(),
+                    TechnicalCategoryId?.ToString(CultureInfo.InvariantCulture),
+                    TechnicalCategoryId is int technicalId && technicalPaths.TryGetValue(technicalId, out var selectedPath)
+                        ? selectedPath
+                        : selectedNames.TechnicalCategory),
                 new ProjectRegisterFacet("Build", "Build", new[]
                 {
                     new ProjectRegisterFacetOption(null, "Any build", NewBuildCount + RepeatBuildCount, buildFilter is null),
@@ -764,7 +760,6 @@ namespace ProjectManagement.Pages.Projects
             AddValue(values, "CurrentStage", CurrentStage);
             AddValue(values, "Attention", Attention?.ToString());
             AddValue(values, "Record", Record?.ToString());
-            AddValue(values, "Mine", Mine ? "true" : null);
             AddValue(values, "PageSize", PageSize);
 
             if (Sort != ProjectRepositorySort.Operational)
@@ -943,14 +938,6 @@ namespace ProjectManagement.Pages.Projects
                 .AsNoTracking()
                 .ApplyProjectSearch(filters, _db.Database.IsNpgsql());
 
-            if (Mine)
-            {
-                var userId = CurrentUserId;
-                query = userId is null
-                    ? query.Where(_ => false)
-                    : query.Where(p => p.LeadPoUserId == userId || p.HodUserId == userId);
-            }
-
             if (!string.IsNullOrWhiteSpace(filters.SlipBucket))
             {
                 var slipIds = await _analytics
@@ -1094,15 +1081,6 @@ namespace ProjectManagement.Pages.Projects
 
             CategoryOptions = BuildCategoryOptions(categories, CategoryId);
 
-            var technicalCategories = await _db.TechnicalCategories
-                .AsNoTracking()
-                .OrderBy(c => c.SortOrder)
-                .ThenBy(c => c.Name)
-                .Select(c => new TechnicalCategoryOption(c.Id, c.Name, c.ParentId, c.IsActive))
-                .ToListAsync(cancellationToken);
-
-            TechnicalCategoryOptions = BuildTechnicalCategoryOptions(technicalCategories, TechnicalCategoryId);
-
             // One row per person, not per project.
             var hodUsers = await _db.Projects
                 .AsNoTracking()
@@ -1163,48 +1141,6 @@ namespace ProjectManagement.Pages.Projects
             {
                 Selected = selectedValue is not null && string.Equals(selectedValue, c.Id.ToString(), StringComparison.Ordinal)
             }));
-
-            return options;
-        }
-
-        private static IEnumerable<SelectListItem> BuildTechnicalCategoryOptions(
-            IEnumerable<TechnicalCategoryOption> categories,
-            int? selectedId)
-        {
-            var lookup = categories
-                .Where(c => c.IsActive)
-                .ToLookup(c => c.ParentId);
-
-            var options = new List<SelectListItem>
-            {
-                new("All technical categories", string.Empty, !selectedId.HasValue)
-            };
-
-            void AddOptions(int? parentId, string prefix)
-            {
-                foreach (var category in lookup[parentId])
-                {
-                    var text = string.IsNullOrEmpty(prefix) ? category.Name : $"{prefix}{category.Name}";
-                    var isSelected = selectedId.HasValue && selectedId.Value == category.Id;
-                    options.Add(new SelectListItem(text, category.Id.ToString(), isSelected));
-                    AddOptions(category.Id, string.Concat(prefix, "— "));
-                }
-            }
-
-            AddOptions(null, string.Empty);
-
-            if (selectedId.HasValue)
-            {
-                var selectedValue = selectedId.Value.ToString();
-                if (options.All(option => !string.Equals(option.Value, selectedValue, StringComparison.Ordinal)))
-                {
-                    var selected = categories.FirstOrDefault(c => c.Id == selectedId.Value);
-                    if (selected is not null)
-                    {
-                        options.Add(new SelectListItem($"{selected.Name} (inactive)", selected.Id.ToString(), true));
-                    }
-                }
-            }
 
             return options;
         }
@@ -1415,6 +1351,29 @@ namespace ProjectManagement.Pages.Projects
             return new ProjectRegisterFacet(key, name, options);
         }
 
+        // Each technical category's name with its parents' names in front ("Parent › Child").
+        private async Task<IReadOnlyDictionary<int, string>> LoadTechnicalCategoryPathsAsync(CancellationToken cancellationToken)
+        {
+            var categories = await _db.TechnicalCategories
+                .AsNoTracking()
+                .Select(c => new { c.Id, c.Name, c.ParentId })
+                .ToDictionaryAsync(c => c.Id, cancellationToken);
+
+            string PathOf(int id)
+            {
+                var names = new List<string>();
+                var seen = new HashSet<int>();
+                for (int? current = id; current is int key && seen.Add(key) && categories.TryGetValue(key, out var category); current = category.ParentId)
+                {
+                    names.Insert(0, category.Name);
+                }
+
+                return string.Join(" › ", names);
+            }
+
+            return categories.Keys.ToDictionary(id => id, PathOf);
+        }
+
         // Names for the chosen filters, for the chips and for a chosen menu value with no projects.
         private async Task<SelectedNames> ResolveSelectedNamesAsync(CancellationToken cancellationToken)
         {
@@ -1468,7 +1427,6 @@ namespace ProjectManagement.Pages.Projects
             }
 
             Add(!string.IsNullOrWhiteSpace(Query), $"Search: {Query?.Trim()}", "Query");
-            Add(Mine, "My projects", "Mine");
             Add(!string.IsNullOrWhiteSpace(LeadPoUserId), $"Project Officer: {names.Officer}", "LeadPoUserId");
             Add(!string.IsNullOrWhiteSpace(HodUserId), $"HoD: {names.Hod}", "HodUserId");
             Add(CategoryId.HasValue, $"Category: {names.Category ?? CategoryId?.ToString(CultureInfo.InvariantCulture)}", "CategoryId", "IncludeCategoryDescendants");
@@ -1495,8 +1453,6 @@ namespace ProjectManagement.Pages.Projects
         private sealed record UserOption(string Id, string? FullName, string? UserName);
 
         private sealed record CategoryOption(int Id, string Name);
-
-        private sealed record TechnicalCategoryOption(int Id, string Name, int? ParentId, bool IsActive);
 
         public sealed record ProjectTypeChipViewModel(int Id, string Name, int Count);
 

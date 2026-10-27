@@ -38,12 +38,13 @@ plan to turn it into a register that shows which projects need attention.
 - **Search** refreshes the results in place (`?handler=Live`) 300 ms after typing stops and keeps
   the URL current.
 - **Quick-filter bar** (top of the results, refreshed with every live search): Project Officer,
-  HoD, Category and Build menus. Each option shows how many projects it would list under every
-  other filter (the tab, search, pipeline and record filters included) but not the menu's own
-  choice. **My projects** (`Mine=true`) lists projects where the signed-in user is the Project
-  Officer or the HoD; it also narrows the tab counts. **More filters** opens the drawer with the
-  rarer filters (technical category, project type, completion year, ToT, archived) and shows how
-  many of them are set. Menu, chip and My projects links refresh the list in place.
+  Category, Technical category and Build menus. Each option shows how many projects it would list
+  under every other filter (the tab, search, pipeline and record filters included) but not the
+  menu's own choice. Technical category lists the categories that have projects in scope, a
+  sub-category labelled with its parent ("Simulators › Driving"); like the filter, each counts
+  only projects tagged with that category itself. **More filters** opens the drawer with the
+  rarer filters (HoD, project type, completion year, ToT, archived) and shows how many of them
+  are set. Menu and chip links refresh the list in place.
 - **Chips**: one per applied filter, built by the server, each with a remove link that drops only
   that filter (category also drops `IncludeCategoryDescendants`); **Clear all** keeps the tab.
   Filters that only arrive by link (Command desk and older Analytics links: the completion and
@@ -97,8 +98,7 @@ principles:
   month, ToT and record source. Cancelled shows the stage where it ceased, the date and the reason.
 - Legacy entries are a filter inside Completed (All / Recorded in PRISM / Legacy entries), not a
   peer of the lifecycle tabs.
-- Filters apply at once from a quick-filter bar; every applied filter is a removable chip;
-  **My projects** is one switch.
+- Filters apply at once from a quick-filter bar; every applied filter is a removable chip.
 - A quick-look panel opens a project's summary without leaving the list.
 - Business facts are resolved once. Active rows reuse `OngoingProjectsReadService` (current stage,
   `CurrentStagePdc`, `DaysInCurrentStage`, `DaysPastPdc`), which already follows
@@ -144,8 +144,11 @@ the Active tab slows down.
 | `PlanStatus` | No PDC, On plan, or Late (PDC passed). A Finished project is never late or due: its last stage is done, so `DaysLate` and `DaysLeft` are empty and it sorts last |
 | `LastUpdatedOn`, `DaysSinceUpdate`, `IsStale` | Latest of a non-deleted remark written or edited, a content edit, or creation (the activity the operational order uses), as an IST date; stale after 30 days |
 
-Decided (27 Oct 2026): the default tab is the one last chosen, Active on a first visit; My
-projects keeps Project Officer or HoD.
+Decided (27 Oct 2026): the default tab is the one last chosen, Active on a first visit. Later the
+same day the owner replaced HoD and My projects in the quick-filter bar with Technical category:
+HoD is rarely used to narrow the list, so it moved under More filters (`HodUserId` still works), and
+My projects was removed (`Mine` is no longer read; it had shipped only in #2823 and nothing
+linked to it).
 
 ### Deployment and rollback
 

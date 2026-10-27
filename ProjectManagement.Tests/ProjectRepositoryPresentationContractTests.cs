@@ -155,10 +155,17 @@ public sealed class ProjectRepositoryPresentationContractTests
         Assert.Contains("data-bs-target=\"#projectFilters\"", quickbar, StringComparison.Ordinal);
 
         // The menus' values are always form fields, so a live click keeps them for the next search.
-        foreach (var field in new[] { "LeadPoUserId", "HodUserId", "CategoryId", "Build", "Mine" })
+        foreach (var field in new[] { "LeadPoUserId", "CategoryId", "TechnicalCategoryId", "Build" })
         {
             Assert.Contains($"<input type=\"hidden\" name=\"{field}\"", view, StringComparison.Ordinal);
         }
+
+        // HoD is chosen in More filters (so it is not also a hidden field), and there is no My projects switch.
+        Assert.Contains("<select asp-for=\"HodUserId\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("<input type=\"hidden\" name=\"HodUserId\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("asp-for=\"TechnicalCategoryId\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("My projects", quickbar, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"Mine\"", view, StringComparison.Ordinal);
 
         Assert.Contains("'[data-project-quickbar] a[href]'", script, StringComparison.Ordinal);
         Assert.DoesNotContain("updateFilterSummary", script, StringComparison.Ordinal);

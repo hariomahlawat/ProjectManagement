@@ -1,8 +1,8 @@
 @model ProjectManagement.Pages.Projects.IndexModel
 @using ProjectManagement.ViewModels
-@* Quick-filter bar (docs/ux/projects-register.md): Officer, HoD, Category and Build menus whose
-   counts follow every other filter, My projects, More filters (the rarer ones, in the drawer),
-   and one chip per applied filter with its own remove link. Inside the live results region, so a
+@* Quick-filter bar (docs/ux/projects-register.md): Officer, Category, Technical category and
+   Build menus whose counts follow every other filter, More filters (the rarer ones, in the
+   drawer), and one chip per applied filter with its own remove link. Inside the live results region, so a
    search refreshes it; its links are taken over by the live refresh (projects-index.js). *@
 
 <div class="projects-quickbar" data-project-quickbar>
@@ -38,16 +38,6 @@
                 </ul>
             </div>
         }
-
-        <a class="projects-quickbar__mine @(Model.Mine ? "is-active" : null)"
-           asp-page="/Projects/Index"
-           asp-all-route-data="Model.BuildMineRoute()"
-           role="switch"
-           aria-checked="@(Model.Mine ? "true" : "false")"
-           title="Projects where you are the Project Officer or the HoD">
-            <span class="projects-quickbar__switch" aria-hidden="true"><span></span></span>
-            My projects
-        </a>
 
         <button type="button"
                 class="projects-quickbar__button projects-quickbar__more @(Model.MoreFiltersCount > 0 ? "is-active" : null)"
