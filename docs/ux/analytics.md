@@ -5,6 +5,11 @@ Ongoing, Completed, CoE, Insights and ARPP. Redesigned on 2026-10-25 to the same
 the [Dashboard](app-shell-and-dashboard.md): numbers first, colour only where it means something,
 one chart style defined once.
 
+The HoD and the Comdt reach it from **Project analytics** under Command oversight in My Workspace
+(it replaced the workspace's own Project portfolio chart on 27 Oct 2026; see
+[App shell](app-shell-and-dashboard.md#my-workspace-page-headers)). Every signed-in user can open
+the page; only the ARPP mode checks a further policy.
+
 ## Where it lives
 
 | Concern | Code |

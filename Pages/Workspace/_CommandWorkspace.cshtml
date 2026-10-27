@@ -6,18 +6,9 @@
     var vm = Model.CommandWorkspace;
     var adoption = vm.UsageSummary;
     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-    var isPortfolio = vm.ActiveView == "portfolio";
     var isAdoption = vm.ActiveView == "adoption";
     var isUsagePattern = vm.ActiveView == "usage-pattern";
     var isMyActivity = vm.ActiveView == "my-activity";
-    var selectedCategoryCount = vm.SelectedParentCategoryIds.Count;
-    var categoryTriggerText = selectedCategoryCount switch
-    {
-        0 => "All categories",
-        1 => "1 category",
-        _ => $"{selectedCategoryCount} categories"
-    };
-    var filteredProjectCount = vm.StageColumns.Sum(x => x.ProjectCount);
     var completedMaturityDays = Math.Min(adoption.TrackingWorkingDays, adoption.RequiredWorkingDays);
     var hasAdoptionPeriod = adoption.PeriodStart != default && adoption.PeriodEnd != default;
     var adoptionPeriodLabel = !hasAdoptionPeriod
@@ -44,10 +35,8 @@
             @* Same page header as Conference review and Briefing decks, so every command view opens the same way. *@
             <header class="cw-page-header">
                 <span class="cw-page-header__eyebrow">Command oversight</span>
-                <h1>@(isPortfolio ? "Project portfolio" : "Officer workload")</h1>
-                <p>@(isPortfolio
-                    ? "Every active project by its current stage, with its Project Officer."
-                    : "What each Project Officer is carrying: projects, ideas and other tasks.")</p>
+                <h1>Officer workload</h1>
+                <p>What each Project Officer is carrying: projects, ideas and other tasks.</p>
             </header>
         }
 
@@ -194,118 +183,6 @@
         else if (isUsagePattern)
         {
             @await Html.PartialAsync("_ErpUsagePattern", vm.UsagePattern)
-        }
-        else if (isPortfolio)
-        {
-        <section class="cw-panel cw-panel--chart">
-            <header class="cw-panel__header cw-panel__header--compact">
-                <h2>Projects by current stage</h2>
-                <div class="cw-panel__actions">
-                    <a href="/Projects/Ongoing" class="cw-header-action"><i class="bi bi-kanban"></i><span>Open ongoing projects</span></a>
-                    <button type="button" class="cw-icon-button" data-chart-download aria-label="Download chart" title="Download chart"><i class="bi bi-download"></i></button>
-                </div>
-            </header>
-
-            <form method="get" class="cw-filter-grid" data-cw-auto-filter aria-label="Portfolio filters">
-                <input type="hidden" name="mode" value="command" />
-                <input type="hidden" name="view" value="portfolio" />
-                <label class="cw-field cw-field--search">
-                    <span class="visually-hidden">Project search</span>
-                    <div><i class="bi bi-search"></i><input type="search" name="ProjectSearch" value="@vm.ProjectSearch" placeholder="Search projects" aria-label="Search projects" autocomplete="off" /></div>
-                </label>
-                <div class="cw-field cw-field--categories">
-                    <span class="visually-hidden">Project categories</span>
-                    <button type="button" class="cw-multi-trigger" data-cw-filter-trigger aria-expanded="false" aria-haspopup="true">
-                        <span>@categoryTriggerText</span><i class="bi bi-chevron-down"></i>
-                    </button>
-                    <div class="cw-multi-popover" data-cw-filter-popover hidden>
-                        <div class="cw-multi-popover__header">
-                            <strong>Project categories</strong>
-                            @if (selectedCategoryCount > 0)
-                            {
-                                <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio">Clear</a>
-                            }
-                        </div>
-                        <div class="cw-multi-popover__options">
-                            @foreach (var option in vm.ParentCategoryOptions)
-                            {
-                                <label><input type="checkbox" name="ParentCategoryIds" value="@option.Id" checked="@vm.SelectedParentCategoryIds.Contains(option.Id)" /> <span>@option.Name</span></label>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <input type="hidden" name="PopulatedStagesOnly" value="true" />
-                @if (!string.IsNullOrWhiteSpace(vm.ProjectSearch) || selectedCategoryCount > 0)
-                {
-                    <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="cw-reset-link">Reset</a>
-                }
-                <span class="cw-filter-result">@(filteredProjectCount == vm.TotalOngoingProjects ? $"{vm.TotalOngoingProjects} projects" : $"{filteredProjectCount} of {vm.TotalOngoingProjects} projects")</span>
-                <span class="cw-filter-status" data-cw-filter-status aria-live="polite"></span>
-            </form>
-
-            <div class="cw-chart-wrap">
-                <canvas id="command-stage-chart" role="img" aria-label="Ongoing projects by current stage" data-series='@Html.Raw(JsonSerializer.Serialize(vm.StageSeries, jsonOptions))'></canvas>
-            </div>
-        </section>
-
-        <section class="cw-panel cw-stage-board-panel">
-            <header class="cw-panel__header cw-panel__header--compact">
-                <h2>Stage-wise project register</h2>
-                <div class="cw-panel__actions">
-                    <span class="cw-result-count">@filteredProjectCount projects</span>
-                    <div class="cw-scroll-controls" aria-label="Stage navigation">
-                        <button type="button" data-scroll-target="stage-board" data-scroll-direction="previous" aria-label="Previous stages" title="Previous stages"><i class="bi bi-chevron-left"></i></button>
-                        <button type="button" data-scroll-target="stage-board" data-scroll-direction="next" aria-label="Next stages" title="Next stages"><i class="bi bi-chevron-right"></i></button>
-                    </div>
-                </div>
-            </header>
-            @if (vm.StageColumns.Count == 0 || vm.StageColumns.All(x => x.ProjectCount == 0))
-            {
-                <div class="cw-empty"><i class="bi bi-inbox"></i><strong>No matching projects</strong><span>Change or reset the current filters.</span></div>
-            }
-            else
-            {
-                <div class="cw-stage-board-shell">
-                    <div class="cw-edge-fade cw-edge-fade--left" aria-hidden="true"></div>
-                    <div class="cw-stage-board" id="stage-board" data-horizontal-board tabindex="0" aria-label="Horizontally scrollable stage-wise project list. Press and drag to move horizontally.">
-                        @foreach (var stage in vm.StageColumns)
-                        {
-                            <article class="cw-stage-column @(stage.ProjectCount == 0 ? "is-empty" : null)" data-stage-code="@stage.StageCode">
-                                <header>
-                                    <div class="cw-stage-heading"><strong>@stage.StageCode</strong><h3>@stage.StageName</h3></div>
-                                    <b>@stage.ProjectCount</b>
-                                </header>
-                                <div class="cw-stage-column__body">
-                                    @if (stage.ProjectCount == 0)
-                                    {
-                                        <p class="cw-stage-empty">No projects</p>
-                                    }
-                                    else
-                                    {
-                                        @foreach (var category in stage.Categories)
-                                        {
-                                            <section class="cw-stage-category">
-                                                <h4><span data-category="@category.CategoryName"></span><span class="cw-category-name">@category.CategoryName</span><b>@category.ProjectCount</b></h4>
-                                                <ol>
-                                                    @foreach (var project in category.Projects)
-                                                    {
-                                                        <li>
-                                                            <a href="@project.OpenUrl" title="@project.ProjectName">@project.ProjectName</a>
-                                                            <span>@project.OfficerName</span>
-                                                        </li>
-                                                    }
-                                                </ol>
-                                            </section>
-                                        }
-                                    }
-                                </div>
-                            </article>
-                        }
-                    </div>
-                    <div class="cw-edge-fade cw-edge-fade--right" aria-hidden="true"></div>
-                </div>
-            }
-        </section>
         }
         else
         {

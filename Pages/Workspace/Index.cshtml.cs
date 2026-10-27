@@ -34,8 +34,6 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string? Mode { get; set; }
     [BindProperty(SupportsGet = true)] public string View { get; set; } = "officers";
     [BindProperty(SupportsGet = true)] public List<int> ParentCategoryIds { get; set; } = new();
-    [BindProperty(SupportsGet = true)] public string? ProjectSearch { get; set; }
-    [BindProperty(SupportsGet = true)] public bool PopulatedStagesOnly { get; set; }
     [BindProperty(SupportsGet = true)] public int PatternDays { get; set; } = 7;
     [BindProperty(SupportsGet = true)] public string? PatternUserId { get; set; }
     [BindProperty(SupportsGet = true)] public string? PatternRole { get; set; }
@@ -75,18 +73,24 @@ public class IndexModel : PageModel
         IsCommandMode = hasCommandRole && (!string.Equals(Mode, "project-officer", StringComparison.OrdinalIgnoreCase) || !hasProjectOfficerRole);
 
         // The HoD's and the Comdt's workspace opens on the Command desk (owner decision,
-        // 23 Oct 2026). A link that asks for a view (Officer workload, Project portfolio, …) still
+        // 23 Oct 2026). A link that asks for a view (Officer workload, ERP adoption, …) still
         // opens it.
         if (IsCommandMode && !Request.Query.ContainsKey("view"))
         {
             return RedirectToPage("/Workspace/CommandDesk");
         }
 
+        // Project portfolio was replaced by Project analytics (27 Oct 2026): the same stage
+        // chart, fuller, on the Analytics Ongoing tab. Old links land there with their categories.
+        if (IsCommandMode && string.Equals(View?.Trim(), "portfolio", StringComparison.OrdinalIgnoreCase))
+        {
+            return RedirectToPage("/Analytics/Index", new { ongoingStageParentCategoryIds = ParentCategoryIds });
+        }
+
         if (IsCommandMode)
         {
             View = View?.Trim().ToLowerInvariant() switch
             {
-                "portfolio" => "portfolio",
                 "adoption" => "adoption",
                 "usage-pattern" => "usage-pattern",
                 "pattern" => "usage-pattern",
@@ -94,16 +98,9 @@ public class IndexModel : PageModel
                 "activity" => "my-activity",
                 _ => "officers"
             };
-            if (View == "portfolio" && !Request.Query.ContainsKey(nameof(PopulatedStagesOnly)))
-            {
-                PopulatedStagesOnly = true;
-            }
             CommandWorkspace = await _commandWorkspaceService.GetAsync(new CommandWorkspaceQuery
             {
                 View = View,
-                ParentCategoryIds = ParentCategoryIds,
-                ProjectSearch = ProjectSearch,
-                PopulatedStagesOnly = PopulatedStagesOnly,
                 PatternDays = PatternDays,
                 PatternUserId = PatternUserId,
                 PatternRole = PatternRole,
@@ -198,7 +195,6 @@ public class IndexModel : PageModel
         var activeItem = IsCommandMode
             ? View switch
             {
-                "portfolio" => "command-portfolio",
                 "adoption" => "command-adoption",
                 "usage-pattern" => "command-usage-pattern",
                 "my-activity" => "my-activity",

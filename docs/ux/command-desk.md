@@ -3,7 +3,7 @@
 The Command desk (`/Workspace/CommandDesk`) is a read-only page for the **HoD** and the
 **Comdt**. It sits first under **Command oversight** in the workspace rail and is their **workspace's default 
 page**: `/Workspace` (and the rail's Command lens) opens it for a command user unless a view is 
-asked for (Officer workload, Project portfolio, …). The Dashboard stays their landing page after sign-in.
+asked for (Officer workload, ERP adoption, …). The Dashboard stays their landing page after sign-in.
 
 Both roles see the same data. Only **Waiting on you** depends on who is viewing.
 

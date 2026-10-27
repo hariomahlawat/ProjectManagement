@@ -145,13 +145,10 @@
                         <b>@Model.ProjectOfficerCount</b>
                     }
                 </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="command"
-                   asp-route-view="portfolio"
-                   class="@(Active("command-portfolio"))"
-                   aria-current="@(Current("command-portfolio"))"
-                   data-tooltip="Project portfolio">
-                    <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Project portfolio</span>
+                @* Opens the Analytics page (Ongoing tab): the stage chart by parent category, with phases and drill-down. *@
+                <a asp-page="/Analytics/Index"
+                   data-tooltip="Project analytics">
+                    <i class="bi bi-graph-up" aria-hidden="true"></i><span>Project analytics</span>
                     @if (Model.TotalOngoingProjects > 0)
                     {
                         <b>@Model.TotalOngoingProjects</b>
