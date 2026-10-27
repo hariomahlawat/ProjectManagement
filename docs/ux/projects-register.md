@@ -65,7 +65,7 @@ bookmarks and links from the Command desk and Analytics keep working.
 | # | PR | Scope | Status |
 | --- | --- | --- | --- |
 | 1 | Repository fixes | Drawer changes no longer leak into search (including a failed or still-loading apply); URL-only filters get chips; the view choice is rendered by the server; the Legacy pill says it is part of Completed; officer/HoD lists de-duplicated in the database; dead `TechnicalCategoryId` link parameter removed. | Merged (#2817) |
-| 2 | Active register facts | `ProjectRegisterFactsService` / `ProjectRegisterActiveFacts` (below). Tests: late, on plan, waiting to start, blocked, no PDC, last update, scope. No UI change. | In review |
+| 2 | Active register facts | `ProjectRegisterFactsService` / `ProjectRegisterActiveFacts` (below). Tests: late, on plan, waiting to start, blocked, no PDC, every stage done, last update, scope. No UI change. | Merged (#2818) |
 | 3 | Active register table | New Active columns (project with case file and category, stage tracker, time in stage, stage PDC, officer, updated); default order blocked first, then most overdue; "No case file" replaces "Not recorded". Card view unchanged. | Planned |
 | 4 | Pipeline strip and attention filters | Stage columns with on-plan / late / blocked counts over the Active filters; clicking a stage sets `StageCode`. Quick filters: late against plan, blocked, not updated in 30+ days (new `Attention` parameter). | Planned |
 | 5 | Lifecycle tabs and per-tab columns | Tabs Active, Completed, Cancelled, All; Legacy becomes a Completed sub-filter (`Lifecycle=Legacy` still opens Completed with legacy selected); Completed, Cancelled and All columns. | Planned |
@@ -85,18 +85,12 @@ last update; archived active projects have no facts and show without timing.
 | --- | --- |
 | `Stages` (tracker) | The workflow's stages in order, each Done, Skipped, Current, Blocked, Waiting (current but not started) or Upcoming |
 | Current stage and `CurrentStageState` | The ongoing row's current stage: an in-progress stage wins, else the first stage not completed or skipped, else the last stage; In progress, Blocked, Not started, or Finished (every stage completed or skipped while the project is still open; the tracker keeps those stages Done or Skipped) |
-| `DaysInStage` | The ongoing row's `DaysInCurrentStage` (`PresentStageHelper`) |
+| `DaysInStage` | The ongoing row's `DaysInCurrentStage`, decided by `PresentStageHelper.CurrentStageAgeDays` (also used by the PO workspace and Briefing desk): a stage that has begun, in progress or blocked, counts from its recorded start; otherwise from the latest completion |
 | `StageAgeFrom` | Today minus `DaysInStage`, so it always agrees with the age |
 | `StagePdc`, `DaysLate`, `DaysLeft` | The current stage's planned due date; `DaysLate` is the row's `DaysPastPdc` |
 | `PlannedDays` | `StagePdc` minus `StageAgeFrom`, when both are known |
 | `PlanStatus` | No PDC, On plan, or Late (PDC passed) |
 | `LastUpdatedOn`, `DaysSinceUpdate`, `IsStale` | Latest of a non-deleted remark written or edited, a content edit, or creation (the activity the operational order uses), as an IST date; stale after 30 days |
-
-Known gap to decide (outside this plan): for a **blocked** stage with a recorded start,
-`PresentStageHelper` counts the age from the latest completion, not from that start, so it can
-read far longer than the stage has existed. The same number shows on the Ongoing page, the
-Briefing desk, the officer conference and Analytics; the register uses it as is until the shared
-helper is corrected.
 
 Open decision for the owner: which tab opens by default. Recommended: remember each user's last
 tab, with Active as the first-visit default; until decided, All stays the default.

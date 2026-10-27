@@ -177,15 +177,11 @@ public static class PresentStageHelper
 
         var today = referenceDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
-        int? days = null;
-        if (current.Status == StageStatus.InProgress && current.ActualStart.HasValue)
-        {
-            days = Math.Max(0, today.DayNumber - current.ActualStart.Value.DayNumber);
-        }
-        else if (lastCompleted?.CompletedOn is { } completedOn)
-        {
-            days = Math.Max(0, today.DayNumber - completedOn.DayNumber);
-        }
+        var days = CurrentStageAgeDays(
+            current.Status,
+            current.ActualStart,
+            lastCompleted?.CompletedOn,
+            today);
 
         return new PresentStageSnapshot(
             current.StageCode,
@@ -194,6 +190,29 @@ public static class PresentStageHelper
             days,
             current.ActualStart,
             lastCompleted?.CompletedOn);
+    }
+
+    /// <summary>
+    /// The one rule for how long a project has been in its current stage. A stage that has
+    /// begun (in progress, or blocked after it started) counts from its recorded start;
+    /// otherwise the age counts from the latest completion, since stages run back to back and
+    /// any wait is the current stage's own delay (see <c>StageStartInference</c>).
+    /// </summary>
+    public static int? CurrentStageAgeDays(
+        StageStatus currentStatus,
+        DateOnly? currentActualStart,
+        DateOnly? latestCompletion,
+        DateOnly today)
+    {
+        if (currentStatus is StageStatus.InProgress or StageStatus.Blocked
+            && currentActualStart is { } start)
+        {
+            return Math.Max(0, today.DayNumber - start.DayNumber);
+        }
+
+        return latestCompletion is { } completedOn
+            ? Math.Max(0, today.DayNumber - completedOn.DayNumber)
+            : null;
     }
 
     public static PresentStageSnapshot ComputePresentStageAndAge(
