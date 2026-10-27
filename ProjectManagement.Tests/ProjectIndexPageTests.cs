@@ -778,6 +778,57 @@ namespace ProjectManagement.Tests
             Assert.Equal("All", drillDown.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.All).RouteValue);
         }
 
+        [Fact]
+        public async Task Export_WritesEveryPageOfTheViewInScreenOrderWithItsFilters()
+        {
+            await using var context = CreateContext();
+            AddActive(context, 1, "Alpha on plan", StageStatus.InProgress, new DateOnly(2023, 12, 20), due: new DateOnly(2024, 1, 20));
+            AddActive(context, 2, "Bravo late 10", StageStatus.InProgress, new DateOnly(2023, 11, 1), due: new DateOnly(2023, 12, 22));
+            AddActive(context, 3, "Charlie late 40", StageStatus.InProgress, new DateOnly(2023, 11, 1), due: new DateOnly(2023, 11, 22));
+            context.Projects.Add(new Project { Id = 4, Name = "Done", LifecycleStatus = ProjectLifecycleStatus.Completed, CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+
+            var model = CreateModel(context);
+            model.Lifecycle = ProjectLifecycleFilter.Active;
+            model.PageSize = 2;
+            model.CurrentPage = 2;
+            model.Query = "a";
+
+            var result = Assert.IsType<Microsoft.AspNetCore.Mvc.FileContentResult>(await model.OnGetExportAsync());
+
+            Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", result.ContentType);
+            Assert.StartsWith("prism-projects-active-", result.FileDownloadName);
+
+            using var workbook = new ClosedXML.Excel.XLWorkbook(new System.IO.MemoryStream(result.FileContents));
+            var sheet = workbook.Worksheet("Projects");
+            // Every page (3 active projects match), not just the requested page of 2.
+            Assert.Equal(4, sheet.LastRowUsed()!.RowNumber());
+            Assert.Equal("Project", sheet.Cell(1, 2).GetString());
+            Assert.Equal("Days late", sheet.Row(1).CellsUsed().Single(c => c.GetString() == "Days late").GetString());
+
+            var about = workbook.Worksheet("About");
+            Assert.Contains(about.CellsUsed(), cell => cell.GetString() == "Search: a");
+            // The same order as the page shows for the same view (a search orders by relevance).
+            var screen = CreateModel(context);
+            screen.Lifecycle = ProjectLifecycleFilter.Active;
+            screen.PageSize = 0;
+            screen.Query = "a";
+            await screen.OnGetAsync();
+            Assert.Equal(
+                screen.Projects.Select(p => p.Name),
+                Enumerable.Range(2, 3).Select(row => sheet.Cell(row, 2).GetString()));
+
+            // Without a search, the export follows the attention order: most overdue first.
+            var attention = CreateModel(context);
+            attention.Lifecycle = ProjectLifecycleFilter.Active;
+            var attentionFile = Assert.IsType<Microsoft.AspNetCore.Mvc.FileContentResult>(await attention.OnGetExportAsync());
+            using var attentionBook = new ClosedXML.Excel.XLWorkbook(new System.IO.MemoryStream(attentionFile.FileContents));
+            Assert.Equal(
+                new[] { "Charlie late 40", "Bravo late 10", "Alpha on plan" },
+                Enumerable.Range(2, 3).Select(row => attentionBook.Worksheet("Projects").Cell(row, 2).GetString()));
+            Assert.Contains(about.CellsUsed(), cell => cell.GetString() == "Active");
+        }
+
         private static IndexModel CreateModel(ApplicationDbContext context, string? queryString = "?p=1")
         {
             var httpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext();
@@ -795,7 +846,7 @@ namespace ProjectManagement.Tests
                 context,
                 new OngoingProjectsReadService(context, stages, clock),
                 clock);
-            return new IndexModel(context, analytics, categories, stages, registerFacts)
+            return new IndexModel(context, analytics, categories, stages, registerFacts, new ProjectRegisterExcelBuilder(), clock)
             {
                 PageContext = new Microsoft.AspNetCore.Mvc.RazorPages.PageContext
                 {

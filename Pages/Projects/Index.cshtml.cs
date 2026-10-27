@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
@@ -30,19 +31,25 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectCategoryHierarchyService _categoryHierarchy;
         private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
         private readonly ProjectRegisterFactsService _registerFacts;
+        private readonly IProjectRegisterExcelBuilder _excelBuilder;
+        private readonly IClock _clock;
 
         public IndexModel(
             ApplicationDbContext db,
             IProjectAnalyticsService analytics,
             ProjectCategoryHierarchyService categoryHierarchy,
             IWorkflowStageMetadataProvider workflowStageMetadataProvider,
-            ProjectRegisterFactsService registerFacts)
+            ProjectRegisterFactsService registerFacts,
+            IProjectRegisterExcelBuilder excelBuilder,
+            IClock clock)
         {
             _db = db;
             _analytics = analytics;
             _categoryHierarchy = categoryHierarchy;
             _workflowStageMetadataProvider = workflowStageMetadataProvider;
             _registerFacts = registerFacts;
+            _excelBuilder = excelBuilder;
+            _clock = clock;
         }
 
         public IReadOnlyList<Project> Projects { get; private set; } = new List<Project>();
@@ -53,6 +60,9 @@ namespace ProjectManagement.Pages.Projects
         // Section: Active register (docs/ux/projects-register.md). The Active tab's table shows
         // each project's register facts; a project without facts (archived) shows without timing.
         public bool IsActiveRegister => Lifecycle == ProjectLifecycleFilter.Active;
+
+        public IReadOnlyDictionary<int, ProjectRegisterActiveFacts> ActiveRegisterFacts { get; private set; }
+            = new Dictionary<int, ProjectRegisterActiveFacts>();
 
         public IReadOnlyDictionary<int, ProjectRegisterActiveRowVm> ActiveRegisterRows { get; private set; }
             = new Dictionary<int, ProjectRegisterActiveRowVm>();
@@ -365,6 +375,47 @@ namespace ProjectManagement.Pages.Projects
             return Partial("_ProjectRepositoryLive", this);
         }
 
+        // Section: Excel export of the current view (every page, in screen order), built from the
+        // same register facts and row text as the tables.
+        public async Task<IActionResult> OnGetExportAsync()
+        {
+            PageSize = AllPageSizeValue;
+            CurrentPage = 1;
+            await LoadRepositoryAsync(loadFilterOptions: false);
+
+            var rows = Projects
+                .Select(project => ProjectRegisterExportRow.From(
+                    project,
+                    ClosedRegisterRows.TryGetValue(project.Id, out var closed) ? closed : ProjectRegisterClosedRowVm.Create(project),
+                    StagePositions.TryGetValue(project.Id, out var position) ? position : ProjectRepositoryStagePositionVm.Missing,
+                    ActiveRegisterFacts.TryGetValue(project.Id, out var facts) ? facts : null))
+                .ToList();
+
+            var exportedAt = _clock.UtcNow;
+            var file = _excelBuilder.Build(new ProjectRegisterExportContext(
+                Lifecycle,
+                ActiveLifecycleLabel,
+                rows,
+                FilterChips.Select(chip => chip.Label).ToList(),
+                OrderDescription,
+                exportedAt));
+
+            var stamp = ProjectManagement.Infrastructure.IstClock.ToIst(exportedAt).ToString("yyyyMMdd-HHmm", CultureInfo.InvariantCulture);
+            return File(
+                file,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"prism-projects-{Lifecycle.ToString().ToLowerInvariant()}-{stamp}.xlsx");
+        }
+
+        // Route values for the export link: the current view's filters and order, not its page.
+        public IDictionary<string, string?> BuildExportRoute()
+        {
+            var values = BuildBaseRouteValues();
+            values.Remove("PageSize");
+            values.Remove("p");
+            return values;
+        }
+
         private async Task LoadRepositoryAsync(bool loadFilterOptions)
         {
             var cancellationToken = HttpContext.RequestAborted;
@@ -661,6 +712,10 @@ namespace ProjectManagement.Pages.Projects
                     ? await query.ToListAsync(cancellationToken)
                     : await query.Skip(skip).Take(PageSize).ToListAsync(cancellationToken);
             }
+
+            ActiveRegisterFacts = Projects
+                .Where(project => registerFacts.ContainsKey(project.Id))
+                .ToDictionary(project => project.Id, project => registerFacts[project.Id]);
 
             ActiveRegisterRows = Projects
                 .Where(project => registerFacts.ContainsKey(project.Id))
