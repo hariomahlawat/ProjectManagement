@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Pages.Projects;
 using ProjectManagement.Services;
@@ -467,11 +469,83 @@ namespace ProjectManagement.Tests
             Assert.Equal(new[] { "Any Project Officer", "K Srinath" }, model.LeadPoOptions.Select(o => o.Text));
         }
 
+        [Fact]
+        public async Task ActiveRegister_OrdersBlockedThenMostOverdueAcrossPages()
+        {
+            await using var context = CreateContext();
+            // Read on 1 Jan 2024 (TestClock). Each project is in its first stage (FS).
+            AddActive(context, 1, "Alpha on plan", StageStatus.InProgress, new DateOnly(2023, 12, 20), due: new DateOnly(2024, 1, 20));
+            AddActive(context, 2, "Bravo late 10", StageStatus.InProgress, new DateOnly(2023, 11, 1), due: new DateOnly(2023, 12, 22));
+            AddActive(context, 3, "Charlie late 40", StageStatus.InProgress, new DateOnly(2023, 11, 1), due: new DateOnly(2023, 11, 22));
+            AddActive(context, 4, "Delta blocked", StageStatus.Blocked, new DateOnly(2023, 12, 1), due: null);
+            AddActive(context, 5, "Echo no PDC", StageStatus.InProgress, new DateOnly(2023, 12, 1), due: null);
+            await context.SaveChangesAsync();
+
+            var pages = new List<string>();
+            for (var page = 1; page <= 3; page++)
+            {
+                var model = CreateModel(context);
+                model.Lifecycle = ProjectLifecycleFilter.Active;
+                model.PageSize = 2;
+                model.CurrentPage = page;
+                await model.OnGetAsync();
+
+                Assert.True(model.IsActiveRegister);
+                Assert.Equal("Blocked first, then most overdue", model.OrderDescription);
+                Assert.All(model.Projects, project => Assert.True(model.ActiveRegisterRows.ContainsKey(project.Id)));
+                pages.AddRange(model.Projects.Select(project => project.Name));
+            }
+
+            Assert.Equal(
+                new[] { "Delta blocked", "Charlie late 40", "Bravo late 10", "Alpha on plan", "Echo no PDC" },
+                pages);
+
+            // An explicit sort still orders the whole result by that column.
+            var byName = CreateModel(context);
+            byName.Lifecycle = ProjectLifecycleFilter.Active;
+            byName.Sort = ProjectRepositorySort.Project;
+            await byName.OnGetAsync();
+            Assert.Equal("Alpha on plan", byName.Projects.First().Name);
+
+            // Other tabs keep the existing table and order.
+            var all = CreateModel(context);
+            await all.OnGetAsync();
+            Assert.False(all.IsActiveRegister);
+            Assert.Empty(all.ActiveRegisterRows);
+        }
+
+        private static void AddActive(ApplicationDbContext context, int id, string name, StageStatus status, DateOnly start, DateOnly? due)
+        {
+            context.Projects.Add(new Project
+            {
+                Id = id,
+                Name = name,
+                CreatedByUserId = "creator",
+                CreatedAt = new DateTime(2023, 6, 1, 0, 0, 0, DateTimeKind.Utc),
+                LifecycleStatus = ProjectLifecycleStatus.Active
+            });
+            context.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = id,
+                StageCode = StageCodes.FS,
+                SortOrder = 0,
+                Status = status,
+                ActualStart = start,
+                PlannedDue = due
+            });
+        }
+
         private static IndexModel CreateModel(ApplicationDbContext context)
         {
             var categories = new ProjectCategoryHierarchyService(context);
-            var analytics = new ProjectAnalyticsService(context, new TestClock(), categories, new WorkflowStageMetadataProvider());
-            return new IndexModel(context, analytics, categories, new WorkflowStageMetadataProvider())
+            var clock = new TestClock();
+            var stages = new WorkflowStageMetadataProvider();
+            var analytics = new ProjectAnalyticsService(context, clock, categories, stages);
+            var registerFacts = new ProjectRegisterFactsService(
+                context,
+                new OngoingProjectsReadService(context, stages, clock),
+                clock);
+            return new IndexModel(context, analytics, categories, stages, registerFacts)
             {
                 PageContext = new Microsoft.AspNetCore.Mvc.RazorPages.PageContext
                 {

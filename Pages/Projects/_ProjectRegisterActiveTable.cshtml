@@ -1,0 +1,113 @@
+@model ProjectManagement.Pages.Projects.IndexModel
+@using ProjectManagement.Services.Projects
+@using ProjectManagement.ViewModels
+@* The Active register (docs/ux/projects-register.md): where each active project stands. Every
+   value comes from ProjectRegisterActiveRowVm, a projection of the shared register facts. *@
+
+<div class="projects-table-wrap">
+    <table class="table projects-table projects-register align-middle">
+        <thead>
+            <tr>
+                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Project)">
+                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Project) ? "is-active" : null)"
+                       asp-page="/Projects/Index"
+                       asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Project)"
+                       title="Sort the complete result by project name">
+                        Project <i class="@Model.GetSortIconClass(ProjectRepositorySort.Project)" aria-hidden="true"></i>
+                    </a>
+                </th>
+                <th scope="col">Stage</th>
+                <th scope="col">Time in stage</th>
+                <th scope="col">Stage PDC</th>
+                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Officer)">
+                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Officer) ? "is-active" : null)"
+                       asp-page="/Projects/Index"
+                       asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Officer)"
+                       title="Sort the complete result by project officer">
+                        Project Officer <i class="@Model.GetSortIconClass(ProjectRepositorySort.Officer)" aria-hidden="true"></i>
+                    </a>
+                </th>
+                <th scope="col">Updated</th>
+                <th scope="col" class="projects-table__action"><span class="visually-hidden">Open</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var project in Model.Projects)
+            {
+                var row = Model.ActiveRegisterRows.TryGetValue(project.Id, out var resolvedRow) ? resolvedRow : null;
+                var rowHref = Url.Page("/Projects/Overview", new { id = project.Id });
+                var officerName = project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName;
+                <tr class="projects-table__row" data-project-row data-href="@rowHref" tabindex="0">
+                    <td>
+                        <a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a>
+                        <div class="projects-register__meta">
+                            @if (string.IsNullOrWhiteSpace(project.CaseFileNumber))
+                            {
+                                <span class="projects-register__no-case">No case file</span>
+                            }
+                            else
+                            {
+                                <span class="projects-register__case">@project.CaseFileNumber</span>
+                            }
+                            <span aria-hidden="true">·</span>
+                            <span>@(project.Category?.Name ?? "Uncategorised")</span>
+                        </div>
+                    </td>
+                    @if (row is null)
+                    {
+                        @* Archived active projects have no register facts. *@
+                        <td colspan="3" class="projects-register__no-facts">Archived: timing not tracked</td>
+                    }
+                    else
+                    {
+                        <td>
+                            <span class="projects-register__tracker" role="img" aria-label="@row.TrackerLabel">
+                                @foreach (var mark in row.Marks)
+                                {
+                                    <span class="projects-register__mark projects-register__mark--@mark.Modifier" title="@mark.Title"></span>
+                                }
+                            </span>
+                            <span class="projects-register__stage">@row.StageName</span>
+                            <span class="projects-register__state @(string.IsNullOrEmpty(row.StateTone) ? null : $"projects-register__state--{row.StateTone}")">@row.StateText</span>
+                        </td>
+                        <td>
+                            <span class="projects-register__timing">
+                                <strong>@row.AgeText</strong>
+                                <span class="projects-register__pill projects-register__pill--@row.TimingTone">@row.TimingText</span>
+                            </span>
+                            @if (row.BarFillPercent is int fill && row.BarMarkPercent is int planMark)
+                            {
+                                <span class="projects-register__bar" aria-hidden="true">
+                                    <span class="projects-register__bar-fill projects-register__bar-fill--@row.TimingTone" style="width: @fill%"></span>
+                                    <span class="projects-register__bar-mark" style="left: @planMark%"></span>
+                                </span>
+                            }
+                        </td>
+                        <td>
+                            <span class="projects-register__pdc">@row.PdcText</span>
+                            @if (row.PlannedText is not null)
+                            {
+                                <span class="projects-register__sub">@row.PlannedText</span>
+                            }
+                        </td>
+                    }
+                    <td>
+                        @if (officerName is null)
+                        {
+                            <span class="projects-register__sub">Not assigned</span>
+                        }
+                        else
+                        {
+                            <span class="projects-register__officer">
+                                <span class="projects-register__avatar" aria-hidden="true">@ProjectRegisterActiveRowVm.Initials(officerName)</span>
+                                @officerName
+                            </span>
+                        }
+                    </td>
+                    <td class="projects-register__updated @(row?.IsStale == true ? "projects-register__updated--stale" : null)">@(row?.UpdatedText ?? "—")</td>
+                    <td class="projects-table__action"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="btn btn-sm btn-link" aria-label="Open @project.Name"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -164,6 +164,26 @@ public sealed class ProjectRepositoryPresentationContractTests
         Assert.Contains("writeViewCookie(resolved);", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ActiveRegister_RendersOnlyResolvedFacts()
+    {
+        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+        var table = ReadRepoFile("Pages", "Projects", "_ProjectRegisterActiveTable.cshtml");
+        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css");
+
+        Assert.Contains("@if (Model.IsActiveRegister)", results, StringComparison.Ordinal);
+        Assert.Contains("<partial name=\"_ProjectRegisterActiveTable\" model=\"Model\" />", results, StringComparison.Ordinal);
+        Assert.Contains("Model.ActiveRegisterRows.TryGetValue", table, StringComparison.Ordinal);
+        // The table projects the row view model; it never computes dates or day counts itself.
+        Assert.DoesNotContain("DayNumber", table, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlannedDue", table, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActualStart", table, StringComparison.Ordinal);
+
+        // The register's styles use tokens only (the dark theme needs no overrides).
+        var register = css[css.IndexOf("Active register table", StringComparison.Ordinal)..];
+        Assert.DoesNotMatch("#[0-9a-fA-F]{3,8}\\b|rgba?\\(", register);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
