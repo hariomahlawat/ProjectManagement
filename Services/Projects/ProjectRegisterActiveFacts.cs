@@ -45,6 +45,38 @@ public sealed record ProjectRegisterActiveFacts(
     public bool IsStale => DaysSinceUpdate > StaleAfterDays;
 
     /// <summary>
+    /// The register's default order: blocked first, then late (most overdue first), then on plan
+    /// (nearest PDC first), then no PDC (longest in stage first), then finished. Callers break
+    /// remaining ties by project name and id.
+    /// </summary>
+    public static IComparer<ProjectRegisterActiveFacts> AttentionOrder { get; } =
+        Comparer<ProjectRegisterActiveFacts>.Create(CompareByAttention);
+
+    private int AttentionGroup => IsBlocked ? 0
+        : IsLate ? 1
+        : CurrentStageState == ProjectRegisterStageState.Finished ? 4
+        : PlanStatus == ProjectRegisterPlanStatus.OnPlan ? 2
+        : 3;
+
+    private static int CompareByAttention(ProjectRegisterActiveFacts? x, ProjectRegisterActiveFacts? y)
+    {
+        if (ReferenceEquals(x, y)) return 0;
+        if (x is null) return 1;
+        if (y is null) return -1;
+
+        var result = x.AttentionGroup.CompareTo(y.AttentionGroup);
+        if (result != 0) return result;
+
+        result = (y.DaysLate ?? 0).CompareTo(x.DaysLate ?? 0);
+        if (result != 0) return result;
+
+        result = (x.DaysLeft ?? int.MaxValue).CompareTo(y.DaysLeft ?? int.MaxValue);
+        if (result != 0) return result;
+
+        return (y.DaysInStage ?? -1).CompareTo(x.DaysInStage ?? -1);
+    }
+
+    /// <summary>
     /// Projects one ongoing row. <paramref name="lastUpdatedOn"/> is the project's latest recorded
     /// activity (IST date); <paramref name="today"/> is the IST date the row was read for.
     /// </summary>

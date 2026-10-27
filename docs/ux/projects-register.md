@@ -8,12 +8,13 @@ plan to turn it into a register that shows which projects need attention.
 
 | Concern | Code |
 | --- | --- |
-| Page | `Pages/Projects/Index.cshtml(.cs)`; partials `_ProjectRepositoryHeaderSummary`, `_ProjectRepositoryLifecycle`, `_ProjectRepositoryResults`, `_ProjectRepositoryLive` (live refresh), `_ProjectRepositoryLiveMetadata` |
+| Page | `Pages/Projects/Index.cshtml(.cs)`; partials `_ProjectRepositoryHeaderSummary`, `_ProjectRepositoryLifecycle`, `_ProjectRepositoryResults`, `_ProjectRegisterActiveTable` (Active tab's table), `_ProjectRepositoryLive` (live refresh), `_ProjectRepositoryLiveMetadata` |
+| Active register | `Services/Projects/ProjectRegisterFactsService.cs` and `ProjectRegisterActiveFacts.cs` (facts and the attention order); `ViewModels/ProjectRegisterActiveRowVm.cs` (row text) |
 | Query | `Services/Projects/ProjectSearchFilters.cs` (`ApplyProjectSearch`, `ApplyProjectOrdering`) |
 | Current position text | `ViewModels/ProjectRepositoryStagePositionVm.cs` over `ProjectLifecyclePositionResolver` |
 | Script | `wwwroot/js/pages/projects-index.js` (live search, filter drawer, chips, view switch) |
 | Styles | `wwwroot/css/projects/index.css` |
-| Tests | `ProjectIndexPageTests`, `ProjectRepositoryPresentationContractTests`, `ProjectSearchFiltersTests` |
+| Tests | `ProjectIndexPageTests`, `ProjectRepositoryPresentationContractTests`, `ProjectSearchFiltersTests`, `ProjectRegisterFactsServiceTests`, `ProjectRegisterActiveRowVmTests` |
 
 ## Current behaviour
 
@@ -32,9 +33,23 @@ plan to turn it into a register that shows which projects need attention.
   narrowed list always says why, and **Clear filters** removes them.
 - **Cards or table**: the choice is kept in the `prism_projects_view` cookie (and local storage)
   and rendered by the server, so the chosen view appears on first paint without a flash.
-- **Ordering** is server-side over the whole filtered result before paging. The default
-  (Operational) puts active projects first by latest remark or update, then completed by latest
-  completion, then cancelled; a search orders by relevance first.
+- **Active tab, table view (the Active register)**: project with case file ("No case file" when
+  none) and category; a stage tracker (one dot per workflow stage: done, skipped, current,
+  blocked, waiting to start, upcoming) with the current stage and its state; time in stage with
+  a late / days-left / No PDC badge and a bar against the stage's planned length; stage PDC and
+  planned days; Project Officer; last update (orange after 30 days). Every value is a projection
+  of the register facts below. An archived active project (shown with **Include archived**) has
+  no facts and reads "Archived: timing not tracked". The card view and the other tabs' table are
+  unchanged.
+- **Ordering** is server-side over the whole filtered result before paging. On the Active tab
+  the default is the attention order: blocked first, then late (most overdue first), then on plan
+  (nearest PDC first), then no PDC (longest in stage first), then finished, ties by name. It is
+  applied in memory to the filtered Active set before paging. Elsewhere the default (Operational)
+  puts active projects first by latest remark or update, then completed by latest completion,
+  then cancelled. A search orders by relevance first, and a column sort overrides both.
+- **Known issue (phone)**: the page scrolls sideways at phone width because the filter drawer's
+  hidden radio buttons sit outside the viewport. This predates the register; PR 6 replaces the
+  drawer.
 
 ## Approved redesign: the register
 
@@ -66,7 +81,7 @@ bookmarks and links from the Command desk and Analytics keep working.
 | --- | --- | --- | --- |
 | 1 | Repository fixes | Drawer changes no longer leak into search (including a failed or still-loading apply); URL-only filters get chips; the view choice is rendered by the server; the Legacy pill says it is part of Completed; officer/HoD lists de-duplicated in the database; dead `TechnicalCategoryId` link parameter removed. | Merged (#2817) |
 | 2 | Active register facts | `ProjectRegisterFactsService` / `ProjectRegisterActiveFacts` (below). Tests: late, on plan, waiting to start, blocked, no PDC, every stage done, last update, scope. No UI change. | Merged (#2818) |
-| 3 | Active register table | New Active columns (project with case file and category, stage tracker, time in stage, stage PDC, officer, updated); default order blocked first, then most overdue; "No case file" replaces "Not recorded". Card view unchanged. | Planned |
+| 3 | Active register table | New Active columns (project with case file and category, stage tracker, time in stage, stage PDC, officer, updated); default order blocked first, then most overdue; "No case file" replaces "Not recorded". Card view unchanged. | In review |
 | 4 | Pipeline strip and attention filters | Stage columns with on-plan / late / blocked counts over the Active filters; clicking a stage sets `StageCode`. Quick filters: late against plan, blocked, not updated in 30+ days (new `Attention` parameter). | Planned |
 | 5 | Lifecycle tabs and per-tab columns | Tabs Active, Completed, Cancelled, All; Legacy becomes a Completed sub-filter (`Lifecycle=Legacy` still opens Completed with legacy selected); Completed, Cancelled and All columns. | Planned |
 | 6 | Quick-filter bar | Inline Officer, HoD, Category, Build menus with counts replace the drawer for common filters; removable chips; **My projects**; rarer filters stay under **More**. | Planned |
@@ -79,7 +94,10 @@ bookmarks and links from the Command desk and Analytics keep working.
 
 `GetActiveFactsAsync` returns one `ProjectRegisterActiveFacts` per active, unarchived,
 undeleted project, keyed by project id. It reads `OngoingProjectsReadService` and adds only the
-last update; archived active projects have no facts and show without timing.
+last update; archived active projects have no facts and show without timing. The page calls it
+once per Active-tab request (including each live search refresh), which reads every active
+project; that is fine at today's scale (about 60 active projects) and the place to look first if
+the Active tab slows down.
 
 | Fact | Source |
 | --- | --- |

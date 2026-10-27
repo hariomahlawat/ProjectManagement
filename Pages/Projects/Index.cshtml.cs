@@ -29,23 +29,37 @@ namespace ProjectManagement.Pages.Projects
         private readonly IProjectAnalyticsService _analytics;
         private readonly ProjectCategoryHierarchyService _categoryHierarchy;
         private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+        private readonly ProjectRegisterFactsService _registerFacts;
 
         public IndexModel(
             ApplicationDbContext db,
             IProjectAnalyticsService analytics,
             ProjectCategoryHierarchyService categoryHierarchy,
-            IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+            ProjectRegisterFactsService registerFacts)
         {
             _db = db;
             _analytics = analytics;
             _categoryHierarchy = categoryHierarchy;
             _workflowStageMetadataProvider = workflowStageMetadataProvider;
+            _registerFacts = registerFacts;
         }
 
         public IReadOnlyList<Project> Projects { get; private set; } = new List<Project>();
 
         public IReadOnlyDictionary<int, ProjectRepositoryStagePositionVm> StagePositions { get; private set; }
             = new Dictionary<int, ProjectRepositoryStagePositionVm>();
+
+        // Section: Active register (docs/ux/projects-register.md). The Active tab's table shows
+        // each project's register facts; a project without facts (archived) shows without timing.
+        public bool IsActiveRegister => Lifecycle == ProjectLifecycleFilter.Active;
+
+        public IReadOnlyDictionary<int, ProjectRegisterActiveRowVm> ActiveRegisterRows { get; private set; }
+            = new Dictionary<int, ProjectRegisterActiveRowVm>();
+
+        // Blocked first, then most overdue, unless a search or an explicit sort orders the list.
+        private bool UsesAttentionOrder =>
+            IsActiveRegister && Sort == ProjectRepositorySort.Operational && string.IsNullOrWhiteSpace(Query);
 
         [BindProperty(SupportsGet = true)]
         public string? Query { get; set; }
@@ -381,9 +395,47 @@ namespace ProjectManagement.Pages.Projects
                 skip = Math.Max(0, (CurrentPage - 1) * PageSize);
             }
 
-            Projects = isAll
-                ? await query.ToListAsync(cancellationToken)
-                : await query.Skip(skip).Take(PageSize).ToListAsync(cancellationToken);
+            var registerFacts = IsActiveRegister
+                ? await _registerFacts.GetActiveFactsAsync(cancellationToken)
+                : new Dictionary<int, ProjectRegisterActiveFacts>();
+
+            if (UsesAttentionOrder)
+            {
+                // The attention order comes from resolved facts, so it is applied to the whole
+                // filtered set in memory before paging (the Active set is small).
+                var candidates = await filteredQuery
+                    .Select(p => new { p.Id, p.Name })
+                    .ToListAsync(cancellationToken);
+
+                var orderedIds = candidates
+                    .OrderBy(c => registerFacts.GetValueOrDefault(c.Id), ProjectRegisterActiveFacts.AttentionOrder)
+                    .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(c => c.Id)
+                    .Select(c => c.Id)
+                    .ToList();
+
+                var pageIds = isAll ? orderedIds : orderedIds.Skip(skip).Take(PageSize).ToList();
+                var position = pageIds
+                    .Select((id, index) => (id, index))
+                    .ToDictionary(item => item.id, item => item.index);
+                var pageProjects = await query
+                    .Where(p => pageIds.Contains(p.Id))
+                    .ToListAsync(cancellationToken);
+
+                Projects = pageProjects.OrderBy(p => position[p.Id]).ToList();
+            }
+            else
+            {
+                Projects = isAll
+                    ? await query.ToListAsync(cancellationToken)
+                    : await query.Skip(skip).Take(PageSize).ToListAsync(cancellationToken);
+            }
+
+            ActiveRegisterRows = Projects
+                .Where(project => registerFacts.ContainsKey(project.Id))
+                .ToDictionary(
+                    project => project.Id,
+                    project => ProjectRegisterActiveRowVm.Create(registerFacts[project.Id]));
 
             StagePositions = Projects.ToDictionary(
                 project => project.Id,
@@ -542,7 +594,7 @@ namespace ProjectManagement.Pages.Projects
 
             return Lifecycle switch
             {
-                ProjectLifecycleFilter.Active => "Recent recorded update first",
+                ProjectLifecycleFilter.Active => "Blocked first, then most overdue",
                 ProjectLifecycleFilter.Completed => "Latest completion first",
                 ProjectLifecycleFilter.Legacy => "Latest completion first",
                 ProjectLifecycleFilter.Cancelled => "Latest cancellation first",

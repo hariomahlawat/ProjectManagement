@@ -110,6 +110,12 @@
                 </div>
 
                 <div class="projects-results-view @(Model.ShowTableView ? "is-active" : null)" data-project-results="table" hidden="@(!Model.ShowTableView)">
+                    @if (Model.IsActiveRegister)
+                    {
+                        <partial name="_ProjectRegisterActiveTable" model="Model" />
+                    }
+                    else
+                    {
                     <div class="projects-table-wrap">
                         <table class="table projects-table align-middle">
                             <thead>
@@ -181,6 +187,7 @@
                             </tbody>
                         </table>
                     </div>
+                    }
                 </div>
 
                 @if (Model.TotalPages > 1)
