@@ -49,10 +49,9 @@
             @* The quick-filter menus' values. Always present, so a live menu or chip click (which
                syncs the form from its link) keeps them for the next search. *@
             <input type="hidden" name="LeadPoUserId" value="@Model.LeadPoUserId" />
-            <input type="hidden" name="HodUserId" value="@Model.HodUserId" />
             <input type="hidden" name="CategoryId" value="@Model.CategoryId" />
+            <input type="hidden" name="TechnicalCategoryId" value="@Model.TechnicalCategoryId" />
             <input type="hidden" name="Build" value="@Model.Build" />
-            <input type="hidden" name="Mine" value="@(Model.Mine ? "true" : null)" />
             @* Filters that arrive by link or from the Active pipeline ride along as hidden fields. *@
             @if (Model.CompletedFrom.HasValue) { <input type="hidden" name="CompletedFrom" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.CompletedFrom)" /> }
             @if (Model.CompletedTo.HasValue) { <input type="hidden" name="CompletedTo" value="@ProjectManagement.Pages.Projects.IndexModel.DayValue(Model.CompletedTo)" /> }
@@ -98,17 +97,17 @@
                 <div class="offcanvas-header">
                     <div>
                         <h2 class="offcanvas-title" id="projectFiltersLabel">More filters</h2>
-                        <p class="projects-filter-drawer__subtitle">Officer, HoD, category and build are in the quick filters above the list.</p>
+                        <p class="projects-filter-drawer__subtitle">Officer, category, technical category and build are in the quick filters above the list.</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
                 </div>
                 <div class="offcanvas-body">
                     <section class="projects-filter-section">
-                        <h3 class="projects-filter-section__title">Classification</h3>
+                        <h3 class="projects-filter-section__title">People and classification</h3>
                         <div class="projects-filter-grid">
                             <div>
-                                <label asp-for="TechnicalCategoryId" class="form-label">Technical category</label>
-                                <select asp-for="TechnicalCategoryId" class="form-select" asp-items="Model.TechnicalCategoryOptions"></select>
+                                <label asp-for="HodUserId" class="form-label">HoD</label>
+                                <select asp-for="HodUserId" class="form-select" asp-items="Model.HodOptions"></select>
                             </div>
                         </div>
 
