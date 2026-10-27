@@ -703,8 +703,62 @@ namespace ProjectManagement.Tests
             });
         }
 
-        private static IndexModel CreateModel(ApplicationDbContext context)
+        [Fact]
+        public async Task PlainProjectsUrl_OpensTheRememberedTabElseActive()
         {
+            await using var context = CreateContext();
+            context.Projects.AddRange(
+                new Project { Name = "Running", LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow },
+                new Project { Name = "Done", LifecycleStatus = ProjectLifecycleStatus.Completed, CreatedByUserId = "creator", CreatedAt = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+
+            // First visit: no query string, no cookie → Active.
+            var first = CreateModel(context, queryString: null);
+            await first.OnGetAsync();
+            Assert.Equal(ProjectLifecycleFilter.Active, first.Lifecycle);
+            Assert.Equal(new[] { "Running" }, first.Projects.Select(p => p.Name));
+
+            // Choosing a tab remembers it.
+            var chosen = CreateModel(context, queryString: "?Lifecycle=Completed");
+            chosen.Lifecycle = ProjectLifecycleFilter.Completed;
+            await chosen.OnGetAsync();
+            var setCookie = chosen.HttpContext.Response.Headers["Set-Cookie"].ToString();
+            Assert.Contains($"{IndexModel.TabCookieName}=Completed", setCookie);
+            Assert.Contains("httponly", setCookie, StringComparison.OrdinalIgnoreCase);
+
+            // A later plain visit opens the remembered tab.
+            var back = CreateModel(context, queryString: null);
+            back.HttpContext.Request.Headers["Cookie"] = $"{IndexModel.TabCookieName}=Completed";
+            await back.OnGetAsync();
+            Assert.Equal(ProjectLifecycleFilter.Completed, back.Lifecycle);
+
+            // An unreadable or retired value falls back to Active.
+            var legacy = CreateModel(context, queryString: null);
+            legacy.HttpContext.Request.Headers["Cookie"] = $"{IndexModel.TabCookieName}=Legacy";
+            await legacy.OnGetAsync();
+            Assert.Equal(ProjectLifecycleFilter.Active, legacy.Lifecycle);
+
+            // A link with any parameter keeps its meaning (All unless it names a tab) and is not remembered.
+            var drillDown = CreateModel(context, queryString: "?StageCompletedFrom=2023-01-01");
+            drillDown.HttpContext.Request.Headers["Cookie"] = $"{IndexModel.TabCookieName}=Completed";
+            await drillDown.OnGetAsync();
+            Assert.Equal(ProjectLifecycleFilter.All, drillDown.Lifecycle);
+            Assert.Empty(drillDown.HttpContext.Response.Headers["Set-Cookie"].ToString());
+
+            // The All tab is explicit in links, so choosing it is remembered too.
+            Assert.Equal("All", drillDown.BuildBaseRouteValues()["Lifecycle"]);
+            Assert.Equal("All", drillDown.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.All).RouteValue);
+        }
+
+        private static IndexModel CreateModel(ApplicationDbContext context, string? queryString = "?p=1")
+        {
+            var httpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+            if (queryString is not null)
+            {
+                // Tests set the filters on the model; a query string keeps the plain-URL default tab out of the way.
+                httpContext.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString(queryString);
+            }
+
             var categories = new ProjectCategoryHierarchyService(context);
             var clock = new TestClock();
             var stages = new WorkflowStageMetadataProvider();
@@ -717,7 +771,7 @@ namespace ProjectManagement.Tests
             {
                 PageContext = new Microsoft.AspNetCore.Mvc.RazorPages.PageContext
                 {
-                    HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext()
+                    HttpContext = httpContext
                 }
             };
         }

@@ -199,6 +199,20 @@ public sealed class ProjectRepositoryPresentationContractTests
         Assert.DoesNotMatch("#[0-9a-fA-F]{3,8}\\b|rgba?\\(", register);
     }
 
+    [Fact]
+    public void Repository_BareUrlNamesTheResolvedTabForBackNavigation()
+    {
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
+
+        // The hidden field carries the resolved tab (remembered or Active), and the script writes it
+        // into a bare address so Back and live refreshes do not fall back to All.
+        Assert.Contains("<input type=\"hidden\" name=\"Lifecycle\" value=\"@Model.Lifecycle\" />", view, StringComparison.Ordinal);
+        Assert.Contains("if (!window.location.search", script, StringComparison.Ordinal);
+        Assert.Contains("canonical.searchParams.set('Lifecycle', lifecycleField.value);", script, StringComparison.Ordinal);
+        Assert.Contains("window.history.replaceState(window.history.state", script, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

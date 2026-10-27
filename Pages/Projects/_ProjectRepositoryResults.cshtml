@@ -66,7 +66,7 @@
                     <div class="projects-empty-state__icon"><i class="bi bi-inboxes" aria-hidden="true"></i></div>
                     <h2>No projects found</h2>
                     <p>Try a different search, remove a filter or select another lifecycle.</p>
-                    <a asp-page="/Projects/Index" class="btn btn-outline-primary">View all projects</a>
+                    <a asp-page="/Projects/Index" asp-route-Lifecycle="All" class="btn btn-outline-primary">View all projects</a>
                 </section>
             }
             else

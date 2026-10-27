@@ -136,7 +136,7 @@ namespace ProjectManagement.Pages.Projects
         public IDictionary<string, string?> BuildClearRoute()
             => new Dictionary<string, string?>
             {
-                ["Lifecycle"] = Lifecycle == ProjectLifecycleFilter.All ? null : Lifecycle.ToString()
+                ["Lifecycle"] = Lifecycle.ToString()
             };
 
         public string? CurrentStageFilterLabel => string.IsNullOrWhiteSpace(CurrentStage)
@@ -288,6 +288,43 @@ namespace ProjectManagement.Pages.Projects
         // server renders the chosen view on first paint.
         public const string ViewCookieName = "prism_projects_view";
 
+        // Section: Default tab. A plain /Projects (menu, breadcrumb, bookmark) opens the tab last
+        // chosen, or Active on a first visit. Any link that carries a parameter keeps its meaning
+        // (All unless it names a tab), so Command desk and Analytics drill-downs are unchanged.
+        public const string TabCookieName = "prism_projects_tab";
+
+        private void ApplyRememberedTab()
+        {
+            var request = HttpContext?.Request;
+            if (request is null || request.QueryString.HasValue)
+            {
+                return;
+            }
+
+            Lifecycle = Enum.TryParse<ProjectLifecycleFilter>(request.Cookies[TabCookieName], ignoreCase: false, out var remembered)
+                && remembered is ProjectLifecycleFilter.Active or ProjectLifecycleFilter.Completed or ProjectLifecycleFilter.Cancelled or ProjectLifecycleFilter.All
+                    ? remembered
+                    : ProjectLifecycleFilter.Active;
+        }
+
+        private void RememberChosenTab()
+        {
+            if (HttpContext?.Request.Query.ContainsKey("Lifecycle") != true)
+            {
+                return;
+            }
+
+            Response.Cookies.Append(TabCookieName, Lifecycle.ToString(), new Microsoft.AspNetCore.Http.CookieOptions
+            {
+                Path = Request.PathBase.Add("/Projects"),
+                MaxAge = TimeSpan.FromDays(365),
+                HttpOnly = true,
+                IsEssential = true,
+                SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax,
+                Secure = Request.IsHttps
+            });
+        }
+
         public bool ShowTableView =>
             string.Equals(HttpContext?.Request.Cookies[ViewCookieName], "table", StringComparison.Ordinal);
 
@@ -351,9 +388,11 @@ namespace ProjectManagement.Pages.Projects
             var cancellationToken = HttpContext.RequestAborted;
 
             // Section: Normalize query parameters
+            ApplyRememberedTab();
             NormalizeProjectTypeFilters();
             NormalizeOrdering();
             NormalizeRegisterFilters();
+            RememberChosenTab();
             var buildFilter = NormalizeBuildFilter();
 
             // Full page loads need the selectable option lists. Live result
@@ -707,7 +746,7 @@ namespace ProjectManagement.Pages.Projects
             AddValue(values, "TechnicalCategoryId", TechnicalCategoryId);
             AddValue(values, "LeadPoUserId", LeadPoUserId);
             AddValue(values, "HodUserId", HodUserId);
-            AddValue(values, "Lifecycle", Lifecycle == ProjectLifecycleFilter.All ? null : Lifecycle.ToString());
+            AddValue(values, "Lifecycle", Lifecycle.ToString());
             AddValue(values, "CompletedYear", CompletedYear);
             AddValue(values, "TotStatus", TotStatus?.ToString());
             AddValue(values, "IncludeArchived", IncludeArchived ? "true" : null);
@@ -1251,7 +1290,7 @@ namespace ProjectManagement.Pages.Projects
         private LifecycleFilterTab CreateLifecycleTab(ProjectLifecycleFilter filter, string label, IReadOnlyDictionary<ProjectLifecycleFilter, int> counts)
         {
             counts.TryGetValue(filter, out var count);
-            return new LifecycleFilterTab(filter, label, filter == ProjectLifecycleFilter.All ? null : filter.ToString(), Lifecycle == filter, count);
+            return new LifecycleFilterTab(filter, label, filter.ToString(), Lifecycle == filter, count);
         }
 
         private static IEnumerable<SelectListItem> BuildCompletionYearOptions(IEnumerable<int> years, int? selectedYear)
