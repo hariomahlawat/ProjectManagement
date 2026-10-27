@@ -107,7 +107,7 @@ the Active tab slows down.
 | `StageAgeFrom` | Today minus `DaysInStage`, so it always agrees with the age |
 | `StagePdc`, `DaysLate`, `DaysLeft` | The current stage's planned due date; `DaysLate` is the row's `DaysPastPdc` |
 | `PlannedDays` | `StagePdc` minus `StageAgeFrom`, when both are known |
-| `PlanStatus` | No PDC, On plan, or Late (PDC passed) |
+| `PlanStatus` | No PDC, On plan, or Late (PDC passed). A Finished project is never late or due: its last stage is done, so `DaysLate` and `DaysLeft` are empty and it sorts last |
 | `LastUpdatedOn`, `DaysSinceUpdate`, `IsStale` | Latest of a non-deleted remark written or edited, a content edit, or creation (the activity the operational order uses), as an IST date; stale after 30 days |
 
 Open decision for the owner: which tab opens by default. Recommended: remember each user's last

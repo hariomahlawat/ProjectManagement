@@ -28,6 +28,26 @@ public sealed class ProjectRegisterActiveRowVmTests
     }
 
     [Fact]
+    public void AttentionOrder_FinishedSortsLastEvenWithAPastPdc()
+    {
+        var finishedPastPdc = Facts(1, ProjectRegisterStageState.Finished, pdc: Today.AddDays(-90), days: 100);
+        var late = Facts(2, pdc: Today.AddDays(-5), days: 40);
+        var noPdc = Facts(3, days: 10);
+
+        var ordered = new[] { finishedPastPdc, late, noPdc }
+            .OrderBy(facts => facts, ProjectRegisterActiveFacts.AttentionOrder)
+            .Select(facts => facts.ProjectId);
+
+        Assert.Equal(new[] { 2, 3, 1 }, ordered);
+
+        var row = ProjectRegisterActiveRowVm.Create(finishedPastPdc);
+        Assert.Equal("All stages complete", row.StateText);
+        Assert.Equal("Complete", row.TimingText);
+        Assert.Equal("ok", row.TimingTone);
+        Assert.Null(row.BarFillPercent);
+    }
+
+    [Fact]
     public void AttentionOrder_ProjectsWithoutFactsGoLast()
     {
         var ordered = new ProjectRegisterActiveFacts?[] { null, Facts(1, days: 5) }

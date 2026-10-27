@@ -139,7 +139,8 @@ public sealed class ProjectRegisterFactsServiceTests
             AddStage(db, 12, code, StageStatus.Completed, completed: new DateOnly(2026, 10, 1));
         }
 
-        AddStage(db, 12, codes[^1], StageStatus.Skipped);
+        // The last stage's PDC has passed, but a finished stage is not late.
+        AddStage(db, 12, codes[^1], StageStatus.Skipped, due: new DateOnly(2026, 9, 1));
         await db.SaveChangesAsync();
 
         var facts = (await CreateService(db).GetActiveFactsAsync(CancellationToken.None))[12];
@@ -149,6 +150,9 @@ public sealed class ProjectRegisterFactsServiceTests
         Assert.Equal(ProjectRegisterStageMarkState.Skipped, facts.Stages[^1].State);
         Assert.All(facts.Stages.Take(codes.Length - 1), stage => Assert.Equal(ProjectRegisterStageMarkState.Done, stage.State));
         Assert.DoesNotContain(facts.Stages, stage => stage.State == ProjectRegisterStageMarkState.Waiting);
+        Assert.Null(facts.DaysLate);
+        Assert.Null(facts.DaysLeft);
+        Assert.False(facts.IsLate);
     }
 
     [Fact]

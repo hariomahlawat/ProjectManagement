@@ -48,7 +48,9 @@ public sealed record ProjectRegisterActiveRowVm(
             ? facts.CurrentStageState == ProjectRegisterStageState.NotStarted ? $"{days} d waiting" : $"{days} d"
             : "—";
 
-        var (timingText, timingTone) = facts.PlanStatus switch
+        var (timingText, timingTone) = facts.CurrentStageState == ProjectRegisterStageState.Finished
+            ? ("Complete", "ok")
+            : facts.PlanStatus switch
         {
             ProjectRegisterPlanStatus.Late => ($"{facts.DaysLate} d late", facts.IsBlocked ? "blocked" : "late"),
             ProjectRegisterPlanStatus.OnPlan => (facts.DaysLeft == 0 ? "Due today" : $"{facts.DaysLeft} d left", facts.IsBlocked ? "blocked" : "ok"),
@@ -57,7 +59,8 @@ public sealed record ProjectRegisterActiveRowVm(
 
         int? fill = null;
         int? mark = null;
-        if (facts.PlannedDays is int planned && facts.DaysInStage is int inStage)
+        if (facts.CurrentStageState != ProjectRegisterStageState.Finished
+            && facts.PlannedDays is int planned && facts.DaysInStage is int inStage)
         {
             var track = Math.Max(1, Math.Max(planned, inStage));
             fill = (int)Math.Round(inStage * 100.0 / track);

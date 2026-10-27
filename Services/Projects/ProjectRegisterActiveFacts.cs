@@ -53,8 +53,8 @@ public sealed record ProjectRegisterActiveFacts(
         Comparer<ProjectRegisterActiveFacts>.Create(CompareByAttention);
 
     private int AttentionGroup => IsBlocked ? 0
-        : IsLate ? 1
         : CurrentStageState == ProjectRegisterStageState.Finished ? 4
+        : IsLate ? 1
         : PlanStatus == ProjectRegisterPlanStatus.OnPlan ? 2
         : 3;
 
@@ -105,9 +105,12 @@ public sealed record ProjectRegisterActiveFacts(
         int? plannedDays = pdc is { } due && ageFrom is { } from && due >= from
             ? due.DayNumber - from.DayNumber
             : null;
-        int? daysLeft = pdc is { } dueDate && dueDate >= today
+        // A finished last stage is not running against its PDC, so it is neither late nor due.
+        var finished = state == ProjectRegisterStageState.Finished;
+        int? daysLeft = !finished && pdc is { } dueDate && dueDate >= today
             ? dueDate.DayNumber - today.DayNumber
             : null;
+        var daysLate = finished ? null : row.DaysPastPdc;
 
         var marks = stages
             .Select((stage, index) => new ProjectRegisterStageMark(
@@ -127,7 +130,7 @@ public sealed record ProjectRegisterActiveFacts(
             row.DaysInCurrentStage,
             pdc,
             plannedDays,
-            row.DaysPastPdc,
+            daysLate,
             daysLeft,
             row.IsCurrentStageProlonged,
             row.IsCurrentStageApproachingProlonged,
