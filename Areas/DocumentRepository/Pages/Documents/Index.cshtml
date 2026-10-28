@@ -74,11 +74,17 @@
     </header>
 
     <!-- SECTION: Summary strip (whole repository) -->
-    <section class="library-summary" aria-label="Repository at a glance">
+    <section class="library-summary library-summary--list" aria-label="Library at a glance">
         <a class="library-stat" href="@Model.ScopeUrl(null)">
             <span class="library-stat__label">Documents</span>
             <span class="library-stat__figure"><strong>@summary.Documents.ToString("N0")</strong><span>in the library</span></span>
-            <span class="library-stat__sub">@(summary.AddedThisMonth == 0 ? "None added this month" : $"{summary.AddedThisMonth:N0} added this month")</span>
+            <span class="library-stat__sub">
+                @(summary.AddedThisMonth == 0 ? "None added this month" : $"{summary.AddedThisMonth:N0} added this month")
+                @if (summary.Inactive > 0)
+                {
+                    <text> · @summary.Inactive deactivated, not counted</text>
+                }
+            </span>
         </a>
         <a class="library-stat library-stat--aots" href="@Model.ScopeUrl("aots")">
             <span class="library-stat__label">All officers to see</span>
@@ -90,23 +96,38 @@
             <span class="library-stat__figure"><strong>@summary.Favourites.ToString("N0")</strong><span>starred</span></span>
             <span class="library-stat__sub">Star a document to keep it one click away</span>
         </a>
-        @if (Model.CanApproveDeletes && summary.TextFailed > 0)
+        @if (Model.CanManage)
         {
-            <a class="library-stat" asp-page="/Admin/OCRFailures/OcrFailures">
-                <span class="library-stat__label">Searchable text</span>
-                <span class="library-stat__figure"><strong>@summary.TextReadyPercent%</strong><span>of documents</span></span>
-                <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @summary.TextReadyPercent%"></span></span>
-                <span class="library-stat__sub">@summary.TextPending being read · <span class="is-danger">@summary.TextFailed not readable</span></span>
-            </a>
+            // Text-search health is something only the people who manage the library can act on.
+            var stateText = summary.TextFailed > 0
+                ? $"{summary.TextPending} not searchable yet · {summary.TextFailed} not readable"
+                : summary.TextPending > 0 ? $"{summary.TextPending} not searchable yet" : "Every PDF's text is searchable";
+            if (Model.CanApproveDeletes && summary.TextFailed > 0)
+            {
+                <a class="library-stat" asp-page="/Admin/OCRFailures/OcrFailures">
+                    <span class="library-stat__label">Searchable text</span>
+                    <span class="library-stat__figure"><strong>@summary.TextReadyPercent%</strong><span>of documents</span></span>
+                    <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @summary.TextReadyPercent%"></span></span>
+                    <span class="library-stat__sub">@stateText</span>
+                </a>
+            }
+            else
+            {
+                <div class="library-stat">
+                    <span class="library-stat__label">Searchable text</span>
+                    <span class="library-stat__figure"><strong>@summary.TextReadyPercent%</strong><span>of documents</span></span>
+                    <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @summary.TextReadyPercent%"></span></span>
+                    <span class="library-stat__sub">@stateText</span>
+                </div>
+            }
         }
         else
         {
-            <div class="library-stat">
-                <span class="library-stat__label">Searchable text</span>
-                <span class="library-stat__figure"><strong>@summary.TextReadyPercent%</strong><span>of documents</span></span>
-                <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @summary.TextReadyPercent%"></span></span>
-                <span class="library-stat__sub">@(summary.TextPending == 0 ? "Every PDF's text is searchable" : $"{summary.TextPending} being read now")</span>
-            </div>
+            <a class="library-stat" href="@Url.Page("./Index", new { sort = "added" })">
+                <span class="library-stat__label">Recently added</span>
+                <span class="library-stat__figure"><strong>@summary.AddedLast30Days.ToString("N0")</strong><span>in 30 days</span></span>
+                <span class="library-stat__sub">See the newest uploads first</span>
+            </a>
         }
     </section>
 
@@ -131,18 +152,19 @@
             <i class="bi bi-search" aria-hidden="true"></i>
             <label class="visually-hidden" for="librarySearch">Search the library</label>
             <input id="librarySearch" type="search" name="q" value="@Model.Q" autocomplete="off"
-                   placeholder="Search titles, senders, tags and the text inside PDFs" />
+                   placeholder="Search titles, senders, tags and the text inside PDFs" data-short-placeholder="Search documents" />
             <input type="hidden" name="scope" value="@Model.ScopeValue" />
-            <input type="hidden" name="view" value="@(Model.IsListView ? null : "cards")" />
+            <input type="hidden" name="view" value="@Model.ViewValue" />
             <button class="library-search__submit" type="submit">Search</button>
         </form>
         <div class="library-viewswitch" role="group" aria-label="Layout">
-            <a href="@Model.UrlWith("view", null, keepPage: true)" class="@(Model.IsListView ? "is-on" : null)" aria-pressed="@(Model.IsListView ? "true" : "false")" data-library-view="list" title="List">
-                <i class="bi bi-list-ul" aria-hidden="true"></i><span>List</span>
-            </a>
-            <a href="@Model.UrlWith("view", "cards", keepPage: true)" class="@(!Model.IsListView ? "is-on" : null)" aria-pressed="@(!Model.IsListView ? "true" : "false")" data-library-view="cards" title="Cards">
-                <i class="bi bi-grid" aria-hidden="true"></i><span>Cards</span>
-            </a>
+            @foreach (var (value, icon, label) in new[] { ((string?)null, "bi-list-ul", "List"), ("table", "bi-table", "Table"), ("cards", "bi-grid", "Cards") })
+            {
+                var on = Model.ViewValue == value;
+                <a href="@Model.UrlWith("view", value, keepPage: true)" class="@(on ? "is-on" : null)" aria-pressed="@(on ? "true" : "false")" data-library-view="@(value ?? "list")" title="@label">
+                    <i class="bi @icon" aria-hidden="true"></i><span>@label</span>
+                </a>
+            }
         </div>
     </div>
 

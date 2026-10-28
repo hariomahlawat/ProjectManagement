@@ -33,7 +33,7 @@ public static class DocRepoFormat
     /// <summary>OCR state in the words a reader uses; null when the text is ready (nothing to say).</summary>
     public static string? TextState(DocOcrStatus status) => status switch
     {
-        DocOcrStatus.Pending => "Text being read",
+        DocOcrStatus.Pending => "Text not searchable yet",
         DocOcrStatus.Failed => "Text not readable",
         DocOcrStatus.None => "Text not read",
         _ => null

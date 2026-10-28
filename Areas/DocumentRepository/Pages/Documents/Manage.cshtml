@@ -78,7 +78,7 @@
                         <p><span class="library-pill library-pill--success">Ready</span> The text inside the PDF can be searched.</p>
                         break;
                     case DocOcrStatus.Pending:
-                        <p><span class="library-pill library-pill--muted">Being read</span> The text is in the reading queue and becomes searchable within a few minutes.</p>
+                        <p><span class="library-pill library-pill--muted">Queued</span> The PDF is waiting to have its text read@(document.OcrLastTriedUtc.HasValue ? $" (last tried {DocRepoFormat.DateTime(document.OcrLastTriedUtc.Value.UtcDateTime)})" : null). Its contents become searchable once that is done.</p>
                         break;
                     case DocOcrStatus.Failed:
                         <p><span class="library-pill library-pill--danger">Not readable</span> @DocRepoFormat.ExplainOcrFailure(document.OcrFailureReason)</p>

@@ -3,7 +3,10 @@
     var (list, item) = Model;
     var readerUrl = Url.Page("./Reader", new { id = item.Id, returnUrl = list.ReturnUrl });
     var textState = list.CanManage ? DocRepoFormat.TextState(item.OcrStatus) : null;
-    var matchLabel = item.MatchedInSubject ? "In the title" : item.MatchedInTags ? "In a tag" : item.MatchedInBody ? "In the text" : null;
+    // The snippet always quotes the PDF's text, so label it by that; a title or tag match is said separately.
+    var hasSnippet = !string.IsNullOrEmpty(item.Snippet) && item.MatchedInBody;
+    var matchLabel = hasSnippet ? "In the text" : item.MatchedInSubject ? "In the title" : item.MatchedInTags ? "In a tag" : null;
+    var alsoLabel = hasSnippet ? (item.MatchedInSubject ? "Also in the title" : item.MatchedInTags ? "Also in a tag" : null) : null;
 }
 <li class="library-row @(item.IsActive ? null : "is-inactive")" data-library-item data-doc-id="@item.Id" data-href="@readerUrl">
     <span class="library-mark library-hue-@DocRepoFormat.Hue(item.DocumentCategoryId)" aria-hidden="true">
@@ -38,14 +41,18 @@
                 <span class="@(item.OcrStatus == DocOcrStatus.Failed ? "is-danger" : null)" title="@(item.OcrStatus == DocOcrStatus.Failed ? item.OcrFailureReason : null)">@textState</span>
             }
         </p>
-        @if (!string.IsNullOrEmpty(item.Snippet) || matchLabel is not null)
+        @if (matchLabel is not null)
         {
             <p class="library-row__snippet">
-                @if (matchLabel is not null)
+                <span class="library-match">@matchLabel</span>
+                @if (hasSnippet)
                 {
-                    <span class="library-match">@matchLabel</span>
+                    @DocRepoSnippetHtml.Render(item.Snippet)
                 }
-                @DocRepoSnippetHtml.Render(item.Snippet)
+                @if (alsoLabel is not null)
+                {
+                    <span class="library-match library-match--also">@alsoLabel</span>
+                }
             </p>
         }
         @if (item.Tags.Count > 0)
@@ -53,7 +60,7 @@
             <ul class="library-tags" aria-label="Tags">
                 @foreach (var tag in item.Tags)
                 {
-                    <li><a href="@list.UrlWith("tag", tag.ToLowerInvariant())" data-library-link>@tag</a></li>
+                    <li><a href="@list.UrlWith("tag", tag.ToLowerInvariant())" data-library-link tabindex="-1" title="Show documents tagged @tag">@tag</a></li>
                 }
             </ul>
         }

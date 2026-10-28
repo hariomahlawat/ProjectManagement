@@ -83,7 +83,12 @@
     }
 
     function showNotice(content, tone) {
-        notice.replaceChildren(...(Array.isArray(content) ? content : [document.createTextNode(content)]));
+        const icon = document.createElement("i");
+        icon.className = `bi ${tone === "danger" ? "bi-exclamation-circle" : "bi-info-circle"}`;
+        icon.setAttribute("aria-hidden", "true");
+        const text = document.createElement("span");
+        text.append(...(Array.isArray(content) ? content : [document.createTextNode(content)]));
+        notice.replaceChildren(icon, text);
         notice.className = `library-notice is-${tone}`;
         notice.hidden = false;
     }
@@ -124,15 +129,24 @@
                 const parts = [document.createTextNode(result.external
                     ? "This PDF is already in the library: it was added from another module. "
                     : "This PDF is already in the library")];
-                if (result.subject && result.url) {
-                    const link = document.createElement("a");
-                    link.href = result.url;
-                    link.textContent = result.subject;
-                    parts.push(document.createTextNode(" as "), link, document.createTextNode(". "));
+                if (result.subject) {
+                    const title = document.createElement("strong");
+                    title.textContent = result.subject;
+                    parts.push(document.createTextNode(" as "), title, document.createTextNode(". "));
                 } else if (!result.external) {
                     parts.push(document.createTextNode(". "));
                 }
-                parts.push(document.createTextNode("Uploading it again would create a duplicate."));
+                parts.push(document.createTextNode("Uploading it again would create a duplicate, so Upload is turned off for this file."));
+                if (result.url) {
+                    const open = document.createElement("a");
+                    open.href = result.url;
+                    open.className = "btn btn-sm btn-outline-secondary";
+                    open.textContent = "Open the existing document";
+                    const actions = document.createElement("span");
+                    actions.className = "library-notice__actions";
+                    actions.append(open);
+                    parts.push(actions);
+                }
                 showNotice(parts, "danger");
             } else if (result.restoresTrashed) {
                 showNotice("This PDF was deleted from the library before. Uploading it restores that document with the details below.", "info");

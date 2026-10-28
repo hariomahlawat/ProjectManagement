@@ -38,6 +38,8 @@
         <div class="library-banner is-danger" role="alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>@Model.ErrorMessage</strong></div></div>
     }
 
+    @if (Model.TotalCount > 0)
+    {
     <div class="library-toolbar">
         <form method="get" class="library-search" role="search">
             <i class="bi bi-search" aria-hidden="true"></i>
@@ -55,6 +57,7 @@
             }
         </span>
     </div>
+    }
 
     @if (Model.Items.Count == 0)
     {

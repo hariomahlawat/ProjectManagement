@@ -66,8 +66,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery] public int PageSize { get; set; } = DefaultPageSize;
 
         // SECTION: View state
-        public bool IsListView => !string.Equals(View, "cards", StringComparison.OrdinalIgnoreCase);
-        public string ViewMode => IsListView ? "list" : "cards";
+        // "list" (default, rows with snippets), "table" (compact, like the IPR register) or "cards".
+        public bool IsCardView => string.Equals(View, "cards", StringComparison.OrdinalIgnoreCase);
+        public bool IsTableView => string.Equals(View, "table", StringComparison.OrdinalIgnoreCase);
+        public bool IsListView => !IsCardView && !IsTableView;
+        public string ViewMode => IsCardView ? "cards" : IsTableView ? "table" : "list";
+        public string? ViewValue => IsListView ? null : ViewMode;
         public bool IsFavouritesScope => string.Equals(Scope, "favourites", StringComparison.OrdinalIgnoreCase);
         public bool IsAotsScope => string.Equals(Scope, "aots", StringComparison.OrdinalIgnoreCase);
         public bool IsDefaultScope => !IsFavouritesScope && !IsAotsScope;
@@ -105,6 +109,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         // SECTION: Summary strip (whole repository, whatever the filters)
         public RepositorySummary Summary { get; private set; } = new();
+
+        /// <summary>The most used tags, offered as suggestions in the Tag filter.</summary>
+        public IReadOnlyList<string> PopularTags { get; private set; } = Array.Empty<string>();
 
         public async Task OnGetAsync()
         {
@@ -169,11 +176,19 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             // SECTION: Filter counts
             await LoadFacetsAsync(scoped, hasSearch ? preparedQuery : null);
 
-            // SECTION: Summary (full page only)
+            // SECTION: Summary and tag suggestions (full page only)
             if (!IsPartial)
             {
                 await LoadSummaryAsync(userId);
             }
+
+            PopularTags = await _db.DocumentTags.AsNoTracking()
+                .Where(documentTag => !documentTag.Document.IsDeleted && documentTag.Document.IsActive && !documentTag.Document.IsExternal)
+                .GroupBy(documentTag => documentTag.Tag.Name)
+                .OrderByDescending(group => group.Count()).ThenBy(group => group.Key)
+                .Select(group => group.Key)
+                .Take(40)
+                .ToListAsync();
         }
 
         // SECTION: Favourite toggle handler
@@ -303,7 +318,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         {
             var builder = new QueryBuilder();
             if (!string.IsNullOrEmpty(scope)) builder.Add("scope", scope);
-            if (!IsListView) builder.Add("view", "cards");
+            if (ViewValue is not null) builder.Add("view", ViewValue);
             return $"{Request.PathBase}{Request.Path}{builder}";
         }
 
@@ -311,7 +326,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         {
             var builder = new QueryBuilder();
             if (ScopeValue is not null) builder.Add("scope", ScopeValue);
-            if (!IsListView) builder.Add("view", "cards");
+            if (ViewValue is not null) builder.Add("view", ViewValue);
             return $"{Request.PathBase}{Request.Path}{builder}";
         }
 
@@ -485,6 +500,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             {
                 Documents = byOcr.Sum(item => item.Count),
                 AddedThisMonth = await library.CountAsync(document => document.CreatedAtUtc >= monthStart),
+                AddedLast30Days = await library.CountAsync(document => document.CreatedAtUtc >= now.AddDays(-30)),
                 Aots = await library.CountAsync(document => document.IsAots),
                 AotsUnread = await _aotsUnread.GetUnreadCountAsync(userId),
                 Favourites = string.IsNullOrWhiteSpace(userId)
@@ -574,6 +590,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
     {
         public int Documents { get; init; }
         public int AddedThisMonth { get; init; }
+        public int AddedLast30Days { get; init; }
         public int Aots { get; init; }
         public int AotsUnread { get; init; }
         public int Favourites { get; init; }

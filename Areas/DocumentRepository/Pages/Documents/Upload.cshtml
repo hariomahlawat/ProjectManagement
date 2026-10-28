@@ -44,10 +44,10 @@
                 </div>
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-upload-change>Choose another</button>
             </div>
-            <p class="library-notice" data-upload-notice role="status" hidden></p>
+            <div class="library-notice" data-upload-notice id="uploadNotice" role="alert" hidden></div>
             <span class="library-field__error" asp-validation-for="Input.File"></span>
 
-            <div class="library-editor__preview" data-upload-preview hidden>
+            <div class="library-editor__preview library-editor__preview--upload" data-upload-preview hidden>
                 <iframe title="Preview of the chosen PDF" data-upload-frame></iframe>
             </div>
         </section>
@@ -66,7 +66,7 @@
                 <legend>What it is</legend>
                 <div class="library-field">
                     <label asp-for="Input.Subject">Title <span class="library-required" aria-hidden="true">*</span></label>
-                    <input class="form-control" asp-for="Input.Subject" data-upload-subject placeholder="For example: Minutes of the TEC meeting on radar trials" />
+                    <input class="form-control" asp-for="Input.Subject" data-upload-subject placeholder="e.g. TEC minutes – radar trials" />
                     <span class="library-field__hint" data-upload-suggestion hidden></span>
                     <span class="library-field__error" asp-validation-for="Input.Subject"></span>
                 </div>
@@ -126,7 +126,7 @@
             </fieldset>
 
             <div class="library-editor__actions">
-                <button class="btn btn-primary" type="submit" data-upload-submit><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Upload</button>
+                <button class="btn btn-primary" type="submit" data-upload-submit aria-describedby="uploadNotice"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Upload</button>
                 <a class="btn btn-outline-secondary" asp-page="./Index">Cancel</a>
             </div>
         </section>

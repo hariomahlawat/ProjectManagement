@@ -14,7 +14,9 @@
     const body = root.querySelector(".library-body");
     const searchForm = root.querySelector("[data-library-search]");
     const token = root.querySelector('#libraryToken input[name="__RequestVerificationToken"]')?.value || "";
-    const wideQuery = window.matchMedia("(min-width: 1400px)");
+    // From 1600px the reading pane keeps its own column, so opening a document never reflows the list.
+    const wideQuery = window.matchMedia("(min-width: 1600px)");
+    const narrowQuery = window.matchMedia("(max-width: 767.98px)");
     let controller = null;
     let selectedId = null;
 
@@ -25,7 +27,7 @@
             if (String(value) !== "") params.append(key, String(value));
         });
         // The default order is implied, so shared links stay short.
-        const sort = form.querySelector('select[name="sort"]');
+        const sort = form.elements.namedItem("sort");
         if (sort && sort.value === sort.dataset.default) params.delete("sort");
         return params;
     }
@@ -50,6 +52,7 @@
             if (push) window.history.pushState({ library: true }, "", target);
             syncSearchForm(target);
             syncTabs(target);
+            foldFilters();
             markSelected();
             if (focusName) results.querySelector(`[name="${focusName}"]`)?.focus();
         } catch (error) {
@@ -72,8 +75,9 @@
         root.querySelectorAll("[data-library-view]").forEach(link => {
             const next = new URL(url);
             next.searchParams.delete("page");
-            if (link.dataset.libraryView === "cards") next.searchParams.set("view", "cards");
-            else next.searchParams.delete("view");
+            next.searchParams.delete("open");
+            if (link.dataset.libraryView === "list") next.searchParams.delete("view");
+            else next.searchParams.set("view", link.dataset.libraryView);
             link.href = next.pathname + next.search;
         });
     }
@@ -145,10 +149,25 @@
         openPane(open.closest("[data-library-item]").dataset.docId);
     });
 
+    function showPanePlaceholder() {
+        if (!pane || !wideQuery.matches || !results) return;
+        pane.innerHTML = `<div class="library-pane__empty"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><p>Choose a document to preview it here.</p><p class="library-pane__keys">Use ↑ and ↓ to move between documents.</p></div>`;
+        pane.hidden = false;
+        body.classList.add("has-pane");
+    }
+
+    function rememberSelection(id) {
+        const url = new URL(window.location.href);
+        if (id) url.searchParams.set("open", id);
+        else url.searchParams.delete("open");
+        window.history.replaceState(window.history.state, "", url);
+    }
+
     async function openPane(id) {
         if (!pane || !id) return;
         selectedId = id;
         markSelected();
+        rememberSelection(id);
         const url = new URL(root.dataset.previewUrl, window.location.origin);
         url.searchParams.set("id", id);
         url.searchParams.set("returnUrl", window.location.pathname + window.location.search);
@@ -162,6 +181,7 @@
         } catch {
             const item = results.querySelector(`[data-doc-id="${CSS.escape(id)}"]`);
             if (item) window.location.assign(item.dataset.href);
+            else { selectedId = null; rememberSelection(null); showPanePlaceholder(); }
         }
     }
 
@@ -173,6 +193,8 @@
         body.classList.remove("has-pane");
         selectedId = null;
         markSelected();
+        rememberSelection(null);
+        showPanePlaceholder();
         results.querySelector(`[data-doc-id="${CSS.escape(id || "")}"] [data-library-open]`)?.focus();
     }
 
@@ -186,7 +208,17 @@
         if (event.target.closest("[data-library-pane-close]")) closePane();
     });
 
-    wideQuery.addEventListener("change", event => { if (!event.matches) closePane(); });
+    wideQuery.addEventListener("change", event => {
+        if (event.matches) showPanePlaceholder();
+        else { closePane(); if (pane) { pane.hidden = true; body.classList.remove("has-pane"); } }
+    });
+
+    // A shared or reloaded link with ?open=<id> opens that document again.
+    if (results && wideQuery.matches) {
+        const open = new URLSearchParams(window.location.search).get("open");
+        if (open) openPane(open);
+        else showPanePlaceholder();
+    }
 
     // SECTION: Keyboard: arrows move between documents, Escape closes the pane
     root.addEventListener("keydown", event => {
@@ -194,12 +226,14 @@
             closePane();
             return;
         }
-        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
         const current = event.target.closest("[data-library-open]");
         if (!current) return;
         const links = [...results.querySelectorAll("[data-library-open]")];
         const index = links.indexOf(current);
-        const next = links[index + (event.key === "ArrowDown" ? 1 : -1)];
+        const next = event.key === "Home" ? links[0]
+            : event.key === "End" ? links[links.length - 1]
+            : links[index + (event.key === "ArrowDown" ? 1 : -1)];
         if (!next) return;
         event.preventDefault();
         next.focus();
@@ -258,7 +292,8 @@
             title: "Deactivate this document?",
             body: "It disappears from the library for everyone except the people who manage it. You can activate it again at any time.",
             confirm: "Deactivate",
-            style: "btn-primary"
+            style: "btn-outline-danger",
+            focusCancel: true
         },
         "activate": {
             handler: "Activate",
@@ -270,7 +305,7 @@
         "retry-ocr": {
             handler: "RetryOcr",
             title: "Read this PDF's text again?",
-            body: "The document goes back into the reading queue. Its text becomes searchable once reading succeeds, usually within a few minutes.",
+            body: "The document goes back into the reading queue. Its contents become searchable once reading succeeds.",
             confirm: "Read again",
             style: "btn-primary"
         },
@@ -308,10 +343,35 @@
         textarea.required = Boolean(action.reason);
         textarea.value = "";
 
+        // Focus returns to the ⋮ button that opened the menu (the menu item itself is hidden by then).
+        const opener = trigger.closest(".dropdown")?.querySelector('[data-bs-toggle="dropdown"]') || trigger;
+        const cancel = dialogForm.querySelector('[data-bs-dismiss="modal"].btn');
         const modal = window.bootstrap.Modal.getOrCreateInstance(dialogElement);
-        dialogElement.addEventListener("shown.bs.modal", () => (action.reason ? textarea : confirm).focus(), { once: true });
+        dialogElement.addEventListener("shown.bs.modal", () => (action.reason ? textarea : action.focusCancel ? cancel : confirm)?.focus(), { once: true });
+        dialogElement.addEventListener("hidden.bs.modal", () => opener?.focus(), { once: true });
         modal.show();
     });
+
+    // SECTION: Phones: filters fold behind "Filters", and the search box gets a shorter hint
+    function foldFilters() {
+        const box = results?.querySelector("[data-library-filterbox]");
+        if (!box) return;
+        const hasActive = /\(\d+\)/.test(box.querySelector("summary")?.textContent || "");
+        box.open = !narrowQuery.matches || box.dataset.userOpened === "true" || false;
+        box.addEventListener("toggle", () => { if (narrowQuery.matches) box.dataset.userOpened = String(box.open); }, { once: true });
+        box.classList.toggle("has-active", hasActive);
+    }
+
+    function fitPlaceholder() {
+        const input = searchForm?.querySelector("input[data-short-placeholder]");
+        if (!input) return;
+        input.dataset.longPlaceholder ||= input.placeholder;
+        input.placeholder = narrowQuery.matches ? input.dataset.shortPlaceholder : input.dataset.longPlaceholder;
+    }
+
+    foldFilters();
+    fitPlaceholder();
+    narrowQuery.addEventListener("change", () => { foldFilters(); fitPlaceholder(); });
 
     // SECTION: Messages
     function toast(message, tone = "info") {

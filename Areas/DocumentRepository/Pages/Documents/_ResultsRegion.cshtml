@@ -7,13 +7,18 @@
     var firstPage = Math.Max(1, Model.PageNumber - 2);
     var lastPage = Math.Min(Model.PageCount, Model.PageNumber + 2);
     var sortValue = DocRepoSortParser.ValueOf(Model.SortOrder);
+    var activeFilters = (Model.OfficeCategoryId.HasValue ? 1 : 0) + (Model.DocumentCategoryId.HasValue ? 1 : 0)
+        + (Model.Year.HasValue ? 1 : 0) + (Model.Tag is not null ? 1 : 0) + (Model.IncludeInactive ? 1 : 0);
 }
 
-<!-- SECTION: Filters (each option shows how many documents it would leave) -->
-<form method="get" class="library-filters" data-library-filters aria-label="Filter documents">
+<!-- SECTION: Filters (each option shows how many documents it would leave). On phones they fold
+     behind "Filters"; docrepo-ui.js closes the fold on narrow screens. -->
+<details class="library-filterbox" open data-library-filterbox>
+<summary class="library-filterbox__toggle"><i class="bi bi-funnel" aria-hidden="true"></i> Filters@(activeFilters > 0 ? $" ({activeFilters})" : null)</summary>
+<form method="get" class="library-filters" id="libraryFilters" data-library-filters aria-label="Filter documents">
     <input type="hidden" name="q" value="@Model.Q" />
     <input type="hidden" name="scope" value="@Model.ScopeValue" />
-    <input type="hidden" name="view" value="@(Model.IsListView ? null : "cards")" />
+    <input type="hidden" name="view" value="@Model.ViewValue" />
 
     <label class="library-select">
         <span>Office</span>
@@ -47,7 +52,13 @@
     </label>
     <label class="library-select library-select--tag">
         <span>Tag</span>
-        <input class="form-control" name="tag" value="@Model.Tag" placeholder="Any tag" maxlength="32" data-library-filter-text />
+        <input class="form-control" name="tag" value="@Model.Tag" placeholder="Any tag" maxlength="32" list="libraryTagList" autocomplete="off" data-library-filter-text />
+        <datalist id="libraryTagList">
+            @foreach (var tag in Model.PopularTags)
+            {
+                <option value="@tag"></option>
+            }
+        </datalist>
     </label>
     @if (Model.CanViewInactive)
     {
@@ -56,18 +67,9 @@
             <span>Show deactivated</span>
         </label>
     }
-    <span class="library-filters__spacer"></span>
-    <label class="library-select library-select--sort">
-        <span>Sort</span>
-        <select class="form-select" name="sort" data-library-filter data-default="@(Model.IsSearchActive ? "relevance" : "newest")">
-            @foreach (var option in DocRepoSortParser.Options.Where(o => o.Sort != DocRepoSort.Relevance || Model.IsSearchActive))
-            {
-                <option value="@option.Value" selected="@(option.Value == sortValue)">@option.Label</option>
-            }
-        </select>
-    </label>
     <noscript><button class="btn btn-sm btn-primary" type="submit">Apply</button></noscript>
 </form>
+</details>
 
 <!-- SECTION: Result count and active filters -->
 <div class="library-status">
@@ -81,7 +83,7 @@
             <strong>@Model.TotalCount.ToString("N0")</strong> @(Model.TotalCount == 1 ? "document" : "documents")
             @if (Model.IsSearchActive)
             {
-                <text> match “@Model.Q”</text>
+                <text> @(Model.TotalCount == 1 ? "matches" : "match") “@Model.Q”</text>
             }
         }
     </p>
@@ -115,6 +117,16 @@
             <li><a class="library-chips__clear" href="@Model.ClearFiltersUrl()" data-library-link>Clear all</a></li>
         </ul>
     }
+    <span class="library-filters__spacer"></span>
+    <label class="library-select library-select--sort">
+        <span>Sort</span>
+        <select class="form-select" name="sort" form="libraryFilters" data-library-filter data-default="@(Model.IsSearchActive ? "relevance" : "newest")">
+            @foreach (var option in DocRepoSortParser.Options.Where(o => o.Sort != DocRepoSort.Relevance || Model.IsSearchActive))
+            {
+                <option value="@option.Value" selected="@(option.Value == sortValue)">@option.Label</option>
+            }
+        </select>
+    </label>
 </div>
 
 @if (Model.HasTagMatch && Model.Tag is null)
@@ -160,6 +172,10 @@
             }
         }
     </div>
+}
+else if (Model.IsTableView)
+{
+    <partial name="_DocumentTable" model="Model" />
 }
 else if (Model.IsListView)
 {

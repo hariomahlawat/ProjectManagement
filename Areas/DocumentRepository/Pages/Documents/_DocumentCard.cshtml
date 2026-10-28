@@ -41,7 +41,7 @@
         }
     </p>
 
-    @if (!string.IsNullOrEmpty(item.Snippet))
+    @if (!string.IsNullOrEmpty(item.Snippet) && item.MatchedInBody)
     {
         <p class="library-card__snippet">@DocRepoSnippetHtml.Render(item.Snippet)</p>
     }
@@ -51,7 +51,7 @@
         <ul class="library-tags" aria-label="Tags">
             @foreach (var tag in item.Tags)
             {
-                <li><a href="@list.UrlWith("tag", tag.ToLowerInvariant())" data-library-link>@tag</a></li>
+                <li><a href="@list.UrlWith("tag", tag.ToLowerInvariant())" data-library-link tabindex="-1" title="Show documents tagged @tag">@tag</a></li>
             }
         </ul>
     }

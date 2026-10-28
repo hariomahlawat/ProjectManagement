@@ -46,12 +46,12 @@
                 </div>
                 <div class="library-field-row">
                     <div class="library-field">
-                        <label asp-for="Input.DocumentCategoryId">Type</label>
+                        <label asp-for="Input.DocumentCategoryId">Type <span class="library-required" aria-hidden="true">*</span></label>
                         <select class="form-select" asp-for="Input.DocumentCategoryId" asp-items="@(new SelectList(Model.DocumentCategories, "Id", "Name"))"></select>
                         <span class="library-field__error" asp-validation-for="Input.DocumentCategoryId"></span>
                     </div>
                     <div class="library-field">
-                        <label asp-for="Input.OfficeCategoryId">Office</label>
+                        <label asp-for="Input.OfficeCategoryId">Office <span class="library-required" aria-hidden="true">*</span></label>
                         <select class="form-select" asp-for="Input.OfficeCategoryId" asp-items="@(new SelectList(Model.OfficeCategories, "Id", "Name"))"></select>
                         <span class="library-field__error" asp-validation-for="Input.OfficeCategoryId"></span>
                     </div>
