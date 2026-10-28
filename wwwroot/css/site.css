@@ -123,6 +123,24 @@
     --pm-accent-teal-strong: #04505a;
     --pm-accent-amber: #f59e0b;
     --pm-accent-amber-soft: #ffe9b0;
+    /* Procurement route board (Process page): a deliberately dark surface, identical in both themes. */
+    --pm-route-ink: #eef3ff;
+    --pm-route-ink-rgb: 238, 243, 255;
+    --pm-route-muted: #a9bbdb;
+    --pm-route-faint: #7d90b3;
+    --pm-route-bg-top: #0d1c3f;
+    --pm-route-bg-bottom: #060c1d;
+    --pm-route-panel: #10204a;
+    --pm-route-station: #0a1532;
+    --pm-route-steel-rgb: 150, 178, 228;
+    --pm-route-night-rgb: 6, 12, 29;
+    --pm-route-blue: #4d8bff;
+    --pm-route-blue-rgb: 77, 139, 255;
+    --pm-route-teal: #37d5c3;
+    --pm-route-teal-rgb: 55, 213, 195;
+    --pm-route-amber: #f6b44c;
+    --pm-route-amber-rgb: 246, 180, 76;
+    --pm-route-maroon: #b5203d;
     --pm-accent-slate: #94a3b8;
     --pm-accent-slate-strong: #475569;
     --pm-accent-slate-mid: #5a6a80; /* was #64748b (4.40:1) */

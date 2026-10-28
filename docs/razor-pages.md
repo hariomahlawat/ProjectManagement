@@ -68,8 +68,9 @@ This module summarises the UI components exposed to end users.
 * `Pages/Projects/Videos/Stream.cshtml` / `Poster.cshtml` – stream video files and poster frames with proper caching and access checks so only authorised viewers fetch assets. (see Pages/Projects/Videos/Stream.cshtml.cs lines 15-120)
 
 ## Process designer
-* `Pages/Process/Index.cshtml` – presents the currently active stage template version, last-updated timestamp, and a call-to-action to open the checklist editor. Only users with the HoD or MCO role see edit affordances; everyone else can view the version and audit timestamp. (see Pages/Process/Index.cshtml.cs lines 15-64)
-* `/api/processes/{version}/...` endpoints surfaced on the same page power the flow diagrams and checklist management tools described in [docs/timeline.md](timeline.md).
+* `Pages/Process/Index.cshtml` – the procurement route for the latest stage template version. A route map at the top shows every stage at once, including parallel stages and stages that apply only when required; a stage guide below shows the selected stage's purpose, processing checklist, how it connects, and its neighbours. "Walk me through it" steps through the route in order. Stages, order, branches and conditional stages come from `/api/processes/{version}/flow`; nothing is hard-coded in the client. `#stage-<code>` deep links select a stage.
+* Editing is decided on the server: `Checklist.Edit` controls checklist add, edit, delete and reorder, and `Checklist.EditPurpose` controls the purpose. The page model passes both results to the client only to show or hide the controls; the `/api/processes/{version}/stages/{stageCode}/checklist` endpoints enforce them, with row versions guarding concurrent edits.
+* Front-end files: `wwwroot/js/process-route.js` (pure graph and layout logic, unit-tested in `process-route.test.js`), `wwwroot/js/process-flow.js` (page behaviour and API calls) and `wwwroot/css/process-flow.css`.
 
 ## Project office reports
 * `Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml` – lists dignitary visits with filters (type, date range, keyword), photo counts, and export button. Cards link to visit details and editing is limited to Admin/HoD/ProjectOffice roles. (see Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml.cs lines 20-210)

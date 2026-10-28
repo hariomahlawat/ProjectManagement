@@ -95,7 +95,7 @@ Administrators manage governance tasks under the **Admin** area.
 
 ## 10. Process designer & holidays
 
-- **Process** – The Process page shows the current stage template version and last updated timestamp. HoD and MCO roles can launch the checklist editor via the REST API; others consume the published flow for reference. (see Pages/Process/Index.cshtml.cs lines 15-64)
+- **Process** – Projects › Process shows the whole procurement route on one map. Click a stage, use the arrow keys, or press `/` to find one by name or code; the guide below explains why the stage exists, lists its processing checklist and shows what comes before and after it. "Walk me through it" steps through every stage in order. Ticking checklist items only helps you prepare and is not saved. Users with checklist or purpose editing rights see Edit, Manage and Add controls on the same page.
 - **Holidays** – Admin and HoD roles manage the shared holiday list that feeds into scheduling engines and task snooze presets. Entries are stored as `DateOnly` values in `Models/Scheduling/Holiday`. (see Pages/Settings/Holidays/Index.cshtml.cs lines 13-25) (see Models/Scheduling/Holiday.cs lines 1-8)
 
 ## 11. Keeping data safe

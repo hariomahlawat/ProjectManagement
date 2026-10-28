@@ -6,231 +6,163 @@
     ViewData["UseFullWidth"] = true;
     var updatedText = Model.ProcessUpdatedOn.HasValue
         ? Model.ProcessUpdatedOn.Value.ToLocalTime().ToString("dd MMM yyyy")
-        : "Not available";
+        : null;
 }
 
 <section class="process-page"
          data-process-flow-root
-         data-process-theme="light"
          data-process-version="@Model.ProcessVersion"
          data-can-edit-checklist="@(Model.CanEditChecklist ? "true" : "false")"
          data-can-edit-purpose="@(Model.CanEditPurpose ? "true" : "false")">
 
-    <section class="process-workspace" data-process-workspace>
-        <section class="process-experience" data-process-experience data-mode="journey">
-            <div class="process-scene" data-process-scene tabindex="0" aria-label="Interactive procurement journey">
-                <div class="process-scene__atmosphere" aria-hidden="true"></div>
-                <div class="process-scene__horizon" aria-hidden="true"></div>
-                <div class="process-scene__noise" aria-hidden="true"></div>
-
-                <div class="process-world-viewport" data-world-viewport>
-                    <div class="process-world" data-process-world aria-live="polite" aria-busy="true">
-                        <svg class="process-path-layer" data-process-svg aria-hidden="true"></svg>
-                        <div class="process-node-layer" data-process-nodes></div>
-                    </div>
-                </div>
-
-                <div class="process-loading" data-flow-placeholder>
-                    <div class="spinner-border" role="status" aria-hidden="true"></div>
-                    <span>Preparing procurement journey…</span>
-                </div>
-
-                <div class="process-scene__topline">
-                    <div class="process-scene__identity">
-                        <span>PROCUREMENT JOURNEY</span>
-                        <strong data-scene-stage-label>Loading workflow…</strong>
-                    </div>
-
-                    <div class="process-utility-dock" aria-label="Journey tools">
-                        <button type="button"
-                                class="process-utility-button"
-                                data-action="open-stage-search"
-                                title="Search or jump to a stage"
-                                aria-label="Search or jump to a stage">
-                            <i class="bi bi-search" aria-hidden="true"></i>
-                        </button>
-                        <button type="button"
-                                class="process-utility-button"
-                                data-action="toggle-theme"
-                                data-theme-toggle
-                                title="Use dark theme"
-                                aria-label="Use dark theme"
-                                aria-pressed="false">
-                            <i class="bi bi-moon-stars" data-theme-icon aria-hidden="true"></i>
-                        </button>
-                        <button type="button"
-                                class="process-utility-button"
-                                data-action="show-introduction"
-                                title="About the procurement journey"
-                                aria-label="About the procurement journey">
-                            <i class="bi bi-info-circle" aria-hidden="true"></i>
-                        </button>
-                        <button type="button"
-                                class="process-utility-button"
-                                data-action="toggle-fullscreen"
-                                title="Open full screen"
-                                aria-label="Open full screen">
-                            <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
-                        </button>
-                        <button type="button"
-                                class="process-utility-button"
-                                data-action="print-process"
-                                title="Print process"
-                                aria-label="Print process">
-                            <i class="bi bi-printer" aria-hidden="true"></i>
-                        </button>
-                        <button type="button"
-                                class="process-fullscreen-exit"
-                                data-action="toggle-fullscreen"
-                                data-fullscreen-exit
-                                aria-label="Exit full screen"
-                                hidden>
-                            <i class="bi bi-fullscreen-exit" aria-hidden="true"></i>
-                            <span>Exit full screen</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="process-scene__footer">
-                    <button type="button" class="process-stage-nav" data-action="previous-stage" aria-label="Previous stage">
-                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                    </button>
-
-                    <div class="process-progress">
-                        <div class="process-progress__track" data-progress-track></div>
-                        <div class="process-progress__copy">
-                            <span data-progress-current>01</span>
-                            <span>of</span>
-                            <span data-progress-total>15</span>
-                        </div>
-                    </div>
-
-                    <button type="button" class="process-stage-nav" data-action="next-stage" aria-label="Next stage">
-                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                    </button>
-                </div>
-
-                <div class="process-wheel-cue" data-wheel-cue>
-                    <i class="bi bi-mouse" aria-hidden="true"></i>
-                    <span>Scroll or use arrow keys to travel</span>
-                </div>
+    <section class="route-board" aria-labelledby="processRouteTitle">
+        <div class="route-board__header">
+            <div class="route-board__identity">
+                <span class="route-board__eyebrow">Procurement process · Workflow @Model.ProcessVersion</span>
+                <h1 id="processRouteTitle">The procurement route</h1>
+                <p class="route-board__summary">
+                    <span data-route-summary>Loading stages…</span>
+                    @if (updatedText is not null)
+                    {
+                        <span class="route-board__updated">Guidance updated @updatedText</span>
+                    }
+                </p>
             </div>
 
-            <aside class="stage-guide" data-stage-guide aria-label="Selected stage guidance">
-                <div class="stage-guide__header">
-                    <div class="stage-guide__number" data-stage-number>01</div>
-                    <div class="stage-guide__identity">
-                        <div class="stage-guide__code-row">
-                            <span data-stage-code-label>FS</span>
-                            <span class="stage-guide__conditional" data-stage-conditional hidden>Conditional</span>
-                        </div>
-                        <h2 data-stage-title>Feasibility Study</h2>
-                    </div>
-                </div>
-
-                <section class="stage-purpose-block">
-                    <div class="stage-section-heading">
-                        <div>
-                            <span>Purpose</span>
-                            <small data-purpose-updated></small>
-                        </div>
-                        <button type="button" class="stage-inline-action" data-action="edit-purpose" data-purpose-edit hidden>
-                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                            Edit
-                        </button>
-                    </div>
-                    <p data-stage-purpose>Loading stage purpose…</p>
-                </section>
-
-                <section class="stage-checklist-block">
-                    <div class="stage-section-heading stage-section-heading--checklist">
-                        <div>
-                            <span>Processing checklist</span>
-                            <small><strong data-checklist-count>0</strong> reference checks</small>
-                        </div>
-                        <div class="stage-checklist-actions">
-                            <button type="button" class="stage-inline-action" data-action="toggle-checklist-edit" data-checklist-manage hidden>
-                                <i class="bi bi-sliders" aria-hidden="true"></i>
-                                <span data-manage-label>Manage</span>
-                            </button>
-                            <button type="button" class="stage-inline-action stage-inline-action--primary" data-action="add-item" data-checklist-add hidden>
-                                <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                                Add item
-                            </button>
-                        </div>
-                    </div>
-
-                    <ol class="stage-checklist" data-checklist-list aria-live="polite" aria-busy="false"></ol>
-                </section>
-            </aside>
-        </section>
-
-        <dialog class="process-stage-search-dialog" data-stage-search-dialog aria-labelledby="processStageSearchTitle">
-            <button type="button"
-                    class="process-dialog-close"
-                    data-action="close-stage-search"
-                    aria-label="Close stage search">
-                <i class="bi bi-x-lg" aria-hidden="true"></i>
-            </button>
-            <div class="process-stage-search-dialog__content">
-                <div class="process-eyebrow">PROCUREMENT JOURNEY</div>
-                <h2 id="processStageSearchTitle">Jump to a stage</h2>
-                <p>Search by stage name or code. Press <kbd>/</kbd> anywhere in the journey to open this window.</p>
-                <div class="process-search-wrap">
+            <div class="route-board__tools">
+                <div class="route-search" data-route-search>
                     <i class="bi bi-search" aria-hidden="true"></i>
                     <input type="search"
-                           class="form-control"
-                           placeholder="Search stage or code…"
-                           data-stage-search
+                           id="processStageSearch"
+                           placeholder="Find a stage or code"
                            autocomplete="off"
-                           aria-label="Search procurement stages" />
-                    <button type="button" class="btn process-search-clear" data-search-clear aria-label="Clear search" hidden>
-                        <i class="bi bi-x-lg" aria-hidden="true"></i>
-                    </button>
-                    <div class="process-search-results" data-search-results hidden></div>
+                           role="combobox"
+                           aria-expanded="false"
+                           aria-controls="processStageSearchResults"
+                           aria-label="Find a stage or code"
+                           data-stage-search />
+                    <kbd aria-hidden="true">/</kbd>
+                    <div class="route-search__results" id="processStageSearchResults" role="listbox" data-search-results hidden></div>
+                </div>
+                <button type="button" class="route-walk-button" data-action="toggle-walkthrough" aria-pressed="false">
+                    <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                    <span data-walk-label>Walk me through it</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="route-map-scroll" data-route-scroll>
+            <div class="route-map" data-route-map role="group" aria-label="Procurement route. Use the arrow keys to move between stages." aria-busy="true">
+                <svg class="route-map__lines" data-route-svg viewBox="0 0 1000 364" preserveAspectRatio="none" aria-hidden="true"></svg>
+                <div class="route-map__loading" data-route-placeholder>
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    <span>Loading the procurement route…</span>
                 </div>
             </div>
-        </dialog>
+        </div>
 
-        <dialog class="process-introduction" data-process-introduction aria-labelledby="processIntroductionTitle">
-            <div class="process-introduction__grid" aria-hidden="true"></div>
-            <div class="process-introduction__glow process-introduction__glow--blue" aria-hidden="true"></div>
-            <div class="process-introduction__glow process-introduction__glow--maroon" aria-hidden="true"></div>
+        <div class="route-board__footer">
+            <ul class="route-legend" aria-label="Legend">
+                <li><i class="route-legend__line" aria-hidden="true"></i>Main route</li>
+                <li><i class="route-legend__line route-legend__line--fork" aria-hidden="true"></i>Runs in parallel</li>
+                <li><i class="route-legend__line route-legend__line--conditional" aria-hidden="true"></i>Only when required</li>
+            </ul>
+            <p class="route-board__keys"><kbd>←</kbd><kbd>→</kbd> move between stages · <kbd>/</kbd> find a stage</p>
+        </div>
+    </section>
 
-            <button type="button"
-                    class="process-introduction__close"
-                    data-action="close-introduction"
-                    aria-label="Close introduction">
+    <div class="visually-hidden" aria-live="polite" data-route-announcer></div>
+
+    <section class="stage-guide" data-stage-guide aria-labelledby="processStageTitle">
+        <article class="stage-sheet">
+            <header class="stage-sheet__header">
+                <div class="stage-sheet__number" data-stage-number aria-hidden="true">01</div>
+                <div class="stage-sheet__identity">
+                    <div class="stage-sheet__chips">
+                        <span class="stage-chip stage-chip--code" data-stage-code-label></span>
+                        <span class="stage-chip stage-chip--conditional" data-stage-conditional hidden>
+                            <i class="bi bi-signpost" aria-hidden="true"></i> Only when required
+                        </span>
+                        <span class="stage-chip stage-chip--parallel" data-stage-parallel hidden></span>
+                    </div>
+                    <h2 id="processStageTitle" data-stage-title>Loading stage…</h2>
+                    <p class="stage-sheet__position" data-stage-position></p>
+                </div>
+            </header>
+
+            <section class="stage-block stage-block--purpose">
+                <div class="stage-block__heading">
+                    <h3>Why this stage exists</h3>
+                    <button type="button" class="stage-action" data-action="edit-purpose" data-purpose-edit hidden>
+                        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                        Edit purpose
+                    </button>
+                </div>
+                <p class="stage-purpose" data-stage-purpose>Loading stage purpose…</p>
+                <small class="stage-block__meta" data-purpose-updated></small>
+            </section>
+
+            <section class="stage-block">
+                <div class="stage-block__heading">
+                    <h3>Processing checklist <span class="stage-block__count" data-checklist-count></span></h3>
+                    <div class="stage-block__actions">
+                        <button type="button" class="stage-action" data-action="copy-checklist" data-checklist-copy hidden>
+                            <i class="bi bi-clipboard" aria-hidden="true"></i>
+                            Copy as text
+                        </button>
+                        <button type="button" class="stage-action" data-action="toggle-checklist-edit" data-checklist-manage hidden>
+                            <i class="bi bi-sliders" aria-hidden="true"></i>
+                            <span data-manage-label>Manage</span>
+                        </button>
+                        <button type="button" class="stage-action stage-action--primary" data-action="add-item" data-checklist-add hidden>
+                            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                            Add item
+                        </button>
+                    </div>
+                </div>
+                <ol class="stage-checklist" data-checklist-list aria-live="polite" aria-busy="false"></ol>
+                <p class="stage-block__meta" data-checklist-note hidden>Tick items to track your own preparation. Ticks are not saved.</p>
+            </section>
+
+            <nav class="stage-pager" aria-label="Previous and next stage">
+                <button type="button" class="stage-pager__link" data-action="previous-stage" data-pager-previous>
+                    <span class="stage-pager__direction"><i class="bi bi-arrow-left" aria-hidden="true"></i> Previous</span>
+                    <strong data-pager-previous-name></strong>
+                </button>
+                <button type="button" class="stage-pager__link stage-pager__link--next" data-action="next-stage" data-pager-next>
+                    <span class="stage-pager__direction">Next <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+                    <strong data-pager-next-name></strong>
+                </button>
+            </nav>
+        </article>
+
+        <aside class="stage-rail" aria-label="How this stage connects">
+            <section class="stage-card">
+                <h3>How it connects</h3>
+                <p class="stage-card__story" data-stage-story></p>
+            </section>
+            <section class="stage-card">
+                <h3>Where this sits</h3>
+                <div class="stage-neighbours" data-stage-neighbours></div>
+            </section>
+        </aside>
+    </section>
+
+    <div class="route-walkbar" data-walkbar hidden>
+        <span class="route-walkbar__step" data-walk-step></span>
+        <strong class="route-walkbar__name" data-walk-name></strong>
+        <div class="route-walkbar__actions">
+            <button type="button" class="route-walkbar__button" data-action="previous-stage">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i> Back
+            </button>
+            <button type="button" class="route-walkbar__button route-walkbar__button--primary" data-action="next-stage" data-walk-next>
+                Next <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="route-walkbar__close" data-action="toggle-walkthrough" aria-label="End walkthrough">
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
-
-            <div class="process-introduction__content">
-                <div class="process-eyebrow">PROCUREMENT GOVERNANCE</div>
-                <h2 id="processIntroductionTitle">From concept to capability.</h2>
-                <p>
-                    Travel through the complete procurement process, understand every gate and open the
-                    authorised checklist at the point where it matters.
-                </p>
-
-                <div class="process-introduction__meta" aria-label="Process summary">
-                    <div><strong data-stage-count>15</strong><span>Stages</span></div>
-                    <div><strong>@Model.ProcessVersion</strong><span>Workflow version</span></div>
-                    <div><strong>@updatedText</strong><span>Guidance updated</span></div>
-                </div>
-
-                <div class="process-introduction__actions">
-                    <button type="button" class="btn process-primary-action" data-action="begin-journey">
-                        <span>Begin journey</span>
-                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                    </button>
-                    <button type="button" class="btn process-secondary-action" data-action="begin-fullscreen">
-                        <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
-                        <span>Open full screen</span>
-                    </button>
-                </div>
-            </div>
-        </dialog>
-    </section>
+        </div>
+    </div>
 </section>
 
 <div class="modal fade" id="stagePurposeModal" tabindex="-1" aria-labelledby="stagePurposeModalLabel" aria-hidden="true">
@@ -329,5 +261,6 @@
 
 @section Scripts {
     <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>
+    <script src="~/js/process-route.js" asp-append-version="true"></script>
     <script type="module" src="~/js/process-flow.js" asp-append-version="true"></script>
 }
