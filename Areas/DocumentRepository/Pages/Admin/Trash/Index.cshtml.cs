@@ -82,8 +82,8 @@ public sealed class IndexModel : PageModel
         document.UpdatedAtUtc = DateTime.UtcNow;
         document.UpdatedByUserId = actorId;
 
+        _audit.Stage(document.Id, actorId, "RestoredFromTrash", new { document.Id });
         await _db.SaveChangesAsync(cancellationToken);
-        await _audit.WriteAsync(document.Id, actorId, "RestoredFromTrash", new { document.Id }, cancellationToken);
 
         StatusMessage = "Document restored.";
         return RedirectToPage();

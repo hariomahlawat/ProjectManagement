@@ -223,17 +223,20 @@ else
                                    placeholder="e.g. sow, contract" />
                         </div>
 
-                        <!-- SECTION: Include inactive -->
-                        <div class="docrepo-facet">
-                            <label class="form-check docrepo-inline-check">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       name="includeInactive"
-                                       value="true"
-                                       @(Model.IncludeInactive ? "checked" : null) />
-                                <span class="form-check-label">Include inactive</span>
-                            </label>
-                        </div>
+                        <!-- SECTION: Include inactive (managers only) -->
+                        @if (Model.CanViewInactive)
+                        {
+                            <div class="docrepo-facet">
+                                <label class="form-check docrepo-inline-check">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="includeInactive"
+                                           value="true"
+                                           @(Model.IncludeInactive ? "checked" : null) />
+                                    <span class="form-check-label">Include inactive</span>
+                                </label>
+                            </div>
+                        }
 
                         <!-- SECTION: Facet actions -->
                         <div class="docrepo-facet__actions">
@@ -433,7 +436,7 @@ else
                                        max="2100" />
                             </div>
 
-                            <div class="form-check">
+                            <div class="form-check @(Model.CanViewInactive ? null : "d-none")">
                                 <input class="form-check-input"
                                        type="checkbox"
                                        id="includeInactiveChk"

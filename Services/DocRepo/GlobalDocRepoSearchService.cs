@@ -47,9 +47,9 @@ public sealed class GlobalDocRepoSearchService : IGlobalDocRepoSearchService
             return Array.Empty<GlobalSearchHit>();
         }
 
-        var baseQuery = _dbContext.Documents
-            .AsNoTracking()
-            .Where(document => !document.IsDeleted);
+        // Global search has no per-user filter, so it shows active documents only (as Search V2
+        // does); managers find deactivated documents from the repository's own list.
+        var baseQuery = DocRepoAccess.ReadableFilter(_dbContext.Documents.AsNoTracking(), canViewInactive: false);
 
         var projected = await _documentSearchService
             .ApplySearchProjected(baseQuery, preparedQuery)

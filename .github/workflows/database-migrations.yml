@@ -73,6 +73,15 @@ jobs:
           --no-build
           --filter FullyQualifiedName~ProliferationWritePostgresIntegrationTests
 
+      - name: Run Document Repository PostgreSQL tests
+        # OCR queue claims, delete-approval decisions and search snippets. Creates, migrates and
+        # drops its own prism_test_docrepo_* databases on this server.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~DocRepoPostgresIntegrationTests
+
       - name: Run Search V2 PostgreSQL integration tests
         env:
           # The tests create, migrate and drop their own prism_test_searchv2_* database

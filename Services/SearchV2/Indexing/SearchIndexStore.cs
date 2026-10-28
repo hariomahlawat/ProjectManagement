@@ -250,7 +250,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
                     WHERE "Generation" = @generation
                       AND (
                           ("EntityType" = @entityType AND "EntityKey" = @entityKey)
-                          OR (@projectId IS NOT NULL AND "EntityType" = 'ProjectDocument' AND "ParentProjectId" = @projectId)
+                          OR (CAST(@projectId AS integer) IS NOT NULL AND "EntityType" = 'ProjectDocument' AND "ParentProjectId" = CAST(@projectId AS integer))
                       );
                     """;
                 Add(delete, "generation", generation);

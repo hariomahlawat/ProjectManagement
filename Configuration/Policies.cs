@@ -114,6 +114,8 @@ public static class Policies
         public const string DeleteApprove = "DocRepo.DeleteApprove";
         public const string EditMetadata = "DocRepo.EditMetadata";
         public const string Purge = "DocRepo.Purge";
+        // Deactivated documents are hidden from everyone except the people who manage them.
+        public const string ViewInactive = "DocRepo.ViewInactive";
 
         public static readonly string[] UploadAndSoftDeleteRoles =
         {
@@ -133,6 +135,11 @@ public static class Policies
             RoleNames.Mco,
             RoleNames.HoD
         };
+
+        public static readonly string[] InactiveViewerRoles = UploadAndSoftDeleteRoles
+            .Concat(MetadataEditorRoles)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
         public static readonly string[] DeleteApprovalRoles =
         {

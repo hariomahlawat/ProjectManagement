@@ -18,7 +18,7 @@
             .SelectMany(kvp => kvp.Value, (kvp, value) => new KeyValuePair<string, string>(kvp.Key, value ?? string.Empty))
     );
     var returnUrl = $"{Context.Request.Path}{filteredQuery}";
-    var readerUrl = Model.IsActive ? Url.Page("./Reader", new { id = Model.Id, returnUrl }) : string.Empty;
+    var readerUrl = Url.Page("./Reader", new { id = Model.Id, returnUrl });
 }
 
 <tr class="docrepo-row @(Model.IsActive ? string.Empty : "docrepo-row--inactive")"
@@ -54,18 +54,9 @@
                 }
             </div>
             <div class="docrepo-subjectcell__content">
-                @if (Model.IsActive)
-                {
-                    <a asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl" class="docrepo-subject-link" title="@Model.Subject">
-                        @Model.Subject
-                    </a>
-                }
-                else
-                {
-                    <span class="docrepo-subject-link text-muted" title="Inactive documents cannot be viewed. Download is available.">
-                        @Model.Subject
-                    </span>
-                }
+                <a asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl" class="docrepo-subject-link" title="@Model.Subject">
+                    @Model.Subject
+                </a>
                 @if (!Model.IsActive)
                 {
                     <span class="badge rounded-pill bg-light text-muted">Inactive</span>
@@ -122,38 +113,20 @@
             </button>
             <ul class="dropdown-menu dropdown-menu-end" data-no-row-nav>
                 <!-- SECTION: Primary actions -->
-                @if (Model.IsActive)
-                {
-                    <li>
-                        <a class="dropdown-item"
-                           asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl">
-                            <i class="bi bi-eye me-2"></i>Open
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item"
-                           asp-page="./View" asp-route-id="@Model.Id"
-                           target="_blank"
-                           rel="noopener">
-                            <i class="bi bi-box-arrow-up-right me-2"></i>Open in new tab
-                        </a>
-                    </li>
-                }
-                else
-                {
-                    <li>
-                        <span class="dropdown-item text-muted"
-                              title="Inactive documents cannot be viewed. Download is available.">
-                            <i class="bi bi-eye me-2"></i>Open
-                        </span>
-                    </li>
-                    <li>
-                        <span class="dropdown-item text-muted"
-                              title="Inactive documents cannot be viewed. Download is available.">
-                            <i class="bi bi-box-arrow-up-right me-2"></i>Open in new tab
-                        </span>
-                    </li>
-                }
+                <li>
+                    <a class="dropdown-item"
+                       asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl">
+                        <i class="bi bi-eye me-2"></i>Open
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item"
+                       asp-page="./View" asp-route-id="@Model.Id"
+                       target="_blank"
+                       rel="noopener">
+                        <i class="bi bi-box-arrow-up-right me-2"></i>Open in new tab
+                    </a>
+                </li>
                 <li>
                     <a class="dropdown-item"
                        asp-page="./Download" asp-route-id="@Model.Id">

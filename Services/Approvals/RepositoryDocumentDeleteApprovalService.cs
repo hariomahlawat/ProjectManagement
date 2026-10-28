@@ -50,26 +50,46 @@ public sealed class RepositoryDocumentDeleteApprovalService
             return ApprovalDecisionResult.ValidationFailed("The document is no longer available.");
         }
 
+        // Requesting and approving a deletion are separate duties, as for other approval types.
+        if (string.Equals(request.RequestedByUserId, actorUserId, StringComparison.Ordinal))
+        {
+            return ApprovalDecisionResult.Forbidden("You requested this deletion, so another approver must decide it.");
+        }
+
         var document = request.Document;
         var now = _clock.UtcNow;
 
+        // The request row is claimed in the database, so when two approvers act at the same
+        // moment only the first decision is applied.
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        var pending = _db.DocumentDeleteRequests.Where(item => item.Id == requestId && item.ApprovedAtUtc == null);
+
         if (action == ApprovalDecisionAction.Reject)
         {
-            _db.DocumentDeleteRequests.Remove(request);
-            await _db.SaveChangesAsync(cancellationToken);
+            if (await pending.ExecuteDeleteAsync(cancellationToken) == 0)
+            {
+                return ApprovalDecisionResult.AlreadyDecided("This repository document request has already been decided.");
+            }
 
-            await _audit.WriteAsync(
+            _audit.Stage(
                 document.Id,
                 actorUserId,
                 "DeleteRejected",
-                new { request.Id, Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim() },
-                cancellationToken);
-
+                new { request.Id, Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim() });
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return ApprovalDecisionResult.Success("Repository document delete request rejected.");
         }
 
-        request.ApprovedAtUtc = now;
-        request.ApprovedByUserId = actorUserId;
+        var claimed = await pending.ExecuteUpdateAsync(
+            setters => setters
+                .SetProperty(item => item.ApprovedAtUtc, now)
+                .SetProperty(item => item.ApprovedByUserId, actorUserId),
+            cancellationToken);
+        if (claimed == 0)
+        {
+            return ApprovalDecisionResult.AlreadyDecided("This repository document request has already been decided.");
+        }
 
         document.IsDeleted = true;
         document.IsActive = false;
@@ -79,15 +99,9 @@ public sealed class RepositoryDocumentDeleteApprovalService
         document.UpdatedAtUtc = now.UtcDateTime;
         document.UpdatedByUserId = actorUserId;
 
+        _audit.Stage(document.Id, actorUserId, "SoftDeleted", new { request.Id, request.Reason });
         await _db.SaveChangesAsync(cancellationToken);
-
-        await _audit.WriteAsync(
-            document.Id,
-            actorUserId,
-            "SoftDeleted",
-            new { request.Id, request.Reason },
-            cancellationToken);
-
+        await transaction.CommitAsync(cancellationToken);
         return ApprovalDecisionResult.Success("Document moved to trash.");
     }
 }

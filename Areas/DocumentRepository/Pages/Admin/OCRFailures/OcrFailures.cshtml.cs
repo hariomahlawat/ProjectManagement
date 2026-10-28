@@ -1,4 +1,5 @@
 using System;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -26,9 +27,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
         [TempData]
         public string? StatusMessage { get; set; }
 
+        private string ActorUserId =>
+            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
+
         public async Task OnGetAsync(CancellationToken ct)
         {
             FailedDocuments = await _db.Documents
+                .AsNoTracking()
+                .Include(d => d.OfficeCategory)
+                .Include(d => d.DocumentCategory)
                 .Where(d => d.OcrStatus == DocOcrStatus.Failed && !d.IsDeleted)
                 .OrderByDescending(d => d.CreatedAtUtc)
                 .ToListAsync(ct);
@@ -36,15 +43,18 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
 
         public async Task<IActionResult> OnPostRequeueAsync(Guid id, CancellationToken ct)
         {
-            await _ocrService.ReprocessAsync(id, ct);
-            StatusMessage = "OCR re-queued for selected document.";
+            StatusMessage = await _ocrService.RequeueAsync(id, ActorUserId, ct)
+                ? "Queued for OCR. The background worker will process it shortly."
+                : "That document no longer exists.";
             return RedirectToPage();
         }
 
         public async Task<IActionResult> OnPostRequeueAllAsync(CancellationToken ct)
         {
-            var count = await _ocrService.ReprocessAllFailedAsync(ct);
-            StatusMessage = $"OCR re-queued for {count} documents.";
+            var count = await _ocrService.RequeueAllFailedAsync(ActorUserId, ct);
+            StatusMessage = count == 1
+                ? "Queued 1 document for OCR. The background worker will process it shortly."
+                : $"Queued {count} documents for OCR. The background worker will process them shortly.";
             return RedirectToPage();
         }
     }
