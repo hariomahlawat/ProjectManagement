@@ -18,6 +18,7 @@
     const wideQuery = window.matchMedia("(min-width: 1600px)");
     const narrowQuery = window.matchMedia("(max-width: 767.98px)");
     let controller = null;
+    let tagTimer = null;
     let selectedId = null;
 
     // SECTION: Fetch and swap the results region
@@ -46,6 +47,8 @@
         const request = new URL(target);
         request.searchParams.set("partial", "true");
 
+        // A newer navigation replaces any tag update still waiting for a pause in typing.
+        window.clearTimeout(tagTimer);
         controller?.abort();
         controller = new AbortController();
         results.setAttribute("aria-busy", "true");
@@ -57,6 +60,8 @@
             });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             results.innerHTML = await response.text();
+            // The open preview stays open, so the new history entry records it too.
+            if (selectedId && wideQuery.matches && !target.searchParams.has("open")) target.searchParams.set("open", selectedId);
             if (push) window.history.pushState({ library: true }, "", target);
             syncSearchForm(target);
             syncTabs(target);
@@ -91,7 +96,6 @@
     }
 
     // SECTION: Filters change instantly; the tag box waits for a pause in typing
-    let tagTimer = null;
     results?.addEventListener("change", event => {
         const field = event.target.closest("[data-library-filter]");
         if (!field) return;
@@ -137,7 +141,11 @@
         if (link.closest(".library-pager")) results.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
-    if (results) window.addEventListener("popstate", () => load(window.location.href, { push: false }));
+    // Back and Forward restore the results and the preview that the URL names.
+    if (results) window.addEventListener("popstate", async () => {
+        await load(window.location.href, { push: false });
+        syncPane(new URL(window.location.href));
+    });
 
     // SECTION: Rows open the reader, or the reading pane on wide screens
     const interactive = "a, button, input, select, textarea, label, .dropdown-menu";
@@ -200,6 +208,18 @@
             const item = results.querySelector(`[data-doc-id="${CSS.escape(id)}"]`);
             if (item) window.location.assign(item.dataset.href);
             else { selectedId = null; rememberSelection(null); showPanePlaceholder(); }
+        }
+    }
+
+    function syncPane(url) {
+        if (!pane || !wideQuery.matches) return;
+        const open = url.searchParams.get("open");
+        if (open && open !== selectedId) openPane(open, { focusPreview: false });
+        else if (!open && selectedId) {
+            previewRequest?.abort();
+            selectedId = null;
+            markSelected();
+            showPanePlaceholder();
         }
     }
 
