@@ -250,13 +250,16 @@ public sealed class SearchIndexStore : ISearchIndexStore
                     WHERE "Generation" = @generation
                       AND (
                           ("EntityType" = @entityType AND "EntityKey" = @entityKey)
-                          OR (CAST(@projectId AS integer) IS NOT NULL AND "EntityType" = 'ProjectDocument' AND "ParentProjectId" = CAST(@projectId AS integer))
+                          OR (@projectId IS NOT NULL AND "EntityType" = 'ProjectDocument' AND "ParentProjectId" = @projectId)
                       );
                     """;
                 Add(delete, "generation", generation);
                 Add(delete, "entityType", requestedEntityType);
                 Add(delete, "entityKey", requestedEntityKey);
                 Add(delete, "projectId", projectId);
+                // Typed so PostgreSQL can resolve "@projectId IS NOT NULL" when the value is null
+                // (every entity except a project), which otherwise fails with 42P08.
+                delete.Parameters["@projectId"].DbType = System.Data.DbType.Int32;
                 await delete.ExecuteNonQueryAsync(cancellationToken);
             }
 
