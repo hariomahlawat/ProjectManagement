@@ -20,7 +20,7 @@
                 {
                     <span class="library-timeline__monthname">No date</span>
                 }
-                <span class="library-timeline__count">@group.Count()</span>
+                <span class="library-timeline__count">@DocRepoFormat.Count(group.Count(), "document")</span>
             </h3>
             <ol class="library-timeline__items">
                 @foreach (var item in group)
@@ -34,20 +34,20 @@
                         </span>
                         <div class="library-timeline__text">
                             <a class="library-timeline__title" href="@readerUrl" data-library-open>@item.Subject</a>
+                            @if (item.IsAots)
+                            {
+                                <span class="library-pill library-pill--aots">AOTS</span>
+                            }
+                            @if (item.IsAotsUnread)
+                            {
+                                <span class="library-pill library-pill--new">New</span>
+                            }
                             <p class="library-row__meta">
                                 <span>@(item.DocumentCategoryName ?? "Document")</span>
                                 <span>@(item.OfficeCategoryName ?? "No office")</span>
                                 @if (!string.IsNullOrWhiteSpace(item.ReceivedFrom))
                                 {
                                     <span>From @item.ReceivedFrom</span>
-                                }
-                                @if (item.IsAots)
-                                {
-                                    <span class="library-pill library-pill--aots">AOTS</span>
-                                }
-                                @if (item.IsAotsUnread)
-                                {
-                                    <span class="library-pill library-pill--new">New</span>
                                 }
                             </p>
                         </div>

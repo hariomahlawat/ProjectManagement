@@ -145,7 +145,7 @@
     /* Document Repository ("library"): see docs/ux/document-repository.md */
     --pm-library-ink: #10213f;
     --pm-library-muted: #5d6c84;
-    --pm-library-faint: #8592a6;
+    --pm-library-faint: #6b788d;
     --pm-library-card: #ffffff;
     --pm-library-subtle: #f5f7fb;
     --pm-library-border: #dbe3ee;
@@ -363,7 +363,7 @@
     --pm-route-amber-rgb: 246, 180, 76;
     --pm-library-ink: #e8eaee;
     --pm-library-muted: #a3aab5;
-    --pm-library-faint: #7f8794;
+    --pm-library-faint: #8b93a0;
     --pm-library-card: #17191d;
     --pm-library-subtle: #111316;
     --pm-library-border: #2c3036;

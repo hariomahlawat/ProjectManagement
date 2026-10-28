@@ -400,7 +400,8 @@
         // Left and right only move along covers (a shelf or the Covers layout).
         const sideways = event.key === "ArrowLeft" || event.key === "ArrowRight";
         if (sideways && !current.closest(".library-cover")) return;
-        const group = current.closest("[data-library-items]") || results;
+        // Left and right move within one shelf or grid; up and down run on through every list.
+        const group = sideways ? current.closest("[data-library-items]") || results : results;
         const links = [...group.querySelectorAll("[data-library-open]")];
         const index = links.indexOf(current);
         const forward = event.key === "ArrowDown" || event.key === "ArrowRight";
@@ -540,9 +541,9 @@
         quickNone.hidden = items.length > 0;
         quickAll.hidden = false;
         quickAll.href = data.allUrl || "#";
-        quickAll.firstChild.textContent = data.total > 0
+        quickAll.firstChild.textContent = data.total > 1
             ? `See all ${data.more ? "100+" : data.total} results `
-            : "Search the text of every PDF ";
+            : data.total === 1 ? "See the result in the library " : "Search the text of every PDF ";
         quickInput.setAttribute("aria-expanded", items.length ? "true" : "false");
         const words = text.toLowerCase().split(/\s+/).filter(word => word.length > 1 && !word.includes(":"));
         quickList.replaceChildren(...items.map((item, index) => {

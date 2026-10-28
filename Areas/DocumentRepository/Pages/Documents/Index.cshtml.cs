@@ -234,13 +234,19 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public async Task<IActionResult> OnGetQuickAsync(string? q)
         {
             var shortcuts = DocRepoQueryTokens.Parse(q);
-            var text = shortcuts.Text?.Trim() ?? string.Empty;
             CanViewInactive = await _access.CanViewInactiveAsync(User);
 
             var query = _access.Readable(_db.Documents.AsNoTracking(), canViewInactive: false)
                 .Where(document => !document.IsExternal);
             var (officeId, _) = await ResolveOfficeAsync(shortcuts.Office);
             var (typeId, _) = await ResolveTypeAsync(shortcuts.Type);
+            // As in the full search, a name that matches no office or type stays a search word.
+            var text = string.Join(' ', new[]
+            {
+                shortcuts.Text,
+                shortcuts.Office is not null && officeId is null ? shortcuts.Office : null,
+                shortcuts.Type is not null && typeId is null ? shortcuts.Type : null
+            }.Where(part => !string.IsNullOrWhiteSpace(part))).Trim();
             OfficeCategoryId = officeId;
             DocumentCategoryId = typeId;
             Tag = shortcuts.Tag;
@@ -323,8 +329,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 .ToListAsync();
             var ordered = wanted.Select(id => found.FirstOrDefault(item => item.Id == id)).OfType<DocumentSearchResultVm>().ToList();
             await ApplyPersonalStateAsync(userId, ordered);
-            ViewData["Page"] = this;
-            return Partial("_ShelfItems", ordered);
+            return Partial("_ShelfItems", new ShelfItemsVm(this, ordered));
         }
 
         // SECTION: Favourite toggle handler
@@ -433,7 +438,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
             var returnUrl = Url.IsLocalUrl(Request.Query["returnUrl"].ToString()) ? Request.Query["returnUrl"].ToString() : ReturnUrl;
             document.ReturnUrl = returnUrl;
-            ViewData["Page"] = this;
+            document.CanEdit = CanEdit;
+            document.CanManage = CanManage;
+            document.Query = IsSearchActive ? Q : null;
             return Partial("_DocumentPreview", document);
         }
 
@@ -465,13 +472,18 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         /// <summary>The reader for a result; a search opens it with the words found and at the page of the match.</summary>
         public string ReaderUrl(DocumentSearchResultVm item)
-            => Url.Page("./Reader", new
+        {
+            var url = Url.Page("./Reader", new
             {
                 id = item.Id,
                 returnUrl = ReturnUrl,
-                q = IsSearchActive ? Q : null,
-                page = IsSearchActive ? item.MatchPage : null
+                q = IsSearchActive ? Q : null
             }) ?? string.Empty;
+            // "page" is a reserved route value in Razor Pages (Url.Page replaces it), so it is added here.
+            return IsSearchActive && item.MatchPage is { } matchPage
+                ? QueryHelpers.AddQueryString(url, "page", matchPage.ToString(CultureInfo.InvariantCulture))
+                : url;
+        }
 
         public string ScopeUrl(string? scope)
         {
@@ -844,6 +856,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
     // SECTION: Page models
     public sealed record FacetOption(string Value, string Label, int Count);
+
+    /// <summary>Covers for a shelf filled by the browser, with the page they belong to.</summary>
+    public sealed record ShelfItemsVm(IndexModel Page, IReadOnlyList<DocumentSearchResultVm> Items);
 
     public sealed class RepositorySummary
     {

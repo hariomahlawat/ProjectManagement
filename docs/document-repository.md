@@ -55,7 +55,7 @@ A failure to write a `Viewed` or `Downloaded` row is logged and never blocks rea
 
 - The library shows each document's first page as a cover (`Documents/Cover?id=…`). It follows the same access rule as the PDF (`IDocRepoAccess`): a document the user may not open has no cover either (404). Covers are not audited; they show what the list already shows.
 - `DocRepoCoverService` draws a cover the first time it is asked for, with Poppler's `pdftoppm` (page 1, 360px wide, JPEG), and keeps it in `<DocRepo:RootPath>/covers/<2 hex>/<id>.jpg`. At most two are drawn at once and one per document; a drawing has 30 seconds. Purging a document deletes its cover. Covers can be deleted at any time; they are drawn again.
-- Without Poppler, with `DocRepo:EnableCovers=false`, or for a PDF that cannot be drawn (damaged, encrypted), the page shows a cover typeset in the document type's colour instead. A PDF that failed is marked (`<id>.jpg.failed`) and tried again after 12 hours; when `pdftoppm` cannot be started at all, covers are skipped for 10 minutes and nothing is marked, so installing Poppler later needs no clean-up.
+- Without Poppler, with `DocRepo:EnableCovers=false`, or for a PDF that cannot be drawn (damaged, encrypted), the page shows a cover typeset in the document type's colour instead. A PDF that failed is marked (`<id>.jpg.failed`) and tried again after 12 hours (a drawing that only timed out is not marked); when `pdftoppm` cannot be started at all, covers are skipped for 10 minutes and nothing is marked, so installing Poppler later needs no clean-up.
 - Configure the executable with `DocRepo:PdfToPpmPath` when it is not on the server's `PATH` (for example `C:\poppler\Library\bin\pdftoppm.exe`).
 
 ## Search shortcuts and quick search
@@ -66,7 +66,7 @@ A failure to write a `Viewed` or `Downloaded` row is logged and never blocks rea
 
 ## Caching
 
-The inline view, download and covers send `Cache-Control: private, no-store`, so PDFs and their first pages are not kept in the browser cache of shared LAN machines after they are deactivated or deleted. What the browser remembers for convenience (recently opened documents, the last page read, dark reading, the details panel) is kept in `localStorage` under a per-user key (`DocRepoFormat.UserKey`, a hash of the user id) and is never used for access.
+The inline view and download send `Cache-Control: private, no-store`, so PDFs are not kept in the browser cache of shared LAN machines after they are deactivated or deleted. Covers send `private, max-age=3600`: a cover never changes, and fetching every first page again on each list view would be wasteful; at most an hour-old first-page image can stay in that browser's cache after a document is hidden from its user. What the browser remembers for convenience (recently opened documents, the last page read, dark reading, the details panel) is kept in `localStorage` under a per-user key (`DocRepoFormat.UserKey`, a hash of the user id) and is never used for access.
 
 ## Tests
 

@@ -101,8 +101,37 @@
         setField(item, "Subject", titleFromFileName(file.name), false);
         item.state = "ready";
         updateTotal();
-        readFacts(item);
-        checkDuplicate(item);
+        item.prepared = limit(() => prepare(item));
+    }
+
+    // SECTION: Reading each PDF once (two at a time, so twenty large files never fill the memory)
+    const preparing = [];
+    let activePreparations = 0;
+
+    function limit(task) {
+        return new Promise(resolve => {
+            preparing.push(async () => {
+                activePreparations++;
+                try { await task(); } catch { /* each step reports its own problems */ }
+                activePreparations--;
+                resolve();
+                preparing.shift()?.();
+            });
+            if (activePreparations < 2) preparing.shift()?.();
+        });
+    }
+
+    async function prepare(item) {
+        if (item.state === "removed") return;
+        const bytes = await item.file.arrayBuffer();
+        // The hash is taken first: pdf.js takes over the buffer when it reads the file.
+        await checkDuplicate(item, bytes);
+        await readFacts(item, bytes);
+    }
+
+    // A late answer must not touch a PDF that is being sent, was added, or was removed.
+    function stillEditable(item) {
+        return item.state === "ready" || item.state === "error";
     }
 
     function removeItem(item) {
@@ -145,30 +174,32 @@
     }
 
     // SECTION: Cover, title and date read from the PDF in the browser
-    async function readFacts(item) {
+    async function readFacts(item, bytes) {
+        if (item.state === "removed") return;
         try {
             viewerModule ??= await import(app.dataset.viewerModule);
-            const facts = await viewerModule.readPdfFacts(app.dataset.pdfjsBase, new Uint8Array(await item.file.arrayBuffer()), { coverWidth: 96 });
+            const facts = await viewerModule.readPdfFacts(app.dataset.pdfjsBase, new Uint8Array(bytes), { coverWidth: 96 });
             if (item.state === "removed") return;
             const cover = item.element.querySelector("[data-item-cover]");
             cover.replaceChildren(facts.cover);
             item.element.querySelector("[data-item-size]").textContent =
                 `${formatSize(item.file.size)} · ${facts.pages} ${facts.pages === 1 ? "page" : "pages"}`;
+            if (!stillEditable(item)) return;
             if (facts.title && facts.title.length >= 6) setField(item, "Subject", tidyTitle(facts.title), true);
             if (facts.date) setField(item, "DocumentDate", facts.date, true);
         } catch (error) {
-            if (error?.name === "PasswordException") status(item, "This PDF is protected by a password. It can be added, but its text cannot be read or searched.", "info");
+            if (error?.name === "PasswordException" && stillEditable(item)) status(item, "This PDF is protected by a password. It can be added, but its text cannot be read or searched.", "info");
             // Otherwise the file name stays as the title; the server decides whether the file is a valid PDF.
         }
     }
 
     // SECTION: Duplicate check before sending (the server checks again)
-    async function checkDuplicate(item) {
+    async function checkDuplicate(item, bytes) {
         if (!window.crypto?.subtle || !app.dataset.checkUrl) return;
         try {
-            const digest = await window.crypto.subtle.digest("SHA-256", await item.file.arrayBuffer());
+            const digest = await window.crypto.subtle.digest("SHA-256", bytes);
             const hex = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
-            if (item.state === "removed") return;
+            if (!stillEditable(item)) return;
             const duplicateInQueue = items.find(other => other !== item && other.state !== "removed" && other.hash === hex);
             item.hash = hex;
             if (duplicateInQueue) return fail(item, `This is the same PDF as “${duplicateInQueue.file.name}” above.`);
@@ -177,7 +208,7 @@
             const response = await fetch(url, { credentials: "same-origin" });
             if (!response.ok) return;
             const result = await response.json();
-            if (item.state === "removed") return;
+            if (!stillEditable(item)) return;
             if (result.duplicate) {
                 const parts = [document.createTextNode(result.external
                     ? "Already in the library: it was added from another module. "
@@ -207,12 +238,18 @@
     // SECTION: Sending, one PDF after another
     uploadButton.addEventListener("click", async () => {
         if (uploading) return;
-        const pending = items.filter(item => item.state === "ready" || item.state === "error");
+        let pending = items.filter(item => item.state === "ready" || item.state === "error");
         if (!pending.length) return;
         if (!validate(pending)) return;
         uploading = true;
         uploadButton.disabled = true;
         addButton.disabled = true;
+        // Duplicates found by checks still running are left out rather than sent.
+        if (pending.some(item => item.prepared)) {
+            total.textContent = "Checking the PDFs…";
+            await Promise.all(pending.map(item => item.prepared));
+            pending = pending.filter(stillEditable);
+        }
         app.querySelectorAll("[data-shared]").forEach(shared => { shared.disabled = true; });
         for (const item of pending) {
             if (item.state === "removed") continue;
@@ -263,6 +300,10 @@
                 if (event.lengthComputable && progress) progress.textContent = `Sending… ${Math.round(100 * event.loaded / event.total)}%`;
             });
             request.addEventListener("load", () => {
+                // A session that ran out is sent to the sign-in page.
+                if (/\/Identity\/Account\/Login/i.test(request.responseURL || "")) {
+                    return finish(fail(item, "Your session has ended. Sign in again in another tab, then add this PDF again.", true));
+                }
                 // A throttled upload is redirected back to the upload page: wait and send again.
                 if (/[?&]throttled=true/i.test(request.responseURL || "")) {
                     if (attempt >= 3) return finish(fail(item, "Too many uploads in a short time. Try this one again in a minute.", true));

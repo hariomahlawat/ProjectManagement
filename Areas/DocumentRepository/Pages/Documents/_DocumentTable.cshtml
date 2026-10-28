@@ -53,10 +53,12 @@
                         <td data-label="Date" class="library-table__num">@DocRepoFormat.Date(item.DocumentDate)</td>
                         <td data-label="Size" class="library-table__num">@DocRepoFormat.FileSize(item.FileSizeBytes)</td>
                         <td class="library-table__actions">
+                            <div class="library-table__buttons">
                             <a class="library-iconbtn" asp-page="./Download" asp-route-id="@item.Id" aria-label="Download @item.Subject" title="Download">
                                 <i class="bi bi-download" aria-hidden="true"></i>
                             </a>
                             <partial name="_DocumentMenu" model="(Model, item)" />
+                            </div>
                         </td>
                     </tr>
                 }

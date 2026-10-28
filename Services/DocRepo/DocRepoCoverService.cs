@@ -55,14 +55,7 @@ public sealed class DocRepoCoverService : IDocRepoCoverService
         _logger = logger;
         _enabled = value.EnableCovers;
         _executable = string.IsNullOrWhiteSpace(value.PdfToPpmPath) ? "pdftoppm" : value.PdfToPpmPath.Trim();
-        var root = string.IsNullOrWhiteSpace(value.RootPath) ? Path.Combine("App_Data", "DocRepo") : value.RootPath;
-        root = Environment.ExpandEnvironmentVariables(root);
-        if (!Path.IsPathRooted(root))
-        {
-            root = Path.Combine(environment.ContentRootPath, root);
-        }
-
-        _coverRoot = Path.Combine(Path.GetFullPath(root), "covers");
+        _coverRoot = Path.Combine(LocalDocStorageService.ResolveRootPath(value.RootPath, environment.ContentRootPath), "covers");
     }
 
     public async Task<string?> GetCoverAsync(Document document, CancellationToken cancellationToken)
@@ -90,19 +83,19 @@ public sealed class DocRepoCoverService : IDocRepoCoverService
             return null;
         }
 
-        // One drawing per document at a time; later callers share its result.
-        var work = _inFlight.GetOrAdd(document.Id, _ => new Lazy<Task<string?>>(() => RenderAsync(document, coverPath, failedMarker)));
-        try
+        // One drawing per document at a time; callers waiting meanwhile share its result. The entry
+        // is removed when the drawing ends, whether or not anyone is still waiting for it.
+        var work = _inFlight.GetOrAdd(document.Id, id => new Lazy<Task<string?>>(() =>
         {
-            return await work.Value.WaitAsync(cancellationToken);
-        }
-        finally
-        {
-            if (work.IsValueCreated && work.Value.IsCompleted)
-            {
-                _inFlight.TryRemove(new KeyValuePair<Guid, Lazy<Task<string?>>>(document.Id, work));
-            }
-        }
+            var task = RenderAsync(document, coverPath, failedMarker);
+            task.ContinueWith(
+                _ => _inFlight.TryRemove(id, out var _),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            return task;
+        }));
+        return await work.Value.WaitAsync(cancellationToken);
     }
 
     public void DeleteCover(Guid documentId)
@@ -177,6 +170,11 @@ public sealed class DocRepoCoverService : IDocRepoCoverService
                 return null;
             }
 
+            if (outcome == RenderOutcome.TimedOut)
+            {
+                return null;
+            }
+
             await File.WriteAllTextAsync(failedMarker, DateTime.UtcNow.ToString("O"));
             return null;
         }
@@ -193,7 +191,8 @@ public sealed class DocRepoCoverService : IDocRepoCoverService
         }
     }
 
-    private enum RenderOutcome { Drawn, Failed, ToolMissing }
+    // TimedOut is not remembered as a failure: a busy server is not a damaged PDF.
+    private enum RenderOutcome { Drawn, Failed, TimedOut, ToolMissing }
 
     private async Task<RenderOutcome> RunPdfToPpmAsync(string sourcePdf, string outputPrefix)
     {
@@ -245,8 +244,8 @@ public sealed class DocRepoCoverService : IDocRepoCoverService
             catch (OperationCanceledException)
             {
                 try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-                _logger.LogWarning("pdftoppm took longer than {Seconds}s on {Source}; no cover.", RenderTimeout.TotalSeconds, sourcePdf);
-                return RenderOutcome.Failed;
+                _logger.LogWarning("pdftoppm took longer than {Seconds}s on {Source}; no cover this time.", RenderTimeout.TotalSeconds, sourcePdf);
+                return RenderOutcome.TimedOut;
             }
 
             if (process.ExitCode != 0)

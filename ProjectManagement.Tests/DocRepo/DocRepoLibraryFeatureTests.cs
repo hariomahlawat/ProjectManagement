@@ -108,7 +108,7 @@ public sealed class DocRepoLibraryFeatureTests
 
         var file = Assert.IsType<PhysicalFileResult>(await reader.OnGetAsync(visible.Id, CancellationToken.None));
         Assert.Equal("image/jpeg", file.ContentType);
-        Assert.Equal("private, no-store", reader.Response.Headers.CacheControl.ToString());
+        Assert.Equal("private, max-age=3600", reader.Response.Headers.CacheControl.ToString());
 
         var manager = new CoverModel(db, Access(), covers);
         ConfigurePage(manager, Manager);
@@ -181,8 +181,28 @@ public sealed class DocRepoLibraryFeatureTests
 
         var partial = Assert.IsType<PartialViewResult>(await page.OnGetCardsAsync($"{second.Id},{hidden.Id},not-a-guid,{first.Id}"));
 
-        var items = Assert.IsAssignableFrom<System.Collections.Generic.IReadOnlyList<DocumentSearchResultVm>>(partial.Model);
-        Assert.Equal(new[] { "Second", "First" }, items.Select(item => item.Subject));
+        // The partial gets the page as its model (ViewData does not reach the nested cover partial).
+        var shelf = Assert.IsType<ShelfItemsVm>(partial.Model);
+        Assert.Same(page, shelf.Page);
+        Assert.Equal(new[] { "Second", "First" }, shelf.Items.Select(item => item.Subject));
+    }
+
+    [Fact]
+    public async Task Preview_CarriesPermissionsAndTheSearchWordsInItsModel()
+    {
+        await using var db = CreateDb();
+        SeedLookups(db);
+        var document = SeedDocument(db, "Circular");
+        await db.SaveChangesAsync();
+        var page = CreateIndex(db, Manager);
+        page.Q = "radar";
+
+        var partial = Assert.IsType<PartialViewResult>(await page.OnGetPreviewAsync(document.Id));
+
+        var preview = Assert.IsType<DocumentPreviewVm>(partial.Model);
+        Assert.True(preview.CanEdit);
+        Assert.True(preview.CanManage);
+        Assert.Equal("radar", preview.Query);
     }
 
     [Fact]

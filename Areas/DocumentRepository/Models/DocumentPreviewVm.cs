@@ -21,4 +21,9 @@ public sealed class DocumentPreviewVm
     public string? CreatedByName { get; set; }
     public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
     public string ReturnUrl { get; set; } = string.Empty;
+
+    // What the viewer may do and the list's search words (highlighted in the pane's PDF).
+    public bool CanEdit { get; set; }
+    public bool CanManage { get; set; }
+    public string? Query { get; set; }
 }

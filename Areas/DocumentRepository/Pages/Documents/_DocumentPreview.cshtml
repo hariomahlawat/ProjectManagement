@@ -1,8 +1,7 @@
 @model DocumentPreviewVm
 @{
     // The reading pane beside the results on wide screens (Index?handler=Preview).
-    var list = ViewData["Page"] as ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel;
-    var query = list?.IsSearchActive == true ? list.Q : null;
+    var query = Model.Query;
     var readerUrl = Url.Page("./Reader", new { id = Model.Id, returnUrl = Model.ReturnUrl, q = query });
     var viewUrl = Url.Page("./View", new { id = Model.Id });
 }
@@ -31,7 +30,7 @@
     <div class="library-preview__actions">
         <a class="btn btn-primary btn-sm" href="@readerUrl"><i class="bi bi-book" aria-hidden="true"></i> Open in reader</a>
         <a class="btn btn-outline-secondary btn-sm" asp-page="./Download" asp-route-id="@Model.Id"><i class="bi bi-download" aria-hidden="true"></i> Download</a>
-        @if (list?.CanEdit == true)
+        @if (Model.CanEdit)
         {
             <a class="btn btn-outline-secondary btn-sm" asp-page="./Edit" asp-route-id="@Model.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i> Edit</a>
         }
@@ -66,7 +65,7 @@
         {
             <div><dt>Tags</dt><dd><ul class="library-tags">@foreach (var tag in Model.Tags) { <li><span>@tag</span></li> }</ul></dd></div>
         }
-        @if (list?.CanManage == true && DocRepoFormat.TextState(Model.OcrStatus) is { } state)
+        @if (Model.CanManage && DocRepoFormat.TextState(Model.OcrStatus) is { } state)
         {
             <div><dt>Searchable text</dt><dd>@state</dd></div>
         }

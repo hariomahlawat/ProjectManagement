@@ -178,6 +178,18 @@ export async function mountViewer(root, options) {
     setDark(readStore(darkKey) === "1");
 
     // SECTION: Find
+    // A library search ("radar evaluation", "\"radar subsystem\"", -draft, type:x) becomes the
+    // words and phrases to highlight; pdf.js finds each one rather than the whole line as a phrase.
+    function searchTerms(text) {
+        const terms = [];
+        for (const match of String(text || "").matchAll(/"([^"]+)"|(\S+)/g)) {
+            const term = (match[1] ?? match[2] ?? "").trim();
+            if (!term || (!match[1] && (/^-/.test(term) || /^[a-z]+:/i.test(term) || /^(or|and|not)$/i.test(term)))) continue;
+            terms.push(term);
+        }
+        return terms.length > 1 ? terms : terms[0] ?? "";
+    }
+
     let lastQuery = "";
     function find(text, again = false, previous = false) {
         lastQuery = text;
@@ -188,7 +200,7 @@ export async function mountViewer(root, options) {
         eventBus.dispatch("find", {
             source: null,
             type: again ? "again" : "",
-            query: text,
+            query: searchTerms(text),
             caseSensitive: false,
             entireWord: false,
             highlightAll: true,

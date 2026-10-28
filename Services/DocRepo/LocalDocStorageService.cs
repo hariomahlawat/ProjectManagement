@@ -104,7 +104,8 @@ public class LocalDocStorageService : IDocStorage
         return Task.FromResult(File.Exists(fullPath));
     }
 
-    private static string ResolveRootPath(string? configuredRoot, string contentRoot)
+    // Shared with DocRepoCoverService so covers always sit under the same root as the files.
+    internal static string ResolveRootPath(string? configuredRoot, string contentRoot)
     {
         // SECTION: Resolve configured path
         var root = string.IsNullOrWhiteSpace(configuredRoot)
