@@ -53,7 +53,7 @@ public sealed class ProcessJourneyPresentationContractTests
     {
         var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
         var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
-        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
+        var styles = StripCssComments(ReadRepoFile("wwwroot", "css", "process-flow.css"));
 
         // Native scrolling: the page never takes over the mouse wheel.
         Assert.DoesNotContain("'wheel'", script, StringComparison.Ordinal);
@@ -78,8 +78,10 @@ public sealed class ProcessJourneyPresentationContractTests
                      ReadRepoFile("wwwroot", "css", "process-flow.css")
                  })
         {
-            Assert.DoesNotContain("http://", source, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("https://", source, StringComparison.OrdinalIgnoreCase);
+            // The SVG namespace is an identifier, not something the browser downloads.
+            var withoutNamespaces = source.Replace(SvgNamespace, string.Empty, StringComparison.Ordinal);
+            Assert.DoesNotContain("http://", withoutNamespaces, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("https://", withoutNamespaces, StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -166,6 +168,11 @@ public sealed class ProcessJourneyPresentationContractTests
         Assert.Contains("Policies.Checklist.EditPurpose", program, StringComparison.Ordinal);
         Assert.Contains("PurposeUpdated", program, StringComparison.Ordinal);
     }
+
+    private const string SvgNamespace = "http://www.w3.org/2000/svg";
+
+    private static string StripCssComments(string css)
+        => System.Text.RegularExpressions.Regex.Replace(css, @"/\*.*?\*/", string.Empty, System.Text.RegularExpressions.RegexOptions.Singleline);
 
     private static string ReadRepoFile(params string[] relativePath)
     {
