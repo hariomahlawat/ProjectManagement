@@ -173,7 +173,7 @@
 
     let previewRequest = null;
 
-    async function openPane(id) {
+    async function openPane(id, { focusPreview = true } = {}) {
         if (!pane || !id) return;
         // Only the latest selection may fill the pane; a slower earlier response is dropped.
         previewRequest?.abort();
@@ -193,7 +193,8 @@
             pane.innerHTML = html;
             pane.hidden = false;
             body.classList.add("has-pane");
-            pane.querySelector(".library-preview__title")?.focus({ preventScroll: true });
+            // Keyboard browsing keeps focus on the row link so the next arrow press still moves.
+            if (focusPreview) pane.querySelector(".library-preview__title")?.focus({ preventScroll: true });
         } catch (error) {
             if (error?.name === "AbortError" || selectedId !== id) return;
             const item = results.querySelector(`[data-doc-id="${CSS.escape(id)}"]`);
@@ -244,7 +245,12 @@
             return;
         }
         if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-        const current = event.target.closest("[data-library-open]");
+        // From a row link, or from inside the reading pane (a click focuses its heading), moving
+        // on from the selected document. Form fields and open menus keep their own arrow keys.
+        const inPane = pane && !pane.hidden && pane.contains(event.target)
+            && !event.target.closest("input, textarea, select, .dropdown-menu");
+        const current = event.target.closest("[data-library-open]")
+            ?? (inPane && selectedId ? results.querySelector(`[data-doc-id="${CSS.escape(selectedId)}"] [data-library-open]`) : null);
         if (!current) return;
         const links = [...results.querySelectorAll("[data-library-open]")];
         const index = links.indexOf(current);
@@ -254,7 +260,7 @@
         if (!next) return;
         event.preventDefault();
         next.focus();
-        if (wideQuery.matches && pane && !pane.hidden) openPane(next.closest("[data-library-item]").dataset.docId);
+        if (wideQuery.matches && pane && !pane.hidden) openPane(next.closest("[data-library-item]").dataset.docId, { focusPreview: false });
     });
 
     // SECTION: Favourites

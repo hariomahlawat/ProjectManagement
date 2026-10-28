@@ -1,12 +1,13 @@
 @model (ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel Page, DocumentSearchResultVm Item)
 @{
     // The ⋮ menu on a row or card. Manage actions are links to the Manage page, which works
-    // without script; docrepo-ui.js turns them into a confirmation dialog.
+    // without script; docrepo-ui.js turns them into a confirmation dialog. The menu is positioned
+    // "fixed" so the list's rounded, clipped border and the table's scroll area cannot cut it off.
     var (list, item) = Model;
     var manageUrl = Url.Page("./Manage", new { id = item.Id });
 }
 <div class="dropdown library-menu">
-    <button class="library-iconbtn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for @item.Subject">
+    <button class="library-iconbtn" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for @item.Subject">
         <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
