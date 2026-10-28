@@ -1,0 +1,9 @@
+@model (string Id, string Title, string Description)
+
+<div class="pdft-tool-head">
+    <a class="pdft-tool-head__back" href="#" data-nav-home>
+        <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+    </a>
+    <h1 id="@Model.Id">@Model.Title</h1>
+    <p>@Model.Description</p>
+</div>

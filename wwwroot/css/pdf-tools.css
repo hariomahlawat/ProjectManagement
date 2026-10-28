@@ -1,0 +1,722 @@
+/* PRISM PDF Tools — standalone page (Pages/Tools/Pdf). Colours come from Bootstrap's
+   theme variables only, so Light and Dark both work without literal colours. */
+
+.pdft {
+    --pdft-surface: var(--bs-body-bg);
+    --pdft-page-bg: var(--bs-tertiary-bg);
+    --pdft-border: var(--bs-border-color);
+    --pdft-muted: var(--bs-secondary-color);
+    --pdft-brand: var(--bs-danger);
+    --pdft-radius: 14px;
+    --pdft-shadow: 0 1px 2px color-mix(in srgb, var(--bs-emphasis-color) 8%, transparent),
+                   0 6px 20px color-mix(in srgb, var(--bs-emphasis-color) 6%, transparent);
+    min-height: 100vh;
+    margin: 0;
+    background: var(--pdft-page-bg);
+    color: var(--bs-body-color);
+    font-family: "Mulish", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+.pdft [hidden] {
+    display: none !important;
+}
+
+/* ---------- Top bar ---------- */
+
+.pdft-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.65rem clamp(1rem, 3vw, 2rem);
+    background: var(--pdft-surface);
+    border-bottom: 1px solid var(--pdft-border);
+}
+
+.pdft-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--bs-emphasis-color);
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 1.15rem;
+}
+
+.pdft-brand__mark {
+    display: inline-grid;
+    place-items: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 10px;
+    background: var(--pdft-brand);
+    color: var(--bs-white);
+}
+
+.pdft-brand__text span {
+    font-weight: 500;
+    color: var(--pdft-muted);
+    font-size: 0.9rem;
+}
+
+.pdft-privacy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    background: var(--bs-success-bg-subtle);
+    color: var(--bs-success-text-emphasis);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.pdft-topbar__back {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--pdft-muted);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.pdft-topbar__back:hover,
+.pdft-topbar__back:focus-visible {
+    color: var(--bs-emphasis-color);
+}
+
+/* ---------- Layout ---------- */
+
+.pdft-main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2rem) 4rem;
+}
+
+.pdft-hero {
+    text-align: center;
+    max-width: 760px;
+    margin: 1rem auto 2.25rem;
+}
+
+.pdft-hero h1 {
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    font-weight: 800;
+    color: var(--bs-emphasis-color);
+}
+
+.pdft-hero p {
+    color: var(--pdft-muted);
+    font-size: 1.1rem;
+}
+
+.pdft-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.pdft-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.4rem;
+    border-radius: var(--pdft-radius);
+    background: var(--pdft-surface);
+    border: 1px solid var(--pdft-border);
+    box-shadow: var(--pdft-shadow);
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.pdft-card:hover,
+.pdft-card:focus-visible {
+    transform: translateY(-2px);
+    border-color: var(--bs-primary-border-subtle);
+}
+
+.pdft-card__icon {
+    display: inline-grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 12px;
+    font-size: 1.5rem;
+    color: var(--pdft-accent);
+    background: color-mix(in srgb, var(--pdft-accent) 14%, transparent);
+}
+
+.pdft-card__title {
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--bs-emphasis-color);
+}
+
+.pdft-card__text {
+    color: var(--pdft-muted);
+    font-size: 0.95rem;
+}
+
+.pdft-accent--red { --pdft-accent: var(--bs-red); }
+.pdft-accent--orange { --pdft-accent: var(--bs-orange); }
+.pdft-accent--yellow { --pdft-accent: var(--bs-warning-text-emphasis); }
+.pdft-accent--green { --pdft-accent: var(--bs-green); }
+.pdft-accent--blue { --pdft-accent: var(--bs-blue); }
+.pdft-accent--indigo { --pdft-accent: var(--bs-indigo); }
+.pdft-accent--purple { --pdft-accent: var(--bs-purple); }
+
+.pdft-footnote {
+    margin-top: 2rem;
+    text-align: center;
+    color: var(--pdft-muted);
+    font-size: 0.9rem;
+}
+
+/* ---------- Tool header and drop zone ---------- */
+
+.pdft-tool-head {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.pdft-tool-head__back {
+    display: inline-flex;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+    color: var(--pdft-muted);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.pdft-tool-head h1 {
+    font-size: clamp(1.5rem, 3vw, 2.1rem);
+    font-weight: 800;
+    color: var(--bs-emphasis-color);
+}
+
+.pdft-tool-head p {
+    color: var(--pdft-muted);
+    max-width: 680px;
+    margin: 0 auto;
+}
+
+.pdft-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    min-height: 260px;
+    padding: 2rem;
+    border: 2px dashed var(--pdft-border);
+    border-radius: var(--pdft-radius);
+    background: var(--pdft-surface);
+    text-align: center;
+}
+
+.pdft-drop.is-dragging {
+    border-color: var(--pdft-brand);
+    background: color-mix(in srgb, var(--pdft-brand) 6%, var(--pdft-surface));
+}
+
+.pdft-drop__button {
+    padding: 0.9rem 2rem;
+    font-weight: 700;
+    border-radius: 12px;
+}
+
+.pdft-drop__hint {
+    margin: 0;
+    color: var(--pdft-muted);
+}
+
+/* ---------- Workspace ---------- */
+
+.pdft-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.pdft-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 12px;
+    background: var(--pdft-surface);
+    border: 1px solid var(--pdft-border);
+}
+
+.pdft-toolbar--sticky {
+    position: sticky;
+    top: 3.9rem;
+    z-index: 15;
+    box-shadow: var(--pdft-shadow);
+}
+
+.pdft-toolbar__hint {
+    color: var(--pdft-muted);
+    font-size: 0.9rem;
+}
+
+.pdft-toolbar__field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.pdft-toolbar .btn.active {
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: var(--bs-white);
+}
+
+.pdft-file {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.9rem 1rem;
+    border-radius: 12px;
+    background: var(--pdft-surface);
+    border: 1px solid var(--pdft-border);
+}
+
+.pdft-file > i {
+    font-size: 1.5rem;
+    color: var(--pdft-brand);
+}
+
+.pdft-file > span {
+    color: var(--pdft-muted);
+}
+
+.pdft-options {
+    margin: 0;
+    padding: 1rem 1.1rem 1.1rem;
+    border-radius: 12px;
+    background: var(--pdft-surface);
+    border: 1px solid var(--pdft-border);
+}
+
+.pdft-options legend {
+    float: none;
+    width: auto;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.pdft-options--row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.9rem 1rem;
+    align-items: end;
+}
+
+.pdft-options--row legend {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+}
+
+.pdft-options__wide {
+    grid-column: span 2;
+}
+
+.pdft-options__check {
+    padding-bottom: 0.4rem;
+}
+
+.pdft-options__indent {
+    margin: 0.25rem 0 0.9rem 1.6rem;
+    max-width: 460px;
+}
+
+.pdft-options .form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pdft-options .form-check-input {
+    margin-top: 0;
+}
+
+.pdft-inline-number {
+    width: 5rem;
+}
+
+.pdft-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.pdft-actions .btn-lg {
+    min-width: 220px;
+    font-weight: 700;
+}
+
+.pdft-error {
+    margin-top: 1rem;
+}
+
+/* ---------- Page and image grid ---------- */
+
+.pdft-pages {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 1rem;
+    min-height: 120px;
+}
+
+.pdft-page {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.6rem;
+    border-radius: 12px;
+    background: var(--pdft-surface);
+    border: 2px solid transparent;
+    box-shadow: var(--pdft-shadow);
+    cursor: grab;
+    user-select: none;
+}
+
+.pdft-page.is-selected {
+    border-color: var(--bs-primary);
+}
+
+.pdft-page.sortable-ghost {
+    opacity: 0.4;
+}
+
+.pdft-page[data-source-colour="1"] { border-top: 4px solid var(--bs-blue); }
+.pdft-page[data-source-colour="2"] { border-top: 4px solid var(--bs-green); }
+.pdft-page[data-source-colour="3"] { border-top: 4px solid var(--bs-orange); }
+.pdft-page[data-source-colour="4"] { border-top: 4px solid var(--bs-purple); }
+.pdft-page[data-source-colour="5"] { border-top: 4px solid var(--bs-teal); }
+
+.pdft-page__thumb {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--pdft-page-bg);
+}
+
+/* Thumbnails are rendered with their longest side at 128px, so a quarter turn still fits. */
+.pdft-page__thumb canvas {
+    box-shadow: 0 0 0 1px var(--pdft-border);
+    transition: transform 0.2s ease;
+}
+
+.pdft-page__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.pdft-page__select {
+    position: absolute;
+    top: 0.9rem;
+    left: 0.9rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 0;
+    box-shadow: var(--pdft-shadow);
+}
+
+.pdft-page__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.pdft-page__actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.pdft-page__actions .btn {
+    border: 1px solid var(--pdft-border);
+}
+
+/* ---------- Result ---------- */
+
+.pdft-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 2.5rem 1.5rem;
+    border-radius: var(--pdft-radius);
+    background: var(--pdft-surface);
+    border: 1px solid var(--pdft-border);
+    text-align: center;
+}
+
+.pdft-result__icon {
+    font-size: 3rem;
+    color: var(--bs-success);
+    line-height: 1;
+}
+
+.pdft-result__name {
+    margin: 0;
+    color: var(--pdft-muted);
+    word-break: break-all;
+}
+
+.pdft-result__preview {
+    margin: 0.5rem 0;
+    box-shadow: var(--pdft-shadow), 0 0 0 1px var(--pdft-border);
+}
+
+.pdft-result__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+}
+
+.pdft-result__note {
+    margin: 0.5rem 0 0;
+    color: var(--pdft-muted);
+    font-size: 0.85rem;
+}
+
+/* ---------- Busy overlay ---------- */
+
+.pdft-busy {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--bs-body-bg) 70%, transparent);
+    backdrop-filter: blur(2px);
+}
+
+.pdft-busy__panel {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 1.1rem 1.5rem;
+    border-radius: 12px;
+    background: var(--pdft-surface);
+    border: 1px solid var(--pdft-border);
+    box-shadow: var(--pdft-shadow);
+    font-weight: 600;
+}
+
+/* ---------- Annotate editor ---------- */
+
+.pdft-editor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding: 0.5rem 0 1rem;
+}
+
+.pdft-sheet {
+    position: relative;
+    flex: none;
+    background: var(--bs-white);
+    box-shadow: var(--pdft-shadow), 0 0 0 1px var(--pdft-border);
+}
+
+.pdft-sheet canvas {
+    display: block;
+}
+
+.pdft-sheet__label {
+    margin-bottom: 1rem;
+    color: var(--pdft-muted);
+    font-size: 0.85rem;
+}
+
+.pdft-overlay {
+    position: absolute;
+    inset: 0;
+    touch-action: none;
+}
+
+.pdft-editor[data-active-tool="text"] .pdft-overlay { cursor: text; }
+.pdft-editor[data-active-tool="signature"] .pdft-overlay,
+.pdft-editor[data-active-tool="image"] .pdft-overlay,
+.pdft-editor[data-active-tool="highlight"] .pdft-overlay,
+.pdft-editor[data-active-tool="rect"] .pdft-overlay,
+.pdft-editor[data-active-tool="whiteout"] .pdft-overlay { cursor: crosshair; }
+
+.pdft-item {
+    position: absolute;
+    box-sizing: border-box;
+    cursor: move;
+    touch-action: none;
+}
+
+.pdft-item.is-selected {
+    outline: 2px dashed var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.pdft-item__text {
+    /* Arial is metric-compatible with the Helvetica used in the saved PDF. */
+    font-family: Helvetica, Arial, "Liberation Sans", sans-serif;
+    line-height: 1.2;
+    white-space: pre;
+    outline: none;
+}
+
+.pdft-item__text[contenteditable="true"],
+.pdft-item__text[contenteditable="plaintext-only"] {
+    cursor: text;
+    background: color-mix(in srgb, var(--bs-primary) 8%, transparent);
+}
+
+.pdft-baseline-probe {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    vertical-align: baseline;
+}
+
+.pdft-item--image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.pdft-item--highlight {
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+}
+
+.pdft-item--rect {
+    border: 2px solid;
+}
+
+.pdft-item--whiteout {
+    background: var(--bs-white);
+    box-shadow: 0 0 0 1px var(--pdft-border);
+}
+
+.pdft-item__handle {
+    position: absolute;
+    right: -6px;
+    bottom: -6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: var(--bs-primary);
+    border: 2px solid var(--bs-white);
+    cursor: nwse-resize;
+    opacity: 0;
+}
+
+.pdft-item.is-selected .pdft-item__handle {
+    opacity: 1;
+}
+
+/* ---------- Signature dialog ---------- */
+
+.pdft-dialog {
+    width: min(620px, calc(100vw - 2rem));
+    padding: 0;
+    border: 1px solid var(--pdft-border);
+    border-radius: var(--pdft-radius);
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+    box-shadow: var(--pdft-shadow);
+}
+
+.pdft-dialog::backdrop {
+    background: color-mix(in srgb, var(--bs-black) 45%, transparent);
+}
+
+.pdft-dialog__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1.4rem;
+}
+
+.pdft-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--pdft-border);
+}
+
+.pdft-tab {
+    padding: 0.45rem 0.9rem;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    background: none;
+    color: var(--pdft-muted);
+    font-weight: 700;
+}
+
+.pdft-tab[aria-selected="true"] {
+    color: var(--bs-emphasis-color);
+    border-bottom-color: var(--bs-primary);
+}
+
+.pdft-signature-pad {
+    display: block;
+    width: 100%;
+    aspect-ratio: 560 / 200;
+    border: 1px dashed var(--pdft-border);
+    border-radius: 10px;
+    background: var(--bs-white);
+    touch-action: none;
+    cursor: crosshair;
+}
+
+.pdft-signature-typed {
+    font-family: "Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive;
+    font-style: italic;
+}
+
+.pdft-dialog__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+/* ---------- Small screens ---------- */
+
+@media (max-width: 640px) {
+    .pdft-privacy span,
+    .pdft-hide-sm {
+        display: none;
+    }
+
+    .pdft-options__wide {
+        grid-column: auto;
+    }
+
+    .pdft-actions .btn-lg {
+        width: 100%;
+    }
+}

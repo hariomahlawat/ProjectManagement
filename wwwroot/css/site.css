@@ -4185,6 +4185,12 @@ summary::marker {
     min-width: 0;
 }
 
+.pm-drawer__external {
+    flex-shrink: 0;
+    font-size: .75rem;
+    color: var(--pm-muted);
+}
+
 .pm-drawer__meta {
     font-size: var(--pm-font-size-xxs);
     color: var(--pm-muted);

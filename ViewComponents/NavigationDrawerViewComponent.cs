@@ -76,7 +76,8 @@ public class NavigationDrawerViewComponent : ViewComponent
             BadgeViewComponentName = item.BadgeViewComponentName,
             BadgeViewComponentParameters = item.BadgeViewComponentParameters,
             Icon = item.Icon,
-            Accent = item.Accent
+            Accent = item.Accent,
+            OpensInNewTab = item.OpensInNewTab
         };
     }
 
@@ -186,6 +187,8 @@ public sealed record class NavigationDrawerNode
     public string? Icon { get; init; }
 
     public string? Accent { get; init; }
+
+    public bool OpensInNewTab { get; init; }
 }
 
 public sealed record class NavigationDrawerItemsViewModel(

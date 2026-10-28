@@ -59,6 +59,38 @@ public class RoleBasedNavigationProviderTests
     }
 
     [Fact]
+    public async Task Navigation_OffersPdfToolsToEverySignedInUserInANewTab()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "officer-1",
+            UserName = "officer"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services);
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = CreateProvider(userManager, httpContextAccessor);
+        var navigation = await provider.GetNavigationAsync();
+
+        var pdfTools = navigation.Single(item => item.Text == "PDF Tools");
+        Assert.Equal("/Tools/Pdf/Index", pdfTools.Page);
+        Assert.True(pdfTools.OpensInNewTab);
+        Assert.Null(pdfTools.AuthorizationPolicy);
+        Assert.Null(pdfTools.RequiredRoles);
+    }
+
+    [Fact]
     public async Task Navigation_ProjectOfficeReportsIncludesAuthorizedChildren()
     {
         var user = new ApplicationUser
