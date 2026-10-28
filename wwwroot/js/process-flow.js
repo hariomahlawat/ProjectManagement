@@ -31,7 +31,7 @@ if (root && Route) {
   const LANE_SPACING = 56;
   // PRISM's sticky header is 52px + 46px (navigation-shell.css); the route strip sits under it.
   const SHELL_HEADER_HEIGHT = 98;
-  const STRIP_HEIGHT = 60;
+  const STRIP_HEIGHT = 66;
   const REVEAL_SESSION_KEY = 'prism.process.revealed';
 
   const map = root.querySelector('[data-route-map]');
@@ -368,12 +368,14 @@ if (root && Route) {
 
   // When a selection is made away from the guide (on the map, in search, in the pager),
   // bring the stage title into view if it is not already readable.
+  // The strip is always allowed for: it appears as soon as the map scrolls away, so the title
+  // must land below the header and the strip even when the strip is not showing yet.
   function revealGuide() {
     const rect = stageTitle.getBoundingClientRect();
-    const topLimit = SHELL_HEADER_HEIGHT + STRIP_HEIGHT;
+    const topLimit = SHELL_HEADER_HEIGHT + STRIP_HEIGHT + 16;
     if (rect.top >= topLimit && rect.bottom <= window.innerHeight - 160) return;
-    const sheetTop = stageGuide.getBoundingClientRect().top + window.scrollY;
-    window.scrollTo({ top: Math.max(0, sheetTop - topLimit - 12), behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    const anchor = (state.walking ? walkPanel : stageTitle).getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: Math.max(0, anchor - topLimit), behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }
 
   // ---------------------------------------------------------------------------
@@ -515,6 +517,7 @@ if (root && Route) {
     const toggle = root.querySelector('.route-walk-button');
     toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
     setText('[data-walk-label]', on ? 'End walkthrough' : 'Walk me through it');
+    toggle.setAttribute('aria-label', on ? 'End walkthrough' : 'Walk me through it');
     const node = state.route.byCode.get(state.selectedCode);
     renderWalkPanel(node);
     if (on) {
@@ -1031,7 +1034,7 @@ if (root && Route) {
     const index = text.toLowerCase().indexOf(term);
     if (index < 0) return '';
     // Start and end on word boundaries so the snippet never begins mid-word.
-    let start = Math.max(0, index - 30);
+    let start = Math.max(0, index - 20);
     while (start > 0 && /\S/.test(text[start - 1])) start -= 1;
     let end = Math.min(text.length, index + term.length + 40);
     while (end < text.length && /\S/.test(text[end])) end += 1;

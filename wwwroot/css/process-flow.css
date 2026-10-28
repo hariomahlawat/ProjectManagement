@@ -150,11 +150,9 @@
 }
 
 .route-search__name small {
-  overflow: hidden;
   color: var(--pm-text-muted);
   font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .route-search__name mark {
@@ -679,6 +677,12 @@
   outline: none;
 }
 
+.stage-sheet h2,
+.stage-walk {
+  /* PRISM header (98px) + route strip, for anchor and focus scrolling. */
+  scroll-margin-top: 180px;
+}
+
 .stage-sheet h2 {
   margin: 0;
   color: var(--pm-text-strong);
@@ -881,8 +885,8 @@
 .stage-checklist__item-actions button {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border: 1px solid var(--pm-border);
   border-radius: 8px;
   background: var(--pm-surface-bg);
@@ -1504,6 +1508,19 @@
   .route-walk-button {
     flex: none;
     padding-inline: 12px;
+  }
+
+  /* Icon-only on phones so the search placeholder fits; the button keeps its aria-label. */
+  .route-walk-button span {
+    display: none;
+  }
+
+  .process-header__summary {
+    flex-direction: column;
+  }
+
+  .process-header__summary > span + span::before {
+    content: none;
   }
 
   .route-map-scroll,
