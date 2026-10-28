@@ -1376,6 +1376,65 @@
 /* ---------------------------------------------------------------------------
    Responsive
    --------------------------------------------------------------------------- */
+/* Ultrawide monitors (2560px and up): use more of the width and step the type up a little,
+   while checklist lines stay short enough to read. */
+@media (min-width: 2400px) {
+  .process-page {
+    max-width: 2300px;
+    gap: 24px;
+  }
+
+  .process-header h1 {
+    font-size: 36px;
+  }
+
+  .process-header__summary {
+    font-size: 15px;
+  }
+
+  .route-map {
+    --route-map-height: 320px;
+  }
+
+  .route-station__name {
+    font-size: 14px;
+  }
+
+  .route-station__code {
+    font-size: 12px;
+  }
+
+  .stage-guide {
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: 24px;
+  }
+
+  .stage-sheet {
+    padding: 34px 40px 30px;
+  }
+
+  .stage-sheet h2 {
+    font-size: 32px;
+  }
+
+  .stage-sheet__number span {
+    font-size: 56px;
+  }
+
+  .stage-purpose {
+    font-size: 20px;
+  }
+
+  .stage-checklist__text,
+  .stage-card__story {
+    font-size: 16px;
+  }
+
+  .stage-checklist__item {
+    padding: 13px 18px;
+  }
+}
+
 @media (max-height: 820px) and (min-width: 768px) {
   .route-map {
     --route-map-height: 236px;
