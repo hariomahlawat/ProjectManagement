@@ -216,10 +216,14 @@ if (root && Route) {
 
   // Fit the vertical route, with its legend, into the window from where the board starts on
   // first load, within readable limits; taller routes scroll inside the column.
+  function boardRestTop() {
+    return Math.max(board.getBoundingClientRect().top + window.scrollY, SHELL_HEADER_HEIGHT + 16);
+  }
+
   function verticalRowHeight() {
-    const boardTop = board.getBoundingClientRect().top + window.scrollY;
-    const available = window.innerHeight - Math.max(boardTop, SHELL_HEADER_HEIGHT + 16) - 112;
-    return clamp(Math.floor(available / state.route.columns), 40, 58);
+    // 146px covers the column's padding, the legend with its key hint, and the bottom margin.
+    const available = window.innerHeight - boardRestTop() - 146;
+    return clamp(Math.floor(available / state.route.columns), 34, 58);
   }
 
   function svgElement(name, attributes) {
@@ -256,10 +260,15 @@ if (root && Route) {
       const height = state.rowHeight * route.columns;
       map.style.height = `${height}px`;
       svg.setAttribute('viewBox', `0 0 ${VERTICAL_WIDTH} ${height}`);
+      // The board never runs past the bottom of the window; a longer route scrolls inside it.
+      board.style.maxHeight = `calc(100vh - ${Math.round(boardRestTop()) + 16}px)`;
     } else {
       map.style.height = '';
+      board.style.maxHeight = '';
       svg.setAttribute('viewBox', `0 0 1000 ${MAP_HEIGHT}`);
     }
+    // Very short rows drop the stage codes so names stay readable.
+    map.classList.toggle('is-compact', state.vertical && state.rowHeight < 40);
     svg.innerHTML = '';
     const glowLayer = svgElement('g', { class: 'route-map__glow' });
     const lineLayer = svgElement('g', { class: 'route-map__track' });
@@ -407,6 +416,10 @@ if (root && Route) {
   }
 
   function updateScrollFades() {
+    const scrollableY = state.vertical && scroller.scrollHeight > scroller.clientHeight + 1;
+    scroller.classList.toggle('is-scrollable-y', scrollableY);
+    scroller.classList.toggle('is-at-top', scroller.scrollTop <= 2);
+    scroller.classList.toggle('is-at-bottom', scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2);
     const scrollable = !state.vertical && scroller.scrollWidth > scroller.clientWidth + 1;
     scroller.classList.toggle('is-scrollable', scrollable);
     scroller.classList.toggle('is-at-start', scroller.scrollLeft <= 2);
@@ -416,6 +429,12 @@ if (root && Route) {
   function setStripVisible(requested) {
     // The vertical route never scrolls away, so it needs no strip.
     const visible = requested && !state.vertical;
+    // While showing, the strip is pinned under the PRISM header at the page's width.
+    if (visible) {
+      const rect = root.getBoundingClientRect();
+      strip.style.setProperty('--strip-left', `${rect.left}px`);
+      strip.style.setProperty('--strip-width', `${rect.width}px`);
+    }
     root.classList.toggle('has-strip', visible);
     strip.setAttribute('aria-hidden', visible ? 'false' : 'true');
     strip.querySelectorAll('button').forEach(button => { button.tabIndex = visible ? 0 : -1; });
@@ -569,10 +588,7 @@ if (root && Route) {
   function setWalkthrough(on) {
     state.walking = on;
     root.classList.toggle('is-walking', on);
-    const toggle = root.querySelector('.route-walk-button');
-    toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
     setText('[data-walk-label]', on ? 'End walkthrough' : 'Walk me through it');
-    toggle.setAttribute('aria-label', on ? 'End walkthrough' : 'Walk me through it');
     const node = state.route.byCode.get(state.selectedCode);
     renderWalkPanel(node);
     if (on) {
@@ -888,7 +904,10 @@ if (root && Route) {
         const position = items.findIndex(item => item.itemId === focusItemId) + 1;
         announcer.textContent = `Item moved to position ${position} of ${items.length}.`;
         const row = checklistList.querySelector(`[data-checklist-item-id="${focusItemId}"]`);
-        const target = row?.querySelector(`[data-action="${focusAction}"]:not(:disabled)`) || row?.querySelector('[data-action="edit-item"]');
+        const opposite = focusAction === 'move-item-up' ? 'move-item-down' : 'move-item-up';
+        const target = row?.querySelector(`[data-action="${focusAction}"]:not(:disabled)`)
+          || row?.querySelector(`[data-action="${opposite}"]:not(:disabled)`)
+          || row?.querySelector('[data-action="edit-item"]');
         target?.focus();
       } else {
         showToast('Checklist order updated.', 'success');
@@ -1335,10 +1354,13 @@ if (root && Route) {
         updateScrollFades();
         return;
       }
+      const stationHadFocus = Boolean(document.activeElement?.closest?.('.route-station'));
       renderRoute();
       updateRouteState();
       if (state.vertical) setStripVisible(false);
       scrollStationIntoView(state.selectedCode);
+      updateScrollFades();
+      if (stationHadFocus) map.querySelector('.route-station.is-active')?.focus({ preventScroll: true });
     });
   }
   window.addEventListener('resize', relayoutRoute);
@@ -1430,9 +1452,13 @@ if (root && Route) {
   });
 
   if (typeof IntersectionObserver === 'function') {
+    // Show the strip once almost none of the map is left on screen (not only when it has
+    // gone entirely), so a selection on a short laptop screen never leaves the reader without a route.
+    const thresholds = Array.from({ length: 21 }, (_, index) => index / 20);
     new IntersectionObserver(([entry]) => {
-      setStripVisible(!entry.isIntersecting && entry.boundingClientRect.top < SHELL_HEADER_HEIGHT);
-    }, { rootMargin: `-${SHELL_HEADER_HEIGHT}px 0px 0px 0px`, threshold: 0 }).observe(board);
+      const visible = entry.intersectionRect.height;
+      setStripVisible(entry.boundingClientRect.top < SHELL_HEADER_HEIGHT && visible < 72);
+    }, { rootMargin: `-${SHELL_HEADER_HEIGHT}px 0px 0px 0px`, threshold: thresholds }).observe(board);
   }
 
   loadFlow();

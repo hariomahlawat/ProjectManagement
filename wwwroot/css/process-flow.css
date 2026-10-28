@@ -564,6 +564,30 @@
   margin: 0;
 }
 
+.route-board__keys--vertical {
+  display: none;
+}
+
+/* Fades show that a tall vertical route continues above or below. */
+.route-map-scroll.is-scrollable-y {
+  -webkit-mask-image: linear-gradient(180deg, transparent, var(--pm-route-ink) 32px, var(--pm-route-ink) calc(100% - 32px), transparent);
+  mask-image: linear-gradient(180deg, transparent, var(--pm-route-ink) 32px, var(--pm-route-ink) calc(100% - 32px), transparent);
+}
+
+.route-map-scroll.is-scrollable-y.is-at-top {
+  -webkit-mask-image: linear-gradient(180deg, var(--pm-route-ink) calc(100% - 32px), transparent);
+  mask-image: linear-gradient(180deg, var(--pm-route-ink) calc(100% - 32px), transparent);
+}
+
+.route-map-scroll.is-scrollable-y.is-at-bottom {
+  -webkit-mask-image: linear-gradient(180deg, transparent, var(--pm-route-ink) 32px);
+  mask-image: linear-gradient(180deg, transparent, var(--pm-route-ink) 32px);
+}
+
+.route-map.is-compact .route-station__code {
+  display: none;
+}
+
 /* ---------------------------------------------------------------------------
    Stage guide
    --------------------------------------------------------------------------- */
@@ -1114,9 +1138,13 @@
 }
 
 .process-page.has-strip .route-strip {
+  position: fixed;
+  top: 106px;
+  left: var(--strip-left, 16px);
+  width: var(--strip-width, calc(100% - 32px));
   opacity: 1;
   pointer-events: auto;
-  translate: 0 8px;
+  translate: 0 0;
 }
 
 .route-strip__step {
@@ -1463,13 +1491,24 @@
     gap: 4px 16px;
   }
 
-  .route-board__keys {
+  .route-board__keys--horizontal {
     display: none;
   }
 
+  .route-board__keys--vertical {
+    display: flex;
+    margin-top: 6px;
+  }
+
+  /* Keep checklist lines and their action buttons close together: the sheet stops at a
+     readable width and the rail takes the rest. */
   .stage-guide {
     grid-column: 2;
-    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 960px) minmax(320px, 1fr);
+  }
+
+  .stage-rail {
+    max-width: 560px;
   }
 
   .stage-rail {
@@ -1514,7 +1553,7 @@
   }
 
   .stage-guide {
-    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-columns: minmax(0, 1040px) minmax(400px, 1fr);
     gap: 24px;
   }
 
@@ -1615,9 +1654,21 @@
     padding-inline: 12px;
   }
 
-  /* Icon-only on phones so the search placeholder fits; the button keeps its aria-label. */
+  /* Icon-only on phones so the search placeholder fits; the hidden text still names the button. */
+  .route-walk-button {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
   .route-walk-button span {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   .process-header__summary {
