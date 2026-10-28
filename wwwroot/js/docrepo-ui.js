@@ -55,6 +55,7 @@
             if (push) window.history.pushState({ library: true }, "", target);
             else if (response.redirected) window.history.replaceState({ library: true }, "", target);
             syncSearchForm(target);
+            syncTabs(target);
             syncHero(target);
             enhanceRegion();
             markSelected();
@@ -79,6 +80,17 @@
         ["view", "scope"].forEach(name => {
             const hidden = searchForm.querySelector(`input[name="${name}"]`);
             if (hidden) hidden.value = url.searchParams.get(name) || "";
+        });
+    }
+
+    // The scope tabs sit outside the refreshed region, so they follow the address here.
+    function syncTabs(url) {
+        const scope = (url.searchParams.get("scope") || "").toLowerCase();
+        root.querySelectorAll(".library-tabs [data-library-scope]").forEach(tab => {
+            const on = tab.dataset.libraryScope === (scope === "favourites" || scope === "aots" ? scope : "");
+            tab.classList.toggle("is-active", on);
+            if (on) tab.setAttribute("aria-current", "page");
+            else tab.removeAttribute("aria-current");
         });
     }
 
