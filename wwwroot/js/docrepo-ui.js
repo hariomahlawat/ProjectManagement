@@ -303,6 +303,11 @@
             const data = await response.json();
             setStar(id, Boolean(data.isFavourite));
             updateFavouriteCount(Boolean(data.isFavourite) === wasOn ? 0 : (data.isFavourite ? 1 : -1));
+            // In Favourites, an unstarred document leaves the list; reloading also fixes the
+            // count, the paging and the empty state.
+            if (results && wasOn && !data.isFavourite && new URLSearchParams(window.location.search).get("scope") === "favourites") {
+                load(window.location.href, { push: false });
+            }
         } catch {
             setStar(id, wasOn);
             toast("The favourite could not be saved. Try again.", "danger");
