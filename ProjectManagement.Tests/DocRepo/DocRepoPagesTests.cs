@@ -176,6 +176,22 @@ public sealed class DocRepoPagesTests
         Assert.Equal(50, page.ReadPercent);
     }
 
+    [Fact]
+    public async Task Preview_OfAnAotsDocument_MarksItRead()
+    {
+        await using var db = CreateDb();
+        SeedLookups(db);
+        var document = SeedDocument(db, "Circular for all officers");
+        document.IsAots = true;
+        await db.SaveChangesAsync();
+        var page = CreateIndex(db, Reader);
+
+        Assert.IsType<PartialViewResult>(await page.OnGetPreviewAsync(document.Id));
+
+        var view = Assert.Single(await db.DocRepoAotsViews.AsNoTracking().ToListAsync());
+        Assert.Equal((document.Id, ReaderId), (view.DocumentId, view.UserId));
+    }
+
     [Theory]
     [InlineData("ocrmypdf exited with code 6: PriorOcrFoundError", "already has a text layer")]
     [InlineData("EncryptedPdfError: input file is encrypted", "password-protected")]

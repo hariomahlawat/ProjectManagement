@@ -75,7 +75,14 @@ internal static class DocRepoTestSupport
 
     public static void ConfigurePage(PageModel page, ClaimsPrincipal user)
     {
-        var httpContext = new DefaultHttpContext { User = user };
+        var httpContext = new DefaultHttpContext
+        {
+            User = user,
+            // PageModel.Partial resolves the metadata provider from the request's services.
+            RequestServices = new ServiceCollection()
+                .AddSingleton<IModelMetadataProvider, EmptyModelMetadataProvider>()
+                .BuildServiceProvider()
+        };
         // Relative page links ("./Reader") resolve against the current page.
         var routeData = new RouteData();
         routeData.Values["page"] = "/Documents/Index";

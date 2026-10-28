@@ -277,6 +277,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 return NotFound();
             }
 
+            // Previewing an AOTS document is reading it, as opening it in the reader is.
+            if (document.IsAots)
+            {
+                await _aotsUnread.MarkAsReadAsync(document.Id, User.FindFirstValue(ClaimTypes.NameIdentifier));
+            }
+
             document.CreatedByName = await _db.Users.AsNoTracking()
                 .Where(user => user.Id == document.CreatedByUserId)
                 .Select(user => string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName)

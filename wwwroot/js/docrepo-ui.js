@@ -21,6 +21,14 @@
     let selectedId = null;
 
     // SECTION: Fetch and swap the results region
+    // The filters form has no action, so form.action carries the current query; build the URL
+    // from the path alone and replace its query.
+    function filterUrl(form) {
+        const url = new URL(form.getAttribute("action") || window.location.pathname, window.location.origin);
+        url.search = currentQuery(form).toString();
+        return url.pathname + url.search;
+    }
+
     function currentQuery(form) {
         const params = new URLSearchParams();
         new FormData(form).forEach((value, key) => {
@@ -88,7 +96,7 @@
         const field = event.target.closest("[data-library-filter]");
         if (!field) return;
         const form = field.form;
-        load(`${form.action || window.location.pathname}?${currentQuery(form)}`, { focusName: field.name });
+        load(filterUrl(form), { focusName: field.name });
     });
 
     results?.addEventListener("input", event => {
@@ -97,7 +105,7 @@
         window.clearTimeout(tagTimer);
         tagTimer = window.setTimeout(() => {
             const form = field.form;
-            load(`${form.action || window.location.pathname}?${currentQuery(form)}`, { focusName: field.name });
+            load(filterUrl(form), { focusName: field.name });
         }, 450);
     });
 
@@ -105,7 +113,7 @@
         const form = event.target.closest("[data-library-filters]");
         if (!form) return;
         event.preventDefault();
-        load(`${form.action || window.location.pathname}?${currentQuery(form)}`);
+        load(filterUrl(form));
     });
 
     searchForm?.addEventListener("submit", event => {
@@ -163,8 +171,14 @@
         window.history.replaceState(window.history.state, "", url);
     }
 
+    let previewRequest = null;
+
     async function openPane(id) {
         if (!pane || !id) return;
+        // Only the latest selection may fill the pane; a slower earlier response is dropped.
+        previewRequest?.abort();
+        previewRequest = new AbortController();
+        const signal = previewRequest.signal;
         selectedId = id;
         markSelected();
         rememberSelection(id);
@@ -172,13 +186,16 @@
         url.searchParams.set("id", id);
         url.searchParams.set("returnUrl", window.location.pathname + window.location.search);
         try {
-            const response = await fetch(url, { credentials: "same-origin" });
+            const response = await fetch(url, { credentials: "same-origin", signal });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            pane.innerHTML = await response.text();
+            const html = await response.text();
+            if (signal.aborted || selectedId !== id) return;
+            pane.innerHTML = html;
             pane.hidden = false;
             body.classList.add("has-pane");
             pane.querySelector(".library-preview__title")?.focus({ preventScroll: true });
-        } catch {
+        } catch (error) {
+            if (error?.name === "AbortError" || selectedId !== id) return;
             const item = results.querySelector(`[data-doc-id="${CSS.escape(id)}"]`);
             if (item) window.location.assign(item.dataset.href);
             else { selectedId = null; rememberSelection(null); showPanePlaceholder(); }
