@@ -510,7 +510,10 @@ if (root && Route) {
     renderPager();
     renderWalkPanel(node);
 
-    purposeEdit.hidden = !state.canEditPurpose;
+    // Nothing can be edited until this stage's own guidance has loaded; otherwise an editor
+    // opened in the gap would be bound to the previous stage.
+    state.currentChecklist = null;
+    purposeEdit.hidden = true;
     checklistManage.hidden = true;
     checklistAdd.hidden = true;
     checklistCopy.hidden = true;
@@ -671,6 +674,7 @@ if (root && Route) {
   }
 
   function renderPurpose(checklist) {
+    purposeEdit.hidden = !state.canEditPurpose;
     setText('[data-stage-purpose]', checklist?.purpose || 'The purpose of this stage has not been recorded yet.');
     const updated = checklist?.purposeUpdatedOn ? formatDate(checklist.purposeUpdatedOn) : '';
     setText('[data-purpose-updated]', updated ? `Purpose updated ${updated}` : '');
@@ -969,6 +973,10 @@ if (root && Route) {
 
   // An open editor is bound to the stage and template version it was opened for, so a stage
   // change behind it (Back, Forward, a #stage link) can never redirect its save to another stage.
+  function guidanceReady() {
+    return Boolean(state.currentChecklist && state.currentChecklist.stageCode === state.selectedCode);
+  }
+
   function bindEditor(form) {
     form.dataset.stageCode = state.currentChecklist.stageCode;
     form.dataset.templateRowVersion = state.currentChecklist.rowVersion;
@@ -983,7 +991,7 @@ if (root && Route) {
   }
 
   function openPurposeModal() {
-    if (!state.canEditPurpose || !state.currentChecklist || !purposeModal || !purposeText) return;
+    if (!state.canEditPurpose || !guidanceReady() || !purposeModal || !purposeText) return;
     rememberModalOpener();
     bindEditor(purposeForm);
     setModalStage(purposeModalElement, 'Stage purpose');
@@ -1023,7 +1031,7 @@ if (root && Route) {
   }
 
   function openItemModal(mode, item = null) {
-    if (!state.canEditChecklist || !state.currentChecklist || !itemModal || !itemForm || !itemText) return;
+    if (!state.canEditChecklist || !guidanceReady() || !itemModal || !itemForm || !itemText) return;
     rememberModalOpener();
     const editing = mode === 'edit' && item;
     bindEditor(itemForm);
@@ -1040,7 +1048,7 @@ if (root && Route) {
   }
 
   function openDeleteModal(item) {
-    if (!state.canEditChecklist || !deleteModal || !deleteForm) return;
+    if (!state.canEditChecklist || !guidanceReady() || !deleteModal || !deleteForm) return;
     rememberModalOpener();
     bindEditor(deleteForm);
     setModalStage(deleteModalElement, 'Processing checklist');
@@ -1103,7 +1111,9 @@ if (root && Route) {
   async function handleMutationError(error, fallback) {
     if (error?.authenticationHandled || error?.status === 401) return;
     if (error?.status === 409) {
-      showToast('This stage guidance changed in another session. Loading the latest version.', 'warning');
+      // The open editor's version token is now stale; close it rather than retry the same save.
+      closeEditors();
+      showToast('Not saved: someone else changed this stage\'s guidance. The latest version is now shown; open the editor again to make your change.', 'warning', 7000);
       state.checklistCache.delete(state.selectedCode);
       await loadChecklist(state.selectedCode, { force: true });
       return;

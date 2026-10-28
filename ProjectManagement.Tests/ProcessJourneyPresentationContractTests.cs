@@ -60,6 +60,13 @@ public sealed class ProcessJourneyPresentationContractTests
         Assert.Contains("const target = editorTarget(deleteForm);", script, StringComparison.Ordinal);
         Assert.Contains("closeEditors();", script, StringComparison.Ordinal);
         Assert.DoesNotContain("checklistUrl(state.selectedCode)}/purpose", script, StringComparison.Ordinal);
+
+        // Editors open only once the selected stage's own guidance has loaded, and a conflict
+        // closes the stale editor instead of retrying with an outdated row version.
+        Assert.Contains("function guidanceReady()", script, StringComparison.Ordinal);
+        Assert.Contains("!state.canEditPurpose || !guidanceReady()", script, StringComparison.Ordinal);
+        Assert.Contains("purposeEdit.hidden = !state.canEditPurpose;\n    setText('[data-stage-purpose]'", script.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.Contains("closeEditors();\n      showToast('Not saved:", script.Replace("\r\n", "\n"), StringComparison.Ordinal);
     }
 
     [Fact]
