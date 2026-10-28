@@ -1690,6 +1690,21 @@
     display: flex;
   }
 
+  /* If the route fails to load, phones show its error and "Try again" instead of the empty picker. */
+  .process-page.has-route-error .route-map-scroll {
+    display: block;
+  }
+
+  .process-page.has-route-error .route-map {
+    min-width: 0;
+    height: 220px;
+  }
+
+  .process-page.has-route-error .route-picker,
+  .process-page.has-route-error .route-list {
+    display: none;
+  }
+
   .route-picker__step {
     width: 44px;
     height: 44px;

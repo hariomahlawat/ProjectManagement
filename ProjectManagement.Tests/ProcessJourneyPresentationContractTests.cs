@@ -49,6 +49,20 @@ public sealed class ProcessJourneyPresentationContractTests
     }
 
     [Fact]
+    public void ProcessPage_EditorsSaveToTheStageTheyWereOpenedFor()
+    {
+        var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
+
+        // Back/Forward and #stage links change the selected stage; an open editor must not follow it.
+        Assert.Contains("function bindEditor(form)", script, StringComparison.Ordinal);
+        Assert.Contains("const target = editorTarget(purposeForm);", script, StringComparison.Ordinal);
+        Assert.Contains("const target = editorTarget(itemForm);", script, StringComparison.Ordinal);
+        Assert.Contains("const target = editorTarget(deleteForm);", script, StringComparison.Ordinal);
+        Assert.Contains("closeEditors();", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("checklistUrl(state.selectedCode)}/purpose", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProcessPage_IsLightweightAndFollowsTheGlobalTheme()
     {
         var page = ReadRepoFile("Pages", "Process", "Index.cshtml");

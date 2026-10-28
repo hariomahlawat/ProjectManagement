@@ -967,9 +967,25 @@ if (root && Route) {
     fallback?.focus();
   }
 
+  // An open editor is bound to the stage and template version it was opened for, so a stage
+  // change behind it (Back, Forward, a #stage link) can never redirect its save to another stage.
+  function bindEditor(form) {
+    form.dataset.stageCode = state.currentChecklist.stageCode;
+    form.dataset.templateRowVersion = state.currentChecklist.rowVersion;
+  }
+
+  function editorTarget(form) {
+    return { code: form?.dataset.stageCode || '', templateRowVersion: form?.dataset.templateRowVersion || '' };
+  }
+
+  function closeEditors() {
+    [purposeModal, itemModal, deleteModal].forEach(modal => modal?.hide());
+  }
+
   function openPurposeModal() {
     if (!state.canEditPurpose || !state.currentChecklist || !purposeModal || !purposeText) return;
     rememberModalOpener();
+    bindEditor(purposeForm);
     setModalStage(purposeModalElement, 'Stage purpose');
     purposeText.value = state.currentChecklist.purpose || '';
     updatePurposeCharacterCount();
@@ -979,20 +995,21 @@ if (root && Route) {
 
   async function submitPurpose(event) {
     event.preventDefault();
-    if (!state.currentChecklist || !state.selectedCode || !purposeText) return;
+    const target = editorTarget(purposeForm);
+    if (!target.code || !purposeText) return;
     const purpose = purposeText.value.trim();
     if (!purpose) return showToast('Stage purpose cannot be empty.', 'warning');
-    if (purpose === (state.currentChecklist.purpose || '')) {
+    if (purpose === (state.checklistCache.get(target.code)?.purpose || '')) {
       purposeModal.hide();
       return;
     }
     setFormBusy(purposeForm, true);
     try {
-      const dto = await sendJson(`${checklistUrl(state.selectedCode)}/purpose`, {
+      const dto = await sendJson(`${checklistUrl(target.code)}/purpose`, {
         method: 'PUT',
         body: {
           purpose,
-          templateRowVersion: state.currentChecklist.rowVersion
+          templateRowVersion: target.templateRowVersion
         }
       });
       cacheChecklist(normalizeChecklist(dto));
@@ -1009,6 +1026,7 @@ if (root && Route) {
     if (!state.canEditChecklist || !state.currentChecklist || !itemModal || !itemForm || !itemText) return;
     rememberModalOpener();
     const editing = mode === 'edit' && item;
+    bindEditor(itemForm);
     setModalStage(itemModalElement, 'Processing checklist');
     itemForm.dataset.mode = editing ? 'edit' : 'create';
     itemForm.querySelector('input[name="itemId"]').value = editing ? item.id : '';
@@ -1024,6 +1042,7 @@ if (root && Route) {
   function openDeleteModal(item) {
     if (!state.canEditChecklist || !deleteModal || !deleteForm) return;
     rememberModalOpener();
+    bindEditor(deleteForm);
     setModalStage(deleteModalElement, 'Processing checklist');
     deleteForm.querySelector('[data-delete-preview]').textContent = item.text;
     deleteForm.querySelector('input[name="itemId"]').value = item.id;
@@ -1033,7 +1052,8 @@ if (root && Route) {
 
   async function submitItem(event) {
     event.preventDefault();
-    if (!state.currentChecklist || !state.selectedCode || !itemText) return;
+    const target = editorTarget(itemForm);
+    if (!target.code || !itemText) return;
     const text = itemText.value.trim();
     if (!text) return showToast('Checklist item text cannot be empty.', 'warning');
     const editing = itemForm.dataset.mode === 'edit';
@@ -1041,11 +1061,11 @@ if (root && Route) {
     const itemRowVersion = itemForm.querySelector('input[name="itemRowVersion"]').value || '';
     setFormBusy(itemForm, true);
     try {
-      const dto = await sendJson(editing ? `${checklistUrl(state.selectedCode)}/${itemId}` : checklistUrl(state.selectedCode), {
+      const dto = await sendJson(editing ? `${checklistUrl(target.code)}/${itemId}` : checklistUrl(target.code), {
         method: editing ? 'PUT' : 'POST',
         body: editing
-          ? { text, templateRowVersion: state.currentChecklist.rowVersion, itemRowVersion }
-          : { text, templateRowVersion: state.currentChecklist.rowVersion }
+          ? { text, templateRowVersion: target.templateRowVersion, itemRowVersion }
+          : { text, templateRowVersion: target.templateRowVersion }
       });
       if (!editing) state.checklistManageMode = true;
       cacheChecklist(normalizeChecklist(dto));
@@ -1060,14 +1080,15 @@ if (root && Route) {
 
   async function submitDelete(event) {
     event.preventDefault();
-    if (!state.currentChecklist || !state.selectedCode) return;
+    const target = editorTarget(deleteForm);
+    if (!target.code) return;
     const itemId = Number(deleteForm.querySelector('input[name="itemId"]').value || 0);
     const itemRowVersion = deleteForm.querySelector('input[name="itemRowVersion"]').value || '';
     setFormBusy(deleteForm, true);
     try {
-      const dto = await sendJson(`${checklistUrl(state.selectedCode)}/${itemId}`, {
+      const dto = await sendJson(`${checklistUrl(target.code)}/${itemId}`, {
         method: 'DELETE',
-        body: { templateRowVersion: state.currentChecklist.rowVersion, itemRowVersion }
+        body: { templateRowVersion: target.templateRowVersion, itemRowVersion }
       });
       cacheChecklist(normalizeChecklist(dto));
       deleteModal.hide();
@@ -1444,11 +1465,17 @@ if (root && Route) {
   // Back and Forward move between the stages you opened.
   window.addEventListener('popstate', () => {
     const code = initialCodeFromHash() || state.order[0]?.code;
-    if (code && state.route?.byCode.has(code) && code !== state.selectedCode) selectStage(code, { history: 'none' });
+    if (code && state.route?.byCode.has(code) && code !== state.selectedCode) {
+      closeEditors();
+      selectStage(code, { history: 'none' });
+    }
   });
   window.addEventListener('hashchange', () => {
     const code = initialCodeFromHash();
-    if (code && state.route?.byCode.has(code) && code !== state.selectedCode) selectStage(code, { history: 'none' });
+    if (code && state.route?.byCode.has(code) && code !== state.selectedCode) {
+      closeEditors();
+      selectStage(code, { history: 'none' });
+    }
   });
 
   if (typeof IntersectionObserver === 'function') {
