@@ -95,7 +95,7 @@ Administrators manage governance tasks under the **Admin** area.
 
 ## 10. Process designer & holidays
 
-- **Process** – Projects › Process shows the whole procurement route on one map. Click a stage, use the arrow keys, or type a name or code in the board's "Find a stage" box; the guide below explains why the stage exists, lists its processing checklist and explains how it connects to the stages before and after it. "Walk me through it" steps through every stage in order. On a phone, a stage picker replaces the map. Users with checklist or purpose editing rights see Edit, Manage and Add controls on the same page.
+- **Process** – Projects › Process shows the whole procurement route on one map. Click a stage, use the arrow keys on the map, or type a name, code or any word from a stage's guidance in "Find a stage or topic"; the guide below explains why the stage exists, lists its processing checklist and explains how it connects to the stages before and after it. The browser's Back button returns to the stage you were on, and once you scroll down a compact route stays under the header. "Walk me through it" explains each stage in turn, starting from the one you are on. On a phone, a stage picker replaces the map. Users with checklist or purpose editing rights see Edit, Manage and Add controls on the same page.
 - **Holidays** – Admin and HoD roles manage the shared holiday list that feeds into scheduling engines and task snooze presets. Entries are stored as `DateOnly` values in `Models/Scheduling/Holiday`. (see Pages/Settings/Holidays/Index.cshtml.cs lines 13-25) (see Models/Scheduling/Holiday.cs lines 1-8)
 
 ## 11. Keeping data safe
