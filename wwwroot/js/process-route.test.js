@@ -79,17 +79,21 @@ test('a terminal conditional stage continues the route without a return path', (
   assert.equal(route.columns, tot.column + 1);
 });
 
-test('selecting one parallel stage never marks its partner as complete', () => {
+test('only the selected stage and its direct neighbours are marked', () => {
   const route = v2Route();
-  assert.equal(Route.stationState(route, 'BM', 'TEC'), 'ahead');
-  assert.equal(Route.stationState(route, 'BID', 'TEC'), 'done');
   assert.equal(Route.stationState(route, 'TEC', 'TEC'), 'active');
+  assert.equal(Route.stationState(route, 'BID', 'TEC'), 'adjacent');
+  assert.equal(Route.stationState(route, 'COB', 'TEC'), 'adjacent');
+  assert.equal(Route.stationState(route, 'BM', 'TEC'), 'idle');
+  assert.equal(Route.stationState(route, 'FS', 'TEC'), 'idle');
+  assert.equal(Route.stationState(route, 'PNC', 'COB'), 'adjacent');
   const link = (source, target) => route.links.find(item => item.source === source && item.target === target);
-  assert.equal(Route.linkState(route, link('BID', 'TEC'), 'TEC'), 'done');
+  assert.equal(Route.linkState(route, link('BID', 'TEC'), 'TEC'), 'connected');
   assert.equal(Route.linkState(route, link('BID', 'BM'), 'TEC'), 'idle');
-  assert.equal(Route.linkState(route, link('TEC', 'COB'), 'COB'), 'done');
+  assert.equal(Route.linkState(route, link('FS', 'SOW'), 'TEC'), 'idle');
+  assert.equal(Route.linkState(route, link('COB', 'PNC'), 'COB'), 'lit');
   assert.equal(Route.linkState(route, link('COB', 'PNC'), 'EAS'), 'idle');
-  assert.equal(Route.linkState(route, link('COB', 'PNC'), 'PNC'), 'lit');
+  assert.equal(Route.linkState(route, link('PNC', 'EAS'), 'PNC'), 'lit');
 });
 
 test('describe explains forks, joins and conditional stages in plain words', () => {

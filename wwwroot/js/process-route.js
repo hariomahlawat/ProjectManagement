@@ -10,7 +10,7 @@
   'use strict';
 
   // Lane used for a conditional detour that leaves and rejoins the main route.
-  const DETOUR_LANE = 1.75;
+  const DETOUR_LANE = 1.5;
 
   function normalizeFlow(dto, fallbackVersion = '') {
     const nodes = (Array.isArray(dto?.nodes) ? dto.nodes : [])
@@ -166,25 +166,21 @@
     };
   }
 
-  // Station state relative to the selected stage. Parallel stages share a column, so
-  // selecting one never marks its partner as complete.
+  // The map is reference material, not project progress: only the selected stage and the
+  // stages directly before and after it are marked; nothing is shown as "done".
   function stationState(route, code, activeCode) {
-    const node = route.byCode.get(code);
-    const active = route.byCode.get(activeCode);
-    if (!node || !active) return 'ahead';
-    if (node.code === active.code) return 'active';
-    return node.column < active.column ? 'done' : 'ahead';
+    if (!route.byCode.has(code) || !route.byCode.has(activeCode)) return 'idle';
+    if (code === activeCode) return 'active';
+    const adjacent = route.links.some(link =>
+      (link.source === activeCode && link.target === code) || (link.target === activeCode && link.source === code));
+    return adjacent ? 'adjacent' : 'idle';
   }
 
   function linkState(route, link, activeCode) {
-    const active = route.byCode.get(activeCode);
-    if (!active) return 'idle';
-    if (link.conditional) {
-      return link.source === activeCode || link.target === activeCode ? 'lit' : 'idle';
-    }
-    const target = route.byCode.get(link.target);
-    if (target.code === activeCode) return 'done';
-    return target.column < active.column ? 'done' : 'idle';
+    if (!route.byCode.has(activeCode)) return 'idle';
+    const connected = link.source === activeCode || link.target === activeCode;
+    if (!connected) return 'idle';
+    return link.conditional ? 'lit' : 'connected';
   }
 
   function listNames(nodes) {

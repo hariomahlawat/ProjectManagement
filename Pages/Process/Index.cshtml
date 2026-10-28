@@ -15,49 +15,63 @@
          data-can-edit-checklist="@(Model.CanEditChecklist ? "true" : "false")"
          data-can-edit-purpose="@(Model.CanEditPurpose ? "true" : "false")">
 
-    <section class="route-board" aria-labelledby="processRouteTitle">
-        <div class="route-board__header">
-            <div class="route-board__identity">
-                <span class="route-board__eyebrow">Procurement process · Workflow @Model.ProcessVersion</span>
-                <h1 id="processRouteTitle">The procurement route</h1>
-                <p class="route-board__summary">
-                    <span data-route-summary>Loading stages…</span>
-                    @if (updatedText is not null)
-                    {
-                        <span class="route-board__updated">Guidance updated @updatedText</span>
-                    }
-                </p>
-            </div>
-
-            <div class="route-board__tools">
-                <div class="route-search" data-route-search>
-                    <i class="bi bi-search" aria-hidden="true"></i>
-                    <input type="search"
-                           id="processStageSearch"
-                           placeholder="Find a stage or code"
-                           autocomplete="off"
-                           role="combobox"
-                           aria-expanded="false"
-                           aria-controls="processStageSearchResults"
-                           aria-label="Find a stage or code"
-                           data-stage-search />
-                    <div class="route-search__results" id="processStageSearchResults" role="listbox" data-search-results hidden></div>
-                </div>
-                <button type="button" class="route-walk-button" data-action="toggle-walkthrough" aria-pressed="false">
-                    <i class="bi bi-signpost-split" aria-hidden="true"></i>
-                    <span data-walk-label>Walk me through it</span>
-                </button>
-            </div>
+    <header class="process-header">
+        <div class="process-header__identity">
+            <span class="process-header__eyebrow">Procurement process</span>
+            <h1 id="processRouteTitle">The procurement route</h1>
+            <p class="process-header__summary">
+                <span data-route-summary>Loading stages…</span>
+                @if (updatedText is not null)
+                {
+                    <span>Guidance updated @updatedText</span>
+                }
+                <span>Version @Model.ProcessVersion</span>
+            </p>
         </div>
 
+        <div class="process-header__tools">
+            <div class="route-search" data-route-search>
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search"
+                       id="processStageSearch"
+                       class="form-control"
+                       placeholder="Find a stage or code"
+                       autocomplete="off"
+                       role="combobox"
+                       aria-expanded="false"
+                       aria-controls="processStageSearchResults"
+                       aria-label="Find a stage or code"
+                       data-stage-search />
+                <div class="route-search__results" id="processStageSearchResults" role="listbox" data-search-results hidden></div>
+            </div>
+            <button type="button" class="route-walk-button" data-action="toggle-walkthrough" aria-pressed="false">
+                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                <span data-walk-label>Walk me through it</span>
+            </button>
+        </div>
+    </header>
+
+    <section class="route-board" aria-labelledby="processRouteTitle">
         <div class="route-map-scroll" data-route-scroll>
             <div class="route-map" data-route-map role="group" aria-label="Procurement route. Use the arrow keys to move between stages." aria-busy="true">
-                <svg class="route-map__lines" data-route-svg viewBox="0 0 1000 364" preserveAspectRatio="none" aria-hidden="true"></svg>
+                <svg class="route-map__lines" data-route-svg viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true"></svg>
                 <div class="route-map__loading" data-route-placeholder>
                     <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                     <span>Loading the procurement route…</span>
                 </div>
             </div>
+        </div>
+
+        @* Phones get a compact stage picker instead of the wide map. *@
+        <div class="route-picker">
+            <button type="button" class="route-picker__step" data-action="previous-stage" aria-label="Previous stage">
+                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </button>
+            <label class="visually-hidden" for="processStagePicker">Stage</label>
+            <select id="processStagePicker" class="form-select" data-stage-picker></select>
+            <button type="button" class="route-picker__step" data-action="next-stage" aria-label="Next stage">
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
         </div>
 
         <div class="route-board__footer">
@@ -75,8 +89,11 @@
     <section class="stage-guide" data-stage-guide aria-labelledby="processStageTitle">
         <article class="stage-sheet">
             <header class="stage-sheet__header">
-                <div class="stage-sheet__number" data-stage-number aria-hidden="true">01</div>
+                <div class="stage-sheet__number" aria-hidden="true">
+                    <span data-stage-number>01</span><small data-stage-total>/15</small>
+                </div>
                 <div class="stage-sheet__identity">
+                    <h2 id="processStageTitle" data-stage-title>Loading stage…</h2>
                     <div class="stage-sheet__chips">
                         <span class="stage-chip stage-chip--code" data-stage-code-label></span>
                         <span class="stage-chip stage-chip--conditional" data-stage-conditional hidden>
@@ -84,8 +101,6 @@
                         </span>
                         <span class="stage-chip stage-chip--parallel" data-stage-parallel hidden></span>
                     </div>
-                    <h2 id="processStageTitle" data-stage-title>Loading stage…</h2>
-                    <p class="stage-sheet__position" data-stage-position></p>
                 </div>
             </header>
 
@@ -120,7 +135,6 @@
                     </div>
                 </div>
                 <ol class="stage-checklist" data-checklist-list aria-live="polite" aria-busy="false"></ol>
-                <p class="stage-block__meta" data-checklist-note hidden>Tick items to track your own preparation. Ticks are not saved.</p>
             </section>
 
             <nav class="stage-pager" aria-label="Previous and next stage">
@@ -139,9 +153,6 @@
             <section class="stage-card">
                 <h3>How it connects</h3>
                 <p class="stage-card__story" data-stage-story></p>
-            </section>
-            <section class="stage-card">
-                <h3>Where this sits</h3>
                 <div class="stage-neighbours" data-stage-neighbours></div>
             </section>
         </aside>

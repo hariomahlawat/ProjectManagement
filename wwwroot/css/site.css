@@ -123,24 +123,25 @@
     --pm-accent-teal-strong: #04505a;
     --pm-accent-amber: #f59e0b;
     --pm-accent-amber-soft: #ffe9b0;
-    /* Procurement route board (Process page): a deliberately dark surface, identical in both themes. */
-    --pm-route-ink: #eef3ff;
-    --pm-route-ink-rgb: 238, 243, 255;
-    --pm-route-muted: #a9bbdb;
-    --pm-route-faint: #7d90b3;
-    --pm-route-bg-top: #0d1c3f;
-    --pm-route-bg-bottom: #060c1d;
-    --pm-route-panel: #10204a;
-    --pm-route-station: #0a1532;
-    --pm-route-steel-rgb: 150, 178, 228;
-    --pm-route-night-rgb: 6, 12, 29;
-    --pm-route-blue: #4d8bff;
-    --pm-route-blue-rgb: 77, 139, 255;
-    --pm-route-teal: #37d5c3;
-    --pm-route-teal-rgb: 55, 213, 195;
-    --pm-route-amber: #f6b44c;
-    --pm-route-amber-rgb: 246, 180, 76;
-    --pm-route-maroon: #b5203d;
+    /* Procurement route board (Process page): a light blueprint card here, deep navy in Dark. */
+    --pm-route-surface: #f3f7fe;
+    --pm-route-surface-edge: #ffffff;
+    --pm-route-border: #dbe4f0;
+    --pm-route-grid-rgb: 100, 116, 139;
+    --pm-route-grid-alpha: .08;
+    --pm-route-glow-alpha: .06;
+    --pm-route-ink: #0f172a;
+    --pm-route-muted: #334155;
+    --pm-route-faint: #5b6b82;
+    --pm-route-track: #c3cfdf;
+    --pm-route-station: #ffffff;
+    --pm-route-ring: #8a9bb3;
+    --pm-route-on-accent: #ffffff;
+    --pm-route-blue: #2563d6;
+    --pm-route-blue-rgb: 37, 99, 214;
+    --pm-route-teal: #0e7490;
+    --pm-route-amber: #a86512;
+    --pm-route-amber-rgb: 168, 101, 18;
     --pm-accent-slate: #94a3b8;
     --pm-accent-slate-strong: #475569;
     --pm-accent-slate-mid: #5a6a80; /* was #64748b (4.40:1) */
@@ -305,6 +306,24 @@
    Scoped to :root so it outranks the light :root block above (Bootstrap's own dark block
    loses to it), which used to pin --bs-body-bg light under data-bs-theme="dark". */
 :root[data-bs-theme="dark"] {
+    --pm-route-surface: #070e22;
+    --pm-route-surface-edge: #0d1c3f;
+    --pm-route-border: #1c2b4d;
+    --pm-route-grid-rgb: 190, 210, 255;
+    --pm-route-grid-alpha: .09;
+    --pm-route-glow-alpha: .3;
+    --pm-route-ink: #eef3ff;
+    --pm-route-muted: #c8d5ec;
+    --pm-route-faint: #a9bbdb;
+    --pm-route-track: rgba(150, 178, 228, .38);
+    --pm-route-station: #0a1532;
+    --pm-route-ring: rgba(150, 178, 228, .7);
+    --pm-route-on-accent: #060c1d;
+    --pm-route-blue: #4d8bff;
+    --pm-route-blue-rgb: 77, 139, 255;
+    --pm-route-teal: #37d5c3;
+    --pm-route-amber: #f6b44c;
+    --pm-route-amber-rgb: 246, 180, 76;
     --pm-theme-name: dark;
     color-scheme: dark;
     /* Graphite scale: page -> card -> tile, each a step lighter */

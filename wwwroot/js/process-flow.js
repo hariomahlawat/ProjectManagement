@@ -14,7 +14,6 @@ if (root && Route) {
     checklistCache: new Map(),
     checklistAbortController: null,
     checklistManageMode: false,
-    ticks: new Map(),
     sortable: null,
     walking: false,
     authenticationRecoveryStarted: false
@@ -22,9 +21,9 @@ if (root && Route) {
 
   // Map geometry. The SVG uses a 1000-unit wide viewBox stretched to the map width,
   // so x is a share of the width and y is in pixels of the fixed-height map.
-  const MAP_HEIGHT = 364;
-  const MAIN_Y = 158;
-  const LANE_SPACING = 64;
+  const MAP_HEIGHT = 300;
+  const MAIN_Y = 120;
+  const LANE_SPACING = 56;
 
   const map = root.querySelector('[data-route-map]');
   const svg = root.querySelector('[data-route-svg]');
@@ -36,7 +35,7 @@ if (root && Route) {
   const walkbar = root.querySelector('[data-walkbar]');
   const checklistList = root.querySelector('[data-checklist-list]');
   const checklistCount = root.querySelector('[data-checklist-count]');
-  const checklistNote = root.querySelector('[data-checklist-note]');
+  const stagePicker = root.querySelector('[data-stage-picker]');
   const checklistCopy = root.querySelector('[data-checklist-copy]');
   const checklistManage = root.querySelector('[data-checklist-manage]');
   const checklistAdd = root.querySelector('[data-checklist-add]');
@@ -216,7 +215,6 @@ if (root && Route) {
       button.type = 'button';
       button.className = 'route-station';
       if (node.optional) button.classList.add('is-conditional');
-      if (node.lane < 0) button.classList.add('is-label-above');
       button.dataset.stageCode = node.code;
       button.style.left = `${(stationX(node) / 10).toFixed(4)}%`;
       button.style.top = `${stationY(node)}px`;
@@ -226,7 +224,6 @@ if (root && Route) {
       button.innerHTML = `
         <span class="route-station__dot" aria-hidden="true">
           <span class="route-station__index">${pad(node.displayIndex)}</span>
-          <i class="bi bi-check-lg route-station__check"></i>
         </span>
         <span class="route-station__label" aria-hidden="true">
           <span class="route-station__code">${escapeHtml(node.code)}</span>
@@ -239,6 +236,9 @@ if (root && Route) {
     placeholder.hidden = true;
     map.setAttribute('aria-busy', 'false');
     map.classList.add('is-ready');
+    // The reveal runs once. Removing it afterwards stops a later resize or re-layout from replaying it.
+    const revealMs = 1000 + 120 + (route.nodes.length * 45) + 450;
+    window.setTimeout(() => map.classList.add('is-revealed'), revealMs);
 
     const conditional = route.nodes.filter(node => node.optional).length;
     const parallelGroups = new Set(route.nodes
@@ -248,6 +248,10 @@ if (root && Route) {
     if (parallelGroups) parts.push(`${parallelGroups} parallel ${parallelGroups === 1 ? 'pair' : 'groups'}`);
     if (conditional) parts.push(`${conditional} only when required`);
     routeSummary.textContent = parts.join(' · ');
+
+    stagePicker.innerHTML = state.order
+      .map(node => `<option value="${escapeHtml(node.code)}">${pad(node.displayIndex)} · ${escapeHtml(node.name)}${node.optional ? ' (only when required)' : ''}</option>`)
+      .join('');
   }
 
   function updateRouteState() {
@@ -255,7 +259,7 @@ if (root && Route) {
     map.querySelectorAll('.route-station').forEach(button => {
       const stationState = Route.stationState(state.route, button.dataset.stageCode, active);
       button.classList.toggle('is-active', stationState === 'active');
-      button.classList.toggle('is-done', stationState === 'done');
+      button.classList.toggle('is-adjacent', stationState === 'adjacent');
       button.tabIndex = stationState === 'active' ? 0 : -1;
       if (stationState === 'active') button.setAttribute('aria-current', 'step');
       else button.removeAttribute('aria-current');
@@ -269,9 +273,10 @@ if (root && Route) {
         conditional: path.dataset.linkKind.startsWith('conditional')
       };
       const linkState = Route.linkState(state.route, link, active);
-      path.classList.toggle('is-done', linkState === 'done');
+      path.classList.toggle('is-connected', linkState === 'connected');
       path.classList.toggle('is-lit', linkState === 'lit');
     });
+    stagePicker.value = active;
   }
 
   function scrollStationIntoView(code) {
@@ -319,8 +324,8 @@ if (root && Route) {
     const { route } = state;
     setText('[data-stage-number]', pad(node.displayIndex));
     setText('[data-stage-code-label]', node.code);
+    setText('[data-stage-total]', `/${state.order.length}`);
     setText('[data-stage-title]', node.name);
-    setText('[data-stage-position]', `Stage ${node.displayIndex} of ${state.order.length}`);
     root.querySelector('[data-stage-conditional]').hidden = !node.optional;
     const parallel = root.querySelector('[data-stage-parallel]');
     parallel.hidden = !node.parallelWith.length;
@@ -366,15 +371,14 @@ if (root && Route) {
     const after = route.successors(node.code);
     const host = root.querySelector('[data-stage-neighbours]');
     host.innerHTML = `
-      <span class="stage-neighbours__label">Comes after</span>
-      ${before.length ? before.map(item => neighbourButton(item, item.optional ? 'Only if it was required' : '')).join('') : '<span class="stage-neighbours__edge">Start of the route</span>'}
-      <span class="stage-neighbours__label">You are here</span>
-      <div class="stage-neighbour stage-neighbour--current">
-        <span class="stage-neighbour__code">${escapeHtml(node.code)}</span>
-        <span class="stage-neighbour__name">${escapeHtml(node.name)}</span>
+      <div class="stage-neighbours__group">
+        <span class="stage-neighbours__label">Before</span>
+        ${before.length ? before.map(item => neighbourButton(item, item.optional ? 'Only if it was required' : '')).join('') : '<span class="stage-neighbours__edge">Start of the route</span>'}
       </div>
-      <span class="stage-neighbours__label">Leads to</span>
-      ${after.length ? after.map(item => neighbourButton(item, item.optional ? 'Only when required' : '')).join('') : '<span class="stage-neighbours__edge">End of the route</span>'}`;
+      <div class="stage-neighbours__group">
+        <span class="stage-neighbours__label">Next</span>
+        ${after.length ? after.map(item => neighbourButton(item, item.optional ? 'Only when required' : '')).join('') : '<span class="stage-neighbours__edge">End of the route</span>'}
+      </div>`;
   }
 
   function renderPager() {
@@ -433,7 +437,6 @@ if (root && Route) {
   function renderChecklistLoading() {
     destroySortable();
     checklistCount.textContent = '';
-    checklistNote.hidden = true;
     checklistList.classList.remove('is-empty', 'is-managing');
     checklistList.setAttribute('aria-busy', 'true');
     checklistList.innerHTML = `
@@ -535,11 +538,6 @@ if (root && Route) {
     return `<div class="stage-checklist__content">${blocks.join('')}</div>`;
   }
 
-  function ticksFor(code) {
-    if (!state.ticks.has(code)) state.ticks.set(code, new Set());
-    return state.ticks.get(code);
-  }
-
   function renderChecklist(checklist) {
     destroySortable();
     const items = checklist?.items || [];
@@ -552,7 +550,6 @@ if (root && Route) {
     checklistAdd.hidden = !managing;
     checklistManage.hidden = !state.canEditChecklist || empty;
     checklistCopy.hidden = empty || managing;
-    checklistNote.hidden = empty || managing;
     manageLabel.textContent = managing ? 'Done' : 'Manage';
     checklistManage.classList.toggle('is-active', managing);
 
@@ -572,25 +569,19 @@ if (root && Route) {
       return;
     }
 
-    const ticks = ticksFor(checklist.stageCode);
-    checklistList.innerHTML = items.map((item, index) => {
-      const ticked = !managing && ticks.has(item.id);
-      return `
-      <li class="stage-checklist__item${ticked ? ' is-ticked' : ''}"
+    checklistList.innerHTML = items.map((item, index) => `
+      <li class="stage-checklist__item"
           data-checklist-item-id="${item.id}"
           data-item-row-version="${escapeHtml(item.rowVersion)}">
-        ${managing
-          ? '<span class="stage-checklist__drag" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>'
-          : `<input type="checkbox" class="stage-checklist__tick" id="processTick${item.id}" data-tick-item="${item.id}"${ticked ? ' checked' : ''} />`}
-        <label class="stage-checklist__number"${managing ? '' : ` for="processTick${item.id}"`}>${pad(index + 1)}</label>
+        ${managing ? '<span class="stage-checklist__drag" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>' : ''}
+        <span class="stage-checklist__number">${pad(index + 1)}</span>
         <div class="stage-checklist__text">${renderChecklistText(item.text)}</div>
         ${managing ? `
         <span class="stage-checklist__item-actions">
           <button type="button" data-action="edit-item" aria-label="Edit checklist item ${index + 1}"><i class="bi bi-pencil" aria-hidden="true"></i></button>
           <button type="button" data-action="delete-item" aria-label="Delete checklist item ${index + 1}"><i class="bi bi-trash3" aria-hidden="true"></i></button>
         </span>` : ''}
-      </li>`;
-    }).join('');
+      </li>`).join('');
 
     if (managing && window.Sortable) {
       state.sortable = window.Sortable.create(checklistList, {
@@ -980,15 +971,7 @@ if (root && Route) {
     }
   });
 
-  checklistList.addEventListener('change', event => {
-    const tick = event.target.closest('[data-tick-item]');
-    if (!tick || !state.currentChecklist) return;
-    const ticks = ticksFor(state.currentChecklist.stageCode);
-    const id = Number(tick.dataset.tickItem);
-    if (tick.checked) ticks.add(id);
-    else ticks.delete(id);
-    tick.closest('.stage-checklist__item')?.classList.toggle('is-ticked', tick.checked);
-  });
+  stagePicker.addEventListener('change', () => selectStage(stagePicker.value));
 
   map.addEventListener('keydown', event => {
     if (!event.target.closest('.route-station')) return;

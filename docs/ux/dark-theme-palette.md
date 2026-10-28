@@ -63,12 +63,13 @@ while a form field has focus, and never to someone who has already used the swit
 - **Coverage now:** 60 dark gaps site-wide, down from 8,567 before the theme work; all are
   deliberate (print proofs, solid danger/warning button fills, keyframe glows). See
   [theme coverage](theme-coverage.md).
-- **Procurement Process route board (2026-10-28):** the route map at the top of
-  `/Process` is deliberately deep navy in both themes. Its palette lives in `site.css` as
-  `--pm-route-*` tokens (with `-rgb` triplets for translucent layers), so
-  `process-flow.css` has no colour literals. The stage guide below the board uses the
-  normal `--pm-*` surface and text tokens and follows the global theme; the page no longer
-  has its own theme switch.
+- **Procurement Process route board (2026-10-28):** the route map on `/Process` is a light
+  blueprint card in Light (faint blue-tinted surface, slate track, PRISM-blue selection,
+  dark amber for stages that apply only when required) and deep navy in Dark. Both
+  palettes are `--pm-route-*` tokens in `site.css` (`:root` and the Dark block, with
+  `-rgb` triplets for translucent layers), so `process-flow.css` has no colour literals.
+  The rest of the page uses the normal `--pm-*` tokens; the page has no theme switch of
+  its own.
 
 ### Is Dark ready to offer?
 
