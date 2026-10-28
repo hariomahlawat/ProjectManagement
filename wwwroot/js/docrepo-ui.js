@@ -1,714 +1,328 @@
-// SECTION: Document repository row navigation
+// Document Repository list page (Areas/DocumentRepository/Pages/Documents/Index).
+// Filters apply in place: the results region is fetched with ?partial=true and swapped, and the
+// address bar keeps the same query so reloads and shared links match the screen. Every link and
+// form also works without this script.
 (() => {
-    const interactiveSelector = "a, button, input, select, textarea, .dropdown, .dropdown-menu, [data-no-row-nav]";
-    const navigableSelector = ".docrepo-row, .docrepo-card";
+    "use strict";
 
-    // SECTION: Click navigation
-    document.addEventListener("click", (event) => {
-        const target = event.target;
-        const navigable = target.closest(navigableSelector);
-        if (!navigable) {
-            return;
-        }
+    const root = document.querySelector("[data-library]");
+    if (!root) return;
 
-        if (target.closest(interactiveSelector)) {
-            return;
-        }
+    const results = root.querySelector("#libraryResults");
+    const pane = root.querySelector("#libraryPane");
+    const body = root.querySelector(".library-body");
+    const searchForm = root.querySelector("[data-library-search]");
+    const token = root.querySelector('#libraryToken input[name="__RequestVerificationToken"]')?.value || "";
+    const wideQuery = window.matchMedia("(min-width: 1400px)");
+    let controller = null;
+    let selectedId = null;
 
-        const href = navigable.dataset.href;
-        if (!href) {
-            return;
-        }
-
-        window.location.href = href;
-    });
-
-    // SECTION: Keyboard navigation
-    document.addEventListener("keydown", (event) => {
-        const target = event.target;
-        const row = target.closest(".docrepo-row");
-        if (!row) {
-            return;
-        }
-
-        if (target !== row && target.closest(interactiveSelector)) {
-            return;
-        }
-
-        if (event.key === "Enter") {
-            const href = row.dataset.href;
-            if (href) {
-                window.location.href = href;
-            }
-        }
-
-        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
-            return;
-        }
-
-        const rowContainer = row.closest("tbody") ?? row.parentElement;
-        if (!rowContainer) {
-            return;
-        }
-
-        const rows = Array.from(rowContainer.querySelectorAll(".docrepo-row"));
-        const index = rows.indexOf(row);
-        if (index < 0) {
-            return;
-        }
-
-        const nextIndex = event.key === "ArrowDown" ? index + 1 : index - 1;
-        const nextRow = rows[nextIndex];
-        if (nextRow) {
-            event.preventDefault();
-            nextRow.focus();
-        }
-    });
-})();
-
-// SECTION: Document repository filter drawer
-(() => {
-    const drawer = document.getElementById("docrepoFilters");
-    const openButton = document.getElementById("docrepoFiltersExpandBtn");
-    const closeButton = document.getElementById("docrepoFiltersToggle");
-    const backdrop = document.getElementById("docrepoFilterBackdrop");
-
-    if (!drawer) {
-        return;
-    }
-
-    const setOpen = (open) => {
-        drawer.classList.toggle("is-open", open);
-        drawer.setAttribute("aria-hidden", open ? "false" : "true");
-        document.body.classList.toggle("docrepo-drawer-open", open);
-        if (backdrop) {
-            backdrop.classList.toggle("is-open", open);
-        }
-        if (openButton) {
-            openButton.setAttribute("aria-expanded", open ? "true" : "false");
-        }
-        if (open) {
-            window.setTimeout(() => drawer.querySelector("input, select, button")?.focus(), 80);
-        }
-    };
-
-    openButton?.addEventListener("click", () => setOpen(true));
-    closeButton?.addEventListener("click", () => setOpen(false));
-    backdrop?.addEventListener("click", () => setOpen(false));
-
-    document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && drawer.classList.contains("is-open")) {
-            setOpen(false);
-            openButton?.focus();
-        }
-    });
-
-    // SECTION: Single-select checkbox facets
-    document.querySelectorAll("[data-facet-single]").forEach((group) => {
-        const hiddenSelector = group.getAttribute("data-target-hidden");
-        const hiddenInput = hiddenSelector ? document.querySelector(hiddenSelector) : null;
-        const inputs = Array.from(group.querySelectorAll("input.docrepo-check__input"));
-
-        const sync = () => {
-            const checked = inputs.find((input) => input.checked);
-            if (hiddenInput) {
-                hiddenInput.value = checked?.getAttribute("data-value") || "";
-            }
-        };
-
-        group.addEventListener("change", (event) => {
-            const target = event.target;
-            if (!(target instanceof HTMLInputElement) || !target.classList.contains("docrepo-check__input")) {
-                return;
-            }
-
-            if (target.checked) {
-                inputs.forEach((input) => {
-                    if (input !== target) input.checked = false;
-                });
-            } else if (!inputs.some((input) => input.checked)) {
-                const all = inputs.find((input) => (input.getAttribute("data-value") || "") === "");
-                if (all) all.checked = true;
-            }
-            sync();
+    // SECTION: Fetch and swap the results region
+    function currentQuery(form) {
+        const params = new URLSearchParams();
+        new FormData(form).forEach((value, key) => {
+            if (String(value) !== "") params.append(key, String(value));
         });
-
-        sync();
-    });
-
-    const customYear = drawer.querySelector("[data-custom-year]");
-    const yearHidden = document.getElementById("yearHidden");
-    if (customYear && yearHidden) {
-        customYear.addEventListener("input", () => {
-            const value = customYear.value.trim();
-            if (value) {
-                yearHidden.value = value;
-                drawer.querySelectorAll('[data-facet-single="year"] input').forEach((input) => {
-                    input.checked = false;
-                });
-            }
-        });
-    }
-})();
-
-// SECTION: Document repository apply button dirty tracking
-function initDirtyTracking() {
-    const form = document.querySelector("#docrepoFacetsForm");
-    if (!form) {
-        return;
+        // The default order is implied, so shared links stay short.
+        const sort = form.querySelector('select[name="sort"]');
+        if (sort && sort.value === sort.dataset.default) params.delete("sort");
+        return params;
     }
 
-    const applyBtn = document.querySelector("#docrepoApplyBtn");
-    if (!applyBtn) {
-        return;
-    }
-
-    const officeHidden = document.querySelector("#officeCategoryIdHidden");
-    const typeHidden = document.querySelector("#documentCategoryIdHidden");
-    const yearHidden = document.querySelector("#yearHidden");
-    const tagInput = form.querySelector('input[name="tag"]');
-    const inactiveChk = form.querySelector('input[name="includeInactive"]');
-
-    const initial = {
-        office: officeHidden ? (officeHidden.value || "") : "",
-        type: typeHidden ? (typeHidden.value || "") : "",
-        year: yearHidden ? (yearHidden.value || "") : "",
-        tag: tagInput ? (tagInput.value || "").trim() : "",
-        inactive: inactiveChk ? (inactiveChk.checked ? "1" : "0") : "0"
-    };
-
-    function currentState() {
-        return {
-            office: officeHidden ? (officeHidden.value || "") : "",
-            type: typeHidden ? (typeHidden.value || "") : "",
-            year: yearHidden ? (yearHidden.value || "") : "",
-            tag: tagInput ? (tagInput.value || "").trim() : "",
-            inactive: inactiveChk ? (inactiveChk.checked ? "1" : "0") : "0"
-        };
-    }
-
-    function isDirty() {
-        const current = currentState();
-        return (
-            current.office !== initial.office ||
-            current.type !== initial.type ||
-            current.year !== initial.year ||
-            current.tag !== initial.tag ||
-            current.inactive !== initial.inactive
-        );
-    }
-
-    function updateApplyState() {
-        const dirty = isDirty();
-        applyBtn.disabled = !dirty;
-        applyBtn.classList.toggle("disabled", !dirty);
-    }
-
-    form.addEventListener("change", updateApplyState);
-    form.addEventListener("input", updateApplyState);
-
-    updateApplyState();
-}
-
-// SECTION: Document repository scope sync
-function syncScopeUiFromLocation() {
-    const url = new URL(window.location.href);
-    const scope = (url.searchParams.get("scope") || "").toLowerCase();
-
-    // SECTION: Hidden scope inputs
-    document.querySelectorAll('input[name="scope"]').forEach((input) => {
-        input.value = scope;
-    });
-
-    // SECTION: Rail active state
-    const rail = document.querySelector(".docrepo-rail");
-    if (!rail) {
-        return;
-    }
-
-    rail.querySelectorAll("a.docrepo-rail__item").forEach((link) => {
-        const linkScope = (link.getAttribute("data-scope") || "").toLowerCase();
-        link.classList.toggle("is-active", linkScope === scope);
-    });
-}
-
-// SECTION: Document repository scope navigation
-function initScopeNavigation() {
-    const rail = document.querySelector(".docrepo-rail");
-    if (!rail) {
-        return;
-    }
-
-    rail.addEventListener("click", (event) => {
-        const link = event.target.closest("a.docrepo-rail__item");
-        if (!link) {
-            return;
-        }
-
-        if (event.button !== 0) {
-            return;
-        }
-
-        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
-            return;
-        }
-
-        const href = link.getAttribute("href");
-        if (!href) {
-            return;
-        }
-
-        event.preventDefault();
-
-        const targetUrl = new URL(href, window.location.origin);
-        const scope = (targetUrl.searchParams.get("scope") || "").toLowerCase();
-
-        // SECTION: Immediate UI feedback
-        rail.querySelectorAll("a.docrepo-rail__item").forEach((item) => item.classList.remove("is-active"));
-        link.classList.add("is-active");
-
-        // SECTION: Keep forms aligned with scope
-        document.querySelectorAll('input[name="scope"]').forEach((input) => {
-            input.value = scope;
-        });
-
-        fetchAndSwapResults(targetUrl.toString());
-    });
-}
-
-// SECTION: Document repository partial results fetch
-async function fetchAndSwapResults(targetUrl, options = {}) {
-    const results = document.querySelector("#docrepoResults");
-    if (!results) {
-        window.location.assign(targetUrl);
-        return;
-    }
-
-    const updateHistory = options.updateHistory !== false;
-    const indicator = document.querySelector("#docrepoUpdating");
-
-    const setUpdating = (isUpdating) => {
-        if (indicator) {
-            indicator.classList.toggle("d-none", !isUpdating);
-        }
-        results.classList.toggle("docrepo-results--loading", isUpdating);
-    };
-
-    const requestUrl = new URL(targetUrl, window.location.origin);
-    requestUrl.searchParams.set("partial", "true");
-
-    setUpdating(true);
-
-    try {
-        const response = await fetch(requestUrl.toString(), {
-            method: "GET",
-            headers: { "X-Requested-With": "DocRepoPartial" }
-        });
-
-        if (!response.ok) {
-            window.location.assign(targetUrl);
-            return;
-        }
-
-        const html = await response.text();
-
-        // SECTION: Partial response guard
-        const isFullDocument = /<\s*html[\s>]/i.test(html) || /<\s*body[\s>]/i.test(html);
-        if (isFullDocument) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
-            const nextResults = doc.querySelector("#docrepoResults");
-
-            if (nextResults) {
-                results.innerHTML = nextResults.innerHTML;
-            } else {
-                window.location.assign(targetUrl);
-                return;
-            }
-        } else {
-            results.innerHTML = html;
-        }
-
-        if (updateHistory) {
-            const cleanUrl = new URL(targetUrl, window.location.origin);
-            cleanUrl.searchParams.delete("partial");
-            history.pushState({}, "", cleanUrl.toString());
-        }
-
-        syncScopeUiFromLocation();
-    } catch (error) {
-        window.location.assign(targetUrl);
-    } finally {
-        setUpdating(false);
-    }
-}
-
-// SECTION: Document repository auto-apply filters
-function initAutoApplyFilters() {
-    const form = document.querySelector("#docrepoFacetsForm");
-    if (!form) {
-        return;
-    }
-
-    const enabled = form.getAttribute("data-autoapply") === "true";
-    if (!enabled) {
-        return;
-    }
-
-    const officeHidden = document.querySelector("#officeCategoryIdHidden");
-    const typeHidden = document.querySelector("#documentCategoryIdHidden");
-    const yearHidden = document.querySelector("#yearHidden");
-    const tagInput = form.querySelector('input[name="tag"]');
-    const inactiveChk = form.querySelector('input[name="includeInactive"]');
-    const customYear = document.querySelector("[data-custom-year]");
-    const viewHidden = form.querySelector('input[name="view"]');
-    const pageSizeHidden = form.querySelector('input[name="pageSize"]');
-
-    let tagTimer = null;
-    let yearTimer = null;
-
-    // SECTION: URL builder
-    const buildUrlAndGo = () => {
-        const url = new URL(window.location.href);
-
-        // Always reset page
-        url.searchParams.set("page", "1");
-
-        if (viewHidden && viewHidden.value) {
-            url.searchParams.set("view", viewHidden.value);
-        }
-
-        if (pageSizeHidden && pageSizeHidden.value) {
-            url.searchParams.set("pageSize", pageSizeHidden.value);
-        }
-
-        const office = officeHidden ? (officeHidden.value || "").trim() : "";
-        const type = typeHidden ? (typeHidden.value || "").trim() : "";
-        const year = yearHidden ? (yearHidden.value || "").trim() : "";
-        const tag = tagInput ? (tagInput.value || "").trim() : "";
-        const inactive = inactiveChk ? inactiveChk.checked : false;
-
-        const setOrDelete = (key, value) => {
-            if (value) {
-                url.searchParams.set(key, value);
-            } else {
-                url.searchParams.delete(key);
-            }
-        };
-
-        setOrDelete("officeCategoryId", office);
-        setOrDelete("documentCategoryId", type);
-        setOrDelete("year", year);
-        setOrDelete("tag", tag);
-
-        if (inactive) {
-            url.searchParams.set("includeInactive", "true");
-        } else {
-            url.searchParams.delete("includeInactive");
-        }
-
-        fetchAndSwapResults(url.toString());
-    };
-
-    const autoApplyImmediate = () => {
-        buildUrlAndGo();
-    };
-
-    // SECTION: Form submit interception
-    form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        autoApplyImmediate();
-    });
-
-    // SECTION: Facet change handling
-    form.addEventListener("change", (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) {
-            return;
-        }
-
-        if (target.getAttribute("name") === "includeInactive") {
-            autoApplyImmediate();
-            return;
-        }
-
-        if (target.classList.contains("docrepo-check__input")) {
-            const isYearFacet = target.closest('[data-facet-single="year"]');
-            if (isYearFacet && customYear && customYear.value.trim().length > 0) {
-                return;
-            }
-
-            autoApplyImmediate();
-        }
-    });
-
-    // SECTION: Tag debounce
-    if (tagInput) {
-        tagInput.addEventListener("input", () => {
-            if (tagTimer) {
-                clearTimeout(tagTimer);
-            }
-
-            tagTimer = setTimeout(() => {
-                const value = (tagInput.value || "").trim();
-                if (value.length === 0 || value.length >= 2) {
-                    autoApplyImmediate();
-                }
-            }, 500);
-        });
-
-        tagInput.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                autoApplyImmediate();
-            }
-        });
-    }
-
-    // SECTION: Custom year validation
-    if (customYear) {
-        const errorMessage = document.querySelector("#docrepoYearError");
-
-        const setYearError = (text) => {
-            if (!errorMessage) {
-                return;
-            }
-
-            errorMessage.textContent = text;
-            errorMessage.classList.toggle("d-none", !text);
-        };
-
-        customYear.addEventListener("input", () => {
-            if (yearTimer) {
-                clearTimeout(yearTimer);
-            }
-
-            yearTimer = setTimeout(() => {
-                const value = (customYear.value || "").trim();
-
-                if (value.length === 0) {
-                    setYearError("");
-                    autoApplyImmediate();
-                    return;
-                }
-
-                const parsed = Number(value);
-                const valid = Number.isInteger(parsed) && value.length === 4 && parsed >= 1900 && parsed <= 2100;
-
-                if (!valid) {
-                    setYearError("Invalid year. Enter a 4-digit year between 1900 and 2100.");
-                    return;
-                }
-
-                setYearError("");
-                if (yearHidden) {
-                    yearHidden.value = value;
-                }
-                autoApplyImmediate();
-            }, 600);
-        });
-    }
-
-    // SECTION: Pagination links
-    const resultsContainer = document.querySelector("#docrepoResults");
-    if (resultsContainer) {
-        resultsContainer.addEventListener("click", (event) => {
-            const target = event.target;
-            if (!(target instanceof HTMLElement)) {
-                return;
-            }
-
-            const link = target.closest("a");
-            if (!link || !link.closest(".pagination")) {
-                return;
-            }
-
-            const href = link.getAttribute("href");
-            if (!href) {
-                return;
-            }
-
-            event.preventDefault();
-            fetchAndSwapResults(new URL(href, window.location.origin).toString());
-        });
-    }
-}
-
-// SECTION: Document repository view preference
-function initViewPreference() {
-    const toggle = document.querySelector(".docrepo-view-toggle");
-    if (!toggle) {
-        return;
-    }
-
-    const url = new URL(window.location.href);
-    const hasView = url.searchParams.has("view");
-
-    toggle.addEventListener("click", (event) => {
-        const link = event.target.closest("a");
-        if (!link) {
-            return;
-        }
-
-        const href = link.getAttribute("href");
-        if (!href) {
-            return;
-        }
-
+    async function load(url, { push = true, focusName = null } = {}) {
+        const target = new URL(url, window.location.origin);
+        target.searchParams.delete("partial");
+        const request = new URL(target);
+        request.searchParams.set("partial", "true");
+
+        controller?.abort();
+        controller = new AbortController();
+        results.setAttribute("aria-busy", "true");
         try {
-            const parsed = new URL(href, window.location.origin);
-            const view = (parsed.searchParams.get("view") || "").toLowerCase();
-            if (view === "list" || view === "cards") {
-                localStorage.setItem("docrepo.viewMode", view);
-            }
-        } catch (error) {
-            // Ignore invalid URLs or storage failures.
-        }
-    });
-
-    if (!hasView) {
-        try {
-            const pref = (localStorage.getItem("docrepo.viewMode") || "").toLowerCase();
-            if (pref === "list" || pref === "cards") {
-                url.searchParams.set("view", pref);
-                window.location.replace(url.toString());
-            }
-        } catch (error) {
-            // Ignore storage failures.
-        }
-    }
-}
-
-// SECTION: Document repository favourite toggles
-function initFavouriteToggles() {
-    const results = document.querySelector("#docrepoResults");
-    if (!results) {
-        return;
-    }
-
-    const toggleUrl = results.getAttribute("data-toggle-url");
-    if (!toggleUrl) {
-        return;
-    }
-
-    const tokenInput = document.querySelector("#docrepoFavouriteToken input[name=\"__RequestVerificationToken\"]");
-    const alertEl = document.getElementById("docrepoFavouriteAlert");
-    let alertTimer = null;
-
-    const showAlert = () => {
-        if (!alertEl) {
-            return;
-        }
-
-        alertEl.classList.remove("d-none");
-        if (alertTimer) {
-            clearTimeout(alertTimer);
-        }
-        alertTimer = setTimeout(() => {
-            alertEl.classList.add("d-none");
-        }, 4000);
-    };
-
-    const setButtonState = (button, isFavourite) => {
-        const nextValue = isFavourite ? "true" : "false";
-        const title = isFavourite ? "Remove from favourites" : "Add to favourites";
-
-        button.setAttribute("data-fav", nextValue);
-        button.setAttribute("title", title);
-        button.setAttribute("aria-label", title);
-
-        const icon = button.querySelector("i");
-        if (icon) {
-            icon.classList.toggle("bi-star-fill", isFavourite);
-            icon.classList.toggle("bi-star", !isFavourite);
-        }
-    };
-
-    const removeFavouriteItem = (button) => {
-        const row = button.closest(".docrepo-row");
-        if (row) {
-            row.remove();
-            return;
-        }
-
-        const col = button.closest(".col");
-        if (col) {
-            col.remove();
-            return;
-        }
-
-        const card = button.closest(".docrepo-card");
-        if (card) {
-            card.remove();
-        }
-    };
-
-    document.addEventListener("click", async (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) {
-            return;
-        }
-
-        const button = target.closest(".docrepo-star");
-        if (!button) {
-            return;
-        }
-
-        event.preventDefault();
-
-        const documentId = button.getAttribute("data-docid");
-        if (!documentId || !tokenInput) {
-            showAlert();
-            return;
-        }
-
-        const wasFavourite = button.getAttribute("data-fav") === "true";
-        setButtonState(button, !wasFavourite);
-
-        try {
-            // SECTION: Toggle endpoint with query-safe id
-            const endpoint = new URL(toggleUrl, window.location.origin);
-            endpoint.searchParams.set("id", documentId);
-
-            const response = await fetch(endpoint.toString(), {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": tokenInput.value
-                }
+            const response = await fetch(request, {
+                headers: { "X-Requested-With": "DocRepoPartial" },
+                credentials: "same-origin",
+                signal: controller.signal
             });
-
-            if (!response.ok) {
-                throw new Error("Favourite toggle failed.");
-            }
-
-            const data = await response.json();
-            const isFavourite = !!data.isFavourite;
-            setButtonState(button, isFavourite);
-
-            const isFavouritesScope = (new URL(window.location.href)).searchParams.get("scope")?.toLowerCase() === "favourites";
-            if (isFavouritesScope && !isFavourite) {
-                removeFavouriteItem(button);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            results.innerHTML = await response.text();
+            if (push) window.history.pushState({ library: true }, "", target);
+            syncSearchForm(target);
+            syncTabs(target);
+            markSelected();
+            if (focusName) results.querySelector(`[name="${focusName}"]`)?.focus();
         } catch (error) {
-            setButtonState(button, wasFavourite);
-            showAlert();
+            if (error.name === "AbortError") return;
+            window.location.assign(target);
+        } finally {
+            results.setAttribute("aria-busy", "false");
+        }
+    }
+
+    function syncSearchForm(url) {
+        if (!searchForm) return;
+        const input = searchForm.querySelector('input[name="q"]');
+        if (input && document.activeElement !== input) input.value = url.searchParams.get("q") || "";
+        const view = searchForm.querySelector('input[name="view"]');
+        if (view) view.value = url.searchParams.get("view") || "";
+    }
+
+    function syncTabs(url) {
+        root.querySelectorAll("[data-library-view]").forEach(link => {
+            const next = new URL(url);
+            next.searchParams.delete("page");
+            if (link.dataset.libraryView === "cards") next.searchParams.set("view", "cards");
+            else next.searchParams.delete("view");
+            link.href = next.pathname + next.search;
+        });
+    }
+
+    // SECTION: Filters change instantly; the tag box waits for a pause in typing
+    let tagTimer = null;
+    results.addEventListener("change", event => {
+        const field = event.target.closest("[data-library-filter]");
+        if (!field) return;
+        const form = field.form;
+        load(`${form.action || window.location.pathname}?${currentQuery(form)}`, { focusName: field.name });
+    });
+
+    results.addEventListener("input", event => {
+        const field = event.target.closest("[data-library-filter-text]");
+        if (!field) return;
+        window.clearTimeout(tagTimer);
+        tagTimer = window.setTimeout(() => {
+            const form = field.form;
+            load(`${form.action || window.location.pathname}?${currentQuery(form)}`, { focusName: field.name });
+        }, 450);
+    });
+
+    results.addEventListener("submit", event => {
+        const form = event.target.closest("[data-library-filters]");
+        if (!form) return;
+        event.preventDefault();
+        load(`${form.action || window.location.pathname}?${currentQuery(form)}`);
+    });
+
+    searchForm?.addEventListener("submit", event => {
+        event.preventDefault();
+        const params = currentQuery(searchForm);
+        // Keep the current filters with the new search words.
+        const current = new URLSearchParams(window.location.search);
+        ["officeCategoryId", "documentCategoryId", "year", "tag", "includeInactive", "sort"].forEach(key => {
+            if (current.get(key)) params.set(key, current.get(key));
+        });
+        if (!params.get("q")) params.delete("sort");
+        load(`${window.location.pathname}?${params}`);
+    });
+
+    // SECTION: Links inside the region (chips, pages, tags) load in place
+    results.addEventListener("click", event => {
+        const link = event.target.closest("a[data-library-link]");
+        if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return;
+        event.preventDefault();
+        load(link.href);
+        if (link.closest(".library-pager")) results.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    window.addEventListener("popstate", () => load(window.location.href, { push: false }));
+
+    // SECTION: Rows open the reader, or the reading pane on wide screens
+    const interactive = "a, button, input, select, textarea, label, .dropdown-menu";
+
+    results.addEventListener("click", event => {
+        const item = event.target.closest("[data-library-item]");
+        if (!item || event.target.closest(interactive)) return;
+        if (window.getSelection()?.toString()) return;
+        if (wideQuery.matches) openPane(item.dataset.docId);
+        else window.location.assign(item.dataset.href);
+    });
+
+    results.addEventListener("click", event => {
+        const open = event.target.closest("a[data-library-open]");
+        if (!open || !wideQuery.matches || event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return;
+        event.preventDefault();
+        openPane(open.closest("[data-library-item]").dataset.docId);
+    });
+
+    async function openPane(id) {
+        if (!pane || !id) return;
+        selectedId = id;
+        markSelected();
+        const url = new URL(root.dataset.previewUrl, window.location.origin);
+        url.searchParams.set("id", id);
+        url.searchParams.set("returnUrl", window.location.pathname + window.location.search);
+        try {
+            const response = await fetch(url, { credentials: "same-origin" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            pane.innerHTML = await response.text();
+            pane.hidden = false;
+            body.classList.add("has-pane");
+            pane.querySelector(".library-preview__title")?.focus({ preventScroll: true });
+        } catch {
+            const item = results.querySelector(`[data-doc-id="${CSS.escape(id)}"]`);
+            if (item) window.location.assign(item.dataset.href);
+        }
+    }
+
+    function closePane() {
+        if (!pane || pane.hidden) return;
+        const id = selectedId;
+        pane.hidden = true;
+        pane.innerHTML = "";
+        body.classList.remove("has-pane");
+        selectedId = null;
+        markSelected();
+        results.querySelector(`[data-doc-id="${CSS.escape(id || "")}"] [data-library-open]`)?.focus();
+    }
+
+    function markSelected() {
+        results.querySelectorAll("[data-library-item]").forEach(item => {
+            item.classList.toggle("is-selected", item.dataset.docId === selectedId);
+        });
+    }
+
+    pane?.addEventListener("click", event => {
+        if (event.target.closest("[data-library-pane-close]")) closePane();
+    });
+
+    wideQuery.addEventListener("change", event => { if (!event.matches) closePane(); });
+
+    // SECTION: Keyboard: arrows move between documents, Escape closes the pane
+    root.addEventListener("keydown", event => {
+        if (event.key === "Escape" && pane && !pane.hidden && !document.querySelector(".modal.show")) {
+            closePane();
+            return;
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+        const current = event.target.closest("[data-library-open]");
+        if (!current) return;
+        const links = [...results.querySelectorAll("[data-library-open]")];
+        const index = links.indexOf(current);
+        const next = links[index + (event.key === "ArrowDown" ? 1 : -1)];
+        if (!next) return;
+        event.preventDefault();
+        next.focus();
+        if (wideQuery.matches && pane && !pane.hidden) openPane(next.closest("[data-library-item]").dataset.docId);
+    });
+
+    // SECTION: Favourites
+    root.addEventListener("click", async event => {
+        const button = event.target.closest("[data-library-star]");
+        if (!button) return;
+        event.preventDefault();
+        const id = button.dataset.docId;
+        const wasOn = button.getAttribute("aria-pressed") === "true";
+        setStar(id, !wasOn);
+        try {
+            const url = new URL(root.dataset.favouriteUrl, window.location.origin);
+            url.searchParams.set("id", id);
+            const response = await fetch(url, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "X-CSRF-TOKEN": token }
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            setStar(id, Boolean(data.isFavourite));
+            updateFavouriteCount(Boolean(data.isFavourite) === wasOn ? 0 : (data.isFavourite ? 1 : -1));
+        } catch {
+            setStar(id, wasOn);
+            toast("The favourite could not be saved. Try again.", "danger");
         }
     });
-}
 
-// SECTION: Document repository DOM initialization
-document.addEventListener("DOMContentLoaded", () => {
-    syncScopeUiFromLocation();
-    initScopeNavigation();
-    initDirtyTracking();
-    initViewPreference();
-    initAutoApplyFilters();
-    initFavouriteToggles();
+    function setStar(id, on) {
+        root.querySelectorAll(`[data-library-star][data-doc-id="${CSS.escape(id)}"]`).forEach(button => {
+            button.setAttribute("aria-pressed", on ? "true" : "false");
+            button.classList.toggle("is-on", on);
+            const icon = button.querySelector("i");
+            icon?.classList.toggle("bi-star-fill", on);
+            icon?.classList.toggle("bi-star", !on);
+        });
+    }
 
-    // SECTION: Back/forward navigation
-    window.addEventListener("popstate", async () => {
-        await fetchAndSwapResults(window.location.href, { updateHistory: false });
-        syncScopeUiFromLocation();
+    function updateFavouriteCount(delta) {
+        if (!delta) return;
+        root.querySelectorAll('[data-library-scope="favourites"] .library-tabs__count').forEach(count => {
+            count.textContent = String(Math.max(0, (parseInt(count.textContent, 10) || 0) + delta));
+        });
+    }
+
+    // SECTION: Deactivate, activate, read again and request deletion (confirmed in a dialog)
+    const dialogElement = document.getElementById("libraryConfirm");
+    const dialogForm = dialogElement?.querySelector("[data-library-dialog]");
+    const actions = {
+        "deactivate": {
+            handler: "Deactivate",
+            title: "Deactivate this document?",
+            body: "It disappears from the library for everyone except the people who manage it. You can activate it again at any time.",
+            confirm: "Deactivate",
+            style: "btn-primary"
+        },
+        "activate": {
+            handler: "Activate",
+            title: "Activate this document again?",
+            body: "Everyone will be able to find and open it again.",
+            confirm: "Activate",
+            style: "btn-primary"
+        },
+        "retry-ocr": {
+            handler: "RetryOcr",
+            title: "Read this PDF's text again?",
+            body: "The document goes back into the reading queue. Its text becomes searchable once reading succeeds, usually within a few minutes.",
+            confirm: "Read again",
+            style: "btn-primary"
+        },
+        "request-delete": {
+            handler: "RequestDelete",
+            title: "Request deletion",
+            body: "An approver decides in the Decision Centre. Until then the document stays in the library.",
+            confirm: "Send request",
+            style: "btn-danger",
+            reason: true
+        }
+    };
+
+    root.addEventListener("click", event => {
+        const trigger = event.target.closest("[data-library-action]");
+        if (!trigger || !dialogForm || !window.bootstrap?.Modal) return;
+        const action = actions[trigger.dataset.libraryAction];
+        if (!action) return;
+        event.preventDefault();
+
+        const url = new URL(root.dataset.manageUrl, window.location.origin);
+        url.searchParams.set("id", trigger.dataset.docId);
+        url.searchParams.set("handler", action.handler);
+        url.searchParams.set("returnUrl", window.location.pathname + window.location.search);
+        dialogForm.action = url.pathname + url.search;
+        dialogForm.querySelector("[data-dialog-title]").textContent = action.title;
+        dialogForm.querySelector("[data-dialog-subject]").textContent = trigger.dataset.docSubject || "";
+        dialogForm.querySelector("[data-dialog-body]").textContent = action.body;
+        const confirm = dialogForm.querySelector("[data-dialog-confirm]");
+        confirm.textContent = action.confirm;
+        confirm.className = `btn ${action.style}`;
+        const reason = dialogForm.querySelector("[data-dialog-reason]");
+        const textarea = reason.querySelector("textarea");
+        reason.hidden = !action.reason;
+        textarea.required = Boolean(action.reason);
+        textarea.value = "";
+
+        const modal = window.bootstrap.Modal.getOrCreateInstance(dialogElement);
+        dialogElement.addEventListener("shown.bs.modal", () => (action.reason ? textarea : confirm).focus(), { once: true });
+        modal.show();
     });
-});
+
+    // SECTION: Messages
+    function toast(message, tone = "info") {
+        if (typeof window.showToast === "function") {
+            window.showToast(message, tone);
+            return;
+        }
+        const live = document.createElement("div");
+        live.className = `alert alert-${tone} position-fixed bottom-0 end-0 m-3 shadow`;
+        live.setAttribute("role", "status");
+        live.textContent = message;
+        document.body.appendChild(live);
+        window.setTimeout(() => live.remove(), 4000);
+    }
+})();

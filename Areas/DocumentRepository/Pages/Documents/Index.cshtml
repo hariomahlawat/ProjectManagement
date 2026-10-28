@@ -3,458 +3,182 @@
 @{
     ViewData["Title"] = "Document Repository";
     ViewData["UseFullWidth"] = true;
-    ViewData["PageShell"] = "analytics";
     if (Model.IsPartial)
     {
         Layout = null;
     }
-}
 
-@if (!Model.IsPartial)
-{
-    @section Styles {
-        <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
-    }
-
-    @section Scripts {
-        <!-- SECTION: Document repository UI -->
-        <script src="~/js/docrepo-ui.js" asp-append-version="true"></script>
-    }
+    var summary = Model.Summary;
 }
 
 @if (Model.IsPartial)
 {
-    <partial name="_ResultsBlock" model="Model" />
+    <partial name="_ResultsRegion" model="Model" />
+    return;
 }
-else
-{
-    <div class="container-fluid py-2">
 
-        <header class="docrepo-pagehead">
-            <div>
-                <h1 class="docrepo-pagehead__title">Document Repository</h1>
-                <p class="docrepo-pagehead__subtitle">Search, organise and access institutional documents.</p>
-            </div>
-        </header>
+@section Styles {
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
+}
 
-        <!-- SECTION: Favourite toggle helpers -->
-        <form id="docrepoFavouriteToken" method="post" class="d-none">
-            @Html.AntiForgeryToken()
-        </form>
-        <div class="alert alert-danger d-none docrepo-favourite-alert" id="docrepoFavouriteAlert" role="alert">
-            Unable to update favourite. Try again.
+@section Scripts {
+    <script src="~/js/docrepo-ui.js" asp-append-version="true"></script>
+}
+
+<div class="library" data-library
+     data-results-url="@Url.Page("./Index")"
+     data-preview-url="@Url.Page("./Index", "Preview")"
+     data-favourite-url="@Url.Page("./Index", "ToggleFavourite")"
+     data-manage-url="@Url.Page("./Manage")">
+
+    <form id="libraryToken" method="post" class="d-none">@Html.AntiForgeryToken()</form>
+
+    <!-- SECTION: Header -->
+    <header class="library-head">
+        <div class="library-head__text">
+            <span class="library-eyebrow">Office library</span>
+            <h1>Document Repository</h1>
+            <p>Letters, policies, minutes and other papers, searchable by their details and by the text inside each PDF.</p>
         </div>
-
-        @if (Model.EnableListViewUxUpgrade)
-        {
-            <!-- SECTION: Shell layout -->
-            <div class="docrepo-shell">
-                <!-- SECTION: Navigation rail -->
-                <nav class="docrepo-rail" aria-label="Document scopes">
-                    <a class="docrepo-rail__item @(Model.IsDefaultScope ? "is-active" : string.Empty)"
-                       data-scope=""
-                       asp-page="./Index"
-                       asp-route-view="@Model.ViewMode"
-                       asp-route-page="1"
-                       asp-route-pageSize="@Model.PageSize"
-                       title="Documents"
-                       aria-label="Documents">
-                        <i class="bi bi-folder"></i>
-                        <span class="docrepo-rail__label">Documents</span>
-                    </a>
-                    <a class="docrepo-rail__item @(Model.IsFavouritesScope ? "is-active" : string.Empty)"
-                       data-scope="favourites"
-                       asp-page="./Index"
-                       asp-route-scope="favourites"
-                       asp-route-view="@Model.ViewMode"
-                       asp-route-page="1"
-                       asp-route-pageSize="@Model.PageSize"
-                       title="Favourites"
-                       aria-label="Favourites">
-                        <i class="bi bi-star-fill"></i>
-                        <span class="docrepo-rail__label">Favourites</span>
-                    </a>
-                    <a class="docrepo-rail__item @(Model.IsAotsScope ? "is-active" : string.Empty)"
-                       data-scope="aots"
-                       asp-page="./Index"
-                       asp-route-scope="aots"
-                       asp-route-view="@Model.ViewMode"
-                       asp-route-page="1"
-                       asp-route-pageSize="@Model.PageSize"
-                       title="AOTS"
-                       aria-label="AOTS">
-                        <i class="bi bi-broadcast"></i>
-                        <span class="docrepo-rail__label">AOTS</span>
-                        @await Component.InvokeAsync("AotsUnreadBadge", new { variant = "rail" })
-                    </a>
-                </nav>
-
-                <!-- SECTION: Filters drawer -->
-                <button type="button" class="docrepo-filter-backdrop" id="docrepoFilterBackdrop" aria-label="Close filters"></button>
-                <aside class="docrepo-filters" id="docrepoFilters" aria-hidden="true">
-                    <div class="docrepo-filters__header">
-                        <div class="docrepo-filters__title">Filters</div>
-                        <button type="button"
-                                class="btn btn-sm btn-light docrepo-filters__toggle"
-                                id="docrepoFiltersToggle"
-                                title="Close filters"
-                                aria-label="Close filters">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    </div>
-
-                    <form method="get"
-                          asp-page="./Index"
-                          class="docrepo-facets"
-                          id="docrepoFacetsForm"
-                          data-autoapply="false">
-                        <!-- SECTION: Apply-only params -->
-                        <input type="hidden" name="q" value="@Model.Q" />
-                        <input type="hidden" name="view" value="@Model.ViewMode" />
-                        <input type="hidden" name="scope" value="@Model.Scope" />
-                        <input type="hidden" name="page" value="1" />
-                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
-
-                        <!-- SECTION: Facet hidden inputs -->
-                        <input type="hidden" name="officeCategoryId" id="officeCategoryIdHidden" value="@(Model.OfficeCategoryId?.ToString() ?? string.Empty)" />
-                        <input type="hidden" name="documentCategoryId" id="documentCategoryIdHidden" value="@(Model.DocumentCategoryId?.ToString() ?? string.Empty)" />
-                        <input type="hidden" name="year" id="yearHidden" value="@(Model.Year?.ToString() ?? string.Empty)" />
-
-                        <!-- SECTION: Office facet -->
-                        <div class="docrepo-facet">
-                            <div class="docrepo-facet__title">OFFICE</div>
-                            <div class="docrepo-facet__list" data-facet-single="office" data-target-hidden="#officeCategoryIdHidden">
-                                <label class="docrepo-check">
-                                    <input type="checkbox"
-                                           class="docrepo-check__input"
-                                           data-value=""
-                                           @(Model.OfficeCategoryId.HasValue ? null : "checked") />
-                                    <span class="docrepo-check__label">All offices</span>
-                                </label>
-                                @foreach (var office in Model.OfficeCategories)
-                                {
-                                    var isChecked = Model.OfficeCategoryId.HasValue && Model.OfficeCategoryId.Value == office.Id;
-                                    <label class="docrepo-check">
-                                        <input type="checkbox"
-                                               class="docrepo-check__input"
-                                               data-value="@office.Id"
-                                               @(isChecked ? "checked" : null) />
-                                        <span class="docrepo-check__label">@office.Name</span>
-                                    </label>
-                                }
-                            </div>
-                        </div>
-
-                        <!-- SECTION: Document type facet -->
-                        <div class="docrepo-facet">
-                            <div class="docrepo-facet__title">DOCUMENT TYPE</div>
-                            <div class="docrepo-facet__list" data-facet-single="doctype" data-target-hidden="#documentCategoryIdHidden">
-                                <label class="docrepo-check">
-                                    <input type="checkbox"
-                                           class="docrepo-check__input"
-                                           data-value=""
-                                           @(Model.DocumentCategoryId.HasValue ? null : "checked") />
-                                    <span class="docrepo-check__label">All document types</span>
-                                </label>
-                                @foreach (var docCat in Model.DocumentCategories)
-                                {
-                                    var isChecked = Model.DocumentCategoryId.HasValue && Model.DocumentCategoryId.Value == docCat.Id;
-                                    <label class="docrepo-check">
-                                        <input type="checkbox"
-                                               class="docrepo-check__input"
-                                               data-value="@docCat.Id"
-                                               @(isChecked ? "checked" : null) />
-                                        <span class="docrepo-check__label">@docCat.Name</span>
-                                    </label>
-                                }
-                            </div>
-                        </div>
-
-                        <!-- SECTION: Year facet -->
-                        <div class="docrepo-facet">
-                            <div class="docrepo-facet__title">YEAR</div>
-                            @{
-                                var currentYear = DateTime.UtcNow.Year;
-                                var yearsToShow = new[] { currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4, currentYear - 5 };
-                                var isYearInList = Model.Year.HasValue && yearsToShow.Contains(Model.Year.Value);
-                                var customYearValue = isYearInList ? string.Empty : (Model.Year?.ToString() ?? string.Empty);
-                            }
-                            <div class="docrepo-facet__list" data-facet-single="year" data-target-hidden="#yearHidden">
-                                <label class="docrepo-check">
-                                    <input type="checkbox"
-                                           class="docrepo-check__input"
-                                           data-value=""
-                                           @(!Model.Year.HasValue ? "checked" : null) />
-                                    <span class="docrepo-check__label">All years</span>
-                                </label>
-                                @foreach (var year in yearsToShow)
-                                {
-                                    var isChecked = Model.Year.HasValue && Model.Year.Value == year;
-                                    <label class="docrepo-check">
-                                        <input type="checkbox"
-                                               class="docrepo-check__input"
-                                               data-value="@year"
-                                               @(isChecked ? "checked" : null) />
-                                        <span class="docrepo-check__label">@year</span>
-                                    </label>
-                                }
-                            </div>
-                            <div class="docrepo-facet__sub">
-                                <label class="form-label small mb-1" for="customYearInput">Custom year</label>
-                                <input class="form-control form-control-sm"
-                                       id="customYearInput"
-                                       type="number"
-                                       min="1900"
-                                       max="2100"
-                                       value="@customYearValue"
-                                       placeholder="yyyy"
-                                       data-custom-year />
-                                <div class="form-text">If filled, it overrides the year selection.</div>
-                                <div id="docrepoYearError" class="text-danger small mt-1 d-none"></div>
-                            </div>
-                        </div>
-
-                        <!-- SECTION: Tag facet -->
-                        <div class="docrepo-facet">
-                            <div class="docrepo-facet__title">TAG</div>
-                            <input class="form-control form-control-sm"
-                                   name="tag"
-                                   value="@Model.Tag"
-                                   placeholder="e.g. sow, contract" />
-                        </div>
-
-                        <!-- SECTION: Include inactive (managers only) -->
-                        @if (Model.CanViewInactive)
+        <div class="library-head__actions">
+            @if (Model.HasAdminLinks)
+            {
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-gear" aria-hidden="true"></i> Manage
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        @if (Model.CanApproveDeletes)
                         {
-                            <div class="docrepo-facet">
-                                <label class="form-check docrepo-inline-check">
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           name="includeInactive"
-                                           value="true"
-                                           @(Model.IncludeInactive ? "checked" : null) />
-                                    <span class="form-check-label">Include inactive</span>
-                                </label>
-                            </div>
+                            <li><a class="dropdown-item" asp-page="/Admin/DeleteRequests/Index"><i class="bi bi-check2-square me-2" aria-hidden="true"></i>Deletion requests</a></li>
+                            <li><a class="dropdown-item" asp-page="/Admin/OCRFailures/OcrFailures"><i class="bi bi-file-earmark-break me-2" aria-hidden="true"></i>Unreadable PDFs</a></li>
+                            <li><a class="dropdown-item" asp-page="/Admin/MissingFiles"><i class="bi bi-file-earmark-x me-2" aria-hidden="true"></i>Missing files</a></li>
                         }
+                        @if (Model.CanPurge)
+                        {
+                            <li><a class="dropdown-item" asp-page="/Admin/Trash/Index"><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Trash</a></li>
+                        }
+                        @if (Model.CanManageCategories)
+                        {
+                            <li><hr class="dropdown-divider" /></li>
+                            <li><a class="dropdown-item" asp-page="/Admin/OfficeCategories/Index"><i class="bi bi-building me-2" aria-hidden="true"></i>Offices</a></li>
+                            <li><a class="dropdown-item" asp-page="/Admin/DocumentCategories/Index"><i class="bi bi-tags me-2" aria-hidden="true"></i>Document types</a></li>
+                        }
+                    </ul>
+                </div>
+            }
+            @if (Model.CanUpload)
+            {
+                <a class="btn btn-primary" asp-page="./Upload"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Upload PDF</a>
+            }
+        </div>
+    </header>
 
-                        <!-- SECTION: Facet actions -->
-                        <div class="docrepo-facet__actions">
-                            <button type="submit" class="btn btn-primary btn-sm">Apply filters</button>
-                            <a class="btn btn-link btn-sm text-decoration-none"
-                               asp-page="./Index"
-                               asp-route-scope="@Model.Scope"
-                               asp-route-page="1"
-                               asp-route-pageSize="@Model.PageSize"
-                               asp-route-view="@Model.ViewMode">
-                                Clear all
-                            </a>
-                        </div>
-                    </form>
-
-                </aside>
-
-                <!-- SECTION: Content -->
-                <main class="docrepo-main">
-                    <!-- SECTION: Toolbar -->
-                    <div class="docrepo-main__toolbar">
-                        <form method="get" asp-page="./Index" class="docrepo-searchbar docrepo-searchbar--toolbar" data-docrepo-filter>
-                            <div class="docrepo-searchbar__input">
-                                <i class="bi bi-search"></i>
-                                <input type="search"
-                                       name="q"
-                                       value="@Model.Q"
-                                       placeholder="Search documents (subject, sender, tags)…"
-                                       aria-label="Search documents" />
-                            </div>
-
-                            <input type="hidden" name="page" value="1" />
-                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
-                            <input type="hidden" name="view" value="@Model.ViewMode" />
-                            <input type="hidden" name="scope" value="@Model.Scope" />
-                            <input type="hidden" name="tag" value="@Model.Tag" />
-                            <input type="hidden" name="officeCategoryId" value="@(Model.OfficeCategoryId?.ToString() ?? string.Empty)" />
-                            <input type="hidden" name="documentCategoryId" value="@(Model.DocumentCategoryId?.ToString() ?? string.Empty)" />
-                            <input type="hidden" name="year" value="@(Model.Year?.ToString() ?? string.Empty)" />
-                            @if (Model.IncludeInactive)
-                            {
-                                <input type="hidden" name="includeInactive" value="true" />
-                            }
-                        </form>
-
-                        <div id="docrepoUpdating" class="d-none small text-muted ms-2">
-                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                            Updating…
-                        </div>
-
-                        <button type="button" class="btn btn-sm btn-outline-secondary docrepo-filter-trigger" id="docrepoFiltersExpandBtn" aria-controls="docrepoFilters" aria-expanded="false">
-                            <i class="bi bi-funnel"></i>
-                            <span>Filters</span>
-                            @{
-                                var activeFacetCount = (!string.IsNullOrWhiteSpace(Model.Tag) ? 1 : 0) +
-                                    (Model.OfficeCategoryId.HasValue ? 1 : 0) +
-                                    (Model.DocumentCategoryId.HasValue ? 1 : 0) +
-                                    (Model.Year.HasValue ? 1 : 0) +
-                                    (Model.IncludeInactive ? 1 : 0);
-                            }
-                            @if (activeFacetCount > 0)
-                            {
-                                <span class="docrepo-filter-trigger__count">@activeFacetCount</span>
-                            }
-                        </button>
-
-                        <div class="btn-group docrepo-view-toggle" role="group" aria-label="View mode">
-                            <a class="btn btn-sm @(Model.IsListView ? "btn-primary" : "btn-outline-primary")"
-                               href="@Model.UrlForView("list")">
-                                <i class="bi bi-list"></i>
-                                <span class="d-none d-sm-inline">List</span>
-                            </a>
-                            <a class="btn btn-sm @(!Model.IsListView ? "btn-primary" : "btn-outline-primary")"
-                               href="@Model.UrlForView("cards")">
-                                <i class="bi bi-grid-3x3-gap"></i>
-                                <span class="d-none d-sm-inline">Cards</span>
-                            </a>
-                        </div>
-                    </div>
-
-                    <div id="docrepoResults" data-toggle-url="@Url.Page("./Index", "ToggleFavourite", new { area = "DocumentRepository" })">
-                        <partial name="_ResultsBlock" model="Model" />
-                    </div>
-                </main>
-            </div>
+    <!-- SECTION: Summary strip (whole repository) -->
+    <section class="library-summary" aria-label="Repository at a glance">
+        <a class="library-stat" href="@Model.ScopeUrl(null)">
+            <span class="library-stat__label">Documents</span>
+            <span class="library-stat__figure"><strong>@summary.Documents.ToString("N0")</strong><span>in the library</span></span>
+            <span class="library-stat__sub">@(summary.AddedThisMonth == 0 ? "None added this month" : $"{summary.AddedThisMonth:N0} added this month")</span>
+        </a>
+        <a class="library-stat library-stat--aots" href="@Model.ScopeUrl("aots")">
+            <span class="library-stat__label">All officers to see</span>
+            <span class="library-stat__figure"><strong>@summary.AotsUnread.ToString("N0")</strong><span>unread by you</span></span>
+            <span class="library-stat__sub">@DocRepoFormat.Count(summary.Aots, "AOTS document") in all</span>
+        </a>
+        <a class="library-stat" href="@Model.ScopeUrl("favourites")">
+            <span class="library-stat__label">Favourites</span>
+            <span class="library-stat__figure"><strong>@summary.Favourites.ToString("N0")</strong><span>starred</span></span>
+            <span class="library-stat__sub">Star a document to keep it one click away</span>
+        </a>
+        @if (Model.CanApproveDeletes && summary.TextFailed > 0)
+        {
+            <a class="library-stat" asp-page="/Admin/OCRFailures/OcrFailures">
+                <span class="library-stat__label">Searchable text</span>
+                <span class="library-stat__figure"><strong>@summary.TextReadyPercent%</strong><span>of documents</span></span>
+                <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @summary.TextReadyPercent%"></span></span>
+                <span class="library-stat__sub">@summary.TextPending being read · <span class="is-danger">@summary.TextFailed not readable</span></span>
+            </a>
         }
         else
         {
-            <!-- SECTION: Search bar -->
-            <div class="docrepo-search-shell">
-                <form method="get" class="docrepo-searchbar" data-docrepo-filter>
-                    <div class="docrepo-search-input">
-                        <i class="bi bi-search"></i>
-                        <input type="search"
-                               name="q"
-                               value="@Model.Q"
-                               placeholder="Search documents (subject, sender, tags)…"
-                               aria-label="Search documents" />
-                    </div>
-                    <div class="docrepo-search-actions">
-                        <button type="submit" class="btn btn-primary px-4">Search</button>
-                        <button type="button"
-                                class="btn btn-outline-secondary"
-                                data-bs-toggle="modal"
-                                data-bs-target="#docrepoFilterModal">
-                            <i class="bi bi-funnel"></i>
-                            <span class="d-none d-sm-inline">More filters</span>
-                        </button>
-                    </div>
-
-                    <input type="hidden" name="page" value="1" />
-                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
-                    <input type="hidden" name="scope" value="@Model.Scope" />
-                    <input type="hidden" name="tag" value="@Model.Tag" />
-                    <input type="hidden" name="officeCategoryId" value="@Model.OfficeCategoryId" />
-                    <input type="hidden" name="documentCategoryId" value="@Model.DocumentCategoryId" />
-                    <input type="hidden" name="year" value="@Model.Year" />
-                    @if (Model.IncludeInactive)
-                    {
-                        <input type="hidden" name="includeInactive" value="true" />
-                    }
-                </form>
-            </div>
-
-            <div id="docrepoResults" data-toggle-url="@Url.Page("./Index", "ToggleFavourite", new { area = "DocumentRepository" })">
-                <partial name="_ResultsBlock" model="Model" />
+            <div class="library-stat">
+                <span class="library-stat__label">Searchable text</span>
+                <span class="library-stat__figure"><strong>@summary.TextReadyPercent%</strong><span>of documents</span></span>
+                <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @summary.TextReadyPercent%"></span></span>
+                <span class="library-stat__sub">@(summary.TextPending == 0 ? "Every PDF's text is searchable" : $"{summary.TextPending} being read now")</span>
             </div>
         }
+    </section>
+
+    <!-- SECTION: Scope tabs -->
+    <nav class="library-tabs" aria-label="Show">
+        <a href="@Model.ScopeUrl(null)" class="@(Model.IsDefaultScope ? "is-active" : null)" aria-current="@(Model.IsDefaultScope ? "page" : null)" data-library-scope="">All documents</a>
+        <a href="@Model.ScopeUrl("favourites")" class="@(Model.IsFavouritesScope ? "is-active" : null)" aria-current="@(Model.IsFavouritesScope ? "page" : null)" data-library-scope="favourites">
+            Favourites <span class="library-tabs__count">@summary.Favourites</span>
+        </a>
+        <a href="@Model.ScopeUrl("aots")" class="@(Model.IsAotsScope ? "is-active" : null)" aria-current="@(Model.IsAotsScope ? "page" : null)" data-library-scope="aots">
+            AOTS
+            @if (summary.AotsUnread > 0)
+            {
+                <span class="library-tabs__badge" title="Unread by you">@summary.AotsUnread new</span>
+            }
+        </a>
+    </nav>
+
+    <!-- SECTION: Search (outside the refreshed region so typing keeps focus) -->
+    <div class="library-searchrow">
+        <form method="get" class="library-search" role="search" data-library-search>
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <label class="visually-hidden" for="librarySearch">Search the library</label>
+            <input id="librarySearch" type="search" name="q" value="@Model.Q" autocomplete="off"
+                   placeholder="Search titles, senders, tags and the text inside PDFs" />
+            <input type="hidden" name="scope" value="@Model.ScopeValue" />
+            <input type="hidden" name="view" value="@(Model.IsListView ? null : "cards")" />
+            <button class="library-search__submit" type="submit">Search</button>
+        </form>
+        <div class="library-viewswitch" role="group" aria-label="Layout">
+            <a href="@Model.UrlWith("view", null, keepPage: true)" class="@(Model.IsListView ? "is-on" : null)" aria-pressed="@(Model.IsListView ? "true" : "false")" data-library-view="list" title="List">
+                <i class="bi bi-list-ul" aria-hidden="true"></i><span>List</span>
+            </a>
+            <a href="@Model.UrlWith("view", "cards", keepPage: true)" class="@(!Model.IsListView ? "is-on" : null)" aria-pressed="@(!Model.IsListView ? "true" : "false")" data-library-view="cards" title="Cards">
+                <i class="bi bi-grid" aria-hidden="true"></i><span>Cards</span>
+            </a>
+        </div>
     </div>
 
-    @if (!Model.EnableListViewUxUpgrade)
-    {
-        <!-- SECTION: filter modal -->
-        <div class="modal fade" id="docrepoFilterModal" tabindex="-1" aria-labelledby="docrepoFilterModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <form method="get" asp-route-q="@Model.Q">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="docrepoFilterModalLabel">Filters</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <input type="hidden" name="q" value="@Model.Q" />
-                            <input type="hidden" name="page" value="1" />
-                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
-                            <input type="hidden" name="scope" value="@Model.Scope" />
-
-                            <div class="mb-3">
-                                <label class="form-label" for="tagInput">Tag</label>
-                                <input class="form-control" id="tagInput" name="tag" value="@Model.Tag" placeholder="e.g. sow, contract" />
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label" for="officeSelect">Office</label>
-                                <select class="form-select" id="officeSelect" name="officeCategoryId">
-                                    <option value="">All offices</option>
-                                    @foreach (var office in Model.OfficeCategories)
-                                    {
-                                        if (Model.OfficeCategoryId == office.Id)
-                                        {
-                                            <option value="@office.Id" selected>@office.Name</option>
-                                        }
-                                        else
-                                        {
-                                            <option value="@office.Id">@office.Name</option>
-                                        }
-                                    }
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label" for="docTypeSelect">Document type</label>
-                                <select class="form-select" id="docTypeSelect" name="documentCategoryId">
-                                    <option value="">All document types</option>
-                                    @foreach (var docCat in Model.DocumentCategories)
-                                    {
-                                        if (Model.DocumentCategoryId == docCat.Id)
-                                        {
-                                            <option value="@docCat.Id" selected>@docCat.Name</option>
-                                        }
-                                        else
-                                        {
-                                            <option value="@docCat.Id">@docCat.Name</option>
-                                        }
-                                    }
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label" for="yearInput">Year</label>
-                                <input class="form-control"
-                                       id="yearInput"
-                                       type="number"
-                                       name="year"
-                                       value="@(Model.Year?.ToString() ?? string.Empty)"
-                                       min="1900"
-                                       max="2100" />
-                            </div>
-
-                            <div class="form-check @(Model.CanViewInactive ? null : "d-none")">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       id="includeInactiveChk"
-                                       name="includeInactive"
-                                       value="true"
-                                       @(Model.IncludeInactive ? "checked" : null) />
-                                <label class="form-check-label" for="includeInactiveChk">
-                                    Include inactive
-                                </label>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="submit" class="btn btn-primary">Apply</button>
-                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+    <!-- SECTION: Results with the reading pane beside them on wide screens -->
+    <div class="library-body">
+        <div class="library-results" id="libraryResults" aria-live="polite" aria-busy="false">
+            <partial name="_ResultsRegion" model="Model" />
         </div>
-    }
-}
+        <aside class="library-pane" id="libraryPane" aria-label="Document preview" hidden></aside>
+    </div>
+
+    <!-- SECTION: Dialogs (filled by docrepo-ui.js) -->
+    <div class="modal fade" id="libraryConfirm" tabindex="-1" aria-labelledby="libraryConfirmTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content library-dialog" method="post" data-library-dialog>
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="libraryConfirmTitle" data-dialog-title>Deactivate document</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="library-dialog__subject" data-dialog-subject></p>
+                    <p class="library-dialog__body" data-dialog-body></p>
+                    <div class="library-dialog__reason" data-dialog-reason hidden>
+                        <label class="form-label" for="libraryReason">Why should it be deleted?</label>
+                        <textarea class="form-control" id="libraryReason" name="Reason" rows="3" maxlength="512"
+                                  placeholder="For example: uploaded twice, wrong office, superseded by a newer circular"></textarea>
+                        <div class="form-text">The approver sees this reason in the Decision Centre.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-dialog-confirm>Deactivate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

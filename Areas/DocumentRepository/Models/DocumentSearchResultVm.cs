@@ -12,10 +12,17 @@ public sealed class DocumentSearchResultVm
 
     // SECTION: Primary metadata
     public string Subject { get; set; } = string.Empty;
+    public string? ReceivedFrom { get; set; }
     public DateOnly? DocumentDate { get; set; }
+    public int OfficeCategoryId { get; set; }
+    public int DocumentCategoryId { get; set; }
     public string? OfficeCategoryName { get; set; }
     public string? DocumentCategoryName { get; set; }
     public IReadOnlyCollection<string> Tags { get; set; } = Array.Empty<string>();
+
+    // SECTION: File
+    public long FileSizeBytes { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
 
     // SECTION: OCR metadata
     public DocOcrStatus OcrStatus { get; set; }

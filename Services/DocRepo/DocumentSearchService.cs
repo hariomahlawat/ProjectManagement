@@ -15,6 +15,9 @@ namespace ProjectManagement.Services.DocRepo
 
         IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery);
 
+        /// <summary>Only the full-text match, unordered; for counts such as filter facets.</summary>
+        IQueryable<Document> ApplyMatch(IQueryable<Document> source, string preparedQuery);
+
         IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery);
     }
 
@@ -37,12 +40,17 @@ namespace ProjectManagement.Services.DocRepo
         }
 
         // SECTION: EF-friendly search composition
-        public IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery)
+        public IQueryable<Document> ApplyMatch(IQueryable<Document> source, string preparedQuery)
         {
             return source
                 .Where(d =>
                     d.SearchVector != null &&
-                    d.SearchVector.Matches(EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
+                    d.SearchVector.Matches(EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)));
+        }
+
+        public IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery)
+        {
+            return ApplyMatch(source, preparedQuery)
                 .OrderByDescending(d =>
                     d.SearchVector!.RankCoverDensity(EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
                 .ThenByDescending(d => d.DocumentDate.HasValue)
@@ -67,13 +75,18 @@ namespace ProjectManagement.Services.DocRepo
                 {
                     Id = d.Id,
                     Subject = d.Subject,
+                    ReceivedFrom = d.ReceivedFrom,
                     DocumentDate = d.DocumentDate,
+                    OfficeCategoryId = d.OfficeCategoryId,
+                    DocumentCategoryId = d.DocumentCategoryId,
+                    FileSizeBytes = d.FileSizeBytes,
+                    CreatedAtUtc = d.CreatedAtUtc,
                     OfficeCategoryName = d.OfficeCategory != null ? d.OfficeCategory.Name : null,
                     DocumentCategoryName = d.DocumentCategory != null ? d.DocumentCategory.Name : null,
                     IsActive = d.IsActive,
                     IsAots = d.IsAots,
 
-                    // we cant project per-row IReadOnlyCollection<string> cleanly, so return empty
+                    // Tags are loaded for the page of results afterwards (see Documents/Index).
                     Tags = Array.Empty<string>(),
 
                     OcrStatus = d.OcrStatus,

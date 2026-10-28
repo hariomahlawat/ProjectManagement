@@ -61,6 +61,10 @@ internal static class DocRepoTestSupport
                 options.AddPolicy(Policies.Documents.EditMetadata, policy => policy.RequireRole(Policies.Documents.MetadataEditorRoles));
                 options.AddPolicy(Policies.Documents.SoftDelete, policy => policy.RequireRole(Policies.Documents.UploadAndSoftDeleteRoles));
                 options.AddPolicy(Policies.Documents.ViewInactive, policy => policy.RequireRole(Policies.Documents.InactiveViewerRoles));
+                options.AddPolicy(Policies.Documents.Upload, policy => policy.RequireRole(Policies.Documents.UploadAndSoftDeleteRoles));
+                options.AddPolicy(Policies.Documents.DeleteApprove, policy => policy.RequireRole(Policies.Documents.DeleteApprovalRoles));
+                options.AddPolicy(Policies.Documents.Purge, policy => policy.RequireRole(Policies.Documents.PurgeRoles));
+                options.AddPolicy(Policies.Documents.ManageCategories, policy => policy.RequireRole(Policies.Documents.CategoryManagerRoles));
             })
             .BuildServiceProvider();
         return services.GetRequiredService<IAuthorizationService>();

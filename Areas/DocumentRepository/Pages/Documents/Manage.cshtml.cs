@@ -31,6 +31,10 @@ public class ManageModel : PageModel
     [StringLength(512, ErrorMessage = "Reason must be 512 characters or fewer.")]
     public string? Reason { get; set; }
 
+    /// <summary>The list (with its filters) to return to after an action; only local URLs are used.</summary>
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!await LoadAsync(id, cancellationToken))
@@ -48,7 +52,7 @@ public class ManageModel : PageModel
         if (document.IsDeleted)
         {
             TempData["ToastMessage"] = "Document is already deleted and cannot be deactivated.";
-            return RedirectToPage("./Index");
+            return BackToList();
         }
 
         var userId = GetUserId();
@@ -59,7 +63,7 @@ public class ManageModel : PageModel
         _audit.Stage(document.Id, userId, "Deactivated", new { document.Id });
         await _db.SaveChangesAsync(cancellationToken);
         TempData["ToastMessage"] = "Document deactivated.";
-        return RedirectToPage("./Index");
+        return BackToList();
     }
 
    
@@ -71,7 +75,7 @@ public class ManageModel : PageModel
         if (document.IsDeleted)
         {
             TempData["ToastMessage"] = "Deleted documents cannot be activated. Restore from trash first.";
-            return RedirectToPage("./Index");
+            return BackToList();
         }
 
         var userId = GetUserId();
@@ -82,7 +86,7 @@ public class ManageModel : PageModel
         _audit.Stage(document.Id, userId, "Activated", new { document.Id });
         await _db.SaveChangesAsync(cancellationToken);
         TempData["ToastMessage"] = "Document reactivated.";
-        return RedirectToPage("./Index");
+        return BackToList();
     }
 
    
@@ -94,7 +98,7 @@ public class ManageModel : PageModel
         if (document.IsDeleted)
         {
             TempData["ToastMessage"] = "Document is already in the trash.";
-            return RedirectToPage("./Index");
+            return BackToList();
         }
 
         if (!ModelState.IsValid)
@@ -105,6 +109,12 @@ public class ManageModel : PageModel
 
         var trimmedReason = string.IsNullOrWhiteSpace(Reason) ? string.Empty : Reason.Trim();
         Reason = trimmedReason;
+        if (trimmedReason.Length == 0)
+        {
+            ModelState.AddModelError(nameof(Reason), "Give a reason so the approver knows why the document should go.");
+            if (!await LoadAsync(id, cancellationToken)) return NotFound();
+            return Page();
+        }
 
         if (trimmedReason.Length > 512)
         {
@@ -119,7 +129,7 @@ public class ManageModel : PageModel
         if (hasPending)
         {
             TempData["ToastMessage"] = "A delete request is already pending for this document.";
-            return RedirectToPage("./Index");
+            return BackToList();
         }
 
         var userId = GetUserId();
@@ -141,7 +151,7 @@ public class ManageModel : PageModel
             await transaction.CommitAsync(cancellationToken);
         }
         TempData["ToastMessage"] = "Delete request submitted.";
-        return RedirectToPage("./Index");
+        return BackToList();
     }
 
     // SECTION: OCR management handlers
@@ -172,7 +182,7 @@ public class ManageModel : PageModel
         await _db.SaveChangesAsync(cancellationToken);
 
         TempData["ToastMessage"] = "OCR re-queued.";
-        return RedirectToPage(new { id });
+        return string.IsNullOrWhiteSpace(ReturnUrl) ? RedirectToPage(new { id }) : BackToList();
     }
 
     private async Task<bool> LoadAsync(Guid id, CancellationToken cancellationToken)
@@ -195,6 +205,11 @@ public class ManageModel : PageModel
     }
 
     // SECTION: Helpers
+    private IActionResult BackToList()
+        => !string.IsNullOrWhiteSpace(ReturnUrl) && Url.IsLocalUrl(ReturnUrl)
+            ? LocalRedirect(ReturnUrl)
+            : RedirectToPage("./Index");
+
     private string GetUserId() =>
         User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
 }

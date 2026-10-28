@@ -1,0 +1,77 @@
+@model (ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel Page, DocumentSearchResultVm Item)
+@{
+    var (list, item) = Model;
+    var readerUrl = Url.Page("./Reader", new { id = item.Id, returnUrl = list.ReturnUrl });
+    var textState = list.CanManage ? DocRepoFormat.TextState(item.OcrStatus) : null;
+    var matchLabel = item.MatchedInSubject ? "In the title" : item.MatchedInTags ? "In a tag" : item.MatchedInBody ? "In the text" : null;
+}
+<li class="library-row @(item.IsActive ? null : "is-inactive")" data-library-item data-doc-id="@item.Id" data-href="@readerUrl">
+    <span class="library-mark library-hue-@DocRepoFormat.Hue(item.DocumentCategoryId)" aria-hidden="true">
+        <i class="bi bi-file-earmark-text"></i>
+    </span>
+
+    <div class="library-row__main">
+        <h3 class="library-row__title">
+            <a href="@readerUrl" data-library-open>@item.Subject</a>
+            @if (item.IsAots)
+            {
+                <span class="library-pill library-pill--aots" title="All officers to see"><i class="bi bi-broadcast" aria-hidden="true"></i>AOTS</span>
+                @if (item.IsAotsUnread)
+                {
+                    <span class="library-pill library-pill--new">New</span>
+                }
+            }
+            @if (!item.IsActive)
+            {
+                <span class="library-pill library-pill--muted" title="Hidden from everyone except the people who manage the library">Deactivated</span>
+            }
+        </h3>
+        <p class="library-row__meta">
+            <span>@(item.DocumentCategoryName ?? "Document")</span>
+            <span>@(item.OfficeCategoryName ?? "No office")</span>
+            @if (!string.IsNullOrWhiteSpace(item.ReceivedFrom))
+            {
+                <span>From @item.ReceivedFrom</span>
+            }
+            @if (textState is not null)
+            {
+                <span class="@(item.OcrStatus == DocOcrStatus.Failed ? "is-danger" : null)" title="@(item.OcrStatus == DocOcrStatus.Failed ? item.OcrFailureReason : null)">@textState</span>
+            }
+        </p>
+        @if (!string.IsNullOrEmpty(item.Snippet) || matchLabel is not null)
+        {
+            <p class="library-row__snippet">
+                @if (matchLabel is not null)
+                {
+                    <span class="library-match">@matchLabel</span>
+                }
+                @DocRepoSnippetHtml.Render(item.Snippet)
+            </p>
+        }
+        @if (item.Tags.Count > 0)
+        {
+            <ul class="library-tags" aria-label="Tags">
+                @foreach (var tag in item.Tags)
+                {
+                    <li><a href="@list.UrlWith("tag", tag.ToLowerInvariant())" data-library-link>@tag</a></li>
+                }
+            </ul>
+        }
+    </div>
+
+    <div class="library-row__date">
+        <time datetime="@item.DocumentDate?.ToString("yyyy-MM-dd")">@DocRepoFormat.Date(item.DocumentDate)</time>
+        <span>@DocRepoFormat.FileSize(item.FileSizeBytes)</span>
+    </div>
+
+    <div class="library-row__actions">
+        <button type="button" class="library-iconbtn library-star @(item.IsFavourite ? "is-on" : null)" data-library-star data-doc-id="@item.Id"
+                aria-pressed="@(item.IsFavourite ? "true" : "false")" aria-label="Favourite: @item.Subject">
+            <i class="bi @(item.IsFavourite ? "bi-star-fill" : "bi-star")" aria-hidden="true"></i>
+        </button>
+        <a class="library-iconbtn" asp-page="./Download" asp-route-id="@item.Id" aria-label="Download @item.Subject" title="Download">
+            <i class="bi bi-download" aria-hidden="true"></i>
+        </a>
+        <partial name="_DocumentMenu" model="Model" />
+    </div>
+</li>

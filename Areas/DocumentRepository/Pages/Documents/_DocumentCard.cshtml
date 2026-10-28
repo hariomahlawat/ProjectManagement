@@ -1,241 +1,71 @@
-@model ProjectManagement.Areas.DocumentRepository.Models.DocumentSearchResultVm
-@using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Http.Extensions
-@using Microsoft.AspNetCore.WebUtilities
-@using System
-@using System.Collections.Generic
-@using System.Linq
-@inject IAuthorizationService AuthorizationService
-
+@model (ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel Page, DocumentSearchResultVm Item)
 @{
-    var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
-    var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
-    // SECTION: Return URL
-    var queryParams = QueryHelpers.ParseQuery(Context.Request.QueryString.Value);
-    var filteredQuery = new QueryBuilder(
-        queryParams
-            .Where(kvp => !string.Equals(kvp.Key, "partial", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(kvp => kvp.Value, (kvp, value) => new KeyValuePair<string, string>(kvp.Key, value ?? string.Empty))
-    );
-    var returnUrl = $"{Context.Request.Path}{filteredQuery}";
-    var readerUrl = Url.Page("./Reader", new { id = Model.Id, returnUrl });
+    var (list, item) = Model;
+    var readerUrl = Url.Page("./Reader", new { id = item.Id, returnUrl = list.ReturnUrl });
+    var textState = list.CanManage ? DocRepoFormat.TextState(item.OcrStatus) : null;
 }
-
-<div class="doc-card doc-corner docrepo-card h-100 @(Model.IsActive ? string.Empty : "docrepo-card--inactive")"
-     data-href="@readerUrl">
-    <!-- SECTION: Header -->
-    <div class="doc-card__header d-flex justify-content-between align-items-start">
-        <div class="doc-card__path">
-            @if (!string.IsNullOrEmpty(Model.OfficeCategoryName))
-            {
-                <span class="doc-card__crumb">@Model.OfficeCategoryName</span>
-            }
-            @if (!string.IsNullOrEmpty(Model.DocumentCategoryName))
-            {
-                <span class="doc-card__crumb">· @Model.DocumentCategoryName</span>
-            }
-            @if (Model.DocumentDate.HasValue)
-            {
-                <span class="doc-card__crumb">· @Model.DocumentDate.Value.ToString("dd MMM yyyy")</span>
-            }
-        </div>
-
-        <div class="doc-card__meta text-end">
-            <div class="doc-card__meta-row" data-no-row-nav>
-                <authorize policy="DocRepo.View">
-                    <button type="button"
-                            class="docrepo-star docrepo-star--card"
-                            data-docid="@Model.Id"
-                            data-fav="@(Model.IsFavourite ? "true" : "false")"
-                            title="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")"
-                            aria-label="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")"
-                            data-no-row-nav>
-                        <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
-                    </button>
-                </authorize>
-                @if (Model.Rank.HasValue)
-                {
-                    <span class="badge bg-light text-muted">Relevance @Model.Rank.Value.ToString("0.00")</span>
-                }
-            </div>
-
-            <span class="doc-card__stamp @(Model.OcrStatus switch
-                  {
-                      ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "doc-card__stamp--ok",
-                      ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "doc-card__stamp--fail",
-                      ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "doc-card__stamp--pending",
-                      _ => string.Empty
-                  })"
-                  title="@(Model.OcrStatus == ProjectManagement.Data.DocRepo.DocOcrStatus.Failed ? Model.OcrFailureReason : null)">
-                OCR: @Model.OcrStatus
-            </span>
-        </div>
+<li class="library-card library-hue-@DocRepoFormat.Hue(item.DocumentCategoryId) @(item.IsActive ? null : "is-inactive")" data-library-item data-doc-id="@item.Id" data-href="@readerUrl">
+    <div class="library-card__top">
+        <span class="library-card__type"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>@(item.DocumentCategoryName ?? "Document")</span>
+        <button type="button" class="library-iconbtn library-star @(item.IsFavourite ? "is-on" : null)" data-library-star data-doc-id="@item.Id"
+                aria-pressed="@(item.IsFavourite ? "true" : "false")" aria-label="Favourite: @item.Subject">
+            <i class="bi @(item.IsFavourite ? "bi-star-fill" : "bi-star")" aria-hidden="true"></i>
+        </button>
     </div>
 
-    <!-- SECTION: Body -->
-    <div class="doc-card__body">
-        <h6 class="doc-card__title text-truncate-2" title="@Model.Subject">
-            <!-- SECTION: Subject link -->
-            @if (Model.IsAots)
+    <h3 class="library-card__title"><a href="@readerUrl" data-library-open>@item.Subject</a></h3>
+
+    @if (item.IsAots || !item.IsActive)
+    {
+        <p class="library-card__flags">
+            @if (item.IsAots)
             {
-                <span class="docrepo-aots-badge" title="All officers to see">
-                    <i class="bi bi-broadcast"></i>
-                    <span>AOTS</span>
-                </span>
-                @if (Model.IsAotsUnread)
+                <span class="library-pill library-pill--aots" title="All officers to see"><i class="bi bi-broadcast" aria-hidden="true"></i>AOTS</span>
+                @if (item.IsAotsUnread)
                 {
-                    <span class="docrepo-aots-dot" aria-label="Unread AOTS document" title="Unread AOTS document"></span>
+                    <span class="library-pill library-pill--new">New</span>
                 }
             }
-            <a class="docrepo-subject-link"
-               asp-page="./Reader"
-               asp-route-id="@Model.Id"
-               asp-route-returnUrl="@returnUrl">
-                @Model.Subject
-            </a>
-        </h6>
+            @if (!item.IsActive)
+            {
+                <span class="library-pill library-pill--muted">Deactivated</span>
+            }
+        </p>
+    }
 
-        <!-- SECTION: Match hint -->
-        @if (Model.MatchedInSubject || Model.MatchedInTags || Model.MatchedInBody)
+    <p class="library-card__meta">
+        <span>@(item.OfficeCategoryName ?? "No office")</span>
+        @if (!string.IsNullOrWhiteSpace(item.ReceivedFrom))
         {
-            <div class="small text-muted mb-1">
-                @if (Model.MatchedInSubject)
-                {
-                    <span>Match in subject</span>
-                }
-                else if (Model.MatchedInTags)
-                {
-                    <span>Match in tag</span>
-                }
-                else if (Model.MatchedInBody)
-                {
-                    <span>Match in document text</span>
-                }
-            </div>
+            <span>From @item.ReceivedFrom</span>
         }
+    </p>
 
-        <!-- SECTION: Snippet -->
-        @if (!string.IsNullOrEmpty(Model.Snippet))
-        {
-            <p class="text-muted small mb-2">@ProjectManagement.Services.DocRepo.DocRepoSnippetHtml.Render(Model.Snippet)</p>
-        }
+    @if (!string.IsNullOrEmpty(item.Snippet))
+    {
+        <p class="library-card__snippet">@DocRepoSnippetHtml.Render(item.Snippet)</p>
+    }
 
-        <!-- SECTION: Tags -->
-        @if (Model.Tags?.Any() == true)
+    @if (item.Tags.Count > 0)
+    {
+        <ul class="library-tags" aria-label="Tags">
+            @foreach (var tag in item.Tags)
+            {
+                <li><a href="@list.UrlWith("tag", tag.ToLowerInvariant())" data-library-link>@tag</a></li>
+            }
+        </ul>
+    }
+
+    <div class="library-card__foot">
+        <time datetime="@item.DocumentDate?.ToString("yyyy-MM-dd")">@DocRepoFormat.Date(item.DocumentDate)</time>
+        @if (textState is not null)
         {
-            <div class="doc-card__tags mt-1">
-                @foreach (var tag in Model.Tags)
-                {
-                    <span class="doc-tag">@tag</span>
-                }
-            </div>
+            <span class="library-card__state @(item.OcrStatus == DocOcrStatus.Failed ? "is-danger" : null)">@textState</span>
         }
+        <span class="library-card__spacer"></span>
+        <a class="library-iconbtn" asp-page="./Download" asp-route-id="@item.Id" aria-label="Download @item.Subject" title="Download">
+            <i class="bi bi-download" aria-hidden="true"></i>
+        </a>
+        <partial name="_DocumentMenu" model="Model" />
     </div>
-
-    <!-- SECTION: Footer -->
-    <div class="doc-card__actions" data-no-row-nav>
-        <authorize policy="DocRepo.View">
-            <a class="btn btn-sm btn-outline-primary"
-               asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl"
-               title="Open viewer">
-                <i class="bi bi-eye"></i>
-                <span class="d-none d-sm-inline">View</span>
-            </a>
-        </authorize>
-
-        <authorize policy="DocRepo.View">
-            <a class="btn btn-sm btn-outline-secondary"
-               asp-page="./Download" asp-route-id="@Model.Id"
-               title="Download PDF">
-                <i class="bi bi-download"></i>
-                <span class="d-none d-sm-inline">Download</span>
-            </a>
-        </authorize>
-
-        <!-- SECTION: More actions -->
-        <div class="ms-auto dropdown doc-card__dropdown" data-no-row-nav>
-            <button class="btn btn-sm btn-light doc-card__more"
-                    type="button"
-                    data-bs-toggle="dropdown"
-                    aria-expanded="false"
-                    title="More actions"
-                    data-no-row-nav>
-                <i class="bi bi-three-dots-vertical"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end" data-no-row-nav>
-                <!-- SECTION: Primary actions -->
-                <li>
-                    <a class="dropdown-item"
-                       asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl">
-                        <i class="bi bi-eye me-2"></i>Open
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item"
-                       asp-page="./View" asp-route-id="@Model.Id"
-                       target="_blank"
-                       rel="noopener">
-                        <i class="bi bi-box-arrow-up-right me-2"></i>Open in new tab
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item"
-                       asp-page="./Download" asp-route-id="@Model.Id">
-                        <i class="bi bi-download me-2"></i>Download
-                    </a>
-                </li>
-                <li><hr class="dropdown-divider" /></li>
-
-                <!-- SECTION: Manage actions -->
-                @if (canEdit.Succeeded)
-                {
-                    <li>
-                        <a class="dropdown-item"
-                           asp-page="./Edit" asp-route-id="@Model.Id">
-                            <i class="bi bi-pencil-square me-2"></i>Edit metadata
-                        </a>
-                    </li>
-                }
-                else
-                {
-                    <li><span class="dropdown-item text-muted small">No editable fields</span></li>
-                }
-
-                @if (canSoftDelete.Succeeded)
-                {
-                    <li><hr class="dropdown-divider" /></li>
-                    @if (Model.IsActive)
-                    {
-                        <li>
-                            <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id" class="px-3 py-1">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="btn btn-link p-0 text-warning">
-                                    <i class="bi bi-slash-circle me-2"></i>Deactivate
-                                </button>
-                            </form>
-                        </li>
-                    }
-                    else
-                    {
-                        <li>
-                            <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id" class="px-3 py-1">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="btn btn-link p-0 text-success">
-                                    <i class="bi bi-check2-circle me-2"></i>Activate
-                                </button>
-                            </form>
-                        </li>
-                    }
-                    <li>
-                        <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@Model.Id" class="px-3 py-1">
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="btn btn-link p-0 text-danger">
-                                <i class="bi bi-trash me-2"></i>Request delete
-                            </button>
-                        </form>
-                    </li>
-                }
-            </ul>
-        </div>
-    </div>
-</div>
+</li>
