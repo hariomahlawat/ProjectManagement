@@ -87,10 +87,12 @@ public sealed class DocRepoIngestionService : IDocRepoIngestionService
         var sha256Hex = ComputeSha256(buffer);
         buffer.Seek(0, SeekOrigin.Begin);
 
+        // The hash is unique across all rows, trashed ones included, so look for any match: a
+        // trashed copy must be reused rather than inserted again.
         var existingDocument = await _db.Documents
             .Include(d => d.ExternalLinks)
             .FirstOrDefaultAsync(
-                d => d.Sha256 == sha256Hex && !d.IsDeleted,
+                d => d.Sha256 == sha256Hex,
                 cancellationToken);
 
         var now = _clock.UtcNow;
@@ -118,6 +120,17 @@ public sealed class DocRepoIngestionService : IDocRepoIngestionService
 
                 _db.DocRepoExternalLinks.Add(externalLink);
                 await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            if (existingDocument.IsDeleted)
+            {
+                // The same PDF is in the repository trash. Deletion was approved by someone, so
+                // ingestion never undoes it: the source is linked and the trash keeps the document.
+                _logger?.LogInformation(
+                    "PDF from module {Module} item {ItemId} matches trashed document {DocumentId}; left in the trash.",
+                    normalizedModule,
+                    normalizedItemId,
+                    existingDocument.Id);
             }
 
             return existingDocument.Id;

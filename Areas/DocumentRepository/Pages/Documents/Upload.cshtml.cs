@@ -63,10 +63,10 @@ public class UploadModel : PageModel
         [Required, MaxLength(256)]
         public string Subject { get; set; } = string.Empty;
 
-        [MaxLength(256)]
+        [Display(Name = "Received from"), MaxLength(256)]
         public string? ReceivedFrom { get; set; }
 
-        [DataType(DataType.Date)]
+        [Display(Name = "Document date"), DataType(DataType.Date)]
         public DateOnly? DocumentDate { get; set; }
 
         [Display(Name = "Office category"), Required]
@@ -87,6 +87,11 @@ public class UploadModel : PageModel
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
+
+    // Model-state keys must match the bound field names ("Input.File"), or the page's
+    // asp-validation-for messages never show the error.
+    internal const string FileKey = nameof(Input) + "." + nameof(InputModel.File);
+    internal const string TagsKey = nameof(Input) + "." + nameof(InputModel.Tags);
 
     // Set when a throttled upload was redirected back here (see DocumentUploadRateLimiting).
     public bool Throttled { get; private set; }
@@ -119,7 +124,7 @@ public class UploadModel : PageModel
 
         if (Input.File is null || Input.File.Length == 0)
         {
-            ModelState.AddModelError(nameof(Input.File), "PDF is required.");
+            ModelState.AddModelError(FileKey, "PDF is required.");
             return Page();
         }
 
@@ -127,7 +132,7 @@ public class UploadModel : PageModel
         if (MaxFileSizeBytes > 0 && Input.File.Length > MaxFileSizeBytes)
         {
             var maxSizeMb = Math.Max(1, _documentOptions.MaxSizeMb);
-            ModelState.AddModelError(nameof(Input.File), FormattableString.Invariant($"File exceeds the {maxSizeMb} MB limit."));
+            ModelState.AddModelError(FileKey, FormattableString.Invariant($"File exceeds the {maxSizeMb} MB limit."));
             return Page();
         }
 
@@ -135,7 +140,7 @@ public class UploadModel : PageModel
         var hasPdfExtension = Path.GetExtension(Input.File.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
         if (!isPdfContentType || !hasPdfExtension)
         {
-            ModelState.AddModelError(nameof(Input.File), "Only PDF uploads are allowed.");
+            ModelState.AddModelError(FileKey, "Only PDF uploads are allowed.");
             return Page();
         }
 
@@ -145,7 +150,7 @@ public class UploadModel : PageModel
 
         if (normalizedTags.Count > 5)
         {
-            ModelState.AddModelError(nameof(Input.Tags), "You can specify at most 5 tags.");
+            ModelState.AddModelError(TagsKey, "You can specify at most 5 tags.");
             return Page();
         }
 
@@ -156,22 +161,30 @@ public class UploadModel : PageModel
         var invalidTag = normalizedTags.FirstOrDefault(tag => tag.Length is < 1 or > 32 || !IsValidTag(tag));
         if (invalidTag is not null)
         {
-            ModelState.AddModelError(nameof(Input.Tags),
+            ModelState.AddModelError(TagsKey,
                 $"Invalid tag '{invalidTag}'. Tags must be 1-32 characters and contain only letters, numbers, spaces, hyphens, or underscores.");
             return Page();
         }
 
-        // ===== read, hash, buffer, scan =====
+        // SECTION: Read, hash and scan
+        // The upload is copied to a private temp file while it is hashed, so large PDFs are never
+        // held in memory. The file is deleted when the stream is closed.
         string sha256Hex;
         await using var uploadStream = Input.File.OpenReadStream();
-        await using var bufferedStream = new MemoryStream((int)Math.Min(Input.File.Length, int.MaxValue));
+        await using var bufferedStream = new FileStream(
+            Path.Combine(Path.GetTempPath(), $"prism-docrepo-{Guid.NewGuid():N}.upload"),
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            81920,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose);
         using var sha = SHA256.Create();
 
         var headerBuffer = new byte[5];
         var headerBytesRead = await uploadStream.ReadAsync(headerBuffer.AsMemory(0, headerBuffer.Length), cancellationToken);
         if (headerBytesRead < headerBuffer.Length || !HasPdfHeader(headerBuffer.AsSpan(0, headerBytesRead)))
         {
-            ModelState.AddModelError(nameof(Input.File), "Uploaded file is not a valid PDF.");
+            ModelState.AddModelError(FileKey, "Uploaded file is not a valid PDF.");
             return Page();
         }
 
@@ -198,7 +211,7 @@ public class UploadModel : PageModel
         sha256Hex = Convert.ToHexString(sha.Hash!);
         if (bufferedStream.Length != Input.File.Length)
         {
-            ModelState.AddModelError(nameof(Input.File), "Uploaded file could not be fully read. Please try again.");
+            ModelState.AddModelError(FileKey, "Uploaded file could not be fully read. Please try again.");
             return Page();
         }
 
@@ -209,164 +222,180 @@ public class UploadModel : PageModel
         }
         catch (Exception ex)
         {
-            ModelState.AddModelError(nameof(Input.File), string.IsNullOrWhiteSpace(ex.Message)
+            ModelState.AddModelError(FileKey, string.IsNullOrWhiteSpace(ex.Message)
                 ? "Upload blocked by security scan."
                 : ex.Message);
             return Page();
         }
-        finally
-        {
-            bufferedStream.Position = 0;
-        }
 
-        // ===== check for existing document with same hash (deleted or not) =====
+        // SECTION: Duplicate check (before anything is written to storage)
         var existingWithSameHash = await _db.Documents
             .Include(d => d.DocumentTags)
             .Include(d => d.DocumentText)
             .FirstOrDefaultAsync(d => d.Sha256 == sha256Hex, cancellationToken);
 
-        // save file to storage
-        bufferedStream.Position = 0;
-        var utcNow = DateTime.UtcNow;
-        var storagePath = await _storage.SaveAsync(bufferedStream, Path.GetFileName(Input.File.FileName), utcNow, cancellationToken);
-
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
-
         if (existingWithSameHash is not null && !existingWithSameHash.IsDeleted)
         {
-            // real duplicate, show message
-            ModelState.AddModelError(nameof(Input.File),
-                $"Duplicate document detected (matches {existingWithSameHash.Subject}). Upload blocked.");
+            ModelState.AddModelError(FileKey, existingWithSameHash.IsExternal
+                ? "This PDF is already in the repository: it was added from another module."
+                : $"Duplicate document detected (matches {existingWithSameHash.Subject}). Upload blocked.");
             return Page();
         }
 
-        if (existingWithSameHash is not null && existingWithSameHash.IsDeleted)
+        // SECTION: Store the file
+        bufferedStream.Position = 0;
+        var utcNow = DateTime.UtcNow;
+        var originalFileName = Path.GetFileName(Input.File.FileName);
+        var storagePath = await _storage.SaveAsync(bufferedStream, originalFileName, utcNow, cancellationToken);
+        var fileSize = bufferedStream.Length;
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
+
+        try
         {
-            // RESTORE / REUSE the same row to avoid unique index violation
-            existingWithSameHash.Subject = Input.Subject.Trim();
-            existingWithSameHash.ReceivedFrom = string.IsNullOrWhiteSpace(Input.ReceivedFrom) ? null : Input.ReceivedFrom.Trim();
-            existingWithSameHash.DocumentDate = Input.DocumentDate;
-            existingWithSameHash.OfficeCategoryId = Input.OfficeCategoryId!.Value;
-            existingWithSameHash.DocumentCategoryId = Input.DocumentCategoryId!.Value;
-            existingWithSameHash.OriginalFileName = Path.GetFileName(Input.File.FileName);
-            existingWithSameHash.FileSizeBytes = bufferedStream.Length;
-            existingWithSameHash.StoragePath = storagePath;
-            existingWithSameHash.MimeType = "application/pdf";
-            existingWithSameHash.UpdatedAtUtc = utcNow;
-            existingWithSameHash.IsDeleted = false;
-            existingWithSameHash.IsActive = true;
-            existingWithSameHash.OcrStatus = DocOcrStatus.Pending;
-            existingWithSameHash.OcrFailureReason = null;
-            existingWithSameHash.OcrLastTriedUtc = null;
-            existingWithSameHash.IsAots = Input.IsAots;
+            var tags = await ResolveTagsAsync(normalizedTags, cancellationToken);
 
-            // replace tags
-            if (existingWithSameHash.DocumentTags is not null && existingWithSameHash.DocumentTags.Count > 0)
+            if (existingWithSameHash is not null)
             {
-                _db.DocumentTags.RemoveRange(existingWithSameHash.DocumentTags);
-            }
+                // RESTORE / REUSE the trashed row with the same hash to avoid the unique index violation.
+                var replacedStoragePath = existingWithSameHash.StoragePath;
+                var document = existingWithSameHash;
+                document.Subject = Input.Subject.Trim();
+                document.ReceivedFrom = string.IsNullOrWhiteSpace(Input.ReceivedFrom) ? null : Input.ReceivedFrom.Trim();
+                document.DocumentDate = Input.DocumentDate;
+                document.OfficeCategoryId = Input.OfficeCategoryId!.Value;
+                document.DocumentCategoryId = Input.DocumentCategoryId!.Value;
+                document.OriginalFileName = originalFileName;
+                document.FileSizeBytes = fileSize;
+                document.StoragePath = storagePath;
+                document.MimeType = "application/pdf";
+                document.UpdatedAtUtc = utcNow;
+                document.UpdatedByUserId = userId;
+                document.IsDeleted = false;
+                document.DeletedAtUtc = null;
+                document.DeletedByUserId = null;
+                document.DeleteReason = null;
+                document.IsActive = true;
+                document.IsExternal = false;
+                document.OcrStatus = DocOcrStatus.Pending;
+                document.OcrFailureReason = null;
+                document.OcrLastTriedUtc = null;
+                document.IsAots = Input.IsAots;
 
-            if (existingWithSameHash.DocumentText is not null)
-            {
-                existingWithSameHash.DocumentText.OcrText = null;
-                existingWithSameHash.DocumentText.UpdatedAtUtc = utcNow;
-            }
-
-            if (normalizedTags.Count > 0)
-            {
-                var existingTags = await _db.Tags
-                    .Where(t => normalizedTags.Contains(t.NormalizedName))
-                    .ToListAsync(cancellationToken);
-
-                var newTags = normalizedTags
-                    .Except(existingTags.Select(t => t.NormalizedName))
-                    .Select(name => new Tag { Name = name, NormalizedName = name })
-                    .ToList();
-
-                if (newTags.Count > 0)
+                document.DocumentTags.Clear();
+                foreach (var tag in tags)
                 {
-                    await _db.Tags.AddRangeAsync(newTags, cancellationToken);
-                    await _db.SaveChangesAsync(cancellationToken);
-                    existingTags.AddRange(newTags);
+                    document.DocumentTags.Add(new DocumentTag { DocumentId = document.Id, Tag = tag });
                 }
 
-                existingWithSameHash.DocumentTags = existingTags
-                    .Where(t => normalizedTags.Contains(t.NormalizedName))
-                    .Select(t => new DocumentTag
-                    {
-                        DocumentId = existingWithSameHash.Id,
-                        TagId = t.Id
-                    })
-                    .ToList();
-            }
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            await _audit.WriteAsync(existingWithSameHash.Id, userId, "Reuploaded",
-                new { existingWithSameHash.Id, existingWithSameHash.Subject, sizeBytes = existingWithSameHash.FileSizeBytes }, cancellationToken);
-            await _audit.WriteAsync(existingWithSameHash.Id, userId, "OcrQueued", new { existingWithSameHash.Id }, cancellationToken);
-
-            TempData["ToastMessage"] = "Document re-uploaded.";
-            return RedirectToPage("./Index");
-        }
-
-        // ===== no existing doc at all -> create new =====
-        var document = new Document
-        {
-            Id = Guid.NewGuid(),
-            Subject = Input.Subject.Trim(),
-            ReceivedFrom = string.IsNullOrWhiteSpace(Input.ReceivedFrom) ? null : Input.ReceivedFrom.Trim(),
-            DocumentDate = Input.DocumentDate,
-            OfficeCategoryId = Input.OfficeCategoryId!.Value,
-            DocumentCategoryId = Input.DocumentCategoryId!.Value,
-            OriginalFileName = Path.GetFileName(Input.File.FileName),
-            FileSizeBytes = bufferedStream.Length,
-            Sha256 = sha256Hex,
-            StoragePath = storagePath,
-            MimeType = "application/pdf",
-            CreatedByUserId = userId,
-            CreatedAtUtc = utcNow,
-            OcrStatus = DocOcrStatus.Pending,
-            OcrFailureReason = null,
-            IsAots = Input.IsAots
-        };
-
-        if (normalizedTags.Count > 0)
-        {
-            var existingTags = await _db.Tags
-                .Where(t => normalizedTags.Contains(t.NormalizedName))
-                .ToListAsync(cancellationToken);
-
-            var newTags = normalizedTags
-                .Except(existingTags.Select(t => t.NormalizedName))
-                .Select(name => new Tag { Name = name, NormalizedName = name })
-                .ToList();
-
-            if (newTags.Count > 0)
-            {
-                await _db.Tags.AddRangeAsync(newTags, cancellationToken);
-                await _db.SaveChangesAsync(cancellationToken);
-                existingTags.AddRange(newTags);
-            }
-
-            document.DocumentTags = existingTags
-                .Where(t => normalizedTags.Contains(t.NormalizedName))
-                .Select(t => new DocumentTag
+                if (document.DocumentText is not null)
                 {
-                    DocumentId = document.Id,
-                    TagId = t.Id
-                })
-                .ToList();
+                    document.DocumentText.OcrText = null;
+                    document.DocumentText.UpdatedAtUtc = utcNow;
+                }
+
+                _audit.Stage(document.Id, userId, "Reuploaded", new { document.Id, document.Subject, sizeBytes = document.FileSizeBytes });
+                _audit.Stage(document.Id, userId, "OcrQueued", new { document.Id });
+                await _db.SaveChangesAsync(cancellationToken);
+
+                // The trashed row's old file is no longer referenced by anything.
+                await DeleteFileQuietlyAsync(replacedStoragePath, storagePath);
+
+                TempData["ToastMessage"] = "Document re-uploaded.";
+                return RedirectToPage("./Index");
+            }
+
+            var created = new Document
+            {
+                Id = Guid.NewGuid(),
+                Subject = Input.Subject.Trim(),
+                ReceivedFrom = string.IsNullOrWhiteSpace(Input.ReceivedFrom) ? null : Input.ReceivedFrom.Trim(),
+                DocumentDate = Input.DocumentDate,
+                OfficeCategoryId = Input.OfficeCategoryId!.Value,
+                DocumentCategoryId = Input.DocumentCategoryId!.Value,
+                OriginalFileName = originalFileName,
+                FileSizeBytes = fileSize,
+                Sha256 = sha256Hex,
+                StoragePath = storagePath,
+                MimeType = "application/pdf",
+                CreatedByUserId = userId,
+                CreatedAtUtc = utcNow,
+                OcrStatus = DocOcrStatus.Pending,
+                OcrFailureReason = null,
+                IsAots = Input.IsAots
+            };
+
+            foreach (var tag in tags)
+            {
+                created.DocumentTags.Add(new DocumentTag { DocumentId = created.Id, Tag = tag });
+            }
+
+            _db.Documents.Add(created);
+            _audit.Stage(created.Id, userId, "Uploaded", new { created.Id, created.Subject, sizeBytes = created.FileSizeBytes });
+            _audit.Stage(created.Id, userId, "OcrQueued", new { created.Id });
+            await _db.SaveChangesAsync(cancellationToken);
         }
+        catch (DbUpdateException)
+        {
+            // Nothing references the new file if the database write failed.
+            await DeleteFileQuietlyAsync(storagePath, keepPath: null);
+            if (!await _db.Documents.AsNoTracking().AnyAsync(d => d.Sha256 == sha256Hex && !d.IsDeleted, CancellationToken.None))
+            {
+                throw;
+            }
 
-        await _db.Documents.AddAsync(document, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        await _audit.WriteAsync(document.Id, userId, "Uploaded", new { document.Id, document.Subject, sizeBytes = document.FileSizeBytes }, cancellationToken);
-        await _audit.WriteAsync(document.Id, userId, "OcrQueued", new { document.Id }, cancellationToken);
+            // Someone uploaded the same PDF at the same moment and their upload won.
+            ModelState.AddModelError(FileKey, "This PDF was just uploaded by someone else. Upload blocked.");
+            return Page();
+        }
+        catch
+        {
+            // Nothing references the new file if the database write failed.
+            await DeleteFileQuietlyAsync(storagePath, keepPath: null);
+            throw;
+        }
 
         TempData["ToastMessage"] = "Document uploaded.";
         return RedirectToPage("./Index");
+    }
+
+    // SECTION: Tag helpers
+    // Returns tracked tag entities; new ones are added to the context and saved with the document.
+    private async Task<List<Tag>> ResolveTagsAsync(IReadOnlyCollection<string> normalizedTags, CancellationToken cancellationToken)
+    {
+        if (normalizedTags.Count == 0)
+        {
+            return new List<Tag>();
+        }
+
+        var tags = await _db.Tags
+            .Where(t => normalizedTags.Contains(t.NormalizedName))
+            .ToListAsync(cancellationToken);
+
+        foreach (var name in normalizedTags.Except(tags.Select(t => t.NormalizedName)))
+        {
+            var tag = new Tag { Name = name, NormalizedName = name };
+            _db.Tags.Add(tag);
+            tags.Add(tag);
+        }
+
+        return tags;
+    }
+
+    private async Task DeleteFileQuietlyAsync(string? storagePath, string? keepPath)
+    {
+        if (string.IsNullOrWhiteSpace(storagePath) || string.Equals(storagePath, keepPath, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            await _storage.DeleteAsync(storagePath, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Left for the Missing files / storage report; never fail the user's upload for it.
+        }
     }
 
     private async Task PopulateLookupsAsync(CancellationToken cancellationToken)

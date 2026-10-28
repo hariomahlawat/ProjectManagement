@@ -257,6 +257,9 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 Add(delete, "entityType", requestedEntityType);
                 Add(delete, "entityKey", requestedEntityKey);
                 Add(delete, "projectId", projectId);
+                // Typed so PostgreSQL can resolve "@projectId IS NOT NULL" when the value is null
+                // (every entity except a project), which otherwise fails with 42P08.
+                delete.Parameters["@projectId"].DbType = System.Data.DbType.Int32;
                 await delete.ExecuteNonQueryAsync(cancellationToken);
             }
 

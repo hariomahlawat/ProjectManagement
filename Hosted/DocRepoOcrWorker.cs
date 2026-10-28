@@ -1,16 +1,21 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ProjectManagement.Data;
-using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Hosted;
 
 // SECTION: Document repository OCR background worker
+/// <summary>
+/// Works through pending documents one at a time. Each document is claimed and its result saved
+/// on its own (see <see cref="DocRepoOcrQueue"/>), so a restart loses at most the document in
+/// progress, and overlapping app processes never OCR the same file at once.
+/// </summary>
 public sealed class DocRepoOcrWorker : BackgroundService
 {
+    private static readonly TimeSpan IdleDelay = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan ErrorDelay = TimeSpan.FromSeconds(30);
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DocRepoOcrWorker> _logger;
 
@@ -27,78 +32,10 @@ public sealed class DocRepoOcrWorker : BackgroundService
         {
             try
             {
-                using var scope = _serviceProvider.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var runner = scope.ServiceProvider.GetRequiredService<IDocumentOcrRunner>();
-
-                var documents = await db.Documents
-                    .Include(d => d.DocumentText)
-                    .Where(d => !d.IsDeleted && d.OcrStatus == DocOcrStatus.Pending)
-                    .OrderBy(d => d.CreatedAtUtc)
-                    .Take(3)
-                    .ToListAsync(stoppingToken);
-
-                if (documents.Count == 0)
+                if (!await ProcessNextAsync(stoppingToken))
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
-                    continue;
+                    await Task.Delay(IdleDelay, stoppingToken);
                 }
-
-                foreach (var document in documents)
-                {
-                    document.OcrLastTriedUtc = DateTimeOffset.UtcNow;
-
-                    try
-                    {
-                        var result = await runner.RunAsync(document, stoppingToken);
-
-                        if (result.Success)
-                        {
-                            var documentText = document.DocumentText ??= new DocumentText
-                            {
-                                DocumentId = document.Id,
-                                UpdatedAtUtc = DateTime.UtcNow
-                            };
-
-                            documentText.OcrText = CapExtractedText(result.Text);
-                            documentText.UpdatedAtUtc = DateTime.UtcNow;
-                            document.OcrStatus = DocOcrStatus.Succeeded;
-                            document.OcrFailureReason = null;
-                            _logger.LogInformation("OCR succeeded for document {DocumentId}", document.Id);
-                        }
-                        else
-                        {
-                            document.OcrStatus = DocOcrStatus.Failed;
-                            document.OcrFailureReason = TrimForFailure(result.Error);
-                            if (document.DocumentText is not null)
-                            {
-                                document.DocumentText.OcrText = null;
-                                document.DocumentText.UpdatedAtUtc = DateTime.UtcNow;
-                            }
-                            _logger.LogWarning("OCR failed for document {DocumentId}: {Reason}", document.Id, document.OcrFailureReason);
-                        }
-                    }
-                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        document.OcrStatus = DocOcrStatus.Failed;
-                        document.OcrFailureReason = TrimForFailure(ex.Message);
-                        if (document.DocumentText is not null)
-                        {
-                            document.DocumentText.OcrText = null;
-                            document.DocumentText.UpdatedAtUtc = DateTime.UtcNow;
-                        }
-                        _logger.LogError(ex, "Unexpected error running OCR for document {DocumentId}", document.Id);
-                    }
-
-                    document.UpdatedAtUtc = DateTime.UtcNow;
-                    document.UpdatedByUserId = "ocr-worker";
-                }
-
-                await db.SaveChangesAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -107,29 +44,56 @@ public sealed class DocRepoOcrWorker : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error while processing OCR queue");
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                await Task.Delay(ErrorDelay, stoppingToken);
             }
         }
     }
 
-    // SECTION: Helpers
-    private static string? TrimForFailure(string? value)
+    // Returns false when there was nothing to do.
+    private async Task<bool> ProcessNextAsync(CancellationToken stoppingToken)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        using var scope = _serviceProvider.CreateScope();
+        var queue = scope.ServiceProvider.GetRequiredService<DocRepoOcrQueue>();
+        var runner = scope.ServiceProvider.GetRequiredService<IDocumentOcrRunner>();
+
+        var claim = await queue.ClaimNextAsync(stoppingToken);
+        if (claim is null)
         {
-            return value;
+            return false;
         }
 
-        return value.Length > 1000 ? value[..1000] : value;
-    }
-
-    private static string? CapExtractedText(string? text)
-    {
-        if (string.IsNullOrEmpty(text))
+        var documentId = claim.Document.Id;
+        OcrRunResult result;
+        try
         {
-            return text;
+            result = await runner.RunAsync(claim.Document, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // The claim lapses after DocRepoOcrQueue.ClaimLease and the document is picked up again.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error running OCR for document {DocumentId}", documentId);
+            result = OcrRunResult.Fail(ex.Message);
         }
 
-        return text.Length > 200_000 ? text[..200_000] : text;
+        if (!await queue.CompleteAsync(claim, result, stoppingToken))
+        {
+            _logger.LogInformation(
+                "OCR result for document {DocumentId} was dropped: it was re-queued, replaced or deleted while OCR ran.",
+                documentId);
+        }
+        else if (result.Success)
+        {
+            _logger.LogInformation("OCR succeeded for document {DocumentId}", documentId);
+        }
+        else
+        {
+            _logger.LogWarning("OCR failed for document {DocumentId}: {Reason}", documentId, result.Error);
+        }
+
+        return true;
     }
 }

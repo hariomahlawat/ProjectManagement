@@ -9,6 +9,13 @@
 
     <form method="post" class="row g-3">
         <input type="hidden" asp-for="Input.Id" />
+        <input type="hidden" asp-for="Input.OriginalStamp" />
+        @if (ViewData.ModelState.TryGetValue(string.Empty, out var formState) && formState.Errors.Count > 0)
+        {
+            <div class="col-12">
+                <div asp-validation-summary="ModelOnly" class="alert alert-warning mb-0" role="alert"></div>
+            </div>
+        }
 
         <div class="col-md-6">
             <label asp-for="Input.Subject" class="form-label"></label>

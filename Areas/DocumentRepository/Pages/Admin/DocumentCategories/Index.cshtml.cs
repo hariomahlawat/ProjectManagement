@@ -1,22 +1,31 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DocumentCategories;
 
 [Authorize(Policy = "DocRepo.ManageCategories")]
 public class IndexModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private const string CategoryKind = "document";
 
-    public IndexModel(ApplicationDbContext db)
+    private readonly ApplicationDbContext _db;
+    private readonly IDocRepoAuditService _audit;
+
+    public IndexModel(ApplicationDbContext db, IDocRepoAuditService audit)
     {
         _db = db;
+        _audit = audit;
     }
+
+    private string ActorUserId =>
+        User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
 
     public IReadOnlyList<DocumentCategory> Categories { get; private set; } = Array.Empty<DocumentCategory>();
 
@@ -65,6 +74,8 @@ public class IndexModel : PageModel
         };
 
         _db.DocumentCategories.Add(category);
+        _audit.Stage(null, ActorUserId, DocRepoAuditEventTypes.CategoryChanged,
+            new { kind = CategoryKind, action = "Created", category.Name, category.SortOrder });
         await _db.SaveChangesAsync(cancellationToken);
 
         TempData["ToastMessage"] = "Document category created.";
@@ -96,6 +107,8 @@ public class IndexModel : PageModel
             return Page();
         }
 
+        _audit.Stage(null, ActorUserId, DocRepoAuditEventTypes.CategoryChanged,
+            new { kind = CategoryKind, action = "Updated", category.Id, from = new { category.Name, category.SortOrder }, to = new { Name = trimmedName, SortOrder = sortOrder } });
         category.Name = trimmedName;
         category.SortOrder = sortOrder;
         await _db.SaveChangesAsync(cancellationToken);
@@ -113,6 +126,8 @@ public class IndexModel : PageModel
         }
 
         category.IsActive = !category.IsActive;
+        _audit.Stage(null, ActorUserId, DocRepoAuditEventTypes.CategoryChanged,
+            new { kind = CategoryKind, action = category.IsActive ? "Activated" : "Deactivated", category.Id, category.Name });
         await _db.SaveChangesAsync(cancellationToken);
 
         TempData["ToastMessage"] = category.IsActive ? "Category activated." : "Category deactivated.";

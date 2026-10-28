@@ -56,9 +56,8 @@ public class ManageModel : PageModel
         document.UpdatedAtUtc = DateTime.UtcNow;
         document.UpdatedByUserId = userId;
 
+        _audit.Stage(document.Id, userId, "Deactivated", new { document.Id });
         await _db.SaveChangesAsync(cancellationToken);
-
-        await _audit.WriteAsync(document.Id, userId, "Deactivated", new { document.Id }, cancellationToken);
         TempData["ToastMessage"] = "Document deactivated.";
         return RedirectToPage("./Index");
     }
@@ -80,9 +79,8 @@ public class ManageModel : PageModel
         document.UpdatedAtUtc = DateTime.UtcNow;
         document.UpdatedByUserId = userId;
 
+        _audit.Stage(document.Id, userId, "Activated", new { document.Id });
         await _db.SaveChangesAsync(cancellationToken);
-
-        await _audit.WriteAsync(document.Id, userId, "Activated", new { document.Id }, cancellationToken);
         TempData["ToastMessage"] = "Document reactivated.";
         return RedirectToPage("./Index");
     }
@@ -134,10 +132,14 @@ public class ManageModel : PageModel
             Reason = trimmedReason
         };
 
-        await _db.DocumentDeleteRequests.AddAsync(request, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        await _audit.WriteAsync(document.Id, userId, "DeleteRequested", new { request.Id, request.Reason }, cancellationToken);
+        // The request's id is part of its audit row, so both are written in one transaction.
+        await using (var transaction = await _db.Database.BeginTransactionAsync(cancellationToken))
+        {
+            await _db.DocumentDeleteRequests.AddAsync(request, cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+            await _audit.WriteAsync(document.Id, userId, "DeleteRequested", new { request.Id, request.Reason }, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
         TempData["ToastMessage"] = "Delete request submitted.";
         return RedirectToPage("./Index");
     }
@@ -166,6 +168,7 @@ public class ManageModel : PageModel
             document.DocumentText.UpdatedAtUtc = DateTime.UtcNow;
         }
 
+        _audit.Stage(document.Id, userId, DocRepoAuditEventTypes.OcrRequeued, new { document.Id });
         await _db.SaveChangesAsync(cancellationToken);
 
         TempData["ToastMessage"] = "OCR re-queued.";

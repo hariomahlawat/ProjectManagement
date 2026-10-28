@@ -18,18 +18,20 @@ This document explains how the application performs OCR and full-text search (FT
 - **Automatic purge**: `DocRepoTrashPurgeWorker` runs every 6 hours and purges documents trashed more than `DocRepo:TrashRetentionDays` (default 30) days ago, oldest first, in batches of 100, through the same `DocRepoTrashPurgeService` the Trash page uses. A file that cannot be deleted leaves its row for the next run. Documents outside the trash, including IPR copies kept as an archive, are never touched.[F:Services/DocRepo/DocRepoTrashPurgeService.cs][F:Hosted/DocRepoTrashPurgeWorker.cs]
 
 ### 2.3 OCR worker
-- **Eligibility**: Picks documents that are **not deleted** and have `OcrStatus == Pending`, loading existing OCR text for overwrite if needed.[F:Hosted/DocRepoOcrWorker.csL34-L39]
-- **Batching & ordering**: Processes the **oldest first** (`OrderBy CreatedAtUtc`) and caps each loop to **3 documents** via `Take(3)`.[F:Hosted/DocRepoOcrWorker.csL34-L39]
-- **Polling**: Sleeps **2 minutes** when no work is found; on unexpected errors it waits **30 seconds** before retrying.[F:Hosted/DocRepoOcrWorker.csL41-L45][F:Hosted/DocRepoOcrWorker.csL107-L110]
-- **Retry/failure handling**: Any runner failure or exception sets status to `Failed`, trims the reason to **1000 characters**, clears stored OCR text, and logs the error; success clears the failure reason and marks `Succeeded`.[F:Hosted/DocRepoOcrWorker.csL55-L98][F:Hosted/DocRepoOcrWorker.csL115-L134]
+- **Queue**: The queue is the `Documents` table: a document waits while it is **not deleted** and `OcrStatus == Pending`. `DocRepoOcrQueue` hands the worker the **oldest** one (`CreatedAtUtc`) at a time.[F:Services/DocRepo/DocRepoOcrQueue.cs][F:Hosted/DocRepoOcrWorker.cs]
+- **Claiming**: A document is claimed by a conditional update that stamps `OcrLastTriedUtc`, so overlapping app processes (for example during a rolling deploy) never OCR the same file at once. A claim older than `DocRepoOcrQueue.ClaimLease` (**2 hours**) is treated as abandoned by a stopped process and claimed again, so a PDF that crashes OCR is retried at that pace rather than in a loop.[F:Services/DocRepo/DocRepoOcrQueue.cs]
+- **Saving**: Each result is saved on its own, in one transaction with its text, and only while the claim still holds. If the document was re-queued, re-uploaded or deleted while OCR ran, the stale result is dropped and logged.[F:Services/DocRepo/DocRepoOcrQueue.cs]
+- **Polling**: Sleeps **2 minutes** when no work is found; on unexpected errors it waits **30 seconds** before retrying.[F:Hosted/DocRepoOcrWorker.cs]
+- **Retry/failure handling**: Any runner failure or exception sets status to `Failed`, trims the reason to **1000 characters**, clears stored OCR text, and logs the error; success clears the failure reason and marks `Succeeded`.[F:Services/DocRepo/DocRepoOcrQueue.cs]
+- **Re-queue**: The OCR failures page and the reader's Retry only set `Pending` (clearing `OcrLastTriedUtc`) and write an `OcrRequeued` audit row; the worker does the OCR. `IDocumentOcrService.ReprocessAsync`, which runs OCR inline, is kept for the OCR text backfill only.[F:Services/DocRepo/DocumentOcrService.cs][F:Areas/DocumentRepository/Pages/Admin/OCRFailures/OcrFailures.cshtml.cs]
 
 ### 2.4 OCR runner
 - **Tool**: A shared runner extracts embedded text with PdfPig before invoking `ocrmypdf`; the first pass always uses `--skip-text`, then escalates to `--force-ocr` and `--redo-ocr` only when cleaned sidecar text remains empty.[F:Services/Ocr/PdfPigTextExtractor.csL10-L37][F:Services/Ocr/OcrmypdfSharedRunner.csL65-L145][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL12-L85]
 - **Logs**: Each run writes to a unique log file and mirrors to a stable `<docId>.log` for review.[F:Services/Ocr/OcrmypdfSharedRunner.csL100-L167]
 
 ### 2.5 Text persistence
-- **Storage**: OCR text is saved to `DocumentText.OcrText`; the helper caps stored text to **200,000 characters** before persistence.[F:Hosted/DocRepoOcrWorker.csL55-L66][F:Hosted/DocRepoOcrWorker.csL126-L134]
-- **Failure reasons**: Truncated to **1000 characters** to keep errors bounded.[F:Hosted/DocRepoOcrWorker.csL71-L88][F:Hosted/DocRepoOcrWorker.csL115-L123]
+- **Storage**: OCR text is saved to `DocumentText.OcrText`; `OcrTextLimiter` caps stored text to **200,000 characters** before persistence.[F:Services/Ocr/OcrTextLimiter.cs][F:Services/DocRepo/DocRepoOcrQueue.cs]
+- **Failure reasons**: Truncated to **1000 characters** to keep errors bounded.[F:Services/Ocr/OcrTextLimiter.cs]
 
 ### 2.6 FTS wiring in DB
 - **Search vector builder**: `docrepo_documents_build_search_vector(document_id, subject, received_from, office_category_id, document_category_id)` composes weighted fields-Subject (A), ReceivedFrom (A), Tag names (B), Office+Category names (C), and OCR text (D).[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL63-L100]
@@ -42,7 +44,7 @@ This document explains how the application performs OCR and full-text search (FT
 ### 2.7 Search and ranking
 - **Query parser**: `websearch_to_tsquery('english', preparedQuery)` via `SearchVector.Matches` filters results.[F:Services/DocRepo/DocumentSearchService.csL37-L59]
 - **Rank function**: `RankCoverDensity` orders results before dates; projected queries surface rank as a `double?`.[F:Services/DocRepo/DocumentSearchService.csL44-L49][F:Services/DocRepo/DocumentSearchService.csL75-L101]
-- **Snippet generation**: `ts_headline` uses `<mark>`/`</mark>`, `MaxFragments=2`, `MaxWords=20` against OCR text when present.[F:Services/DocRepo/DocumentSearchService.csL79-L88]
+- **Snippet generation**: `ts_headline` uses `<mark>`/`</mark>`, `MaxFragments=2`, `MaxWords=20` against OCR text when present. The snippet quotes text from inside the PDF and `ts_headline` passes through markup it cannot parse as a tag, so pages must render it with `DocRepoSnippetHtml.Render`, which encodes everything except the highlight markers; never `Html.Raw`.[F:Services/DocRepo/DocRepoSnippetHtml.cs][F:Services/DocRepo/DocumentSearchService.csL79-L88]
 - **Ordering**: Primary sort by rank, then DocumentDate (when present) and CreatedAtUtc for ApplySearch; projected results sort by rank then DocumentDate.[F:Services/DocRepo/DocumentSearchService.csL44-L49][F:Services/DocRepo/DocumentSearchService.csL99-L101]
 
 ## 3. Project Documents OCR + FTS Pipeline
@@ -139,14 +141,14 @@ This document explains how the application performs OCR and full-text search (FT
 - **Integration tests.** `ProjectManagement.Tests/Search/SearchV2PostgresIntegrationTests.cs` runs only when `PRISM_SEARCHV2_TEST_CONNECTION` names a PostgreSQL server; it then creates, migrates and drops a disposable `prism_test_searchv2_*` database. Without the variable the tests are reported as skipped. CI runs them in the `Production Database Migration Gate` workflow.
 
 ## 5. Operational Notes
-- **Worker cadence**: Both OCR workers poll every **2 minutes** when idle and process small batches (DocRepo: 3, Project Documents: 5), so latency depends on queue depth and OCR runtime.[F:Hosted/DocRepoOcrWorker.csL34-L45][F:Hosted/ProjectDocumentOcrWorker.csL35-L46]
-- **Admin visibility**: Failure reasons are capped at **1000 characters**; statuses transition Pending -> Succeeded/Failed with `OcrLastTriedUtc` updated per attempt.[F:Hosted/DocRepoOcrWorker.csL49-L98][F:Hosted/ProjectDocumentOcrWorker.csL49-L142]
+- **Worker cadence**: Both OCR workers poll every **2 minutes** when idle and work through their queues (DocRepo: one claimed document at a time, Project Documents: batches of 5), so latency depends on queue depth and OCR runtime.[F:Hosted/DocRepoOcrWorker.cs][F:Hosted/ProjectDocumentOcrWorker.csL35-L46]
+- **Admin visibility**: Failure reasons are capped at **1000 characters**; statuses transition Pending -> Succeeded/Failed with `OcrLastTriedUtc` updated per attempt (for DocRepo it is also the claim token).[F:Services/DocRepo/DocRepoOcrQueue.cs][F:Hosted/ProjectDocumentOcrWorker.csL49-L142]
 - **Executable path**: Both OCR runners allow an explicit path to `ocrmypdf` via `ProjectDocuments:Ocr:OcrExecutablePath` and `DocRepo:OcrExecutablePath`; configured paths are validated and replace reliance on the worker process `PATH`. Missing executables throw startup errors with the provided path.[F:Configuration/ProjectDocumentOcrOptions.csL15-L21][F:Services/Projects/OcrmypdfProjectOcrRunner.csL22-L112][F:Services/DocRepo/LocalDocStorageService.csL9-L29][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL13-L114]
 - **Common failures**: Shared runner flags missing sidecar output or banner-only text and records precise messages pointing to the stored log path.[F:Services/Ocr/OcrmypdfSharedRunner.csL100-L145]
 
 ## 6. Limitations and Roadmap
 - **PostgreSQL required**: Both OCR/FTS pipelines and global project document search short-circuit if the provider is not PostgreSQL.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL13-L19][F:Services/Search/GlobalProjectDocumentSearchService.csL40-L55]
-- **OCR text cap**: Stored OCR is truncated to **200,000 characters**, which may drop content from very large PDFs; increasing the cap would require updating the helper methods and reviewing storage costs.[F:Hosted/DocRepoOcrWorker.csL126-L134][F:Hosted/ProjectDocumentOcrWorker.csL177-L185]
+- **OCR text cap**: Stored OCR is truncated to **200,000 characters**, which may drop content from very large PDFs; increasing the cap would require updating the helper methods and reviewing storage costs.[F:Services/Ocr/OcrTextLimiter.cs][F:Hosted/ProjectDocumentOcrWorker.csL177-L185]
 - **Heuristic scores across modules**: Non-FTS modules use fixed decimal scores, which may not be directly comparable to FTS ranks; a future roadmap item could normalize scores or apply module weights.
 
 ## 7. Developer Reference Appendix
@@ -156,7 +158,7 @@ This document explains how the application performs OCR and full-text search (FT
 | DocRepo data model | `Data/DocRepo/Document.cs` | `DocOcrStatus`, `SearchVector`, metadata columns.[F:Data/DocRepo/Document.csL9-L63] |
 | DocRepo OCR text | `Data/DocRepo/DocumentText.cs` | `OcrText`, `UpdatedAtUtc`.[F:Data/DocRepo/DocumentText.csL6-L17] |
 | DocRepo queueing | `Services/DocRepo/DocRepoIngestionService.cs` | Sets `OcrStatus = Pending` on ingest.[F:Services/DocRepo/DocRepoIngestionService.csL150-L175] |
-| DocRepo worker | `Hosted/DocRepoOcrWorker.cs` | Batch size 3, 2-minute poll, cap 200,000 chars, 1000-char failure trim.[F:Hosted/DocRepoOcrWorker.csL34-L134] |
+| DocRepo worker | `Hosted/DocRepoOcrWorker.cs`, `Services/DocRepo/DocRepoOcrQueue.cs` | One claimed document at a time, 2-hour claim lease, 2-minute poll, cap 200,000 chars, 1000-char failure trim.[F:Hosted/DocRepoOcrWorker.cs][F:Services/DocRepo/DocRepoOcrQueue.cs] |
 | DocRepo runner | `Services/DocRepo/OcrmypdfDocumentOcrRunner.cs` | `ocrmypdf` multi-pass logic, log mirroring.[F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL57-L223] |
 | DocRepo FTS | `Migrations/20260115000000_AddDocRepoFullTextSearch.cs` | Builder function, triggers, GIN index `idx_docrepo_documents_search`.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL63-L217] |
 | Project doc model | `Models/ProjectDocument.cs`, `Data/Projects/ProjectDocumentText.cs` | OCR status enums, search vector, OCR text store.[F:Models/ProjectDocument.csL10-L77][F:Data/Projects/ProjectDocumentText.csL6-L17] |

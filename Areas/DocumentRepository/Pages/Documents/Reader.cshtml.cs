@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data;
 using ProjectManagement.Services.DocRepo;
@@ -26,6 +25,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         private readonly IAuthorizationService _authorizationService;
         private readonly IAotsUnreadService _aotsUnreadService;
         private readonly IDocRepoAuditService _audit;
+        private readonly IDocRepoAccess _access;
 
         // SECTION: Constructor
         public ReaderModel(
@@ -34,8 +34,10 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             ILogger<ReaderModel> logger,
             IAuthorizationService authorizationService,
             IAotsUnreadService aotsUnreadService,
-            IDocRepoAuditService audit)
+            IDocRepoAuditService audit,
+            IDocRepoAccess access)
         {
+            _access = access;
             _db = db;
             _storage = storage;
             _logger = logger;
@@ -96,8 +98,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         // SECTION: Handlers
         public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
         {
-            var doc = await _db.Documents
-                .AsNoTracking()
+            var canViewInactive = await _access.CanViewInactiveAsync(User);
+            var doc = await _access.Readable(_db.Documents.AsNoTracking(), canViewInactive)
                 .Where(d => d.Id == id)
                 .Select(d => new
                 {
@@ -116,12 +118,11 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                         .Select(tag => tag.Tag.Name)
                         .OrderBy(tag => tag)
                         .ToArray(),
-                    d.StoragePath,
-                    d.IsDeleted
+                    d.StoragePath
                 })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (doc == null || doc.IsDeleted)
+            if (doc == null)
             {
                 return NotFound();
             }
@@ -209,79 +210,10 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             string userId,
             CancellationToken cancellationToken)
         {
-            try
+            if (!await _audit.WriteAccessOnceAsync(documentId, userId, DocRepoAuditEventTypes.Viewed, DocRepoAuditEventTypes.AccessWindow, cancellationToken))
             {
-                var duplicateWindowStart = DateTimeOffset.UtcNow.AddMinutes(-5);
-                var alreadyRecorded = await _db.DocRepoAudits
-                    .AsNoTracking()
-                    .AnyAsync(audit =>
-                        audit.DocumentId == documentId
-                        && audit.ActorUserId == userId
-                        && audit.EventType == DocRepoAuditEventTypes.Viewed
-                        && audit.OccurredAtUtc >= duplicateWindowStart,
-                        cancellationToken);
-
-                if (alreadyRecorded)
-                {
-                    return;
-                }
-
-                await _audit.WriteAsync(
-                    documentId,
-                    userId,
-                    DocRepoAuditEventTypes.Viewed,
-                    new { documentId },
-                    cancellationToken);
+                _logger.LogWarning("Unable to record recent document view for DocumentId={DocumentId}", documentId);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Unable to record recent document view for DocumentId={DocumentId}", documentId);
-            }
-        }
-
-        // SECTION: AOTS logging helpers
-        private async Task<bool> EnsureAotsViewLoggedAsync(Guid documentId, string userId, CancellationToken cancellationToken)
-        {
-            var hasExisting = await _db.DocRepoAotsViews
-                .AsNoTracking()
-                .AnyAsync(view => view.DocumentId == documentId && view.UserId == userId, cancellationToken);
-
-            if (hasExisting)
-            {
-                return true;
-            }
-
-            _db.DocRepoAotsViews.Add(new DocRepoAotsView
-            {
-                DocumentId = documentId,
-                UserId = userId,
-                FirstViewedAtUtc = DateTime.UtcNow
-            });
-
-            try
-            {
-                await _db.SaveChangesAsync(cancellationToken);
-                return true;
-            }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
-            {
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unable to record AOTS view for DocumentId={DocumentId}", documentId);
-                return false;
-            }
-        }
-
-        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
-        {
-            return exception.InnerException is PostgresException postgres &&
-                   postgres.SqlState == PostgresErrorCodes.UniqueViolation;
         }
 
         // SECTION: Audit helpers

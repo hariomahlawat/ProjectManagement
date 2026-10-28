@@ -52,6 +52,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Phase D implementation plan](phase-d-implementation-plan.md) | Approved design, release sequence, test matrix, acceptance criteria and implementation status for Actual correction/backfill (D-1 to D-3 merged). |
 | [Phase D release runbook](phase-d-release-runbook.md) | Coordinated D-2 + D-3 release: topology and writer inventory (K-12), migration-execution decision record (K-13), runbook, staging acceptance and recovery, rollback, blocker register and go/no-go. |
 | [Phase D release readiness](phase-d-release-readiness.md) | D-3e acceptance evidence, release-blocker register (#2683, K-12, K-13), UX observations and remaining steps before the coordinated D-2 + D-3 release. |
+| [Document Repository](document-repository.md) | Who can read repository documents (active, deactivated, copied in from other modules), what is audited, upload and change rules. |
 | [Search and OCR architecture](search-and-ocr-architecture.md) | Search/OCR implementation notes. |
 | [Search V2 ranking](search-v2-ranking.md) | Normalisation, retrieval tiers, clustering, keyset paging, autocomplete/did-you-mean and how to measure relevance. |
 | [Extending the platform](extending.md) | Older extension patterns and conventions. |

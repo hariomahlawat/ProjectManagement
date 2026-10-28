@@ -314,6 +314,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.Documents.MetadataEditorRoles));
     options.AddPolicy(Policies.Documents.Purge, policy =>
         policy.RequireRole(Policies.Documents.PurgeRoles));
+    options.AddPolicy(Policies.Documents.ViewInactive, policy =>
+        policy.RequireRole(Policies.Documents.InactiveViewerRoles));
 
     // SECTION: Action tracker authorization policy
     options.AddPolicy(Policies.ActionTracker.Access, policy =>
@@ -498,6 +500,8 @@ builder.Services.AddSingleton<IOcrmypdfInvoker, ProcessOcrmypdfInvoker>();
 builder.Services.AddSingleton<IPdfTextExtractor, PdfPigTextExtractor>();
 builder.Services.AddScoped<OcrmypdfSharedRunner>();
 builder.Services.AddScoped<IDocRepoAuditService, DocRepoAuditService>();
+builder.Services.AddScoped<IDocRepoAccess, DocRepoAccess>();
+builder.Services.AddScoped<DocRepoOcrQueue>();
 builder.Services.AddScoped<IFileScanner, NoopFileScanner>();
 builder.Services.AddScoped<IDocumentOcrRunner, OcrmypdfDocumentOcrRunner>();
 builder.Services.AddScoped<IDocumentSearchService, DocumentSearchService>();

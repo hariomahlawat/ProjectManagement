@@ -22,13 +22,19 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         private readonly ApplicationDbContext _db;
         private readonly IDocumentSearchService _searchService;
         private readonly IConfiguration _configuration;
+        private readonly IDocRepoAccess _access;
 
-        public IndexModel(ApplicationDbContext db, IDocumentSearchService searchService, IConfiguration configuration)
+        public IndexModel(ApplicationDbContext db, IDocumentSearchService searchService, IConfiguration configuration, IDocRepoAccess access)
         {
             _db = db;
             _searchService = searchService;
             _configuration = configuration;
+            _access = access;
         }
+
+        // Years outside this range are ignored rather than failing the page.
+        public const int MinYear = 1900;
+        public const int MaxYear = 2100;
 
         // SECTION: Filters
         [FromQuery(Name = "q")] public string? Q { get; set; }
@@ -48,6 +54,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public bool IsFavouritesScope => string.Equals(Scope, "favourites", StringComparison.OrdinalIgnoreCase);
         public bool IsAotsScope => string.Equals(Scope, "aots", StringComparison.OrdinalIgnoreCase);
         public bool IsDefaultScope => !IsFavouritesScope && !IsAotsScope;
+
+        /// <summary>True when the user may see deactivated documents (and the "Include inactive" filter).</summary>
+        public bool CanViewInactive { get; private set; }
 
         // SECTION: Paging
         private const int DefaultPageSize = 30;
@@ -117,17 +126,22 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 PageSize = DefaultPageSize;
             }
 
+            if (Year is < MinYear or > MaxYear)
+            {
+                Year = null;
+            }
+
             // SECTION: Base query
-            IQueryable<Document> query = _db.Documents
-                .AsNoTracking()
-                .Where(document => !document.IsDeleted && !document.IsExternal);
+            CanViewInactive = await _access.CanViewInactiveAsync(User);
+            if (!CanViewInactive)
+            {
+                IncludeInactive = false;
+            }
+
+            IQueryable<Document> query = _access.Readable(_db.Documents.AsNoTracking(), IncludeInactive)
+                .Where(document => !document.IsExternal);
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (!IncludeInactive)
-            {
-                query = query.Where(document => document.IsActive);
-            }
 
             // SECTION: Favourites scope
             if (IsFavouritesScope)
@@ -326,9 +340,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 return Unauthorized();
             }
 
-            var canViewDocument = await _db.Documents
-                .AsNoTracking()
-                .AnyAsync(document => document.Id == id && !document.IsDeleted && !document.IsExternal);
+            var canViewInactive = await _access.CanViewInactiveAsync(User);
+            var canViewDocument = await _access.Readable(_db.Documents.AsNoTracking(), canViewInactive)
+                .AnyAsync(document => document.Id == id && !document.IsExternal);
 
             if (!canViewDocument)
             {
@@ -345,14 +359,30 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 return new JsonResult(new { isFavourite = false });
             }
 
-            _db.DocRepoFavourites.Add(new DocRepoFavourite
+            var favourite = new DocRepoFavourite
             {
                 UserId = userId,
                 DocumentId = id,
                 CreatedAtUtc = DateTime.UtcNow
-            });
+            };
+            _db.DocRepoFavourites.Add(favourite);
 
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // A second click can race this one; if it already starred the document, that is
+                // the result the user asked for.
+                _db.Entry(favourite).State = EntityState.Detached;
+                var alreadyStarred = await _db.DocRepoFavourites.AsNoTracking()
+                    .AnyAsync(existingFavourite => existingFavourite.UserId == userId && existingFavourite.DocumentId == id);
+                if (!alreadyStarred)
+                {
+                    throw;
+                }
+            }
 
             return new JsonResult(new { isFavourite = true });
         }
