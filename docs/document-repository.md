@@ -43,6 +43,7 @@ A failure to write a `Viewed` or `Downloaded` row is logged and never blocks rea
 - The size limit comes from `ProjectDocuments:MaxSizeMb`. `DocRepo:MaxFileSizeBytes` is not read by the upload page; it is kept for compatibility.
 - The upload is streamed to a private temp file while it is hashed (never held in memory) and scanned with the registered `IFileScanner`. The registered scanner is `NoopFileScanner`, so no malware scanning takes place on the LAN deployment today.
 - A duplicate (same SHA-256 as an existing, non-deleted document) is rejected **before** anything is written to storage. Re-uploading a trashed document's PDF restores that row and deletes its old file once the database write commits.
+- Several PDFs at once are sent one per request to `Upload?handler=Json`, which runs exactly the same checks as the form post (`UploadModel.SaveUploadAsync`) and answers `{ ok, id, restored, url }` or `422` with the errors by field. The per-user upload rate limit (`DocumentUploadRateLimiting`, 20 a minute by default) applies to each one; a throttled file waits and is retried by the page.
 
 ## Changing documents
 
@@ -50,11 +51,24 @@ A failure to write a `Viewed` or `Downloaded` row is logged and never blocks rea
 - **Delete** is a request plus a decision. The request needs a reason, which the approver sees in the Decision Centre. The requester cannot decide their own request (`Forbidden`), and the request is claimed with a conditional update so only one approver's decision applies.
 - **Deactivate** hides the document from everyone except `DocRepo.ViewInactive` holders; it is not deletion.
 
+## Covers
+
+- The library shows each document's first page as a cover (`Documents/Cover?id=…`). It follows the same access rule as the PDF (`IDocRepoAccess`): a document the user may not open has no cover either (404). Covers are not audited; they show what the list already shows.
+- `DocRepoCoverService` draws a cover the first time it is asked for, with Poppler's `pdftoppm` (page 1, 360px wide, JPEG), and keeps it in `<DocRepo:RootPath>/covers/<2 hex>/<id>.jpg`. At most two are drawn at once and one per document; a drawing has 30 seconds. Purging a document deletes its cover. Covers can be deleted at any time; they are drawn again.
+- Without Poppler, with `DocRepo:EnableCovers=false`, or for a PDF that cannot be drawn (damaged, encrypted), the page shows a cover typeset in the document type's colour instead. A PDF that failed is marked (`<id>.jpg.failed`) and tried again after 12 hours; when `pdftoppm` cannot be started at all, covers are skipped for 10 minutes and nothing is marked, so installing Poppler later needs no clean-up.
+- Configure the executable with `DocRepo:PdfToPpmPath` when it is not on the server's `PATH` (for example `C:\poppler\Library\bin\pdftoppm.exe`).
+
+## Search shortcuts and quick search
+
+- `type:`, `office:`, `tag:`, `year:` and `from:` typed in the search box are turned into the ordinary filters by a redirect (`DocRepoQueryTokens`, `IndexModel.ShortcutUrlAsync`). `from` filters on *Received from* (contains, case-insensitive).
+- `Index?handler=Quick` answers the quick search: active, readable library documents whose title contains the text or whose search vector matches every word with the last as a prefix (`DocumentSearchService.PrefixQuery`; only letters and digits reach `to_tsquery`). Deactivated documents are left out of quick search for everyone.
+- Search results carry the page of the first match when the OCR text has page breaks (ocrmypdf's sidecar separates pages with a form feed); the reader opens there with the words highlighted.
+
 ## Caching
 
-The inline view and download send `Cache-Control: private, no-store`, so PDFs are not kept in the browser cache of shared LAN machines after they are deactivated or deleted.
+The inline view, download and covers send `Cache-Control: private, no-store`, so PDFs and their first pages are not kept in the browser cache of shared LAN machines after they are deactivated or deleted. What the browser remembers for convenience (recently opened documents, the last page read, dark reading, the details panel) is kept in `localStorage` under a per-user key (`DocRepoFormat.UserKey`, a hash of the user id) and is never used for access.
 
 ## Tests
 
-- `ProjectManagement.Tests/DocRepo/*Tests.cs`: access rules, audit, upload, edit, ingestion, OCR re-queue and snippet encoding (in-memory database).
-- `ProjectManagement.Tests/DocRepo/DocRepoPostgresIntegrationTests.cs`: OCR queue claims, delete-approval decisions and real `ts_headline` snippets on PostgreSQL. Run by the *Production Database Migration Gate* workflow; locally set `PRISM_RUN_POSTGRES_MIGRATION_TESTS=true` and `PRISM_TEST_POSTGRES_CONNECTION`.
+- `ProjectManagement.Tests/DocRepo/*Tests.cs`: access rules, audit, upload (form and queue), edit, ingestion, OCR re-queue, snippet encoding, covers (`DocRepoCoverServiceTests` runs the real `pdftoppm` when it is installed), search shortcuts and the shelves (in-memory database).
+- `ProjectManagement.Tests/DocRepo/DocRepoPostgresIntegrationTests.cs`: OCR queue claims, delete-approval decisions, real `ts_headline` snippets, the page of a match and quick search on PostgreSQL. Run by the *Production Database Migration Gate* workflow; locally set `PRISM_RUN_POSTGRES_MIGRATION_TESTS=true` and `PRISM_TEST_POSTGRES_CONNECTION`.

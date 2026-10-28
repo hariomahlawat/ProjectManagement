@@ -34,6 +34,9 @@ public sealed class DocumentSearchResultVm
     public bool MatchedInSubject { get; set; }
     public bool MatchedInTags { get; set; }
     public bool MatchedInBody { get; set; }
+    // Page of the first place the search's first word appears in the text; null when unknown
+    // (the text has no page breaks, or the word only matched in another form).
+    public int? MatchPage { get; set; }
 
     // SECTION: Status
     public bool IsActive { get; set; }

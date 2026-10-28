@@ -1,9 +1,13 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.UploadModel
+@inject Microsoft.AspNetCore.Mvc.ViewFeatures.IFileVersionProvider FileVersions
 @{
-    ViewData["Title"] = "Upload a PDF";
+    ViewData["Title"] = "Add PDFs";
     ViewData["UseFullWidth"] = true;
     var maxFileSizeText = DocRepoFormat.FileSize(Model.MaxFileSizeBytes);
+    var viewerModule = FileVersions.AddFileVersionToPath(ViewContext.HttpContext.Request.PathBase, "/js/docrepo/viewer.mjs");
+    // A form post that came back with errors (no script, or a throttled upload) keeps the form.
+    var keepForm = !ViewData.ModelState.IsValid || Model.Throttled;
 }
 
 @section Styles {
@@ -13,16 +17,144 @@
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
     <script src="~/js/docrepo/upload.js" asp-append-version="true" defer></script>
+    <script src="~/js/docrepo/upload-queue.js" asp-append-version="true" defer></script>
 }
 
 <div class="library library--form">
     <header class="library-head">
         <div class="library-head__text">
             <a class="library-back" asp-page="./Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
-            <h1>Upload a PDF</h1>
-            <p>Add a letter, policy, minutes or any other paper. Its text is read automatically, so people can find it by what it says.</p>
+            <h1>Add PDFs to the library</h1>
+            <p>Letters, policies, minutes or any other papers: drop several at once. Their text is read automatically, so people can find them by what they say.</p>
         </div>
     </header>
+
+    <!-- SECTION: Several PDFs at once (needs script; the form below is the fallback) -->
+    <section class="library-upload" data-upload-app hidden aria-label="PDFs to add"
+             data-keep-form="@(keepForm ? "true" : "false")"
+             data-json-url="@Url.Page("./Upload", "Json")"
+             data-check-url="@Url.Page("./Upload", "CheckHash")"
+             data-library-url="@Url.Page("./Index")"
+             data-pdfjs-base="@Url.Content(DocRepoFormat.PdfJsPath)"
+             data-viewer-module="@viewerModule"
+             data-max-size="@Model.MaxFileSizeBytes"
+             data-max-files="20">
+        @Html.AntiForgeryToken()
+        <label class="library-drop" for="queueInput" data-queue-drop>
+            <input class="library-drop__input" type="file" accept="application/pdf,.pdf" id="queueInput" multiple data-queue-input />
+            <span class="library-drop__icon" aria-hidden="true"><i class="bi bi-files"></i></span>
+            <span class="library-drop__title">Drop PDFs here or <span class="library-drop__browse">choose files</span></span>
+            <span class="library-drop__hint">Up to 20 at a time, each up to @maxFileSizeText. Titles and dates are read from the PDFs for you to check.</span>
+        </label>
+
+        <div data-queue-workspace hidden>
+            <div class="library-queue__shared">
+                <div>
+                    <h2>The same for every PDF</h2>
+                    <p>Set these once. Each PDF below can still be changed on its own.</p>
+                </div>
+                <div class="library-queue__fields">
+                    <div class="library-field">
+                        <label for="sharedType">Type</label>
+                        <select class="form-select" id="sharedType" data-shared="DocumentCategoryId" asp-items="Model.DocumentTypeSelectList">
+                            <option value="">Choose a type</option>
+                        </select>
+                    </div>
+                    <div class="library-field">
+                        <label for="sharedOffice">Office</label>
+                        <select class="form-select" id="sharedOffice" data-shared="OfficeCategoryId" asp-items="Model.OfficeSelectList">
+                            <option value="">Choose an office</option>
+                        </select>
+                    </div>
+                    <div class="library-field">
+                        <label for="sharedFrom">Received from</label>
+                        <input class="form-control" id="sharedFrom" data-shared="ReceivedFrom" maxlength="256" placeholder="Office, unit or person" />
+                    </div>
+                    <div class="library-field">
+                        <label for="sharedTags">Tags</label>
+                        <input class="form-control" id="sharedTags" data-shared="Tags" maxlength="128" placeholder="sow, tec, training" />
+                    </div>
+                </div>
+                @if (Model.CanMarkAots)
+                {
+                    <label class="library-check">
+                        <input class="form-check-input" type="checkbox" data-shared="IsAots" />
+                        <span>
+                            <strong>All officers to see (AOTS)</strong>
+                            <span>Shows the documents to every officer as new until they open them.</span>
+                        </span>
+                    </label>
+                }
+            </div>
+
+            <ol class="library-queue" data-queue-list aria-live="polite"></ol>
+
+            <div class="library-queue__bar">
+                <span class="library-queue__total" data-queue-total role="status"></span>
+                <button type="button" class="btn btn-outline-secondary" data-queue-add><i class="bi bi-plus-lg" aria-hidden="true"></i> Add more</button>
+                <a class="btn btn-outline-secondary" asp-page="./Index" data-queue-done hidden>Open the library</a>
+                <button type="button" class="btn btn-primary" data-queue-upload><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> <span>Add to the library</span></button>
+            </div>
+        </div>
+
+        <template id="queueItemTemplate">
+            <li class="library-queue__item">
+                <div class="library-queue__cover" data-item-cover><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i></div>
+                <div class="library-queue__body">
+                    <div class="library-queue__head">
+                        <div class="library-queue__file"><strong data-item-name></strong><span data-item-size></span></div>
+                        <button type="button" class="library-iconbtn" data-item-remove aria-label="Remove this PDF" title="Remove"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                    </div>
+                    <p class="library-queue__status" data-item-status hidden></p>
+                    <div class="library-queue__fields">
+                        <div class="library-field library-field--wide">
+                            <label data-for="Subject">Title <span class="library-required" aria-hidden="true">*</span></label>
+                            <input class="form-control" data-field="Subject" maxlength="256" required />
+                            <span class="library-queue__suggest" data-suggest="Subject" hidden><i class="bi bi-magic" aria-hidden="true"></i> Read from the PDF; check it matches the paper.</span>
+                            <span class="library-field__error" data-error="Subject"></span>
+                        </div>
+                        <div class="library-field">
+                            <label data-for="DocumentCategoryId">Type <span class="library-required" aria-hidden="true">*</span></label>
+                            <select class="form-select" data-field="DocumentCategoryId" required asp-items="Model.DocumentTypeSelectList">
+                                <option value="">Choose a type</option>
+                            </select>
+                            <span class="library-field__error" data-error="DocumentCategoryId"></span>
+                        </div>
+                        <div class="library-field">
+                            <label data-for="OfficeCategoryId">Office <span class="library-required" aria-hidden="true">*</span></label>
+                            <select class="form-select" data-field="OfficeCategoryId" required asp-items="Model.OfficeSelectList">
+                                <option value="">Choose an office</option>
+                            </select>
+                            <span class="library-field__error" data-error="OfficeCategoryId"></span>
+                        </div>
+                        <div class="library-field">
+                            <label data-for="DocumentDate">Document date</label>
+                            <input class="form-control" type="date" data-field="DocumentDate" />
+                            <span class="library-queue__suggest" data-suggest="DocumentDate" hidden><i class="bi bi-magic" aria-hidden="true"></i> Read from the PDF.</span>
+                            <span class="library-field__error" data-error="DocumentDate"></span>
+                        </div>
+                        <div class="library-field">
+                            <label data-for="ReceivedFrom">Received from</label>
+                            <input class="form-control" data-field="ReceivedFrom" maxlength="256" />
+                            <span class="library-field__error" data-error="ReceivedFrom"></span>
+                        </div>
+                        <div class="library-field">
+                            <label data-for="Tags">Tags</label>
+                            <input class="form-control" data-field="Tags" maxlength="128" />
+                            <span class="library-field__error" data-error="Tags"></span>
+                        </div>
+                    </div>
+                    @if (Model.CanMarkAots)
+                    {
+                        <label class="library-check">
+                            <input class="form-check-input" type="checkbox" data-field="IsAots" />
+                            <span><strong>All officers to see (AOTS)</strong></span>
+                        </label>
+                    }
+                </div>
+            </li>
+        </template>
+    </section>
 
     <form method="post" enctype="multipart/form-data" class="library-editor" data-upload-form
           data-check-url="@Url.Page("./Upload", "CheckHash")">

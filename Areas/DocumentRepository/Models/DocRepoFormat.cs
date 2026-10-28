@@ -30,6 +30,20 @@ public static class DocRepoFormat
     /// <summary>One of six category hues (1–6), stable per document type, for the type marker on rows and cards.</summary>
     public static int Hue(int documentCategoryId) => ((Math.Abs(documentCategoryId) - 1) % 6 + 6) % 6 + 1;
 
+    /// <summary>
+    /// A short, stable key for this user, so what the browser remembers (recent documents, last
+    /// page read) stays apart for each person on a shared machine. Not a secret: only a key.
+    /// </summary>
+    public static string UserKey(string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return "anon";
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(userId));
+        return Convert.ToHexString(hash, 0, 8).ToLowerInvariant();
+    }
+
+    /// <summary>Folder of the pdf.js build shipped with the app.</summary>
+    public const string PdfJsPath = "~/lib/pdfjs-dist/4.10.38/";
+
     /// <summary>OCR state in the words a reader uses; null when the text is ready (nothing to say).</summary>
     public static string? TextState(DocOcrStatus status) => status switch
     {

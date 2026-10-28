@@ -2,39 +2,61 @@
 
 How the Document Repository (`/DocumentRepository`) looks and behaves. Access rules, audit events and upload rules are in [Document Repository](../document-repository.md).
 
-All pages share one stylesheet, `wwwroot/css/docrepo-ui.css`, under a `.library` root. Colours come only from the `--pm-library-*` tokens in `site.css` (light and dark), so the file has no colour literals. The page frame follows the IPR Register: eyebrow, title and one-line description with actions on the right, then a summary strip, view tabs, pill filters and a rounded table or list.
+## Design
+
+The library is built around the documents themselves rather than table rows: covers of the first page, a search that answers while you type, and a reader made for reading.
+
+- One stylesheet, `wwwroot/css/docrepo-ui.css`, under a `.library` root. Colours come only from the `--pm-library-*` tokens in `site.css` (light and dark, including the hero band, the paper and the reading stage), so the file has no colour literals.
+- Each document type has one of six hues (`DocRepoFormat.Hue`), used for its cover, its marker in lists, its filter check box and its timeline dot, so a run of minutes or letters reads at a glance.
+- The PDF viewer is [pdf.js](https://mozilla.github.io/pdf.js/) 4.10.38, shipped in `wwwroot/lib/pdfjs-dist/4.10.38` (legacy build, character maps and standard fonts included), so it works on the offline LAN. `wwwroot/js/docrepo/viewer.mjs` wraps it for the reader, the reading pane, the Edit preview and the upload queue.
+- Without script the pages still work as ordinary pages: links and filters load, forms post, covers show (an image that is missing has empty alternative text, so the coloured cover shows through), and the single-file upload form replaces the queue. The reader then offers to open the PDF in the browser's own viewer.
+- Motion is short and respects `prefers-reduced-motion`.
 
 ## The library (`/DocumentRepository/Documents`)
 
 | Area | What it does |
 | --- | --- |
-| Header | **Upload PDF** (`DocRepo.Upload`) and a **Manage** menu with links to Deletion requests, Unreadable PDFs, Missing files, Trash, Offices and Document types, each shown only to people with that permission. |
-| Summary strip | Four figures for the whole library, whatever the filters: documents (and how many were added this month; managers also see how many deactivated ones are not counted), AOTS documents unread by you, and your favourites. The fourth figure depends on the role: people who manage the library see the share whose text is searchable (a link to Unreadable PDFs for approvers when some failed); everyone else sees documents added in the last 30 days, linking to Recently added. Hidden on phones. |
-| Tabs | **All documents**, **Favourites** (with your count) and **AOTS** (with "N new" when you have unread ones). |
-| Search | One box for titles, senders, tags and the text inside PDFs. It sits outside the refreshed region, so typing keeps focus. |
-| Filters | Office, Type and Year are single choices, each option showing how many documents it would leave, counted with every other filter applied. Tag takes free text and suggests the 40 most used tags. **Show deactivated** appears only for `DocRepo.ViewInactive`. **Sort** sits with the result count: Best match (searches only), Newest first (default), Oldest first, Recently added, Title A–Z. On phones the filters fold behind a **Filters (n)** button. |
-| Filters apply in place | `docrepo-ui.js` fetches the results region with `?partial=true` and swaps it; the address bar keeps the same query, so reloads, Back and shared links match the screen. Every link and form also works without script. The default sort is left out of the URL. |
-| Chips | Each active filter is a removable chip; **Clear all** keeps the tab and layout. When the search words are also a tag, a hint offers to show only that tag. |
-| Layouts | **List** (default), **Table** (`view=table`, one line per document with column headers, like the IPR register) and **Cards**. |
-| Rows (List) | A marker coloured by document type (six hues, `DocRepoFormat.Hue`), the title with AOTS / New / Deactivated pills, type · office · sender, a highlighted snippet labelled by its source ("In the text", plus "Also in the title" or "Also in a tag"; "In the title" or "In a tag" alone when the text did not match), tags (filter links, kept out of the tab order), date and size, then favourite, download and a ⋮ menu. |
-| Cards | The same facts in a grid, with a coloured top edge by type. |
-| Reading pane | From 1600px wide the pane keeps its own column beside the results (an empty prompt until a document is chosen), so opening one never reflows the list. Choosing a row loads it (`Index?handler=Preview`): the PDF, Open in reader, Download, Edit and the facts. The choice is kept in the address as `?open=<id>`, so reloads and shared links reopen it. ↑ / ↓ / Home / End move between documents and preview them; Escape closes the preview. Narrower screens open the reader instead. |
-| ⋮ menu | Open in reader, Open PDF in new tab, Download; then, by permission, Edit details, Read text again… (failed only), Deactivate… / Activate again… and Request deletion…. The manage actions open one confirmation dialog (`_LibraryDialog`); deletion needs a reason, Deactivate starts on Cancel, and focus returns to the ⋮ button afterwards. Without script they go to the Manage page. |
-| Phones | No summary figures, a short search hint, filters behind **Filters (n)**, rows that stack the date and actions under the title, 44px touch targets. |
+| Hero | A dark band with the search box first. On the front page it also shows a headline, quick links to the commonest types and Newest uploads, the shortcut hint, and four figures (documents, added this month, AOTS unread by you; managers also see the share of text that is searchable, a link to Unreadable PDFs for approvers when some failed). Once anything narrows the list it folds to one bar: name, search, **Manage** and **Add PDFs**. |
+| Search shortcuts | The search box accepts `type:minutes`, `office:TEC`, `tag:radar`, `year:2025` and `from:DRDO` (quotes for spaces: `office:"Test Range"`). The server turns them into the ordinary filters with a redirect, so the address bar and the chips show what applies. A typed name matches a category exactly, else by its start, else anywhere in it, and only when one category matches; otherwise the word stays in the search. A shortcut must start a word, so a pasted URL is left alone. |
+| Quick search (`/`) | Press `/` anywhere outside a field (or the `/` button in the search box) for instant results: up to eight documents matching the title, or any word of the text with the last word as a prefix (`Index?handler=Quick`), with covers, type, office and date. ↑ ↓ move, Enter opens the reader with the words highlighted, and **See all results** runs the full search. Ctrl+K stays PRISM's own search. |
+| Tabs | **Library**, **Favourites** (with your count) and **All officers to see** (with "N new" when you have unread ones). |
+| Shelves (front page only) | **Continue reading** (documents opened in this browser, newest first, with the page last read; kept per user in `localStorage` and filled through `Index?handler=Cards`, which applies the access rule), **New for you** (AOTS documents you have not opened), **Recently added** and **Your favourites**, each a sideways row of covers with arrows on wide screens; then **Browse by type** tiles with counts. |
+| Filters | A sidebar from 992px (a **Filters** fold on narrower screens): Office and Type as lists with counts and a check (six shown, then **Show all**), Year as chips, Tag (suggesting the 40 most used) and Received from as text boxes that apply after a pause, and **Show deactivated** as a switch for `DocRepo.ViewInactive` only. Each count applies every other active filter. |
+| Filters apply in place | `docrepo-ui.js` fetches the results region with `?partial=true` and swaps it; the address bar keeps the same query, so reloads, Back, Forward and shared links match the screen. Every link and form also works without script. The default sort and layout are left out of the URL. |
+| Heading and tools | A heading that says what is shown ("Results for “radar”", "Your favourites", a type or office name), the count, **Sort** (Best match for searches, Newest first, Oldest first, Recently added, Title A–Z) and the layout switch. Active filters show as removable chips with **Clear all**; when the search words are also a tag, a hint offers to show only that tag. |
+| Layouts | **Covers** (the default when browsing), **List** (the default for a search: snippets labelled by where they matched, with the page when known), **Table** (one line per document) and **Timeline** (grouped by month of the document date, a dot per document in its type's colour). `view=cards` from older links opens Covers. |
+| Covers | The first page as a JPEG (`Documents/Cover?id=…`, drawn by Poppler on the server) over a cover typeset in the type's colour, which shows whenever there is no image. Pills for AOTS / New / Deactivated, a star that appears on hover (always on phones and when starred), "Found on page N" for a search match, the title (two lines), type and date, and the ⋮ menu. |
+| Opening a document | A click opens the reader; a search result opens it with the words highlighted and at the page of the match. From 1600px the reading pane keeps its own column beside the results, so opening one never reflows the list; it shows the PDF in the pdf.js viewer (pages, zoom, the search words highlighted), Open in reader, Download, Edit and the facts. The choice is kept as `?open=<id>`. ↑ ↓ (and ← → along covers), Home and End move between documents; Escape closes the preview. |
+| ⋮ menu | Open in reader, Open PDF in new tab, Download; then, by permission, Edit details, Read text again… (failed only), Deactivate… / Activate again… and Request deletion…. The menu is positioned `fixed` so no container clips it. The manage actions open one confirmation dialog (`_LibraryDialog`); deletion needs a reason, Deactivate starts on Cancel, and focus returns to the ⋮ button afterwards. Without script they go to the Manage page. |
+| Phones | The hero folds to name, actions and search; tabs scroll sideways; shelves and covers shrink to two columns; filters fold; rows stack; 44px touch targets; no sideways page scroll at 390px. |
 
-What the list deliberately leaves out: OCR status for readers (only managers see "Text not searchable yet" / "Text not readable"), relevance numbers, and thumbnails (there is no server-side PDF renderer, and drawing them in the browser would download every PDF on the page).
+What the list deliberately leaves out: OCR status for readers (only managers see "Text not searchable yet" / "Text not readable") and relevance numbers.
 
 ## The reader (`Documents/Reader/{id}`)
 
-Title bar (type · office · date, title, pills; favourite, Open in new tab, Download, Edit details, ⋮ with the same manage actions), the PDF in the browser's own viewer, and details beside it from 1200px (below it on narrower screens): about the document, AOTS read state with **Read by N officers**, and the file (name, size, searchable-text state, added and last changed). If the browser takes more than 8 seconds to show the PDF, the reader offers a new tab or a download. Below 768px, where phone browsers rarely show a PDF inside a page, the viewer is replaced by the file name and an **Open the PDF** button, and Download leads the actions. A missing file shows a clear empty state instead of a viewer.
+A full-height reading room:
 
-## Upload and Edit
+- **Title bar**: back, a small cover, title and type · office · date with pills; the reading tools (thumbnails on/off, page *n* of *m* with previous / next, zoom out / percentage (click to fit the width) / zoom in, find, dark reading); favourite, **Download**, details on/off and ⋮ (open in the browser's own viewer, Edit details and the manage actions).
+- **Thumbnails** of every page down the left, drawn as they scroll into view; the current page is marked and kept in view.
+- **Pages** in the pdf.js viewer with selectable text. Opening from a search highlights the words and jumps to the first match (`?q=`), or to a given page (`?page=`). Otherwise the reader reopens where you left off in this browser ("Opened where you left off, page 12 · Start from page 1").
+- **Find** (Ctrl+F, or the search button) with match count, Enter / Shift+Enter for next and previous, Escape to close.
+- **Dark reading** draws the pages light-on-dark (images are inverted too); the choice is remembered.
+- **Keys**: ← → pages, + − zoom, Home / End first and last page, Ctrl+F find, `/` search the library.
+- **Details** beside the pages from 1200px (a drawer below that; the choice to hide it is remembered): about the document (office and type link to the filtered library, tags), AOTS read state with **Read by N officers**, and the file (name, size, searchable-text state, added and last changed).
+- Phones get the same viewer at page width, with the tools on a second row and no thumbnails.
+- If pdf.js cannot open the file (damaged or password-protected), the reader says so and offers the browser's own viewer and the download. A missing file shows a clear empty state.
 
-Two columns from 1200px: the PDF on the left, the form on the right (sticky).
+## Adding PDFs (`Documents/Upload`)
 
-- **Upload**: a drop zone (drag a PDF or choose one) that becomes the file name, size and a live preview (the preview is left out below 992px so the form stays near the top). The title is suggested from the file name. Before anything is sent, the browser hashes the file and asks `Upload?handler=CheckHash` whether the library already holds it; a duplicate is announced (`role="alert"`, tied to the Upload button), disables Upload and offers **Open the existing document**, and a PDF that is in the trash is flagged as a restore. The hash check needs a secure context (HTTPS); without one it is skipped and the server's own check still applies.
-- **Edit details**: the current PDF beside the same form. Saving returns to the reader. If someone else saved meanwhile, their version is shown with a warning (see the module doc).
-- Fields are grouped as **What it is** (title*, type*, office*), **Where it came from** (received from, document date) and **Help people find it** (tags, AOTS). Required fields carry a red asterisk; errors appear under their field.
+- **Several at once**: drop up to 20 PDFs (or choose them). Each gets a card with its first page, its size and page count, and details read from the PDF in the browser for the person to check: the title (the largest text near the top of page 1, sentence-cased when it is all capitals; else the file name) and the document date (the first date written on page 1, day-first as in Indian government papers, or with a month name). Both are marked "Read from the PDF".
+- **The same for every PDF**: type, office, received from, tags and AOTS set once at the top fill every card that has not been changed by hand.
+- **Before sending**, each file is hashed in the browser and checked with `Upload?handler=CheckHash`: a duplicate (or the same file twice in the queue) is marked and cannot be added, with a link to the existing document; a PDF in the trash is flagged as a restore. The hash check needs a secure context (HTTPS); without one the server's own check still applies.
+- **Add N PDFs to the library** sends them one after another to `Upload?handler=Json`, which applies every rule of the ordinary upload, with a progress line per file. Each card then says Added / Restored (with a link) or why not, with field errors under their fields. A throttled upload waits a minute and is sent again automatically.
+- Without script, or when an ordinary form post comes back with errors, the single-file form is shown instead: a drop zone, a preview, the grouped fields (**What it is**, **Where it came from**, **Help people find it**) and Upload.
+
+## Edit details
+
+The current PDF in the pdf.js viewer beside the grouped form (sticky from 1200px). Saving returns to the reader. If someone else saved meanwhile, their version is shown with a warning (see the module doc).
 
 ## Other pages
 

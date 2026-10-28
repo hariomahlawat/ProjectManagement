@@ -1,7 +1,7 @@
 @model (ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel Page, DocumentSearchResultVm Item)
 @{
     var (list, item) = Model;
-    var readerUrl = Url.Page("./Reader", new { id = item.Id, returnUrl = list.ReturnUrl });
+    var readerUrl = list.ReaderUrl(item);
     var textState = list.CanManage ? DocRepoFormat.TextState(item.OcrStatus) : null;
     // The snippet always quotes the PDF's text, so label it by that; a title or tag match is said separately.
     var hasSnippet = !string.IsNullOrEmpty(item.Snippet) && item.MatchedInBody;
@@ -9,7 +9,8 @@
     var alsoLabel = hasSnippet ? (item.MatchedInSubject ? "Also in the title" : item.MatchedInTags ? "Also in a tag" : null) : null;
 }
 <li class="library-row @(item.IsActive ? null : "is-inactive")" data-library-item data-doc-id="@item.Id" data-href="@readerUrl">
-    <span class="library-mark library-hue-@DocRepoFormat.Hue(item.DocumentCategoryId)" aria-hidden="true">
+    <span class="library-thumb library-hue-@DocRepoFormat.Hue(item.DocumentCategoryId)" aria-hidden="true">
+        <img src="@Url.Page("./Cover", new { id = item.Id })" alt="" loading="lazy" decoding="async" data-cover />
         <i class="bi bi-file-earmark-text"></i>
     </span>
 
@@ -44,7 +45,7 @@
         @if (matchLabel is not null)
         {
             <p class="library-row__snippet">
-                <span class="library-match">@matchLabel</span>
+                <span class="library-match">@matchLabel@(hasSnippet && item.MatchPage.HasValue ? $", page {item.MatchPage}" : null)</span>
                 @if (hasSnippet)
                 {
                     @DocRepoSnippetHtml.Render(item.Snippet)

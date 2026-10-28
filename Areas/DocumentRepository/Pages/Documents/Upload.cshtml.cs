@@ -148,6 +148,42 @@ public class UploadModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        var outcome = await SaveUploadAsync(cancellationToken);
+        if (outcome.DocumentId is null)
+        {
+            return Page();
+        }
+
+        TempData["ToastMessage"] = outcome.Restored ? "Document re-uploaded." : "Document uploaded.";
+        return RedirectToPage("./Index");
+    }
+
+    // SECTION: One file of a batch (the page uploads several PDFs one after another)
+    // Same rules and checks as the form post; answers in JSON so the page can show each file's
+    // result beside it.
+    public async Task<IActionResult> OnPostJsonAsync(CancellationToken cancellationToken)
+    {
+        var outcome = await SaveUploadAsync(cancellationToken);
+        if (outcome.DocumentId is not { } id)
+        {
+            var errors = ModelState
+                .Where(entry => entry.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    entry => string.IsNullOrEmpty(entry.Key) ? "" : entry.Key.Replace("Input.", string.Empty, StringComparison.Ordinal),
+                    entry => entry.Value!.Errors.Select(error => error.ErrorMessage).ToArray());
+            return new JsonResult(new { ok = false, errors }) { StatusCode = StatusCodes.Status422UnprocessableEntity };
+        }
+
+        return new JsonResult(new { ok = true, id, restored = outcome.Restored, url = Url.Page("./Reader", new { id }) });
+    }
+
+    private sealed record UploadOutcome(Guid? DocumentId, bool Restored)
+    {
+        public static readonly UploadOutcome Failed = new(null, false);
+    }
+
+    private async Task<UploadOutcome> SaveUploadAsync(CancellationToken cancellationToken)
+    {
         CanMarkAots = (await _authorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata")).Succeeded;
         if (!CanMarkAots)
         {
@@ -158,13 +194,13 @@ public class UploadModel : PageModel
 
         if (!ModelState.IsValid)
         {
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         if (Input.File is null || Input.File.Length == 0)
         {
             ModelState.AddModelError(FileKey, "PDF is required.");
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         // SECTION: File size validation (configuration-driven)
@@ -172,7 +208,7 @@ public class UploadModel : PageModel
         {
             var maxSizeMb = Math.Max(1, _documentOptions.MaxSizeMb);
             ModelState.AddModelError(FileKey, FormattableString.Invariant($"File exceeds the {maxSizeMb} MB limit."));
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         var isPdfContentType = string.Equals(Input.File.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase);
@@ -180,7 +216,7 @@ public class UploadModel : PageModel
         if (!isPdfContentType || !hasPdfExtension)
         {
             ModelState.AddModelError(FileKey, "Only PDF uploads are allowed.");
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         var normalizedTags = ParseTags(Input.Tags)
@@ -190,7 +226,7 @@ public class UploadModel : PageModel
         if (normalizedTags.Count > 5)
         {
             ModelState.AddModelError(TagsKey, "You can specify at most 5 tags.");
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         Input.Tags = normalizedTags.Count == 0
@@ -202,7 +238,7 @@ public class UploadModel : PageModel
         {
             ModelState.AddModelError(TagsKey,
                 $"Invalid tag '{invalidTag}'. Tags must be 1-32 characters and contain only letters, numbers, spaces, hyphens, or underscores.");
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         // SECTION: Read, hash and scan
@@ -224,7 +260,7 @@ public class UploadModel : PageModel
         if (headerBytesRead < headerBuffer.Length || !HasPdfHeader(headerBuffer.AsSpan(0, headerBytesRead)))
         {
             ModelState.AddModelError(FileKey, "Uploaded file is not a valid PDF.");
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         await bufferedStream.WriteAsync(headerBuffer.AsMemory(0, headerBytesRead), cancellationToken);
@@ -251,7 +287,7 @@ public class UploadModel : PageModel
         if (bufferedStream.Length != Input.File.Length)
         {
             ModelState.AddModelError(FileKey, "Uploaded file could not be fully read. Please try again.");
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         bufferedStream.Position = 0;
@@ -264,7 +300,7 @@ public class UploadModel : PageModel
             ModelState.AddModelError(FileKey, string.IsNullOrWhiteSpace(ex.Message)
                 ? "Upload blocked by security scan."
                 : ex.Message);
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         // SECTION: Duplicate check (before anything is written to storage)
@@ -278,7 +314,7 @@ public class UploadModel : PageModel
             ModelState.AddModelError(FileKey, existingWithSameHash.IsExternal
                 ? "This PDF is already in the repository: it was added from another module."
                 : $"Duplicate document detected (matches {existingWithSameHash.Subject}). Upload blocked.");
-            return Page();
+            return UploadOutcome.Failed;
         }
 
         // SECTION: Store the file
@@ -289,6 +325,7 @@ public class UploadModel : PageModel
         var fileSize = bufferedStream.Length;
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
 
+        Guid createdId;
         try
         {
             var tags = await ResolveTagsAsync(normalizedTags, cancellationToken);
@@ -339,8 +376,7 @@ public class UploadModel : PageModel
                 // The trashed row's old file is no longer referenced by anything.
                 await DeleteFileQuietlyAsync(replacedStoragePath, storagePath);
 
-                TempData["ToastMessage"] = "Document re-uploaded.";
-                return RedirectToPage("./Index");
+                return new UploadOutcome(document.Id, Restored: true);
             }
 
             var created = new Document
@@ -372,6 +408,7 @@ public class UploadModel : PageModel
             _audit.Stage(created.Id, userId, "Uploaded", new { created.Id, created.Subject, sizeBytes = created.FileSizeBytes });
             _audit.Stage(created.Id, userId, "OcrQueued", new { created.Id });
             await _db.SaveChangesAsync(cancellationToken);
+            createdId = created.Id;
         }
         catch (DbUpdateException)
         {
@@ -384,7 +421,7 @@ public class UploadModel : PageModel
 
             // Someone uploaded the same PDF at the same moment and their upload won.
             ModelState.AddModelError(FileKey, "This PDF was just uploaded by someone else. Upload blocked.");
-            return Page();
+            return UploadOutcome.Failed;
         }
         catch
         {
@@ -393,8 +430,7 @@ public class UploadModel : PageModel
             throw;
         }
 
-        TempData["ToastMessage"] = "Document uploaded.";
-        return RedirectToPage("./Index");
+        return new UploadOutcome(createdId, Restored: false);
     }
 
     // SECTION: Tag helpers

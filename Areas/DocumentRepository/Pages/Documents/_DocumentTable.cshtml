@@ -1,7 +1,7 @@
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
 @*
-    The compact layout (view=table): one line per document with column headers, like the IPR
-    register, for scanning long lists. Snippets and tags are left to the List layout.
+    The compact layout (view=table): one line per document with column headers, for scanning
+    long lists. Snippets and tags are left to the List layout.
 *@
 <div class="library-tablecard">
     <div class="library-tablescroll">
@@ -21,7 +21,7 @@
             <tbody data-library-items>
                 @foreach (var item in Model.Items)
                 {
-                    var readerUrl = Url.Page("./Reader", new { id = item.Id, returnUrl = Model.ReturnUrl });
+                    var readerUrl = Model.ReaderUrl(item);
                     <tr class="library-table__row @(item.IsActive ? null : "is-inactive")" data-library-item data-doc-id="@item.Id" data-href="@readerUrl">
                         <td class="library-table__star">
                             <button type="button" class="library-iconbtn library-star @(item.IsFavourite ? "is-on" : null)" data-library-star data-doc-id="@item.Id"

@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text.Encodings.Web;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.DocumentRepository.Pages.Documents;
 using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
@@ -13,6 +15,7 @@ using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Tests.Fakes;
 using ProjectManagement.ViewModels;
 using Xunit;
+using static ProjectManagement.Tests.DocRepo.DocRepoTestSupport;
 
 namespace ProjectManagement.Tests.DocRepo;
 
@@ -157,6 +160,56 @@ public sealed class DocRepoPostgresIntegrationTests
             Assert.DoesNotContain("<img", html);
             Assert.DoesNotContain("<div", html);
             Assert.Contains("<mark>", html);
+        });
+    }
+
+    [PostgresMigrationFact]
+    public async Task Search_FindsThePageOfTheMatch_AndQuickSearchMatchesWhileTyping()
+    {
+        await WithDatabaseAsync(async (_, db) =>
+        {
+            var document = Seed(db, "Board proceedings", createdDaysAgo: 1);
+            db.OfficeCategories.Local.Single().Name = "Test Range";
+            // ocrmypdf separates pages with a form feed.
+            db.DocumentTexts.Add(new DocumentText
+            {
+                DocumentId = document.Id,
+                OcrText = "Cover page\fAgenda and attendance\fThe SONAR trial results were reviewed.",
+                UpdatedAtUtc = Now.UtcDateTime
+            });
+            var otherOffice = new OfficeCategory { Name = "Head office", IsActive = true };
+            db.OfficeCategories.Add(otherOffice);
+            await db.SaveChangesAsync();
+            var onePage = new Document
+            {
+                Id = Guid.NewGuid(), Subject = "Single sheet", OfficeCategoryId = otherOffice.Id, DocumentCategoryId = document.DocumentCategoryId,
+                OriginalFileName = "sheet.pdf", FileSizeBytes = 10, Sha256 = Guid.NewGuid().ToString("N"), StoragePath = "2026/10/sheet.pdf",
+                CreatedByUserId = "uploader", CreatedAtUtc = Now.UtcDateTime.AddDays(-2)
+            };
+            db.Documents.Add(onePage);
+            db.DocumentTexts.Add(new DocumentText { DocumentId = onePage.Id, OcrText = "sonar note without page breaks", UpdatedAtUtc = Now.UtcDateTime });
+            await db.SaveChangesAsync();
+
+            var hits = await new DocumentSearchService()
+                .ApplySearchProjected(db.Documents.AsNoTracking(), "sonar")
+                .ToListAsync();
+
+            Assert.Equal(3, hits.Single(hit => hit.Id == document.Id).MatchPage);
+            // Without page breaks the page is unknown rather than a guessed "page 1".
+            Assert.Null(hits.Single(hit => hit.Id == onePage.Id).MatchPage);
+
+            var page = new IndexModel(db, new DocumentSearchService(), Access(), Authorization(), new AotsUnreadService(db));
+            ConfigurePage(page, Manager);
+            var typed = System.Text.Json.JsonSerializer.Serialize(Assert.IsType<JsonResult>(await page.OnGetQuickAsync("son")).Value);
+            Assert.Contains("Board proceedings", typed);
+            Assert.Contains("Single sheet", typed);
+
+            var narrowed = System.Text.Json.JsonSerializer.Serialize(Assert.IsType<JsonResult>(await page.OnGetQuickAsync("son office:test")).Value);
+            Assert.Contains("Board proceedings", narrowed);
+            Assert.DoesNotContain("Single sheet", narrowed);
+
+            // Operators typed into the box never reach to_tsquery as syntax.
+            Assert.IsType<JsonResult>(await page.OnGetQuickAsync("radar & | ! ( :*"));
         });
     }
 

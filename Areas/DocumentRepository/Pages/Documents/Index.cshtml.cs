@@ -57,6 +57,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery(Name = "officeCategoryId")] public long? OfficeCategoryId { get; set; }
         [FromQuery(Name = "documentCategoryId")] public long? DocumentCategoryId { get; set; }
         [FromQuery(Name = "year")] public int? Year { get; set; }
+        [FromQuery(Name = "from")] public string? From { get; set; }
         [FromQuery(Name = "includeInactive")] public bool IncludeInactive { get; set; }
         [FromQuery(Name = "view")] public string? View { get; set; }
         [FromQuery(Name = "partial")] public bool IsPartial { get; set; }
@@ -66,12 +67,24 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery] public int PageSize { get; set; } = DefaultPageSize;
 
         // SECTION: View state
-        // "list" (default, rows with snippets), "table" (compact, like the IPR register) or "cards".
-        public bool IsCardView => string.Equals(View, "cards", StringComparison.OrdinalIgnoreCase);
-        public bool IsTableView => string.Equals(View, "table", StringComparison.OrdinalIgnoreCase);
-        public bool IsListView => !IsCardView && !IsTableView;
-        public string ViewMode => IsCardView ? "cards" : IsTableView ? "table" : "list";
-        public string? ViewValue => IsListView ? null : ViewMode;
+        // "covers" (a shelf of first-page covers; the default when browsing), "list" (rows with
+        // snippets; the default for a search), "table" (one line per document) or "timeline"
+        // (grouped by month). "cards", the earlier name for covers, still works in old links.
+        public string? ViewValue => NormalizeView(View);
+        public string ViewMode => ViewValue ?? (IsSearchActive ? "list" : "covers");
+        public bool IsCoverView => ViewMode == "covers";
+        public bool IsListView => ViewMode == "list";
+        public bool IsTableView => ViewMode == "table";
+        public bool IsTimelineView => ViewMode == "timeline";
+
+        private static string? NormalizeView(string? view) => view?.Trim().ToLowerInvariant() switch
+        {
+            "covers" or "cards" or "grid" => "covers",
+            "list" => "list",
+            "table" => "table",
+            "timeline" => "timeline",
+            _ => null
+        };
         public bool IsFavouritesScope => string.Equals(Scope, "favourites", StringComparison.OrdinalIgnoreCase);
         public bool IsAotsScope => string.Equals(Scope, "aots", StringComparison.OrdinalIgnoreCase);
         public bool IsDefaultScope => !IsFavouritesScope && !IsAotsScope;
@@ -80,10 +93,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public bool HasTagMatch { get; private set; }
         public DocRepoSort SortOrder { get; private set; } = DocRepoSort.Newest;
         public string ReturnUrl { get; private set; } = "/DocumentRepository/Documents";
+        public string UserKey => DocRepoFormat.UserKey(User.FindFirstValue(ClaimTypes.NameIdentifier));
 
         public bool HasAnyFilter =>
             IsSearchActive || !string.IsNullOrWhiteSpace(Tag) || OfficeCategoryId.HasValue ||
-            DocumentCategoryId.HasValue || Year.HasValue || IncludeInactive;
+            DocumentCategoryId.HasValue || Year.HasValue || From is not null || IncludeInactive;
+
+        /// <summary>The library's front page: no search, filter, scope, sort or later page.</summary>
+        public bool IsHome => IsDefaultScope && !HasAnyFilter && PageNumber == 1 && string.IsNullOrEmpty(Sort);
 
         // SECTION: What the user may do (checked once per page, not per row)
         public bool CanViewInactive { get; private set; }
@@ -113,7 +130,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         /// <summary>The most used tags, offered as suggestions in the Tag filter.</summary>
         public IReadOnlyList<string> PopularTags { get; private set; } = Array.Empty<string>();
 
-        public async Task OnGetAsync()
+        // SECTION: Front page shelves (IsHome only)
+        public IReadOnlyList<DocumentSearchResultVm> NewForYou { get; private set; } = Array.Empty<DocumentSearchResultVm>();
+        public IReadOnlyList<DocumentSearchResultVm> RecentlyAdded { get; private set; } = Array.Empty<DocumentSearchResultVm>();
+        public IReadOnlyList<DocumentSearchResultVm> FavouriteShelf { get; private set; } = Array.Empty<DocumentSearchResultVm>();
+        private const int ShelfSize = 12;
+
+        public async Task<IActionResult> OnGetAsync()
         {
             // SECTION: Partial request detection
             if (!IsPartial &&
@@ -123,11 +146,19 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 IsPartial = true;
             }
 
+            // SECTION: Search shortcuts (type:, office:, tag:, year:, from:) become filters
+            var shortcuts = DocRepoQueryTokens.Parse(Q);
+            if (shortcuts.HasShortcuts)
+            {
+                return LocalRedirect(await ShortcutUrlAsync(shortcuts));
+            }
+
             // SECTION: Guard input
             if (PageNumber < 1) PageNumber = 1;
             if (PageSize < 10 || PageSize > 200) PageSize = DefaultPageSize;
             if (Year is < MinYear or > MaxYear) Year = null;
             Tag = string.IsNullOrWhiteSpace(Tag) ? null : Tag.Trim();
+            From = string.IsNullOrWhiteSpace(From) ? null : From.Trim();
 
             await LoadPermissionsAsync();
             if (!CanViewInactive)
@@ -189,6 +220,111 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 .Select(group => group.Key)
                 .Take(40)
                 .ToListAsync();
+
+            // SECTION: Front page shelves
+            if (IsHome)
+            {
+                await LoadShelvesAsync(scoped, userId);
+            }
+
+            return Page();
+        }
+
+        // SECTION: Quick search (the Ctrl+K palette): as-you-type matches on title and text
+        public async Task<IActionResult> OnGetQuickAsync(string? q)
+        {
+            var shortcuts = DocRepoQueryTokens.Parse(q);
+            var text = shortcuts.Text?.Trim() ?? string.Empty;
+            CanViewInactive = await _access.CanViewInactiveAsync(User);
+
+            var query = _access.Readable(_db.Documents.AsNoTracking(), canViewInactive: false)
+                .Where(document => !document.IsExternal);
+            var (officeId, _) = await ResolveOfficeAsync(shortcuts.Office);
+            var (typeId, _) = await ResolveTypeAsync(shortcuts.Type);
+            OfficeCategoryId = officeId;
+            DocumentCategoryId = typeId;
+            Tag = shortcuts.Tag;
+            Year = shortcuts.Year is >= MinYear and <= MaxYear ? shortcuts.Year : null;
+            From = shortcuts.From;
+            query = ApplyFilters(query, FacetKind.None);
+
+            var prefix = DocumentSearchService.PrefixQuery(text);
+            if (text.Length > 0)
+            {
+                var pattern = Services.Search.SearchLikePattern.Contains(text);
+                query = query.Where(document =>
+                    EF.Functions.ILike(document.Subject, pattern, Services.Search.SearchLikePattern.EscapeCharacter) ||
+                    (prefix != null && document.SearchVector != null &&
+                        document.SearchVector.Matches(EF.Functions.ToTsQuery("english", prefix))));
+            }
+            else if (!shortcuts.HasShortcuts)
+            {
+                return new JsonResult(new { total = 0, items = Array.Empty<object>() });
+            }
+
+            var subjectPattern = Services.Search.SearchLikePattern.Contains(text);
+            var ordered = text.Length > 0
+                ? query
+                    .OrderByDescending(document => EF.Functions.ILike(document.Subject, subjectPattern, Services.Search.SearchLikePattern.EscapeCharacter))
+                    .ThenByDescending(document => document.DocumentDate)
+                    .ThenByDescending(document => document.CreatedAtUtc)
+                : query.OrderByDescending(document => document.DocumentDate).ThenByDescending(document => document.CreatedAtUtc);
+
+            var total = await query.Take(101).CountAsync();
+            var items = await ordered
+                .Take(8)
+                .Select(document => new
+                {
+                    document.Id,
+                    document.Subject,
+                    document.DocumentDate,
+                    document.DocumentCategoryId,
+                    Type = document.DocumentCategory.Name,
+                    Office = document.OfficeCategory.Name,
+                    document.IsAots
+                })
+                .ToListAsync();
+
+            var allUrl = Url.Page("./Index", new { q = string.IsNullOrWhiteSpace(q) ? null : q.Trim() });
+            return new JsonResult(new
+            {
+                total,
+                more = total > 100,
+                allUrl,
+                items = items.Select(item => new
+                {
+                    id = item.Id,
+                    subject = item.Subject,
+                    meta = string.Join(" · ", new[] { item.Type, item.Office, item.DocumentDate.HasValue ? DocRepoFormat.Date(item.DocumentDate.Value) : null }.Where(part => !string.IsNullOrWhiteSpace(part))),
+                    hue = DocRepoFormat.Hue(item.DocumentCategoryId),
+                    aots = item.IsAots,
+                    url = Url.Page("./Reader", new { id = item.Id, q = text.Length > 0 ? text : null }),
+                    coverUrl = Url.Page("./Cover", new { id = item.Id })
+                })
+            });
+        }
+
+        // SECTION: Cards for documents the browser remembers ("Continue reading")
+        public async Task<IActionResult> OnGetCardsAsync(string? ids)
+        {
+            var wanted = (ids ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(value => Guid.TryParse(value, out var id) ? id : Guid.Empty)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .Take(ShelfSize)
+                .ToList();
+            await LoadPermissionsAsync();
+            ReturnUrl = Url.Page("./Index") ?? ReturnUrl;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var found = await Project(_access.Readable(_db.Documents.AsNoTracking(), CanViewInactive)
+                    .Where(document => !document.IsExternal && wanted.Contains(document.Id)))
+                .ToListAsync();
+            var ordered = wanted.Select(id => found.FirstOrDefault(item => item.Id == id)).OfType<DocumentSearchResultVm>().ToList();
+            await ApplyPersonalStateAsync(userId, ordered);
+            ViewData["Page"] = this;
+            return Partial("_ShelfItems", ordered);
         }
 
         // SECTION: Favourite toggle handler
@@ -251,6 +387,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public async Task<IActionResult> OnGetPreviewAsync(Guid id)
         {
             await LoadPermissionsAsync();
+            // The list's search words travel with the preview, so it highlights them too.
+            if (_searchService.TryPrepareQuery(Q, out var previewQuery))
+            {
+                Q = previewQuery;
+                IsSearchActive = true;
+            }
+
             var document = await _access.Readable(_db.Documents.AsNoTracking(), CanViewInactive)
                 .Where(d => d.Id == id && !d.IsExternal)
                 .Select(d => new DocumentPreviewVm
@@ -320,6 +463,16 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             return $"{Request.PathBase}{Request.Path}{builder}";
         }
 
+        /// <summary>The reader for a result; a search opens it with the words found and at the page of the match.</summary>
+        public string ReaderUrl(DocumentSearchResultVm item)
+            => Url.Page("./Reader", new
+            {
+                id = item.Id,
+                returnUrl = ReturnUrl,
+                q = IsSearchActive ? Q : null,
+                page = IsSearchActive ? item.MatchPage : null
+            }) ?? string.Empty;
+
         public string ScopeUrl(string? scope)
         {
             var builder = new QueryBuilder();
@@ -383,6 +536,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             {
                 var documentCategoryId = DocumentCategoryId.Value;
                 query = query.Where(document => document.DocumentCategoryId == documentCategoryId);
+            }
+
+            if (From is not null)
+            {
+                var fromPattern = Services.Search.SearchLikePattern.Contains(From);
+                query = query.Where(document => document.ReceivedFrom != null &&
+                    EF.Functions.ILike(document.ReceivedFrom, fromPattern, Services.Search.SearchLikePattern.EscapeCharacter));
             }
 
             if (except != FacetKind.Year && Year.HasValue)
@@ -520,6 +680,99 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                         .CountAsync(document => !document.IsExternal && !document.IsActive)
                     : 0
             };
+        }
+
+        private async Task LoadShelvesAsync(IQueryable<Document> scoped, string? userId)
+        {
+            var library = scoped.Where(document => document.IsActive);
+            var recent = await Project(library.OrderByDescending(document => document.CreatedAtUtc)).Take(ShelfSize).ToListAsync();
+
+            var forYou = new List<DocumentSearchResultVm>();
+            var favourites = new List<DocumentSearchResultVm>();
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                forYou = await Project(library
+                        .Where(document => document.IsAots && !_db.DocRepoAotsViews.Any(view => view.UserId == userId && view.DocumentId == document.Id))
+                        .OrderByDescending(document => document.CreatedAtUtc))
+                    .Take(ShelfSize)
+                    .ToListAsync();
+
+                var favouriteIds = await _db.DocRepoFavourites.AsNoTracking()
+                    .Where(favourite => favourite.UserId == userId)
+                    .OrderByDescending(favourite => favourite.CreatedAtUtc)
+                    .Select(favourite => favourite.DocumentId)
+                    .Take(ShelfSize)
+                    .ToListAsync();
+                var starred = await Project(library.Where(document => favouriteIds.Contains(document.Id))).ToListAsync();
+                favourites = favouriteIds.Select(id => starred.FirstOrDefault(item => item.Id == id)).OfType<DocumentSearchResultVm>().ToList();
+            }
+
+            await ApplyPersonalStateAsync(userId, recent.Concat(forYou).Concat(favourites).ToList());
+            RecentlyAdded = recent;
+            NewForYou = forYou;
+            FavouriteShelf = favourites;
+        }
+
+        // Rewrites shortcuts typed in the search box into the ordinary filter parameters.
+        private async Task<string> ShortcutUrlAsync(DocRepoQueryTokens shortcuts)
+        {
+            var query = QueryHelpers.ParseQuery(Request.QueryString.ToString())
+                .ToDictionary(kv => kv.Key, kv => kv.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+            query.Remove("page");
+            var leftover = new List<string>();
+            if (!string.IsNullOrWhiteSpace(shortcuts.Text)) leftover.Add(shortcuts.Text);
+
+            if (shortcuts.Office is not null)
+            {
+                var (id, _) = await ResolveOfficeAsync(shortcuts.Office);
+                if (id.HasValue) query["officeCategoryId"] = id.Value.ToString(CultureInfo.InvariantCulture);
+                else leftover.Add(shortcuts.Office);
+            }
+
+            if (shortcuts.Type is not null)
+            {
+                var (id, _) = await ResolveTypeAsync(shortcuts.Type);
+                if (id.HasValue) query["documentCategoryId"] = id.Value.ToString(CultureInfo.InvariantCulture);
+                else leftover.Add(shortcuts.Type);
+            }
+
+            if (shortcuts.Tag is not null) query["tag"] = shortcuts.Tag;
+            if (shortcuts.Year is >= MinYear and <= MaxYear) query["year"] = shortcuts.Year.Value.ToString(CultureInfo.InvariantCulture);
+            if (shortcuts.From is not null) query["from"] = shortcuts.From;
+
+            if (leftover.Count > 0) query["q"] = string.Join(' ', leftover);
+            else query.Remove("q");
+
+            var builder = new QueryBuilder(query.Where(kv => !string.IsNullOrEmpty(kv.Value)));
+            return $"{Request.PathBase}{Request.Path}{builder}";
+        }
+
+        // A typed name matches a category exactly, else by the start of its name, else anywhere in
+        // it; only a single match counts.
+        private async Task<(long? Id, string? Name)> ResolveOfficeAsync(string? name)
+            => name is null ? (null, null) : Resolve(await _db.OfficeCategories.AsNoTracking()
+                .Select(office => new ValueTuple<long, string>(office.Id, office.Name)).ToListAsync(), name);
+
+        private async Task<(long? Id, string? Name)> ResolveTypeAsync(string? name)
+            => name is null ? (null, null) : Resolve(await _db.DocumentCategories.AsNoTracking()
+                .Select(category => new ValueTuple<long, string>(category.Id, category.Name)).ToListAsync(), name);
+
+        internal static (long? Id, string? Name) Resolve(IReadOnlyList<(long Id, string Name)> options, string typed)
+        {
+            var value = typed.Trim();
+            foreach (var test in new Func<string, bool>[]
+                     {
+                         candidate => string.Equals(candidate, value, StringComparison.OrdinalIgnoreCase),
+                         candidate => candidate.StartsWith(value, StringComparison.OrdinalIgnoreCase),
+                         candidate => candidate.Contains(value, StringComparison.OrdinalIgnoreCase)
+                     })
+            {
+                var matches = options.Where(option => test(option.Name)).Take(2).ToList();
+                if (matches.Count == 1) return (matches[0].Id, matches[0].Name);
+                if (matches.Count > 1) return (null, null);
+            }
+
+            return (null, null);
         }
 
         private async Task LoadPermissionsAsync()

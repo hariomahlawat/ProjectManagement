@@ -102,15 +102,26 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public int DocumentCategoryId { get; private set; }
 
+        public int OfficeCategoryId { get; private set; }
+
         public bool CanEdit { get; private set; }
 
         public bool CanManage { get; private set; }
 
         public string ManageUrl { get; private set; } = string.Empty;
 
+        public string UserKey { get; private set; } = "anon";
+
         // SECTION: Query
         [FromQuery(Name = "returnUrl")]
         public string? ReturnUrlQuery { get; set; }
+
+        // Words to find and highlight on opening (from a search), and a page to open at.
+        [FromQuery(Name = "q")]
+        public string? Query { get; set; }
+
+        [FromQuery(Name = "page")]
+        public int? StartPage { get; set; }
 
         // SECTION: Handlers
         public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -135,6 +146,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                     d.OriginalFileName,
                     d.FileSizeBytes,
                     d.DocumentCategoryId,
+                    d.OfficeCategoryId,
                     Tags = d.DocumentTags
                         .Select(tag => tag.Tag.Name)
                         .OrderBy(tag => tag)
@@ -166,6 +178,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             OriginalFileName = doc.OriginalFileName;
             FileSizeBytes = doc.FileSizeBytes;
             DocumentCategoryId = doc.DocumentCategoryId;
+            OfficeCategoryId = doc.OfficeCategoryId;
             CanEdit = (await _authorizationService.AuthorizeAsync(User, Policies.Documents.EditMetadata)).Succeeded;
             CanManage = (await _authorizationService.AuthorizeAsync(User, Policies.Documents.SoftDelete)).Succeeded;
             ManageUrl = Url.Page("./Manage", new { id }) ?? string.Empty;
@@ -186,6 +199,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
             // SECTION: Favourite state
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            UserKey = ProjectManagement.Areas.DocumentRepository.Models.DocRepoFormat.UserKey(userId);
+            Query = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim()[..Math.Min(Query.Trim().Length, 200)];
+            if (StartPage is < 1) StartPage = null;
             if (!string.IsNullOrWhiteSpace(userId))
             {
                 IsFavourite = await _db.DocRepoFavourites

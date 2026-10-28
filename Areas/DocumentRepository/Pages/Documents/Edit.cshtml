@@ -1,16 +1,19 @@
 ﻿@page "{id:guid}"
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.EditModel
+@inject Microsoft.AspNetCore.Mvc.ViewFeatures.IFileVersionProvider FileVersions
 @{
     ViewData["Title"] = "Edit document details";
     ViewData["UseFullWidth"] = true;
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/lib/pdfjs-dist/4.10.38/web/pdf_viewer.css" />
     <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
 }
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
+    <script src="~/js/docrepo/pdf-preview.js" asp-append-version="true" defer></script>
 }
 
 <div class="library library--form">
@@ -28,8 +31,28 @@
 
         <!-- SECTION: The PDF being described -->
         <section class="library-editor__file" aria-label="PDF">
-            <div class="library-editor__preview">
-                <iframe src="@(Model.ViewUrl)#view=FitH" title="The document's PDF" loading="lazy"></iframe>
+            <div class="library-editor__preview library-preview__viewer" data-pdf-preview
+                 data-pdf-url="@Model.ViewUrl"
+                 data-pdfjs-base="@Url.Content(DocRepoFormat.PdfJsPath)"
+                 data-viewer-module="@FileVersions.AddFileVersionToPath(ViewContext.HttpContext.Request.PathBase, "/js/docrepo/viewer.mjs")"
+                 data-doc-id="@Model.Input?.Id">
+                <div class="library-preview__tools" role="toolbar" aria-label="Preview tools">
+                    <button type="button" class="library-iconbtn" data-viewer-action="previous" aria-label="Previous page"><i class="bi bi-chevron-up" aria-hidden="true"></i></button>
+                    <label class="rd-pagebox">
+                        <span class="visually-hidden">Page</span>
+                        <input type="number" min="1" value="1" inputmode="numeric" data-viewer-page />
+                        <span class="rd-pagebox__of">of <span data-viewer-pages>–</span></span>
+                    </label>
+                    <button type="button" class="library-iconbtn" data-viewer-action="next" aria-label="Next page"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+                    <span class="library-preview__spacer"></span>
+                    <button type="button" class="library-iconbtn" data-viewer-action="zoom-out" aria-label="Zoom out"><i class="bi bi-dash-lg" aria-hidden="true"></i></button>
+                    <button type="button" class="rd-zoomlabel" data-viewer-action="fit-width" title="Fit to width" data-viewer-zoom-label>100%</button>
+                    <button type="button" class="library-iconbtn" data-viewer-action="zoom-in" aria-label="Zoom in"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+                </div>
+                <div class="library-preview__stagewrap library-editor__stagewrap">
+                    <div class="library-preview__stage" data-viewer-stage tabindex="-1"><div class="pdfViewer"></div></div>
+                    <p class="library-preview__status" data-viewer-status role="status">Opening the PDF…</p>
+                </div>
             </div>
         </section>
 

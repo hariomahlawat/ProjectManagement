@@ -1,0 +1,9 @@
+@model IReadOnlyList<DocumentSearchResultVm>
+@{
+    // Covers for a shelf the browser fills ("Continue reading", Index?handler=Cards).
+    var list = (ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel)ViewData["Page"]!;
+}
+@foreach (var item in Model)
+{
+    <partial name="_Cover" model="(list, item)" />
+}

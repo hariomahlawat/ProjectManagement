@@ -1,0 +1,66 @@
+@model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
+@{
+    // view=timeline: the page of results grouped by the month of the document date, newest
+    // first unless another sort is chosen. Undated documents come last.
+    var groups = Model.Items
+        .GroupBy(item => item.DocumentDate is { } date ? new DateOnly(date.Year, date.Month, 1) : (DateOnly?)null)
+        .ToList();
+}
+<ol class="library-timeline" data-library-items>
+    @foreach (var group in groups)
+    {
+        <li class="library-timeline__month">
+            <h3 class="library-timeline__label">
+                @if (group.Key is { } month)
+                {
+                    <span class="library-timeline__monthname">@month.ToString("MMMM", System.Globalization.CultureInfo.InvariantCulture)</span>
+                    <span class="library-timeline__year">@month.Year</span>
+                }
+                else
+                {
+                    <span class="library-timeline__monthname">No date</span>
+                }
+                <span class="library-timeline__count">@group.Count()</span>
+            </h3>
+            <ol class="library-timeline__items">
+                @foreach (var item in group)
+                {
+                    var readerUrl = Model.ReaderUrl(item);
+                    <li class="library-timeline__item library-hue-@DocRepoFormat.Hue(item.DocumentCategoryId) @(item.IsActive ? null : "is-inactive")" data-library-item data-doc-id="@item.Id" data-href="@readerUrl">
+                        <span class="library-timeline__day" aria-hidden="true">@(item.DocumentDate?.Day.ToString() ?? "–")</span>
+                        <span class="library-thumb" aria-hidden="true">
+                            <img src="@Url.Page("./Cover", new { id = item.Id })" alt="" loading="lazy" decoding="async" data-cover />
+                            <i class="bi bi-file-earmark-text"></i>
+                        </span>
+                        <div class="library-timeline__text">
+                            <a class="library-timeline__title" href="@readerUrl" data-library-open>@item.Subject</a>
+                            <p class="library-row__meta">
+                                <span>@(item.DocumentCategoryName ?? "Document")</span>
+                                <span>@(item.OfficeCategoryName ?? "No office")</span>
+                                @if (!string.IsNullOrWhiteSpace(item.ReceivedFrom))
+                                {
+                                    <span>From @item.ReceivedFrom</span>
+                                }
+                                @if (item.IsAots)
+                                {
+                                    <span class="library-pill library-pill--aots">AOTS</span>
+                                }
+                                @if (item.IsAotsUnread)
+                                {
+                                    <span class="library-pill library-pill--new">New</span>
+                                }
+                            </p>
+                        </div>
+                        <div class="library-row__actions">
+                            <button type="button" class="library-iconbtn library-star @(item.IsFavourite ? "is-on" : null)" data-library-star data-doc-id="@item.Id"
+                                    aria-pressed="@(item.IsFavourite ? "true" : "false")" aria-label="Favourite: @item.Subject">
+                                <i class="bi @(item.IsFavourite ? "bi-star-fill" : "bi-star")" aria-hidden="true"></i>
+                            </button>
+                            <partial name="_DocumentMenu" model="(Model, item)" />
+                        </div>
+                    </li>
+                }
+            </ol>
+        </li>
+    }
+</ol>

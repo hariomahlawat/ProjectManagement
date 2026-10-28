@@ -27,6 +27,12 @@ public class DocRepoOptions
     public string OcrInput { get; set; } = "input";
     public string OcrOutput { get; set; } = "output";
     public string OcrLogs { get; set; } = "logs";
+    // SECTION: Covers
+    // First-page thumbnails drawn with Poppler's pdftoppm (see DocRepoCoverService). Without
+    // Poppler the library shows type-coloured covers instead.
+    public bool EnableCovers { get; set; } = true;
+    // pdftoppm executable; a bare name is looked up on PATH.
+    public string? PdfToPpmPath { get; set; }
 }
 
 // SECTION: Local storage implementation
@@ -79,6 +85,9 @@ public class LocalDocStorageService : IDocStorage
 
         return Task.CompletedTask;
     }
+
+    public string? TryGetLocalPath(string storagePath)
+        => string.IsNullOrWhiteSpace(storagePath) ? null : Path.Combine(_rootPath, storagePath);
 
     public Task<bool> ExistsAsync(string storagePath, CancellationToken ct)
     {

@@ -170,6 +170,15 @@
     --pm-library-hue-4: #b45309;
     --pm-library-hue-5: #be185d;
     --pm-library-hue-6: #4d7c0f;
+    --pm-library-hero: #0c1a36;
+    --pm-library-hero-2: #183a74;
+    --pm-library-hero-ink: #ffffff;
+    --pm-library-hero-muted: #b9c6de;
+    --pm-library-hero-line: #2b4677;
+    --pm-library-hero-glow: #3d6fe0;
+    --pm-library-paper: #fdfcf8;
+    --pm-library-stage: #e8ecf2;
+    --pm-library-page-shadow-rgb: 16, 33, 63;
     --pm-accent-slate: #94a3b8;
     --pm-accent-slate-strong: #475569;
     --pm-accent-slate-mid: #5a6a80; /* was #64748b (4.40:1) */
@@ -379,6 +388,15 @@
     --pm-library-hue-4: #f5b453;
     --pm-library-hue-5: #f58ab8;
     --pm-library-hue-6: #a3d867;
+    --pm-library-hero: #0a0f1a;
+    --pm-library-hero-2: #13213d;
+    --pm-library-hero-ink: #f3f5f9;
+    --pm-library-hero-muted: #9eaac0;
+    --pm-library-hero-line: #24324f;
+    --pm-library-hero-glow: #2c4f9e;
+    --pm-library-paper: #f4f1ea;
+    --pm-library-stage: #0d0f12;
+    --pm-library-page-shadow-rgb: 0, 0, 0;
     --pm-theme-name: dark;
     color-scheme: dark;
     /* Graphite scale: page -> card -> tile, each a step lighter */

@@ -1,256 +1,447 @@
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
 @using ProjectManagement.Areas.DocumentRepository.Pages.Documents
 @{
-    // Everything below the search box. Served on its own (partial=true) when a filter changes.
+    // Everything below the tabs. Served on its own (partial=true) when a filter changes, so the
+    // shelves, the filter sidebar and the results always agree with the address bar.
     var startItem = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize) + 1;
     var endItem = Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize);
     var firstPage = Math.Max(1, Model.PageNumber - 2);
     var lastPage = Math.Min(Model.PageCount, Model.PageNumber + 2);
     var sortValue = DocRepoSortParser.ValueOf(Model.SortOrder);
+    var sortLabel = DocRepoSortParser.Options.First(option => option.Sort == Model.SortOrder).Label;
     var activeFilters = (Model.OfficeCategoryId.HasValue ? 1 : 0) + (Model.DocumentCategoryId.HasValue ? 1 : 0)
-        + (Model.Year.HasValue ? 1 : 0) + (Model.Tag is not null ? 1 : 0) + (Model.IncludeInactive ? 1 : 0);
+        + (Model.Year.HasValue ? 1 : 0) + (Model.Tag is not null ? 1 : 0) + (Model.From is not null ? 1 : 0) + (Model.IncludeInactive ? 1 : 0);
+    var officeValue = Model.OfficeCategoryId?.ToString();
+    var typeValue = Model.DocumentCategoryId?.ToString();
+    var yearValue = Model.Year?.ToString();
+    var heading = Model.IsSearchActive ? $"Results for “{Model.Q}”"
+        : Model.IsFavouritesScope ? "Your favourites"
+        : Model.IsAotsScope ? "All officers to see"
+        : Model.TypeName is not null && Model.OfficeName is null ? Model.TypeName
+        : Model.OfficeName is not null && Model.TypeName is null ? Model.OfficeName
+        : Model.IsHome ? "Everything in the library" : "Documents";
 }
 
-<!-- SECTION: Filters (each option shows how many documents it would leave). On phones they fold
-     behind "Filters"; docrepo-ui.js closes the fold on narrow screens. -->
-<details class="library-filterbox" open data-library-filterbox>
-<summary class="library-filterbox__toggle"><i class="bi bi-funnel" aria-hidden="true"></i> Filters@(activeFilters > 0 ? $" ({activeFilters})" : null)</summary>
-<form method="get" class="library-filters" id="libraryFilters" data-library-filters aria-label="Filter documents">
-    <input type="hidden" name="q" value="@Model.Q" />
-    <input type="hidden" name="scope" value="@Model.ScopeValue" />
-    <input type="hidden" name="view" value="@Model.ViewValue" />
-
-    <label class="library-select">
-        <span>Office</span>
-        <select class="form-select" name="officeCategoryId" data-library-filter>
-            <option value="">All offices</option>
-            @foreach (var office in Model.OfficeFacets)
-            {
-                <option value="@office.Value" selected="@(office.Value == Model.OfficeCategoryId?.ToString())">@office.Label (@office.Count)</option>
-            }
-        </select>
-    </label>
-    <label class="library-select">
-        <span>Type</span>
-        <select class="form-select" name="documentCategoryId" data-library-filter>
-            <option value="">All types</option>
-            @foreach (var type in Model.TypeFacets)
-            {
-                <option value="@type.Value" selected="@(type.Value == Model.DocumentCategoryId?.ToString())">@type.Label (@type.Count)</option>
-            }
-        </select>
-    </label>
-    <label class="library-select">
-        <span>Year</span>
-        <select class="form-select" name="year" data-library-filter>
-            <option value="">Any year</option>
-            @foreach (var year in Model.YearFacets)
-            {
-                <option value="@year.Value" selected="@(year.Value == Model.Year?.ToString())">@year.Label (@year.Count)</option>
-            }
-        </select>
-    </label>
-    <label class="library-select library-select--tag">
-        <span>Tag</span>
-        <input class="form-control" name="tag" value="@Model.Tag" placeholder="Any tag" maxlength="32" list="libraryTagList" autocomplete="off" data-library-filter-text />
-        <datalist id="libraryTagList">
-            @foreach (var tag in Model.PopularTags)
-            {
-                <option value="@tag"></option>
-            }
-        </datalist>
-    </label>
-    @if (Model.CanViewInactive)
-    {
-        <label class="library-toggle" title="Deactivated documents are visible only to people who manage the library">
-            <input type="checkbox" name="includeInactive" value="true" checked="@Model.IncludeInactive" data-library-filter />
-            <span>Show deactivated</span>
-        </label>
-    }
-    <noscript><button class="btn btn-sm btn-primary" type="submit">Apply</button></noscript>
-</form>
-</details>
-
-<!-- SECTION: Result count and active filters -->
-<div class="library-status">
-    <p class="library-status__count" data-library-count>
-        @if (Model.TotalCount == 0)
-        {
-            <text>No documents</text>
-        }
-        else
-        {
-            <strong>@Model.TotalCount.ToString("N0")</strong> @(Model.TotalCount == 1 ? "document" : "documents")
-            @if (Model.IsSearchActive)
-            {
-                <text> @(Model.TotalCount == 1 ? "matches" : "match") “@Model.Q”</text>
-            }
-        }
-    </p>
-    @if (Model.HasAnyFilter)
-    {
-        <ul class="library-chips" aria-label="Active filters">
-            @if (Model.IsSearchActive)
-            {
-                <li><a class="library-chip" href="@Model.UrlWith("q", null)" data-library-link><i class="bi bi-search" aria-hidden="true"></i>@Model.Q<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
-            }
-            @if (Model.OfficeCategoryId.HasValue)
-            {
-                <li><a class="library-chip" href="@Model.UrlWith("officeCategoryId", null)" data-library-link><i class="bi bi-building" aria-hidden="true"></i>@(Model.OfficeName ?? "Office")<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
-            }
-            @if (Model.DocumentCategoryId.HasValue)
-            {
-                <li><a class="library-chip" href="@Model.UrlWith("documentCategoryId", null)" data-library-link><i class="bi bi-file-earmark-text" aria-hidden="true"></i>@(Model.TypeName ?? "Type")<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
-            }
-            @if (Model.Year.HasValue)
-            {
-                <li><a class="library-chip" href="@Model.UrlWith("year", null)" data-library-link><i class="bi bi-calendar3" aria-hidden="true"></i>@Model.Year<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
-            }
-            @if (Model.Tag is not null)
-            {
-                <li><a class="library-chip" href="@Model.UrlWith("tag", null)" data-library-link><i class="bi bi-tag" aria-hidden="true"></i>@Model.Tag<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
-            }
-            @if (Model.IncludeInactive)
-            {
-                <li><a class="library-chip" href="@Model.UrlWith("includeInactive", null)" data-library-link><i class="bi bi-eye-slash" aria-hidden="true"></i>Deactivated shown<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
-            }
-            <li><a class="library-chips__clear" href="@Model.ClearFiltersUrl()" data-library-link>Clear all</a></li>
-        </ul>
-    }
-    <span class="library-filters__spacer"></span>
-    <label class="library-select library-select--sort">
-        <span>Sort</span>
-        <select class="form-select" name="sort" form="libraryFilters" data-library-filter data-default="@(Model.IsSearchActive ? "relevance" : "newest")">
-            @foreach (var option in DocRepoSortParser.Options.Where(o => o.Sort != DocRepoSort.Relevance || Model.IsSearchActive))
-            {
-                <option value="@option.Value" selected="@(option.Value == sortValue)">@option.Label</option>
-            }
-        </select>
-    </label>
-</div>
-
-@if (Model.HasTagMatch && Model.Tag is null)
+@if (Model.IsHome)
 {
-    <p class="library-hint">
-        <i class="bi bi-tag" aria-hidden="true"></i>
-        “@Model.Q” is also a tag. <a href="@Model.UrlWith("tag", Model.Q?.ToLowerInvariant())" data-library-link>Show only documents tagged @Model.Q</a>
-    </p>
-}
+    <!-- SECTION: Shelves (front page only) -->
+    <div class="library-shelves">
+        <section class="library-shelf" aria-labelledby="shelfContinue" data-shelf-continue hidden>
+            <header class="library-shelf__head">
+                <h2 id="shelfContinue"><i class="bi bi-bookmark" aria-hidden="true"></i>Continue reading</h2>
+                <p>Documents you opened recently on this computer</p>
+                <span class="library-shelf__nav" aria-hidden="true">
+                    <button type="button" data-shelf-scroll="-1" tabindex="-1"><i class="bi bi-chevron-left"></i></button>
+                    <button type="button" data-shelf-scroll="1" tabindex="-1"><i class="bi bi-chevron-right"></i></button>
+                </span>
+            </header>
+            <ol class="library-shelf__row" data-shelf-row></ol>
+        </section>
 
-<!-- SECTION: Results -->
-@if (Model.Items.Count == 0)
-{
-    <div class="library-empty">
-        @if (Model.IsFavouritesScope && !Model.HasAnyFilter)
+        @if (Model.NewForYou.Count > 0)
         {
-            <i class="bi bi-star" aria-hidden="true"></i>
-            <h2>No favourites yet</h2>
-            <p>Select the star on any document to keep it here, one click away.</p>
-            <a class="btn btn-outline-primary btn-sm" href="@Model.ScopeUrl(null)">Browse all documents</a>
+            <section class="library-shelf library-shelf--aots" aria-labelledby="shelfNew">
+                <header class="library-shelf__head">
+                    <h2 id="shelfNew"><i class="bi bi-broadcast" aria-hidden="true"></i>New for you</h2>
+                    <p>For all officers to see, and not yet opened by you</p>
+                    <a class="library-shelf__all" href="@Model.ScopeUrl("aots")" data-library-link>See all</a>
+                    <span class="library-shelf__nav" aria-hidden="true">
+                        <button type="button" data-shelf-scroll="-1" tabindex="-1"><i class="bi bi-chevron-left"></i></button>
+                        <button type="button" data-shelf-scroll="1" tabindex="-1"><i class="bi bi-chevron-right"></i></button>
+                    </span>
+                </header>
+                <ol class="library-shelf__row" data-shelf-row data-library-items>
+                    @foreach (var item in Model.NewForYou)
+                    {
+                        <partial name="_Cover" model="(Model, item)" />
+                    }
+                </ol>
+            </section>
         }
-        else if (Model.IsAotsScope && !Model.HasAnyFilter)
+
+        @if (Model.RecentlyAdded.Count > 0)
         {
-            <i class="bi bi-broadcast" aria-hidden="true"></i>
-            <h2>No documents for all officers</h2>
-            <p>Documents marked “All officers to see” appear here, with the ones you have not opened marked as new.</p>
+            <section class="library-shelf" aria-labelledby="shelfRecent">
+                <header class="library-shelf__head">
+                    <h2 id="shelfRecent"><i class="bi bi-clock-history" aria-hidden="true"></i>Recently added</h2>
+                    <p>The newest PDFs in the library</p>
+                    <a class="library-shelf__all" href="@Url.Page("./Index", new { sort = "added" })" data-library-link>See all</a>
+                    <span class="library-shelf__nav" aria-hidden="true">
+                        <button type="button" data-shelf-scroll="-1" tabindex="-1"><i class="bi bi-chevron-left"></i></button>
+                        <button type="button" data-shelf-scroll="1" tabindex="-1"><i class="bi bi-chevron-right"></i></button>
+                    </span>
+                </header>
+                <ol class="library-shelf__row" data-shelf-row data-library-items>
+                    @foreach (var item in Model.RecentlyAdded)
+                    {
+                        <partial name="_Cover" model="(Model, item)" />
+                    }
+                </ol>
+            </section>
         }
-        else if (Model.HasAnyFilter)
+
+        @if (Model.FavouriteShelf.Count > 0)
         {
-            <i class="bi bi-search" aria-hidden="true"></i>
-            <h2>Nothing matches</h2>
-            <p>@(Model.IsSearchActive ? "Try fewer or different words, or remove a filter." : "Remove a filter to see more documents.")</p>
-            <a class="btn btn-outline-primary btn-sm" href="@Model.ClearFiltersUrl()" data-library-link>Clear all filters</a>
+            <section class="library-shelf" aria-labelledby="shelfFavourites">
+                <header class="library-shelf__head">
+                    <h2 id="shelfFavourites"><i class="bi bi-star" aria-hidden="true"></i>Your favourites</h2>
+                    <p>Starred by you, newest star first</p>
+                    <a class="library-shelf__all" href="@Model.ScopeUrl("favourites")" data-library-link>See all</a>
+                    <span class="library-shelf__nav" aria-hidden="true">
+                        <button type="button" data-shelf-scroll="-1" tabindex="-1"><i class="bi bi-chevron-left"></i></button>
+                        <button type="button" data-shelf-scroll="1" tabindex="-1"><i class="bi bi-chevron-right"></i></button>
+                    </span>
+                </header>
+                <ol class="library-shelf__row" data-shelf-row data-library-items>
+                    @foreach (var item in Model.FavouriteShelf)
+                    {
+                        <partial name="_Cover" model="(Model, item)" />
+                    }
+                </ol>
+            </section>
         }
-        else
+
+        @if (Model.TypeFacets.Any(type => type.Count > 0))
         {
-            <i class="bi bi-folder2-open" aria-hidden="true"></i>
-            <h2>The library is empty</h2>
-            <p>Upload the first PDF and it becomes searchable, including the text inside it.</p>
-            @if (Model.CanUpload)
-            {
-                <a class="btn btn-primary btn-sm" asp-page="./Upload">Upload PDF</a>
-            }
+            <section class="library-browse" aria-labelledby="browseTypes">
+                <header class="library-shelf__head">
+                    <h2 id="browseTypes"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>Browse by type</h2>
+                </header>
+                <ul class="library-browse__tiles">
+                    @foreach (var type in Model.TypeFacets.Where(type => type.Count > 0))
+                    {
+                        <li>
+                            <a class="library-tile library-hue-@DocRepoFormat.Hue(int.Parse(type.Value))" href="@Model.UrlWith("documentCategoryId", type.Value)" data-library-link>
+                                <span class="library-tile__icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>
+                                <span class="library-tile__name">@type.Label</span>
+                                <span class="library-tile__count">@DocRepoFormat.Count(type.Count, "document")</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </section>
         }
     </div>
 }
-else if (Model.IsTableView)
-{
-    <partial name="_DocumentTable" model="Model" />
-}
-else if (Model.IsListView)
-{
-    <ol class="library-list" data-library-items>
-        @foreach (var item in Model.Items)
-        {
-            <partial name="_DocumentRow" model="(Model, item)" />
-        }
-    </ol>
-}
-else
-{
-    <ol class="library-grid" data-library-items>
-        @foreach (var item in Model.Items)
-        {
-            <partial name="_DocumentCard" model="(Model, item)" />
-        }
-    </ol>
-}
 
-<!-- SECTION: Pages -->
-@if (Model.PageCount > 1)
-{
-    <nav class="library-pager" aria-label="Pages">
-        <span class="library-pager__summary">@startItem–@endItem of @Model.TotalCount.ToString("N0")</span>
-        <ul>
-            <li>
-                @if (Model.PageNumber > 1)
-                {
-                    <a href="@Model.UrlWith("page", (Model.PageNumber - 1).ToString(), keepPage: true)" data-library-link aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
-                }
-                else
-                {
-                    <span class="is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
-                }
-            </li>
-            @if (firstPage > 1)
+<!-- SECTION: Browse: filters beside the results -->
+<div class="library-browsing @(activeFilters > 0 ? "has-filters" : null)" id="libraryBrowse">
+    <details class="library-side" open data-library-filterbox>
+        <summary class="library-side__toggle">
+            <i class="bi bi-funnel" aria-hidden="true"></i>Filters
+            @if (activeFilters > 0)
             {
-                <li><a href="@Model.UrlWith("page", "1", keepPage: true)" data-library-link>1</a></li>
-                @if (firstPage > 2)
-                {
-                    <li><span class="is-gap" aria-hidden="true">…</span></li>
-                }
+                <span class="library-side__count">@activeFilters</span>
             }
-            @for (var p = firstPage; p <= lastPage; p++)
+        </summary>
+        <div class="library-side__body" aria-label="Filter documents">
+            @if (Model.OfficeFacets.Any(facet => facet.Count > 0 || facet.Value == officeValue))
             {
-                <li>
-                    @if (p == Model.PageNumber)
+                <section class="library-facet" aria-labelledby="facetOffice">
+                    <h3 id="facetOffice">Office</h3>
+                    <ul>
+                        @foreach (var (office, index) in Model.OfficeFacets.Where(facet => facet.Count > 0 || facet.Value == officeValue).OrderByDescending(facet => facet.Value == officeValue).ThenByDescending(facet => facet.Count).Select((facet, index) => (facet, index)))
+                        {
+                            var on = office.Value == officeValue;
+                            <li class="@(index >= 6 && !on ? "is-extra" : null)">
+                                <a href="@Model.UrlWith("officeCategoryId", on ? null : office.Value)" class="@(on ? "is-on" : null)" aria-current="@(on ? "true" : null)" data-library-link>
+                                    <span class="library-facet__check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                                    <span class="library-facet__label">@office.Label</span>
+                                    <span class="library-facet__count">@office.Count.ToString("N0")</span>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                    @if (Model.OfficeFacets.Count(facet => facet.Count > 0) > 6)
                     {
-                        <span class="is-current" aria-current="page">@p</span>
+                        <button type="button" class="library-facet__more" data-facet-more aria-expanded="false">Show all @Model.OfficeFacets.Count(facet => facet.Count > 0)</button>
+                    }
+                </section>
+            }
+
+            @if (Model.TypeFacets.Any(facet => facet.Count > 0 || facet.Value == typeValue))
+            {
+                <section class="library-facet" aria-labelledby="facetType">
+                    <h3 id="facetType">Type</h3>
+                    <ul>
+                        @foreach (var (type, index) in Model.TypeFacets.Where(facet => facet.Count > 0 || facet.Value == typeValue).OrderByDescending(facet => facet.Value == typeValue).ThenByDescending(facet => facet.Count).Select((facet, index) => (facet, index)))
+                        {
+                            var on = type.Value == typeValue;
+                            <li class="@(index >= 6 && !on ? "is-extra" : null)">
+                                <a href="@Model.UrlWith("documentCategoryId", on ? null : type.Value)" class="@(on ? "is-on" : null)" aria-current="@(on ? "true" : null)" data-library-link>
+                                    <span class="library-facet__check library-hue-@DocRepoFormat.Hue(int.Parse(type.Value))" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                                    <span class="library-facet__label">@type.Label</span>
+                                    <span class="library-facet__count">@type.Count.ToString("N0")</span>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                    @if (Model.TypeFacets.Count(facet => facet.Count > 0) > 6)
+                    {
+                        <button type="button" class="library-facet__more" data-facet-more aria-expanded="false">Show all @Model.TypeFacets.Count(facet => facet.Count > 0)</button>
+                    }
+                </section>
+            }
+
+            @if (Model.YearFacets.Count > 0)
+            {
+                <section class="library-facet" aria-labelledby="facetYear">
+                    <h3 id="facetYear">Year</h3>
+                    <ul class="library-facet__years">
+                        @foreach (var year in Model.YearFacets)
+                        {
+                            var on = year.Value == yearValue;
+                            <li>
+                                <a href="@Model.UrlWith("year", on ? null : year.Value)" class="@(on ? "is-on" : null)" aria-current="@(on ? "true" : null)" data-library-link
+                                   title="@DocRepoFormat.Count(year.Count, "document")">@year.Label<span class="library-facet__count">@year.Count</span></a>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            <form method="get" class="library-facet library-facet--text" data-library-textfilter aria-label="Tag and sender">
+                <label>
+                    <span>Tag</span>
+                    <span class="library-facet__input">
+                        <i class="bi bi-tag" aria-hidden="true"></i>
+                        <input name="tag" value="@Model.Tag" placeholder="Any tag" maxlength="32" list="libraryTagList" autocomplete="off" data-library-filter-text />
+                    </span>
+                    <datalist id="libraryTagList">
+                        @foreach (var tag in Model.PopularTags)
+                        {
+                            <option value="@tag"></option>
+                        }
+                    </datalist>
+                </label>
+                <label>
+                    <span>Received from</span>
+                    <span class="library-facet__input">
+                        <i class="bi bi-envelope-open" aria-hidden="true"></i>
+                        <input name="from" value="@Model.From" placeholder="Any sender" maxlength="80" autocomplete="off" data-library-filter-text />
+                    </span>
+                </label>
+                <noscript><button class="btn btn-sm btn-primary" type="submit">Apply</button></noscript>
+            </form>
+
+            @if (Model.CanViewInactive)
+            {
+                <a class="library-switch @(Model.IncludeInactive ? "is-on" : null)" href="@Model.UrlWith("includeInactive", Model.IncludeInactive ? null : "true")" role="switch" aria-checked="@(Model.IncludeInactive ? "true" : "false")" data-library-link
+                   title="Deactivated documents are visible only to people who manage the library">
+                    <span class="library-switch__track" aria-hidden="true"><span></span></span>
+                    Show deactivated
+                </a>
+            }
+        </div>
+    </details>
+
+    <div class="library-main">
+        <!-- SECTION: Heading, count, sort and layout -->
+        <div class="library-status">
+            <div class="library-status__text">
+                <h2 class="library-status__title">@heading</h2>
+                <p class="library-status__count" data-library-count>
+                    @if (Model.TotalCount == 0)
+                    {
+                        <text>No documents</text>
                     }
                     else
                     {
-                        <a href="@Model.UrlWith("page", p.ToString(), keepPage: true)" data-library-link>@p</a>
+                        <text>@DocRepoFormat.Count(Model.TotalCount, "document")</text>
                     }
-                </li>
-            }
-            @if (lastPage < Model.PageCount)
-            {
-                @if (lastPage < Model.PageCount - 1)
+                </p>
+            </div>
+            <div class="library-status__tools">
+                <div class="dropdown">
+                    <button class="library-toolbtn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-sort-down" aria-hidden="true"></i><span>@sortLabel</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        @foreach (var option in DocRepoSortParser.Options.Where(o => o.Sort != DocRepoSort.Relevance || Model.IsSearchActive))
+                        {
+                            var isDefault = option.Value == (Model.IsSearchActive ? "relevance" : "newest");
+                            <li>
+                                <a class="dropdown-item @(option.Value == sortValue ? "active" : null)" aria-current="@(option.Value == sortValue ? "true" : null)"
+                                   href="@Model.UrlWith("sort", isDefault ? null : option.Value)" data-library-link>@option.Label</a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+                <div class="library-viewswitch" role="group" aria-label="Layout">
+                    @foreach (var (value, icon, label) in new[] { ("covers", "bi-grid-3x2-gap", "Covers"), ("list", "bi-list-ul", "List"), ("table", "bi-table", "Table"), ("timeline", "bi-calendar3-range", "Timeline") })
+                    {
+                        var on = Model.ViewMode == value;
+                        <a href="@Model.UrlWith("view", value, keepPage: true)" class="@(on ? "is-on" : null)" aria-pressed="@(on ? "true" : "false")" data-library-view="@value" data-library-link title="@label">
+                            <i class="bi @icon" aria-hidden="true"></i><span class="visually-hidden">@label</span>
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (activeFilters > 0 || Model.IsSearchActive)
+        {
+            <ul class="library-chips" aria-label="Active filters">
+                @if (Model.IsSearchActive)
                 {
-                    <li><span class="is-gap" aria-hidden="true">…</span></li>
+                    <li><a class="library-chip" href="@Model.UrlWith("q", null)" data-library-link><i class="bi bi-search" aria-hidden="true"></i>@Model.Q<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
                 }
-                <li><a href="@Model.UrlWith("page", Model.PageCount.ToString(), keepPage: true)" data-library-link>@Model.PageCount</a></li>
-            }
-            <li>
-                @if (Model.PageNumber < Model.PageCount)
+                @if (Model.OfficeCategoryId.HasValue)
                 {
-                    <a href="@Model.UrlWith("page", (Model.PageNumber + 1).ToString(), keepPage: true)" data-library-link aria-label="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                    <li><a class="library-chip" href="@Model.UrlWith("officeCategoryId", null)" data-library-link><i class="bi bi-building" aria-hidden="true"></i>@(Model.OfficeName ?? "Office")<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
+                }
+                @if (Model.DocumentCategoryId.HasValue)
+                {
+                    <li><a class="library-chip" href="@Model.UrlWith("documentCategoryId", null)" data-library-link><i class="bi bi-file-earmark-text" aria-hidden="true"></i>@(Model.TypeName ?? "Type")<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
+                }
+                @if (Model.Year.HasValue)
+                {
+                    <li><a class="library-chip" href="@Model.UrlWith("year", null)" data-library-link><i class="bi bi-calendar3" aria-hidden="true"></i>@Model.Year<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
+                }
+                @if (Model.Tag is not null)
+                {
+                    <li><a class="library-chip" href="@Model.UrlWith("tag", null)" data-library-link><i class="bi bi-tag" aria-hidden="true"></i>@Model.Tag<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
+                }
+                @if (Model.From is not null)
+                {
+                    <li><a class="library-chip" href="@Model.UrlWith("from", null)" data-library-link><i class="bi bi-envelope-open" aria-hidden="true"></i>From @Model.From<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
+                }
+                @if (Model.IncludeInactive)
+                {
+                    <li><a class="library-chip" href="@Model.UrlWith("includeInactive", null)" data-library-link><i class="bi bi-eye-slash" aria-hidden="true"></i>Deactivated shown<span class="visually-hidden">, remove</span><i class="bi bi-x" aria-hidden="true"></i></a></li>
+                }
+                <li><a class="library-chips__clear" href="@Model.ClearFiltersUrl()" data-library-link>Clear all</a></li>
+            </ul>
+        }
+
+        @if (Model.HasTagMatch && Model.Tag is null)
+        {
+            <p class="library-hint">
+                <i class="bi bi-tag" aria-hidden="true"></i>
+                “@Model.Q” is also a tag. <a href="@Model.UrlWith("tag", Model.Q?.ToLowerInvariant())" data-library-link>Show only documents tagged @Model.Q</a>
+            </p>
+        }
+
+        <!-- SECTION: Results -->
+        @if (Model.Items.Count == 0)
+        {
+            <div class="library-empty">
+                @if (Model.IsFavouritesScope && !Model.HasAnyFilter)
+                {
+                    <i class="bi bi-star" aria-hidden="true"></i>
+                    <h2>No favourites yet</h2>
+                    <p>Select the star on any document to keep it here, one click away.</p>
+                    <a class="btn btn-outline-primary btn-sm" href="@Model.ScopeUrl(null)">Browse the library</a>
+                }
+                else if (Model.IsAotsScope && !Model.HasAnyFilter)
+                {
+                    <i class="bi bi-broadcast" aria-hidden="true"></i>
+                    <h2>No documents for all officers</h2>
+                    <p>Documents marked “All officers to see” appear here, with the ones you have not opened marked as new.</p>
+                }
+                else if (Model.HasAnyFilter)
+                {
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <h2>Nothing matches</h2>
+                    <p>@(Model.IsSearchActive ? "Try fewer or different words, or remove a filter." : "Remove a filter to see more documents.")</p>
+                    <a class="btn btn-outline-primary btn-sm" href="@Model.ClearFiltersUrl()" data-library-link>Clear all filters</a>
                 }
                 else
                 {
-                    <span class="is-disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                    <i class="bi bi-journal-bookmark" aria-hidden="true"></i>
+                    <h2>The library is empty</h2>
+                    <p>Add the first PDFs and they become searchable, including the words inside them.</p>
+                    @if (Model.CanUpload)
+                    {
+                        <a class="btn btn-primary btn-sm" asp-page="./Upload">Add PDFs</a>
+                    }
                 }
-            </li>
-        </ul>
-    </nav>
-}
+            </div>
+        }
+        else if (Model.IsTableView)
+        {
+            <partial name="_DocumentTable" model="Model" />
+        }
+        else if (Model.IsListView)
+        {
+            <ol class="library-list" data-library-items>
+                @foreach (var item in Model.Items)
+                {
+                    <partial name="_DocumentRow" model="(Model, item)" />
+                }
+            </ol>
+        }
+        else if (Model.IsTimelineView)
+        {
+            <partial name="_Timeline" model="Model" />
+        }
+        else
+        {
+            <ol class="library-covers" data-library-items>
+                @foreach (var item in Model.Items)
+                {
+                    <partial name="_Cover" model="(Model, item)" />
+                }
+            </ol>
+        }
+
+        <!-- SECTION: Pages -->
+        @if (Model.PageCount > 1)
+        {
+            <nav class="library-pager" aria-label="Pages">
+                <span class="library-pager__summary">@startItem–@endItem of @Model.TotalCount.ToString("N0")</span>
+                <ul>
+                    <li>
+                        @if (Model.PageNumber > 1)
+                        {
+                            <a href="@Model.UrlWith("page", (Model.PageNumber - 1).ToString(), keepPage: true)" data-library-link aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
+                        }
+                        else
+                        {
+                            <span class="is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+                        }
+                    </li>
+                    @if (firstPage > 1)
+                    {
+                        <li><a href="@Model.UrlWith("page", "1", keepPage: true)" data-library-link>1</a></li>
+                        @if (firstPage > 2)
+                        {
+                            <li><span class="is-gap" aria-hidden="true">…</span></li>
+                        }
+                    }
+                    @for (var p = firstPage; p <= lastPage; p++)
+                    {
+                        <li>
+                            @if (p == Model.PageNumber)
+                            {
+                                <span class="is-current" aria-current="page">@p</span>
+                            }
+                            else
+                            {
+                                <a href="@Model.UrlWith("page", p.ToString(), keepPage: true)" data-library-link>@p</a>
+                            }
+                        </li>
+                    }
+                    @if (lastPage < Model.PageCount)
+                    {
+                        @if (lastPage < Model.PageCount - 1)
+                        {
+                            <li><span class="is-gap" aria-hidden="true">…</span></li>
+                        }
+                        <li><a href="@Model.UrlWith("page", Model.PageCount.ToString(), keepPage: true)" data-library-link>@Model.PageCount</a></li>
+                    }
+                    <li>
+                        @if (Model.PageNumber < Model.PageCount)
+                        {
+                            <a href="@Model.UrlWith("page", (Model.PageNumber + 1).ToString(), keepPage: true)" data-library-link aria-label="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                        }
+                        else
+                        {
+                            <span class="is-disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                        }
+                    </li>
+                </ul>
+            </nav>
+        }
+    </div>
+</div>

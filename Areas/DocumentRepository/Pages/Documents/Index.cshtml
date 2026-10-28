@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
+@inject Microsoft.AspNetCore.Mvc.ViewFeatures.IFileVersionProvider FileVersions
 @{
     ViewData["Title"] = "Document Repository";
     ViewData["UseFullWidth"] = true;
@@ -9,6 +10,7 @@
     }
 
     var summary = Model.Summary;
+    var viewerModule = FileVersions.AddFileVersionToPath(ViewContext.HttpContext.Request.PathBase, "/js/docrepo/viewer.mjs");
 }
 
 @if (Model.IsPartial)
@@ -18,6 +20,7 @@
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/lib/pdfjs-dist/4.10.38/web/pdf_viewer.css" />
     <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
 }
 
@@ -28,117 +31,125 @@
 <div class="library" data-library
      data-results-url="@Url.Page("./Index")"
      data-preview-url="@Url.Page("./Index", "Preview")"
-     data-favourite-url="@Url.Page("./Index", "ToggleFavourite")">
+     data-favourite-url="@Url.Page("./Index", "ToggleFavourite")"
+     data-quick-url="@Url.Page("./Index", "Quick")"
+     data-cards-url="@Url.Page("./Index", "Cards")"
+     data-user-key="@Model.UserKey"
+     data-pdfjs-base="@Url.Content(DocRepoFormat.PdfJsPath)"
+     data-viewer-module="@viewerModule">
 
     <form id="libraryToken" method="post" class="d-none">@Html.AntiForgeryToken()</form>
 
-    <!-- SECTION: Header -->
-    <header class="library-head">
-        <div class="library-head__text">
-            <span class="library-eyebrow">Office library</span>
-            <h1>Document Repository</h1>
-            <p>Letters, policies, minutes and other papers, searchable by their details and by the text inside each PDF.</p>
-        </div>
-        <div class="library-head__actions">
-            @if (Model.HasAdminLinks)
-            {
-                <div class="dropdown">
-                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-gear" aria-hidden="true"></i> Manage
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        @if (Model.CanApproveDeletes)
-                        {
-                            <li><a class="dropdown-item" asp-page="/Admin/DeleteRequests/Index"><i class="bi bi-check2-square me-2" aria-hidden="true"></i>Deletion requests</a></li>
-                            <li><a class="dropdown-item" asp-page="/Admin/OCRFailures/OcrFailures"><i class="bi bi-file-earmark-break me-2" aria-hidden="true"></i>Unreadable PDFs</a></li>
-                            <li><a class="dropdown-item" asp-page="/Admin/MissingFiles"><i class="bi bi-file-earmark-x me-2" aria-hidden="true"></i>Missing files</a></li>
-                        }
-                        @if (Model.CanPurge)
-                        {
-                            <li><a class="dropdown-item" asp-page="/Admin/Trash/Index"><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Trash</a></li>
-                        }
-                        @if (Model.CanManageCategories)
-                        {
-                            <li><hr class="dropdown-divider" /></li>
-                            <li><a class="dropdown-item" asp-page="/Admin/OfficeCategories/Index"><i class="bi bi-building me-2" aria-hidden="true"></i>Offices</a></li>
-                            <li><a class="dropdown-item" asp-page="/Admin/DocumentCategories/Index"><i class="bi bi-tags me-2" aria-hidden="true"></i>Document types</a></li>
-                        }
-                    </ul>
+    <!-- SECTION: Hero: the search comes first -->
+    <header class="library-hero @(Model.IsHome ? "is-home" : "is-compact")">
+        <div class="library-hero__inner">
+            <div class="library-hero__top">
+                <a class="library-hero__brand" href="@Model.ScopeUrl(null)">
+                    <span class="library-hero__logo" aria-hidden="true"><i class="bi bi-journal-bookmark-fill"></i></span>
+                    <span>Document Repository</span>
+                </a>
+                <div class="library-hero__actions">
+                    @if (Model.HasAdminLinks)
+                    {
+                        <div class="dropdown">
+                            <button class="library-hero__btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-sliders" aria-hidden="true"></i><span>Manage</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                @if (Model.CanApproveDeletes)
+                                {
+                                    <li><a class="dropdown-item" asp-page="/Admin/DeleteRequests/Index"><i class="bi bi-check2-square me-2" aria-hidden="true"></i>Deletion requests</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/OCRFailures/OcrFailures"><i class="bi bi-file-earmark-break me-2" aria-hidden="true"></i>Unreadable PDFs</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/MissingFiles"><i class="bi bi-file-earmark-x me-2" aria-hidden="true"></i>Missing files</a></li>
+                                }
+                                @if (Model.CanPurge)
+                                {
+                                    <li><a class="dropdown-item" asp-page="/Admin/Trash/Index"><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Trash</a></li>
+                                }
+                                @if (Model.CanManageCategories)
+                                {
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/OfficeCategories/Index"><i class="bi bi-building me-2" aria-hidden="true"></i>Offices</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/DocumentCategories/Index"><i class="bi bi-tags me-2" aria-hidden="true"></i>Document types</a></li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    @if (Model.CanUpload)
+                    {
+                        <a class="library-hero__btn library-hero__btn--primary" asp-page="./Upload"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Add PDFs</span></a>
+                    }
                 </div>
-            }
-            @if (Model.CanUpload)
+            </div>
+
+            @if (Model.IsHome)
             {
-                <a class="btn btn-primary" asp-page="./Upload"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Upload PDF</a>
+                <h1 class="library-hero__title">Every paper the office keeps, <span>found in seconds.</span></h1>
+            }
+            else
+            {
+                <h1 class="visually-hidden">Document Repository</h1>
+            }
+
+            <form method="get" class="library-hero__search" role="search" data-library-search>
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <label class="visually-hidden" for="librarySearch">Search the library</label>
+                <input id="librarySearch" type="search" name="q" value="@Model.Q" autocomplete="off" spellcheck="false"
+                       placeholder="Search titles, senders, tags and the words inside every PDF" data-short-placeholder="Search documents" />
+                <input type="hidden" name="scope" value="@Model.ScopeValue" />
+                <input type="hidden" name="view" value="@Model.ViewValue" />
+                <button type="button" class="library-hero__kbd" data-quick-open title="Instant search: results as you type (press /)">
+                    <kbd>/</kbd>
+                </button>
+                <button class="library-hero__go" type="submit"><span>Search</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+            </form>
+
+            @if (Model.IsHome)
+            {
+                <p class="library-hero__try">
+                    <span>Try</span>
+                    @foreach (var type in Model.TypeFacets.Where(t => t.Count > 0).OrderByDescending(t => t.Count).Take(4))
+                    {
+                        <a href="@Url.Page("./Index", new { documentCategoryId = type.Value })" data-library-link>@type.Label</a>
+                    }
+                    <a href="@Url.Page("./Index", new { sort = "added" })" data-library-link>Newest uploads</a>
+                    <code title="Shortcuts work in the search box">office:<em>name</em> year:<em>2025</em> from:<em>sender</em></code>
+                </p>
+                <dl class="library-hero__stats">
+                    <div><dt>Documents</dt><dd>@summary.Documents.ToString("N0")</dd></div>
+                    <div><dt>Added this month</dt><dd>@summary.AddedThisMonth.ToString("N0")</dd></div>
+                    <div><dt>AOTS unread by you</dt><dd><a href="@Model.ScopeUrl("aots")">@summary.AotsUnread.ToString("N0")</a></dd></div>
+                    @if (Model.CanManage)
+                    {
+                        <div>
+                            <dt>Text searchable</dt>
+                            <dd>
+                                @if (Model.CanApproveDeletes && summary.TextFailed > 0)
+                                {
+                                    <a asp-page="/Admin/OCRFailures/OcrFailures" title="@summary.TextFailed not readable · @summary.TextPending waiting">@summary.TextReadyPercent%</a>
+                                }
+                                else
+                                {
+                                    <span title="@summary.TextPending waiting to be read">@summary.TextReadyPercent%</span>
+                                }
+                            </dd>
+                        </div>
+                    }
+                </dl>
             }
         </div>
     </header>
 
-    <!-- SECTION: Summary strip (whole repository) -->
-    <section class="library-summary library-summary--list" aria-label="Library at a glance">
-        <a class="library-stat" href="@Model.ScopeUrl(null)">
-            <span class="library-stat__label">Documents</span>
-            <span class="library-stat__figure"><strong>@summary.Documents.ToString("N0")</strong><span>in the library</span></span>
-            <span class="library-stat__sub">
-                @(summary.AddedThisMonth == 0 ? "None added this month" : $"{summary.AddedThisMonth:N0} added this month")
-                @if (summary.Inactive > 0)
-                {
-                    <text> · @summary.Inactive deactivated, not counted</text>
-                }
-            </span>
-        </a>
-        <a class="library-stat library-stat--aots" href="@Model.ScopeUrl("aots")">
-            <span class="library-stat__label">All officers to see</span>
-            <span class="library-stat__figure"><strong>@summary.AotsUnread.ToString("N0")</strong><span>unread by you</span></span>
-            <span class="library-stat__sub">@DocRepoFormat.Count(summary.Aots, "AOTS document") in all</span>
-        </a>
-        <a class="library-stat" href="@Model.ScopeUrl("favourites")">
-            <span class="library-stat__label">Favourites</span>
-            <span class="library-stat__figure"><strong>@summary.Favourites.ToString("N0")</strong><span>starred</span></span>
-            <span class="library-stat__sub">Star a document to keep it one click away</span>
-        </a>
-        @if (Model.CanManage)
-        {
-            // Text-search health is something only the people who manage the library can act on.
-            var stateText = summary.TextFailed > 0
-                ? $"{summary.TextPending} not searchable yet · {summary.TextFailed} not readable"
-                : summary.TextPending > 0 ? $"{summary.TextPending} not searchable yet" : "Every PDF's text is searchable";
-            if (Model.CanApproveDeletes && summary.TextFailed > 0)
-            {
-                <a class="library-stat" asp-page="/Admin/OCRFailures/OcrFailures">
-                    <span class="library-stat__label">Searchable text</span>
-                    <span class="library-stat__figure"><strong>@summary.TextReadyPercent%</strong><span>of documents</span></span>
-                    <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @summary.TextReadyPercent%"></span></span>
-                    <span class="library-stat__sub">@stateText</span>
-                </a>
-            }
-            else
-            {
-                <div class="library-stat">
-                    <span class="library-stat__label">Searchable text</span>
-                    <span class="library-stat__figure"><strong>@summary.TextReadyPercent%</strong><span>of documents</span></span>
-                    <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @summary.TextReadyPercent%"></span></span>
-                    <span class="library-stat__sub">@stateText</span>
-                </div>
-            }
-        }
-        else
-        {
-            <a class="library-stat" href="@Url.Page("./Index", new { sort = "added" })">
-                <span class="library-stat__label">Recently added</span>
-                <span class="library-stat__figure"><strong>@summary.AddedLast30Days.ToString("N0")</strong><span>in 30 days</span></span>
-                <span class="library-stat__sub">See the newest uploads first</span>
-            </a>
-        }
-    </section>
-
     <!-- SECTION: Scope tabs -->
     <nav class="library-tabs" aria-label="Show">
-        <a href="@Model.ScopeUrl(null)" class="@(Model.IsDefaultScope ? "is-active" : null)" aria-current="@(Model.IsDefaultScope ? "page" : null)" data-library-scope="">All documents</a>
+        <a href="@Model.ScopeUrl(null)" class="@(Model.IsDefaultScope ? "is-active" : null)" aria-current="@(Model.IsDefaultScope ? "page" : null)" data-library-scope="">
+            <i class="bi bi-collection" aria-hidden="true"></i>Library
+        </a>
         <a href="@Model.ScopeUrl("favourites")" class="@(Model.IsFavouritesScope ? "is-active" : null)" aria-current="@(Model.IsFavouritesScope ? "page" : null)" data-library-scope="favourites">
-            Favourites <span class="library-tabs__count">@summary.Favourites</span>
+            <i class="bi bi-star" aria-hidden="true"></i>Favourites <span class="library-tabs__count">@summary.Favourites</span>
         </a>
         <a href="@Model.ScopeUrl("aots")" class="@(Model.IsAotsScope ? "is-active" : null)" aria-current="@(Model.IsAotsScope ? "page" : null)" data-library-scope="aots">
-            AOTS
+            <i class="bi bi-broadcast" aria-hidden="true"></i>All officers to see
             @if (summary.AotsUnread > 0)
             {
                 <span class="library-tabs__badge" title="Unread by you">@summary.AotsUnread new</span>
@@ -146,29 +157,7 @@
         </a>
     </nav>
 
-    <!-- SECTION: Search (outside the refreshed region so typing keeps focus) -->
-    <div class="library-searchrow">
-        <form method="get" class="library-search" role="search" data-library-search>
-            <i class="bi bi-search" aria-hidden="true"></i>
-            <label class="visually-hidden" for="librarySearch">Search the library</label>
-            <input id="librarySearch" type="search" name="q" value="@Model.Q" autocomplete="off"
-                   placeholder="Search titles, senders, tags and the text inside PDFs" data-short-placeholder="Search documents" />
-            <input type="hidden" name="scope" value="@Model.ScopeValue" />
-            <input type="hidden" name="view" value="@Model.ViewValue" />
-            <button class="library-search__submit" type="submit">Search</button>
-        </form>
-        <div class="library-viewswitch" role="group" aria-label="Layout">
-            @foreach (var (value, icon, label) in new[] { ((string?)null, "bi-list-ul", "List"), ("table", "bi-table", "Table"), ("cards", "bi-grid", "Cards") })
-            {
-                var on = Model.ViewValue == value;
-                <a href="@Model.UrlWith("view", value, keepPage: true)" class="@(on ? "is-on" : null)" aria-pressed="@(on ? "true" : "false")" data-library-view="@(value ?? "list")" title="@label">
-                    <i class="bi @icon" aria-hidden="true"></i><span>@label</span>
-                </a>
-            }
-        </div>
-    </div>
-
-    <!-- SECTION: Results with the reading pane beside them on wide screens -->
+    <!-- SECTION: Results, with the reading pane beside them on wide screens -->
     <div class="library-body">
         <div class="library-results" id="libraryResults" aria-live="polite" aria-busy="false">
             <partial name="_ResultsRegion" model="Model" />
@@ -177,4 +166,5 @@
     </div>
 
     <partial name="_LibraryDialog" />
+    <partial name="_QuickSearch" />
 </div>
