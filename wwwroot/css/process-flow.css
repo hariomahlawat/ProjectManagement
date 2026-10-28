@@ -161,7 +161,7 @@
 .route-search input {
   width: 270px;
   max-width: 100%;
-  padding: 10px 44px 10px 40px;
+  padding: 10px 14px 10px 40px;
   border: 1px solid var(--route-hairline);
   border-radius: 12px;
   background: rgba(var(--pm-route-ink-rgb), .06);
@@ -180,13 +180,6 @@
   border-color: var(--route-done-end);
   background: rgba(var(--pm-route-ink-rgb), .1);
   box-shadow: 0 0 0 3px rgba(var(--pm-route-teal-rgb), .22);
-}
-
-.route-search kbd {
-  position: absolute;
-  right: 12px;
-  color: var(--route-faint);
-  pointer-events: none;
 }
 
 .route-search__results {
@@ -502,6 +495,10 @@
 .route-station.is-conditional.is-done .route-station__dot {
   border-style: solid;
   background: linear-gradient(135deg, var(--route-amber), var(--route-maroon));
+}
+
+.route-station.is-active {
+  gap: 18px;
 }
 
 .route-station.is-active .route-station__dot {

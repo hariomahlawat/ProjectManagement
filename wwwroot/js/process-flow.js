@@ -1045,15 +1045,18 @@ if (root && Route) {
   document.addEventListener('keydown', event => {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
     if (event.target?.closest?.('input, textarea, select, [contenteditable="true"], .modal')) return;
-    if (event.key === '/') {
-      event.preventDefault();
-      stageSearch.focus();
-    } else if (event.key === 'Escape' && state.walking) {
+    // "/" stays with PRISM's global search; the stage finder is the field on the route board.
+    if (event.key === 'Escape' && state.walking) {
       setWalkthrough(false);
     } else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !event.target?.closest?.('.route-station, button')) {
       event.preventDefault();
       goRelative(event.key === 'ArrowRight' ? 1 : -1);
     }
+  });
+
+  window.addEventListener('hashchange', () => {
+    const code = initialCodeFromHash();
+    if (code && state.route?.byCode.has(code) && code !== state.selectedCode) selectStage(code, { updateHash: false });
   });
 
   loadFlow();
