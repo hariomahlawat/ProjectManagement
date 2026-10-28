@@ -60,9 +60,16 @@ while a form field has focus, and never to someone who has already used the swit
   `prefers-color-scheme`. Not seen: action-task detail pages (no tasks in the dev data).
   The signed-out landing and sign-in pages were redesigned for both themes (2026-10-24, see
   [public pages](public-pages.md)) and have their own Light / Dark / System switch in the top bar.
-- **Coverage now:** 71 dark gaps site-wide, down from 8,567 before the theme work; all are
-  deliberate (print proofs, the Procurement Process page's own always-dark journey, solid
-  danger/warning button fills, keyframe glows). See [theme coverage](theme-coverage.md).
+- **Coverage now:** 60 dark gaps site-wide, down from 8,567 before the theme work; all are
+  deliberate (print proofs, solid danger/warning button fills, keyframe glows). See
+  [theme coverage](theme-coverage.md).
+- **Procurement Process route board (2026-10-28):** the route map on `/Process` is a light
+  blueprint card in Light (faint blue-tinted surface, slate track, PRISM-blue selection,
+  dark amber for stages that apply only when required) and deep navy in Dark. Both
+  palettes are `--pm-route-*` tokens in `site.css` (`:root` and the Dark block, with
+  `-rgb` triplets for translucent layers), so `process-flow.css` has no colour literals.
+  The rest of the page uses the normal `--pm-*` tokens; the page has no theme switch of
+  its own.
 
 ### Is Dark ready to offer?
 

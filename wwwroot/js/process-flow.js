@@ -1,70 +1,71 @@
 const root = document.querySelector('[data-process-flow-root]');
+const Route = window.PrismProcessRoute;
 
-if (root) {
+if (root && Route) {
   const state = {
     version: (root.dataset.processVersion || '').trim(),
     canEditChecklist: root.dataset.canEditChecklist === 'true',
     canEditPurpose: root.dataset.canEditPurpose === 'true',
-    flow: null,
-    nodes: [],
-    edges: [],
-    visualEdges: [],
-    optionalDetours: [],
-    stageByCode: new Map(),
-    incoming: new Map(),
-    outgoing: new Map(),
-    structuralIncoming: new Map(),
-    structuralOutgoing: new Map(),
-    branchClusters: [],
+    route: null,
+    order: [],
     activeIndex: 0,
     selectedCode: null,
     currentChecklist: null,
     checklistCache: new Map(),
     checklistAbortController: null,
+    checklistPrefetch: null,
     checklistManageMode: false,
     sortable: null,
-    mode: 'journey',
-    worldWidth: 2800,
-    worldHeight: 900,
-    worldScale: 1,
-    worldX: 0,
-    worldY: 0,
-    wheelAccumulator: 0,
-    wheelLockedUntil: 0,
-    transitionTimer: null,
-    guideTimer: null,
-    authenticationRecoveryStarted: false,
-    theme: 'light'
+    walking: false,
+    vertical: false,
+    rowHeight: 50,
+    searchMatches: [],
+    searchActive: -1,
+    modalReturnFocus: null,
+    lastPointerInGuide: false,
+    authenticationRecoveryStarted: false
   };
 
-  const workspace = root.querySelector('[data-process-workspace]');
-  const experience = root.querySelector('[data-process-experience]');
-  const introduction = root.querySelector('[data-process-introduction]');
-  const stageSearchDialog = root.querySelector('[data-stage-search-dialog]');
-  const scene = root.querySelector('[data-process-scene]');
-  const worldViewport = root.querySelector('[data-world-viewport]');
-  const world = root.querySelector('[data-process-world]');
-  const svg = root.querySelector('[data-process-svg]');
-  const nodeLayer = root.querySelector('[data-process-nodes]');
-  const placeholder = root.querySelector('[data-flow-placeholder]');
+  // Map geometry. The SVG uses a 1000 x 300 viewBox stretched to the map box, and
+  // stations are placed in percentages of the same box, so CSS can change the map height.
+  const MAP_HEIGHT = 300;
+  const MAIN_Y = 120;
+  const LANE_SPACING = 56;
+  // PRISM's sticky header is 52px + 46px (navigation-shell.css); the route strip sits under it.
+  const SHELL_HEADER_HEIGHT = 98;
+  const STRIP_HEIGHT = 66;
+  const REVEAL_SESSION_KEY = 'prism.process.revealed';
+  // Wide screens (1600px and up) turn the route into a vertical line in a fixed left column,
+  // with the stage guide beside it. Geometry is in pixels of a 340px-wide map.
+  const wideQuery = window.matchMedia('(min-width: 1600px)');
+  const VERTICAL_WIDTH = 340;
+  const VERTICAL_MAIN_X = 160;
+  const VERTICAL_LANE_SPACING = 44;
+
+  const map = root.querySelector('[data-route-map]');
+  const board = root.querySelector('[data-route-board]');
+  const svg = root.querySelector('[data-route-svg]');
+  const placeholder = root.querySelector('[data-route-placeholder]');
+  const routeSummary = root.querySelector('[data-route-summary]');
+  const announcer = root.querySelector('[data-route-announcer]');
   const stageSearch = root.querySelector('[data-stage-search]');
-  const searchClear = root.querySelector('[data-search-clear]');
   const searchResults = root.querySelector('[data-search-results]');
-  const themeToggle = root.querySelector('[data-theme-toggle]');
-  const themeIcon = root.querySelector('[data-theme-icon]');
-  const wheelCue = root.querySelector('[data-wheel-cue]');
-  const progressTrack = root.querySelector('[data-progress-track]');
-  const progressCurrent = root.querySelector('[data-progress-current]');
-  const progressTotal = root.querySelector('[data-progress-total]');
-  const sceneStageLabel = root.querySelector('[data-scene-stage-label]');
+  const strip = root.querySelector('[data-route-strip]');
+  const stripDots = root.querySelector('[data-route-strip-dots]');
+  const walkPanel = root.querySelector('[data-walk-panel]');
+  const routeList = root.querySelector('[data-route-list]');
+  const routeListPanel = root.querySelector('[data-route-list-panel]');
+  const scroller = root.querySelector('[data-route-scroll]');
   const checklistList = root.querySelector('[data-checklist-list]');
   const checklistCount = root.querySelector('[data-checklist-count]');
+  const stagePicker = root.querySelector('[data-stage-picker]');
+  const checklistCopy = root.querySelector('[data-checklist-copy]');
   const checklistManage = root.querySelector('[data-checklist-manage]');
   const checklistAdd = root.querySelector('[data-checklist-add]');
   const manageLabel = root.querySelector('[data-manage-label]');
   const purposeEdit = root.querySelector('[data-purpose-edit]');
   const stageGuide = root.querySelector('[data-stage-guide]');
-  const fullscreenExit = root.querySelector('[data-fullscreen-exit]');
+  const stageTitle = root.querySelector('[data-stage-title]');
 
   const purposeModalElement = document.getElementById('stagePurposeModal');
   const itemModalElement = document.getElementById('checklistItemModal');
@@ -79,66 +80,10 @@ if (root) {
   const itemText = itemForm?.querySelector('textarea[name="text"]');
   const itemCharacterCount = itemForm?.querySelector('[data-character-count]');
   const deleteForm = deleteModalElement?.querySelector('[data-checklist-delete-form]');
-  function closeIntroduction() {
-    if (!introduction?.open) return;
-    if (typeof introduction.close === 'function') introduction.close();
-    else introduction.removeAttribute('open');
-  }
 
-  function showIntroduction() {
-    if (!introduction || introduction.open) return;
-    if (typeof introduction.showModal === 'function') introduction.showModal();
-    else introduction.setAttribute('open', '');
-    window.requestAnimationFrame(() => {
-      introduction.querySelector('[data-action="begin-journey"]')?.focus();
-    });
-  }
-
-
-  function closeStageSearch() {
-    if (!stageSearchDialog?.open) return;
-    if (typeof stageSearchDialog.close === 'function') stageSearchDialog.close();
-    else stageSearchDialog.removeAttribute('open');
-  }
-
-  function showStageSearch() {
-    if (!stageSearchDialog || stageSearchDialog.open) return;
-    if (typeof stageSearchDialog.showModal === 'function') stageSearchDialog.showModal();
-    else stageSearchDialog.setAttribute('open', '');
-    window.requestAnimationFrame(() => {
-      stageSearch.value = '';
-      applySearch({ forceOpen: true });
-      stageSearch.focus();
-    });
-  }
-
-  function applyTheme(theme, { persist = true } = {}) {
-    const normalized = theme === 'dark' ? 'dark' : 'light';
-    state.theme = normalized;
-    root.dataset.processTheme = normalized;
-    const dark = normalized === 'dark';
-    if (themeToggle) {
-      themeToggle.setAttribute('aria-pressed', dark ? 'true' : 'false');
-      themeToggle.setAttribute('aria-label', dark ? 'Use light theme' : 'Use dark theme');
-      themeToggle.title = dark ? 'Use light theme' : 'Use dark theme';
-    }
-    if (themeIcon) {
-      themeIcon.className = dark ? 'bi bi-sun' : 'bi bi-moon-stars';
-    }
-    if (persist) {
-      try { localStorage.setItem('prism.process.theme', normalized); } catch { /* storage is optional */ }
-    }
-  }
-
-  function loadPreferredTheme() {
-    let preferred = 'light';
-    try {
-      const stored = localStorage.getItem('prism.process.theme');
-      if (stored === 'dark' || stored === 'light') preferred = stored;
-    } catch { /* storage is optional */ }
-    applyTheme(preferred, { persist: false });
-  }
-
+  // ---------------------------------------------------------------------------
+  // HTTP
+  // ---------------------------------------------------------------------------
   class HttpError extends Error {
     constructor(response, data) {
       super(data?.message || data?.title || `Request failed (${response.status})`);
@@ -207,45 +152,13 @@ if (root) {
     return `/api/processes/${encodeURIComponent(state.version)}/stages/${encodeURIComponent(code)}/checklist${suffix}`;
   }
 
-  function normalizeFlow(dto) {
-    const nodes = (Array.isArray(dto?.nodes) ? dto.nodes : [])
-      .map((node, index) => ({
-        code: String(node.code || '').trim().toUpperCase(),
-        name: String(node.name || node.code || '').trim(),
-        sequence: Number(node.sequence) || ((index + 1) * 10),
-        optional: Boolean(node.optional),
-        parallelGroup: node.parallelGroup || null,
-        dependsOn: Array.isArray(node.dependsOn)
-          ? node.dependsOn.map(code => String(code || '').trim().toUpperCase()).filter(Boolean)
-          : []
-      }))
-      .filter(node => node.code)
-      .sort((a, b) => a.sequence - b.sequence || a.code.localeCompare(b.code));
-
-    nodes.forEach((node, index) => {
-      node.displayIndex = index + 1;
-      node.searchText = `${node.code} ${node.name}`.toLowerCase();
-    });
-
-    const edges = (Array.isArray(dto?.edges) ? dto.edges : [])
-      .map(edge => ({
-        source: String(edge.source || '').trim().toUpperCase(),
-        target: String(edge.target || '').trim().toUpperCase()
-      }))
-      .filter(edge => edge.source && edge.target);
-
-    return { version: dto?.version || state.version, nodes, edges };
-  }
-
   function normalizeChecklist(dto) {
     return {
       id: Number(dto?.id) || 0,
       version: dto?.version || state.version,
       stageCode: String(dto?.stageCode || '').toUpperCase(),
       purpose: String(dto?.purpose || '').trim(),
-      purposeUpdatedByUserId: dto?.purposeUpdatedByUserId || null,
       purposeUpdatedOn: dto?.purposeUpdatedOn || null,
-      updatedByUserId: dto?.updatedByUserId || null,
       updatedOn: dto?.updatedOn || null,
       rowVersion: toBase64(dto?.rowVersion),
       items: (Array.isArray(dto?.items) ? dto.items : [])
@@ -253,9 +166,7 @@ if (root) {
           id: Number(item.id),
           text: String(item.text || '').trim(),
           sequence: Number(item.sequence) || 0,
-          rowVersion: toBase64(item.rowVersion),
-          updatedByUserId: item.updatedByUserId || null,
-          updatedOn: item.updatedOn || null
+          rowVersion: toBase64(item.rowVersion)
         }))
         .sort((a, b) => a.sequence - b.sequence || a.id - b.id)
     };
@@ -272,602 +183,443 @@ if (root) {
     return '';
   }
 
-  function buildGraph() {
-    state.stageByCode = new Map(state.nodes.map(node => [node.code, node]));
-    state.incoming = new Map(state.nodes.map(node => [node.code, []]));
-    state.outgoing = new Map(state.nodes.map(node => [node.code, []]));
-
-    state.edges.forEach(edge => {
-      if (!state.stageByCode.has(edge.source) || !state.stageByCode.has(edge.target)) return;
-      state.outgoing.get(edge.source).push(edge.target);
-      state.incoming.get(edge.target).push(edge.source);
-    });
-
-    state.branchClusters = [];
-    state.nodes.filter(node => !node.optional).forEach(source => {
-      const branches = (state.outgoing.get(source.code) || [])
-        .filter(code => !state.stageByCode.get(code)?.optional);
-      if (branches.length < 2) return;
-
-      const downstreamSets = branches.map(code => new Set(
-        (state.outgoing.get(code) || []).filter(next => !state.stageByCode.get(next)?.optional)));
-      const convergenceCandidates = [...(downstreamSets[0] || [])]
-        .filter(code => downstreamSets.every(set => set.has(code)))
-        .map(code => state.stageByCode.get(code))
-        .filter(Boolean)
-        .sort((a, b) => a.displayIndex - b.displayIndex);
-
-      const convergence = convergenceCandidates[0];
-      if (!convergence) return;
-
-      state.branchClusters.push({
-        source: source.code,
-        branches: [...branches],
-        convergence: convergence.code,
-        codes: new Set([source.code, ...branches, convergence.code])
-      });
-    });
-
-    buildPresentationTopology();
+  // ---------------------------------------------------------------------------
+  // Route map, strip, picker and phone list
+  // ---------------------------------------------------------------------------
+  // Horizontal: x is a share of a 1000-unit width and y is in a 300-unit height.
+  // Vertical: x and y are pixels of the VERTICAL_WIDTH-wide map; each column becomes a row.
+  function stationX(node) {
+    // A detour sits on the same side lane as the second parallel branch; it has its own row.
+    if (state.vertical) return VERTICAL_MAIN_X + (clamp(node.lane, -1, 1) * VERTICAL_LANE_SPACING);
+    return ((node.column + 0.5) / state.route.columns) * 1000;
   }
 
-  function buildPresentationTopology() {
-    const optionalCodes = new Set(state.nodes.filter(node => node.optional).map(node => node.code));
-    const structuralEdges = state.edges
-      .filter(edge => !optionalCodes.has(edge.source) && !optionalCodes.has(edge.target))
-      .map(edge => ({ ...edge, kind: 'structural', conditional: false, synthetic: false }));
-
-    state.optionalDetours = state.nodes
-      .filter(node => node.optional)
-      .map(node => {
-        const sourceCode = (state.incoming.get(node.code) || [])
-          .map(code => state.stageByCode.get(code))
-          .filter(candidate => candidate && !candidate.optional)
-          .sort((a, b) => b.displayIndex - a.displayIndex)[0]?.code || null;
-        const explicitSuccessor = (state.outgoing.get(node.code) || [])
-          .map(code => state.stageByCode.get(code))
-          .filter(candidate => candidate && !candidate.optional)
-          .sort((a, b) => a.displayIndex - b.displayIndex)[0]?.code || null;
-        const inferredSuccessor = state.nodes.find(candidate =>
-          !candidate.optional && candidate.displayIndex > node.displayIndex)?.code || null;
-        return {
-          code: node.code,
-          source: sourceCode,
-          successor: explicitSuccessor || inferredSuccessor
-        };
-      })
-      .filter(detour => detour.source);
-
-    const visualEdges = [...structuralEdges];
-    state.optionalDetours.forEach(detour => {
-      if (detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === detour.successor)) {
-        visualEdges.push({
-          source: detour.source,
-          target: detour.successor,
-          kind: 'bypass',
-          conditional: false,
-          synthetic: true
-        });
-      }
-
-      visualEdges.push({
-        source: detour.source,
-        target: detour.code,
-        kind: 'conditional-entry',
-        conditional: true,
-        synthetic: true
-      });
-
-      // A conditional stage in the middle of the workflow rejoins the main route.
-      // A terminal conditional stage (currently ToT) is a single optional continuation
-      // from the last mandatory stage and therefore has no synthetic return path.
-      if (detour.successor) {
-        visualEdges.push({
-          source: detour.code,
-          target: detour.successor,
-          kind: 'conditional-return',
-          conditional: true,
-          synthetic: true
-        });
-      }
-    });
-
-    state.visualEdges = visualEdges;
-    state.structuralIncoming = new Map(state.nodes.filter(node => !node.optional).map(node => [node.code, []]));
-    state.structuralOutgoing = new Map(state.nodes.filter(node => !node.optional).map(node => [node.code, []]));
-    structuralEdges.forEach(edge => {
-      state.structuralOutgoing.get(edge.source)?.push(edge.target);
-      state.structuralIncoming.get(edge.target)?.push(edge.source);
-    });
+  function stationY(node) {
+    if (state.vertical) return (node.column + 0.5) * state.rowHeight;
+    return MAIN_Y + (node.lane * LANE_SPACING);
   }
 
-  function branchClusterFor(code) {
-    return state.branchClusters.find(cluster => cluster.codes.has(code)) || null;
-  }
-
-  function entityForCode(code) {
-    return state.stageByCode.get(code);
-  }
-
-  function calculateLayout() {
-    const mandatoryNodes = state.nodes.filter(node => !node.optional);
-    const depths = new Map();
-    const unresolved = new Set(mandatoryNodes.map(node => node.code));
-    let guard = mandatoryNodes.length * 4;
-
-    while (unresolved.size && guard-- > 0) {
-      let progressed = false;
-      [...unresolved].forEach(code => {
-        const prerequisites = state.structuralIncoming.get(code) || [];
-        if (prerequisites.every(dep => depths.has(dep))) {
-          const depth = prerequisites.length
-            ? Math.max(...prerequisites.map(dep => depths.get(dep))) + 1
-            : 0;
-          depths.set(code, depth);
-          unresolved.delete(code);
-          progressed = true;
-        }
-      });
-      if (!progressed) break;
+  function pathFor(source, target) {
+    const x1 = stationX(source);
+    const y1 = stationY(source);
+    const x2 = stationX(target);
+    const y2 = stationY(target);
+    if (state.vertical) {
+      if (x1 === x2) return `M ${x1} ${y1} L ${x2} ${y2}`;
+      const midY = (y1 + y2) / 2;
+      return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
     }
+    if (y1 === y2) return `M ${x1} ${y1} L ${x2} ${y2}`;
+    const mid = (x1 + x2) / 2;
+    return `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+  }
 
-    unresolved.forEach(code => {
-      const node = state.stageByCode.get(code);
-      depths.set(code, Math.max(0, Math.floor((node?.displayIndex || 1) - 1)));
-    });
+  // Fit the vertical route, with its legend, into the window from where the board starts on
+  // first load, within readable limits; taller routes scroll inside the column.
+  function boardRestTop() {
+    return Math.max(board.getBoundingClientRect().top + window.scrollY, SHELL_HEADER_HEIGHT + 16);
+  }
 
-    const maxDepth = Math.max(0, ...depths.values());
-    const xGap = 190;
-    const startX = 175;
-    const centerY = 450;
-    const groups = new Map();
+  function verticalRowHeight() {
+    // 146px covers the column's padding, the legend with its key hint, and the bottom margin.
+    const available = window.innerHeight - boardRestTop() - 146;
+    return clamp(Math.floor(available / state.route.columns), 34, 58);
+  }
 
-    mandatoryNodes.forEach(node => {
-      node.depth = depths.get(node.code) || 0;
-      if (!groups.has(node.depth)) groups.set(node.depth, []);
-      groups.get(node.depth).push(node);
-    });
+  function svgElement(name, attributes) {
+    const element = document.createElementNS('http://www.w3.org/2000/svg', name);
+    Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+    return element;
+  }
 
-    groups.forEach(nodesAtDepth => {
-      nodesAtDepth.sort((a, b) => a.sequence - b.sequence || a.code.localeCompare(b.code));
-      const count = nodesAtDepth.length;
-      nodesAtDepth.forEach((node, index) => {
-        node.x = startX + (node.depth * xGap);
-        if (count === 1) node.y = centerY;
-        else if (count === 2) node.y = index === 0 ? 215 : 685;
-        else {
-          const spread = 560;
-          node.y = centerY - (spread / 2) + ((spread / Math.max(1, count - 1)) * index);
-        }
+  function parallelGroups() {
+    const seen = new Set();
+    return state.route.nodes
+      .filter(node => node.parallelWith.length)
+      .map(node => [node, ...node.parallelWith.map(code => state.route.byCode.get(code))])
+      .filter(group => {
+        const key = group.map(node => node.code).sort().join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
       });
-    });
-
-    state.optionalDetours.forEach((detour, index) => {
-      const node = state.stageByCode.get(detour.code);
-      const source = state.stageByCode.get(detour.source);
-      const successor = detour.successor ? state.stageByCode.get(detour.successor) : null;
-      if (!node || !source) return;
-      node.depth = source.depth + .5;
-      node.x = successor ? (source.x + successor.x) / 2 : source.x + (xGap * 1.25);
-      node.y = centerY + 215 + (index * 18);
-    });
-
-    const maxEntityX = Math.max(...state.nodes.map(node => Number(node.x) || 0));
-    state.worldWidth = maxEntityX + 190;
-    state.worldHeight = 900;
-    world.style.width = `${state.worldWidth}px`;
-    world.style.height = `${state.worldHeight}px`;
-    svg.setAttribute('viewBox', `0 0 ${state.worldWidth} ${state.worldHeight}`);
-    svg.setAttribute('width', String(state.worldWidth));
-    svg.setAttribute('height', String(state.worldHeight));
   }
 
-  function pathForEdge(source, target, edge) {
-    const sourceHalf = 82;
-    const targetHalf = 82;
-    const startX = source.x + sourceHalf;
-    const endX = target.x - targetHalf;
-    const startY = source.y;
-    const endY = target.y;
-    const distance = Math.max(48, endX - startX);
-    const verticalDistance = Math.abs(endY - startY);
-    const curve = Math.min(130, Math.max(45, distance * .42));
-
-    if (edge?.kind === 'conditional-entry' || edge?.kind === 'conditional-return') {
-      const direction = endY > startY ? 1 : -1;
-      const verticalControl = Math.min(120, Math.max(64, verticalDistance * .55));
-      return `M ${startX} ${startY} C ${startX + curve * .58} ${startY}, ${endX - curve * .35} ${endY - direction * verticalControl}, ${endX} ${endY}`;
-    }
-
-    return `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
+  function joinCodes(nodes) {
+    const codes = nodes.map(node => node.code);
+    return codes.length <= 1 ? codes.join('') : `${codes.slice(0, -1).join(', ')} and ${codes[codes.length - 1]}`;
   }
 
-  function renderWorld() {
-    nodeLayer.innerHTML = '';
-    svg.innerHTML = `
-      <defs>
-        <linearGradient id="processPathGradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="var(--process-path-start)" />
-          <stop offset="100%" stop-color="var(--process-path-end)" />
-        </linearGradient>
-        <linearGradient id="processActiveGradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="var(--process-active-start)" />
-          <stop offset="100%" stop-color="var(--process-active-end)" />
-        </linearGradient>
-        <linearGradient id="processConditionalGradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="var(--process-conditional-start)" />
-          <stop offset="100%" stop-color="var(--process-conditional-end)" />
-        </linearGradient>
-        <filter id="processGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4.5" result="blur" />
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-        <marker id="processArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--process-arrow)"></path>
-        </marker>
-        <marker id="processArrowActive" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.8" markerHeight="4.8" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--process-arrow-active)"></path>
-        </marker>
-        <marker id="processArrowConditional" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--process-arrow-conditional)"></path>
-        </marker>
-      </defs>
-      <g class="process-path-grid" aria-hidden="true">
-        <line x1="0" y1="450" x2="${state.worldWidth}" y2="450"></line>
-      </g>`;
-
-    state.visualEdges.forEach((edge, index) => {
-      const source = entityForCode(edge.source);
-      const target = entityForCode(edge.target);
-      if (!source || !target) return;
-      const d = pathForEdge(source, target, edge);
-      const edgeId = `${edge.source}-${edge.target}-${edge.kind || 'structural'}`;
-
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', d);
-      path.setAttribute('data-edge-id', edgeId);
-      path.setAttribute('data-edge-source', edge.source);
-      path.setAttribute('data-edge-target', edge.target);
-      path.setAttribute('data-edge-kind', edge.kind || 'structural');
-      path.setAttribute('marker-end', edge.conditional ? 'url(#processArrowConditional)' : 'url(#processArrow)');
-      path.classList.add('process-connection');
-      if (edge.conditional) path.classList.add('is-conditional');
-      if (edge.kind === 'bypass' || edge.kind === 'terminal-main') path.classList.add('is-bypass');
-      if ((state.structuralOutgoing.get(edge.source) || []).length > 1) path.classList.add('is-branch');
-      path.style.setProperty('--edge-delay', `${index * 24}ms`);
-      svg.appendChild(path);
-
-      const signal = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      signal.setAttribute('d', d);
-      signal.setAttribute('data-signal-id', edgeId);
-      signal.setAttribute('data-edge-source', edge.source);
-      signal.setAttribute('data-edge-target', edge.target);
-      signal.setAttribute('data-edge-kind', edge.kind || 'structural');
-      signal.classList.add('process-route-signal');
-      if (edge.conditional) signal.classList.add('is-conditional');
-      svg.appendChild(signal);
-    });
-
-    state.nodes.forEach(node => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'process-node';
-      button.dataset.stageCode = node.code;
-      button.style.left = `${node.x}px`;
-      button.style.top = `${node.y}px`;
-      button.setAttribute('aria-label', `Stage ${node.displayIndex}: ${node.name}`);
-      button.setAttribute('aria-pressed', 'false');
-      if (node.optional) button.classList.add('is-conditional');
-      button.innerHTML = `
-        <span class="process-node__halo" aria-hidden="true"></span>
-        <span class="process-node__index">${String(node.displayIndex).padStart(2, '0')}</span>
-        <span class="process-node__body">
-          <strong>${escapeHtml(node.name)}</strong>
-          <small><span class="process-node__code">${escapeHtml(node.code)}</span>${node.optional ? '<span class="process-node__conditional-copy"> · Conditional</span>' : ''}</small>
-        </span>`;
-      nodeLayer.appendChild(button);
-    });
-
-    renderProgressTrack();
-    placeholder.hidden = true;
-    world.setAttribute('aria-busy', 'false');
-  }
-
-  function renderProgressTrack() {
-    progressTrack.innerHTML = '';
-    const branchPositions = new Map();
-    state.branchClusters.forEach(cluster => {
-      cluster.branches.forEach((code, index) => branchPositions.set(code, index));
-    });
-
-    state.nodes.forEach(node => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'process-progress__dot';
-      button.dataset.progressCode = node.code;
-      button.title = `${node.displayIndex}. ${node.name}`;
-      button.setAttribute('aria-label', `Open ${node.name}`);
-      if (node.optional) button.classList.add('is-conditional');
-      if (branchPositions.has(node.code)) {
-        button.classList.add('is-parallel', branchPositions.get(node.code) === 0 ? 'is-parallel-up' : 'is-parallel-down');
-      }
-      button.innerHTML = `<span class="process-progress__code">${escapeHtml(node.code)}</span>`;
-      progressTrack.appendChild(button);
-    });
-    progressTotal.textContent = String(state.nodes.length).padStart(2, '0');
-  }
-
-  function setMode() {
-    state.mode = 'journey';
-    experience.dataset.mode = 'journey';
-    if (wheelCue) wheelCue.hidden = false;
-    scene.classList.remove('is-map-mode', 'is-panning');
-    scene.classList.add('is-journey-mode');
-    updateSelection();
-    focusActiveStage(false);
-  }
-
-  function viewportSize() {
-    const rect = worldViewport.getBoundingClientRect();
-    return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
-  }
-
-  function expandJourneyContextForWideViewport(tiers) {
-    if (viewportSize().width < 1480) return tiers;
-
-    const visibleCodes = [...tiers.entries()]
-      .filter(([, tier]) => tier !== 'hidden')
-      .map(([code]) => code);
-
-    visibleCodes.forEach(code => {
-      [...(state.structuralIncoming.get(code) || []), ...(state.structuralOutgoing.get(code) || [])]
-        .forEach(candidate => {
-          if (tiers.get(candidate) === 'hidden') tiers.set(candidate, 'context');
-        });
-    });
-
-    return tiers;
-  }
-
-  function journeyTiersFor(active) {
-    const tiers = new Map(state.nodes.map(node => [node.code, 'hidden']));
-    if (!active) return tiers;
-    tiers.set(active.code, 'active');
-
-    const cluster = branchClusterFor(active.code);
-    if (cluster) {
-      if (active.code === cluster.source) {
-        cluster.branches.forEach(code => tiers.set(code, 'near'));
-        tiers.set(cluster.convergence, 'context');
-        (state.structuralIncoming.get(cluster.source) || []).forEach(code => tiers.set(code, 'context'));
-      } else if (cluster.branches.includes(active.code)) {
-        tiers.set(cluster.source, 'near');
-        cluster.branches.filter(code => code !== active.code).forEach(code => tiers.set(code, 'near'));
-        tiers.set(cluster.convergence, 'near');
-      } else if (active.code === cluster.convergence) {
-        cluster.branches.forEach(code => tiers.set(code, 'near'));
-        tiers.set(cluster.source, 'context');
-        (state.structuralOutgoing.get(cluster.convergence) || []).forEach(code => tiers.set(code, 'near'));
-        state.optionalDetours
-          .filter(detour => detour.source === cluster.convergence)
-          .forEach(detour => tiers.set(detour.code, 'context'));
-      }
-      return expandJourneyContextForWideViewport(tiers);
-    }
-
-    const activeDetour = state.optionalDetours.find(detour => detour.code === active.code);
-    if (activeDetour) {
-      tiers.set(activeDetour.source, 'near');
-      if (activeDetour.successor) tiers.set(activeDetour.successor, 'near');
-      return expandJourneyContextForWideViewport(tiers);
-    }
-
-    const predecessors = state.structuralIncoming.get(active.code) || [];
-    const successors = state.structuralOutgoing.get(active.code) || [];
-    predecessors.forEach(code => tiers.set(code, 'near'));
-    successors.forEach(code => tiers.set(code, 'near'));
-
-    predecessors.forEach(code => {
-      const predecessorCluster = branchClusterFor(code);
-      if (predecessorCluster?.convergence === code) return;
-      (state.structuralIncoming.get(code) || []).forEach(next => {
-        if (tiers.get(next) === 'hidden') tiers.set(next, 'context');
-      });
-    });
-    successors.forEach(code => {
-      const successorCluster = branchClusterFor(code);
-      if (successorCluster?.source === code) return;
-      (state.structuralOutgoing.get(code) || []).forEach(next => {
-        if (tiers.get(next) === 'hidden') tiers.set(next, 'context');
-      });
-    });
-
-    state.optionalDetours
-      .filter(detour => detour.source === active.code)
-      .forEach(detour => tiers.set(detour.code, 'context'));
-
-    return expandJourneyContextForWideViewport(tiers);
-  }
-
-
-  function focusActiveStage(animate = true) {
-    const node = state.nodes[state.activeIndex];
-    if (!node) return;
-
-    const viewport = viewportSize();
-    const tiers = journeyTiersFor(node);
-    const visible = state.nodes.filter(candidate => tiers.get(candidate.code) !== 'hidden');
-
-    const minX = Math.min(...visible.map(candidate => candidate.x)) - 125;
-    const maxX = Math.max(...visible.map(candidate => candidate.x)) + 125;
-    const minY = Math.min(...visible.map(candidate => candidate.y)) - 120;
-    const maxY = Math.max(...visible.map(candidate => candidate.y)) + 120;
-    const rangeX = Math.max(380, maxX - minX);
-    const rangeY = Math.max(320, maxY - minY);
-    let scale = Math.min(
-      (viewport.width * .84) / rangeX,
-      (viewport.height * .76) / rangeY
-    );
-    scale = clamp(scale, .78, 1.22);
-
-    const boundsCenterX = (minX + maxX) / 2;
-    const boundsCenterY = (minY + maxY) / 2;
-    const focusX = (boundsCenterX * .44) + (node.x * .56);
-    const focusY = (boundsCenterY * .52) + (node.y * .48);
-    const visualCenterX = viewport.width * .5;
-    const visualCenterY = viewport.height * .50;
-    state.worldScale = scale;
-    state.worldX = visualCenterX - (focusX * scale);
-    state.worldY = visualCenterY - (focusY * scale);
-    applyWorldTransform(animate);
-  }
-
-  function applyWorldTransform(animate = true) {
-    world.classList.toggle('is-moving', animate && !prefersReducedMotion());
-    world.style.transform = `translate3d(${state.worldX}px, ${state.worldY}px, 0) scale(${state.worldScale})`;
-    if (animate) window.setTimeout(() => world.classList.remove('is-moving'), 780);
-  }
-
-  function nodeScaleForTier(tier) {
-    if (tier === 'active') return 1.38;
-    if (tier === 'near') return 1;
-    if (tier === 'context') return .76;
-    return .52;
-  }
-  async function selectStage(code, { updateHash = true, animate = true } = {}) {
-    const node = state.stageByCode.get(String(code || '').toUpperCase());
-    if (!node) return;
-
-    const previousIndex = state.activeIndex;
-    const nextIndex = node.displayIndex - 1;
-    const changed = state.selectedCode !== node.code;
-    state.activeIndex = nextIndex;
-    state.selectedCode = node.code;
-    state.checklistManageMode = false;
-
-    if (changed && animate && !prefersReducedMotion()) {
-      window.clearTimeout(state.transitionTimer);
-      window.clearTimeout(state.guideTimer);
-      scene.classList.remove('is-moving-forward', 'is-moving-backward');
-      scene.classList.add(nextIndex >= previousIndex ? 'is-moving-forward' : 'is-moving-backward', 'is-stage-transitioning');
-      stageGuide?.classList.add('is-updating');
-      state.transitionTimer = window.setTimeout(() => {
-        scene.classList.remove('is-stage-transitioning', 'is-moving-forward', 'is-moving-backward');
-      }, 780);
-      state.guideTimer = window.setTimeout(() => stageGuide?.classList.remove('is-updating'), 210);
+  function renderRoute() {
+    const { route } = state;
+    state.vertical = wideQuery.matches;
+    map.dataset.orientation = state.vertical ? 'vertical' : 'horizontal';
+    root.classList.toggle('is-route-vertical', state.vertical);
+    if (state.vertical) {
+      state.rowHeight = verticalRowHeight();
+      const height = state.rowHeight * route.columns;
+      map.style.height = `${height}px`;
+      svg.setAttribute('viewBox', `0 0 ${VERTICAL_WIDTH} ${height}`);
+      // The board never runs past the bottom of the window; a longer route scrolls inside it.
+      board.style.maxHeight = `calc(100vh - ${Math.round(boardRestTop()) + 16}px)`;
     } else {
-      stageGuide?.classList.remove('is-updating');
+      map.style.height = '';
+      board.style.maxHeight = '';
+      svg.setAttribute('viewBox', `0 0 1000 ${MAP_HEIGHT}`);
+    }
+    // Very short rows drop the stage codes so names stay readable.
+    map.classList.toggle('is-compact', state.vertical && state.rowHeight < 40);
+    svg.innerHTML = '';
+    const glowLayer = svgElement('g', { class: 'route-map__glow' });
+    const lineLayer = svgElement('g', { class: 'route-map__track' });
+    svg.append(glowLayer, lineLayer);
+
+    route.links.forEach(link => {
+      const d = pathFor(route.byCode.get(link.source), route.byCode.get(link.target));
+      const data = { 'data-link-source': link.source, 'data-link-target': link.target, 'data-link-kind': link.kind };
+      const kindClass = link.conditional ? ' is-conditional' : '';
+      glowLayer.appendChild(svgElement('path', { d, class: `route-glow${kindClass}`, ...data }));
+      lineLayer.appendChild(svgElement('path', { d, class: `route-line${kindClass}`, ...data }));
+    });
+
+    map.querySelectorAll('.route-station').forEach(element => element.remove());
+    route.nodes.forEach((node, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'route-station';
+      if (node.optional) button.classList.add('is-conditional');
+      if (state.vertical && node.lane < 0) button.classList.add('is-label-left');
+      if (state.vertical && node.lane > 0) button.classList.add('is-label-side');
+      button.dataset.stageCode = node.code;
+      if (state.vertical) {
+        button.style.left = `${stationX(node)}px`;
+        button.style.top = `${stationY(node)}px`;
+      } else {
+        button.style.left = `${(stationX(node) / 10).toFixed(4)}%`;
+        button.style.top = `${((stationY(node) / MAP_HEIGHT) * 100).toFixed(4)}%`;
+      }
+      button.style.setProperty('--station-delay', `${60 + (index * 20)}ms`);
+      button.tabIndex = -1;
+      button.setAttribute('aria-label', `Stage ${node.displayIndex} of ${route.nodes.length}: ${node.name}${node.optional ? ', only when required' : ''}`);
+      button.innerHTML = `
+        <span class="route-station__dot" aria-hidden="true">
+          <span class="route-station__index">${pad(node.displayIndex)}</span>
+        </span>
+        <span class="route-station__label" aria-hidden="true">
+          <span class="route-station__code">${escapeHtml(node.code)}</span>
+          <span class="route-station__name">${escapeHtml(node.name)}</span>
+        </span>`;
+      map.appendChild(button);
+    });
+
+    map.style.setProperty('--route-columns', String(route.columns));
+    placeholder.hidden = true;
+    map.setAttribute('aria-busy', 'false');
+    playRevealOnce();
+
+    const conditional = route.nodes.filter(node => node.optional);
+    const parts = [`${route.nodes.length} stages`];
+    parallelGroups().forEach(group => parts.push(`${joinCodes(group)} run together`));
+    if (conditional.length) parts.push(`${joinCodes(conditional)} only when required`);
+    routeSummary.textContent = parts.join(' · ');
+
+    stagePicker.innerHTML = state.order
+      .map(node => `<option value="${escapeHtml(node.code)}">${pad(node.displayIndex)} · ${escapeHtml(node.name)}${node.optional ? ' (only when required)' : ''}</option>`)
+      .join('');
+
+    routeList.innerHTML = state.order.map(node => `
+      <li>
+        <button type="button" class="route-list__item${node.optional ? ' is-conditional' : ''}" data-goto-stage="${escapeHtml(node.code)}">
+          <span class="route-list__index">${pad(node.displayIndex)}</span>
+          <span class="route-list__name">${escapeHtml(node.name)}
+            ${node.parallelWith.length ? `<small>Runs alongside ${escapeHtml(node.parallelWith.join(', '))}</small>` : ''}
+            ${node.optional ? '<small>Only when required</small>' : ''}
+          </span>
+          <span class="route-list__code">${escapeHtml(node.code)}</span>
+        </button>
+      </li>`).join('');
+
+    stripDots.innerHTML = state.order.map(node => `
+      <li>
+        <button type="button" class="route-strip__dot${node.optional ? ' is-conditional' : ''}" data-goto-stage="${escapeHtml(node.code)}"
+                tabindex="-1" title="${pad(node.displayIndex)} · ${escapeHtml(node.name)}" aria-label="${escapeHtml(node.name)}">
+          <span aria-hidden="true">${escapeHtml(node.code)}</span>
+        </button>
+      </li>`).join('');
+
+    updateScrollFades();
+  }
+
+  // The reveal plays once per browser session and is then switched off, so a resize or
+  // re-layout can never replay it and leave the map half drawn.
+  function playRevealOnce() {
+    let seen = false;
+    try { seen = window.sessionStorage.getItem(REVEAL_SESSION_KEY) === '1'; } catch { /* storage is optional */ }
+    if (seen || prefersReducedMotion()) {
+      map.classList.add('is-ready', 'is-revealed');
+      return;
+    }
+    map.classList.add('is-ready');
+    const revealMs = 600 + 60 + (state.route.nodes.length * 20) + 350;
+    window.setTimeout(() => map.classList.add('is-revealed'), revealMs);
+    try { window.sessionStorage.setItem(REVEAL_SESSION_KEY, '1'); } catch { /* storage is optional */ }
+  }
+
+  function updateRouteState() {
+    const active = state.selectedCode;
+    map.querySelectorAll('.route-station').forEach(button => {
+      const stationState = Route.stationState(state.route, button.dataset.stageCode, active);
+      button.classList.toggle('is-active', stationState === 'active');
+      button.classList.toggle('is-adjacent', stationState === 'adjacent');
+      button.tabIndex = stationState === 'active' ? 0 : -1;
+      if (stationState === 'active') button.setAttribute('aria-current', 'step');
+      else button.removeAttribute('aria-current');
+    });
+
+    svg.querySelectorAll('[data-link-source]').forEach(path => {
+      const link = {
+        source: path.dataset.linkSource,
+        target: path.dataset.linkTarget,
+        kind: path.dataset.linkKind,
+        conditional: path.dataset.linkKind.startsWith('conditional')
+      };
+      const linkState = Route.linkState(state.route, link, active);
+      path.classList.toggle('is-connected', linkState === 'connected');
+      path.classList.toggle('is-lit', linkState === 'lit');
+    });
+
+    stagePicker.value = active;
+    root.querySelectorAll('[data-route-list] [data-goto-stage], [data-route-strip-dots] [data-goto-stage]').forEach(button => {
+      const current = button.dataset.gotoStage === active;
+      button.classList.toggle('is-active', current);
+      if (current) button.setAttribute('aria-current', 'step');
+      else button.removeAttribute('aria-current');
+    });
+    const node = state.route.byCode.get(active);
+    setText('[data-route-strip-current]', node ? `${pad(node.displayIndex)} · ${node.name}` : '');
+  }
+
+  function scrollStationIntoView(code) {
+    const button = map.querySelector(`.route-station[data-stage-code="${code}"]`);
+    if (!button) return;
+    const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
+    if (state.vertical) {
+      // Scroll only the route column; the page itself must not move.
+      if (scroller.scrollHeight <= scroller.clientHeight) return;
+      const top = button.offsetTop - (scroller.clientHeight / 2);
+      scroller.scrollTo({ top: Math.max(0, top), behavior });
+      return;
+    }
+    if (scroller.scrollWidth <= scroller.clientWidth) return;
+    const target = button.offsetLeft - (scroller.clientWidth / 2);
+    scroller.scrollTo({ left: Math.max(0, target), behavior });
+  }
+
+  function updateScrollFades() {
+    const scrollableY = state.vertical && scroller.scrollHeight > scroller.clientHeight + 1;
+    scroller.classList.toggle('is-scrollable-y', scrollableY);
+    scroller.classList.toggle('is-at-top', scroller.scrollTop <= 2);
+    scroller.classList.toggle('is-at-bottom', scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2);
+    const scrollable = !state.vertical && scroller.scrollWidth > scroller.clientWidth + 1;
+    scroller.classList.toggle('is-scrollable', scrollable);
+    scroller.classList.toggle('is-at-start', scroller.scrollLeft <= 2);
+    scroller.classList.toggle('is-at-end', scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 2);
+  }
+
+  function setStripVisible(requested) {
+    // The vertical route never scrolls away, so it needs no strip.
+    const visible = requested && !state.vertical;
+    // While showing, the strip is pinned under the PRISM header at the page's width.
+    if (visible) {
+      const rect = root.getBoundingClientRect();
+      strip.style.setProperty('--strip-left', `${rect.left}px`);
+      strip.style.setProperty('--strip-width', `${rect.width}px`);
+    }
+    root.classList.toggle('has-strip', visible);
+    strip.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    strip.querySelectorAll('button').forEach(button => { button.tabIndex = visible ? 0 : -1; });
+  }
+
+  // When a selection is made away from the guide (on the map, in search, in the pager),
+  // bring the stage title into view if it is not already readable.
+  // The strip is always allowed for: it appears as soon as the map scrolls away, so the title
+  // must land below the header and the strip even when the strip is not showing yet.
+  function revealGuide() {
+    const rect = stageTitle.getBoundingClientRect();
+    const topLimit = SHELL_HEADER_HEIGHT + (state.vertical ? 0 : STRIP_HEIGHT) + 16;
+    if (rect.top >= topLimit && rect.bottom <= window.innerHeight - 160) return;
+    const anchor = (state.walking ? walkPanel : stageTitle).getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: Math.max(0, anchor - topLimit), behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection and stage guide
+  // ---------------------------------------------------------------------------
+  // history: 'push' adds a Back-button entry, 'replace' rewrites the current one, 'none' leaves it.
+  async function selectStage(code, { history: historyMode = 'push', focusStation = false, reveal = false } = {}) {
+    const node = state.route?.byCode.get(String(code || '').toUpperCase());
+    if (!node) return;
+
+    const changed = state.selectedCode !== node.code;
+    state.activeIndex = state.order.indexOf(node);
+    state.selectedCode = node.code;
+    if (changed) state.checklistManageMode = false;
+
+    updateRouteState();
+    renderStageHeader(node);
+    if (focusStation) map.querySelector(`.route-station[data-stage-code="${node.code}"]`)?.focus({ preventScroll: true });
+    scrollStationIntoView(node.code);
+
+    const hash = `#stage-${node.code.toLowerCase()}`;
+    if (location.hash.toLowerCase() !== hash && historyMode !== 'none') {
+      if (historyMode === 'push') history.pushState({ stage: node.code }, '', hash);
+      else history.replaceState({ stage: node.code }, '', hash);
     }
 
-    updateSelection();
-    renderStageHeader(node);
-    if (state.mode === 'journey') focusActiveStage(animate);
-    if (updateHash) history.replaceState(null, '', `#stage-${node.code.toLowerCase()}`);
+    if (changed) {
+      announcer.textContent = `Stage ${node.displayIndex} of ${state.order.length}: ${node.name}`;
+      if (!prefersReducedMotion()) {
+        stageGuide.classList.remove('is-entering');
+        void stageGuide.offsetWidth;
+        stageGuide.classList.add('is-entering');
+      }
+    }
+    if (reveal) revealGuide();
     await loadChecklist(node.code);
   }
 
-  function updateSelection() {
-    const active = state.nodes[state.activeIndex];
-    if (!active) return;
-
-    const activeCode = active.code;
-    const activeDepth = active.depth ?? -1;
-    const tiers = journeyTiersFor(active);
-    scene.dataset.activeCode = activeCode.toLowerCase();
-
-    root.querySelectorAll('.process-node[data-stage-code]').forEach(button => {
-      const node = state.stageByCode.get(button.dataset.stageCode);
-      const selected = node?.code === activeCode;
-      const past = node && (node.depth < activeDepth || (node.depth === activeDepth && node.displayIndex < active.displayIndex));
-      const tier = tiers.get(node?.code) || 'hidden';
-
-      button.classList.toggle('is-active', selected);
-      button.classList.toggle('is-past', Boolean(past));
-      button.classList.toggle('is-near', tier === 'near');
-      button.classList.toggle('is-context', tier === 'context');
-      button.classList.toggle('is-distant', tier === 'hidden');
-      button.dataset.journeyTier = tier;
-      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-      button.setAttribute('aria-hidden', state.mode === 'journey' && tier === 'hidden' ? 'true' : 'false');
-      button.tabIndex = state.mode === 'journey' && tier === 'hidden' ? -1 : 0;
-
-      button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
-      button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.46' : '0');
-      button.style.setProperty('--node-blur', tier === 'context' ? '.45px' : tier === 'hidden' ? '6px' : '0px');
-    });
-
-    const activeDetour = state.optionalDetours.find(detour => detour.code === activeCode);
-    root.querySelectorAll('.process-connection').forEach(path => {
-      const source = path.dataset.edgeSource;
-      const target = path.dataset.edgeTarget;
-      const kind = path.dataset.edgeKind;
-      const sourceTier = tiers.get(source) || 'hidden';
-      const targetTier = tiers.get(target) || 'hidden';
-      const storyVisible = sourceTier !== 'hidden' && targetTier !== 'hidden';
-      const conditional = path.classList.contains('is-conditional');
-      const connected = source === activeCode || target === activeCode;
-      const detourActive = Boolean(activeDetour && conditional && (source === activeCode || target === activeCode));
-      const bypassActive = !activeDetour && !conditional && connected;
-      const activePath = detourActive || bypassActive;
-      const targetNode = state.stageByCode.get(target);
-      const traversed = !conditional && targetNode && targetNode.displayIndex <= active.displayIndex;
-
-      path.classList.toggle('is-active', activePath);
-      path.classList.toggle('is-traversed', Boolean(traversed));
-      path.classList.toggle('is-story-hidden', !storyVisible);
-      path.classList.toggle('is-story-context', storyVisible && !activePath);
-      path.setAttribute('marker-end', conditional
-        ? 'url(#processArrowConditional)'
-        : activePath ? 'url(#processArrowActive)' : 'url(#processArrow)');
-    });
-
-    root.querySelectorAll('.process-route-signal').forEach(path => {
-      const source = path.dataset.edgeSource;
-      const target = path.dataset.edgeTarget;
-      const conditional = path.classList.contains('is-conditional');
-      const sourceTier = tiers.get(source) || 'hidden';
-      const targetTier = tiers.get(target) || 'hidden';
-      const storyVisible = sourceTier !== 'hidden' && targetTier !== 'hidden';
-      const connected = source === activeCode || target === activeCode;
-      const activeSignal = Boolean(storyVisible && connected && (conditional ? activeDetour : !activeDetour));
-      path.classList.toggle('is-active', activeSignal);
-      path.classList.toggle('is-story-hidden', !storyVisible);
-    });
-
-    root.querySelectorAll('[data-progress-code]').forEach(dot => {
-      const node = state.stageByCode.get(dot.dataset.progressCode);
-      dot.classList.toggle('is-active', node?.code === activeCode);
-      dot.classList.toggle('is-past', Boolean(node && node.displayIndex < active.displayIndex));
-      dot.setAttribute('aria-current', node?.code === activeCode ? 'step' : 'false');
-    });
-
-    progressCurrent.textContent = String(active.displayIndex).padStart(2, '0');
-    sceneStageLabel.textContent = `${String(active.displayIndex).padStart(2, '0')} · ${active.name}`;
-
-    root.querySelectorAll('[data-action="previous-stage"]').forEach(button => {
-      button.disabled = state.activeIndex <= 0;
-    });
-    root.querySelectorAll('[data-action="next-stage"]').forEach(button => {
-      button.disabled = state.activeIndex >= state.nodes.length - 1;
-    });
+  function goRelative(delta, options = {}) {
+    const next = state.order[clamp(state.activeIndex + delta, 0, state.order.length - 1)];
+    if (next && next.code !== state.selectedCode) selectStage(next.code, options);
   }
 
   function renderStageHeader(node) {
-    setText('[data-stage-number]', String(node.displayIndex).padStart(2, '0'));
+    const { route } = state;
+    setText('[data-stage-number]', pad(node.displayIndex));
     setText('[data-stage-code-label]', node.code);
+    setText('[data-stage-total]', `/${state.order.length}`);
     setText('[data-stage-title]', node.name);
-    root.querySelectorAll('[data-stage-conditional]').forEach(element => {
-      element.hidden = !node.optional;
-    });
-    purposeEdit.hidden = !state.canEditPurpose;
-    checklistManage.hidden = !state.canEditChecklist;
+    root.querySelector('[data-stage-conditional]').hidden = !node.optional;
+    const parallel = root.querySelector('[data-stage-parallel]');
+    parallel.hidden = !node.parallelWith.length;
+    parallel.innerHTML = node.parallelWith.length
+      ? `<i class="bi bi-diagram-2" aria-hidden="true"></i> Runs alongside ${node.parallelWith.map(escapeHtml).join(', ')}`
+      : '';
+    setText('[data-stage-story]', Route.describe(route, node.code));
+    renderNeighbours(node);
+    renderPager();
+    renderWalkPanel(node);
+
+    // Nothing can be edited until this stage's own guidance has loaded; otherwise an editor
+    // opened in the gap would be bound to the previous stage.
+    state.currentChecklist = null;
+    purposeEdit.hidden = true;
+    checklistManage.hidden = true;
     checklistAdd.hidden = true;
-    manageLabel.textContent = 'Manage';
+    checklistCopy.hidden = true;
     setText('[data-stage-purpose]', 'Loading stage purpose…');
     setText('[data-purpose-updated]', '');
     renderChecklistLoading();
   }
 
+  function neighbourButton(node, note = '') {
+    return `
+      <button type="button" class="stage-neighbour" data-goto-stage="${escapeHtml(node.code)}">
+        <span class="stage-neighbour__code">${escapeHtml(node.code)}</span>
+        <span class="stage-neighbour__name">${escapeHtml(node.name)}${note ? `<small>${escapeHtml(note)}</small>` : ''}</span>
+      </button>`;
+  }
+
+  function renderNeighbours(node) {
+    const { route } = state;
+    const before = route.predecessors(node.code);
+    const after = route.successors(node.code);
+    const host = root.querySelector('[data-stage-neighbours]');
+    host.innerHTML = `
+      <div class="stage-neighbours__group">
+        <span class="stage-neighbours__label">Before</span>
+        ${before.length ? before.map(item => neighbourButton(item, item.optional ? 'Only if it was required' : '')).join('') : '<span class="stage-neighbours__edge">Start of the route</span>'}
+      </div>
+      <div class="stage-neighbours__group">
+        <span class="stage-neighbours__label">Next</span>
+        ${after.length ? after.map(item => neighbourButton(item, item.optional ? 'Only when required' : '')).join('') : '<span class="stage-neighbours__edge">End of the route</span>'}
+      </div>`;
+  }
+
+  function renderPager() {
+    const previous = state.order[state.activeIndex - 1];
+    const next = state.order[state.activeIndex + 1];
+    const previousButton = root.querySelector('[data-pager-previous]');
+    const nextButton = root.querySelector('[data-pager-next]');
+    previousButton.hidden = !previous;
+    nextButton.hidden = !next;
+    setText('[data-pager-previous-name]', previous ? `${pad(previous.displayIndex)} · ${previous.name}` : '');
+    setText('[data-pager-next-name]', next ? `${pad(next.displayIndex)} · ${next.name}` : '');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Walkthrough: an inline panel at the top of the stage guide, so it never covers content.
+  // ---------------------------------------------------------------------------
+  function routeSummaryText() {
+    const conditional = state.route.nodes.filter(node => node.optional);
+    const parts = [`That is the whole route: ${state.order.length} stages from ${state.order[0].name} to ${state.order[state.order.length - 1].name}.`];
+    parallelGroups().forEach(group => parts.push(`${listNames(group)} run at the same time.`));
+    if (conditional.length) parts.push(`${listNames(conditional)} ${conditional.length === 1 ? 'applies' : 'apply'} only when required.`);
+    return parts.join(' ');
+  }
+
+  function listNames(nodes) {
+    const names = nodes.map(node => node.name);
+    return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  }
+
+  function renderWalkPanel(node) {
+    walkPanel.hidden = !state.walking;
+    if (!state.walking) return;
+    const last = state.activeIndex === state.order.length - 1;
+    const next = state.order[state.activeIndex + 1];
+    setText('[data-walk-step]', `Walkthrough · Step ${node.displayIndex} of ${state.order.length}`);
+    setText('[data-walk-story]', last ? `${Route.describe(state.route, node.code)} ${routeSummaryText()}` : Route.describe(state.route, node.code));
+    walkPanel.querySelector('[data-walk-restart]').hidden = state.activeIndex === 0;
+    walkPanel.querySelector('[data-walk-back]').hidden = state.activeIndex === 0;
+    walkPanel.querySelector('[data-walk-next]').innerHTML = last
+      ? '<i class="bi bi-check2" aria-hidden="true"></i> Finish walkthrough'
+      : `Next: ${escapeHtml(next.name)} <i class="bi bi-arrow-right" aria-hidden="true"></i>`;
+  }
+
+  // Starts from the stage you are on; "From stage 1" in the panel restarts at the beginning.
+  function setWalkthrough(on) {
+    state.walking = on;
+    root.classList.toggle('is-walking', on);
+    setText('[data-walk-label]', on ? 'End walkthrough' : 'Walk me through it');
+    const node = state.route.byCode.get(state.selectedCode);
+    renderWalkPanel(node);
+    if (on) {
+      announcer.textContent = `Walkthrough started at stage ${node.displayIndex}: ${node.name}`;
+      revealGuide();
+      walkPanel.querySelector('[data-walk-next]').focus({ preventScroll: true });
+    } else {
+      announcer.textContent = 'Walkthrough ended';
+    }
+  }
+
+  async function walkNext() {
+    if (state.activeIndex >= state.order.length - 1) {
+      setWalkthrough(false);
+      toggleFocus();
+      return;
+    }
+    await selectStage(state.order[state.activeIndex + 1].code, { reveal: true });
+    walkPanel.querySelector('[data-walk-next]').focus({ preventScroll: true });
+  }
+
+  function toggleFocus() {
+    root.querySelector('.route-walk-button')?.focus({ preventScroll: true });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Checklist
+  // ---------------------------------------------------------------------------
   async function loadChecklist(code, { force = false } = {}) {
     const normalizedCode = String(code || '').toUpperCase();
     if (!normalizedCode) return;
@@ -890,9 +642,29 @@ if (root) {
       applyChecklist(checklist);
     } catch (error) {
       if (error?.name === 'AbortError') return;
-      handleError(error, 'Unable to load stage guidance.');
-      if (state.selectedCode === normalizedCode) renderChecklistError();
+      console.error(error);
+      if (state.selectedCode === normalizedCode && !error?.authenticationHandled) renderGuidanceError(error);
     }
+  }
+
+  // Fills the cache for every stage so search can look inside purposes and checklists.
+  function prefetchChecklists() {
+    if (state.checklistPrefetch || !state.route) return state.checklistPrefetch;
+    const queue = state.order.map(node => node.code).filter(code => !state.checklistCache.has(code));
+    const worker = async () => {
+      while (queue.length) {
+        const code = queue.shift();
+        try {
+          const checklist = normalizeChecklist(await sendJson(checklistUrl(code)));
+          // An edit made while the prefetch was in flight wins over the older copy.
+          if (!state.checklistCache.has(code)) state.checklistCache.set(code, checklist);
+        } catch {
+          // Search falls back to names and codes for stages that could not be read.
+        }
+      }
+    };
+    state.checklistPrefetch = Promise.all([worker(), worker(), worker(), worker()]);
+    return state.checklistPrefetch;
   }
 
   function applyChecklist(checklist) {
@@ -902,17 +674,16 @@ if (root) {
   }
 
   function renderPurpose(checklist) {
-    setText('[data-stage-purpose]', checklist?.purpose || 'Purpose not recorded.');
-    const updated = checklist?.purposeUpdatedOn ? formatDateTime(checklist.purposeUpdatedOn) : '';
-    setText('[data-purpose-updated]', updated ? `Updated ${updated}` : '');
+    purposeEdit.hidden = !state.canEditPurpose;
+    setText('[data-stage-purpose]', checklist?.purpose || 'The purpose of this stage has not been recorded yet.');
+    const updated = checklist?.purposeUpdatedOn ? formatDate(checklist.purposeUpdatedOn) : '';
+    setText('[data-purpose-updated]', updated ? `Purpose updated ${updated}` : '');
   }
 
   function renderChecklistLoading() {
     destroySortable();
-    stageGuide?.classList.remove('has-empty-checklist');
-    checklistList.classList.remove('is-empty');
-    checklistCount.textContent = '0';
-    checklistManage.hidden = !state.canEditChecklist;
+    checklistCount.textContent = '';
+    checklistList.classList.remove('is-empty', 'is-managing');
     checklistList.setAttribute('aria-busy', 'true');
     checklistList.innerHTML = `
       <li class="stage-checklist__state">
@@ -921,16 +692,23 @@ if (root) {
       </li>`;
   }
 
-  function renderChecklistError() {
+  function renderGuidanceError(error) {
     destroySortable();
-    stageGuide?.classList.remove('has-empty-checklist');
-    checklistList.classList.remove('is-empty');
+    state.currentChecklist = null;
+    const forbidden = error?.status === 403;
+    setText('[data-stage-purpose]', forbidden
+      ? 'You do not have access to this stage guidance.'
+      : 'The guidance for this stage could not be loaded.');
+    setText('[data-purpose-updated]', '');
+    purposeEdit.hidden = true;
+    checklistList.classList.add('is-empty');
+    checklistList.classList.remove('is-managing');
     checklistList.setAttribute('aria-busy', 'false');
     checklistList.innerHTML = `
-      <li class="stage-checklist__state stage-checklist__state--error">
+      <li class="stage-checklist__state stage-checklist__state--error" role="alert">
         <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-        <span>Unable to load this checklist.</span>
-        <button type="button" data-action="retry-checklist">Retry</button>
+        <span>${forbidden ? 'Ask an administrator if you need it.' : 'Check your connection and try again.'}</span>
+        ${forbidden ? '' : '<button type="button" class="stage-action" data-action="retry-checklist">Try again</button>'}
       </li>`;
   }
 
@@ -1018,51 +796,89 @@ if (root) {
     destroySortable();
     const items = checklist?.items || [];
     const empty = items.length === 0;
-    checklistCount.textContent = String(items.length);
+    const managing = state.canEditChecklist && state.checklistManageMode && !empty;
+    checklistCount.textContent = empty ? '' : `· ${items.length} ${items.length === 1 ? 'item' : 'items'}`;
     checklistList.setAttribute('aria-busy', 'false');
     checklistList.classList.toggle('is-empty', empty);
-    stageGuide?.classList.toggle('has-empty-checklist', empty);
-    checklistAdd.hidden = !(state.canEditChecklist && state.checklistManageMode && !empty);
+    checklistList.classList.toggle('is-managing', managing);
+    checklistAdd.hidden = !managing;
     checklistManage.hidden = !state.canEditChecklist || empty;
-    manageLabel.textContent = state.checklistManageMode ? 'Done' : 'Manage';
-    checklistManage.classList.toggle('is-active', state.checklistManageMode);
+    checklistCopy.hidden = empty || managing;
+    manageLabel.textContent = managing ? 'Done' : 'Manage';
+    checklistManage.classList.toggle('is-active', managing);
+    checklistManage.setAttribute('aria-pressed', managing ? 'true' : 'false');
 
     if (empty) {
       checklistList.innerHTML = `
         <li class="stage-checklist__state stage-checklist__state--empty">
-          <span class="stage-checklist__state-icon"><i class="bi bi-list-check" aria-hidden="true"></i></span>
-          <strong>No reference checks recorded</strong>
-          <span>This stage currently has no processing checklist.</span>
-          ${state.canEditChecklist ? `
-            <button type="button" class="stage-checklist__first-action" data-action="add-item">
-              <i class="bi bi-plus-lg" aria-hidden="true"></i>
-              Add first checklist item
-            </button>` : ''}
+          <span class="stage-checklist__empty-icon" aria-hidden="true"><i class="bi bi-list-check"></i></span>
+          ${state.canEditChecklist
+            ? `<strong>This stage has no checklist yet</strong>
+               <span>Readers see only the purpose. Add the checks a project officer should confirm before moving on.</span>
+               <button type="button" class="btn btn-primary btn-sm stage-add" data-action="add-item">
+                 <i class="bi bi-plus-lg" aria-hidden="true"></i> Add first item
+               </button>`
+            : `<strong>No checklist has been published for this stage yet</strong>
+               <span>Use the purpose above as the current guidance. For more detail, ask the process owner to add a checklist.</span>`}
         </li>`;
       return;
     }
 
+    const last = items.length - 1;
     checklistList.innerHTML = items.map((item, index) => `
-      <li class="stage-checklist__item${state.checklistManageMode ? ' is-managing' : ''}"
+      <li class="stage-checklist__item"
           data-checklist-item-id="${item.id}"
           data-item-row-version="${escapeHtml(item.rowVersion)}">
-        <span class="stage-checklist__drag" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
-        <span class="stage-checklist__number">${String(index + 1).padStart(2, '0')}</span>
-        <span class="stage-checklist__text">${renderChecklistText(item.text)}</span>
+        ${managing ? '<span class="stage-checklist__drag" aria-hidden="true" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>' : ''}
+        <span class="stage-checklist__number">${pad(index + 1)}</span>
+        <div class="stage-checklist__text">${renderChecklistText(item.text)}</div>
+        ${managing ? `
         <span class="stage-checklist__item-actions">
-          <button type="button" data-action="edit-item" aria-label="Edit checklist item"><i class="bi bi-pencil"></i></button>
-          <button type="button" data-action="delete-item" aria-label="Delete checklist item"><i class="bi bi-trash3"></i></button>
-        </span>
+          <button type="button" data-action="move-item-up" aria-label="Move item ${index + 1} up"${index === 0 ? ' disabled' : ''}><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+          <button type="button" data-action="move-item-down" aria-label="Move item ${index + 1} down"${index === last ? ' disabled' : ''}><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+          <button type="button" data-action="edit-item" aria-label="Edit checklist item ${index + 1}"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+          <button type="button" data-action="delete-item" aria-label="Delete checklist item ${index + 1}"><i class="bi bi-trash3" aria-hidden="true"></i></button>
+        </span>` : ''}
       </li>`).join('');
 
-    if (state.canEditChecklist && state.checklistManageMode && window.Sortable) {
+    if (managing && window.Sortable) {
       state.sortable = window.Sortable.create(checklistList, {
         animation: 180,
         handle: '.stage-checklist__drag',
         ghostClass: 'is-dragging',
         chosenClass: 'is-chosen',
-        onEnd: persistChecklistOrder
+        onEnd: () => persistChecklistOrder()
       });
+    }
+  }
+
+  function checklistAsText(checklist) {
+    const node = state.route.byCode.get(checklist.stageCode);
+    const lines = [`${pad(node.displayIndex)} ${node.code} · ${node.name}`];
+    if (checklist.purpose) lines.push('', checklist.purpose);
+    lines.push('', 'Processing checklist');
+    checklist.items.forEach((item, index) => lines.push(`${index + 1}. ${item.text.replace(/\n+/g, '\n   ')}`));
+    return lines.join('\n');
+  }
+
+  async function copyChecklist() {
+    if (!state.currentChecklist?.items.length) return;
+    const text = checklistAsText(state.currentChecklist);
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Checklist copied.', 'success', 2200);
+    } catch {
+      // Clipboard access can be refused on plain-HTTP LAN origins; fall back to a selection copy.
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const copied = document.execCommand?.('copy');
+      area.remove();
+      showToast(copied ? 'Checklist copied.' : 'Copy is not available in this browser. Select the text and copy it instead.', copied ? 'success' : 'warning', 2600);
     }
   }
 
@@ -1071,7 +887,7 @@ if (root) {
     state.sortable = null;
   }
 
-  async function persistChecklistOrder() {
+  async function persistChecklistOrder({ focusItemId = null, focusAction = null } = {}) {
     if (!state.currentChecklist || !state.selectedCode) return;
     const items = [...checklistList.querySelectorAll('[data-checklist-item-id]')].map((element, index) => ({
       itemId: Number(element.dataset.checklistItemId),
@@ -1088,10 +904,34 @@ if (root) {
         }
       });
       cacheChecklist(normalizeChecklist(dto));
-      showToast('Checklist order updated.', 'success');
+      if (focusItemId) {
+        const position = items.findIndex(item => item.itemId === focusItemId) + 1;
+        announcer.textContent = `Item moved to position ${position} of ${items.length}.`;
+        const row = checklistList.querySelector(`[data-checklist-item-id="${focusItemId}"]`);
+        const opposite = focusAction === 'move-item-up' ? 'move-item-down' : 'move-item-up';
+        const target = row?.querySelector(`[data-action="${focusAction}"]:not(:disabled)`)
+          || row?.querySelector(`[data-action="${opposite}"]:not(:disabled)`)
+          || row?.querySelector('[data-action="edit-item"]');
+        target?.focus();
+      } else {
+        showToast('Checklist order updated.', 'success');
+      }
     } catch (error) {
       await handleMutationError(error, 'Unable to reorder checklist items.');
     }
+  }
+
+  function moveChecklistItem(button, delta) {
+    const row = button.closest('[data-checklist-item-id]');
+    if (!row) return;
+    const sibling = delta < 0 ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling) return;
+    if (delta < 0) sibling.before(row);
+    else sibling.after(row);
+    persistChecklistOrder({
+      focusItemId: Number(row.dataset.checklistItemId),
+      focusAction: delta < 0 ? 'move-item-up' : 'move-item-down'
+    });
   }
 
   function cacheChecklist(checklist) {
@@ -1103,10 +943,58 @@ if (root) {
     if (!state.canEditChecklist || !state.currentChecklist) return;
     state.checklistManageMode = !state.checklistManageMode;
     renderChecklist(state.currentChecklist);
+    checklistManage.focus();
+  }
+
+  function currentStageName() {
+    return state.route?.byCode.get(state.selectedCode)?.name || '';
+  }
+
+  function setModalStage(modalElement, prefix) {
+    const eyebrow = modalElement?.querySelector('[data-modal-stage]');
+    if (eyebrow) eyebrow.textContent = `${prefix} · ${currentStageName()}`.toUpperCase();
+  }
+
+  function rememberModalOpener() {
+    state.modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+
+  // Bootstrap returns focus to <body> when the opener has been re-rendered; send it somewhere useful.
+  function restoreFocusAfterModal() {
+    const target = state.modalReturnFocus;
+    state.modalReturnFocus = null;
+    if (target?.isConnected && !target.closest('[hidden]')) {
+      target.focus();
+      return;
+    }
+    const fallback = [checklistAdd, checklistManage, purposeEdit, stageTitle].find(element => element && !element.hidden);
+    fallback?.focus();
+  }
+
+  // An open editor is bound to the stage and template version it was opened for, so a stage
+  // change behind it (Back, Forward, a #stage link) can never redirect its save to another stage.
+  function guidanceReady() {
+    return Boolean(state.currentChecklist && state.currentChecklist.stageCode === state.selectedCode);
+  }
+
+  function bindEditor(form) {
+    form.dataset.stageCode = state.currentChecklist.stageCode;
+    form.dataset.templateRowVersion = state.currentChecklist.rowVersion;
+  }
+
+  function editorTarget(form) {
+    return { code: form?.dataset.stageCode || '', templateRowVersion: form?.dataset.templateRowVersion || '' };
+  }
+
+  function closeEditors() {
+    [purposeModal, itemModal, deleteModal].forEach(modal => modal?.hide());
   }
 
   function openPurposeModal() {
-    if (!state.canEditPurpose || !state.currentChecklist || !purposeModal || !purposeText) return;
+    if (!state.canEditPurpose || !guidanceReady() || !purposeModal || !purposeText) return;
+    rememberModalOpener();
+    bindEditor(purposeForm);
+    setModalStage(purposeModalElement, 'Stage purpose');
     purposeText.value = state.currentChecklist.purpose || '';
     updatePurposeCharacterCount();
     purposeModalElement.addEventListener('shown.bs.modal', () => purposeText.focus(), { once: true });
@@ -1115,16 +1003,21 @@ if (root) {
 
   async function submitPurpose(event) {
     event.preventDefault();
-    if (!state.currentChecklist || !state.selectedCode || !purposeText) return;
+    const target = editorTarget(purposeForm);
+    if (!target.code || !purposeText) return;
     const purpose = purposeText.value.trim();
     if (!purpose) return showToast('Stage purpose cannot be empty.', 'warning');
+    if (purpose === (state.checklistCache.get(target.code)?.purpose || '')) {
+      purposeModal.hide();
+      return;
+    }
     setFormBusy(purposeForm, true);
     try {
-      const dto = await sendJson(`${checklistUrl(state.selectedCode)}/purpose`, {
+      const dto = await sendJson(`${checklistUrl(target.code)}/purpose`, {
         method: 'PUT',
         body: {
           purpose,
-          templateRowVersion: state.currentChecklist.rowVersion
+          templateRowVersion: target.templateRowVersion
         }
       });
       cacheChecklist(normalizeChecklist(dto));
@@ -1138,8 +1031,11 @@ if (root) {
   }
 
   function openItemModal(mode, item = null) {
-    if (!state.canEditChecklist || !state.currentChecklist || !itemModal || !itemForm || !itemText) return;
+    if (!state.canEditChecklist || !guidanceReady() || !itemModal || !itemForm || !itemText) return;
+    rememberModalOpener();
     const editing = mode === 'edit' && item;
+    bindEditor(itemForm);
+    setModalStage(itemModalElement, 'Processing checklist');
     itemForm.dataset.mode = editing ? 'edit' : 'create';
     itemForm.querySelector('input[name="itemId"]').value = editing ? item.id : '';
     itemForm.querySelector('input[name="itemRowVersion"]').value = editing ? item.rowVersion : '';
@@ -1152,7 +1048,11 @@ if (root) {
   }
 
   function openDeleteModal(item) {
-    if (!state.canEditChecklist || !deleteModal || !deleteForm) return;
+    if (!state.canEditChecklist || !guidanceReady() || !deleteModal || !deleteForm) return;
+    rememberModalOpener();
+    bindEditor(deleteForm);
+    setModalStage(deleteModalElement, 'Processing checklist');
+    deleteForm.querySelector('[data-delete-preview]').textContent = item.text;
     deleteForm.querySelector('input[name="itemId"]').value = item.id;
     deleteForm.querySelector('input[name="itemRowVersion"]').value = item.rowVersion || '';
     deleteModal.show();
@@ -1160,7 +1060,8 @@ if (root) {
 
   async function submitItem(event) {
     event.preventDefault();
-    if (!state.currentChecklist || !state.selectedCode || !itemText) return;
+    const target = editorTarget(itemForm);
+    if (!target.code || !itemText) return;
     const text = itemText.value.trim();
     if (!text) return showToast('Checklist item text cannot be empty.', 'warning');
     const editing = itemForm.dataset.mode === 'edit';
@@ -1168,12 +1069,13 @@ if (root) {
     const itemRowVersion = itemForm.querySelector('input[name="itemRowVersion"]').value || '';
     setFormBusy(itemForm, true);
     try {
-      const dto = await sendJson(editing ? `${checklistUrl(state.selectedCode)}/${itemId}` : checklistUrl(state.selectedCode), {
+      const dto = await sendJson(editing ? `${checklistUrl(target.code)}/${itemId}` : checklistUrl(target.code), {
         method: editing ? 'PUT' : 'POST',
         body: editing
-          ? { text, templateRowVersion: state.currentChecklist.rowVersion, itemRowVersion }
-          : { text, templateRowVersion: state.currentChecklist.rowVersion }
+          ? { text, templateRowVersion: target.templateRowVersion, itemRowVersion }
+          : { text, templateRowVersion: target.templateRowVersion }
       });
+      if (!editing) state.checklistManageMode = true;
       cacheChecklist(normalizeChecklist(dto));
       itemModal.hide();
       showToast(editing ? 'Checklist item updated.' : 'Checklist item added.', 'success');
@@ -1186,14 +1088,15 @@ if (root) {
 
   async function submitDelete(event) {
     event.preventDefault();
-    if (!state.currentChecklist || !state.selectedCode) return;
+    const target = editorTarget(deleteForm);
+    if (!target.code) return;
     const itemId = Number(deleteForm.querySelector('input[name="itemId"]').value || 0);
     const itemRowVersion = deleteForm.querySelector('input[name="itemRowVersion"]').value || '';
     setFormBusy(deleteForm, true);
     try {
-      const dto = await sendJson(`${checklistUrl(state.selectedCode)}/${itemId}`, {
+      const dto = await sendJson(`${checklistUrl(target.code)}/${itemId}`, {
         method: 'DELETE',
-        body: { templateRowVersion: state.currentChecklist.rowVersion, itemRowVersion }
+        body: { templateRowVersion: target.templateRowVersion, itemRowVersion }
       });
       cacheChecklist(normalizeChecklist(dto));
       deleteModal.hide();
@@ -1208,7 +1111,9 @@ if (root) {
   async function handleMutationError(error, fallback) {
     if (error?.authenticationHandled || error?.status === 401) return;
     if (error?.status === 409) {
-      showToast('This stage guidance changed in another session. Loading the latest version.', 'warning');
+      // The open editor's version token is now stale; close it rather than retry the same save.
+      closeEditors();
+      showToast('Not saved: someone else changed this stage\'s guidance. The latest version is now shown; open the editor again to make your change.', 'warning', 7000);
       state.checklistCache.delete(state.selectedCode);
       await loadChecklist(state.selectedCode, { force: true });
       return;
@@ -1226,34 +1131,88 @@ if (root) {
     return state.currentChecklist?.items.find(item => item.id === id) || null;
   }
 
-  function goRelative(delta) {
-    const nextIndex = clamp(state.activeIndex + delta, 0, state.nodes.length - 1);
-    if (nextIndex === state.activeIndex) return;
-    selectStage(state.nodes[nextIndex].code);
+  // ---------------------------------------------------------------------------
+  // Search: names, codes, purposes and checklist text. Focus stays in the input and the
+  // highlighted option is announced through aria-activedescendant.
+  // ---------------------------------------------------------------------------
+  function snippetAround(text, term) {
+    const index = text.toLowerCase().indexOf(term);
+    if (index < 0) return '';
+    // Start and end on word boundaries so the snippet never begins mid-word.
+    let start = Math.max(0, index - 20);
+    while (start > 0 && /\S/.test(text[start - 1])) start -= 1;
+    let end = Math.min(text.length, index + term.length + 40);
+    while (end < text.length && /\S/.test(text[end])) end += 1;
+    const before = (start > 0 ? '…' : '') + text.slice(start, index);
+    const after = text.slice(index + term.length, end) + (end < text.length ? '…' : '');
+    return `${escapeHtml(before)}<mark>${escapeHtml(text.slice(index, index + term.length))}</mark>${escapeHtml(after)}`;
   }
 
-  function applySearch({ forceOpen = false } = {}) {
+  function searchMatches(term) {
+    if (!term) return [];
+    const matches = [];
+    state.order.forEach(node => {
+      if (node.searchText.includes(term)) {
+        matches.push({ node, rank: node.code.toLowerCase() === term ? 0 : 1, where: '' });
+        return;
+      }
+      const checklist = state.checklistCache.get(node.code);
+      if (!checklist) return;
+      if (checklist.purpose.toLowerCase().includes(term)) {
+        matches.push({ node, rank: 2, where: `Purpose: ${snippetAround(checklist.purpose, term)}` });
+        return;
+      }
+      const item = checklist.items.find(candidate => candidate.text.toLowerCase().includes(term));
+      if (item) matches.push({ node, rank: 3, where: `Checklist: ${snippetAround(item.text.replace(/\s+/g, ' '), term)}` });
+    });
+    return matches.sort((a, b) => a.rank - b.rank || a.node.displayIndex - b.node.displayIndex).slice(0, 8);
+  }
+
+  function applySearch() {
     const term = stageSearch.value.trim().toLowerCase();
-    searchClear.hidden = !term;
-    const shouldOpen = forceOpen || Boolean(term) || document.activeElement === stageSearch;
-    if (!shouldOpen) {
-      searchResults.hidden = true;
+    state.searchMatches = searchMatches(term);
+    state.searchActive = state.searchMatches.length ? 0 : -1;
+    const open = Boolean(term);
+    searchResults.hidden = !open;
+    stageSearch.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (!open) {
       searchResults.innerHTML = '';
+      stageSearch.removeAttribute('aria-activedescendant');
       return;
     }
+    const pending = state.checklistPrefetch && state.checklistCache.size < state.order.length;
+    searchResults.innerHTML = state.searchMatches.length
+      ? state.searchMatches.map((match, index) => `
+          <div role="option" id="processSearchOption${index}" class="route-search__option" data-goto-stage="${escapeHtml(match.node.code)}" aria-selected="false">
+            <span class="route-search__index">${pad(match.node.displayIndex)}</span>
+            <span class="route-search__name">${escapeHtml(match.node.name)}${match.where ? `<small>${match.where}</small>` : ''}</span>
+            <span class="route-search__code">${escapeHtml(match.node.code)}</span>
+          </div>`).join('')
+      : `<div class="route-search__empty">${pending ? 'Searching the guidance…' : 'No stage, purpose or checklist item mentions that.'}</div>`;
+    highlightSearchOption();
+  }
 
-    const matches = (term
-      ? state.nodes.filter(node => node.searchText.includes(term))
-      : state.nodes).slice(0, 15);
-    searchResults.innerHTML = matches.length
-      ? matches.map(node => `
-          <button type="button" data-search-stage="${node.code}"${node.code === state.selectedCode ? ' class="is-current"' : ''}>
-            <span>${String(node.displayIndex).padStart(2, '0')}</span>
-            <strong>${escapeHtml(node.name)}</strong>
-            <small>${escapeHtml(node.code)}</small>
-          </button>`).join('')
-      : '<div class="process-search-results__empty">No matching stage</div>';
-    searchResults.hidden = false;
+  function highlightSearchOption() {
+    const options = [...searchResults.querySelectorAll('[role="option"]')];
+    options.forEach((option, index) => {
+      const active = index === state.searchActive;
+      option.classList.toggle('is-active', active);
+      option.setAttribute('aria-selected', active ? 'true' : 'false');
+      if (active) option.scrollIntoView({ block: 'nearest' });
+    });
+    if (state.searchActive >= 0) stageSearch.setAttribute('aria-activedescendant', `processSearchOption${state.searchActive}`);
+    else stageSearch.removeAttribute('aria-activedescendant');
+  }
+
+  function closeSearch() {
+    stageSearch.value = '';
+    applySearch();
+  }
+
+  function pickSearchMatch(code) {
+    closeSearch();
+    selectStage(code, { reveal: true });
+    stageTitle.focus({ preventScroll: true });
   }
 
   function initialCodeFromHash() {
@@ -1262,53 +1221,42 @@ if (root) {
   }
 
   async function loadFlow() {
+    placeholder.hidden = false;
+    placeholder.innerHTML = `
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      <span>Loading the procurement route…</span>`;
+    map.setAttribute('aria-busy', 'true');
     try {
       const dto = await sendJson(flowUrl());
-      const normalized = normalizeFlow(dto);
-      state.flow = normalized;
-      state.nodes = normalized.nodes;
-      state.edges = normalized.edges;
-      buildGraph();
-      calculateLayout();
-      renderWorld();
-      setText('[data-stage-count]', String(state.nodes.length));
+      state.route = Route.buildRoute(Route.normalizeFlow(dto, state.version));
+      state.order = [...state.route.nodes].sort((a, b) => a.displayIndex - b.displayIndex);
+      if (!state.order.length) throw new Error('The workflow has no stages.');
+      stageGuide.hidden = false;
+      root.classList.remove('has-route-error');
+      renderRoute();
       const initialCode = initialCodeFromHash();
-      const initial = initialCode && state.stageByCode.has(initialCode) ? initialCode : state.nodes[0]?.code;
-      if (initial) await selectStage(initial, { updateHash: Boolean(initialCode), animate: false });
-      setMode();
+      const initial = initialCode && state.route.byCode.has(initialCode) ? initialCode : state.order[0].code;
+      await selectStage(initial, { history: initialCode ? 'replace' : 'none' });
     } catch (error) {
       console.error(error);
+      if (error?.authenticationHandled) return;
+      map.setAttribute('aria-busy', 'false');
+      stageGuide.hidden = true;
+      root.classList.add('has-route-error');
+      routeSummary.textContent = 'Route unavailable';
       placeholder.innerHTML = `
-        <div class="process-loading__error">
+        <div class="route-map__error" role="alert">
           <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-          <strong>Unable to load the procurement workflow.</strong>
-          <span>Refresh the page or contact the system administrator.</span>
+          <strong>The procurement route could not be loaded.</strong>
+          <span>Check your connection and try again. If it keeps failing, contact the system administrator.</span>
+          <button type="button" class="btn btn-primary btn-sm" data-action="retry-flow">Try again</button>
         </div>`;
     }
   }
 
-  function handleSceneWheel(event) {
-    if (state.mode !== 'journey' || !state.nodes.length) return;
-    if (event.target.closest('.stage-guide, .modal, input, textarea, select')) return;
-    const now = performance.now();
-    if (now < state.wheelLockedUntil) {
-      event.preventDefault();
-      return;
-    }
-
-    state.wheelAccumulator += event.deltaY;
-    if (Math.abs(state.wheelAccumulator) < 45) return;
-    const direction = state.wheelAccumulator > 0 ? 1 : -1;
-    state.wheelAccumulator = 0;
-    const atBoundary = (direction < 0 && state.activeIndex === 0)
-      || (direction > 0 && state.activeIndex === state.nodes.length - 1);
-    if (atBoundary) return;
-    event.preventDefault();
-    state.wheelLockedUntil = now + 560;
-    goRelative(direction);
-  }
-
-
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
   function setFormBusy(form, busy) {
     if (!form) return;
     const submit = form.querySelector('button[type="submit"]');
@@ -1329,10 +1277,15 @@ if (root) {
     root.querySelectorAll(selector).forEach(element => { element.textContent = value ?? ''; });
   }
 
-  function formatDateTime(value) {
+  function pad(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  // Same day-month-year form the server uses for "Guidance updated", e.g. 28 Oct 2026.
+  function formatDate(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
   }
 
   function clamp(value, min, max) {
@@ -1360,6 +1313,7 @@ if (root) {
     }
     const element = document.createElement('div');
     element.className = `toast align-items-center text-bg-${variant} border-0`;
+    element.setAttribute('role', variant === 'danger' ? 'alert' : 'status');
     element.innerHTML = '<div class="d-flex"><div class="toast-body"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>';
     element.querySelector('.toast-body').textContent = message;
     container.appendChild(element);
@@ -1368,69 +1322,41 @@ if (root) {
     toast.show();
   }
 
-  function handleError(error, fallback) {
-    console.error(error);
-    if (error?.authenticationHandled || error?.status === 401) return;
-    if (error?.status === 403) showToast('You are not authorised to view this stage guidance.', 'danger');
-    else showToast(error?.message || fallback, 'danger');
-  }
-
+  // ---------------------------------------------------------------------------
+  // Events
+  // ---------------------------------------------------------------------------
   root.addEventListener('click', event => {
-    const nodeButton = event.target.closest('[data-stage-code]');
-    if (nodeButton?.classList.contains('process-node')) {
-      selectStage(nodeButton.dataset.stageCode);
+    const station = event.target.closest('.route-station[data-stage-code]');
+    if (station) {
+      selectStage(station.dataset.stageCode, { reveal: true });
       return;
     }
 
-    const progressButton = event.target.closest('[data-progress-code]');
-    if (progressButton) {
-      selectStage(progressButton.dataset.progressCode);
+    const gotoButton = event.target.closest('[data-goto-stage]');
+    if (gotoButton) {
+      if (gotoButton.closest('[data-search-results]')) {
+        pickSearchMatch(gotoButton.dataset.gotoStage);
+        return;
+      }
+      if (gotoButton.closest('[data-route-list]')) routeListPanel.open = false;
+      selectStage(gotoButton.dataset.gotoStage, { reveal: true });
       return;
     }
-
-    const searchButton = event.target.closest('[data-search-stage]');
-    if (searchButton) {
-      selectStage(searchButton.dataset.searchStage);
-      stageSearch.value = '';
-      applySearch();
-      closeStageSearch();
-      scene.focus({ preventScroll: true });
-      return;
-    }
-
 
     const actionButton = event.target.closest('[data-action]');
     if (!actionButton) return;
     const action = actionButton.dataset.action;
-    if (action === 'begin-journey') {
-      closeIntroduction();
-      setMode();
-      selectStage(state.nodes[0]?.code, { animate: false });
-      scene.focus({ preventScroll: true });
-    } else if (action === 'begin-fullscreen') {
-      closeIntroduction();
-      setMode();
-      selectStage(state.nodes[0]?.code, { animate: false });
-      experience.requestFullscreen?.();
-    } else if (action === 'show-introduction') {
-      showIntroduction();
-    } else if (action === 'close-introduction') {
-      closeIntroduction();
-    } else if (action === 'open-stage-search') {
-      showStageSearch();
-    } else if (action === 'close-stage-search') {
-      closeStageSearch();
-    } else if (action === 'toggle-theme') {
-      applyTheme(state.theme === 'dark' ? 'light' : 'dark');
-    } else if (action === 'previous-stage') goRelative(-1);
-    else if (action === 'next-stage') goRelative(1);
-    else if (action === 'toggle-fullscreen') {
-      if (!document.fullscreenElement) experience.requestFullscreen?.();
-      else document.exitFullscreen?.();
-    } else if (action === 'print-process') window.print();
+    if (action === 'previous-stage') goRelative(-1, { reveal: true });
+    else if (action === 'next-stage') goRelative(1, { reveal: true });
+    else if (action === 'toggle-walkthrough') setWalkthrough(!state.walking);
+    else if (action === 'walk-next') walkNext();
+    else if (action === 'walk-restart') selectStage(state.order[0].code, { reveal: true });
     else if (action === 'edit-purpose') openPurposeModal();
     else if (action === 'toggle-checklist-edit') toggleChecklistManageMode();
     else if (action === 'add-item') openItemModal('create');
+    else if (action === 'copy-checklist') copyChecklist();
+    else if (action === 'move-item-up') moveChecklistItem(actionButton, -1);
+    else if (action === 'move-item-down') moveChecklistItem(actionButton, 1);
     else if (action === 'edit-item') {
       const item = findChecklistItem(actionButton);
       if (item) openItemModal('edit', item);
@@ -1439,98 +1365,138 @@ if (root) {
       if (item) openDeleteModal(item);
     } else if (action === 'retry-checklist' && state.selectedCode) {
       state.checklistCache.delete(state.selectedCode);
+      renderChecklistLoading();
       loadChecklist(state.selectedCode, { force: true });
+    } else if (action === 'retry-flow') {
+      loadFlow();
     }
   });
 
-  stageSearch.addEventListener('input', () => applySearch({ forceOpen: true }));
-  stageSearch.addEventListener('focus', () => applySearch({ forceOpen: true }));
-  stageSearch.addEventListener('keydown', event => {
-    if (event.key === 'Enter') {
-      const match = state.nodes.find(node => node.searchText.includes(stageSearch.value.trim().toLowerCase()));
-      if (match) {
-        selectStage(match.code);
-        closeStageSearch();
-        scene.focus({ preventScroll: true });
+  stagePicker.addEventListener('change', () => selectStage(stagePicker.value, { reveal: true }));
+  scroller.addEventListener('scroll', updateScrollFades, { passive: true });
+  // Re-lay the route when the window crosses the wide breakpoint or changes height.
+  let relayoutFrame = 0;
+  function relayoutRoute() {
+    if (!state.route) return;
+    window.cancelAnimationFrame(relayoutFrame);
+    relayoutFrame = window.requestAnimationFrame(() => {
+      const wantVertical = wideQuery.matches;
+      if (wantVertical === state.vertical && (!wantVertical || verticalRowHeight() === state.rowHeight)) {
+        updateScrollFades();
+        return;
       }
-    }
-    if (event.key === 'Escape') {
-      stageSearch.value = '';
-      applySearch();
+      const stationHadFocus = Boolean(document.activeElement?.closest?.('.route-station'));
+      renderRoute();
+      updateRouteState();
+      if (state.vertical) setStripVisible(false);
+      scrollStationIntoView(state.selectedCode);
+      updateScrollFades();
+      if (stationHadFocus) map.querySelector('.route-station.is-active')?.focus({ preventScroll: true });
+    });
+  }
+  window.addEventListener('resize', relayoutRoute);
+
+  map.addEventListener('keydown', event => {
+    if (!event.target.closest('.route-station')) return;
+    const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    if (event.key in keys) {
+      event.preventDefault();
+      goRelative(keys[event.key], { focusStation: true, history: 'replace' });
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      const target = event.key === 'Home' ? state.order[0] : state.order[state.order.length - 1];
+      selectStage(target.code, { focusStation: true, history: 'replace' });
     }
   });
-  searchClear.addEventListener('click', () => {
-    stageSearch.value = '';
-    applySearch();
-    stageSearch.focus();
+
+  stageSearch.addEventListener('focus', () => {
+    prefetchChecklists()?.then(() => { if (stageSearch.value.trim()) applySearch(); });
+  });
+  stageSearch.addEventListener('input', applySearch);
+  stageSearch.addEventListener('keydown', event => {
+    const count = state.searchMatches.length;
+    if (event.key === 'ArrowDown' && count) {
+      event.preventDefault();
+      state.searchActive = (state.searchActive + 1) % count;
+      highlightSearchOption();
+    } else if (event.key === 'ArrowUp' && count) {
+      event.preventDefault();
+      state.searchActive = (state.searchActive - 1 + count) % count;
+      highlightSearchOption();
+    } else if (event.key === 'Enter') {
+      const match = state.searchMatches[state.searchActive];
+      if (match) {
+        event.preventDefault();
+        pickSearchMatch(match.node.code);
+      }
+    } else if (event.key === 'Escape') {
+      closeSearch();
+    }
   });
   document.addEventListener('click', event => {
-    if (stageSearchDialog?.open && !event.target.closest('.process-search-wrap')) searchResults.hidden = true;
+    if (!event.target.closest('[data-route-search]')) {
+      searchResults.hidden = true;
+      stageSearch.setAttribute('aria-expanded', 'false');
+    }
   });
-  stageSearchDialog?.addEventListener('click', event => {
-    if (event.target === stageSearchDialog) closeStageSearch();
-  });
-  introduction?.addEventListener('click', event => {
-    if (event.target === introduction) closeIntroduction();
-  });
-  scene.addEventListener('wheel', handleSceneWheel, { passive: false });
 
   purposeForm?.addEventListener('submit', submitPurpose);
   purposeText?.addEventListener('input', updatePurposeCharacterCount);
   itemForm?.addEventListener('submit', submitItem);
   itemText?.addEventListener('input', updateItemCharacterCount);
   deleteForm?.addEventListener('submit', submitDelete);
+  [purposeModalElement, itemModalElement, deleteModalElement].forEach(modal => {
+    modal?.addEventListener('hidden.bs.modal', restoreFocusAfterModal);
+  });
 
+  // Arrow keys move between stages from the map and the route strip, and from the page
+  // itself, but not while the reader is working in the stage guide or a form.
+  document.addEventListener('pointerdown', event => {
+    state.lastPointerInGuide = Boolean(event.target.closest?.('.stage-guide, .process-header'));
+  });
   document.addEventListener('keydown', event => {
-    if (event.target?.matches?.('input, textarea, select, button') || event.target?.isContentEditable) return;
-    if (event.key === '/') { event.preventDefault(); showStageSearch(); }
-    else if (event.key === 'ArrowLeft') { event.preventDefault(); goRelative(-1); }
-    else if (event.key === 'ArrowRight') { event.preventDefault(); goRelative(1); }
-    else if (event.key === 'Escape' && document.fullscreenElement) document.exitFullscreen?.();
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.target?.closest?.('input, textarea, select, [contenteditable="true"], .modal')) return;
+    // "/" stays with PRISM's global search; the stage finder is the field in the page header.
+    if (event.key === 'Escape' && state.walking) {
+      setWalkthrough(false);
+      toggleFocus();
+      return;
+    }
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    const focusOnPage = event.target === document.body || event.target === document.documentElement;
+    const focusInRoute = Boolean(event.target?.closest?.('[data-route-board], [data-route-strip]')) && !event.target.closest('.route-station');
+    if ((focusOnPage && !state.lastPointerInGuide) || focusInRoute) {
+      event.preventDefault();
+      goRelative(event.key === 'ArrowRight' ? 1 : -1, { history: 'replace' });
+    }
   });
 
-  function syncWorkspaceHeight() {
-    if (!workspace || document.fullscreenElement === experience) return;
-    const top = workspace.getBoundingClientRect().top;
-    const footerReserve = 10;
-    const available = Math.max(560, window.innerHeight - top - footerReserve);
-    workspace.style.setProperty('--process-available-height', `${available}px`);
-  }
-
-  let cameraRefreshFrame = 0;
-
-  function refreshCameraForAvailableSpace() {
-    cameraRefreshFrame = 0;
-    if (!state.nodes.length) return;
-    focusActiveStage(false);
-    applyWorldTransform(false);
-  }
-
-  function scheduleCameraRefresh() {
-    syncWorkspaceHeight();
-    if (cameraRefreshFrame) return;
-    cameraRefreshFrame = window.requestAnimationFrame(refreshCameraForAvailableSpace);
-  }
-
-  window.addEventListener('resize', scheduleCameraRefresh);
-
-  const workspaceResizeObserver = typeof ResizeObserver === 'function' && workspace
-    ? new ResizeObserver(scheduleCameraRefresh)
-    : null;
-  workspaceResizeObserver?.observe(workspace);
-
-  document.addEventListener('fullscreenchange', () => {
-    const active = document.fullscreenElement === experience;
-    experience.classList.toggle('is-fullscreen', active);
-    if (fullscreenExit) fullscreenExit.hidden = !active;
-    if (!active) syncWorkspaceHeight();
-    window.setTimeout(() => {
-      focusActiveStage(false);
-      applyWorldTransform(false);
-    }, 80);
+  // Back and Forward move between the stages you opened.
+  window.addEventListener('popstate', () => {
+    const code = initialCodeFromHash() || state.order[0]?.code;
+    if (code && state.route?.byCode.has(code) && code !== state.selectedCode) {
+      closeEditors();
+      selectStage(code, { history: 'none' });
+    }
+  });
+  window.addEventListener('hashchange', () => {
+    const code = initialCodeFromHash();
+    if (code && state.route?.byCode.has(code) && code !== state.selectedCode) {
+      closeEditors();
+      selectStage(code, { history: 'none' });
+    }
   });
 
-  loadPreferredTheme();
-  syncWorkspaceHeight();
+  if (typeof IntersectionObserver === 'function') {
+    // Show the strip once almost none of the map is left on screen (not only when it has
+    // gone entirely), so a selection on a short laptop screen never leaves the reader without a route.
+    const thresholds = Array.from({ length: 21 }, (_, index) => index / 20);
+    new IntersectionObserver(([entry]) => {
+      const visible = entry.intersectionRect.height;
+      setStripVisible(entry.boundingClientRect.top < SHELL_HEADER_HEIGHT && visible < 72);
+    }, { rootMargin: `-${SHELL_HEADER_HEIGHT}px 0px 0px 0px`, threshold: thresholds }).observe(board);
+  }
+
   loadFlow();
 }

@@ -17,6 +17,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'officer-conference.test.js'),
   path.join('wwwroot', 'js', 'calendar.test.js'),
   path.join('wwwroot', 'js', 'chat.test.js'),
+  path.join('wwwroot', 'js', 'process-route.test.js'),
   path.join('wwwroot', 'js', 'project-office-reports', 'ipr', 'index.test.js'),
   path.join('wwwroot', 'js', 'project-office-reports', 'ipr', 'register-view.test.js'),
   path.join('wwwroot', 'js', 'project-office-reports', 'ipr', 'editor-focus.test.js'),

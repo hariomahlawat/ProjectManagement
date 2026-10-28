@@ -7,89 +7,115 @@ namespace ProjectManagement.Tests;
 public sealed class ProcessJourneyPresentationContractTests
 {
     [Fact]
-    public void ProcessPage_UsesJourneyOnlyWithoutPermanentHeaderChrome()
+    public void ProcessPage_RendersRouteMapAndStageGuideFromTheFlowApi()
+    {
+        var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
+        var route = ReadRepoFile("wwwroot", "js", "process-route.js");
+
+        Assert.Contains("data-route-map", page, StringComparison.Ordinal);
+        Assert.Contains("data-stage-guide", page, StringComparison.Ordinal);
+        Assert.Contains("~/js/process-route.js", page, StringComparison.Ordinal);
+        Assert.Contains("/api/processes/${encodeURIComponent(state.version)}/flow", script, StringComparison.Ordinal);
+        Assert.Contains("/stages/${encodeURIComponent(code)}/checklist", script, StringComparison.Ordinal);
+        Assert.Contains("#stage-${node.code.toLowerCase()}", script, StringComparison.Ordinal);
+        Assert.Contains("function buildRoute", route, StringComparison.Ordinal);
+
+        // Stages, purposes and phases come from the database, never from the client.
+        foreach (var source in new[] { script, route })
+        {
+            Assert.DoesNotContain("const PHASES", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("STAGE_PURPOSES", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("'TEC'", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("'PNC'", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ProcessPage_KeepsEditingBehindServerDecidedPermissions()
     {
         var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
         var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
 
-        Assert.Contains("data-process-world", page, StringComparison.Ordinal);
-        Assert.Contains("data-mode=\"journey\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-process-workspace", page, StringComparison.Ordinal);
-        Assert.Contains("data-process-theme=\"light\"", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-mode-button", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("Complete map", page, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("process-commandbar", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("process-workspace__identity", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("six governance phases", page, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("process-phase-strip", page, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("const PHASES", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("STAGE_PURPOSES", script, StringComparison.Ordinal);
+        Assert.Contains("data-can-edit-checklist=\"@(Model.CanEditChecklist", page, StringComparison.Ordinal);
+        Assert.Contains("data-can-edit-purpose=\"@(Model.CanEditPurpose", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"stagePurposeModal\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"checklistItemModal\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"checklistDeleteModal\"", page, StringComparison.Ordinal);
+        Assert.Contains("purposeEdit.hidden = !state.canEditPurpose", script, StringComparison.Ordinal);
+        Assert.Contains("X-CSRF-TOKEN", script, StringComparison.Ordinal);
+        Assert.Contains("templateRowVersion", script, StringComparison.Ordinal);
+        Assert.Contains("error?.status === 409", script, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ProcessJourney_ProvidesFloatingUtilitiesAndLightDefaultTheme()
+    public void ProcessPage_EditorsSaveToTheStageTheyWereOpenedFor()
+    {
+        var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
+
+        // Back/Forward and #stage links change the selected stage; an open editor must not follow it.
+        Assert.Contains("function bindEditor(form)", script, StringComparison.Ordinal);
+        Assert.Contains("const target = editorTarget(purposeForm);", script, StringComparison.Ordinal);
+        Assert.Contains("const target = editorTarget(itemForm);", script, StringComparison.Ordinal);
+        Assert.Contains("const target = editorTarget(deleteForm);", script, StringComparison.Ordinal);
+        Assert.Contains("closeEditors();", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("checklistUrl(state.selectedCode)}/purpose", script, StringComparison.Ordinal);
+
+        // Editors open only once the selected stage's own guidance has loaded, and a conflict
+        // closes the stale editor instead of retrying with an outdated row version.
+        Assert.Contains("function guidanceReady()", script, StringComparison.Ordinal);
+        Assert.Contains("!state.canEditPurpose || !guidanceReady()", script, StringComparison.Ordinal);
+        Assert.Contains("purposeEdit.hidden = !state.canEditPurpose;\n    setText('[data-stage-purpose]'", script.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.Contains("closeEditors();\n      showToast('Not saved:", script.Replace("\r\n", "\n"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProcessPage_IsLightweightAndFollowsTheGlobalTheme()
     {
         var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
         var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
-        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
+        var styles = StripCssComments(ReadRepoFile("wwwroot", "css", "process-flow.css"));
 
-        Assert.Contains("process-utility-dock", page, StringComparison.Ordinal);
-        Assert.Contains("data-action=\"open-stage-search\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-action=\"toggle-theme\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-action=\"toggle-fullscreen\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-fullscreen-exit", page, StringComparison.Ordinal);
-        Assert.Contains("data-stage-search-dialog", page, StringComparison.Ordinal);
-        Assert.Contains("data-process-introduction", page, StringComparison.Ordinal);
-        Assert.Contains("function applyTheme", script, StringComparison.Ordinal);
-        Assert.Contains("prism.process.theme", script, StringComparison.Ordinal);
-        Assert.Contains("function syncWorkspaceHeight", script, StringComparison.Ordinal);
-        Assert.Contains("--process-guide-width: clamp(350px, 22vw, 455px)", styles, StringComparison.Ordinal);
-        Assert.Contains("grid-template-columns: minmax(0, 1fr) var(--process-guide-width)", styles, StringComparison.Ordinal);
-        Assert.Contains("process-page[data-process-theme=\"dark\"]", styles, StringComparison.Ordinal);
-        Assert.Contains("process-stage-search-dialog", styles, StringComparison.Ordinal);
+        // Native scrolling: the page never takes over the mouse wheel.
+        Assert.DoesNotContain("'wheel'", script, StringComparison.Ordinal);
+        // One theme for the whole application.
+        Assert.DoesNotContain("prism.process.theme", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-process-theme", page, StringComparison.Ordinal);
+        // No GPU-heavy effects or animations that run forever.
+        Assert.DoesNotContain("backdrop-filter", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("filter: blur", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("infinite", styles, StringComparison.Ordinal);
+        Assert.Contains("prefers-reduced-motion", styles, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ProcessJourney_RetainsProgressiveDisclosureAndWideMonitorContext()
+    public void ProcessPage_LoadsNoInternetHostedAssets()
     {
-        var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
-        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
-
-        Assert.Contains("function journeyTiersFor", script, StringComparison.Ordinal);
-        Assert.Contains("function branchClusterFor", script, StringComparison.Ordinal);
-        Assert.Contains("function expandJourneyContextForWideViewport", script, StringComparison.Ordinal);
-        Assert.Contains("process-route-signal", styles, StringComparison.Ordinal);
-        Assert.Contains("@media (min-width: 1800px)", styles, StringComparison.Ordinal);
-        Assert.Contains("@media (min-width: 2400px)", styles, StringComparison.Ordinal);
-        Assert.Contains("ResizeObserver", script, StringComparison.Ordinal);
+        foreach (var source in new[]
+                 {
+                     ReadRepoFile("Pages", "Process", "Index.cshtml"),
+                     ReadRepoFile("wwwroot", "js", "process-flow.js"),
+                     ReadRepoFile("wwwroot", "js", "process-route.js"),
+                     ReadRepoFile("wwwroot", "css", "process-flow.css")
+                 })
+        {
+            // The SVG namespace is an identifier, not something the browser downloads.
+            var withoutNamespaces = source.Replace(SvgNamespace, string.Empty, StringComparison.Ordinal);
+            Assert.DoesNotContain("http://", withoutNamespaces, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("https://", withoutNamespaces, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
-    public void ProcessPage_UsesFullWidthUnifiedEdgeToEdgeWorkspace()
-    {
-        var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
-        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
-
-        Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", page, StringComparison.Ordinal);
-        Assert.Contains("ViewData[\"UseFullWidth\"] = true", page, StringComparison.Ordinal);
-        Assert.Contains("process-experience", page, StringComparison.Ordinal);
-        Assert.Contains("gap: 0", styles, StringComparison.Ordinal);
-        Assert.Contains("border-left: 1px solid #d8e1ec", styles, StringComparison.Ordinal);
-        Assert.Contains("height: var(--process-available-height", styles, StringComparison.Ordinal);
-    }
-
-
-    [Fact]
-    public void ProcessJourney_UsesAuthoritativeTerminalTopologyAndStructuredChecklistRendering()
+    public void ProcessPage_KeepsStructuredChecklistRendering()
     {
         var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
         var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
+        var route = ReadRepoFile("wwwroot", "js", "process-route.js");
         var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
 
-        Assert.DoesNotContain("Capability complete", script, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("state.endpoint", script, StringComparison.Ordinal);
-        Assert.Contains("if (detour.successor)", script, StringComparison.Ordinal);
-        Assert.Contains("single optional continuation", script, StringComparison.Ordinal);
+        Assert.Contains("if (detour.successor)", route, StringComparison.Ordinal);
+        Assert.Contains("single optional continuation", route, StringComparison.Ordinal);
         Assert.Contains("function renderChecklistText", script, StringComparison.Ordinal);
         Assert.Contains("function splitInlineNumberedList", script, StringComparison.Ordinal);
         Assert.Contains("stage-checklist__sublist", script, StringComparison.Ordinal);
@@ -163,6 +189,11 @@ public sealed class ProcessJourneyPresentationContractTests
         Assert.Contains("Policies.Checklist.EditPurpose", program, StringComparison.Ordinal);
         Assert.Contains("PurposeUpdated", program, StringComparison.Ordinal);
     }
+
+    private const string SvgNamespace = "http://www.w3.org/2000/svg";
+
+    private static string StripCssComments(string css)
+        => System.Text.RegularExpressions.Regex.Replace(css, @"/\*.*?\*/", string.Empty, System.Text.RegularExpressions.RegexOptions.Singleline);
 
     private static string ReadRepoFile(params string[] relativePath)
     {
