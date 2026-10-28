@@ -1380,6 +1380,103 @@
 /* ---------------------------------------------------------------------------
    Responsive
    --------------------------------------------------------------------------- */
+/* Wide screens (1600px and up): the route becomes a vertical line in a fixed left column
+   and the stage guide sits beside it, so the route, purpose and checklist are seen together. */
+@media (min-width: 1600px) {
+  .process-page {
+    grid-template-columns: 372px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 24px;
+  }
+
+  .process-header {
+    grid-column: 1 / -1;
+  }
+
+  .route-board {
+    position: sticky;
+    top: 114px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 130px);
+  }
+
+  .route-strip-dock {
+    display: none;
+  }
+
+  .route-map-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 18px 8px 8px;
+  }
+
+  .route-map[data-orientation="vertical"] {
+    width: 340px;
+    min-width: 0;
+    margin-inline: auto;
+  }
+
+  .route-map[data-orientation="vertical"] .route-station {
+    flex-direction: row;
+    gap: 10px;
+    width: auto;
+    transform: translate(-12px, -50%);
+  }
+
+  .route-map[data-orientation="vertical"] .route-station.is-label-left {
+    flex-direction: row-reverse;
+    transform: translate(calc(-100% + 12px), -50%);
+  }
+
+  .route-map[data-orientation="vertical"] .route-station.is-active {
+    gap: 14px;
+  }
+
+  .route-map[data-orientation="vertical"] .route-station__label {
+    width: max-content;
+    max-width: 156px;
+    text-align: left;
+  }
+
+  /* Side-lane stages (the second parallel branch and detours) have less room to the right. */
+  .route-map[data-orientation="vertical"] .route-station.is-label-side .route-station__label {
+    max-width: 108px;
+  }
+
+  .route-map[data-orientation="vertical"] .route-station.is-label-left .route-station__label {
+    max-width: 92px;
+    text-align: right;
+  }
+
+  .route-map[data-orientation="vertical"] .route-station__name {
+    text-wrap: pretty;
+  }
+
+  .route-board__footer {
+    padding: 10px 18px 14px;
+    border-top: 1px solid var(--pm-route-border);
+  }
+
+  .route-legend {
+    gap: 4px 16px;
+  }
+
+  .route-board__keys {
+    display: none;
+  }
+
+  .stage-guide {
+    grid-column: 2;
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+
+  .stage-rail {
+    top: 114px;
+  }
+}
+
 /* Ultrawide monitors (2560px and up): use more of the width and step the type up a little,
    while checklist lines stay short enough to read. */
 @media (min-width: 2400px) {
@@ -1406,6 +1503,14 @@
 
   .route-station__code {
     font-size: 12px;
+  }
+
+  .process-page {
+    grid-template-columns: 410px minmax(0, 1fr);
+  }
+
+  .route-map[data-orientation="vertical"] .route-station__label {
+    max-width: 170px;
   }
 
   .stage-guide {

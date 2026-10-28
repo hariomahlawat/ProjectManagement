@@ -17,6 +17,8 @@ if (root && Route) {
     checklistManageMode: false,
     sortable: null,
     walking: false,
+    vertical: false,
+    rowHeight: 50,
     searchMatches: [],
     searchActive: -1,
     modalReturnFocus: null,
@@ -33,6 +35,12 @@ if (root && Route) {
   const SHELL_HEADER_HEIGHT = 98;
   const STRIP_HEIGHT = 66;
   const REVEAL_SESSION_KEY = 'prism.process.revealed';
+  // Wide screens (1600px and up) turn the route into a vertical line in a fixed left column,
+  // with the stage guide beside it. Geometry is in pixels of a 340px-wide map.
+  const wideQuery = window.matchMedia('(min-width: 1600px)');
+  const VERTICAL_WIDTH = 340;
+  const VERTICAL_MAIN_X = 160;
+  const VERTICAL_LANE_SPACING = 44;
 
   const map = root.querySelector('[data-route-map]');
   const board = root.querySelector('[data-route-board]');
@@ -178,11 +186,16 @@ if (root && Route) {
   // ---------------------------------------------------------------------------
   // Route map, strip, picker and phone list
   // ---------------------------------------------------------------------------
+  // Horizontal: x is a share of a 1000-unit width and y is in a 300-unit height.
+  // Vertical: x and y are pixels of the VERTICAL_WIDTH-wide map; each column becomes a row.
   function stationX(node) {
+    // A detour sits on the same side lane as the second parallel branch; it has its own row.
+    if (state.vertical) return VERTICAL_MAIN_X + (clamp(node.lane, -1, 1) * VERTICAL_LANE_SPACING);
     return ((node.column + 0.5) / state.route.columns) * 1000;
   }
 
   function stationY(node) {
+    if (state.vertical) return (node.column + 0.5) * state.rowHeight;
     return MAIN_Y + (node.lane * LANE_SPACING);
   }
 
@@ -191,9 +204,22 @@ if (root && Route) {
     const y1 = stationY(source);
     const x2 = stationX(target);
     const y2 = stationY(target);
+    if (state.vertical) {
+      if (x1 === x2) return `M ${x1} ${y1} L ${x2} ${y2}`;
+      const midY = (y1 + y2) / 2;
+      return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+    }
     if (y1 === y2) return `M ${x1} ${y1} L ${x2} ${y2}`;
     const mid = (x1 + x2) / 2;
     return `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+  }
+
+  // Fit the vertical route, with its legend, into the window from where the board starts on
+  // first load, within readable limits; taller routes scroll inside the column.
+  function verticalRowHeight() {
+    const boardTop = board.getBoundingClientRect().top + window.scrollY;
+    const available = window.innerHeight - Math.max(boardTop, SHELL_HEADER_HEIGHT + 16) - 112;
+    return clamp(Math.floor(available / state.route.columns), 40, 58);
   }
 
   function svgElement(name, attributes) {
@@ -222,7 +248,18 @@ if (root && Route) {
 
   function renderRoute() {
     const { route } = state;
-    svg.setAttribute('viewBox', `0 0 1000 ${MAP_HEIGHT}`);
+    state.vertical = wideQuery.matches;
+    map.dataset.orientation = state.vertical ? 'vertical' : 'horizontal';
+    root.classList.toggle('is-route-vertical', state.vertical);
+    if (state.vertical) {
+      state.rowHeight = verticalRowHeight();
+      const height = state.rowHeight * route.columns;
+      map.style.height = `${height}px`;
+      svg.setAttribute('viewBox', `0 0 ${VERTICAL_WIDTH} ${height}`);
+    } else {
+      map.style.height = '';
+      svg.setAttribute('viewBox', `0 0 1000 ${MAP_HEIGHT}`);
+    }
     svg.innerHTML = '';
     const glowLayer = svgElement('g', { class: 'route-map__glow' });
     const lineLayer = svgElement('g', { class: 'route-map__track' });
@@ -242,9 +279,16 @@ if (root && Route) {
       button.type = 'button';
       button.className = 'route-station';
       if (node.optional) button.classList.add('is-conditional');
+      if (state.vertical && node.lane < 0) button.classList.add('is-label-left');
+      if (state.vertical && node.lane > 0) button.classList.add('is-label-side');
       button.dataset.stageCode = node.code;
-      button.style.left = `${(stationX(node) / 10).toFixed(4)}%`;
-      button.style.top = `${((stationY(node) / MAP_HEIGHT) * 100).toFixed(4)}%`;
+      if (state.vertical) {
+        button.style.left = `${stationX(node)}px`;
+        button.style.top = `${stationY(node)}px`;
+      } else {
+        button.style.left = `${(stationX(node) / 10).toFixed(4)}%`;
+        button.style.top = `${((stationY(node) / MAP_HEIGHT) * 100).toFixed(4)}%`;
+      }
       button.style.setProperty('--station-delay', `${60 + (index * 20)}ms`);
       button.tabIndex = -1;
       button.setAttribute('aria-label', `Stage ${node.displayIndex} of ${route.nodes.length}: ${node.name}${node.optional ? ', only when required' : ''}`);
@@ -348,19 +392,30 @@ if (root && Route) {
 
   function scrollStationIntoView(code) {
     const button = map.querySelector(`.route-station[data-stage-code="${code}"]`);
-    if (!button || scroller.scrollWidth <= scroller.clientWidth) return;
+    if (!button) return;
+    const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
+    if (state.vertical) {
+      // Scroll only the route column; the page itself must not move.
+      if (scroller.scrollHeight <= scroller.clientHeight) return;
+      const top = button.offsetTop - (scroller.clientHeight / 2);
+      scroller.scrollTo({ top: Math.max(0, top), behavior });
+      return;
+    }
+    if (scroller.scrollWidth <= scroller.clientWidth) return;
     const target = button.offsetLeft - (scroller.clientWidth / 2);
-    scroller.scrollTo({ left: Math.max(0, target), behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    scroller.scrollTo({ left: Math.max(0, target), behavior });
   }
 
   function updateScrollFades() {
-    const scrollable = scroller.scrollWidth > scroller.clientWidth + 1;
+    const scrollable = !state.vertical && scroller.scrollWidth > scroller.clientWidth + 1;
     scroller.classList.toggle('is-scrollable', scrollable);
     scroller.classList.toggle('is-at-start', scroller.scrollLeft <= 2);
     scroller.classList.toggle('is-at-end', scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 2);
   }
 
-  function setStripVisible(visible) {
+  function setStripVisible(requested) {
+    // The vertical route never scrolls away, so it needs no strip.
+    const visible = requested && !state.vertical;
     root.classList.toggle('has-strip', visible);
     strip.setAttribute('aria-hidden', visible ? 'false' : 'true');
     strip.querySelectorAll('button').forEach(button => { button.tabIndex = visible ? 0 : -1; });
@@ -372,7 +427,7 @@ if (root && Route) {
   // must land below the header and the strip even when the strip is not showing yet.
   function revealGuide() {
     const rect = stageTitle.getBoundingClientRect();
-    const topLimit = SHELL_HEADER_HEIGHT + STRIP_HEIGHT + 16;
+    const topLimit = SHELL_HEADER_HEIGHT + (state.vertical ? 0 : STRIP_HEIGHT) + 16;
     if (rect.top >= topLimit && rect.bottom <= window.innerHeight - 160) return;
     const anchor = (state.walking ? walkPanel : stageTitle).getBoundingClientRect().top + window.scrollY;
     window.scrollTo({ top: Math.max(0, anchor - topLimit), behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
@@ -1269,7 +1324,24 @@ if (root && Route) {
 
   stagePicker.addEventListener('change', () => selectStage(stagePicker.value, { reveal: true }));
   scroller.addEventListener('scroll', updateScrollFades, { passive: true });
-  window.addEventListener('resize', updateScrollFades);
+  // Re-lay the route when the window crosses the wide breakpoint or changes height.
+  let relayoutFrame = 0;
+  function relayoutRoute() {
+    if (!state.route) return;
+    window.cancelAnimationFrame(relayoutFrame);
+    relayoutFrame = window.requestAnimationFrame(() => {
+      const wantVertical = wideQuery.matches;
+      if (wantVertical === state.vertical && (!wantVertical || verticalRowHeight() === state.rowHeight)) {
+        updateScrollFades();
+        return;
+      }
+      renderRoute();
+      updateRouteState();
+      if (state.vertical) setStripVisible(false);
+      scrollStationIntoView(state.selectedCode);
+    });
+  }
+  window.addEventListener('resize', relayoutRoute);
 
   map.addEventListener('keydown', event => {
     if (!event.target.closest('.route-station')) return;
