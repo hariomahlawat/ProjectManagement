@@ -1,315 +1,172 @@
 ﻿@page "{id:guid}"
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.ReaderModel
 @{
-    ViewData["Title"] = "Document reader";
+    ViewData["Title"] = Model.DocumentTitle;
+    ViewData["UseFullWidth"] = true;
+    var textState = DocRepoFormat.TextState(Model.OcrStatus);
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/docrepo-reader.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
 }
 
 @section Scripts {
+    <script src="~/js/docrepo-ui.js" asp-append-version="true"></script>
     <script src="~/js/docrepo-reader.js" asp-append-version="true"></script>
 }
 
-<div class="docreader-page">
-    <!-- SECTION: Toolbar -->
-    <div class="docreader-topbar">
-        <div class="docreader-header">
-            <a class="btn btn-sm btn-outline-secondary docreader-btn"
-               href="@Model.ReturnUrl">
-                <i class="bi bi-arrow-left"></i>
-                <span>Back to results</span>
-            </a>
-            <button class="docreader-favourite"
-                    type="button"
-                    data-docrepo-favourite
-                    data-docid="@RouteData.Values["id"]"
-                    data-fav="@(Model.IsFavourite ? "true" : "false")"
-                    data-toggle-url="@Model.ToggleFavouriteUrl"
-                    title="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")"
-                    aria-label="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")">
-                <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
-            </button>
-            <span class="docreader-title" title="@Model.DocumentTitle">
-                @Model.DocumentTitle
-            </span>
-        </div>
-        <div class="docreader-actions">
-            <button class="btn btn-sm btn-outline-secondary docreader-btn"
-                    type="button"
-                    data-docreader-details-toggle
-                    aria-expanded="false"
-                    aria-controls="docreader-details-panel">
-                <i class="bi bi-layout-text-sidebar-reverse"></i>
-                <span>Details</span>
-            </button>
-            @if (Model.IsFileMissing || !Model.IsActive)
-            {
-                <button class="btn btn-sm btn-outline-secondary docreader-btn" type="button" disabled title="Document cannot be opened in a new tab">
-                    <i class="bi bi-box-arrow-up-right"></i>
-                    <span>Open in new tab</span>
+<div class="library library--reader" data-library
+     data-favourite-url="@Model.ToggleFavouriteUrl">
+    <form id="libraryToken" method="post" class="d-none">@Html.AntiForgeryToken()</form>
+
+    <!-- SECTION: Title bar -->
+    <header class="reader-bar">
+        <a class="library-back" href="@Model.ReturnUrl"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
+        <div class="reader-bar__row">
+            <div class="reader-bar__title">
+                <span class="library-eyebrow">@Model.DocumentCategoryName · @Model.OfficeName · @DocRepoFormat.Date(Model.DocumentDate)</span>
+                <h1>@Model.DocumentTitle</h1>
+                @if (Model.IsAots || !Model.IsActive)
+                {
+                    <p class="library-card__flags">
+                        @if (Model.IsAots)
+                        {
+                            <span class="library-pill library-pill--aots"><i class="bi bi-broadcast" aria-hidden="true"></i>All officers to see</span>
+                        }
+                        @if (!Model.IsActive)
+                        {
+                            <span class="library-pill library-pill--muted" title="Hidden from everyone except the people who manage the library">Deactivated</span>
+                        }
+                    </p>
+                }
+            </div>
+            <div class="reader-bar__actions">
+                <button type="button" class="library-iconbtn library-star @(Model.IsFavourite ? "is-on" : null)" data-library-star data-doc-id="@Model.DocumentId"
+                        aria-pressed="@(Model.IsFavourite ? "true" : "false")" aria-label="Favourite" title="Favourite">
+                    <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")" aria-hidden="true"></i>
                 </button>
-            }
-            else
-            {
-                <a class="btn btn-sm btn-outline-secondary docreader-btn"
-                   href="@Model.ViewUrl"
-                   target="_blank"
-                   rel="noopener">
-                    <i class="bi bi-box-arrow-up-right"></i>
-                    <span>Open in new tab</span>
-                </a>
-            }
+                @if (!Model.IsFileMissing)
+                {
+                    <a class="btn btn-outline-secondary" href="@Model.ViewUrl" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open in new tab</a>
+                    <a class="btn btn-primary" href="@Model.DownloadUrl"><i class="bi bi-download" aria-hidden="true"></i> Download</a>
+                }
+                @if (Model.CanEdit)
+                {
+                    <a class="btn btn-outline-secondary" asp-page="./Edit" asp-route-id="@Model.DocumentId"><i class="bi bi-pencil-square" aria-hidden="true"></i> Edit details</a>
+                }
+                @if (Model.CanManage)
+                {
+                    <div class="dropdown library-menu">
+                        <button class="library-iconbtn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            @if (Model.OcrStatus == DocOcrStatus.Failed)
+                            {
+                                <li><a class="dropdown-item" href="@Model.ManageUrl" data-library-action="retry-ocr" data-doc-id="@Model.DocumentId" data-doc-subject="@Model.DocumentTitle"><i class="bi bi-arrow-repeat me-2" aria-hidden="true"></i>Read text again</a></li>
+                            }
+                            @if (Model.IsActive)
+                            {
+                                <li><a class="dropdown-item" href="@Model.ManageUrl" data-library-action="deactivate" data-doc-id="@Model.DocumentId" data-doc-subject="@Model.DocumentTitle" data-return-url="@Model.ReturnUrl"><i class="bi bi-eye-slash me-2" aria-hidden="true"></i>Deactivate</a></li>
+                            }
+                            else
+                            {
+                                <li><a class="dropdown-item" href="@Model.ManageUrl" data-library-action="activate" data-doc-id="@Model.DocumentId" data-doc-subject="@Model.DocumentTitle"><i class="bi bi-eye me-2" aria-hidden="true"></i>Activate again</a></li>
+                            }
+                            <li><a class="dropdown-item library-menu__danger" href="@Model.ManageUrl" data-library-action="request-delete" data-doc-id="@Model.DocumentId" data-doc-subject="@Model.DocumentTitle"><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Request deletion…</a></li>
+                        </ul>
+                    </div>
+                }
+            </div>
+        </div>
+    </header>
+
+    <div class="reader-layout">
+        <!-- SECTION: Viewer -->
+        <div class="reader-stage">
             @if (Model.IsFileMissing)
             {
-                <button class="btn btn-sm btn-primary docreader-btn" type="button" disabled title="File missing from storage">
-                    <i class="bi bi-download"></i>
-                    <span>Download</span>
-                </button>
+                <div class="library-empty reader-stage__missing">
+                    <i class="bi bi-file-earmark-x" aria-hidden="true"></i>
+                    <h2>The PDF file is missing</h2>
+                    <p>The document's details are here, but its file is not in storage. Tell the library administrator; the Missing files page lists every affected document.</p>
+                </div>
             }
             else
             {
-                <a class="btn btn-sm btn-primary docreader-btn"
-                   href="@Model.DownloadUrl">
-                    <i class="bi bi-download"></i>
-                    <span>Download</span>
-                </a>
+                <div class="reader-viewer" data-reader-viewer>
+                    <div class="reader-loading" data-reader-loading>
+                        <div class="spinner-border" role="status" aria-label="Loading the document"></div>
+                        <p>Opening the PDF…</p>
+                        <p class="reader-loading__slow" data-reader-slow hidden>
+                            This browser is taking a while to show the PDF.
+                            <a href="@Model.ViewUrl" target="_blank" rel="noopener">Open it in a new tab</a> or <a href="@Model.DownloadUrl">download it</a>.
+                        </p>
+                    </div>
+                    <iframe src="@Model.ViewUrl" title="@Model.DocumentTitle" data-reader-frame></iframe>
+                </div>
             }
-            <authorize policy="DocRepo.EditMetadata">
-                <a class="btn btn-sm btn-outline-primary docreader-btn"
-                   asp-page="./Edit"
-                   asp-route-id="@RouteData.Values["id"]">
-                    <i class="bi bi-pencil-square"></i>
-                    <span>Edit metadata</span>
-                </a>
-            </authorize>
-            <!-- SECTION: More actions -->
-            <authorize policy="DocRepo.SoftDelete">
-                <div class="dropdown">
-                    <button class="btn btn-sm btn-light docreader-btn"
-                            type="button"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false"
-                            title="More actions">
-                        <i class="bi bi-three-dots-vertical"></i>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        @if (Model.IsActive)
-                        {
-                            <li>
-                                <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@RouteData.Values["id"]" class="px-3 py-1">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-link p-0 text-warning">
-                                        <i class="bi bi-slash-circle me-2"></i>Deactivate
-                                    </button>
-                                </form>
-                            </li>
-                        }
-                        else
-                        {
-                            <li>
-                                <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@RouteData.Values["id"]" class="px-3 py-1">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-link p-0 text-success">
-                                        <i class="bi bi-check2-circle me-2"></i>Activate
-                                    </button>
-                                </form>
-                            </li>
-                        }
-                        <li>
-                            <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@RouteData.Values["id"]" class="px-3 py-1">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="btn btn-link p-0 text-danger">
-                                    <i class="bi bi-trash me-2"></i>Request delete
-                                </button>
-                            </form>
-                        </li>
-                    </ul>
-                </div>
-            </authorize>
         </div>
-    </div>
-    <!-- SECTION: Favourite token -->
-    <form id="docrepoFavouriteToken" method="post" class="d-none">
-        @Html.AntiForgeryToken()
-    </form>
 
-    <!-- SECTION: Viewer -->
-    <div class="docreader-stage">
-        @if (Model.IsFileMissing)
-        {
-            <div class="alert alert-warning m-3" role="alert">
-                The document record exists, but the PDF file is missing from storage. Please inform the administrator.
-            </div>
-        }
-        else
-        {
-            <div class="docreader-viewer" data-docreader-viewer>
-                <div class="docreader-loading" data-docreader-loading>
-                    <div class="docreader-loading__spinner spinner-border text-primary" role="status" aria-label="Loading document"></div>
-                    <div class="docreader-loading__text">
-                        Loading document...
+        <!-- SECTION: Details -->
+        <aside class="reader-details" aria-label="Document details">
+            <section>
+                <h2>About this document</h2>
+                <dl class="library-facts">
+                    <div><dt>Document date</dt><dd>@DocRepoFormat.Date(Model.DocumentDate)</dd></div>
+                    <div><dt>Received from</dt><dd>@(string.IsNullOrWhiteSpace(Model.ReceivedFrom) ? "Not recorded" : Model.ReceivedFrom)</dd></div>
+                    <div><dt>Office</dt><dd>@Model.OfficeName</dd></div>
+                    <div><dt>Type</dt><dd>@Model.DocumentCategoryName</dd></div>
+                    <div>
+                        <dt>Tags</dt>
+                        <dd>
+                            @if (Model.Tags.Length > 0)
+                            {
+                                <ul class="library-tags">
+                                    @foreach (var tag in Model.Tags)
+                                    {
+                                        <li><a href="@Url.Page("./Index", new { tag = tag.ToLowerInvariant() })">@tag</a></li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <span class="reader-details__none">None</span>
+                            }
+                        </dd>
                     </div>
-                    <div class="docreader-loading__warning alert alert-warning mt-3 d-none" role="alert" data-docreader-warning>
-                        Viewer is taking longer than expected. Use Open in new tab for a reliable experience.
-                        <a href="@Model.ViewUrl" class="alert-link" target="_blank" rel="noopener">Open in new tab</a>.
-                    </div>
-                </div>
-                <iframe src="@Model.ViewUrl"
-                        class="docreader-frame"
-                        title="Document viewer"
-                        loading="lazy"
-                        data-docreader-frame></iframe>
-            </div>
-        }
-    </div>
-
-    <!-- SECTION: Details panel -->
-    <div class="docreader-details-backdrop" data-docreader-details-backdrop></div>
-    <aside class="docreader-details" id="docreader-details-panel" aria-hidden="true" data-docreader-details>
-        <div class="docreader-details__header">
-            <div>
-                <h6 class="mb-0">Document details</h6>
-                <small class="text-muted">Metadata and processing status</small>
-            </div>
-            <button class="btn btn-sm btn-light" type="button" data-docreader-details-close aria-label="Close details">
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
-        <div class="docreader-details__body">
-            <!-- SECTION: Identity -->
-            <div class="docreader-details__section">
-                <h6 class="docreader-details__section-title">Identity</h6>
-                <dl class="row docreader-details__list">
-                    <dt class="col-5 text-muted">Subject</dt>
-                    <dd class="col-7">@Model.DocumentTitle</dd>
-
-                    <dt class="col-5 text-muted">Office</dt>
-                    <dd class="col-7">@Model.OfficeName</dd>
-
-                    <dt class="col-5 text-muted">Document type</dt>
-                    <dd class="col-7">@Model.DocumentCategoryName</dd>
-
-                    <dt class="col-5 text-muted">Received from</dt>
-                    <dd class="col-7">@(!string.IsNullOrWhiteSpace(Model.ReceivedFrom) ? Model.ReceivedFrom : "—")</dd>
                 </dl>
-            </div>
+            </section>
 
-            <!-- SECTION: Classification -->
-            <div class="docreader-details__section">
-                <h6 class="docreader-details__section-title">Classification</h6>
-                <dl class="row docreader-details__list">
-                    <dt class="col-5 text-muted">Tags</dt>
-                    <dd class="col-7">
-                        @if (Model.Tags.Length > 0)
-                        {
-                            <div class="docreader-tags">
-                                @foreach (var tag in Model.Tags)
-                                {
-                                    <span class="badge rounded-pill bg-light text-muted">@tag</span>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <span>—</span>
-                        }
-                    </dd>
-
-                    <dt class="col-5 text-muted">Status</dt>
-                    <dd class="col-7">
-                        @if (Model.IsActive)
-                        {
-                            <span class="badge bg-success-subtle text-success">Active</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-secondary-subtle text-secondary">Inactive</span>
-                        }
-                    </dd>
-
-                    <dt class="col-5 text-muted">Favourite</dt>
-                    <dd class="col-7">
-                        <span class="docreader-favourite-indicator @(Model.IsFavourite ? "docreader-favourite-indicator--active" : "docreader-favourite-indicator--inactive")"
-                              data-docreader-favourite-indicator
-                              data-fav="@(Model.IsFavourite ? "true" : "false")">
-                            <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
-                            <span>@(Model.IsFavourite ? "Yes" : "No")</span>
-                        </span>
-                    </dd>
-
-                    @if (Model.IsAots)
+            @if (Model.IsAots)
+            {
+                <section>
+                    <h2>All officers to see</h2>
+                    <p class="reader-details__note">
+                        @(Model.IsAotsSeen ? "You have read this document." : "Opening this document marks it as read for you.")
+                    </p>
+                    @if (Model.CanViewAotsViews)
                     {
-                        <!-- SECTION: AOTS seen status -->
-                        <dt class="col-5 text-muted">Seen</dt>
-                        <dd class="col-7">@((Model.IsAotsSeen) ? "Yes" : "No")</dd>
+                        <a class="reader-details__link" href="@Model.AotsViewsUrl"><i class="bi bi-people" aria-hidden="true"></i> Read by @DocRepoFormat.Count(Model.AotsViewsCount, "officer")</a>
+                    }
+                </section>
+            }
 
-                        <!-- SECTION: AOTS viewers -->
-                        @if (Model.CanViewAotsViews)
-                        {
-                            <dt class="col-5 text-muted">Seen by</dt>
-                            <dd class="col-7">
-                                <a class="link-primary"
-                                   href="@Model.AotsViewsUrl">
-                                    Seen by (@Model.AotsViewsCount)
-                                </a>
-                            </dd>
-                        }
+            <section>
+                <h2>File</h2>
+                <dl class="library-facts">
+                    <div><dt>File name</dt><dd><span class="library-facts__file">@Model.OriginalFileName</span></dd></div>
+                    <div><dt>Size</dt><dd>@DocRepoFormat.FileSize(Model.FileSizeBytes)</dd></div>
+                    <div><dt>Searchable text</dt><dd>@(textState ?? "Ready")@if (Model.OcrStatus == DocOcrStatus.Failed && Model.CanManage && !string.IsNullOrWhiteSpace(Model.OcrFailureReason)) { <span class="reader-details__reason">@DocRepoFormat.ExplainOcrFailure(Model.OcrFailureReason)</span> }</dd></div>
+                    <div><dt>Added</dt><dd>@(Model.CreatedAtUtc.HasValue ? DocRepoFormat.DateTime(Model.CreatedAtUtc.Value) : "Unknown")@(string.IsNullOrWhiteSpace(Model.CreatedByDisplay) ? null : $" by {Model.CreatedByDisplay}")</dd></div>
+                    @if (Model.UpdatedAtUtc.HasValue)
+                    {
+                        <div><dt>Last changed</dt><dd>@DocRepoFormat.DateTime(Model.UpdatedAtUtc.Value)</dd></div>
                     }
                 </dl>
-            </div>
+            </section>
+        </aside>
+    </div>
 
-            <!-- SECTION: Processing state -->
-            <div class="docreader-details__section">
-                <h6 class="docreader-details__section-title">Processing state</h6>
-                <dl class="row docreader-details__list">
-                    <dt class="col-5 text-muted">OCR status</dt>
-                    <dd class="col-7">
-                        <span class="docreader-ocr docreader-ocr--@Model.OcrStatus.ToString().ToLowerInvariant()">
-                            @Model.OcrStatus
-                        </span>
-                        @if (!string.IsNullOrWhiteSpace(Model.OcrFailureReason))
-                        {
-                            <div class="text-muted small mt-1">@Model.OcrFailureReason</div>
-                        }
-                    </dd>
-
-                    <dt class="col-5 text-muted">File status</dt>
-                    <dd class="col-7">
-                        @if (Model.IsFileMissing)
-                        {
-                            <span class="badge bg-warning-subtle text-warning">Missing from storage</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-success-subtle text-success">Available</span>
-                        }
-                    </dd>
-                </dl>
-            </div>
-
-            <!-- SECTION: Audit -->
-            <details class="docreader-details__audit">
-                <summary class="docreader-details__section-title">Audit</summary>
-                <dl class="row docreader-details__list">
-                    <dt class="col-5 text-muted">Created date</dt>
-                    <dd class="col-7">@((Model.CreatedAtUtc.HasValue) ? Model.CreatedAtUtc.Value.ToString("dd MMM yyyy, HH:mm") + " UTC" : "—")</dd>
-
-                    <dt class="col-5 text-muted">Created by</dt>
-                    <dd class="col-7">@(!string.IsNullOrWhiteSpace(Model.CreatedByDisplay) ? Model.CreatedByDisplay : "—")</dd>
-
-                    <dt class="col-5 text-muted">Last updated</dt>
-                    <dd class="col-7">@((Model.UpdatedAtUtc.HasValue) ? Model.UpdatedAtUtc.Value.ToString("dd MMM yyyy, HH:mm") + " UTC" : "—")</dd>
-                </dl>
-            </details>
-
-            @if (Model.IsFileMissing)
-            {
-                <div class="alert alert-warning mt-3" role="alert">
-                    File missing from storage. Open and download actions are disabled.
-                </div>
-            }
-        </div>
-    </aside>
+    <partial name="_LibraryDialog" />
 </div>

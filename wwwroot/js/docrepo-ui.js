@@ -1,4 +1,5 @@
-// Document Repository list page (Areas/DocumentRepository/Pages/Documents/Index).
+// Document Repository pages with a [data-library] root: the list page (results, filters, reading
+// pane) and the reader (favourite and manage dialog).
 // Filters apply in place: the results region is fetched with ?partial=true and swapped, and the
 // address bar keeps the same query so reloads and shared links match the screen. Every link and
 // form also works without this script.
@@ -79,14 +80,14 @@
 
     // SECTION: Filters change instantly; the tag box waits for a pause in typing
     let tagTimer = null;
-    results.addEventListener("change", event => {
+    results?.addEventListener("change", event => {
         const field = event.target.closest("[data-library-filter]");
         if (!field) return;
         const form = field.form;
         load(`${form.action || window.location.pathname}?${currentQuery(form)}`, { focusName: field.name });
     });
 
-    results.addEventListener("input", event => {
+    results?.addEventListener("input", event => {
         const field = event.target.closest("[data-library-filter-text]");
         if (!field) return;
         window.clearTimeout(tagTimer);
@@ -96,7 +97,7 @@
         }, 450);
     });
 
-    results.addEventListener("submit", event => {
+    results?.addEventListener("submit", event => {
         const form = event.target.closest("[data-library-filters]");
         if (!form) return;
         event.preventDefault();
@@ -116,7 +117,7 @@
     });
 
     // SECTION: Links inside the region (chips, pages, tags) load in place
-    results.addEventListener("click", event => {
+    results?.addEventListener("click", event => {
         const link = event.target.closest("a[data-library-link]");
         if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return;
         event.preventDefault();
@@ -124,12 +125,12 @@
         if (link.closest(".library-pager")) results.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
-    window.addEventListener("popstate", () => load(window.location.href, { push: false }));
+    if (results) window.addEventListener("popstate", () => load(window.location.href, { push: false }));
 
     // SECTION: Rows open the reader, or the reading pane on wide screens
     const interactive = "a, button, input, select, textarea, label, .dropdown-menu";
 
-    results.addEventListener("click", event => {
+    results?.addEventListener("click", event => {
         const item = event.target.closest("[data-library-item]");
         if (!item || event.target.closest(interactive)) return;
         if (window.getSelection()?.toString()) return;
@@ -137,7 +138,7 @@
         else window.location.assign(item.dataset.href);
     });
 
-    results.addEventListener("click", event => {
+    results?.addEventListener("click", event => {
         const open = event.target.closest("a[data-library-open]");
         if (!open || !wideQuery.matches || event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return;
         event.preventDefault();
@@ -290,10 +291,10 @@
         if (!action) return;
         event.preventDefault();
 
-        const url = new URL(root.dataset.manageUrl, window.location.origin);
-        url.searchParams.set("id", trigger.dataset.docId);
+        // The link is the document's Manage page (/Manage/{id}); post the chosen handler to it.
+        const url = new URL(trigger.getAttribute("href"), window.location.origin);
         url.searchParams.set("handler", action.handler);
-        url.searchParams.set("returnUrl", window.location.pathname + window.location.search);
+        url.searchParams.set("returnUrl", trigger.dataset.returnUrl || window.location.pathname + window.location.search);
         dialogForm.action = url.pathname + url.search;
         dialogForm.querySelector("[data-dialog-title]").textContent = action.title;
         dialogForm.querySelector("[data-dialog-subject]").textContent = trigger.dataset.docSubject || "";

@@ -27,6 +27,7 @@ public class UploadModel : PageModel
     private readonly IFileScanner _scanner;
     private readonly IDocRepoAuditService _audit;
     private readonly IAuthorizationService _authorizationService;
+    private readonly IDocRepoAccess _access;
     private readonly ProjectDocumentOptions _documentOptions;
     private readonly DocumentUploadRateLimitOptions _rateLimitOptions;
 
@@ -37,8 +38,10 @@ public class UploadModel : PageModel
         IDocRepoAuditService audit,
         IAuthorizationService authorizationService,
         IOptions<ProjectDocumentOptions> documentOptions,
-        IOptions<DocumentUploadRateLimitOptions> rateLimitOptions)
+        IOptions<DocumentUploadRateLimitOptions> rateLimitOptions,
+        IDocRepoAccess access)
     {
+        _access = access;
         _rateLimitOptions = rateLimitOptions.Value;
         _db = db;
         _storage = storage;
@@ -105,6 +108,42 @@ public class UploadModel : PageModel
         Throttled = throttled;
         CanMarkAots = (await _authorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata")).Succeeded;
         await PopulateLookupsAsync(cancellationToken);
+    }
+
+    // SECTION: Duplicate pre-check
+    /// <summary>
+    /// Lets the page warn about a duplicate before a large file is sent. The browser hashes the
+    /// chosen file (SHA-256) and asks whether the repository already holds it. The upload itself
+    /// still checks, so this is only a convenience.
+    /// </summary>
+    public async Task<IActionResult> OnGetCheckHashAsync(string? sha256, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sha256) || sha256.Length != 64 || !sha256.All(Uri.IsHexDigit))
+        {
+            return BadRequest();
+        }
+
+        var hash = sha256.ToUpperInvariant();
+        var match = await _db.Documents
+            .AsNoTracking()
+            .Where(d => d.Sha256 == hash)
+            .Select(d => new { d.Id, d.Subject, d.IsDeleted, d.IsExternal, d.IsActive })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (match is null || match.IsDeleted)
+        {
+            // A trashed copy is restored by the upload, so it is not a duplicate.
+            return new JsonResult(new { duplicate = false, restoresTrashed = match is not null });
+        }
+
+        var canSee = !match.IsExternal && (match.IsActive || await _access.CanViewInactiveAsync(User));
+        return new JsonResult(new
+        {
+            duplicate = true,
+            external = match.IsExternal,
+            subject = canSee ? match.Subject : null,
+            url = canSee ? Url.Page("./Reader", new { id = match.Id }) : null
+        });
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)

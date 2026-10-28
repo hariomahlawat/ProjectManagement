@@ -27,6 +27,12 @@ public class ManageModel : PageModel
 
     public IReadOnlyList<DocumentDeleteRequest> PendingRequests { get; private set; } = Array.Empty<DocumentDeleteRequest>();
 
+    /// <summary>Display names for the user ids shown on the page (requesters, the deleter).</summary>
+    public IReadOnlyDictionary<string, string> UserNames { get; private set; } = new Dictionary<string, string>();
+
+    public string NameOf(string? userId)
+        => string.IsNullOrWhiteSpace(userId) ? "Unknown" : UserNames.TryGetValue(userId, out var name) ? name : userId;
+
     [BindProperty]
     [StringLength(512, ErrorMessage = "Reason must be 512 characters or fewer.")]
     public string? Reason { get; set; }
@@ -200,6 +206,16 @@ public class ManageModel : PageModel
             .OrderBy(r => r.RequestedAtUtc)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+
+        var userIds = PendingRequests.Select(r => r.RequestedByUserId)
+            .Append(Document.DeletedByUserId ?? string.Empty)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct()
+            .ToList();
+        UserNames = await _db.Users.AsNoTracking()
+            .Where(user => userIds.Contains(user.Id))
+            .Select(user => new { user.Id, Name = string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName })
+            .ToDictionaryAsync(user => user.Id, user => user.Name ?? user.Id, cancellationToken);
 
         return true;
     }

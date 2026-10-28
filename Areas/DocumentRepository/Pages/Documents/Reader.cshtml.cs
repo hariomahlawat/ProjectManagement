@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
@@ -91,6 +92,22 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public string AotsViewsUrl { get; private set; } = string.Empty;
 
+        public Guid DocumentId { get; private set; }
+
+        public DateOnly? DocumentDate { get; private set; }
+
+        public string OriginalFileName { get; private set; } = string.Empty;
+
+        public long FileSizeBytes { get; private set; }
+
+        public int DocumentCategoryId { get; private set; }
+
+        public bool CanEdit { get; private set; }
+
+        public bool CanManage { get; private set; }
+
+        public string ManageUrl { get; private set; } = string.Empty;
+
         // SECTION: Query
         [FromQuery(Name = "returnUrl")]
         public string? ReturnUrlQuery { get; set; }
@@ -114,6 +131,10 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                     d.CreatedByUserId,
                     d.UpdatedAtUtc,
                     d.IsAots,
+                    d.DocumentDate,
+                    d.OriginalFileName,
+                    d.FileSizeBytes,
+                    d.DocumentCategoryId,
                     Tags = d.DocumentTags
                         .Select(tag => tag.Tag.Name)
                         .OrderBy(tag => tag)
@@ -140,6 +161,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             DownloadUrl = Url.Page("./Download", new { id }) ?? string.Empty;
             ToggleFavouriteUrl = Url.Page("./Index", "ToggleFavourite", new { area = "DocumentRepository" }) ?? string.Empty;
 
+            DocumentId = id;
+            DocumentDate = doc.DocumentDate;
+            OriginalFileName = doc.OriginalFileName;
+            FileSizeBytes = doc.FileSizeBytes;
+            DocumentCategoryId = doc.DocumentCategoryId;
+            CanEdit = (await _authorizationService.AuthorizeAsync(User, Policies.Documents.EditMetadata)).Succeeded;
+            CanManage = (await _authorizationService.AuthorizeAsync(User, Policies.Documents.SoftDelete)).Succeeded;
+            ManageUrl = Url.Page("./Manage", new { id }) ?? string.Empty;
             OfficeName = doc.OfficeName;
             DocumentCategoryName = doc.DocumentCategoryName;
             ReceivedFrom = doc.ReceivedFrom;

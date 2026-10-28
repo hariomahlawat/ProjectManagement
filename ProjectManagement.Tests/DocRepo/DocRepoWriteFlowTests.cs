@@ -243,7 +243,8 @@ public sealed class DocRepoWriteFlowTests
             new DocRepoAuditService(db),
             Authorization(),
             Options.Create(new ProjectDocumentOptions { MaxSizeMb = 100 }),
-            Options.Create(new DocumentUploadRateLimitOptions()));
+            Options.Create(new DocumentUploadRateLimitOptions()),
+            Access());
         ConfigurePage(page, Manager);
         page.Input = new UploadModel.InputModel
         {

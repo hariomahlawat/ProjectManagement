@@ -1,6 +1,6 @@
 # Document Repository
 
-The Document Repository (`/DocumentRepository/Documents`) is PRISM's office library of PDFs: letters, policies, minutes and other papers, searchable by their metadata and by the text inside them. This page records the rules the code enforces. OCR and full-text search internals are in [Search and OCR architecture](search-and-ocr-architecture.md).
+The Document Repository (`/DocumentRepository/Documents`) is PRISM's office library of PDFs: letters, policies, minutes and other papers, searchable by their metadata and by the text inside them. This page records the rules the code enforces. How the pages look and behave is in [Document Repository pages](ux/document-repository.md); OCR and full-text search internals are in [Search and OCR architecture](search-and-ocr-architecture.md).
 
 Code lives in `Areas/DocumentRepository`, `Services/DocRepo` and `Hosted/DocRepo*`.
 
@@ -47,7 +47,7 @@ A failure to write a `Viewed` or `Downloaded` row is logged and never blocks rea
 ## Changing documents
 
 - **Edit metadata** carries a fingerprint of the values the form opened with. If someone else saved different values meanwhile, the save is refused and their version is shown; nothing is overwritten silently.
-- **Delete** is a request plus a decision. The requester cannot decide their own request (`Forbidden`), and the request is claimed with a conditional update so only one approver's decision applies.
+- **Delete** is a request plus a decision. The request needs a reason, which the approver sees in the Decision Centre. The requester cannot decide their own request (`Forbidden`), and the request is claimed with a conditional update so only one approver's decision applies.
 - **Deactivate** hides the document from everyone except `DocRepo.ViewInactive` holders; it is not deletion.
 
 ## Caching

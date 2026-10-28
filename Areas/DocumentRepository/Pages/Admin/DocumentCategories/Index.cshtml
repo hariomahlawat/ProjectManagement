@@ -1,95 +1,107 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Admin.DocumentCategories.IndexModel
 @{
-    ViewData["Title"] = "Document categories";
+    ViewData["Title"] = "Document types";
+    ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0">Document categories</h1>
-        <a asp-area="DocumentRepository" asp-page="/Documents/Index" class="btn btn-outline-secondary">Back to documents</a>
-    </div>
-
-    <div class="row g-4">
-        <div class="col-lg-5">
-            <div class="card h-100">
-                <div class="card-header">Add document category</div>
-                <div class="card-body">
-                    <form method="post" asp-page-handler="Create">
-                        <div class="mb-3">
-                            <label asp-for="Input.Name" class="form-label"></label>
-                            <input asp-for="Input.Name" class="form-control" />
-                            <span class="text-danger" asp-validation-for="Input.Name"></span>
-                        </div>
-                        <div class="mb-3">
-                            <label asp-for="Input.SortOrder" class="form-label"></label>
-                            <input asp-for="Input.SortOrder" class="form-control" />
-                            <span class="text-danger" asp-validation-for="Input.SortOrder"></span>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Add</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-header">Existing categories</div>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th scope="col">Name</th>
-                                <th scope="col" class="pm-util-col-110">Sort order</th>
-                                <th scope="col" class="pm-util-col-120">Status</th>
-                                <th scope="col" class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (!Model.Categories.Any())
-                            {
-                                <tr>
-                                    <td colspan="4" class="text-muted">No categories created yet.</td>
-                                </tr>
-                            }
-                            else
-                            {
-                                @foreach (var category in Model.Categories)
-                                {
-                                    <form method="post" asp-page-handler="Update" id="doc-edit-@category.Id">
-                                        <input type="hidden" name="id" value="@category.Id" />
-                                    </form>
-                                    <tr>
-                                        <td>
-                                            <input class="form-control form-control-sm" type="text" name="name" value="@category.Name" maxlength="120" required form="doc-edit-@category.Id" />
-                                        </td>
-                                        <td>
-                                            <input class="form-control form-control-sm" type="number" name="sortOrder" value="@category.SortOrder" form="doc-edit-@category.Id" />
-                                        </td>
-                                        <td>
-                                            <span class="badge @(category.IsActive ? "bg-success" : "bg-secondary")">@(category.IsActive ? "Active" : "Inactive")</span>
-                                        </td>
-                                        <td class="text-end">
-                                            <div class="btn-group">
-                                                <button type="submit" class="btn btn-sm btn-outline-primary" form="doc-edit-@category.Id">Save</button>
-                                                <form method="post" asp-page-handler="Toggle" class="d-inline">
-                                                    <input type="hidden" name="id" value="@category.Id" />
-                                                    <button type="submit" class="btn btn-sm @(category.IsActive ? "btn-outline-secondary" : "btn-outline-success")">
-                                                        @(category.IsActive ? "Deactivate" : "Activate")
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
+}
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
 }
+
+<div class="library library--narrow">
+    <header class="library-head">
+        <div class="library-head__text">
+            <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
+            <h1>Document types</h1>
+            <p>The kinds of paper in the library, such as letters, policies and minutes. Lower numbers come first in lists. A deactivated type is no longer offered for new documents; documents already filed under it keep it.</p>
+        </div>
+    </header>
+
+    <div class="library-columns library-columns--admin">
+        <!-- SECTION: Add -->
+        <section class="library-panel">
+            <h2>Add a type</h2>
+            <form method="post" asp-page-handler="Create" class="library-fieldset">
+                <div asp-validation-summary="ModelOnly" class="alert alert-warning library-summary-errors" role="alert"></div>
+                <div class="library-field">
+                    <label asp-for="Input.Name">Name <span class="library-required" aria-hidden="true">*</span></label>
+                    <input asp-for="Input.Name" class="form-control" placeholder="For example: Minutes" />
+                    <span class="library-field__error" asp-validation-for="Input.Name"></span>
+                </div>
+                <div class="library-field">
+                    <label asp-for="Input.SortOrder">Position in lists</label>
+                    <input asp-for="Input.SortOrder" class="form-control" type="number" />
+                    <span class="library-field__error" asp-validation-for="Input.SortOrder"></span>
+                </div>
+                <div><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add</button></div>
+            </form>
+        </section>
+
+        <!-- SECTION: Existing -->
+        <section class="library-tablecard">
+            @if (!Model.Categories.Any())
+            {
+                <div class="library-empty">
+                    <i class="bi bi-tags" aria-hidden="true"></i>
+                    <h2>No types yet</h2>
+                    <p>Add the first one; uploads need at least one.</p>
+                </div>
+            }
+            else
+            {
+                <div class="library-tablescroll">
+                    <table class="library-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Name</th>
+                                <th scope="col">Position</th>
+                                <th scope="col">Documents</th>
+                                <th scope="col"><span class="visually-hidden">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var category in Model.Categories)
+                            {
+                                var count = Model.DocumentCounts.TryGetValue(category.Id, out var value) ? value : 0;
+                                <tr>
+                                    <td>
+                                        <label class="visually-hidden" for="name-@category.Id">Name</label>
+                                        <input class="form-control" id="name-@category.Id" type="text" name="name" value="@category.Name" maxlength="120" required form="edit-@category.Id" />
+                                        @if (!category.IsActive)
+                                        {
+                                            <span class="library-pill library-pill--muted mt-1">Deactivated</span>
+                                        }
+                                    </td>
+                                    <td data-label="Position">
+                                        <label class="visually-hidden" for="sort-@category.Id">Position</label>
+                                        <input class="form-control library-table__narrow" id="sort-@category.Id" type="number" name="sortOrder" value="@category.SortOrder" form="edit-@category.Id" />
+                                    </td>
+                                    <td data-label="Documents" class="library-table__num">
+                                        <a href="@Url.Page("/Documents/Index", new { documentCategoryId = category.Id })">@count.ToString("N0")</a>
+                                    </td>
+                                    <td class="library-table__actions">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary" form="edit-@category.Id">Save</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" form="toggle-@category.Id"
+                                                data-confirm="@(category.IsActive && count > 0 ? $"{count} documents use “{category.Name}”. They keep it, but it will no longer be offered for new documents. Deactivate it?" : null)">
+                                            @(category.IsActive ? "Deactivate" : "Activate")
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @foreach (var category in Model.Categories)
+                {
+                    <form method="post" asp-page-handler="Update" id="edit-@category.Id"><input type="hidden" name="id" value="@category.Id" /></form>
+                    <form method="post" asp-page-handler="Toggle" id="toggle-@category.Id"><input type="hidden" name="id" value="@category.Id" /></form>
+                }
+            }
+        </section>
+    </div>
+</div>

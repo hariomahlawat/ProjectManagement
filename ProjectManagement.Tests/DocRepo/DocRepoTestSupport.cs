@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -75,12 +76,16 @@ internal static class DocRepoTestSupport
     public static void ConfigurePage(PageModel page, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };
-        var actionContext = new ActionContext(httpContext, new RouteData(), new PageActionDescriptor());
+        // Relative page links ("./Reader") resolve against the current page.
+        var routeData = new RouteData();
+        routeData.Values["page"] = "/Documents/Index";
+        var actionContext = new ActionContext(httpContext, routeData, new PageActionDescriptor());
         page.PageContext = new PageContext(actionContext)
         {
             ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         };
         page.TempData = new TempDataDictionary(httpContext, new NullTempDataProvider());
+        page.Url = new StubUrlHelper(page.PageContext);
     }
 
     public static (OfficeCategory Office, DocumentCategory Category) SeedLookups(ApplicationDbContext db)
@@ -135,6 +140,25 @@ internal static class DocRepoTestSupport
         {
         }
     }
+}
+
+/// <summary>Url.Page and friends without routing: returns the page name, which is enough for these tests.</summary>
+internal sealed class StubUrlHelper : IUrlHelper
+{
+    public StubUrlHelper(ActionContext context) => ActionContext = context;
+
+    public ActionContext ActionContext { get; }
+
+    public string? Action(UrlActionContext actionContext) => "/action";
+
+    public string? Content(string? contentPath) => contentPath;
+
+    public bool IsLocalUrl(string? url) => !string.IsNullOrEmpty(url) && url.StartsWith('/') && !url.StartsWith("//", StringComparison.Ordinal);
+
+    public string? Link(string? routeName, object? values) => "/link";
+
+    public string? RouteUrl(UrlRouteContext routeContext)
+        => routeContext.Values is null ? "/page" : $"/page?{string.Join("&", new RouteValueDictionary(routeContext.Values).Select(kv => $"{kv.Key}={kv.Value}"))}";
 }
 
 /// <summary>In-memory IDocStorage that records what was saved and deleted.</summary>

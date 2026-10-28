@@ -1,73 +1,87 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.AotsViewsModel
 @{
-    ViewData["Title"] = "AOTS viewers";
+    ViewData["Title"] = "Who has read it";
+    ViewData["UseFullWidth"] = true;
+    string Name(ProjectManagement.Areas.DocumentRepository.Pages.Documents.AotsViewsModel.AotsViewerVm person)
+        => string.IsNullOrWhiteSpace(person.Rank) ? person.FullName : $"{person.Rank} {person.FullName}";
 }
 
-<div class="container py-4">
-    <!-- SECTION: Header -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
-        <div>
-            <h2 class="mb-1">Seen by (AOTS)</h2>
-            <div class="text-muted">
-                <span>Document:</span>
-                <span class="fw-semibold">@Model.DocumentTitle</span>
-            </div>
-        </div>
-        <div>
-            <a class="btn btn-sm btn-outline-secondary" href="@Model.ReturnUrl">
-                <i class="bi bi-arrow-left"></i>
-                <span>Back</span>
-            </a>
-        </div>
-    </div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
+}
 
-    <!-- SECTION: Content -->
+<div class="library library--narrow">
+    <header class="library-head">
+        <div class="library-head__text">
+            <a class="library-back" href="@Model.ReturnUrl"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the document</a>
+            <span class="library-eyebrow">All officers to see</span>
+            <h1>@Model.DocumentTitle</h1>
+            <p>Who has opened this document so far. A person counts once, from the first time they open it.</p>
+        </div>
+    </header>
+
     @if (!Model.IsAots)
     {
-        <div class="alert alert-info" role="alert">
-            This document is not marked as AOTS.
-        </div>
-    }
-    else if (Model.Viewers.Count == 0)
-    {
-        <div class="alert alert-secondary" role="alert">
-            No viewers have opened this document yet.
+        <div class="library-banner" role="status">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <div><strong>Not marked for all officers</strong><span>Read receipts are kept only for AOTS documents. Edit the document's details to mark it.</span></div>
         </div>
     }
     else
     {
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <!-- SECTION: Viewer table -->
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th scope="col">Ser</th>
-                                <th scope="col">Rank &amp; name</th>
-                                <th scope="col">Username</th>
-                                <th scope="col">First viewed</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (var index = 0; index < Model.Viewers.Count; index++)
-                            {
-                                var viewer = Model.Viewers[index];
-                                var displayName = string.IsNullOrWhiteSpace(viewer.Rank)
-                                    ? viewer.FullName
-                                    : $"{viewer.Rank} {viewer.FullName}";
-                                <tr>
-                                    <td>@(index + 1)</td>
-                                    <td>@displayName</td>
-                                    <td>@viewer.UserName</td>
-                                    <td>@viewer.FirstViewedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+        <section class="library-summary library-summary--compact" aria-label="Reading progress">
+            <div class="library-stat">
+                <span class="library-stat__label">Read</span>
+                <span class="library-stat__figure"><strong>@Model.Viewers.Count</strong><span>of @(Model.Viewers.Count + Model.NotYetRead.Count) people</span></span>
+                <span class="library-stat__meter" aria-hidden="true"><span style="--fill: @Model.ReadPercent%"></span></span>
             </div>
+            <div class="library-stat">
+                <span class="library-stat__label">Not read yet</span>
+                <span class="library-stat__figure"><strong>@Model.NotYetRead.Count</strong><span>people</span></span>
+                <span class="library-stat__sub">Active accounts that have not opened it</span>
+            </div>
+        </section>
+
+        <div class="library-columns">
+            <section class="library-panel">
+                <h2>Read <span>@Model.Viewers.Count</span></h2>
+                @if (Model.Viewers.Count == 0)
+                {
+                    <p class="library-panel__empty">Nobody has opened it yet.</p>
+                }
+                else
+                {
+                    <ol class="library-people">
+                        @foreach (var viewer in Model.Viewers)
+                        {
+                            <li>
+                                <span class="library-people__name">@Name(viewer)</span>
+                                <span class="library-people__meta">@viewer.UserName · @DocRepoFormat.DateTime(viewer.FirstViewedAtUtc)</span>
+                            </li>
+                        }
+                    </ol>
+                }
+            </section>
+            <section class="library-panel">
+                <h2>Not read yet <span>@Model.NotYetRead.Count</span></h2>
+                @if (Model.NotYetRead.Count == 0)
+                {
+                    <p class="library-panel__empty">Everyone has read it.</p>
+                }
+                else
+                {
+                    <ul class="library-people">
+                        @foreach (var person in Model.NotYetRead)
+                        {
+                            <li>
+                                <span class="library-people__name">@Name(person)</span>
+                                <span class="library-people__meta">@person.UserName</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
         </div>
     }
 </div>

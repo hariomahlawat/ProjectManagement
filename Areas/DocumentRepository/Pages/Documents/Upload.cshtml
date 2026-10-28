@@ -1,166 +1,134 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.UploadModel
 @{
-    ViewData["Title"] = "Upload document (PDF)";
-
-    // SECTION: File size formatting
-    string FormatFileSize(long bytes)
-    {
-        if (bytes <= 0)
-        {
-            return "0 bytes";
-        }
-
-        string[] suffixes = { "bytes", "KB", "MB", "GB", "TB" };
-        double size = bytes;
-        var suffixIndex = 0;
-
-        while (size >= 1024 && suffixIndex < suffixes.Length - 1)
-        {
-            size /= 1024;
-            suffixIndex++;
-        }
-
-        return suffixIndex == 0
-            ? FormattableString.Invariant($"{bytes} {suffixes[suffixIndex]}")
-            : FormattableString.Invariant($"{size:0.#} {suffixes[suffixIndex]}");
-    }
-
-    var maxFileSizeText = FormatFileSize(Model.MaxFileSizeBytes);
+    ViewData["Title"] = "Upload a PDF";
+    ViewData["UseFullWidth"] = true;
+    var maxFileSizeText = DocRepoFormat.FileSize(Model.MaxFileSizeBytes);
 }
 
-<!-- simple breadcrumb, no extra model needed -->
-<nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item">
-            <a asp-area="DocumentRepository" asp-page="/Documents/Index">Documents</a>
-        </li>
-        <li class="breadcrumb-item active" aria-current="page">
-            Upload
-        </li>
-    </ol>
-</nav>
-
-<div class="container-fluid py-3">
-    <div class="row g-3">
-        <div class="col-12 col-xl-8 col-xxl-9">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center">
-                    <h1 class="h5 mb-0">Preview</h1>
-                </div>
-                <div class="card-body p-2">
-                    <div class="docrepo-preview-frame">
-                        <iframe class="w-100 h-100 border-0@(Model.HasPreview ? string.Empty : " d-none")"
-                                id="pdfPreview"
-                                data-docrepo-preview-frame
-                                src="@(Model.HasPreview ? Model.PdfPreviewUrl : null)"
-                                title="PDF preview"
-                                referrerpolicy="no-referrer"></iframe>
-                        <div class="d-flex align-items-center justify-content-center h-100 text-muted@(Model.HasPreview ? " d-none" : string.Empty)"
-                             id="pdfPlaceholder"
-                             data-docrepo-preview-placeholder>
-                            <div class="text-center">
-                                <i class="bi bi-file-earmark-pdf display-4 d-block mb-2"></i>
-                                <div class="fw-semibold">Choose a PDF to preview</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-xl-4 col-xxl-3">
-            <div class="card position-sticky top-3rem">
-                <div class="card-header">
-                    <h2 class="h6 mb-0">Details</h2>
-                </div>
-                <div class="card-body">
-                    <form method="post" enctype="multipart/form-data" class="vstack gap-3">
-                        @if (Model.Throttled)
-                        {
-                            <div class="alert alert-warning mb-0" role="alert">
-                                Too many uploads in a short time. Wait up to @Model.ThrottleWaitText, then upload the file again.
-                            </div>
-                        }
-                        <div>
-                            <label class="form-label" asp-for="Input.File">Choose file</label>
-                            <input class="form-control" asp-for="Input.File" type="file" accept="application/pdf"
-                                   data-docrepo-upload-input data-max-size="@Model.MaxFileSizeBytes" id="pdfInput" />
-                            <span class="text-danger" asp-validation-for="Input.File"></span>
-                        </div>
-
-                        <div>
-                            <label class="form-label" asp-for="Input.Subject"></label>
-                            <input class="form-control" asp-for="Input.Subject" />
-                            <span class="text-danger" asp-validation-for="Input.Subject"></span>
-                        </div>
-
-                        <div>
-                            <label class="form-label" asp-for="Input.ReceivedFrom"></label>
-                            <input class="form-control" asp-for="Input.ReceivedFrom" />
-                            <span class="text-danger" asp-validation-for="Input.ReceivedFrom"></span>
-                        </div>
-
-                        <div>
-                            <label class="form-label" asp-for="Input.DocumentDate"></label>
-                            <input class="form-control" asp-for="Input.DocumentDate" type="date" />
-                            <span class="text-danger" asp-validation-for="Input.DocumentDate"></span>
-                        </div>
-
-                        <div>
-                            <label class="form-label" for="office">Office</label>
-                            <select id="office" class="form-select" asp-for="Input.OfficeCategoryId"
-                                    asp-items="Model.OfficeSelectList">
-                                <option value="">Select office</option>
-                            </select>
-                            <span class="text-danger" asp-validation-for="Input.OfficeCategoryId"></span>
-                        </div>
-
-                        <div>
-                            <label class="form-label" for="doctype">Document type</label>
-                            <select id="doctype" class="form-select" asp-for="Input.DocumentCategoryId"
-                                    asp-items="Model.DocumentTypeSelectList">
-                                <option value="">Select type</option>
-                            </select>
-                            <span class="text-danger" asp-validation-for="Input.DocumentCategoryId"></span>
-                        </div>
-
-                        <div>
-                            <label class="form-label" asp-for="Input.Tags">Tags (max 5, comma separated)</label>
-                            <input class="form-control" asp-for="Input.Tags" />
-                            <span class="text-muted small">Example: <em>RFP, TEC, Training</em></span>
-                            <span class="text-danger" asp-validation-for="Input.Tags"></span>
-                        </div>
-
-                        @if (Model.CanMarkAots)
-                        {
-                            <!-- SECTION: AOTS flag -->
-                            <div class="form-check">
-                                <input class="form-check-input" asp-for="Input.IsAots" />
-                                <label class="form-check-label" asp-for="Input.IsAots"></label>
-                            </div>
-                        }
-
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-primary" type="submit">Upload</button>
-                            <a class="btn btn-outline-secondary"
-                               asp-area="DocumentRepository" asp-page="/Documents/Index">Cancel</a>
-                        </div>
-                    </form>
-                </div>
-                <div class="card-footer small text-muted">
-                    PDF up to @maxFileSizeText. Scanned PDFs will be queued for OCR.
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 @section Styles {
-    <link rel="stylesheet" href="~/css/docrepo.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
 }
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
     <script src="~/js/docrepo/upload.js" asp-append-version="true" defer></script>
 }
+
+<div class="library library--form">
+    <header class="library-head">
+        <div class="library-head__text">
+            <a class="library-back" asp-page="./Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
+            <h1>Upload a PDF</h1>
+            <p>Add a letter, policy, minutes or any other paper. Its text is read automatically, so people can find it by what it says.</p>
+        </div>
+    </header>
+
+    <form method="post" enctype="multipart/form-data" class="library-editor" data-upload-form
+          data-check-url="@Url.Page("./Upload", "CheckHash")">
+        <!-- SECTION: File and preview -->
+        <section class="library-editor__file" aria-label="PDF file">
+            <label class="library-drop" for="pdfInput" data-upload-drop>
+                <input class="library-drop__input" asp-for="Input.File" type="file" accept="application/pdf,.pdf" id="pdfInput"
+                       data-upload-input data-max-size="@Model.MaxFileSizeBytes" />
+                <span class="library-drop__icon" aria-hidden="true"><i class="bi bi-file-earmark-arrow-up"></i></span>
+                <span class="library-drop__title">Drop a PDF here or <span class="library-drop__browse">choose a file</span></span>
+                <span class="library-drop__hint">PDF only, up to @maxFileSizeText</span>
+            </label>
+
+            <div class="library-chosen" data-upload-chosen hidden>
+                <span class="library-mark library-hue-1" aria-hidden="true"><i class="bi bi-file-earmark-pdf"></i></span>
+                <div class="library-chosen__text">
+                    <strong data-upload-name></strong>
+                    <span data-upload-size></span>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-upload-change>Choose another</button>
+            </div>
+            <p class="library-notice" data-upload-notice role="status" hidden></p>
+            <span class="library-field__error" asp-validation-for="Input.File"></span>
+
+            <div class="library-editor__preview" data-upload-preview hidden>
+                <iframe title="Preview of the chosen PDF" data-upload-frame></iframe>
+            </div>
+        </section>
+
+        <!-- SECTION: Details -->
+        <section class="library-editor__form">
+            @if (Model.Throttled)
+            {
+                <div class="alert alert-warning" role="alert">
+                    Too many uploads in a short time. Wait up to @Model.ThrottleWaitText, then upload the file again.
+                </div>
+            }
+            <div asp-validation-summary="ModelOnly" class="alert alert-warning library-summary-errors" role="alert"></div>
+
+            <fieldset class="library-fieldset">
+                <legend>What it is</legend>
+                <div class="library-field">
+                    <label asp-for="Input.Subject">Title <span class="library-required" aria-hidden="true">*</span></label>
+                    <input class="form-control" asp-for="Input.Subject" data-upload-subject placeholder="For example: Minutes of the TEC meeting on radar trials" />
+                    <span class="library-field__hint" data-upload-suggestion hidden></span>
+                    <span class="library-field__error" asp-validation-for="Input.Subject"></span>
+                </div>
+                <div class="library-field-row">
+                    <div class="library-field">
+                        <label asp-for="Input.DocumentCategoryId">Type <span class="library-required" aria-hidden="true">*</span></label>
+                        <select class="form-select" asp-for="Input.DocumentCategoryId" asp-items="Model.DocumentTypeSelectList">
+                            <option value="">Choose a type</option>
+                        </select>
+                        <span class="library-field__error" asp-validation-for="Input.DocumentCategoryId"></span>
+                    </div>
+                    <div class="library-field">
+                        <label asp-for="Input.OfficeCategoryId">Office <span class="library-required" aria-hidden="true">*</span></label>
+                        <select class="form-select" asp-for="Input.OfficeCategoryId" asp-items="Model.OfficeSelectList">
+                            <option value="">Choose an office</option>
+                        </select>
+                        <span class="library-field__error" asp-validation-for="Input.OfficeCategoryId"></span>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="library-fieldset">
+                <legend>Where it came from</legend>
+                <div class="library-field-row">
+                    <div class="library-field">
+                        <label asp-for="Input.ReceivedFrom">Received from</label>
+                        <input class="form-control" asp-for="Input.ReceivedFrom" placeholder="Office, unit or person" />
+                        <span class="library-field__error" asp-validation-for="Input.ReceivedFrom"></span>
+                    </div>
+                    <div class="library-field">
+                        <label asp-for="Input.DocumentDate">Document date</label>
+                        <input class="form-control" asp-for="Input.DocumentDate" type="date" />
+                        <span class="library-field__hint">The date on the paper, not today's date.</span>
+                        <span class="library-field__error" asp-validation-for="Input.DocumentDate"></span>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="library-fieldset">
+                <legend>Help people find it</legend>
+                <div class="library-field">
+                    <label asp-for="Input.Tags">Tags</label>
+                    <input class="form-control" asp-for="Input.Tags" placeholder="sow, tec, training" />
+                    <span class="library-field__hint">Up to 5, separated by commas. Letters, numbers, spaces and hyphens.</span>
+                    <span class="library-field__error" asp-validation-for="Input.Tags"></span>
+                </div>
+                @if (Model.CanMarkAots)
+                {
+                    <label class="library-check">
+                        <input class="form-check-input" asp-for="Input.IsAots" />
+                        <span>
+                            <strong>All officers to see (AOTS)</strong>
+                            <span>Shows the document to every officer as new until they open it.</span>
+                        </span>
+                    </label>
+                }
+            </fieldset>
+
+            <div class="library-editor__actions">
+                <button class="btn btn-primary" type="submit" data-upload-submit><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Upload</button>
+                <a class="btn btn-outline-secondary" asp-page="./Index">Cancel</a>
+            </div>
+        </section>
+    </form>
+</div>

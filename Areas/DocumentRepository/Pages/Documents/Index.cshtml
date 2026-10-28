@@ -28,8 +28,7 @@
 <div class="library" data-library
      data-results-url="@Url.Page("./Index")"
      data-preview-url="@Url.Page("./Index", "Preview")"
-     data-favourite-url="@Url.Page("./Index", "ToggleFavourite")"
-     data-manage-url="@Url.Page("./Manage")">
+     data-favourite-url="@Url.Page("./Index", "ToggleFavourite")">
 
     <form id="libraryToken" method="post" class="d-none">@Html.AntiForgeryToken()</form>
 
@@ -155,30 +154,5 @@
         <aside class="library-pane" id="libraryPane" aria-label="Document preview" hidden></aside>
     </div>
 
-    <!-- SECTION: Dialogs (filled by docrepo-ui.js) -->
-    <div class="modal fade" id="libraryConfirm" tabindex="-1" aria-labelledby="libraryConfirmTitle" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <form class="modal-content library-dialog" method="post" data-library-dialog>
-                @Html.AntiForgeryToken()
-                <div class="modal-header">
-                    <h2 class="modal-title h5" id="libraryConfirmTitle" data-dialog-title>Deactivate document</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="library-dialog__subject" data-dialog-subject></p>
-                    <p class="library-dialog__body" data-dialog-body></p>
-                    <div class="library-dialog__reason" data-dialog-reason hidden>
-                        <label class="form-label" for="libraryReason">Why should it be deleted?</label>
-                        <textarea class="form-control" id="libraryReason" name="Reason" rows="3" maxlength="512"
-                                  placeholder="For example: uploaded twice, wrong office, superseded by a newer circular"></textarea>
-                        <div class="form-text">The approver sees this reason in the Decision Centre.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary" data-dialog-confirm>Deactivate</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    <partial name="_LibraryDialog" />
 </div>

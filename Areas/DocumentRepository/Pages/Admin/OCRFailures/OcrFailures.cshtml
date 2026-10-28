@@ -1,85 +1,87 @@
 ﻿@page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Admin.OcrFailuresModel
+@using ProjectManagement.Areas.DocumentRepository.Models
 @{
-    ViewData["Title"] = "OCR failures";
+    ViewData["Title"] = "Unreadable PDFs";
+    ViewData["UseFullWidth"] = true;
 }
 
-<nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item">
-            <a asp-area="DocumentRepository" asp-page="/Documents/Index">Documents</a>
-        </li>
-        <li class="breadcrumb-item active" aria-current="page">OCR failures</li>
-    </ol>
-</nav>
-
-@if (!string.IsNullOrEmpty(Model.StatusMessage))
-{
-    <div class="alert alert-info">@Model.StatusMessage</div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
 }
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h1 class="h5 mb-0">Documents with OCR status “Failed”</h1>
-        <form method="post" asp-page-handler="RequeueAll" class="mb-0" id="requeueAllForm">
-            <button id="requeueAllBtn"
-                    type="submit"
-                    class="btn btn-sm btn-outline-primary"
-                    @(Model.FailedDocuments.Count == 0 ? "disabled" : null)>
-                Re-queue all
-            </button>
-            <span id="requeueAllStatus" class="text-muted ms-2 d-none">Re-queuing…</span>
-        </form>
-    </div>
-    <div class="card-body p-0">
-        <table class="table table-sm table-hover mb-0">
-            <thead>
-                <tr>
-                    <th>Subject</th>
-                    <th>Office</th>
-                    <th>Category</th>
-                    <th>Uploaded</th>
-                    <th>Failure reason</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model.FailedDocuments.Count == 0)
-                {
-                    <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
-                            No documents with failed OCR.
-                        </td>
-                    </tr>
-                }
-                else
-                {
-                    @foreach (var doc in Model.FailedDocuments)
-                    {
+<div class="library">
+    <header class="library-head">
+        <div class="library-head__text">
+            <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
+            <h1>Unreadable PDFs</h1>
+            <p>Documents whose text could not be read, so searching their contents finds nothing. They can still be opened and found by their details.</p>
+        </div>
+        @if (Model.FailedDocuments.Count > 0)
+        {
+            <div class="library-head__actions">
+                <form method="post" asp-page-handler="RequeueAll">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Read all again</button>
+                </form>
+            </div>
+        }
+    </header>
+
+    @if (!string.IsNullOrEmpty(Model.StatusMessage))
+    {
+        <div class="library-banner" role="status"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>@Model.StatusMessage</strong></div></div>
+    }
+
+    @if (Model.FailedDocuments.Count == 0)
+    {
+        <div class="library-empty">
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+            <h2>Every PDF's text was read</h2>
+            <p>Nothing to fix. Documents still being read are not listed here.</p>
+        </div>
+    }
+    else
+    {
+        <div class="library-tablecard">
+            <div class="library-tablescroll">
+                <table class="library-table">
+                    <thead>
                         <tr>
-                            <td>@doc.Subject</td>
-                            <td>@doc.OfficeCategory?.Name</td>
-                            <td>@doc.DocumentCategory?.Name</td>
-                            <td>@(doc.CreatedAtUtc == default ? "" : doc.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm"))</td>
-                            <td class="text-danger">@doc.OcrFailureReason</td>
-                            <td class="text-end">
-                                <form method="post"
-                                      asp-page-handler="Requeue"
-                                      asp-route-id="@doc.Id"
-                                      class="d-inline requeue-item-form">
-                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
-                                        Re-queue
-                                    </button>
-                                </form>
-                            </td>
+                            <th scope="col">Document</th>
+                            <th scope="col">What went wrong</th>
+                            <th scope="col">Added</th>
+                            <th scope="col"><span class="visually-hidden">Actions</span></th>
                         </tr>
-                    }
-                }
-            </tbody>
-        </table>
-    </div>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in Model.FailedDocuments)
+                        {
+                            <tr>
+                                <td>
+                                    <a class="library-table__title" asp-page="/Documents/Reader" asp-route-id="@doc.Id">@doc.Subject</a>
+                                    <span class="library-table__meta">@doc.DocumentCategory?.Name · @doc.OfficeCategory?.Name · @DocRepoFormat.FileSize(doc.FileSizeBytes)</span>
+                                </td>
+                                <td data-label="What went wrong">
+                                    <span>@DocRepoFormat.ExplainOcrFailure(doc.OcrFailureReason)</span>
+                                    @if (!string.IsNullOrWhiteSpace(doc.OcrFailureReason))
+                                    {
+                                        <details class="library-table__meta">
+                                            <summary>Message from the OCR tool</summary>
+                                            <span class="library-facts__file">@doc.OcrFailureReason</span>
+                                        </details>
+                                    }
+                                </td>
+                                <td data-label="Added" class="library-table__num">@DocRepoFormat.Date(doc.CreatedAtUtc)</td>
+                                <td class="library-table__actions">
+                                    <form method="post" asp-page-handler="Requeue" asp-route-id="@doc.Id">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">Read again</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
 </div>
-
-@section Scripts {
-    <script src="~/js/docrepo/ocr-failures.js" asp-append-version="true"></script>
-}
