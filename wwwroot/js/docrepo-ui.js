@@ -75,8 +75,11 @@
         if (!searchForm) return;
         const input = searchForm.querySelector('input[name="q"]');
         if (input && document.activeElement !== input) input.value = url.searchParams.get("q") || "";
-        const view = searchForm.querySelector('input[name="view"]');
-        if (view) view.value = url.searchParams.get("view") || "";
+        // The tab and layout the results now show go with the next search too.
+        ["view", "scope"].forEach(name => {
+            const hidden = searchForm.querySelector(`input[name="${name}"]`);
+            if (hidden) hidden.value = url.searchParams.get(name) || "";
+        });
     }
 
     // The front page's large hero folds to a search bar once anything narrows the list.
@@ -101,20 +104,28 @@
     }
 
     // SECTION: Tag and sender filters wait for a pause in typing
+    // Both boxes are read when the pause ends, so moving from one to the other keeps both edits.
+    function textFilterChanges(form) {
+        const changes = {};
+        form?.querySelectorAll("[data-library-filter-text]").forEach(field => { changes[field.name] = field.value.trim(); });
+        return changes;
+    }
+
     results?.addEventListener("input", event => {
         const field = event.target.closest("[data-library-filter-text]");
         if (!field) return;
         window.clearTimeout(textTimer);
-        textTimer = window.setTimeout(() => load(withParams({ [field.name]: field.value.trim() }), { focusName: field.name }), 500);
+        textTimer = window.setTimeout(() => {
+            const focused = document.activeElement?.closest?.("[data-library-filter-text]");
+            load(withParams(textFilterChanges(field.form)), { focusName: (focused || field).name });
+        }, 500);
     });
 
     results?.addEventListener("submit", event => {
         const form = event.target.closest("[data-library-textfilter]");
         if (!form) return;
         event.preventDefault();
-        const changes = {};
-        form.querySelectorAll("[data-library-filter-text]").forEach(field => { changes[field.name] = field.value.trim(); });
-        load(withParams(changes));
+        load(withParams(textFilterChanges(form)));
     });
 
     searchForm?.addEventListener("submit", event => {
