@@ -353,7 +353,7 @@ public static class BriefingDeskBuilder
 
     // Completed stages must carry their completion date. A pending date correction is the PO's
     // part done only for the stages whose completion date it proposes, and only while the HoD
-    // can still approve it.
+    // can still approve it; one the HoD cannot approve is a step even with no gap.
     private static BriefingDeskCheckVm? ProjectCompletionDatesCheck(
         WorkspaceProjectMatrixRowVm row,
         BriefingDeskPendingCorrection? pending)
@@ -361,14 +361,11 @@ public static class BriefingDeskBuilder
         var gaps = (row.RecordHealth?.GapDetails ?? Array.Empty<WorkspaceRecordGapVm>())
             .Where(IsCompletionDateGap)
             .ToList();
-        if (gaps.Count == 0)
-        {
-            return null;
-        }
-
         var actionUrl = gaps.Select(gap => gap.ActionUrl).FirstOrDefault(url => !string.IsNullOrWhiteSpace(url))
             ?? WorkspaceRouteHelper.ProjectTimelineActuals(row.ProjectId);
 
+        // A correction the HoD cannot approve needs the PO whatever it proposes, including a
+        // change to a date that is already recorded, so it is checked before the gaps.
         if (pending is { NeedsResubmission: true })
         {
             return new BriefingDeskCheckVm
@@ -381,6 +378,11 @@ public static class BriefingDeskBuilder
                 ActionText = "Review",
                 ActionUrl = actionUrl
             };
+        }
+
+        if (gaps.Count == 0)
+        {
+            return null;
         }
 
         var missing = pending is null

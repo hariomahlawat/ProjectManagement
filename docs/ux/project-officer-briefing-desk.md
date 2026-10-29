@@ -43,8 +43,9 @@ sent by someone else (for example a previous PO) counts too.
 A date correction counts only for the stages whose completion date it proposes; any other
 missing completion date stays a step ("Your date correction with the HoD does not include …").
 If official dates changed after the correction was sent, the HoD cannot approve it until the PO
-reviews and resubmits it, so the step reads "Review your date correction" instead of done, and
-the correction is not listed under **Sent for approval**.
+reviews and resubmits it, so the step reads "Review your date correction" instead of done (even
+when no completion date is missing, for example a proposed change to a recorded date), and the
+correction is not listed under **Sent for approval**.
 
 **Dates the desk asks for** (changed 2026-10-29). Only two dates are required: the current-stage
 PDC when it is missing, and the completion date of each completed stage before the current

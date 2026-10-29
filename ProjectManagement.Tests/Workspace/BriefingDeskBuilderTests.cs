@@ -229,6 +229,36 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_ACorrectionNeedingResubmission_IsAStepEvenWithNoMissingCompletionDate()
+    {
+        // For example the PO proposed a different date for a recorded completion, then the
+        // HoD published another date directly: no gap, but the correction cannot be approved.
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with
+        {
+            PendingCorrection = Correction("IPA") with { NeedsResubmission = true }
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        var review = item.Checks.Single(check => check.Key == "completion");
+        Assert.Equal("Review your date correction", review.Label);
+        Assert.Equal(BriefingDeskCheckState.Open, review.State);
+        Assert.Equal("/Projects/Overview/1?oc=actuals#timeline", review.ActionUrl);
+        Assert.False(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_ACurrentCorrectionWithNoMissingCompletionDate_AddsNoStep()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with { PendingCorrection = Correction("IPA") };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.DoesNotContain(item.Checks, check => check.Key == "completion");
+        Assert.True(item.IsBriefReady);
+    }
+
+    [Fact]
     public void Project_PendingPlanWithAFuturePdc_StaysDoneWithThePdc()
     {
         var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with
