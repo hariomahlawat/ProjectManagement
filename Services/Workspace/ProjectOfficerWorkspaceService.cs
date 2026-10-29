@@ -294,7 +294,7 @@ public sealed class ProjectOfficerWorkspaceService
 
     // SECTION: Plan editor state for the desk's current-stage form
     // Read with the same PlanReadService as Project Overview, and only for projects whose
-    // current-stage PDC is missing or overdue with nothing already awaiting approval.
+    // current-stage PDC is missing with nothing already awaiting approval.
     private async Task<IReadOnlyDictionary<int, ProjectManagement.ViewModels.PlanEditorVm>> LoadPlanEditorsAsync(
         string userId,
         IReadOnlyList<WorkspaceProjectMatrixRowVm> rows,
@@ -305,8 +305,7 @@ public sealed class ProjectOfficerWorkspaceService
         foreach (var row in rows)
         {
             var hasStage = !string.IsNullOrWhiteSpace(row.CurrentStageCode) && row.CurrentStageCode != "—";
-            var needsPdc = row.HasOverdueCurrentStage || row.CurrentStagePdc is null;
-            if (!hasStage || !needsPdc || pendingPlans.ContainsKey(row.ProjectId))
+            if (!hasStage || row.CurrentStagePdc is not null || pendingPlans.ContainsKey(row.ProjectId))
             {
                 continue;
             }

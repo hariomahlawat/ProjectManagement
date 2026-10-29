@@ -50,6 +50,12 @@ public sealed class BriefingDeskItemVm
 
     public int OpenCount => Checks.Count(check => check.IsRequired && check.State == BriefingDeskCheckState.Open);
 
+    /// <summary>
+    /// True when the update box answers an open step (the weekly update or a direction). When
+    /// false the PO may still post, but the card says no update is needed.
+    /// </summary>
+    public bool IsUpdateDue => Checks.Any(check => check.Route == BriefingDeskRoute.Update && check.State == BriefingDeskCheckState.Open);
+
     public IReadOnlyList<BriefingDeskFactVm> Facts { get; init; } = Array.Empty<BriefingDeskFactVm>();
 
     public IReadOnlyList<BriefingDeskStepVm> Strip { get; init; } = Array.Empty<BriefingDeskStepVm>();
@@ -129,8 +135,11 @@ public enum BriefingDeskCheckState
     /// <summary>Complete.</summary>
     Done,
 
-    /// <summary>Submitted and waiting on a HoD or the task assigner.</summary>
-    Waiting
+    /// <summary>
+    /// Submitted to the HoD or the task assigner. The Project Officer's part is done, so it
+    /// counts towards brief-ready and is shown as done.
+    /// </summary>
+    Submitted
 }
 
 public enum BriefingDeskRoute
@@ -188,8 +197,6 @@ public sealed class BriefingDeskPlanPanelVm
     public DateOnly? PlannedStart { get; init; }
 
     public DateOnly? PlannedDue { get; init; }
-
-    public bool IsOverdue { get; init; }
 
     public string ReturnUrl { get; init; } = string.Empty;
 

@@ -8,12 +8,15 @@
     var previewId = $"{anchor}-preview";
     var inputId = $"{anchor}-say";
     var kindKey = BriefingDeskLabels.KindKey(item.Kind);
-    var (handler, postLabel, postHint, placeholder, sayTitle) = item.Kind switch
+    var (handler, postLabel, postHint, placeholder, sayTitle, addAnother) = item.Kind switch
     {
-        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post update", "Saved as a project remark. Counts as your weekly update.", "One or two lines: what moved, what is blocked, what is next.", "What you’ll say this week"),
-        ConferenceItemKind.ProjectIdea => ("DeskIdeaNote", "Post note", "Saved as a note on the idea.", "What you explored or learned since the last note.", "Note on progress"),
-        _ => ("DeskTaskProgress", "Post progress", "Saved as a progress update on the task.", "What is done, what remains, any blocker.", "Progress on this task")
+        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post remark", "Saved as a project remark. Counts as your weekly update.", "One or two lines: what moved, what is blocked, what is next.", "Your remark this week", "Add another remark"),
+        ConferenceItemKind.ProjectIdea => ("DeskIdeaNote", "Post note", "Saved as a note on the idea.", "What you explored or learned since the last note.", "Note on progress", "Add another note"),
+        _ => ("DeskTaskProgress", "Post progress", "Saved as a progress update on the task.", "What is done, what remains, any blocker.", "Progress on this task", "Add more progress")
     };
+    // When nothing is due the box folds away behind a quiet link: the PO sees that no update
+    // is needed but can still add one. A draft kept after a failed post reopens it.
+    var sayOpen = item.IsUpdateDue || !string.IsNullOrEmpty(Model.Draft);
     if (item.DirectionAwaitingProgress)
     {
         sayTitle = "What you’ll report on the direction";
@@ -113,26 +116,51 @@
         }
 
         <div class="bd-card__work">
-            <form method="post"
-                  class="bd-say"
-                  asp-page="/Workspace/Index"
-                  asp-page-handler="@handler"
-                  asp-route-mode="project-officer">
-                <input type="hidden" name="itemId" value="@item.ItemId" />
-                <label class="bd-say__label" for="@inputId">@sayTitle</label>
-                <p class="bd-say__last">@item.LastUpdateText</p>
-                <textarea class="bd-say__input"
-                          id="@inputId"
-                          name="body"
-                          rows="4"
-                          maxlength="4000"
-                          required
-                          placeholder="@placeholder">@Model.Draft</textarea>
-                <div class="bd-say__actions">
-                    <button type="submit" class="bd-btn bd-btn--primary">@postLabel</button>
-                    <span class="bd-say__hint">@postHint</span>
+            @{
+                async Task SayForm()
+                {
+                    <form method="post"
+                          class="bd-say"
+                          asp-page="/Workspace/Index"
+                          asp-page-handler="@handler"
+                          asp-route-mode="project-officer">
+                        <input type="hidden" name="itemId" value="@item.ItemId" />
+                        <label class="bd-say__label" for="@inputId">@sayTitle</label>
+                        @if (sayOpen)
+                        {
+                            <p class="bd-say__last">@item.LastUpdateText</p>
+                        }
+                        <textarea class="bd-say__input"
+                                  id="@inputId"
+                                  name="body"
+                                  rows="4"
+                                  maxlength="4000"
+                                  required
+                                  placeholder="@placeholder">@Model.Draft</textarea>
+                        <div class="bd-say__actions">
+                            <button type="submit" class="bd-btn bd-btn--primary">@postLabel</button>
+                            <span class="bd-say__hint">@postHint</span>
+                        </div>
+                    </form>
+                }
+            }
+            @if (sayOpen)
+            {
+                await SayForm();
+            }
+            else
+            {
+                <div class="bd-say bd-say--settled">
+                    <p class="bd-say__settled">
+                        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                        <span><strong>Not needed now.</strong> @item.LastUpdateText</span>
+                    </p>
+                    <details class="bd-say__more">
+                        <summary class="bd-btn bd-btn--quiet"><i class="bi bi-plus-lg" aria-hidden="true"></i>@addAnother</summary>
+                        @{ await SayForm(); }
+                    </details>
                 </div>
-            </form>
+            }
 
             <div class="bd-checks">
                 <h4 class="bd-checks__title">Before you brief</h4>

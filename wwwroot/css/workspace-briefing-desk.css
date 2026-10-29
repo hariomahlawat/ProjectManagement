@@ -130,23 +130,6 @@
     color: var(--pm-text-secondary);
 }
 
-.bd-meter--summary {
-    justify-content: center;
-    gap: 0.35rem;
-}
-
-.bd-meter__row {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75rem;
-    font-size: 0.875rem;
-    color: var(--pm-text-secondary);
-}
-
-.bd-meter__row strong {
-    color: var(--pm-text-strong);
-}
-
 .bd-text-danger {
     color: var(--pm-danger) !important;
 }
@@ -493,6 +476,39 @@
     color: var(--pm-text-secondary);
 }
 
+/* Update box when nothing is due: a settled line and a quiet way to add another. */
+.bd-say__settled {
+    margin: 0;
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    font-size: 0.875rem;
+    color: var(--pm-text-secondary);
+}
+
+.bd-say__settled .bi {
+    margin-top: 0.15rem;
+    color: var(--pm-success);
+}
+
+.bd-say__settled strong {
+    color: var(--pm-text-strong);
+}
+
+.bd-say__more > summary {
+    list-style: none;
+    width: fit-content;
+    cursor: pointer;
+}
+
+.bd-say__more > summary::-webkit-details-marker {
+    display: none;
+}
+
+.bd-say__more[open] > summary {
+    margin-bottom: 0.6rem;
+}
+
 /* Checklist */
 .bd-checks {
     flex: 1.3 1 20rem;
@@ -590,13 +606,6 @@
     color: var(--pm-card);
 }
 
-.bd-check--waiting .bd-check__mark {
-    border-style: solid;
-    border-color: var(--pm-accent-indigo-bright);
-    background: var(--pm-accent-indigo-bright);
-    color: var(--pm-card);
-}
-
 .bd-check__copy {
     flex: 1 1 auto;
     min-width: 0;
@@ -611,8 +620,7 @@
     color: var(--pm-text-strong);
 }
 
-.bd-check--done .bd-check__copy strong,
-.bd-check--waiting .bd-check__copy strong {
+.bd-check--done .bd-check__copy strong {
     color: var(--pm-text-secondary);
 }
 
@@ -643,10 +651,6 @@
 
 .bd-check__state--done {
     color: var(--pm-success-contrast);
-}
-
-.bd-check__state--waiting {
-    color: var(--pm-accent-indigo-bright);
 }
 
 .bd-checklist--improve .bd-check {
@@ -1019,8 +1023,8 @@
     border-radius: 50%;
 }
 
-.bd-dot--waiting {
-    background: var(--pm-accent-indigo-bright);
+.bd-list__icon--sent {
+    color: var(--pm-success-contrast);
 }
 
 /* SECTION: Empty state -------------------------------------------------- */
@@ -1095,17 +1099,6 @@
 
     .bd-meter__value {
         white-space: nowrap;
-    }
-
-    .bd-meter--summary {
-        grid-column: 1 / -1;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 0.25rem 1.25rem;
-    }
-
-    .bd-meter--summary .bd-meter__row {
-        gap: 0.4rem;
     }
 }
 

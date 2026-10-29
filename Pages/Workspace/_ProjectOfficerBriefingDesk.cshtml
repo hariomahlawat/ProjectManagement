@@ -95,9 +95,6 @@
                     <span class="bd-meter__caption">brief-ready</span>
                 </div>
             }
-            <div class="bd-meter bd-meter--summary">
-                <div class="bd-meter__row"><span>With HoD / assigner</span><strong>@desk.WithOthers.Count</strong></div>
-            </div>
         </div>
     }
 
@@ -168,12 +165,13 @@
             }
         </div>
 
-        <aside class="bd-rail" aria-label="Waiting, reading and the next 14 days">
+        <aside class="bd-rail" aria-label="Sent for approval, reading and the next 14 days">
+            @* Submitting is the PO's part done; this is a record of what was sent, not a to-do list. *@
             <section class="bd-panel" aria-labelledby="bd-waiting-title">
-                <div class="bd-panel__head"><h2 id="bd-waiting-title">With others</h2><span class="bd-panel__meta">@desk.WithOthers.Count waiting</span></div>
+                <div class="bd-panel__head"><h2 id="bd-waiting-title">Sent for approval</h2><span class="bd-panel__meta">Nothing needed from you</span></div>
                 @if (!desk.WithOthers.Any())
                 {
-                    <p class="bd-panel__empty">Nothing you submitted is waiting for approval.</p>
+                    <p class="bd-panel__empty">Nothing you sent is awaiting a decision.</p>
                 }
                 else
                 {
@@ -181,8 +179,8 @@
                         @foreach (var item in desk.WithOthers)
                         {
                             <li class="bd-list__item">
-                                <span class="bd-dot bd-dot--waiting" aria-hidden="true"></span>
-                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.Detail · with @item.WaitingOn since @IstClock.ToIst(item.SinceUtc).ToString("dd MMM")</span></a>
+                                <i class="bi bi-check2 bd-list__icon bd-list__icon--sent" aria-hidden="true"></i>
+                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.Detail · sent to @item.WaitingOn on @IstClock.ToIst(item.SinceUtc).ToString("dd MMM")</span></a>
                             </li>
                         }
                     </ul>
@@ -256,8 +254,9 @@
         </div>
     }
 
-    @* Current-stage plan form: posts this one stage to the plan editor's own handler, which
-       validates and submits the whole plan for HoD approval. A refusal opens the full editor. *@
+    @* Current-stage PDC form, offered only when the PDC is missing: posts this one stage to the
+       plan editor's own handler, which validates and submits the whole plan for HoD approval.
+       A refusal opens the full editor. *@
     @foreach (var panel in allItems.Where(candidate => candidate.PlanPanel is not null).Select(candidate => candidate.PlanPanel!))
     {
         <div class="offcanvas offcanvas-end bd-drawer" tabindex="-1" id="@panel.PanelId" aria-labelledby="@panel.PanelId-title">
@@ -280,11 +279,6 @@
                     <input type="hidden" name="Input.Rows[0].Code" value="@panel.StageCode" />
                     <input type="hidden" name="Input.Rows[0].Name" value="@panel.StageName" />
 
-                    @if (panel.IsOverdue && panel.PlannedDue is DateOnly passed)
-                    {
-                        <p class="bd-plan-form__alert">The planned completion date, @passed.ToString("dd MMM yyyy"), has passed. Propose a revised date.</p>
-                    }
-
                     @* The editor writes back exactly what is posted, so the existing planned start
                        travels unchanged; only the PDC is asked for. *@
                     <input type="hidden" name="Input.Rows[0].PlannedStart" value="@(panel.PlannedStart?.ToString("yyyy-MM-dd"))" />
@@ -295,6 +289,7 @@
                     <div class="bd-plan-form__field">
                         <label for="@panel.PanelId-due">Planned completion (PDC)</label>
                         <input class="form-control" type="date" id="@panel.PanelId-due" name="Input.Rows[0].PlannedDue" required
+                               min="@(panel.PlannedStart?.ToString("yyyy-MM-dd"))"
                                value="@(panel.PlannedDue?.ToString("yyyy-MM-dd"))" />
                     </div>
 

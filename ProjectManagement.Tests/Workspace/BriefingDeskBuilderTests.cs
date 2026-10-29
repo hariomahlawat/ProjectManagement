@@ -70,9 +70,9 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
-    public void Project_WithOverduePdcAndAPendingPlan_ShowsWithHodAndCountsAsReady()
+    public void Project_WithMissingPdcAndAPlanWithTheHod_IsDoneAndCountsAsReady()
     {
-        var project = Project(daysSinceUpdate: 2, pdcInDays: -18) with
+        var project = Project(daysSinceUpdate: 2, pdcInDays: null) with
         {
             PendingPlanSinceUtc = new DateTimeOffset(2026, 10, 19, 6, 0, 0, TimeSpan.Zero)
         };
@@ -80,37 +80,109 @@ public sealed class BriefingDeskBuilderTests
         var item = SingleItem(Build(projects: new[] { project }));
 
         var pdc = item.Checks.Single(check => check.Key == "pdc");
-        Assert.Equal(BriefingDeskCheckState.Waiting, pdc.State);
-        Assert.Equal("With HoD since 19 Oct 2026", pdc.StateText);
+        Assert.Equal(BriefingDeskCheckState.Submitted, pdc.State);
+        Assert.Equal("Sent to HoD on 19 Oct 2026", pdc.StateText);
+        Assert.Null(pdc.ActionText);
         Assert.True(item.IsBriefReady);
     }
 
     [Fact]
-    public void Project_WithAPlanWithTheHod_SaysSoInTheHeader_InsteadOfAnAlarm()
+    public void Project_WithAPlanWithTheHod_SaysItWasSent_InsteadOfAnAlarm()
     {
         var since = new DateTimeOffset(2026, 10, 19, 6, 0, 0, TimeSpan.Zero);
-        var overdue = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) with { PendingPlanSinceUtc = since } }));
+        var passed = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) with { PendingPlanSinceUtc = since } }));
         var missing = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: null) with { PendingPlanSinceUtc = since } }));
 
-        var overdueFact = Assert.Single(overdue.Facts, fact => fact.Text.Contains("PDC"));
-        Assert.Equal("Revised PDC with HoD since 19 Oct 2026", overdueFact.Text);
-        Assert.Equal(BriefingDeskTone.Neutral, overdueFact.Tone);
-        Assert.DoesNotContain(overdue.Facts, fact => fact.Tone == BriefingDeskTone.Danger && fact.Text.Contains("overdue"));
+        var passedFact = Assert.Single(passed.Facts, fact => fact.Text.Contains("PDC"));
+        Assert.Equal("Revised PDC sent to HoD on 19 Oct 2026", passedFact.Text);
+        Assert.Equal(BriefingDeskTone.Neutral, passedFact.Tone);
+        Assert.DoesNotContain(passed.Checks, check => check.Key == "pdc");
 
         var missingFact = Assert.Single(missing.Facts, fact => fact.Text.Contains("PDC"));
-        Assert.Equal("PDC with HoD since 19 Oct 2026", missingFact.Text);
+        Assert.Equal("PDC sent to HoD on 19 Oct 2026", missingFact.Text);
         Assert.Equal(BriefingDeskTone.Neutral, missingFact.Tone);
     }
 
     [Fact]
-    public void Project_WithOverduePdcAndNoPlan_AsksForARevisedDate()
+    public void Project_WithPassedPdc_IsARedNoteThatNeverBlocksReadiness()
     {
         var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) }));
 
-        var pdc = item.Checks.Single(check => check.Key == "pdc");
-        Assert.Equal("Revise DEVP PDC", pdc.Label);
-        Assert.Equal(BriefingDeskCheckState.Open, pdc.State);
-        Assert.Contains(item.Facts, fact => fact.Tone == BriefingDeskTone.Danger && fact.Text.Contains("overdue 18 days"));
+        Assert.True(item.IsBriefReady);
+        Assert.DoesNotContain(item.Checks, check => check.Key == "pdc");
+        var fact = Assert.Single(item.Facts, fact => fact.Text.Contains("PDC"));
+        Assert.Equal("PDC passed 03 Oct 2026", fact.Text);
+        Assert.Equal(BriefingDeskTone.Danger, fact.Tone);
+    }
+
+    [Fact]
+    public void Project_MissingActualStart_IsNeverAskedFor()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30, startMissing: true) }));
+
+        Assert.True(item.IsBriefReady);
+        Assert.DoesNotContain(item.Checks, check => check.Key == "start");
+    }
+
+    [Fact]
+    public void Project_MissingCompletionDates_AreARequiredStep_NotAnImprovement()
+    {
+        var health = new WorkspaceRecordHealthVm
+        {
+            ProjectId = 1,
+            HealthPercent = 70,
+            GapDetails = new[]
+            {
+                Gap("IPA_ACTUAL_COMPLETION", BriefingDeskBuilder.CompletionDatesComponent, "IPA — Actual Completion", 5m, "/Projects/Overview/1?oc=actuals#timeline"),
+                Gap("AON_ACTUAL_COMPLETION", BriefingDeskBuilder.CompletionDatesComponent, "AON — Actual Completion", 5m, "/Projects/Overview/1?oc=actuals#timeline")
+            }
+        };
+
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30, health: health) }));
+
+        Assert.False(item.IsBriefReady);
+        var completion = item.Checks.Single(check => check.Key == "completion");
+        Assert.True(completion.IsRequired);
+        Assert.Equal(BriefingDeskCheckState.Open, completion.State);
+        Assert.Equal("2 stage completion dates missing", completion.Label);
+        Assert.Contains("IPA, AON", completion.Detail);
+        Assert.Equal("/Projects/Overview/1?oc=actuals#timeline", completion.ActionUrl);
+        Assert.Empty(item.Improvements);
+    }
+
+    [Fact]
+    public void Project_MissingCompletionDates_WithACorrectionWithTheHod_AreDone()
+    {
+        var health = new WorkspaceRecordHealthVm
+        {
+            ProjectId = 1,
+            HealthPercent = 90,
+            GapDetails = new[]
+            {
+                Gap("IPA_ACTUAL_COMPLETION", BriefingDeskBuilder.CompletionDatesComponent, "IPA — Actual Completion", 5m, "/Projects/Overview/1?oc=actuals#timeline")
+            }
+        };
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: health) with
+        {
+            PendingActualsSinceUtc = new DateTimeOffset(2026, 10, 20, 6, 0, 0, TimeSpan.Zero)
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        var completion = item.Checks.Single(check => check.Key == "completion");
+        Assert.Equal(BriefingDeskCheckState.Submitted, completion.State);
+        Assert.Equal("Sent to HoD on 20 Oct 2026", completion.StateText);
+        Assert.True(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_UpdateBox_IsDueOnlyWhenTheUpdateIsOpen()
+    {
+        var fresh = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: 30) }));
+        var stale = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 9, pdcInDays: 30) }));
+
+        Assert.False(fresh.IsUpdateDue);
+        Assert.True(stale.IsUpdateDue);
     }
 
     [Fact]
@@ -272,6 +344,16 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_PassedPdc_HasNoPlanForm()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: -5) with { PlanEditor = Editor() };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.Null(item.PlanPanel);
+    }
+
+    [Fact]
     public void Project_FuturePdc_HasNoPlanForm()
     {
         var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with { PlanEditor = Editor() };
@@ -352,7 +434,7 @@ public sealed class BriefingDeskBuilderTests
         var item = SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.Submitted, overdueDays: 0, progressDaysAgo: null) }));
 
         Assert.True(item.IsBriefReady);
-        Assert.Equal(BriefingDeskCheckState.Waiting, Assert.Single(item.Checks).State);
+        Assert.Equal(BriefingDeskCheckState.Submitted, Assert.Single(item.Checks).State);
         Assert.False(item.CanSubmitTask);
     }
 
@@ -533,7 +615,7 @@ public sealed class BriefingDeskBuilderTests
     private static BriefingDeskItemVm SingleItem(BriefingDeskVm desk)
         => Assert.Single(Assert.Single(desk.Sections).Items);
 
-    private static BriefingDeskProjectInput Project(int? daysSinceUpdate, int? pdcInDays, WorkspaceRecordHealthVm? health = null)
+    private static BriefingDeskProjectInput Project(int? daysSinceUpdate, int? pdcInDays, WorkspaceRecordHealthVm? health = null, bool startMissing = false)
     {
         var row = new WorkspaceProjectMatrixRowVm
         {
@@ -546,6 +628,7 @@ public sealed class BriefingDeskBuilderTests
             DaysSinceLastPoRemark = daysSinceUpdate,
             HasOverdueCurrentStage = pdcInDays is < 0,
             IsCurrentStagePdcMissing = pdcInDays is null,
+            IsCurrentStageStartMissing = startMissing,
             RecordHealthPercent = health?.HealthPercent ?? 100,
             RecordHealth = health ?? new WorkspaceRecordHealthVm { ProjectId = 1, HealthPercent = 100 },
             OpenUrl = "/Projects/Overview/1"
