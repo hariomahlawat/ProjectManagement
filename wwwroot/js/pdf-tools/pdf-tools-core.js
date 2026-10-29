@@ -505,11 +505,13 @@
           throw new PdfToolError('range-out-of-bounds', 'A selected page does not exist in its file.');
         }
       });
+      tagLinkDestinations(PDFLib, document, sourceIndex, unique);
       const copied = await output.copyPages(document, unique);
       unique.forEach((index, position) => copies.set(`${sourceIndex}:${index}`, copied[position]));
     }
 
     const used = new Set();
+    const outputPages = new Map();
     for (const page of pages) {
       const key = `${page.source}:${page.index}`;
       let copy = copies.get(key);
@@ -521,21 +523,30 @@
       const current = copy.getRotation().angle;
       copy.setRotation(PDFLib.degrees(normalizeRotation(current + (Number(page.rotate) || 0))));
       output.addPage(copy);
+      if (!outputPages.has(key)) {
+        outputPages.set(key, copy.ref);
+      }
     }
     carryFormFields(PDFLib, output, loaded);
+    resolveLinkDestinations(PDFLib, output, outputPages);
+    removeUnreachableObjects(PDFLib, output);
     return save(output);
   }
 
   /**
    * copyPages brings form widgets (and, through their /Parent links, their fields) across,
    * but not the document-level /AcroForm that lists the fields, so viewers stop treating them
-   * as a form. Rebuild it from the widgets on the output pages, keeping the source form's
-   * default appearance settings. Fields with the same name in different sources merge, as
-   * they would in any PDF form.
+   * as a form. Rebuild it from the widgets on the output pages only: shared parent fields keep
+   * just the kids that lead to a kept widget, so fields on dropped pages are not carried over.
+   * Fields with the same name in different sources merge, as they would in any PDF form.
    */
   function carryFormFields(PDFLib, output, sources) {
-    const { PDFName, PDFDict, PDFRef } = PDFLib;
+    const { PDFName, PDFDict, PDFArray, PDFRef } = PDFLib;
+    const PARENT = PDFName.of('Parent');
+    const KIDS = PDFName.of('Kids');
+    const kept = new Set();
     const roots = new Map();
+
     for (const page of output.getPages()) {
       const annots = page.node.Annots();
       if (!annots) continue;
@@ -545,29 +556,42 @@
         if (!(annot instanceof PDFDict) || String(annot.get(PDFName.of('Subtype'))) !== '/Widget') {
           continue;
         }
-        let fieldRef = ref;
-        let field = annot;
-        const seen = new Set();
-        while (field.get(PDFName.of('Parent')) instanceof PDFRef && !seen.has(String(fieldRef))) {
-          seen.add(String(fieldRef));
-          fieldRef = field.get(PDFName.of('Parent'));
-          field = output.context.lookup(fieldRef, PDFDict);
+        // The copied /P points at a copy of the source page; point it at the page it is on.
+        annot.set(PDFName.of('P'), page.ref);
+        let nodeRef = ref;
+        let node = annot;
+        while (!kept.has(String(nodeRef))) {
+          kept.add(String(nodeRef));
+          const parent = node.get(PARENT);
+          if (!(parent instanceof PDFRef)) {
+            roots.set(String(nodeRef), nodeRef);
+            break;
+          }
+          nodeRef = parent;
+          node = output.context.lookup(parent, PDFDict);
         }
-        roots.set(String(fieldRef), fieldRef);
       }
     }
     if (roots.size === 0) {
       return;
     }
 
+    // Prune every kept field's /Kids to the kids that lead to a kept widget.
+    for (const key of kept) {
+      const [objectNumber, generation] = key.split(' ').map(Number);
+      const node = output.context.lookup(PDFRef.of(objectNumber, generation));
+      const kids = node instanceof PDFDict ? node.lookupMaybe(KIDS, PDFArray) : undefined;
+      if (kids) {
+        const remaining = kids.asArray().filter((kid) => kid instanceof PDFRef && kept.has(String(kid)));
+        node.set(KIDS, output.context.obj(remaining));
+      }
+    }
+
     const acroForm = output.context.obj({});
     acroForm.set(PDFName.of('Fields'), output.context.obj(Array.from(roots.values())));
-    const sourceForm = sources
-      .filter(Boolean)
-      .map((document) => document.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict))
-      .find(Boolean);
-    if (sourceForm) {
-      const source = sources.find((document) => document && document.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict) === sourceForm);
+    const source = sources.find((document) => document && document.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict));
+    if (source) {
+      const sourceForm = source.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict);
       const copier = PDFLib.PDFObjectCopier.for(source.context, output.context);
       for (const key of ['DA', 'DR', 'NeedAppearances', 'Q']) {
         const value = sourceForm.get(PDFName.of(key));
@@ -577,6 +601,112 @@
       }
     }
     output.catalog.set(PDFName.of('AcroForm'), output.context.register(acroForm));
+  }
+
+  const LINK_TARGET_PREFIX = 'PrismPdfToolsPage:';
+
+  /** The explicit destination array of a link annotation (/Dest or a GoTo action's /D). */
+  function linkDestination(PDFLib, annot) {
+    const { PDFName, PDFDict, PDFArray } = PDFLib;
+    if (!(annot instanceof PDFDict) || String(annot.get(PDFName.of('Subtype'))) !== '/Link') {
+      return undefined;
+    }
+    let destination = annot.lookup(PDFName.of('Dest'));
+    const action = annot.lookup(PDFName.of('A'));
+    if (!destination && action instanceof PDFDict) {
+      destination = action.lookup(PDFName.of('D'));
+    }
+    return destination instanceof PDFArray ? destination : undefined;
+  }
+
+  /**
+   * copyPages copies a link's target page as a separate, unlisted page object instead of
+   * pointing it at the copied page. Before copying, replace each link target that is a page of
+   * this source with a name that records which page it was; resolveLinkDestinations then points
+   * it at the output page, so the target page itself is never dragged into the output.
+   */
+  function tagLinkDestinations(PDFLib, document, sourceIndex, indexes) {
+    const { PDFName, PDFRef } = PDFLib;
+    const pageIndexByRef = new Map(document.getPages().map((page, index) => [String(page.ref), index]));
+    for (const index of indexes) {
+      const annots = document.getPage(index).node.Annots();
+      if (!annots) continue;
+      for (const ref of annots.asArray()) {
+        const destination = linkDestination(PDFLib, ref instanceof PDFRef ? document.context.lookup(ref) : ref);
+        const target = destination?.get(0);
+        if (target instanceof PDFRef && pageIndexByRef.has(String(target))) {
+          destination.set(0, PDFName.of(`${LINK_TARGET_PREFIX}${sourceIndex}:${pageIndexByRef.get(String(target))}`));
+        }
+      }
+    }
+  }
+
+  /**
+   * Points tagged links at their output pages. A link whose target page was dropped, or whose
+   * target is any page object not in the output, is removed: it would be broken anyway, and
+   * keeping it would keep that page's content in the file.
+   */
+  function resolveLinkDestinations(PDFLib, output, outputPages) {
+    const { PDFName, PDFRef } = PDFLib;
+    const pages = new Set(output.getPages().map((page) => String(page.ref)));
+    for (const page of output.getPages()) {
+      const annots = page.node.Annots();
+      if (!annots) continue;
+      const keep = annots.asArray().filter((ref) => {
+        const destination = linkDestination(PDFLib, ref instanceof PDFRef ? output.context.lookup(ref) : ref);
+        const target = destination?.get(0);
+        if (target instanceof PDFName) {
+          const name = target.decodeText();
+          if (!name.startsWith(LINK_TARGET_PREFIX)) {
+            return true;
+          }
+          const resolved = outputPages.get(name.slice(LINK_TARGET_PREFIX.length));
+          if (resolved) {
+            destination.set(0, resolved);
+            return true;
+          }
+          return false;
+        }
+        return !(target instanceof PDFRef) || pages.has(String(target));
+      });
+      if (keep.length !== annots.size()) {
+        page.node.set(PDFName.of('Annots'), output.context.obj(keep));
+      }
+    }
+  }
+
+  /**
+   * Deletes every object the document no longer references. copyPages follows links such as
+   * widget /P entries, shared form fields and link destinations into pages the user dropped;
+   * those copies are unreachable once the output is assembled, but pdf-lib would still write
+   * them into the file. Dropped pages must not survive in the saved bytes.
+   */
+  function removeUnreachableObjects(PDFLib, document) {
+    const { PDFRef, PDFDict, PDFArray, PDFStream } = PDFLib;
+    const context = document.context;
+    const reachable = new Set();
+    const pending = [context.trailerInfo.Root, context.trailerInfo.Info].filter(Boolean);
+    while (pending.length) {
+      const value = pending.pop();
+      if (value instanceof PDFRef) {
+        const key = String(value);
+        if (!reachable.has(key)) {
+          reachable.add(key);
+          pending.push(context.lookup(value));
+        }
+      } else if (value instanceof PDFDict) {
+        value.entries().forEach(([, entry]) => pending.push(entry));
+      } else if (value instanceof PDFArray) {
+        value.asArray().forEach((entry) => pending.push(entry));
+      } else if (value instanceof PDFStream) {
+        pending.push(value.dict);
+      }
+    }
+    for (const [ref] of context.enumerateIndirectObjects()) {
+      if (!reachable.has(String(ref))) {
+        context.delete(ref);
+      }
+    }
   }
 
   async function splitPdf(PDFLib, bytes, groups) {

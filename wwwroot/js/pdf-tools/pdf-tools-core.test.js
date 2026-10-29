@@ -258,6 +258,70 @@ test('assemblePages keeps form fields and their values', async () => {
   assert.deepEqual((await PDFLib.PDFDocument.load(onlySecond)).getForm().getFields().map((field) => field.getName()), ['agree']);
 });
 
+/** Every object in the saved file, as text (streams decoded), to prove something is absent. */
+async function allObjectText(bytes) {
+  const document = await PDFLib.PDFDocument.load(bytes);
+  return document.context.enumerateIndirectObjects().map(([, object]) => {
+    if (object instanceof PDFLib.PDFRawStream) {
+      return `${object.dict.toString()}\n${Buffer.from(PDFLib.decodePDFRawStream(object).decode()).toString('latin1')}`;
+    }
+    return object.toString();
+  }).join('\n');
+}
+
+test('dropping pages also drops their form fields and content from the saved file', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const font = await document.embedFont(PDFLib.StandardFonts.Helvetica);
+  const first = document.addPage([300, 300]);
+  const second = document.addPage([300, 300]);
+  second.drawText('SECRETPAGETEXT', { x: 20, y: 150, size: 12, font });
+  const form = document.getForm();
+  const visible = form.createTextField('person.public');
+  visible.setText('PublicValue');
+  visible.addToPage(first, { x: 10, y: 10 });
+  const hidden = form.createTextField('person.secret');
+  hidden.setText('SecretValue');
+  hidden.addToPage(second, { x: 10, y: 10 });
+  const pdf = await document.save();
+
+  const [kept] = await tools.splitPdf(PDFLib, pdf, [[0]]);
+  const output = await PDFLib.PDFDocument.load(kept);
+  assert.equal(output.getPageCount(), 1);
+  assert.deepEqual(output.getForm().getFields().map((field) => field.getName()), ['person.public']);
+  assert.equal(output.getForm().getTextField('person.public').getText(), 'PublicValue');
+
+  const text = await allObjectText(kept);
+  assert.doesNotMatch(text, /SecretValue/, 'dropped field value is not in the file');
+  assert.doesNotMatch(text, /5345435245545041474554455854|SECRETPAGETEXT/i, 'dropped page content is not in the file');
+  assert.doesNotMatch(text, /\(secret\)|<736563726574>/i, 'dropped field is not in the file');
+});
+
+test('a link to a dropped page does not carry that page into the saved file', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const font = await document.embedFont(PDFLib.StandardFonts.Helvetica);
+  const first = document.addPage([300, 300]);
+  const second = document.addPage([300, 300]);
+  second.drawText('SECRETPAGETEXT', { x: 20, y: 150, size: 12, font });
+  const link = document.context.register(document.context.obj({
+    Type: 'Annot',
+    Subtype: 'Link',
+    Rect: [10, 10, 100, 30],
+    Dest: [second.ref, 'Fit']
+  }));
+  first.node.set(PDFLib.PDFName.of('Annots'), document.context.obj([link]));
+
+  const pdf = await document.save();
+  const [kept] = await tools.splitPdf(PDFLib, pdf, [[0]]);
+  assert.doesNotMatch(await allObjectText(kept), /5345435245545041474554455854|SECRETPAGETEXT/i);
+
+  // A link between two kept pages still works and points at the output page.
+  const both = await PDFLib.PDFDocument.load(await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 0 }, { source: 0, index: 1 }]));
+  const annots = both.getPage(0).node.Annots();
+  assert.equal(annots.size(), 1);
+  const destination = both.context.lookup(annots.get(0)).lookup(PDFLib.PDFName.of('Dest'));
+  assert.equal(String(destination.get(0)), String(both.getPage(1).ref));
+});
+
 test('assemblePages rejects empty selections and missing pages', async () => {
   const pdf = await makePdf([[100, 100]]);
   await assert.rejects(tools.assemblePages(PDFLib, [pdf], []), { code: 'no-pages' });

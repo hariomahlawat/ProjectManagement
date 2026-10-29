@@ -52,6 +52,12 @@ pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types.
 | Page numbers & header/footer | Number formats with `{n}`, `{total}`, `{date}`; position, first number, skip cover page, header/footer text. |
 | Sign & annotate | Text, signature (draw, type or upload), image, highlight, box and white-out; drag to move, corner handle to resize. Items are flattened into the page on save. |
 
+When pages are dropped (Split, extract, delete), they are removed from the saved file, not just
+hidden: form fields whose widgets are only on dropped pages are pruned from the form,
+links to dropped pages are removed, links between kept pages are re-pointed at the output pages,
+and any object no longer referenced by the document is deleted before saving. Tests check that a
+dropped page's text and a dropped field's value are absent from the saved bytes.
+
 All placements honour each page's `/Rotate`, so text and stamps appear upright on rotated
 (for example scanned landscape) pages. The annotate editor works in PDF user units, dividing
 out the page's `/UserUnit` that pdf.js includes in its viewport, so saved items match the
