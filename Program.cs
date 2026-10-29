@@ -1381,6 +1381,8 @@ app.Use(async (ctx, next) =>
 var contentTypeProvider = new FileExtensionContentTypeProvider();
 contentTypeProvider.Mappings[".geojson"] = "application/geo+json";
 contentTypeProvider.Mappings[".topojson"] = "application/json";
+// pdf.js character maps used by PDF Tools to render CJK and other predefined-CMap fonts.
+contentTypeProvider.Mappings[".bcmap"] = "application/octet-stream";
 
 app.UseStaticFiles(new StaticFileOptions
 {

@@ -28,7 +28,13 @@ needed at runtime:
 | --- | --- | --- | --- |
 | pdf-lib | 1.17.1 | MIT | `wwwroot/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js` |
 | pdf.js (legacy build, broad browser support) | 4.10.38 | Apache-2.0 | `wwwroot/lib/pdfjs/4.10.38/legacy/build/` |
+| pdf.js character maps (CMaps) | 4.10.38 | Apache-2.0 | `wwwroot/lib/pdfjs/4.10.38/cmaps/` |
 | SortableJS (existing) | 1.15.2 | MIT | `wwwroot/lib/sortable/1.15.2/` |
+
+The CMaps let pdf.js render and extract text in fonts that use predefined character maps
+(common in Chinese, Japanese and Korean PDFs). pdf.js fetches them from PRISM itself, so
+`Program.cs` maps the `.bcmap` extension for static files; without that mapping they would
+return 404 and such text would be missing from thumbnails, the editor and exported images.
 
 pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types. It runs with
 `isEvalSupported: false`, so it works under the site's strict Content-Security-Policy
@@ -47,7 +53,9 @@ pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types.
 | Sign & annotate | Text, signature (draw, type or upload), image, highlight, box and white-out; drag to move, corner handle to resize. Items are flattened into the page on save. |
 
 All placements honour each page's `/Rotate`, so text and stamps appear upright on rotated
-(for example scanned landscape) pages.
+(for example scanned landscape) pages. The annotate editor works in PDF user units, dividing
+out the page's `/UserUnit` that pdf.js includes in its viewport, so saved items match the
+preview on large-format pages too.
 
 ## Code map
 

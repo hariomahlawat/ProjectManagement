@@ -136,6 +136,9 @@
     try {
       return await pdfjs.getDocument({
         data: bytes.slice(),
+        // Local character maps, so fonts that use predefined CMaps (common in CJK PDFs) render offline.
+        cMapUrl: root.dataset.pdfjsCmapUrl,
+        cMapPacked: true,
         isEvalSupported: false,
         enableXfa: false,
         disableAutoFetch: true

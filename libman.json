@@ -86,6 +86,7 @@
       "files": [
         "legacy/build/pdf.min.mjs",
         "legacy/build/pdf.worker.min.mjs",
+        "cmaps/*",
         "LICENSE"
       ]
     },

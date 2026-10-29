@@ -43,6 +43,11 @@ public sealed class PdfToolsPageContractTests
         Assert.DoesNotMatch(new Regex(@"(src|href)\s*=\s*""(https?:)?//", RegexOptions.IgnoreCase), page);
         Assert.DoesNotContain("<form method=\"post\"", page, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Layout = null;", page, StringComparison.Ordinal);
+        Assert.Contains("data-pdfjs-cmap-url", page, StringComparison.Ordinal);
+
+        // Static files are served only for known extensions; pdf.js fetches .bcmap character maps.
+        var program = File.ReadAllText(Path.Combine(root, "Program.cs"));
+        Assert.Contains("contentTypeProvider.Mappings[\".bcmap\"]", program, StringComparison.Ordinal);
 
         foreach (var script in scripts)
         {
@@ -55,7 +60,9 @@ public sealed class PdfToolsPageContractTests
                  {
                      Path.Combine("wwwroot", "lib", "pdf-lib", "1.17.1", "dist", "pdf-lib.min.js"),
                      Path.Combine("wwwroot", "lib", "pdfjs", "4.10.38", "legacy", "build", "pdf.min.mjs"),
-                     Path.Combine("wwwroot", "lib", "pdfjs", "4.10.38", "legacy", "build", "pdf.worker.min.mjs")
+                     Path.Combine("wwwroot", "lib", "pdfjs", "4.10.38", "legacy", "build", "pdf.worker.min.mjs"),
+                     Path.Combine("wwwroot", "lib", "pdfjs", "4.10.38", "cmaps", "UniJIS-UCS2-H.bcmap"),
+                     Path.Combine("wwwroot", "lib", "pdfjs", "4.10.38", "cmaps", "UniGB-UCS2-H.bcmap")
                  })
         {
             Assert.True(File.Exists(Path.Combine(root, asset)), $"{asset} must ship with the application.");

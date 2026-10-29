@@ -621,12 +621,17 @@
     for (let index = 0; index < current.render.numPages; index += 1) {
       const pdfPage = await current.render.getPage(index + 1);
       const viewport = pdfPage.getViewport({ scale: 1 });
-      const scale = available / viewport.width;
+      // pdf.js multiplies the viewport by /UserUnit; items are stored in PDF user units,
+      // which is what pdf-lib draws in, so divide it back out.
+      const userUnit = pdfPage.userUnit || 1;
+      const width = viewport.width / userUnit;
+      const height = viewport.height / userUnit;
+      const scale = available / width;
 
       const sheet = document.createElement('div');
       sheet.className = 'pdft-sheet';
-      sheet.style.width = `${viewport.width * scale}px`;
-      sheet.style.height = `${viewport.height * scale}px`;
+      sheet.style.width = `${width * scale}px`;
+      sheet.style.height = `${height * scale}px`;
       const canvas = document.createElement('canvas');
       canvas.setAttribute('aria-hidden', 'true');
       const overlay = document.createElement('div');
@@ -638,9 +643,9 @@
       sheet.append(canvas, overlay);
       editor.append(sheet, label);
 
-      pages.push({ index, width: viewport.width, height: viewport.height, scale, overlay });
+      pages.push({ index, width, height, scale, overlay });
       thumbnails.observe(sheet, async () => {
-        await ui.renderPage(pdfPage, canvas, { width: viewport.width * scale });
+        await ui.renderPage(pdfPage, canvas, { width: width * scale });
       });
     }
     return pages;
