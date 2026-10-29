@@ -1,0 +1,482 @@
+@page
+@model ProjectManagement.Pages.Tools.Pdf.IndexModel
+@{
+    // Standalone tool: it opens in its own tab with its own minimal shell instead of the
+    // PRISM layout, and never posts files back to the server.
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10213f" />
+    <title>PDF Tools | PRISM ERP</title>
+    <script src="~/js/core/theme-preference.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pdf-tools.css" asp-append-version="true" />
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
+</head>
+<body class="pdft"
+      data-pdf-tools
+      data-pdfjs-src="@Url.Content("~/lib/pdfjs/4.10.38/legacy/build/pdf.min.mjs")"
+      data-pdfjs-worker-src="@Url.Content("~/lib/pdfjs/4.10.38/legacy/build/pdf.worker.min.mjs")"
+      data-pdfjs-cmap-url="@Url.Content("~/lib/pdfjs/4.10.38/cmaps/")">
+
+    <header class="pdft-topbar">
+        <a class="pdft-brand" href="#" data-nav-home>
+            <span class="pdft-brand__mark" aria-hidden="true"><i class="bi bi-file-earmark-pdf-fill"></i></span>
+            <span class="pdft-brand__text">PDF Tools <span>by PRISM</span></span>
+        </a>
+        <span class="pdft-privacy" title="Your files are processed by this browser and are never uploaded to PRISM.">
+            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+            <span>Files stay on this computer</span>
+        </span>
+        <a class="pdft-topbar__back" asp-page="/Dashboard/Index">
+            <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i>
+            <span>PRISM</span>
+        </a>
+    </header>
+
+    <main class="pdft-main" id="pdftMain">
+        @* ---------- Home ---------- *@
+        <section class="pdft-view" data-view="home" aria-labelledby="pdftHomeTitle">
+            <div class="pdft-hero">
+                <h1 id="pdftHomeTitle">Every tool you need to work with your PDFs</h1>
+                <p>Merge, split, organise, sign and stamp PDFs right here in your browser. Nothing is uploaded or saved in PRISM; you download the result.</p>
+            </div>
+            <div class="pdft-grid" role="list">
+                <a class="pdft-card" role="listitem" href="#organise">
+                    <span class="pdft-card__icon pdft-accent--red" aria-hidden="true"><i class="bi bi-grid-3x3-gap"></i></span>
+                    <span class="pdft-card__title">Organise &amp; merge</span>
+                    <span class="pdft-card__text">Combine PDFs and reorder, rotate, delete or extract pages.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#split">
+                    <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-scissors"></i></span>
+                    <span class="pdft-card__title">Split PDF</span>
+                    <span class="pdft-card__text">Split by page ranges, into single pages or every N pages.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#images">
+                    <span class="pdft-card__icon pdft-accent--yellow" aria-hidden="true"><i class="bi bi-file-earmark-image"></i></span>
+                    <span class="pdft-card__title">Images to PDF</span>
+                    <span class="pdft-card__text">Turn JPG, PNG and other images into one PDF.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#to-images">
+                    <span class="pdft-card__icon pdft-accent--green" aria-hidden="true"><i class="bi bi-images"></i></span>
+                    <span class="pdft-card__title">PDF to images</span>
+                    <span class="pdft-card__text">Save each page as a PNG or JPG picture.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#watermark">
+                    <span class="pdft-card__icon pdft-accent--blue" aria-hidden="true"><i class="bi bi-droplet-half"></i></span>
+                    <span class="pdft-card__title">Watermark</span>
+                    <span class="pdft-card__text">Stamp text such as DRAFT or CONFIDENTIAL over pages.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#numbers">
+                    <span class="pdft-card__icon pdft-accent--indigo" aria-hidden="true"><i class="bi bi-123"></i></span>
+                    <span class="pdft-card__title">Page numbers &amp; header/footer</span>
+                    <span class="pdft-card__text">Add page numbers and header or footer text.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#annotate">
+                    <span class="pdft-card__icon pdft-accent--purple" aria-hidden="true"><i class="bi bi-pen"></i></span>
+                    <span class="pdft-card__title">Sign &amp; annotate</span>
+                    <span class="pdft-card__text">Add a signature, text, highlights, boxes or white-out.</span>
+                </a>
+            </div>
+            <p class="pdft-footnote">
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                Password-protected or restricted PDFs can't be changed here. Very large files depend on this computer's memory.
+            </p>
+        </section>
+
+        @* ---------- Organise & merge ---------- *@
+        <section class="pdft-view" data-view="organise" data-tool="organise" hidden aria-labelledby="pdftOrganiseTitle">
+            <partial name="_PdfToolHeader" model="@(("pdftOrganiseTitle", "Organise & merge", "Add one or more PDFs, then drag pages into order. Rotate, delete or select pages to extract."))" />
+            <partial name="_PdfToolDrop" model="@(("Choose PDF files", "or drop PDFs here", "application/pdf,.pdf", true))" />
+            <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-toolbar" role="toolbar" aria-label="Page actions">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-action="add-files"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add PDFs</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-action="select-all"><i class="bi bi-check2-square" aria-hidden="true"></i> Select all</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-action="rotate-selected"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-action="delete-selected"><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
+                    <span class="pdft-toolbar__hint" data-summary></span>
+                </div>
+                <div class="pdft-pages" data-pages aria-label="Pages. Drag to reorder."></div>
+                <div class="pdft-actions">
+                    <button type="button" class="btn btn-outline-primary" data-action="extract"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Save selected pages only</button>
+                    <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-download" aria-hidden="true"></i> Save PDF</button>
+                </div>
+            </div>
+            <partial name="_PdfToolResult" />
+        </section>
+
+        @* ---------- Split ---------- *@
+        <section class="pdft-view" data-view="split" data-tool="split" hidden aria-labelledby="pdftSplitTitle">
+            <partial name="_PdfToolHeader" model="@(("pdftSplitTitle", "Split PDF", "Separate a PDF into several files. Several files are downloaded together as a ZIP."))" />
+            <partial name="_PdfToolDrop" model="@(("Choose a PDF file", "or drop a PDF here", "application/pdf,.pdf", false))" />
+            <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-file" data-file-summary></div>
+                <fieldset class="pdft-options">
+                    <legend>How to split</legend>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="splitMode" id="splitModeRanges" value="ranges" checked />
+                        <label class="form-check-label" for="splitModeRanges">By page ranges</label>
+                    </div>
+                    <div class="pdft-options__indent">
+                        <label class="form-label" for="splitRanges">Ranges (one file per range)</label>
+                        <input class="form-control" id="splitRanges" data-option="ranges" placeholder="e.g. 1-3, 4-8, 9-" autocomplete="off" />
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="splitCombine" data-option="combine" />
+                            <label class="form-check-label" for="splitCombine">Put all the ranges into one PDF (extract)</label>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="splitMode" id="splitModeEvery" value="every" />
+                        <label class="form-check-label" for="splitModeEvery">Every page into its own PDF</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="splitMode" id="splitModeChunk" value="chunk" />
+                        <label class="form-check-label" for="splitModeChunk">Every</label>
+                        <input class="form-control form-control-sm pdft-inline-number" type="number" min="1" value="2" data-option="chunk" aria-label="Pages per file" />
+                        <span>pages</span>
+                    </div>
+                </fieldset>
+                <div class="pdft-actions">
+                    <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-scissors" aria-hidden="true"></i> Split PDF</button>
+                </div>
+            </div>
+            <partial name="_PdfToolResult" />
+        </section>
+
+        @* ---------- Images to PDF ---------- *@
+        <section class="pdft-view" data-view="images" data-tool="images" hidden aria-labelledby="pdftImagesTitle">
+            <partial name="_PdfToolHeader" model="@(("pdftImagesTitle", "Images to PDF", "Add pictures, drag them into order and choose a page size. Each image becomes one page."))" />
+            <partial name="_PdfToolDrop" model="@(("Choose images", "or drop JPG, PNG, WEBP, GIF or BMP images here", "image/*", true))" />
+            <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-toolbar" role="toolbar" aria-label="Image actions">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-action="add-files"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add images</button>
+                    <span class="pdft-toolbar__hint" data-summary></span>
+                </div>
+                <div class="pdft-pages" data-pages aria-label="Images. Drag to reorder."></div>
+                <fieldset class="pdft-options pdft-options--row">
+                    <legend class="visually-hidden">Page settings</legend>
+                    <div>
+                        <label class="form-label" for="imagesPageSize">Page size</label>
+                        <select class="form-select" id="imagesPageSize" data-option="pageSize">
+                            <option value="a4" selected>A4</option>
+                            <option value="a3">A3</option>
+                            <option value="letter">US Letter</option>
+                            <option value="legal">US Legal</option>
+                            <option value="fit">Same as image</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="imagesOrientation">Orientation</label>
+                        <select class="form-select" id="imagesOrientation" data-option="orientation">
+                            <option value="auto" selected>Match each image</option>
+                            <option value="portrait">Portrait</option>
+                            <option value="landscape">Landscape</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="imagesMargin">Margin</label>
+                        <select class="form-select" id="imagesMargin" data-option="margin">
+                            <option value="0">None</option>
+                            <option value="18" selected>Small</option>
+                            <option value="48">Large</option>
+                        </select>
+                    </div>
+                </fieldset>
+                <div class="pdft-actions">
+                    <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Create PDF</button>
+                </div>
+            </div>
+            <partial name="_PdfToolResult" />
+        </section>
+
+        @* ---------- PDF to images ---------- *@
+        <section class="pdft-view" data-view="to-images" data-tool="to-images" hidden aria-labelledby="pdftToImagesTitle">
+            <partial name="_PdfToolHeader" model="@(("pdftToImagesTitle", "PDF to images", "Save PDF pages as pictures. Several pages are downloaded together as a ZIP."))" />
+            <partial name="_PdfToolDrop" model="@(("Choose a PDF file", "or drop a PDF here", "application/pdf,.pdf", false))" />
+            <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-file" data-file-summary></div>
+                <fieldset class="pdft-options pdft-options--row">
+                    <legend class="visually-hidden">Image settings</legend>
+                    <div>
+                        <label class="form-label" for="toImagesFormat">Format</label>
+                        <select class="form-select" id="toImagesFormat" data-option="format">
+                            <option value="png" selected>PNG (sharp, larger)</option>
+                            <option value="jpg">JPG (smaller)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="toImagesDpi">Quality</label>
+                        <select class="form-select" id="toImagesDpi" data-option="dpi">
+                            <option value="72">Screen (72 dpi)</option>
+                            <option value="150" selected>Standard (150 dpi)</option>
+                            <option value="300">Print (300 dpi)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="toImagesPages">Pages</label>
+                        <input class="form-control" id="toImagesPages" data-option="pages" placeholder="All pages" autocomplete="off" />
+                    </div>
+                </fieldset>
+                <div class="pdft-actions">
+                    <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-images" aria-hidden="true"></i> Convert to images</button>
+                </div>
+            </div>
+            <partial name="_PdfToolResult" />
+        </section>
+
+        @* ---------- Watermark ---------- *@
+        <section class="pdft-view" data-view="watermark" data-tool="watermark" hidden aria-labelledby="pdftWatermarkTitle">
+            <partial name="_PdfToolHeader" model="@(("pdftWatermarkTitle", "Watermark", "Stamp text over the pages of a PDF."))" />
+            <partial name="_PdfToolDrop" model="@(("Choose a PDF file", "or drop a PDF here", "application/pdf,.pdf", false))" />
+            <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-file" data-file-summary></div>
+                <fieldset class="pdft-options pdft-options--row">
+                    <legend class="visually-hidden">Watermark settings</legend>
+                    <div class="pdft-options__wide">
+                        <label class="form-label" for="watermarkText">Text</label>
+                        <input class="form-control" id="watermarkText" data-option="text" value="CONFIDENTIAL" maxlength="120" autocomplete="off" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="watermarkPosition">Position</label>
+                        <select class="form-select" id="watermarkPosition" data-option="position">
+                            <option value="middle-center" selected>Centre</option>
+                            <option value="top-center">Top</option>
+                            <option value="bottom-center">Bottom</option>
+                            <option value="top-left">Top left</option>
+                            <option value="top-right">Top right</option>
+                            <option value="bottom-left">Bottom left</option>
+                            <option value="bottom-right">Bottom right</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="watermarkAngle">Angle</label>
+                        <select class="form-select" id="watermarkAngle" data-option="angle">
+                            <option value="45" selected>Diagonal</option>
+                            <option value="0">Horizontal</option>
+                            <option value="-45">Diagonal (down)</option>
+                            <option value="90">Vertical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="watermarkSize">Font size</label>
+                        <input class="form-control" type="number" id="watermarkSize" data-option="fontSize" value="60" min="6" max="300" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="watermarkColor">Colour</label>
+                        <input class="form-control form-control-color" type="color" id="watermarkColor" data-option="color" value="#c0392b" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="watermarkOpacity">Transparency</label>
+                        <select class="form-select" id="watermarkOpacity" data-option="opacity">
+                            <option value="0.15">Light</option>
+                            <option value="0.3" selected>Medium</option>
+                            <option value="0.6">Strong</option>
+                            <option value="1">Solid</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="watermarkPages">Pages</label>
+                        <input class="form-control" id="watermarkPages" data-option="pages" placeholder="All pages" autocomplete="off" />
+                    </div>
+                </fieldset>
+                <div class="pdft-actions">
+                    <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-droplet-half" aria-hidden="true"></i> Add watermark</button>
+                </div>
+            </div>
+            <partial name="_PdfToolResult" />
+        </section>
+
+        @* ---------- Page numbers & header/footer ---------- *@
+        <section class="pdft-view" data-view="numbers" data-tool="numbers" hidden aria-labelledby="pdftNumbersTitle">
+            <partial name="_PdfToolHeader" model="@(("pdftNumbersTitle", "Page numbers & header/footer", "Add page numbers, a header and a footer. Use {n} for the page number, {total} for the page count and {date} for today's date."))" />
+            <partial name="_PdfToolDrop" model="@(("Choose a PDF file", "or drop a PDF here", "application/pdf,.pdf", false))" />
+            <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-file" data-file-summary></div>
+                <fieldset class="pdft-options pdft-options--row">
+                    <legend>Page numbers</legend>
+                    <div>
+                        <label class="form-label" for="numbersFormat">Format</label>
+                        <select class="form-select" id="numbersFormat" data-option="format">
+                            <option value="">No page numbers</option>
+                            <option value="{n}">1</option>
+                            <option value="Page {n}">Page 1</option>
+                            <option value="Page {n} of {total}" selected>Page 1 of 9</option>
+                            <option value="{n} / {total}">1 / 9</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                    </div>
+                    <div data-show-when="format=custom" hidden>
+                        <label class="form-label" for="numbersCustom">Custom format</label>
+                        <input class="form-control" id="numbersCustom" data-option="customFormat" value="- {n} -" autocomplete="off" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="numbersPosition">Position</label>
+                        <select class="form-select" id="numbersPosition" data-option="position">
+                            <option value="bottom-center" selected>Bottom centre</option>
+                            <option value="bottom-right">Bottom right</option>
+                            <option value="bottom-left">Bottom left</option>
+                            <option value="top-center">Top centre</option>
+                            <option value="top-right">Top right</option>
+                            <option value="top-left">Top left</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="numbersStart">First number</label>
+                        <input class="form-control" type="number" id="numbersStart" data-option="startAt" value="1" min="0" />
+                    </div>
+                    <div class="pdft-options__check">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="numbersSkipFirst" data-option="skipFirst" />
+                            <label class="form-check-label" for="numbersSkipFirst">Skip the first page (cover)</label>
+                        </div>
+                    </div>
+                </fieldset>
+                <fieldset class="pdft-options pdft-options--row">
+                    <legend>Header and footer</legend>
+                    <div class="pdft-options__wide">
+                        <label class="form-label" for="numbersHeader">Header text</label>
+                        <input class="form-control" id="numbersHeader" data-option="header" placeholder="Optional" maxlength="200" autocomplete="off" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="numbersHeaderAlign">Header position</label>
+                        <select class="form-select" id="numbersHeaderAlign" data-option="headerPosition">
+                            <option value="top-left">Left</option>
+                            <option value="top-center" selected>Centre</option>
+                            <option value="top-right">Right</option>
+                        </select>
+                    </div>
+                    <div class="pdft-options__wide">
+                        <label class="form-label" for="numbersFooter">Footer text</label>
+                        <input class="form-control" id="numbersFooter" data-option="footer" placeholder="Optional" maxlength="200" autocomplete="off" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="numbersFooterAlign">Footer position</label>
+                        <select class="form-select" id="numbersFooterAlign" data-option="footerPosition">
+                            <option value="bottom-left" selected>Left</option>
+                            <option value="bottom-center">Centre</option>
+                            <option value="bottom-right">Right</option>
+                        </select>
+                    </div>
+                </fieldset>
+                <fieldset class="pdft-options pdft-options--row">
+                    <legend>Style</legend>
+                    <div>
+                        <label class="form-label" for="numbersSize">Font size</label>
+                        <input class="form-control" type="number" id="numbersSize" data-option="fontSize" value="10" min="6" max="72" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="numbersMargin">Distance from edge</label>
+                        <select class="form-select" id="numbersMargin" data-option="margin">
+                            <option value="16">Small</option>
+                            <option value="28" selected>Medium</option>
+                            <option value="48">Large</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="numbersColor">Colour</label>
+                        <input class="form-control form-control-color" type="color" id="numbersColor" data-option="color" value="#000000" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="numbersPages">Pages</label>
+                        <input class="form-control" id="numbersPages" data-option="pages" placeholder="All pages" autocomplete="off" />
+                    </div>
+                </fieldset>
+                <div class="pdft-actions">
+                    <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-123" aria-hidden="true"></i> Add to PDF</button>
+                </div>
+            </div>
+            <partial name="_PdfToolResult" />
+        </section>
+
+        @* ---------- Sign & annotate ---------- *@
+        <section class="pdft-view" data-view="annotate" data-tool="annotate" hidden aria-labelledby="pdftAnnotateTitle">
+            <partial name="_PdfToolHeader" model="@(("pdftAnnotateTitle", "Sign & annotate", "Pick a tool, then click on a page to place it. Drag to move, use the corner handle to resize."))" />
+            <partial name="_PdfToolDrop" model="@(("Choose a PDF file", "or drop a PDF here", "application/pdf,.pdf", false))" />
+            <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-toolbar pdft-toolbar--sticky" role="toolbar" aria-label="Annotation tools">
+                    <div class="btn-group" role="group" aria-label="Tool">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-annotate-tool="select" aria-pressed="true" title="Select and move"><i class="bi bi-cursor" aria-hidden="true"></i><span class="pdft-hide-sm"> Select</span></button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-annotate-tool="text" aria-pressed="false" title="Text"><i class="bi bi-fonts" aria-hidden="true"></i><span class="pdft-hide-sm"> Text</span></button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-annotate-tool="signature" aria-pressed="false" title="Signature"><i class="bi bi-pen" aria-hidden="true"></i><span class="pdft-hide-sm"> Signature</span></button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-annotate-tool="image" aria-pressed="false" title="Image"><i class="bi bi-image" aria-hidden="true"></i><span class="pdft-hide-sm"> Image</span></button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-annotate-tool="highlight" aria-pressed="false" title="Highlight"><i class="bi bi-highlighter" aria-hidden="true"></i><span class="pdft-hide-sm"> Highlight</span></button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-annotate-tool="rect" aria-pressed="false" title="Box"><i class="bi bi-square" aria-hidden="true"></i><span class="pdft-hide-sm"> Box</span></button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-annotate-tool="whiteout" aria-pressed="false" title="White-out"><i class="bi bi-eraser" aria-hidden="true"></i><span class="pdft-hide-sm"> White-out</span></button>
+                    </div>
+                    <label class="pdft-toolbar__field">
+                        <span class="visually-hidden">Colour</span>
+                        <input type="color" class="form-control form-control-color form-control-sm" data-annotate-color value="#1a3d8f" title="Colour" />
+                    </label>
+                    <label class="pdft-toolbar__field">
+                        <span class="pdft-hide-sm">Size</span>
+                        <select class="form-select form-select-sm" data-annotate-font-size title="Text size">
+                            <option value="9">9</option>
+                            <option value="11">11</option>
+                            <option value="14" selected>14</option>
+                            <option value="18">18</option>
+                            <option value="24">24</option>
+                            <option value="36">36</option>
+                        </select>
+                    </label>
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-annotate-delete disabled title="Delete selected item"><i class="bi bi-trash3" aria-hidden="true"></i><span class="pdft-hide-sm"> Delete</span></button>
+                    <span class="pdft-toolbar__hint" data-summary></span>
+                    <button type="button" class="btn btn-primary btn-sm ms-auto" data-action="run"><i class="bi bi-download" aria-hidden="true"></i> Save PDF</button>
+                </div>
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-annotate-image-input hidden />
+                <div class="pdft-editor" data-editor></div>
+            </div>
+            <partial name="_PdfToolResult" />
+
+            <dialog class="pdft-dialog" data-signature-dialog aria-labelledby="pdftSignatureTitle">
+                <form method="dialog" class="pdft-dialog__body">
+                    <h2 class="h5" id="pdftSignatureTitle">Create your signature</h2>
+                    <div class="pdft-tabs" role="tablist">
+                        <button type="button" role="tab" class="pdft-tab" aria-selected="true" data-signature-tab="draw">Draw</button>
+                        <button type="button" role="tab" class="pdft-tab" aria-selected="false" data-signature-tab="type">Type</button>
+                        <button type="button" role="tab" class="pdft-tab" aria-selected="false" data-signature-tab="upload">Upload</button>
+                    </div>
+                    <div data-signature-panel="draw">
+                        <canvas class="pdft-signature-pad" width="560" height="200" data-signature-pad aria-label="Signature drawing area"></canvas>
+                        <button type="button" class="btn btn-link btn-sm px-0" data-signature-clear>Clear</button>
+                    </div>
+                    <div data-signature-panel="type" hidden>
+                        <label class="form-label" for="pdftSignatureName">Your name</label>
+                        <input class="form-control form-control-lg pdft-signature-typed" id="pdftSignatureName" data-signature-name maxlength="60" autocomplete="name" />
+                    </div>
+                    <div data-signature-panel="upload" hidden>
+                        <label class="form-label" for="pdftSignatureFile">Picture of your signature (PNG with a transparent background works best)</label>
+                        <input class="form-control" type="file" id="pdftSignatureFile" accept="image/png,image/jpeg,image/webp" data-signature-file />
+                    </div>
+                    <p class="pdft-dialog__error text-danger small" data-signature-error hidden></p>
+                    <div class="pdft-dialog__actions">
+                        <button type="submit" value="cancel" class="btn btn-outline-secondary">Cancel</button>
+                        <button type="button" class="btn btn-outline-primary" data-signature-reuse hidden>Use previous signature</button>
+                        <button type="button" class="btn btn-primary" data-signature-use>Use signature</button>
+                    </div>
+                </form>
+            </dialog>
+        </section>
+
+        <div class="alert alert-danger pdft-error" role="alert" data-error hidden></div>
+    </main>
+
+    <div class="pdft-busy" data-busy hidden>
+        <div class="pdft-busy__panel" role="status" aria-live="polite">
+            <div class="spinner-border text-primary" aria-hidden="true"></div>
+            <span data-busy-text>Working…</span>
+        </div>
+    </div>
+
+    <script src="~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="~/lib/sortable/1.15.2/Sortable.min.js"></script>
+    <script src="~/js/pdf-tools/pdf-tools-core.js" asp-append-version="true"></script>
+    <script src="~/js/pdf-tools/pdf-tools-app.js" asp-append-version="true"></script>
+    <script src="~/js/pdf-tools/pdf-tools-annotate.js" asp-append-version="true"></script>
+</body>
+</html>

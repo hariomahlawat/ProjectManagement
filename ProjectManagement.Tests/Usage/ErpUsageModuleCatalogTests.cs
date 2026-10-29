@@ -10,6 +10,7 @@ public sealed class ErpUsageModuleCatalogTests
     [InlineData("/Projects/Ongoing", "projects")]
     [InlineData("/Calendar/Index", "calendar")]
     [InlineData("/Admin/Users/Index", "administration")]
+    [InlineData("/Tools/Pdf", "pdf-tools")]
     public void ResolvePath_ReturnsStablePrivacySafeModule(string path, string expected)
     {
         var catalog = new ErpUsageModuleCatalog();

@@ -1382,7 +1382,8 @@ app.Use(async (ctx, next) =>
 var contentTypeProvider = new FileExtensionContentTypeProvider();
 contentTypeProvider.Mappings[".geojson"] = "application/geo+json";
 contentTypeProvider.Mappings[".topojson"] = "application/json";
-// pdf.js (wwwroot/lib/pdfjs-dist) ships ES modules, binary character maps and standard fonts.
+// pdf.js ships ES modules, binary character maps and standard fonts: wwwroot/lib/pdfjs-dist for the
+// Document Repository viewer, wwwroot/lib/pdfjs for PDF Tools (which fetches its .bcmap files too).
 contentTypeProvider.Mappings[".mjs"] = "text/javascript";
 contentTypeProvider.Mappings[".bcmap"] = "application/octet-stream";
 contentTypeProvider.Mappings[".pfb"] = "application/octet-stream";

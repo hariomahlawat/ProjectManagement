@@ -53,6 +53,7 @@ The current EF model and service registrations show these broad domains:
 - Calendars and celebrations
 - Publications, brochures, compendiums and briefing decks
 - Search
+- PDF Tools: a standalone, browser-only PDF editor for users' own files; it stores nothing in PRISM (see [pdf-tools.md](pdf-tools.md))
 - Usage/analytics
 - Audit and administration
 

@@ -1,0 +1,9 @@
+@model (string Button, string Hint, string Accept, bool Multiple)
+
+<div class="pdft-drop" data-drop>
+    <input type="file" class="visually-hidden" accept="@Model.Accept" multiple="@Model.Multiple" data-file-input tabindex="-1" aria-hidden="true" />
+    <button type="button" class="btn btn-danger btn-lg pdft-drop__button" data-action="choose-files">
+        <i class="bi bi-folder2-open" aria-hidden="true"></i> @Model.Button
+    </button>
+    <p class="pdft-drop__hint">@Model.Hint</p>
+</div>

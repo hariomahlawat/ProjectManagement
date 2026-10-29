@@ -43,4 +43,10 @@ public record class NavigationItem
     /// commands remain visually and semantically distinct.
     /// </summary>
     public bool IsAction { get; init; }
+
+    /// <summary>
+    /// Opens the destination in a new browser tab. Use for standalone tools, such as
+    /// PDF Tools, that run outside the PRISM page shell.
+    /// </summary>
+    public bool OpensInNewTab { get; init; }
 }

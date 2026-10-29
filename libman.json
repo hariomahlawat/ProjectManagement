@@ -73,6 +73,24 @@
       ]
     },
     {
+      "library": "pdf-lib@1.17.1",
+      "destination": "wwwroot/lib/pdf-lib/1.17.1/",
+      "files": [
+        "dist/pdf-lib.min.js",
+        "LICENSE.md"
+      ]
+    },
+    {
+      "library": "pdfjs-dist@4.10.38",
+      "destination": "wwwroot/lib/pdfjs/4.10.38/",
+      "files": [
+        "legacy/build/pdf.min.mjs",
+        "legacy/build/pdf.worker.min.mjs",
+        "cmaps/*",
+        "LICENSE"
+      ]
+    },
+    {
       "library": "@toast-ui/editor@3.2.2",
       "destination": "wwwroot/lib/toastui-editor",
       "files": [

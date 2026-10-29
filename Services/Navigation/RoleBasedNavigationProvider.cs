@@ -94,6 +94,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/Projects/Compendium/Index",
                 Icon = "bi-file-earmark-pdf"
             },
+            // Standalone tool: users edit their own PDFs in the browser; nothing is stored in PRISM.
+            new()
+            {
+                Text = "PDF Tools",
+                Page = "/Tools/Pdf/Index",
+                Icon = "bi-file-earmark-pdf-fill",
+                OpensInNewTab = true
+            },
             // Progress review entry (drawer only).
             new()
             {
