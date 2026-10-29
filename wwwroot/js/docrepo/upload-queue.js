@@ -56,7 +56,8 @@
 
     function addFiles(files) {
         if (uploading) return;
-        const room = maxFiles - items.filter(item => item.state !== "removed").length;
+        // PDFs already in the library stay listed but no longer count towards the limit.
+        const room = maxFiles - items.filter(item => item.state !== "removed" && item.state !== "done").length;
         const accepted = files.slice(0, Math.max(0, room));
         if (files.length > accepted.length) {
             notify(`Up to ${maxFiles} PDFs at a time. Add the rest once these are in the library.`);
