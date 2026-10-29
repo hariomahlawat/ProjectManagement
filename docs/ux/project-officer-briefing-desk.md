@@ -114,9 +114,25 @@ are unchanged. The desk adds its own check that the item is assigned to the sign
 | Submit task for closure | `IActionTaskService.SubmitTaskAsync` | Waits on the assigner |
 | Flag task blocked | `IActionTaskService.UpdateStatusAsync` (Blocked, reason required) | Blocker shown in conference |
 
-A post that is refused (for example a task changed by someone else in the meantime) returns to
-the same card with the typed text back in the box it came from: the update box, the closure
-note or the blocker, with that form open (`DeskDraftFieldKey`).
+**Posting without a reload** (added 2026-10-30). The update box, the closure note and the blocker
+(`data-bd-ajax`) are posted by `workspace-briefing-desk.js` with `fetch` and the header
+`X-Briefing-Desk: fetch`. The same `OnPostDesk*` handlers run the same commands; instead of a
+redirect they answer with:
+- **Success:** the desk re-rendered by `_ProjectOfficerBriefingDesk` (header `X-Desk-Fragment: 1`),
+  which replaces the desk on the page. The readiness rules stay in `BriefingDeskBuilder`; the
+  script repeats none of them. A card that still needs work stays open and is highlighted; a
+  card now ready folds into its "ready for conference" group (`X-Desk-Item-Ready: true`), the
+  group line is highlighted, the next card that needs work is open and has focus, and a toast
+  says the item is ready.
+- **Refused:** a JSON reason (422, or 403/404), shown as a toast. The typed text stays in its
+  box and the button is freed.
+- **Anything else** (signed out, a server error): the page is loaded again with a GET. A network
+  failure shows a message and keeps the text. The post is never sent a second time.
+
+Without script the forms are ordinary posts: a refused one returns to the same card with the
+typed text back in the box it came from (the update box, the closure note or the blocker, with
+that form open; `DeskDraftFieldKey`). The PDC and procurement side panels post to their own
+editors as before.
 
 Procurement figures open in a side panel on the desk. The panel is the Project Overview
 editor (`Projects/Procurement/_EditFormBody`), built by the shared `ProcurementEditVmFactory`, so

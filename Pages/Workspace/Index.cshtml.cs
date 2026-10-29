@@ -25,6 +25,14 @@ public class IndexModel : PageModel
     public const string DeskDraftTextKey = "BriefingDesk.DraftText";
     public const string DeskDraftFieldKey = "BriefingDesk.DraftField";
 
+    // A desk post sent by the desk's script (not a plain form post) carries this header. It is
+    // answered with the re-rendered desk, or a JSON message when refused, instead of a redirect.
+    public const string DeskFetchHeader = "X-Briefing-Desk";
+    public const string DeskFetchValue = "fetch";
+    public const string DeskFragmentHeader = "X-Desk-Fragment";
+    public const string DeskMessageHeader = "X-Desk-Message";
+    public const string DeskItemReadyHeader = "X-Desk-Item-Ready";
+
     public ProjectOfficerWorkspaceVm Workspace { get; private set; } = new();
     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
     public OfficerConferenceVm Conference { get; private set; } = new();
@@ -304,46 +312,58 @@ public class IndexModel : PageModel
 
     // SECTION: Briefing desk commands
     // Each post returns to the desk with the same card open; failures keep the typed text.
+    // Posted by the desk's script, the reply is the re-rendered desk instead, so the page does
+    // not reload; a plain form post (no script) keeps the redirect.
     public Task<IActionResult> OnPostDeskProjectUpdateAsync(int itemId, string? body, CancellationToken ct)
         => RunDeskCommandAsync(ConferenceItemKind.Project, itemId, body, BriefingDeskDraftFields.Body,
-            userId => _deskCommands.PostProjectUpdateAsync(User, userId, itemId, body, ct));
+            userId => _deskCommands.PostProjectUpdateAsync(User, userId, itemId, body, ct), ct);
 
     public Task<IActionResult> OnPostDeskIdeaNoteAsync(int itemId, string? body, CancellationToken ct)
         => RunDeskCommandAsync(ConferenceItemKind.ProjectIdea, itemId, body, BriefingDeskDraftFields.Body,
-            userId => _deskCommands.PostIdeaNoteAsync(User, userId, itemId, body, ct));
+            userId => _deskCommands.PostIdeaNoteAsync(User, userId, itemId, body, ct), ct);
 
     public Task<IActionResult> OnPostDeskTaskProgressAsync(int itemId, string? body, CancellationToken ct)
         => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, body, BriefingDeskDraftFields.Body,
-            userId => _deskCommands.PostTaskProgressAsync(User, userId, itemId, body, ct));
+            userId => _deskCommands.PostTaskProgressAsync(User, userId, itemId, body, ct), ct);
 
     public Task<IActionResult> OnPostDeskTaskSubmitAsync(int itemId, string? rowVersion, string? note, CancellationToken ct)
         => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, note, BriefingDeskDraftFields.Submit,
-            userId => _deskCommands.SubmitTaskAsync(User, userId, itemId, rowVersion, note, ct));
+            userId => _deskCommands.SubmitTaskAsync(User, userId, itemId, rowVersion, note, ct), ct);
 
     public Task<IActionResult> OnPostDeskTaskBlockedAsync(int itemId, string? rowVersion, string? note, CancellationToken ct)
         => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, note, BriefingDeskDraftFields.Blocked,
-            userId => _deskCommands.FlagTaskBlockedAsync(User, userId, itemId, rowVersion, note, ct));
+            userId => _deskCommands.FlagTaskBlockedAsync(User, userId, itemId, rowVersion, note, ct), ct);
 
     private async Task<IActionResult> RunDeskCommandAsync(
         ConferenceItemKind kind,
         int itemId,
         string? draft,
         string draftField,
-        Func<string, Task<BriefingDeskCommandResult>> command)
+        Func<string, Task<BriefingDeskCommandResult>> command,
+        CancellationToken ct = default)
     {
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId)) return Challenge();
 
+        var isFetch = IsDeskFetch();
         var result = await command(userId);
         switch (result.Outcome)
         {
             case BriefingDeskCommandOutcome.Forbidden:
-                return Forbid();
+                return isFetch ? DeskMessage(StatusCodes.Status403Forbidden, result.Message) : Forbid();
             case BriefingDeskCommandOutcome.NotFound:
-                return NotFound();
+                return isFetch ? DeskMessage(StatusCodes.Status404NotFound, result.Message) : NotFound();
         }
 
         var anchor = $"desk-{BriefingDeskLabels.KindKey(kind)}-{itemId}";
+        if (isFetch)
+        {
+            // Refused: the typed text is still in the box on the page, so only the reason goes back.
+            return result.Succeeded
+                ? await DeskFragmentAsync(userId, anchor, result.Message, ct)
+                : DeskMessage(StatusCodes.Status422UnprocessableEntity, result.Message);
+        }
+
         if (result.Succeeded)
         {
             TempData["ToastSuccess"] = result.Message;
@@ -367,6 +387,41 @@ public class IndexModel : PageModel
         }
 
         return LocalRedirect(WorkspaceRouteHelper.BriefingDeskItem(anchor));
+    }
+
+    private bool IsDeskFetch()
+        => string.Equals(Request.Headers[DeskFetchHeader], DeskFetchValue, StringComparison.Ordinal);
+
+    private static JsonResult DeskMessage(int statusCode, string message)
+        => new(new { message }) { StatusCode = statusCode };
+
+    // The desk is read again after the post and rendered by the same partial as the page, so
+    // the readiness rules stay in BriefingDeskBuilder and are never repeated in the script.
+    private async Task<IActionResult> DeskFragmentAsync(string userId, string anchor, string message, CancellationToken ct)
+    {
+        CanViewDocuments = (await _authorization.AuthorizeAsync(User, "DocRepo.View")).Succeeded;
+        View = ProjectOfficerWorkspaceView.Overview.ToRouteValue();
+        Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
+            userId,
+            User,
+            ProjectOfficerWorkspaceView.Overview,
+            includeDocuments: false,
+            ct: ct);
+
+        var desk = Workspace.BriefingDesk;
+        var item = desk.Sections
+            .SelectMany(section => section.Items)
+            .Concat(desk.RecentlyCompleted)
+            .FirstOrDefault(candidate => candidate.AnchorId == anchor);
+        // A card that still needs work stays open; one now ready folds away and the next opens.
+        var ready = item?.IsBriefReady ?? false;
+        Focus = ready ? null : anchor;
+
+        Response.Headers[DeskFragmentHeader] = "1";
+        Response.Headers[DeskMessageHeader] = Uri.EscapeDataString(message);
+        Response.Headers[DeskItemReadyHeader] = ready ? "true" : "false";
+        Response.Headers.CacheControl = "no-store";
+        return Partial("_ProjectOfficerBriefingDesk", this);
     }
 
     public async Task<IActionResult> OnPostSaveOfficerOrderAsync([FromBody] SaveOfficerOrderRequest request, CancellationToken ct)

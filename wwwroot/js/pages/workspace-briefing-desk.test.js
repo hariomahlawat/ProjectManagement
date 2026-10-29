@@ -121,3 +121,102 @@ test('a card named in the hash inside the folded ready group opens the group', (
     assert.equal(doc.querySelector('[data-bd-ready-group]').open, true);
     assert.equal(doc.getElementById('desk-project-7-body').hidden, false);
 });
+
+// SECTION: Posting without a reload
+function ajaxCard(id, { open = true, title = 'Night sight', body = '' } = {}) {
+    return `
+<article class="bd-card ${open ? 'is-expanded' : ''}" id="${id}" data-bd-card data-bd-title="${title}">
+    <div class="bd-card__head"><h3><button type="button" data-bd-toggle aria-expanded="${open}" aria-controls="${id}-body">${title}</button></h3></div>
+    <div class="bd-card__body" id="${id}-body" ${open ? '' : 'hidden'}>
+        <form method="post" action="/Workspace?handler=DeskProjectUpdate" data-bd-ajax>
+            <input type="hidden" name="itemId" value="1" />
+            <textarea name="body">${body}</textarea>
+            <button type="submit">Post remark</button>
+        </form>
+    </div>
+</article>`;
+}
+
+function fragmentResponse(html, { message = 'Update posted.', ready = false } = {}) {
+    const headers = { 'X-Desk-Fragment': '1', 'X-Desk-Message': encodeURIComponent(message), 'X-Desk-Item-Ready': ready ? 'true' : 'false' };
+    return { ok: true, status: 200, redirected: false, headers: { get: (name) => headers[name] ?? null }, text: async () => html };
+}
+
+function jsonResponse(status, data) {
+    return { ok: false, status, redirected: false, headers: { get: () => null }, json: async () => data };
+}
+
+async function settle(window) {
+    for (let i = 0; i < 5; i++) {
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+    }
+}
+
+function submitFirstForm(window) {
+    const form = window.document.querySelector('form[data-bd-ajax]');
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    return form;
+}
+
+test('a desk post is sent with fetch and the desk is swapped in place, card highlighted', async () => {
+    const window = createDom(ajaxCard('desk-project-1', { body: 'Vendor demo held.' }));
+    const calls = [];
+    window.fetch = async (url, options) => {
+        calls.push({ url, options });
+        return fragmentResponse(`<div data-briefing-desk data-fresh>${ajaxCard('desk-project-1')}</div>`);
+    };
+
+    submitFirstForm(window);
+    await settle(window);
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.method, 'POST');
+    assert.equal(calls[0].options.headers['X-Briefing-Desk'], 'fetch');
+    assert.equal(calls[0].options.body.get('body'), 'Vendor demo held.');
+    assert.ok(window.document.querySelector('[data-briefing-desk][data-fresh]'), 'the desk is replaced by the server render');
+    assert.ok(window.document.getElementById('desk-project-1').classList.contains('bd-card--updated'));
+    assert.match(window.document.querySelector('[data-bd-toasts] .toast-body').textContent, /Update posted\./);
+});
+
+test('a card that became ready says so and the next open card gets focus', async () => {
+    const window = createDom(ajaxCard('desk-project-1'));
+    const fresh = `<div data-briefing-desk>${ajaxCard('desk-project-2', { title: 'Radar' })}`
+        + `<details data-bd-ready-group><summary>1 ready for conference</summary>${ajaxCard('desk-project-1', { open: false })}</details></div>`;
+    window.fetch = async () => fragmentResponse(fresh, { ready: true });
+
+    submitFirstForm(window);
+    await settle(window);
+
+    const doc = window.document;
+    assert.match(doc.querySelector('[data-bd-toasts] .toast-body').textContent, /Night sight is ready for conference\./);
+    assert.ok(doc.querySelector('[data-bd-ready-group] summary').classList.contains('bd-ready--updated'));
+    assert.equal(doc.activeElement, doc.querySelector('#desk-project-2 [data-bd-toggle]'));
+});
+
+test('a refused post shows the reason, keeps the text and frees the button', async () => {
+    const window = createDom(ajaxCard('desk-project-1', { body: 'My remark' }));
+    window.fetch = async () => jsonResponse(422, { message: 'Write something before posting.' });
+
+    const form = submitFirstForm(window);
+    await settle(window);
+
+    assert.equal(form.querySelector('textarea').value, 'My remark');
+    assert.equal(form.querySelector('button[type="submit"]').disabled, false);
+    const toast = window.document.querySelector('[data-bd-toasts] .toast');
+    assert.ok(toast.classList.contains('app-toast-danger'));
+    assert.match(toast.textContent, /Write something before posting\./);
+});
+
+test('a network failure is never resent: the text stays and the button is freed', async () => {
+    const window = createDom(ajaxCard('desk-project-1', { body: 'My remark' }));
+    let calls = 0;
+    window.fetch = async () => { calls += 1; throw new Error('offline'); };
+
+    const form = submitFirstForm(window);
+    await settle(window);
+
+    assert.equal(calls, 1);
+    assert.equal(form.querySelector('textarea').value, 'My remark');
+    assert.equal(form.querySelector('button[type="submit"]').disabled, false);
+    assert.match(window.document.querySelector('[data-bd-toasts]').textContent, /could not be reached/);
+});
