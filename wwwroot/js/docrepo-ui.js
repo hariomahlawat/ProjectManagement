@@ -28,6 +28,7 @@
         if (!results) { window.location.assign(url); return; }
         let target = new URL(url, window.location.origin);
         target.searchParams.delete("partial");
+        if (push) recordSelection(target);
         const request = new URL(target);
         request.searchParams.set("partial", "true");
 
@@ -50,8 +51,7 @@
                 target.searchParams.delete("partial");
             }
             results.innerHTML = await response.text();
-            // The open preview stays open, so the new history entry records it too.
-            if (selectedId && wideQuery.matches && !target.searchParams.has("open")) target.searchParams.set("open", selectedId);
+            if (push) recordSelection(target);
             if (push) window.history.pushState({ library: true }, "", target);
             else if (response.redirected) window.history.replaceState({ library: true }, "", target);
             syncSearchForm(target);
@@ -70,6 +70,13 @@
         } finally {
             results.setAttribute("aria-busy", "false");
         }
+    }
+
+    // Links drawn earlier can carry an older ?open=; on a new navigation the pane decides it, so the
+    // history entry names the document on screen (or none). Back and Forward keep their own value.
+    function recordSelection(url) {
+        if (selectedId && wideQuery.matches) url.searchParams.set("open", selectedId);
+        else url.searchParams.delete("open");
     }
 
     function syncSearchForm(url) {
