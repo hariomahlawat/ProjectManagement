@@ -109,6 +109,25 @@ test('displayToPdfPoint maps display corners for every page rotation', () => {
   assert.deepEqual(tools.displaySize(box, 90), { width: 300, height: 200 });
 });
 
+test('effectiveBox clips the CropBox to the MediaBox like pdf.js', () => {
+  const media = { x: 0, y: 0, width: 300, height: 400 };
+  assert.deepEqual(tools.effectiveBox(media, { x: -100, y: -100, width: 500, height: 600 }), media);
+  assert.deepEqual(tools.effectiveBox(media, { x: 50, y: 60, width: 100, height: 100 }), { x: 50, y: 60, width: 100, height: 100 });
+  assert.deepEqual(tools.effectiveBox(media, { x: 500, y: 500, width: 10, height: 10 }), media, 'no overlap falls back to the MediaBox');
+});
+
+test('applyAnnotations maps against the visible box when the CropBox overhangs the MediaBox', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const page = document.addPage([300, 400]);
+  page.setCropBox(-100, -100, 500, 600);
+  const output = await tools.applyAnnotations(PDFLib, await document.save(), [
+    { page: 0, type: 'text', left: 150, top: 200, text: 'X', fontSize: 12, baseline: 10 }
+  ]);
+  const [matrix] = textMatrices(await contentOf(output, 0));
+  near(matrix[4], 150, 'x');
+  near(matrix[5], 190, 'y');
+});
+
 test('positionBlock places blocks at corners and centres inside the margin', () => {
   const page = { width: 100, height: 200 };
   const block = { width: 20, height: 10 };

@@ -120,6 +120,26 @@
     return ((quarter % 360) + 360) % 360;
   }
 
+  /**
+   * The page area viewers show: the CropBox clipped to the MediaBox, falling back to the
+   * MediaBox when they do not overlap. pdf.js renders exactly this box, so the editor preview
+   * and the saved PDF must both map coordinates against it.
+   */
+  function effectiveBox(mediaBox, cropBox) {
+    const x0 = Math.max(mediaBox.x, cropBox.x);
+    const y0 = Math.max(mediaBox.y, cropBox.y);
+    const x1 = Math.min(mediaBox.x + mediaBox.width, cropBox.x + cropBox.width);
+    const y1 = Math.min(mediaBox.y + mediaBox.height, cropBox.y + cropBox.height);
+    if (x1 <= x0 || y1 <= y0) {
+      return { x: mediaBox.x, y: mediaBox.y, width: mediaBox.width, height: mediaBox.height };
+    }
+    return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+  }
+
+  function visibleBox(page) {
+    return effectiveBox(page.getMediaBox(), page.getCropBox());
+  }
+
   /** Width/height of the page as displayed. box is {x, y, width, height}. */
   function displaySize(box, rotation) {
     const r = normalizeRotation(rotation);
@@ -602,7 +622,7 @@
     for (const index of selectedIndexes(pages.length, settings.pages)) {
       const page = pages[index];
       const rotation = page.getRotation().angle;
-      const box = page.getCropBox();
+      const box = visibleBox(page);
       const view = displaySize(box, rotation);
 
       // Size of the rotated text's bounding box, used to keep corner positions on the page.
@@ -664,7 +684,7 @@
     indexes.forEach((index, ordinal) => {
       const page = pages[index];
       const rotation = page.getRotation().angle;
-      const box = page.getCropBox();
+      const box = visibleBox(page);
       const view = displaySize(box, rotation);
 
       for (const stamp of stamps) {
@@ -711,7 +731,7 @@
         throw new PdfToolError('range-out-of-bounds', 'An annotation refers to a page that does not exist.');
       }
       const rotation = page.getRotation().angle;
-      const box = page.getCropBox();
+      const box = visibleBox(page);
       const rect = {
         left: Number(item.left) || 0,
         top: Number(item.top) || 0,
@@ -809,6 +829,7 @@
     pageSetFromRanges,
     chunkPages,
     normalizeRotation,
+    effectiveBox,
     displaySize,
     displayToPdfPoint,
     placeRect,

@@ -55,7 +55,8 @@ pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types.
 All placements honour each page's `/Rotate`, so text and stamps appear upright on rotated
 (for example scanned landscape) pages. The annotate editor works in PDF user units, dividing
 out the page's `/UserUnit` that pdf.js includes in its viewport, so saved items match the
-preview on large-format pages too.
+preview on large-format pages too. Coordinates are mapped against the visible page box (the
+CropBox clipped to the MediaBox, as pdf.js renders it), not the raw CropBox.
 
 ## Code map
 

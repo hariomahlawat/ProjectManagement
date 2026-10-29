@@ -470,8 +470,10 @@
   function attachDrag(item) {
     const element = item.element;
     element.addEventListener('pointerdown', (event) => {
-      if (item.editing) return;
+      // Keep every press on an item away from the page overlay, which would deselect it and
+      // end editing; while editing, let the browser place the caret as usual.
       event.stopPropagation();
+      if (item.editing) return;
       select(item);
       const resizing = event.target.classList.contains('pdft-item__handle');
       const s = pageOf(item).scale;
