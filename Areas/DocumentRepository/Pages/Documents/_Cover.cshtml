@@ -1,0 +1,47 @@
+@model (ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel Page, DocumentSearchResultVm Item)
+@{
+    // A document as a cover: its first page (Cover?id=…) over a type-coloured cover that shows
+    // whenever there is no image. Used by the shelves and the Covers layout.
+    var (list, item) = Model;
+    var readerUrl = list.ReaderUrl(item);
+}
+<li class="library-cover library-hue-@DocRepoFormat.Hue(item.DocumentCategoryId) @(item.IsActive ? null : "is-inactive")" data-library-item data-doc-id="@item.Id" data-href="@readerUrl">
+    <div class="library-cover__art">
+        <span class="library-cover__fallback" aria-hidden="true">
+            <span class="library-cover__kind">@(item.DocumentCategoryName ?? "Document")</span>
+            <span class="library-cover__name">@item.Subject</span>
+            <span class="library-cover__office">@item.OfficeCategoryName</span>
+        </span>
+        <img src="@Url.Page("./Cover", new { id = item.Id })" alt="" loading="lazy" decoding="async" data-cover />
+        <span class="library-cover__flags">
+            @if (item.IsAots)
+            {
+                <span class="library-pill library-pill--aots" title="All officers to see"><i class="bi bi-broadcast" aria-hidden="true"></i>AOTS</span>
+                @if (item.IsAotsUnread)
+                {
+                    <span class="library-pill library-pill--new">New</span>
+                }
+            }
+            @if (!item.IsActive)
+            {
+                <span class="library-pill library-pill--muted">Deactivated</span>
+            }
+        </span>
+        <button type="button" class="library-cover__star library-star @(item.IsFavourite ? "is-on" : null)" data-library-star data-doc-id="@item.Id"
+                aria-pressed="@(item.IsFavourite ? "true" : "false")" aria-label="Favourite: @item.Subject">
+            <i class="bi @(item.IsFavourite ? "bi-star-fill" : "bi-star")" aria-hidden="true"></i>
+        </button>
+        @if (item.MatchPage is > 1)
+        {
+            <span class="library-cover__page">Found on page @item.MatchPage</span>
+        }
+    </div>
+    <div class="library-cover__text">
+        <h3 class="library-cover__title"><a href="@readerUrl" data-library-open>@item.Subject</a></h3>
+        <p class="library-cover__meta">
+            <span>@(item.DocumentCategoryName ?? "Document")</span>
+            <time datetime="@item.DocumentDate?.ToString("yyyy-MM-dd")">@DocRepoFormat.Date(item.DocumentDate)</time>
+        </p>
+    </div>
+    <partial name="_DocumentMenu" model="Model" />
+</li>

@@ -1,171 +1,66 @@
-// SECTION: Document reader interactions
+// Document Repository reader: opens the PDF in the pdf.js viewer (js/docrepo/viewer.mjs), shows
+// where the reader left off, and folds the details panel. Favourites, the action dialog and
+// quick search come from docrepo-ui.js. If the viewer cannot start, the page offers the
+// browser's own viewer and the download instead.
 (() => {
-    const ready = (handler) => {
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", handler);
-        } else {
-            handler();
+    "use strict";
+
+    const reader = document.querySelector("[data-reader]");
+    if (!reader) return;
+
+    // SECTION: Details panel (beside the pages on wide screens, a drawer on narrow ones)
+    const infoToggle = reader.querySelector("[data-reader-info-toggle]");
+    const wide = window.matchMedia("(min-width: 1200px)");
+    const infoKey = "prism.docrepo.reader.info";
+
+    function setInfo(open, remember) {
+        reader.classList.toggle("is-info-open", open);
+        infoToggle?.setAttribute("aria-expanded", open ? "true" : "false");
+        if (remember && wide.matches) {
+            try { window.localStorage.setItem(infoKey, open ? "1" : "0"); } catch { /* not remembered */ }
         }
-    };
+    }
 
-    ready(() => {
-        // SECTION: Details panel toggle
-        const detailsPanel = document.querySelector("[data-docreader-details]");
-        const detailsBackdrop = document.querySelector("[data-docreader-details-backdrop]");
-        const toggleButtons = document.querySelectorAll("[data-docreader-details-toggle]");
-        const closeButton = document.querySelector("[data-docreader-details-close]");
-
-        const setExpandedState = (isExpanded) => {
-            toggleButtons.forEach((button) => {
-                button.setAttribute("aria-expanded", isExpanded ? "true" : "false");
-            });
-        };
-
-        const openDetails = () => {
-            if (!detailsPanel || !detailsBackdrop) {
-                return;
-            }
-
-            detailsPanel.classList.add("is-open");
-            detailsBackdrop.classList.add("is-visible");
-            detailsPanel.setAttribute("aria-hidden", "false");
-            setExpandedState(true);
-        };
-
-        const closeDetails = () => {
-            if (!detailsPanel || !detailsBackdrop) {
-                return;
-            }
-
-            detailsPanel.classList.remove("is-open");
-            detailsBackdrop.classList.remove("is-visible");
-            detailsPanel.setAttribute("aria-hidden", "true");
-            setExpandedState(false);
-        };
-
-        toggleButtons.forEach((button) => {
-            button.addEventListener("click", () => {
-                if (detailsPanel?.classList.contains("is-open")) {
-                    closeDetails();
-                } else {
-                    openDetails();
-                }
-            });
-        });
-
-        closeButton?.addEventListener("click", closeDetails);
-        detailsBackdrop?.addEventListener("click", closeDetails);
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape") {
-                if (detailsPanel?.classList.contains("is-open")) {
-                    event.preventDefault();
-                    closeDetails();
-                }
-            }
-        });
-
-        // SECTION: Favourite toggle
-        const favouriteButton = document.querySelector("[data-docrepo-favourite]");
-        const favouriteToken = document.querySelector("#docrepoFavouriteToken input[name=\"__RequestVerificationToken\"]");
-
-        const favouriteIndicator = document.querySelector("[data-docreader-favourite-indicator]");
-
-        const setFavouriteState = (isFavourite) => {
-            if (!favouriteButton) {
-                return;
-            }
-
-            const nextValue = isFavourite ? "true" : "false";
-            const title = isFavourite ? "Remove from favourites" : "Add to favourites";
-
-            favouriteButton.setAttribute("data-fav", nextValue);
-            favouriteButton.setAttribute("title", title);
-            favouriteButton.setAttribute("aria-label", title);
-
-            const icon = favouriteButton.querySelector("i");
-            if (icon) {
-                icon.classList.toggle("bi-star-fill", isFavourite);
-                icon.classList.toggle("bi-star", !isFavourite);
-            }
-
-            if (favouriteIndicator) {
-                favouriteIndicator.setAttribute("data-fav", nextValue);
-                favouriteIndicator.classList.toggle("docreader-favourite-indicator--active", isFavourite);
-                favouriteIndicator.classList.toggle("docreader-favourite-indicator--inactive", !isFavourite);
-
-                const indicatorIcon = favouriteIndicator.querySelector("i");
-                if (indicatorIcon) {
-                    indicatorIcon.classList.toggle("bi-star-fill", isFavourite);
-                    indicatorIcon.classList.toggle("bi-star", !isFavourite);
-                }
-
-                const indicatorLabel = favouriteIndicator.querySelector("span");
-                if (indicatorLabel) {
-                    indicatorLabel.textContent = isFavourite ? "Yes" : "No";
-                }
-            }
-        };
-
-        favouriteButton?.addEventListener("click", async () => {
-            if (!favouriteButton) {
-                return;
-            }
-
-            const documentId = favouriteButton.getAttribute("data-docid");
-            const toggleUrl = favouriteButton.getAttribute("data-toggle-url");
-            if (!documentId || !toggleUrl || !favouriteToken) {
-                return;
-            }
-
-            const wasFavourite = favouriteButton.getAttribute("data-fav") === "true";
-            setFavouriteState(!wasFavourite);
-
-            try {
-                // SECTION: Toggle endpoint with query-safe id
-                const endpoint = new URL(toggleUrl, window.location.origin);
-                endpoint.searchParams.set("id", documentId);
-
-                const response = await fetch(endpoint.toString(), {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRF-TOKEN": favouriteToken.value
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error("Favourite toggle failed.");
-                }
-
-                const data = await response.json();
-                setFavouriteState(!!data.isFavourite);
-            } catch (error) {
-                setFavouriteState(wasFavourite);
-            }
-        });
-
-        // SECTION: Viewer loading state
-        const viewer = document.querySelector("[data-docreader-viewer]");
-        const iframe = document.querySelector("[data-docreader-frame]");
-        const warning = document.querySelector("[data-docreader-warning]");
-
-        if (!viewer || !iframe) {
-            return;
+    let stored = null;
+    try { stored = window.localStorage.getItem(infoKey); } catch { stored = null; }
+    setInfo(wide.matches && stored !== "0", false);
+    wide.addEventListener("change", event => setInfo(event.matches && stored !== "0", false));
+    infoToggle?.addEventListener("click", () => setInfo(!reader.classList.contains("is-info-open"), true));
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && !wide.matches && reader.classList.contains("is-info-open") && !document.querySelector(".modal.show")) {
+            setInfo(false, false);
+            infoToggle?.focus();
         }
-
-        let timeoutHandle = null;
-        const showWarning = () => {
-            warning?.classList.remove("d-none");
-        };
-
-        const markLoaded = () => {
-            viewer.classList.add("is-loaded");
-            if (timeoutHandle) {
-                clearTimeout(timeoutHandle);
-            }
-        };
-
-        iframe.addEventListener("load", markLoaded, { once: true });
-        timeoutHandle = window.setTimeout(showWarning, 8000);
     });
+
+    // Narrow screens start without thumbnails; there is no room beside the page.
+    if (window.matchMedia("(max-width: 991.98px)").matches) reader.classList.add("is-thumbs-hidden");
+
+    // SECTION: The viewer
+    if (reader.classList.contains("is-missing")) return;
+
+    const resume = reader.querySelector("[data-reader-resume]");
+    reader.addEventListener("viewer:resumed", event => {
+        if (!resume) return;
+        resume.querySelector("[data-reader-resume-page]").textContent = String(event.detail.page);
+        resume.hidden = false;
+        window.setTimeout(() => { resume.hidden = true; }, 9000);
+    });
+    reader.addEventListener("click", event => {
+        if (resume && event.target.closest("[data-viewer-action='start']")) resume.hidden = true;
+    });
+
+    import(reader.dataset.viewerModule)
+        .then(module => module.mountViewer(reader, {
+            url: reader.dataset.pdfUrl,
+            libraryBase: reader.dataset.pdfjsBase,
+            documentId: reader.dataset.docId,
+            userKey: reader.dataset.userKey,
+            query: reader.dataset.query || "",
+            page: reader.dataset.page || null,
+            matchPages: (reader.dataset.matchPages || "").split(",").map(Number).filter(Boolean),
+            textMatches: reader.dataset.textMatches === "true"
+        }))
+        .then(() => reader.querySelector("[data-viewer-stage]")?.focus({ preventScroll: true }))
+        .catch(() => reader.classList.add("is-failed"));
 })();

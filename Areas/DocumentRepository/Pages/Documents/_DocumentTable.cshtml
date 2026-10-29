@@ -1,0 +1,68 @@
+@model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
+@*
+    The compact layout (view=table): one line per document with column headers, for scanning
+    long lists. Snippets and tags are left to the List layout.
+*@
+<div class="library-tablecard">
+    <div class="library-tablescroll">
+        <table class="library-table library-table--documents">
+            <thead>
+                <tr>
+                    <th scope="col"><span class="visually-hidden">Favourite</span></th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Office</th>
+                    <th scope="col">Received from</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Size</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody data-library-items>
+                @foreach (var item in Model.Items)
+                {
+                    var readerUrl = Model.ReaderUrl(item);
+                    <tr class="library-table__row @(item.IsActive ? null : "is-inactive")" data-library-item data-doc-id="@item.Id" data-href="@readerUrl">
+                        <td class="library-table__star">
+                            <button type="button" class="library-iconbtn library-star @(item.IsFavourite ? "is-on" : null)" data-library-star data-doc-id="@item.Id"
+                                    aria-pressed="@(item.IsFavourite ? "true" : "false")" aria-label="Favourite: @item.Subject">
+                                <i class="bi @(item.IsFavourite ? "bi-star-fill" : "bi-star")" aria-hidden="true"></i>
+                            </button>
+                        </td>
+                        <td>
+                            <span class="library-table__titleline">
+                                <span class="library-dot library-hue-@DocRepoFormat.Hue(item.DocumentCategoryId)" aria-hidden="true"></span>
+                                <a class="library-table__title" href="@readerUrl" data-library-open>@item.Subject</a>
+                                @if (item.IsAots)
+                                {
+                                    <span class="library-pill library-pill--aots" title="All officers to see">AOTS</span>
+                                    @if (item.IsAotsUnread)
+                                    {
+                                        <span class="library-pill library-pill--new">New</span>
+                                    }
+                                }
+                                @if (!item.IsActive)
+                                {
+                                    <span class="library-pill library-pill--muted">Deactivated</span>
+                                }
+                            </span>
+                        </td>
+                        <td data-label="Type">@(item.DocumentCategoryName ?? "Document")</td>
+                        <td data-label="Office">@(item.OfficeCategoryName ?? "No office")</td>
+                        <td data-label="Received from">@(string.IsNullOrWhiteSpace(item.ReceivedFrom) ? "—" : item.ReceivedFrom)</td>
+                        <td data-label="Date" class="library-table__num">@DocRepoFormat.Date(item.DocumentDate)</td>
+                        <td data-label="Size" class="library-table__num">@DocRepoFormat.FileSize(item.FileSizeBytes)</td>
+                        <td class="library-table__actions">
+                            <div class="library-table__buttons">
+                            <a class="library-iconbtn" asp-page="./Download" asp-route-id="@item.Id" aria-label="Download @item.Subject" title="Download">
+                                <i class="bi bi-download" aria-hidden="true"></i>
+                            </a>
+                            <partial name="_DocumentMenu" model="(Model, item)" />
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

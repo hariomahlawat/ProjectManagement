@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
@@ -91,9 +92,45 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public string AotsViewsUrl { get; private set; } = string.Empty;
 
+        public Guid DocumentId { get; private set; }
+
+        public DateOnly? DocumentDate { get; private set; }
+
+        public string OriginalFileName { get; private set; } = string.Empty;
+
+        public long FileSizeBytes { get; private set; }
+
+        public int DocumentCategoryId { get; private set; }
+
+        public int OfficeCategoryId { get; private set; }
+
+        public bool CanEdit { get; private set; }
+
+        public bool CanManage { get; private set; }
+
+        public string ManageUrl { get; private set; } = string.Empty;
+
+        public string UserKey { get; private set; } = "anon";
+
+        /// <summary>
+        /// Pages whose stored text (OCR) holds a word of the search, for scans: their PDF has no
+        /// text layer, so the viewer cannot highlight the words but can still open the right page.
+        /// </summary>
+        public IReadOnlyList<int> MatchPages { get; private set; } = Array.Empty<int>();
+
+        /// <summary>The stored text holds a word of the search (pages unknown when it has no page breaks).</summary>
+        public bool TextMatches { get; private set; }
+
         // SECTION: Query
         [FromQuery(Name = "returnUrl")]
         public string? ReturnUrlQuery { get; set; }
+
+        // Words to find and highlight on opening (from a search), and a page to open at.
+        [FromQuery(Name = "q")]
+        public string? Query { get; set; }
+
+        [FromQuery(Name = "page")]
+        public int? StartPage { get; set; }
 
         // SECTION: Handlers
         public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -114,6 +151,11 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                     d.CreatedByUserId,
                     d.UpdatedAtUtc,
                     d.IsAots,
+                    d.DocumentDate,
+                    d.OriginalFileName,
+                    d.FileSizeBytes,
+                    d.DocumentCategoryId,
+                    d.OfficeCategoryId,
                     Tags = d.DocumentTags
                         .Select(tag => tag.Tag.Name)
                         .OrderBy(tag => tag)
@@ -140,6 +182,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             DownloadUrl = Url.Page("./Download", new { id }) ?? string.Empty;
             ToggleFavouriteUrl = Url.Page("./Index", "ToggleFavourite", new { area = "DocumentRepository" }) ?? string.Empty;
 
+            DocumentId = id;
+            DocumentDate = doc.DocumentDate;
+            OriginalFileName = doc.OriginalFileName;
+            FileSizeBytes = doc.FileSizeBytes;
+            DocumentCategoryId = doc.DocumentCategoryId;
+            OfficeCategoryId = doc.OfficeCategoryId;
+            CanEdit = (await _authorizationService.AuthorizeAsync(User, Policies.Documents.EditMetadata)).Succeeded;
+            CanManage = (await _authorizationService.AuthorizeAsync(User, Policies.Documents.SoftDelete)).Succeeded;
+            ManageUrl = Url.Page("./Manage", new { id }) ?? string.Empty;
             OfficeName = doc.OfficeName;
             DocumentCategoryName = doc.DocumentCategoryName;
             ReceivedFrom = doc.ReceivedFrom;
@@ -157,6 +208,18 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
             // SECTION: Favourite state
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            UserKey = ProjectManagement.Areas.DocumentRepository.Models.DocRepoFormat.UserKey(userId);
+            Query = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim()[..Math.Min(Query.Trim().Length, 200)];
+            if (Query is not null)
+            {
+                var text = await _db.DocumentTexts.AsNoTracking()
+                    .Where(documentText => documentText.DocumentId == id)
+                    .Select(documentText => documentText.OcrText)
+                    .FirstOrDefaultAsync(cancellationToken);
+                MatchPages = PagesContaining(text, Query);
+                TextMatches = MatchPages.Count > 0 || PagesContaining((text ?? string.Empty) + "\f", Query).Count > 0;
+            }
+            if (StartPage is < 1) StartPage = null;
             if (!string.IsNullOrWhiteSpace(userId))
             {
                 IsFavourite = await _db.DocRepoFavourites
@@ -203,6 +266,32 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             }
 
             return Page();
+        }
+
+        // OCR text separates pages with a form feed; a page matches when it holds any search word.
+        internal static IReadOnlyList<int> PagesContaining(string? text, string query, int limit = 20)
+        {
+            if (string.IsNullOrEmpty(text) || !text.Contains('\f'))
+            {
+                return Array.Empty<int>();
+            }
+
+            var words = System.Text.RegularExpressions.Regex.Matches(query, @"(?<![-\p{L}\p{N}:])[\p{L}\p{N}]{3,}(?![:\p{L}\p{N}])")
+                .Select(match => match.Value)
+                .Where(word => word is not ("and" or "not" or "AND" or "NOT"))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (words.Count == 0)
+            {
+                return Array.Empty<int>();
+            }
+
+            return text.Split('\f')
+                .Select((page, index) => (page, number: index + 1))
+                .Where(entry => words.Any(word => entry.page.Contains(word, StringComparison.OrdinalIgnoreCase)))
+                .Select(entry => entry.number)
+                .Take(limit)
+                .ToList();
         }
 
         private async Task RecordDocumentViewAsync(

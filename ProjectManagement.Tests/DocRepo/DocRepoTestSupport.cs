@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -61,6 +62,10 @@ internal static class DocRepoTestSupport
                 options.AddPolicy(Policies.Documents.EditMetadata, policy => policy.RequireRole(Policies.Documents.MetadataEditorRoles));
                 options.AddPolicy(Policies.Documents.SoftDelete, policy => policy.RequireRole(Policies.Documents.UploadAndSoftDeleteRoles));
                 options.AddPolicy(Policies.Documents.ViewInactive, policy => policy.RequireRole(Policies.Documents.InactiveViewerRoles));
+                options.AddPolicy(Policies.Documents.Upload, policy => policy.RequireRole(Policies.Documents.UploadAndSoftDeleteRoles));
+                options.AddPolicy(Policies.Documents.DeleteApprove, policy => policy.RequireRole(Policies.Documents.DeleteApprovalRoles));
+                options.AddPolicy(Policies.Documents.Purge, policy => policy.RequireRole(Policies.Documents.PurgeRoles));
+                options.AddPolicy(Policies.Documents.ManageCategories, policy => policy.RequireRole(Policies.Documents.CategoryManagerRoles));
             })
             .BuildServiceProvider();
         return services.GetRequiredService<IAuthorizationService>();
@@ -70,13 +75,24 @@ internal static class DocRepoTestSupport
 
     public static void ConfigurePage(PageModel page, ClaimsPrincipal user)
     {
-        var httpContext = new DefaultHttpContext { User = user };
-        var actionContext = new ActionContext(httpContext, new RouteData(), new PageActionDescriptor());
+        var httpContext = new DefaultHttpContext
+        {
+            User = user,
+            // PageModel.Partial resolves the metadata provider from the request's services.
+            RequestServices = new ServiceCollection()
+                .AddSingleton<IModelMetadataProvider, EmptyModelMetadataProvider>()
+                .BuildServiceProvider()
+        };
+        // Relative page links ("./Reader") resolve against the current page.
+        var routeData = new RouteData();
+        routeData.Values["page"] = "/Documents/Index";
+        var actionContext = new ActionContext(httpContext, routeData, new PageActionDescriptor());
         page.PageContext = new PageContext(actionContext)
         {
             ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         };
         page.TempData = new TempDataDictionary(httpContext, new NullTempDataProvider());
+        page.Url = new StubUrlHelper(page.PageContext);
     }
 
     public static (OfficeCategory Office, DocumentCategory Category) SeedLookups(ApplicationDbContext db)
@@ -131,6 +147,25 @@ internal static class DocRepoTestSupport
         {
         }
     }
+}
+
+/// <summary>Url.Page and friends without routing: returns the page name, which is enough for these tests.</summary>
+internal sealed class StubUrlHelper : IUrlHelper
+{
+    public StubUrlHelper(ActionContext context) => ActionContext = context;
+
+    public ActionContext ActionContext { get; }
+
+    public string? Action(UrlActionContext actionContext) => "/action";
+
+    public string? Content(string? contentPath) => contentPath;
+
+    public bool IsLocalUrl(string? url) => !string.IsNullOrEmpty(url) && url.StartsWith('/') && !url.StartsWith("//", StringComparison.Ordinal);
+
+    public string? Link(string? routeName, object? values) => "/link";
+
+    public string? RouteUrl(UrlRouteContext routeContext)
+        => routeContext.Values is null ? "/page" : $"/page?{string.Join("&", new RouteValueDictionary(routeContext.Values).Select(kv => $"{kv.Key}={kv.Value}"))}";
 }
 
 /// <summary>In-memory IDocStorage that records what was saved and deleted.</summary>

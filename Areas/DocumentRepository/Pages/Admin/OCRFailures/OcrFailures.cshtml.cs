@@ -44,7 +44,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
         public async Task<IActionResult> OnPostRequeueAsync(Guid id, CancellationToken ct)
         {
             StatusMessage = await _ocrService.RequeueAsync(id, ActorUserId, ct)
-                ? "Queued for OCR. The background worker will process it shortly."
+                ? "Queued to be read again. The library shows it as not searchable until reading succeeds."
                 : "That document no longer exists.";
             return RedirectToPage();
         }
@@ -53,8 +53,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
         {
             var count = await _ocrService.RequeueAllFailedAsync(ActorUserId, ct);
             StatusMessage = count == 1
-                ? "Queued 1 document for OCR. The background worker will process it shortly."
-                : $"Queued {count} documents for OCR. The background worker will process them shortly.";
+                ? "Queued 1 document to be read again."
+                : $"Queued {count} documents to be read again.";
             return RedirectToPage();
         }
     }

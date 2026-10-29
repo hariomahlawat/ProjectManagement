@@ -36,6 +36,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public List<DocumentCategory> DocumentCategories { get; private set; } = new();
         public bool CanMarkAots { get; private set; }
 
+        /// <summary>The PDF shown beside the form.</summary>
+        public string ViewUrl => Url.Page("./View", new { id = Input?.Id }) ?? string.Empty;
+
         public class InputModel
         {
             [Required]
@@ -168,7 +171,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             if (changes.Count == 0)
             {
                 TempData["ToastMessage"] = "No changes to save.";
-                return RedirectToPage("./Index");
+                return RedirectToPage("./Reader", new { id = doc.Id });
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
@@ -180,7 +183,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             await _db.SaveChangesAsync(cancellationToken);
 
             TempData["ToastMessage"] = "Document metadata updated.";
-            return RedirectToPage("./Index");
+            return RedirectToPage("./Reader", new { id = doc.Id });
         }
 
         private void FillInput(Document doc)
@@ -252,15 +255,18 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         private async Task LoadLookupsAsync(CancellationToken cancellationToken)
         {
+            // The document's own office and type stay selectable even if they were deactivated since.
+            var officeId = Input?.OfficeCategoryId;
+            var typeId = Input?.DocumentCategoryId;
             OfficeCategories = await _db.OfficeCategories
                 .AsNoTracking()
-                .Where(o => o.IsActive)
+                .Where(o => o.IsActive || o.Id == officeId)
                 .OrderBy(o => o.SortOrder)
                 .ToListAsync(cancellationToken);
 
             DocumentCategories = await _db.DocumentCategories
                 .AsNoTracking()
-                .Where(c => c.IsActive)
+                .Where(c => c.IsActive || c.Id == typeId)
                 .OrderBy(c => c.SortOrder)
                 .ToListAsync(cancellationToken);
         }

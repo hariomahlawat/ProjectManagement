@@ -29,6 +29,9 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<DocumentCategory> Categories { get; private set; } = Array.Empty<DocumentCategory>();
 
+    /// <summary>Documents filed under each category (trash excluded), so nobody retires one in use without knowing.</summary>
+    public IReadOnlyDictionary<int, int> DocumentCounts { get; private set; } = new Dictionary<int, int>();
+
     [BindProperty]
     public CreateInput Input { get; set; } = new();
 
@@ -47,6 +50,13 @@ public class IndexModel : PageModel
             .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.Name)
             .ToListAsync(cancellationToken);
+
+        DocumentCounts = await _db.Documents
+            .AsNoTracking()
+            .Where(d => !d.IsDeleted)
+            .GroupBy(d => d.DocumentCategoryId)
+            .Select(group => new { group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Key, item => item.Count, cancellationToken);
     }
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)

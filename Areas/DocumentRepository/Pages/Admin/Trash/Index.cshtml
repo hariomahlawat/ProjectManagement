@@ -1,122 +1,115 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Admin.Trash.IndexModel
+@using ProjectManagement.Areas.DocumentRepository.Models
 @{
-    ViewData["Title"] = "Document trash";
+    ViewData["Title"] = "Trash";
+    ViewData["UseFullWidth"] = true;
 }
 
-<!-- SECTION: Notifications -->
-<div class="container-fluid pt-3 pb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <nav aria-label="breadcrumb" class="mb-1">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item">
-                        <a asp-area="" asp-page="/Index">Dashboard</a>
-                    </li>
-                    <li class="breadcrumb-item">
-                        <a asp-area="DocumentRepository" asp-page="/Documents/Index">Documents</a>
-                    </li>
-                    <li class="breadcrumb-item active" aria-current="page">Trash</li>
-                </ol>
-            </nav>
-            <h1 class="h5 mb-0">Trash</h1>
+@section Styles {
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
+}
+
+<div class="library">
+    <header class="library-head">
+        <div class="library-head__text">
+            <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
+            <h1>Trash</h1>
+            <p>
+                Documents whose deletion was approved. Restore puts one back in the library; Delete for good removes it and its file.
+                @if (Model.RetentionDays > 0)
+                {
+                    <text>Anything left here is deleted for good @Model.RetentionDays days after it was trashed.</text>
+                }
+                else
+                {
+                    <text>Automatic clean-up is off, so documents stay here until someone deletes them.</text>
+                }
+            </p>
         </div>
-    </div>
+    </header>
 
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
     {
-        <div class="alert alert-success">@Model.StatusMessage</div>
+        <div class="library-banner" role="status"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>@Model.StatusMessage</strong></div></div>
     }
-
     @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
     {
-        <div class="alert alert-danger">@Model.ErrorMessage</div>
+        <div class="library-banner is-danger" role="alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>@Model.ErrorMessage</strong></div></div>
     }
 
-    <!-- SECTION: Help text -->
-    <div class="alert alert-warning">
-        Purging permanently removes the document and its file from storage. Restore to bring a document back into circulation without purging.
-        @if (Model.RetentionDays > 0)
-        {
-            <text>Documents are purged automatically @Model.RetentionDays days after they were moved to the trash.</text>
-        }
-    </div>
-
-    <!-- SECTION: Table -->
-    @if (Model.Items == null || !Model.Items.Any())
+    @if (Model.TotalCount > 0)
     {
-        <div class="alert alert-light border">Trash is empty.</div>
+    <div class="library-toolbar">
+        <form method="get" class="library-search" role="search">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <label class="visually-hidden" for="trashSearch">Search the trash</label>
+            <input id="trashSearch" type="search" name="q" value="@Model.Query" placeholder="Search by title" />
+        </form>
+        <span class="library-toolbar__count">
+            @if (Model.Query is not null)
+            {
+                <text>@Model.Items.Count of @DocRepoFormat.Count(Model.TotalCount, "document") · <a asp-page="./Index">Show all</a></text>
+            }
+            else
+            {
+                <text>@DocRepoFormat.Count(Model.TotalCount, "document") · @DocRepoFormat.FileSize(Model.TotalBytes)</text>
+            }
+        </span>
+    </div>
+    }
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="library-empty">
+            <i class="bi bi-trash3" aria-hidden="true"></i>
+            <h2>@(Model.Query is null ? "The trash is empty" : "Nothing in the trash matches")</h2>
+            <p>@(Model.Query is null ? "Documents appear here once an approver accepts a deletion request." : "Try another part of the title.")</p>
+        </div>
     }
     else
     {
-        <div class="table-responsive bg-white rounded-3 shadow-sm">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Subject</th>
-                        <th>Office</th>
-                        <th>Category</th>
-                        <th>Deleted at</th>
-                        <th>Deleted by</th>
-                        <th>Purged on</th>
-                        <th>Reason</th>
-                        <th class="text-end">Size</th>
-                        <th class="text-end pm-util-col-180">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Model.Items)
-                    {
+        <div class="library-tablecard">
+            <div class="library-tablescroll">
+                <table class="library-table">
+                    <thead>
                         <tr>
-                            <td class="fw-semibold">@item.Subject</td>
-                            <td>@item.Office</td>
-                            <td>@item.Category</td>
-                            <td>@(item.DeletedAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</td>
-                            <td>@(string.IsNullOrWhiteSpace(item.DeletedByUserId) ? "—" : item.DeletedByUserId)</td>
-                            <td>@(Model.PurgeDueUtc(item.DeletedAtUtc)?.ToLocalTime().ToString("dd MMM yyyy") ?? "Not scheduled")</td>
-                            <td class="small">@(string.IsNullOrWhiteSpace(item.DeleteReason) ? "—" : item.DeleteReason)</td>
-                            <td class="text-end">@FormatSize(item.FileSizeBytes)</td>
-                            <td class="text-end">
-                                <form method="post"
-                                      asp-page-handler="Restore"
-                                      asp-route-id="@item.Id"
-                                      class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Restore</button>
-                                </form>
-                                <form method="post"
-                                      asp-page-handler="Purge"
-                                      asp-route-id="@item.Id"
-                                      class="d-inline ms-1">
-                                    <button type="submit" class="btn btn-sm btn-danger">Purge</button>
-                                </form>
-                            </td>
+                            <th scope="col">Document</th>
+                            <th scope="col">Deleted</th>
+                            <th scope="col">Reason</th>
+                            <th scope="col">Deleted for good</th>
+                            <th scope="col"><span class="visually-hidden">Actions</span></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            var due = Model.PurgeDueUtc(item.DeletedAtUtc);
+                            <tr>
+                                <td>
+                                    <span class="library-table__title">@item.Subject</span>
+                                    <span class="library-table__meta">@item.Category · @item.Office · @DocRepoFormat.FileSize(item.FileSizeBytes)</span>
+                                </td>
+                                <td data-label="Deleted">
+                                    <span class="library-table__num">@(item.DeletedAtUtc.HasValue ? DocRepoFormat.Date(item.DeletedAtUtc.Value) : "Unknown")</span>
+                                    <span class="library-table__meta">by @Model.NameOf(item.DeletedByUserId)</span>
+                                </td>
+                                <td data-label="Reason">@(string.IsNullOrWhiteSpace(item.DeleteReason) ? "No reason given" : item.DeleteReason)</td>
+                                <td data-label="Deleted for good" class="library-table__num">@(due.HasValue ? DocRepoFormat.Date(due.Value) : "Not scheduled")</td>
+                                <td class="library-table__actions">
+                                    <form method="post" asp-page-handler="Restore" asp-route-id="@item.Id">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Restore</button>
+                                    </form>
+                                    <form method="post" asp-page-handler="Purge" asp-route-id="@item.Id"
+                                          data-confirm="Delete “@item.Subject” for good? Its file is removed from storage and this cannot be undone.">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete for good</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     }
 </div>
-
-@functions {
-    // SECTION: Helper formatting
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 1024)
-        {
-            return $"{bytes} B";
-        }
-
-        double size = bytes;
-        string[] units = { "KB", "MB", "GB", "TB" };
-        int index = 0;
-
-        while (size >= 1024 && index < units.Length - 1)
-        {
-            size /= 1024;
-            index++;
-        }
-
-        return $"{size:0.##} {units[index]}";
-    }
-}

@@ -80,6 +80,8 @@ These notes capture the production hardening and offline deployment standard for
 - For air-gapped servers, every runtime dependency must be pre-installed or shipped with the app. List and validate:
   - Tesseract OCR runtime and language packs (exact folder path)
   - PDF/OCR helpers (e.g., ocrmypdf, poppler, ghostscript) if used
+  - Poppler `pdftoppm` for Document Repository covers (optional: without it the library shows type-coloured covers). Put it on `PATH` or set `DocRepo:PdfToPpmPath`; test with `pdftoppm -v`.
+  - The PDF viewer (pdf.js 4.10.38) ships inside the app under `wwwroot\lib\pdfjs-dist`; nothing to install.
   - Native libraries for image/video
   - NuGet packages with outbound calls
 - Produce a dependency map with version, installer location, and a test command.

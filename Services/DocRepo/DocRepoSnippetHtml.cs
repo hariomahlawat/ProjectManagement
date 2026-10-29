@@ -21,7 +21,10 @@ public static class DocRepoSnippetHtml
             return HtmlString.Empty;
         }
 
-        var encoded = WebUtility.HtmlEncode(snippet)
+        // OCR text separates pages with a form feed and may carry other control characters;
+        // they would show as boxes, so each becomes a space.
+        var readable = new string(snippet.Select(character => char.IsControl(character) ? ' ' : character).ToArray());
+        var encoded = WebUtility.HtmlEncode(readable)
             .Replace(WebUtility.HtmlEncode(StartMarker), StartMarker, StringComparison.Ordinal)
             .Replace(WebUtility.HtmlEncode(StopMarker), StopMarker, StringComparison.Ordinal);
 

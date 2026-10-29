@@ -1,80 +1,127 @@
 ﻿@page "{id:guid}"
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.EditModel
+@inject Microsoft.AspNetCore.Mvc.ViewFeatures.IFileVersionProvider FileVersions
 @{
-    ViewData["Title"] = "Edit document metadata";
+    ViewData["Title"] = "Edit document details";
+    ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-fluid py-3">
-    <h2 class="h5 mb-3">Edit document metadata</h2>
+@section Styles {
+    <link rel="stylesheet" href="~/lib/pdfjs-dist/4.10.38/web/pdf_viewer.css" />
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
+}
 
-    <form method="post" class="row g-3">
+@section Scripts {
+    <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
+    <script src="~/js/docrepo/pdf-preview.js" asp-append-version="true" defer></script>
+}
+
+<div class="library library--form">
+    <header class="library-head">
+        <div class="library-head__text">
+            <a class="library-back" asp-page="./Reader" asp-route-id="@Model.Input.Id"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the document</a>
+            <h1>Edit details</h1>
+            <p>Change how this document is described and found. The PDF itself stays as it is; every change is recorded.</p>
+        </div>
+    </header>
+
+    <form method="post" class="library-editor">
         <input type="hidden" asp-for="Input.Id" />
         <input type="hidden" asp-for="Input.OriginalStamp" />
-        @if (ViewData.ModelState.TryGetValue(string.Empty, out var formState) && formState.Errors.Count > 0)
-        {
-            <div class="col-12">
-                <div asp-validation-summary="ModelOnly" class="alert alert-warning mb-0" role="alert"></div>
-            </div>
-        }
 
-        <div class="col-md-6">
-            <label asp-for="Input.Subject" class="form-label"></label>
-            <input asp-for="Input.Subject" class="form-control" />
-            <span asp-validation-for="Input.Subject" class="text-danger"></span>
-        </div>
-
-        <div class="col-md-6">
-            <label asp-for="Input.ReceivedFrom" class="form-label"></label>
-            <input asp-for="Input.ReceivedFrom" class="form-control" />
-            <span asp-validation-for="Input.ReceivedFrom" class="text-danger"></span>
-        </div>
-
-        <div class="col-md-3">
-            <label asp-for="Input.DocumentDate" class="form-label"></label>
-            <input asp-for="Input.DocumentDate" class="form-control" type="date" />
-            <span asp-validation-for="Input.DocumentDate" class="text-danger"></span>
-        </div>
-
-        <div class="col-md-4">
-            <label asp-for="Input.OfficeCategoryId" class="form-label">Office</label>
-            <select asp-for="Input.OfficeCategoryId" class="form-select"
-                    asp-items="@(new SelectList(Model.OfficeCategories, "Id", "Name"))">
-                <option value="">-- select office --</option>
-            </select>
-            <span asp-validation-for="Input.OfficeCategoryId" class="text-danger"></span>
-        </div>
-
-        <div class="col-md-4">
-            <label asp-for="Input.DocumentCategoryId" class="form-label">Document type</label>
-            <select asp-for="Input.DocumentCategoryId" class="form-select"
-                    asp-items="@(new SelectList(Model.DocumentCategories, "Id", "Name"))">
-                <option value="">-- select type --</option>
-            </select>
-            <span asp-validation-for="Input.DocumentCategoryId" class="text-danger"></span>
-        </div>
-
-        <div class="col-md-6">
-            <label asp-for="Input.Tags" class="form-label"></label>
-            <input asp-for="Input.Tags" class="form-control" placeholder="example: sow, contract, hq" />
-            <span asp-validation-for="Input.Tags" class="text-danger"></span>
-            <div class="form-text">Max 5 tags, comma separated.</div>
-        </div>
-
-        @if (Model.CanMarkAots)
-        {
-            <!-- SECTION: AOTS flag -->
-            <div class="col-md-4">
-                <label class="form-label" asp-for="Input.IsAots"></label>
-                <div class="form-check">
-                    <input class="form-check-input" asp-for="Input.IsAots" />
-                    <label class="form-check-label" asp-for="Input.IsAots">All officers to see</label>
+        <!-- SECTION: The PDF being described -->
+        <section class="library-editor__file" aria-label="PDF">
+            <div class="library-editor__preview library-preview__viewer" data-pdf-preview
+                 data-pdf-url="@Model.ViewUrl"
+                 data-pdfjs-base="@Url.Content(DocRepoFormat.PdfJsPath)"
+                 data-viewer-module="@FileVersions.AddFileVersionToPath(ViewContext.HttpContext.Request.PathBase, "/js/docrepo/viewer.mjs")"
+                 data-doc-id="@Model.Input?.Id">
+                <div class="library-preview__tools" role="toolbar" aria-label="Preview tools">
+                    <button type="button" class="library-iconbtn" data-viewer-action="previous" aria-label="Previous page"><i class="bi bi-chevron-up" aria-hidden="true"></i></button>
+                    <label class="rd-pagebox">
+                        <span class="visually-hidden">Page</span>
+                        <input type="number" min="1" value="1" inputmode="numeric" data-viewer-page />
+                        <span class="rd-pagebox__of">of <span data-viewer-pages>–</span></span>
+                    </label>
+                    <button type="button" class="library-iconbtn" data-viewer-action="next" aria-label="Next page"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+                    <span class="library-preview__spacer"></span>
+                    <button type="button" class="library-iconbtn" data-viewer-action="zoom-out" aria-label="Zoom out"><i class="bi bi-dash-lg" aria-hidden="true"></i></button>
+                    <button type="button" class="rd-zoomlabel" data-viewer-action="fit-width" title="Fit to width" data-viewer-zoom-label>100%</button>
+                    <button type="button" class="library-iconbtn" data-viewer-action="zoom-in" aria-label="Zoom in"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+                </div>
+                <div class="library-preview__stagewrap library-editor__stagewrap">
+                    <div class="library-preview__stage" data-viewer-stage tabindex="-1"><div class="pdfViewer"></div></div>
+                    <p class="library-preview__status" data-viewer-status role="status">Opening the PDF…</p>
                 </div>
             </div>
-        }
+        </section>
 
-        <div class="col-12">
-            <button type="submit" class="btn btn-primary">Save</button>
-            <a asp-page="./Index" class="btn btn-secondary">Cancel</a>
-        </div>
+        <!-- SECTION: Details -->
+        <section class="library-editor__form">
+            <div asp-validation-summary="ModelOnly" class="alert alert-warning library-summary-errors" role="alert"></div>
+
+            <fieldset class="library-fieldset">
+                <legend>What it is</legend>
+                <div class="library-field">
+                    <label asp-for="Input.Subject">Title <span class="library-required" aria-hidden="true">*</span></label>
+                    <input class="form-control" asp-for="Input.Subject" />
+                    <span class="library-field__error" asp-validation-for="Input.Subject"></span>
+                </div>
+                <div class="library-field-row">
+                    <div class="library-field">
+                        <label asp-for="Input.DocumentCategoryId">Type <span class="library-required" aria-hidden="true">*</span></label>
+                        <select class="form-select" asp-for="Input.DocumentCategoryId" asp-items="@(new SelectList(Model.DocumentCategories, "Id", "Name"))"></select>
+                        <span class="library-field__error" asp-validation-for="Input.DocumentCategoryId"></span>
+                    </div>
+                    <div class="library-field">
+                        <label asp-for="Input.OfficeCategoryId">Office <span class="library-required" aria-hidden="true">*</span></label>
+                        <select class="form-select" asp-for="Input.OfficeCategoryId" asp-items="@(new SelectList(Model.OfficeCategories, "Id", "Name"))"></select>
+                        <span class="library-field__error" asp-validation-for="Input.OfficeCategoryId"></span>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="library-fieldset">
+                <legend>Where it came from</legend>
+                <div class="library-field-row">
+                    <div class="library-field">
+                        <label asp-for="Input.ReceivedFrom">Received from</label>
+                        <input class="form-control" asp-for="Input.ReceivedFrom" placeholder="Office, unit or person" />
+                        <span class="library-field__error" asp-validation-for="Input.ReceivedFrom"></span>
+                    </div>
+                    <div class="library-field">
+                        <label asp-for="Input.DocumentDate">Document date</label>
+                        <input class="form-control" asp-for="Input.DocumentDate" type="date" />
+                        <span class="library-field__hint">The date on the paper.</span>
+                        <span class="library-field__error" asp-validation-for="Input.DocumentDate"></span>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="library-fieldset">
+                <legend>Help people find it</legend>
+                <div class="library-field">
+                    <label asp-for="Input.Tags">Tags</label>
+                    <input class="form-control" asp-for="Input.Tags" placeholder="sow, tec, training" />
+                    <span class="library-field__hint">Up to 5, separated by commas. Letters, numbers, spaces and hyphens.</span>
+                    <span class="library-field__error" asp-validation-for="Input.Tags"></span>
+                </div>
+                @if (Model.CanMarkAots)
+                {
+                    <label class="library-check">
+                        <input class="form-check-input" asp-for="Input.IsAots" />
+                        <span>
+                            <strong>All officers to see (AOTS)</strong>
+                            <span>Shows the document to every officer as new until they open it.</span>
+                        </span>
+                    </label>
+                }
+            </fieldset>
+
+            <div class="library-editor__actions">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i> Save changes</button>
+                <a class="btn btn-outline-secondary" asp-page="./Reader" asp-route-id="@Model.Input.Id">Cancel</a>
+            </div>
+        </section>
     </form>
 </div>
