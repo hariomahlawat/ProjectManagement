@@ -1,6 +1,7 @@
 using System.Globalization;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.ViewModels;
 using ProjectManagement.ViewModels.Workspace;
@@ -27,7 +28,9 @@ public sealed record BriefingDeskProjectInput(
     DateTimeOffset? PendingPlanSinceUtc = null,
     BriefingDeskPendingCorrection? PendingCorrection = null,
     ProcurementEditVm? ProcurementEdit = null,
-    PlanEditorVm? PlanEditor = null);
+    PlanEditorVm? PlanEditor = null,
+    // A published ARPP record supplies the IPA completion date (the date editor locks it).
+    bool IpaCompletionFromArpp = false);
 
 // The latest pending actual-date correction on a project: when it was sent, the stages whose
 // completion date it proposes, and whether official dates moved since, so the HoD cannot approve
@@ -57,7 +60,12 @@ public static class BriefingDeskBuilder
     // Task progress follows the same weekly rhythm as project updates.
     public const int TaskProgressWindowDays = 7;
 
-    private const string CurrentStageComponent = "Current-stage timeline (PDC)";
+    // Current-stage gaps (PDC, planned start, actual start) are recognised by the code prefix
+    // ProjectRecordHealthService gives them, not by the component's display label.
+    internal const string CurrentStageGapPrefix = "CURRENT_STAGE_";
+
+    public static bool IsCurrentStageGap(WorkspaceRecordGapVm gap)
+        => gap.Code.StartsWith(CurrentStageGapPrefix, StringComparison.Ordinal);
 
     // Completion dates of completed stages are required on the desk, not offered as improvements.
     // Actual start dates are optional and never asked for here. The gaps are recognised by the
@@ -178,7 +186,7 @@ public static class BriefingDeskBuilder
             checks.Add(pdcCheck);
         }
 
-        if (ProjectCompletionDatesCheck(row, input.PendingCorrection) is { } completionCheck)
+        if (ProjectCompletionDatesCheck(row, input.PendingCorrection, input.IpaCompletionFromArpp) is { } completionCheck)
         {
             checks.Add(completionCheck);
         }
@@ -356,10 +364,14 @@ public static class BriefingDeskBuilder
     // can still approve it; one the HoD cannot approve is a step even with no gap.
     private static BriefingDeskCheckVm? ProjectCompletionDatesCheck(
         WorkspaceProjectMatrixRowVm row,
-        BriefingDeskPendingCorrection? pending)
+        BriefingDeskPendingCorrection? pending,
+        bool ipaCompletionFromArpp = false)
     {
+        // Record health reads the stored date; when an ARPP record supplies the IPA date the PO
+        // cannot enter one, so that gap is never a step.
         var gaps = (row.RecordHealth?.GapDetails ?? Array.Empty<WorkspaceRecordGapVm>())
             .Where(IsCompletionDateGap)
+            .Where(gap => !(ipaCompletionFromArpp && string.Equals(gap.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)))
             .ToList();
         var actionUrl = gaps.Select(gap => gap.ActionUrl).FirstOrDefault(url => !string.IsNullOrWhiteSpace(url))
             ?? WorkspaceRouteHelper.ProjectTimelineActuals(row.ProjectId);
@@ -437,7 +449,7 @@ public static class BriefingDeskBuilder
         }
 
         return health.GapDetails
-            .Where(gap => !string.Equals(gap.Component, CurrentStageComponent, StringComparison.Ordinal))
+            .Where(gap => !IsCurrentStageGap(gap))
             .Where(gap => !IsCompletionDateGap(gap))
             .Where(gap => !string.IsNullOrWhiteSpace(gap.ActionUrl))
             .GroupBy(gap => gap.ActionUrl, StringComparer.Ordinal)

@@ -15,6 +15,7 @@
     // Reading TempData (not Peek) consumes the draft, so it is restored once and never again.
     var draftAnchor = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftAnchorKey] as string;
     var draftText = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftTextKey] as string;
+    var draftField = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftFieldKey] as string ?? BriefingDeskDraftFields.Body;
 
     // The headline leads with what needs the PO; the ready count is the line under it.
     string headline;
@@ -43,7 +44,8 @@
         {
             Item = item,
             IsOpen = item.AnchorId == openAnchor,
-            Draft = draftAnchor == item.AnchorId ? draftText : null
+            Draft = draftAnchor == item.AnchorId ? draftText : null,
+            DraftField = draftField
         });
     }
 }
@@ -161,7 +163,8 @@
                             {
                                 Item = item,
                                 IsOpen = item.AnchorId == Model.Focus,
-                                Draft = draftAnchor == item.AnchorId ? draftText : null
+                                Draft = draftAnchor == item.AnchorId ? draftText : null,
+                                DraftField = draftField
                             })
                         }
                     </div>

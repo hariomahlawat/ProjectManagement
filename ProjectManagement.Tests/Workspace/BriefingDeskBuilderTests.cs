@@ -212,6 +212,34 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_IpaCompletionFromArpp_IsNeverAStep()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA", "AON")) with
+        {
+            IpaCompletionFromArpp = true
+        };
+
+        var completion = SingleItem(Build(projects: new[] { project })).Checks.Single(check => check.Key == "completion");
+
+        // The ARPP record supplies IPA's date and the editor locks it; only AON is asked for.
+        Assert.Equal("AON completion date missing", completion.Label);
+    }
+
+    [Fact]
+    public void Project_IpaCompletionFromArpp_AloneLeavesTheProjectReady()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA")) with
+        {
+            IpaCompletionFromArpp = true
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.DoesNotContain(item.Checks, check => check.Key == "completion");
+        Assert.True(item.IsBriefReady);
+    }
+
+    [Fact]
     public void Project_ACorrectionNeedingResubmission_AsksThePoToReviewIt()
     {
         var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA")) with
@@ -382,7 +410,7 @@ public sealed class BriefingDeskBuilderTests
                 Gap("L1_COST", "Procurement at a glance", "L1 Cost", 4.17m, "/Projects/Overview/1?oc=procurement#procurement"),
                 Gap("PNC_COST", "Procurement at a glance", "PNC Cost", 4.17m, "/Projects/Overview/1?oc=procurement#procurement"),
                 Gap("DOCS", "Published project documents", "1 additional project document", 5m, "/Projects/1/Documents"),
-                Gap("DEVP_PDC", "Current-stage timeline (PDC)", "DEVP — PDC", 9m, "/Projects/Overview/1?oc=actuals#timeline")
+                Gap("CURRENT_STAGE_PDC", "Current-stage timeline (PDC)", "DEVP — PDC", 9m, "/Projects/Overview/1?oc=actuals#timeline")
             }
         };
         var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: health);

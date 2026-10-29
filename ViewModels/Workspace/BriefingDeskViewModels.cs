@@ -220,8 +220,21 @@ public sealed class BriefingDeskItemRenderVm
 
     public bool IsOpen { get; init; }
 
-    /// <summary>Text from a post that failed validation, restored into the update box.</summary>
+    /// <summary>Text from a post that failed validation, restored into the box it came from.</summary>
     public string? Draft { get; init; }
+
+    /// <summary>
+    /// Which box <see cref="Draft"/> belongs to: <c>body</c> (the update box), <c>submit</c>
+    /// (the closure note) or <c>blocked</c> (the blocker).
+    /// </summary>
+    public string DraftField { get; init; } = BriefingDeskDraftFields.Body;
+}
+
+public static class BriefingDeskDraftFields
+{
+    public const string Body = "body";
+    public const string Submit = "submit";
+    public const string Blocked = "blocked";
 }
 
 /// <summary>

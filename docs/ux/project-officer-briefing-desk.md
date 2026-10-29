@@ -50,7 +50,9 @@ correction is not listed under **Sent for approval**.
 **Dates the desk asks for** (changed 2026-10-29). Only two dates are required: the current-stage
 PDC when it is missing, and the completion date of each completed stage before the current
 stage (the record-health "Historical stage completion dates" gaps, recognised by their
-`<STAGE>_ACTUAL_COMPLETION` code). A PDC that has passed is shown only as a red note in the card
+`<STAGE>_ACTUAL_COMPLETION` code; current-stage gaps likewise by their `CURRENT_STAGE_` prefix).
+When a published ARPP record supplies the IPA completion date (`IArppIpaStageAuthorityService`),
+the date editor locks it, so a missing stored IPA date is never a step. A PDC that has passed is shown only as a red note in the card
 header, linked to the full plan editor, and never blocks readiness. Actual start dates are
 optional and are not asked for on the desk.
 
@@ -111,6 +113,10 @@ are unchanged. The desk adds its own check that the item is assigned to the sign
 | Task progress | `IActionTaskCollaborationService.AddUpdateAsync` (Comment) | Counts as task progress |
 | Submit task for closure | `IActionTaskService.SubmitTaskAsync` | Waits on the assigner |
 | Flag task blocked | `IActionTaskService.UpdateStatusAsync` (Blocked, reason required) | Blocker shown in conference |
+
+A post that is refused (for example a task changed by someone else in the meantime) returns to
+the same card with the typed text back in the box it came from: the update box, the closure
+note or the blocker, with that form open (`DeskDraftFieldKey`).
 
 Procurement figures open in a side panel on the desk. The panel is the Project Overview
 editor (`Projects/Procurement/_EditFormBody`), built by the shared `ProcurementEditVmFactory`, so

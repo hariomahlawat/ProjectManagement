@@ -16,7 +16,12 @@
     };
     // When nothing is due the box folds away behind a quiet link: the PO sees that no update
     // is needed but can still add one. A draft kept after a failed post reopens it.
-    var sayOpen = item.IsUpdateDue || !string.IsNullOrEmpty(Model.Draft);
+    // A kept draft goes back into the box it came from.
+    string? DraftFor(string field) => Model.DraftField == field ? Model.Draft : null;
+    var bodyDraft = DraftFor(BriefingDeskDraftFields.Body);
+    var submitDraft = DraftFor(BriefingDeskDraftFields.Submit);
+    var blockedDraft = DraftFor(BriefingDeskDraftFields.Blocked);
+    var sayOpen = item.IsUpdateDue || !string.IsNullOrEmpty(bodyDraft);
     if (item.DirectionAwaitingProgress)
     {
         sayTitle = "What you’ll report on the direction";
@@ -144,7 +149,7 @@
                                   rows="4"
                                   maxlength="4000"
                                   required
-                                  placeholder="@placeholder">@Model.Draft</textarea>
+                                  placeholder="@placeholder">@bodyDraft</textarea>
                         <div class="bd-say__actions">
                             <button type="submit" class="bd-btn bd-btn--primary">@postLabel</button>
                             <span class="bd-say__hint">@postHint</span>
@@ -184,26 +189,26 @@
                     <div class="bd-task-actions">
                         @if (item.CanSubmitTask)
                         {
-                            <details class="bd-task-action">
+                            <details class="bd-task-action" open="@(submitDraft is null ? null : "open")">
                                 <summary class="bd-btn bd-btn--approval">Submit for closure</summary>
                                 <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskSubmit" asp-route-mode="project-officer" class="bd-task-action__form">
                                     <input type="hidden" name="itemId" value="@item.ItemId" />
                                     <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
                                     <label for="@anchor-submit-note">Closure note</label>
-                                    <textarea id="@anchor-submit-note" name="note" rows="3" maxlength="4000" required placeholder="What was delivered, and where it is recorded."></textarea>
+                                    <textarea id="@anchor-submit-note" name="note" rows="3" maxlength="4000" required placeholder="What was delivered, and where it is recorded.">@submitDraft</textarea>
                                     <button type="submit" class="bd-btn bd-btn--primary">Submit to assigner</button>
                                 </form>
                             </details>
                         }
                         @if (item.CanFlagTaskBlocked)
                         {
-                            <details class="bd-task-action">
+                            <details class="bd-task-action" open="@(blockedDraft is null ? null : "open")">
                                 <summary class="bd-btn bd-btn--danger-outline">Flag blocked</summary>
                                 <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskBlocked" asp-route-mode="project-officer" class="bd-task-action__form">
                                     <input type="hidden" name="itemId" value="@item.ItemId" />
                                     <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
                                     <label for="@anchor-blocked-note">What is blocking it?</label>
-                                    <textarea id="@anchor-blocked-note" name="note" rows="3" maxlength="4000" required placeholder="The blocker, and who can clear it."></textarea>
+                                    <textarea id="@anchor-blocked-note" name="note" rows="3" maxlength="4000" required placeholder="The blocker, and who can clear it.">@blockedDraft</textarea>
                                     <button type="submit" class="bd-btn bd-btn--danger">Flag blocked</button>
                                 </form>
                             </details>
