@@ -41,10 +41,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 return NotFound();
             }
 
-            // A cover never changes (a document's file is fixed by its hash), so the browser may keep
-            // it for an hour rather than fetch dozens again on every list. Private: never in a shared
-            // cache. Once a document is hidden from someone, the list stops showing its cover.
-            Response.Headers[HeaderNames.CacheControl] = "private, max-age=3600";
+            // A cover is page 1 of the document, so it is kept out of the browser cache like the PDF
+            // itself: on a shared LAN machine it must not outlive a logout, a deactivation or a deletion.
+            Response.Headers[HeaderNames.CacheControl] = "private, no-store";
             return PhysicalFile(path, "image/jpeg");
         }
     }

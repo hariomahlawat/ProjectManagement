@@ -66,7 +66,7 @@ A failure to write a `Viewed` or `Downloaded` row is logged and never blocks rea
 
 ## Caching
 
-The inline view and download send `Cache-Control: private, no-store`, so PDFs are not kept in the browser cache of shared LAN machines after they are deactivated or deleted. Covers send `private, max-age=3600`: a cover never changes, and fetching every first page again on each list view would be wasteful; at most an hour-old first-page image can stay in that browser's cache after a document is hidden from its user. What the browser remembers for convenience (recently opened documents, the last page read, dark reading, the details panel) is kept in `localStorage` under a per-user key (`DocRepoFormat.UserKey`, a hash of the user id) and is never used for access.
+The inline view, the download and the cover image all send `Cache-Control: private, no-store`, so neither a PDF nor its first page is kept in the browser cache of shared LAN machines after a logout, or after the document is deactivated or deleted. Covers are small (360px JPEGs) and served on the LAN, so fetching them again on each list view costs little. What the browser remembers for convenience (recently opened documents, the last page read, dark reading, the details panel) is kept in `localStorage` under a per-user key (`DocRepoFormat.UserKey`, a hash of the user id) and is never used for access.
 
 ## Tests
 

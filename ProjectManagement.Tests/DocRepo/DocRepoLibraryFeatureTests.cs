@@ -108,7 +108,7 @@ public sealed class DocRepoLibraryFeatureTests
 
         var file = Assert.IsType<PhysicalFileResult>(await reader.OnGetAsync(visible.Id, CancellationToken.None));
         Assert.Equal("image/jpeg", file.ContentType);
-        Assert.Equal("private, max-age=3600", reader.Response.Headers.CacheControl.ToString());
+        Assert.Equal("private, no-store", reader.Response.Headers.CacheControl.ToString());
 
         var manager = new CoverModel(db, Access(), covers);
         ConfigurePage(manager, Manager);
