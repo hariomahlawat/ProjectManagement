@@ -66,6 +66,8 @@ export async function mountViewer(root, options) {
     const { pdfjs, components } = await loadLibrary(libraryBase);
     const { EventBus, PDFLinkService, PDFFindController, PDFViewer } = components;
 
+    // Everything this viewer listens to ends with it, so a closed preview leaves nothing behind.
+    const lifetime = new AbortController();
     const eventBus = new EventBus();
     const linkService = new PDFLinkService({ eventBus, externalLinkTarget: 2 /* new window */ });
     const findController = new PDFFindController({ eventBus, linkService });
@@ -76,7 +78,8 @@ export async function mountViewer(root, options) {
         linkService,
         findController,
         textLayerMode: 1,
-        removePageBorders: true
+        removePageBorders: true,
+        abortSignal: lifetime.signal
     });
     linkService.setViewer(pdfViewer);
 
@@ -123,6 +126,7 @@ export async function mountViewer(root, options) {
     eventBus.on("pagesinit", () => {
         pdfViewer.currentScaleValue = compact ? "page-width" : (window.innerWidth < 768 ? "page-width" : "auto");
         root.classList.add("is-ready");
+        fittedSize = [stage.clientWidth, stage.clientHeight];
         if (status) status.textContent = "";
         if (startPage && startPage > 1) {
             pdfViewer.currentPageNumber = startPage;
@@ -132,6 +136,26 @@ export async function mountViewer(root, options) {
         }
         if (query) find(query);
     });
+
+    // A fitted zoom follows the stage when it changes size (a phone turned, the details panel opened);
+    // a zoom the reader chose stays as it is. Small changes, such as a scroll bar appearing, are ignored.
+    const fitted = ["page-width", "page-fit", "auto"];
+    let fittedSize = null;
+    let refitFrame = 0;
+    const resizeWatch = new ResizeObserver(() => {
+        cancelAnimationFrame(refitFrame);
+        refitFrame = requestAnimationFrame(() => {
+            if (!root.classList.contains("is-ready") || !stage.clientWidth) return;
+            const size = [stage.clientWidth, stage.clientHeight];
+            const before = fittedSize;
+            fittedSize = size;
+            if (!before || !fitted.includes(pdfViewer.currentScaleValue)) return;
+            const widthMoved = Math.abs(size[0] - before[0]) > 24;
+            const heightMoved = Math.abs(size[1] - before[1]) > 24 && pdfViewer.currentScaleValue !== "page-width";
+            if (widthMoved || heightMoved) pdfViewer.currentScaleValue = pdfViewer.currentScaleValue;
+        });
+    });
+    resizeWatch.observe(stage);
 
     function clampPage(value) {
         const number = parseInt(value, 10);
@@ -309,7 +333,7 @@ export async function mountViewer(root, options) {
             else if (event.key === "-") { zoom(-1); event.preventDefault(); }
             else if (event.key === "Home" && !event.shiftKey) { pdfViewer.currentPageNumber = 1; event.preventDefault(); }
             else if (event.key === "End" && !event.shiftKey) { pdfViewer.currentPageNumber = pdf.numPages; event.preventDefault(); }
-        });
+        }, { signal: lifetime.signal });
     }
 
     function stageScrollsSideways() {
@@ -334,6 +358,7 @@ export async function mountViewer(root, options) {
             }
             drawNext();
         }, { root: thumbs, rootMargin: "300px 0px" });
+        lifetime.signal.addEventListener("abort", () => observer.disconnect(), { once: true });
 
         for (let number = 1; number <= pdf.numPages; number++) {
             const item = document.createElement("li");
@@ -400,8 +425,12 @@ export async function mountViewer(root, options) {
         goTo(page) { const number = clampPage(page); if (number) pdfViewer.currentPageNumber = number; },
         find,
         destroy() {
+            cancelAnimationFrame(refitFrame);
+            resizeWatch.disconnect();
+            pdfViewer.setDocument(null);
+            linkService.setDocument(null, null);
+            lifetime.abort();
             loading.destroy();
-            pdfViewer.cleanup?.();
         }
     };
 }
