@@ -505,7 +505,7 @@
           throw new PdfToolError('range-out-of-bounds', 'A selected page does not exist in its file.');
         }
       });
-      tagLinkDestinations(PDFLib, document, sourceIndex, unique);
+      tagPageReferences(PDFLib, document, sourceIndex, unique);
       const copied = await output.copyPages(document, unique);
       unique.forEach((index, position) => copies.set(`${sourceIndex}:${index}`, copied[position]));
     }
@@ -528,8 +528,9 @@
       }
     }
     carryFormFields(PDFLib, output, loaded);
-    resolveLinkDestinations(PDFLib, output, outputPages);
+    resolvePageTags(PDFLib, output, outputPages);
     removeUnreachableObjects(PDFLib, output);
+    assertOnlyOutputPages(PDFLib, output);
     return save(output);
   }
 
@@ -603,75 +604,212 @@
     output.catalog.set(PDFName.of('AcroForm'), output.context.register(acroForm));
   }
 
-  const LINK_TARGET_PREFIX = 'PrismPdfToolsPage:';
+  const PAGE_TAG_PREFIX = 'PrismPdfToolsPage:';
+  // On an annotation itself, /P (its own page) is re-pointed by resolvePageTags and /Parent
+  // (its form field) by carryFormFields. Deeper in the graph these keys are ordinary links.
+  const STRUCTURAL_KEYS = new Set(['/P', '/Parent']);
 
-  /** The explicit destination array of a link annotation (/Dest or a GoTo action's /D). */
-  function linkDestination(PDFLib, annot) {
+  /** Named destinations of a document: /Dests dictionary and the /Names /Dests name tree. */
+  function namedDestinations(PDFLib, document) {
     const { PDFName, PDFDict, PDFArray } = PDFLib;
-    if (!(annot instanceof PDFDict) || String(annot.get(PDFName.of('Subtype'))) !== '/Link') {
-      return undefined;
+    const destinations = new Map();
+    const add = (name, value) => {
+      const explicit = value instanceof PDFDict ? value.lookup(PDFName.of('D')) : value;
+      if (name !== undefined && explicit instanceof PDFArray) {
+        destinations.set(name, explicit);
+      }
+    };
+    const dests = document.catalog.lookupMaybe(PDFName.of('Dests'), PDFDict);
+    if (dests) {
+      dests.entries().forEach(([key]) => add(key.decodeText(), dests.lookup(key)));
     }
-    let destination = annot.lookup(PDFName.of('Dest'));
-    const action = annot.lookup(PDFName.of('A'));
-    if (!destination && action instanceof PDFDict) {
-      destination = action.lookup(PDFName.of('D'));
-    }
-    return destination instanceof PDFArray ? destination : undefined;
+    const names = document.catalog.lookupMaybe(PDFName.of('Names'), PDFDict);
+    const visit = (node, depth) => {
+      if (!(node instanceof PDFDict) || depth > 32) return;
+      const leaves = node.lookupMaybe(PDFName.of('Names'), PDFArray);
+      if (leaves) {
+        for (let i = 0; i + 1 < leaves.size(); i += 2) {
+          add(destinationName(PDFLib, leaves.lookup(i)), leaves.lookup(i + 1));
+        }
+      }
+      const kids = node.lookupMaybe(PDFName.of('Kids'), PDFArray);
+      if (kids) {
+        for (let i = 0; i < kids.size(); i += 1) visit(kids.lookup(i), depth + 1);
+      }
+    };
+    visit(names ? names.lookup(PDFName.of('Dests')) : undefined, 0);
+    return destinations;
+  }
+
+  function destinationName(PDFLib, value) {
+    const { PDFName, PDFString, PDFHexString } = PDFLib;
+    return value instanceof PDFName || value instanceof PDFString || value instanceof PDFHexString
+      ? value.decodeText()
+      : undefined;
   }
 
   /**
-   * copyPages copies a link's target page as a separate, unlisted page object instead of
-   * pointing it at the copied page. Before copying, replace each link target that is a page of
-   * this source with a name that records which page it was; resolveLinkDestinations then points
-   * it at the output page, so the target page itself is never dragged into the output.
+   * copyPages copies any page an annotation refers to (a link, a button's GoTo action, an
+   * additional action...) as a separate, unlisted page object, and drops the source's named
+   * destinations. Before copying, rewrite each annotation on the selected pages so that:
+   * named destinations become explicit ones, and every reference to a page of this source
+   * becomes a name recording which page it was. resolvePageTags then points those at the
+   * output pages, so no page is dragged into the output through an annotation.
    */
-  function tagLinkDestinations(PDFLib, document, sourceIndex, indexes) {
-    const { PDFName, PDFRef } = PDFLib;
+  function tagPageReferences(PDFLib, document, sourceIndex, indexes) {
+    const { PDFName, PDFDict, PDFArray, PDFRef, PDFStream } = PDFLib;
     const pageIndexByRef = new Map(document.getPages().map((page, index) => [String(page.ref), index]));
+    const named = namedDestinations(PDFLib, document);
+    const tagFor = (ref) => PDFName.of(`${PAGE_TAG_PREFIX}${sourceIndex}:${pageIndexByRef.get(String(ref))}`);
+    const seen = new Set();
+
+    const visit = (value, isAnnotation = false) => {
+      if (value instanceof PDFRef) {
+        const key = String(value);
+        if (seen.has(key) || pageIndexByRef.has(key)) return;
+        seen.add(key);
+        visit(document.context.lookup(value), isAnnotation);
+      } else if (value instanceof PDFDict) {
+        for (const [key, entry] of value.entries()) {
+          const name = String(key);
+          if (isAnnotation && STRUCTURAL_KEYS.has(name)) continue;
+          if (name === '/Dest' || name === '/D') {
+            const explicit = named.get(destinationName(PDFLib, value.lookup(key)));
+            if (explicit) {
+              value.set(key, document.context.obj(explicit.asArray()));
+            }
+          }
+          const current = value.get(key);
+          if (current instanceof PDFRef && pageIndexByRef.has(String(current))) {
+            value.set(key, tagFor(current));
+          } else {
+            visit(current);
+          }
+        }
+      } else if (value instanceof PDFArray) {
+        value.asArray().forEach((entry, index) => {
+          if (entry instanceof PDFRef && pageIndexByRef.has(String(entry))) {
+            value.set(index, tagFor(entry));
+          } else {
+            visit(entry);
+          }
+        });
+      } else if (value instanceof PDFStream) {
+        visit(value.dict);
+      }
+    };
+
     for (const index of indexes) {
       const annots = document.getPage(index).node.Annots();
-      if (!annots) continue;
-      for (const ref of annots.asArray()) {
-        const destination = linkDestination(PDFLib, ref instanceof PDFRef ? document.context.lookup(ref) : ref);
-        const target = destination?.get(0);
-        if (target instanceof PDFRef && pageIndexByRef.has(String(target))) {
-          destination.set(0, PDFName.of(`${LINK_TARGET_PREFIX}${sourceIndex}:${pageIndexByRef.get(String(target))}`));
-        }
+      if (annots) {
+        annots.asArray().forEach((ref) => visit(ref, true));
       }
     }
   }
 
   /**
-   * Points tagged links at their output pages. A link whose target page was dropped, or whose
-   * target is any page object not in the output, is removed: it would be broken anyway, and
-   * keeping it would keep that page's content in the file.
+   * Points tagged page references in the output's annotations at the output pages. Anything
+   * that still leads to a page that is not in the output (a dropped page, or a page object from
+   * elsewhere) is removed: a link annotation as a whole, otherwise just the entry (such as a
+   * button's /A or /AA action) that refers to it. It would be broken anyway, and keeping it
+   * would keep that page's content in the file.
    */
-  function resolveLinkDestinations(PDFLib, output, outputPages) {
-    const { PDFName, PDFRef } = PDFLib;
+  function resolvePageTags(PDFLib, output, outputPages) {
+    const { PDFName, PDFDict, PDFArray, PDFRef, PDFStream } = PDFLib;
     const pages = new Set(output.getPages().map((page) => String(page.ref)));
+    const isStrayPage = (ref) => {
+      if (pages.has(String(ref))) return false;
+      const object = output.context.lookup(ref);
+      return object instanceof PDFDict && String(object.get(PDFName.of('Type'))) === '/Page';
+    };
+    const resolveTag = (value) => {
+      if (!(value instanceof PDFName)) return undefined;
+      const name = value.decodeText();
+      if (!name.startsWith(PAGE_TAG_PREFIX)) return undefined;
+      return outputPages.get(name.slice(PAGE_TAG_PREFIX.length)) || null;
+    };
+
+    // Returns false when the value still leads to a page that is not in the output.
+    const resolve = (value, seen) => {
+      if (value instanceof PDFRef) {
+        const key = String(value);
+        if (seen.has(key) || pages.has(key)) return true;
+        if (isStrayPage(value)) return false;
+        seen.add(key);
+        return resolve(output.context.lookup(value), seen);
+      }
+      if (value instanceof PDFDict) {
+        let ok = true;
+        for (const [key, entry] of value.entries()) {
+          const tag = resolveTag(entry);
+          if (tag) value.set(key, tag);
+          else if (tag === null || !resolve(entry, seen)) ok = false;
+        }
+        return ok;
+      }
+      if (value instanceof PDFArray) {
+        let ok = true;
+        value.asArray().forEach((entry, index) => {
+          const tag = resolveTag(entry);
+          if (tag) value.set(index, tag);
+          else if (tag === null || !resolve(entry, seen)) ok = false;
+        });
+        return ok;
+      }
+      if (value instanceof PDFStream) {
+        return resolve(value.dict, seen);
+      }
+      return true;
+    };
+
     for (const page of output.getPages()) {
+      // Article-thread beads chain pages together; the threads are not carried over.
+      page.node.delete(PDFName.of('B'));
       const annots = page.node.Annots();
       if (!annots) continue;
       const keep = annots.asArray().filter((ref) => {
-        const destination = linkDestination(PDFLib, ref instanceof PDFRef ? output.context.lookup(ref) : ref);
-        const target = destination?.get(0);
-        if (target instanceof PDFName) {
-          const name = target.decodeText();
-          if (!name.startsWith(LINK_TARGET_PREFIX)) {
-            return true;
-          }
-          const resolved = outputPages.get(name.slice(LINK_TARGET_PREFIX.length));
-          if (resolved) {
-            destination.set(0, resolved);
-            return true;
-          }
-          return false;
+        const annot = ref instanceof PDFRef ? output.context.lookup(ref) : ref;
+        if (!(annot instanceof PDFDict)) return true;
+        const isLink = String(annot.get(PDFName.of('Subtype'))) === '/Link';
+        if (annot.has(PDFName.of('P'))) {
+          annot.set(PDFName.of('P'), page.ref);
         }
-        return !(target instanceof PDFRef) || pages.has(String(target));
+        for (const [key, entry] of annot.entries()) {
+          if (STRUCTURAL_KEYS.has(String(key))) continue;
+          const tag = resolveTag(entry);
+          if (tag) {
+            annot.set(key, tag);
+            continue;
+          }
+          if (tag === null || !resolve(entry, new Set())) {
+            if (isLink) return false;
+            annot.delete(key);
+          }
+        }
+        return true;
       });
       if (keep.length !== annots.size()) {
         page.node.set(PDFName.of('Annots'), output.context.obj(keep));
       }
+    }
+  }
+
+  /**
+   * Last line of defence for Split, extract and delete: after clean-up the file must contain
+   * no page object other than the output pages. If some unforeseen structure still references
+   * another page, refuse to save rather than silently keep content the user removed.
+   */
+  function assertOnlyOutputPages(PDFLib, output) {
+    const { PDFDict, PDFName } = PDFLib;
+    const pages = new Set(output.getPages().map((page) => String(page.ref)));
+    const stray = output.context.enumerateIndirectObjects().some(([ref, object]) =>
+      object instanceof PDFDict &&
+      String(object.get(PDFName.of('Type'))) === '/Page' &&
+      !pages.has(String(ref)));
+    if (stray) {
+      throw new PdfToolError(
+        'unsupported-structure',
+        'This PDF links its pages together in a way that cannot be separated safely, so it was not saved. No file was created.');
     }
   }
 

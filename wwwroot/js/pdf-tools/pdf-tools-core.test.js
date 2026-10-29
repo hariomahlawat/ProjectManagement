@@ -322,6 +322,110 @@ test('a link to a dropped page does not carry that page into the saved file', as
   assert.equal(String(destination.get(0)), String(both.getPage(1).ref));
 });
 
+/** Number of page objects anywhere in the saved file (not just in the page tree). */
+async function pageObjectCount(bytes) {
+  const document = await PDFLib.PDFDocument.load(bytes);
+  return document.context.enumerateIndirectObjects()
+    .filter(([, object]) => object instanceof PDFLib.PDFDict && String(object.get(PDFLib.PDFName.of('Type'))) === '/Page')
+    .length;
+}
+
+test('a form button that jumps to a dropped page does not carry that page into the saved file', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const font = await document.embedFont(PDFLib.StandardFonts.Helvetica);
+  const first = document.addPage([300, 300]);
+  const second = document.addPage([300, 300]);
+  second.drawText('SECRETPAGETEXT', { x: 20, y: 150, size: 12, font });
+  const context = document.context;
+  const button = context.register(context.obj({
+    Type: 'Annot',
+    Subtype: 'Widget',
+    FT: 'Btn',
+    Ff: 65536,
+    T: PDFLib.PDFHexString.fromText('jump'),
+    Rect: [10, 10, 100, 30],
+    P: first.ref,
+    A: { S: 'GoTo', D: [second.ref, 'Fit'] },
+    AA: { U: { S: 'GoTo', D: [second.ref, 'Fit'] } }
+  }));
+  first.node.set(PDFLib.PDFName.of('Annots'), context.obj([button]));
+  document.catalog.set(PDFLib.PDFName.of('AcroForm'), context.obj({ Fields: [button] }));
+  const pdf = await document.save();
+
+  const [kept] = await tools.splitPdf(PDFLib, pdf, [[0]]);
+  assert.equal(await pageObjectCount(kept), 1, 'only the kept page is in the file');
+  assert.doesNotMatch(await allObjectText(kept), /5345435245545041474554455854|SECRETPAGETEXT/i);
+  const output = await PDFLib.PDFDocument.load(kept);
+  assert.deepEqual(output.getForm().getFields().map((field) => field.getName()), ['jump'], 'the button itself is kept');
+
+  // Keeping both pages keeps the jump, pointed at the output page.
+  const both = await PDFLib.PDFDocument.load(await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 1 }, { source: 0, index: 0 }]));
+  const widget = both.context.lookup(both.getPage(1).node.Annots().get(0));
+  const action = widget.lookup(PDFLib.PDFName.of('A'));
+  assert.equal(String(action.lookup(PDFLib.PDFName.of('D')).get(0)), String(both.getPage(0).ref));
+});
+
+test('named link destinations survive assembly and are re-pointed or removed', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const font = await document.embedFont(PDFLib.StandardFonts.Helvetica);
+  const first = document.addPage([300, 300]);
+  const second = document.addPage([300, 300]);
+  second.drawText('SECRETPAGETEXT', { x: 20, y: 150, size: 12, font });
+  const context = document.context;
+  // One name from the old-style /Dests dictionary, one from the /Names /Dests name tree.
+  document.catalog.set(PDFLib.PDFName.of('Dests'), context.obj({ chapter2: [second.ref, 'Fit'] }));
+  document.catalog.set(PDFLib.PDFName.of('Names'), context.obj({
+    Dests: context.obj({ Names: [PDFLib.PDFString.of('appendix'), context.obj({ D: [second.ref, 'Fit'] })] })
+  }));
+  const byName = context.register(context.obj({ Type: 'Annot', Subtype: 'Link', Rect: [10, 10, 100, 30], Dest: 'chapter2' }));
+  const byTree = context.register(context.obj({
+    Type: 'Annot', Subtype: 'Link', Rect: [10, 40, 100, 60], A: { S: 'GoTo', D: PDFLib.PDFString.of('appendix') }
+  }));
+  first.node.set(PDFLib.PDFName.of('Annots'), context.obj([byName, byTree]));
+  const pdf = await document.save();
+
+  const both = await PDFLib.PDFDocument.load(await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 0 }, { source: 0, index: 1 }]));
+  const annots = both.getPage(0).node.Annots();
+  assert.equal(annots.size(), 2);
+  const target = String(both.getPage(1).ref);
+  assert.equal(String(both.context.lookup(annots.get(0)).lookup(PDFLib.PDFName.of('Dest')).get(0)), target);
+  const action = both.context.lookup(annots.get(1)).lookup(PDFLib.PDFName.of('A'));
+  assert.equal(String(action.lookup(PDFLib.PDFName.of('D')).get(0)), target);
+
+  const [kept] = await tools.splitPdf(PDFLib, pdf, [[0]]);
+  assert.equal(await pageObjectCount(kept), 1);
+  assert.equal((await PDFLib.PDFDocument.load(kept)).getPage(0).node.Annots()?.size() ?? 0, 0, 'links to the dropped page are removed');
+});
+
+test('an annotation that refers to an annotation on a dropped page does not carry that page in', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const font = await document.embedFont(PDFLib.StandardFonts.Helvetica);
+  const first = document.addPage([300, 300]);
+  const second = document.addPage([300, 300]);
+  second.drawText('SECRETPAGETEXT', { x: 20, y: 150, size: 12, font });
+  const context = document.context;
+  const original = context.register(context.obj({ Type: 'Annot', Subtype: 'Text', Rect: [10, 10, 30, 30], P: second.ref }));
+  second.node.set(PDFLib.PDFName.of('Annots'), context.obj([original]));
+  const reply = context.register(context.obj({ Type: 'Annot', Subtype: 'Text', Rect: [10, 10, 30, 30], P: first.ref, IRT: original }));
+  first.node.set(PDFLib.PDFName.of('Annots'), context.obj([reply]));
+
+  const [kept] = await tools.splitPdf(PDFLib, await document.save(), [[0]]);
+  assert.equal(await pageObjectCount(kept), 1, 'neither the dropped page nor a duplicate of the kept page is in the file');
+  assert.doesNotMatch(await allObjectText(kept), /5345435245545041474554455854|SECRETPAGETEXT/i);
+  const output = await PDFLib.PDFDocument.load(kept);
+  const kept0 = output.context.lookup(output.getPage(0).node.Annots().get(0));
+  assert.equal(String(kept0.get(PDFLib.PDFName.of('P'))), String(output.getPage(0).ref), 'the reply still points at its own page');
+});
+
+test('an unforeseen reference to a dropped page refuses to save instead of leaking it', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const first = document.addPage([300, 300]);
+  const second = document.addPage([300, 300]);
+  first.node.set(PDFLib.PDFName.of('PieceInfo'), document.context.obj({ Custom: { Target: second.ref } }));
+
+  await assert.rejects(tools.splitPdf(PDFLib, await document.save(), [[0]]), { code: 'unsupported-structure' });
+});
+
 test('assemblePages rejects empty selections and missing pages', async () => {
   const pdf = await makePdf([[100, 100]]);
   await assert.rejects(tools.assemblePages(PDFLib, [pdf], []), { code: 'no-pages' });
