@@ -115,8 +115,12 @@ public enum BriefingDeskTone
     Danger
 }
 
-/// <summary>A header tag on a card. <paramref name="Url"/> makes it a link to where it is fixed.</summary>
-public sealed record BriefingDeskFactVm(string Text, BriefingDeskTone Tone, string? Url = null);
+/// <summary>
+/// A header tag on a card. <paramref name="Url"/> makes it a link to where it is fixed.
+/// <paramref name="CoveredByStep"/> marks a tag that a step on the open card repeats, so the open
+/// card shows it once, as the step.
+/// </summary>
+public sealed record BriefingDeskFactVm(string Text, BriefingDeskTone Tone, string? Url = null, bool CoveredByStep = false);
 
 public enum BriefingDeskStepState
 {

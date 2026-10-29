@@ -60,19 +60,20 @@
         <ul class="bd-card__facts" aria-label="Key facts">
             @foreach (var fact in item.Facts)
             {
+                var factClass = $"bd-fact {ToneClass(fact.Tone)} {(fact.CoveredByStep ? "bd-fact--covered" : string.Empty)}";
                 @if (string.IsNullOrWhiteSpace(fact.Url))
                 {
-                    <li class="bd-fact @ToneClass(fact.Tone)">@fact.Text</li>
+                    <li class="@factClass">@fact.Text</li>
                 }
                 else
                 {
-                    <li class="bd-fact @ToneClass(fact.Tone)"><a class="bd-fact__link" href="@fact.Url">@fact.Text<span class="visually-hidden"> (open the plan editor)</span></a></li>
+                    <li class="@factClass"><a class="bd-fact__link" href="@fact.Url">@fact.Text<span class="visually-hidden"> (open the plan editor)</span></a></li>
                 }
             }
         </ul>
         @if (item.IsBriefReady)
         {
-            <span class="bd-pill bd-pill--ready"><i class="bi bi-check2" aria-hidden="true"></i>Brief-ready</span>
+            <span class="bd-pill bd-pill--ready"><i class="bi bi-check2" aria-hidden="true"></i>Ready</span>
         }
         else
         {
@@ -86,7 +87,7 @@
         <ol class="bd-strip" aria-label="@(item.Kind == ConferenceItemKind.Project ? "Project stages" : "Task status")">
             @foreach (var step in item.Strip)
             {
-                <li class="bd-step @StepClass(step.State)" title="@step.Title" aria-current="@(step.State is BriefingDeskStepState.Current or BriefingDeskStepState.Blocked ? "step" : null)">@step.Label</li>
+                <li class="bd-step @StepClass(step.State)" title="@step.Title" aria-current="@(step.State is BriefingDeskStepState.Current or BriefingDeskStepState.Blocked ? "step" : null)">@step.Label@(step.State is BriefingDeskStepState.Current && step.Title != step.Label ? $" · {step.Title}" : string.Empty)</li>
             }
         </ol>
     }
@@ -217,7 +218,7 @@
                         <summary>
                             <h4 class="bd-checks__title bd-checks__title--improve">
                                 <span class="bd-improve__title">Improve the record</span>
-                                <span class="bd-improve__meta">@item.RecordHealthPercent% now · up to +@item.ImprovementPoints points · @item.Improvements.Count optional item@(item.Improvements.Count == 1 ? string.Empty : "s")</span>
+                                <span class="bd-improve__meta">Record @item.RecordHealthPercent% complete · @item.Improvements.Count optional detail@(item.Improvements.Count == 1 ? string.Empty : "s") missing</span>
                                 <i class="bi bi-chevron-down bd-improve__chevron" aria-hidden="true"></i>
                             </h4>
                         </summary>

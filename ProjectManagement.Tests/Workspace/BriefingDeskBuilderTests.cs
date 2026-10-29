@@ -286,6 +286,31 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_StageTag_NamesTheStage()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) }));
+
+        Assert.Equal("DEVP · Development · 40 days", item.Facts[0].Text);
+        Assert.Equal("DEVP", BriefingDeskBuilder.StageLabel("DEVP", "DEVP"));
+        Assert.Equal("DEVP", BriefingDeskBuilder.StageLabel("DEVP", null));
+    }
+
+    [Fact]
+    public void Project_TagsThatAStepRepeats_AreMarkedCovered()
+    {
+        var withPdc = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) }));
+        var passed = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: -5) }));
+
+        // The PDC and update tags repeat the PDC and update steps; the stage tag has no step.
+        Assert.True(withPdc.Facts.Single(fact => fact.Text.StartsWith("PDC", StringComparison.Ordinal)).CoveredByStep);
+        Assert.True(withPdc.Facts.Single(fact => fact.Text.StartsWith("Updated", StringComparison.Ordinal)).CoveredByStep);
+        Assert.False(withPdc.Facts[0].CoveredByStep);
+
+        // A passed PDC has no step, so its red note stays on the open card.
+        Assert.False(passed.Facts.Single(fact => fact.Text.StartsWith("PDC passed", StringComparison.Ordinal)).CoveredByStep);
+    }
+
+    [Fact]
     public void Project_RecordHealth_IsNotAHeaderTag()
     {
         var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) }));
@@ -762,6 +787,7 @@ public sealed class BriefingDeskBuilderTests
             ProjectId = 1,
             ProjectName = "VR Based BFSR",
             CurrentStageCode = "DEVP",
+            CurrentStageName = "Development",
             DaysInCurrentStage = 40,
             CurrentStagePdc = pdcInDays is int days ? Today.AddDays(days) : null,
             DaysUntilCurrentStagePdc = pdcInDays,

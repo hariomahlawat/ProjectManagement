@@ -182,14 +182,15 @@ public sealed class ProjectOfficerWorkspaceService
         var reminders = await LoadPersonalRemindersAsync(userId, ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
         var matrixRows = BuildProjectMatrix(projects, health, userId, today);
-        var operational = await LoadOperationalContextAsync(
+        // The desk reads only unread circulars and pending conference directions here. The old
+        // action queue (returned items, remarks due, tasks due) is no longer shown anywhere, so it
+        // is not built.
+        var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
+        var conferenceDirections = await _conferenceActions.GetPendingAsync(
             userId,
-            today,
-            projects,
-            tasks,
-            ideas,
-            matrixRows,
-            vm.AotsUnreadCount,
+            projects.ToDictionary(project => project.Id, project => project.Name),
+            ideas.ToDictionary(idea => idea.IdeaId, idea => idea.Title),
+            tasks.ToDictionary(task => task.TaskId, task => task.Title),
             ct);
         var conference = await _conference.GetForProjectOfficerAsync(userId, ct);
         var pending = await LoadPendingApprovalsAsync(userId, projects, tasks, ct);
@@ -232,14 +233,13 @@ public sealed class ProjectOfficerWorkspaceService
                     lastTaskProgress.TryGetValue(task.TaskId, out var lastProgress) ? lastProgress : null,
                     task.RowVersion))
                 .ToList(),
-            operational.ConferenceDirections,
+            conferenceDirections,
             conference,
             pending.Waiting,
             PlanDirectSaveRole: principal.IsInRole(ProjectManagement.Configuration.RoleNames.Admin)
                 || principal.IsInRole(ProjectManagement.Configuration.RoleNames.HoD)));
 
-        ApplyOperationalContext(vm, operational);
-        CacheNavigationActionCount(userId, operational.ActionQueue.TotalCount);
+        vm.AotsDocuments = aotsDocuments;
         vm.NavigationFollowUpCount = reminders.Count;
         vm.ProjectMatrix = matrixRows;
         vm.OfficialTasks = tasks;
@@ -485,79 +485,6 @@ public sealed class ProjectOfficerWorkspaceService
         IReadOnlyDictionary<int, DateTimeOffset> PlanSinceByProject,
         IReadOnlyDictionary<int, BriefingDeskPendingCorrection> CorrectionsByProject);
 
-    private async Task<ProjectOfficerOperationalContext> LoadOperationalContextAsync(
-        string userId,
-        DateOnly today,
-        IReadOnlyList<Project> projects,
-        IReadOnlyList<WorkspaceTaskVm> tasks,
-        IReadOnlyList<WorkspaceIdeaVm> ideas,
-        IReadOnlyList<WorkspaceProjectMatrixRowVm> projectRows,
-        int aotsUnreadCount,
-        CancellationToken ct)
-    {
-        var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
-        var returnedItems = await BuildReturnedItemsAsync(userId, ct);
-        var officialTasksDue = tasks
-            .Where(task => task.IsOverdue || IsDueSoon(task.DueDate, today))
-            .OrderByDescending(task => task.IsOverdue)
-            .ThenBy(task => task.DueDate)
-            .ToList();
-        var ideasNeedingUpdate = ideas
-            .Where(idea => idea.NeedsUpdate)
-            .OrderBy(idea => idea.LastActivityAtUtc)
-            .ToList();
-        var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
-        var pendingConferenceDirections = await _conferenceActions.GetPendingAsync(
-            userId,
-            projects.ToDictionary(project => project.Id, project => project.Name),
-            ideas.ToDictionary(idea => idea.IdeaId, idea => idea.Title),
-            tasks.ToDictionary(task => task.TaskId, task => task.Title),
-            ct);
-        var actionQueue = WorkspaceActionQueueBuilder.Build(
-            returnedItems,
-            officialTasksDue,
-            remarksDue,
-            ideasNeedingUpdate,
-            aotsDocuments,
-            aotsUnreadCount,
-            projectRows,
-            pendingConferenceDirections);
-
-        return new ProjectOfficerOperationalContext(
-            actionQueue,
-            remarksDue,
-            returnedItems,
-            officialTasksDue,
-            ideasNeedingUpdate,
-            aotsDocuments,
-            pendingConferenceDirections);
-    }
-
-    private static void ApplyOperationalContext(
-        ProjectOfficerWorkspaceVm vm,
-        ProjectOfficerOperationalContext operational)
-    {
-        var queue = operational.ActionQueue;
-        vm.ActionQueue = queue.Items;
-        vm.ActionQueueGroups = queue.Groups;
-        vm.AllActionQueue = queue.AllItems;
-        vm.AllActionQueueGroups = queue.AllGroups;
-        vm.ActionQueueTotalCount = queue.TotalCount;
-        vm.NavigationActionCount = queue.TotalCount;
-        vm.DailyActionCount = queue.TotalCount;
-        vm.ActionSummary = queue.Summary;
-        vm.ActionProjectCount = queue.Summary.ProjectCount;
-        vm.ActionIdeaCount = queue.Summary.IdeaCount;
-        vm.ActionTaskCount = queue.Summary.TaskCount;
-        vm.PendingConferenceDirectionCount = queue.Summary.ConferenceDirectionCount;
-        vm.RemarksDueCount = operational.RemarksDue.Count;
-        vm.OfficialTasksDue = operational.OfficialTasksDue;
-        vm.IdeasNeedingUpdate = operational.IdeasNeedingUpdate;
-        vm.IdeasNeedingUpdateCount = operational.IdeasNeedingUpdate.Count;
-        vm.AotsDocuments = operational.AotsDocuments;
-        vm.ReturnedItems = operational.ReturnedItems.Take(5).ToList();
-    }
-
     private IReadOnlyList<WorkspaceProjectMatrixRowVm> BuildProjectMatrix(
         IReadOnlyList<Project> projects,
         IReadOnlyDictionary<int, WorkspaceRecordHealthVm> health,
@@ -738,15 +665,6 @@ public sealed class ProjectOfficerWorkspaceService
         int AotsUnreadCount,
         int? ActionCount);
 
-    private sealed record ProjectOfficerOperationalContext(
-        WorkspaceActionQueueBuildResult ActionQueue,
-        IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue,
-        IReadOnlyList<WorkspaceAttentionItemVm> ReturnedItems,
-        IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue,
-        IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate,
-        IReadOnlyList<WorkspaceAotsDocumentVm> AotsDocuments,
-        IReadOnlyList<WorkspaceConferenceDirectionActionVm> ConferenceDirections);
-
     // SECTION: Assigned projects include current-stage context for the workspace matrix.
     private async Task<IReadOnlyList<Project>> LoadAssignedProjectsAsync(string userId, CancellationToken ct)
     {
@@ -754,7 +672,12 @@ public sealed class ProjectOfficerWorkspaceService
             .AsNoTracking()
             .AsSplitQuery()
             .Include(p => p.ProjectStages)
-            .Include(p => p.Remarks)
+            // Only the PO's latest remark is read (WorkspaceNudgeService.LastPoRemark), so only it
+            // is loaded rather than every remark on every project.
+            .Include(p => p.Remarks
+                .Where(r => !r.IsDeleted && r.AuthorUserId == userId)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .Take(1))
             .Where(p =>
                 p.LeadPoUserId == userId &&
                 !p.IsDeleted &&

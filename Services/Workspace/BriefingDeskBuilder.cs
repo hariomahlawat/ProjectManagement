@@ -192,7 +192,7 @@ public static class BriefingDeskBuilder
             ItemId = row.ProjectId,
             Title = row.ProjectName,
             OpenUrl = row.OpenUrl,
-            Facts = ProjectFacts(row, hasStage, input.PendingPlanSinceUtc),
+            Facts = ProjectFacts(row, hasStage, input.PendingPlanSinceUtc, pdcCovered: checks.Any(check => check.Key == "pdc")),
             Strip = ProjectStrip(input.Stages, row.CurrentStageCode),
             Direction = conference?.LatestDirection,
             DirectionAwaitingProgress = directionAwaitingProgress,
@@ -513,27 +513,36 @@ public static class BriefingDeskBuilder
         _ => $"{component.ToLowerInvariant()} items missing"
     };
 
+    // The stage tag names the stage as well as its code, since a code alone ("PNC") means
+    // little on a phone, where there is no hover title.
+    internal static string StageLabel(string code, string? name)
+        => string.IsNullOrWhiteSpace(name) || string.Equals(name, code, StringComparison.OrdinalIgnoreCase) || name == "Not started"
+            ? code
+            : $"{code} · {name}";
+
     private static IReadOnlyList<BriefingDeskFactVm> ProjectFacts(
         WorkspaceProjectMatrixRowVm row,
         bool hasStage,
-        DateTimeOffset? pendingPlanSinceUtc = null)
+        DateTimeOffset? pendingPlanSinceUtc = null,
+        bool pdcCovered = false)
     {
         var facts = new List<BriefingDeskFactVm>();
+        var stage = StageLabel(row.CurrentStageCode, row.CurrentStageName);
         if (!hasStage)
         {
             facts.Add(new BriefingDeskFactVm("No current stage", BriefingDeskTone.Warning));
         }
         else if (row.IsCurrentStageNotStarted)
         {
-            facts.Add(new BriefingDeskFactVm($"{row.CurrentStageCode} not started", BriefingDeskTone.Warning));
+            facts.Add(new BriefingDeskFactVm($"{stage} · not started", BriefingDeskTone.Warning));
         }
         else if (row.DaysInCurrentStage is int days)
         {
-            facts.Add(new BriefingDeskFactVm($"{days} day{Plural(days)} in {row.CurrentStageCode}", BriefingDeskTone.Neutral));
+            facts.Add(new BriefingDeskFactVm($"{stage} · {days} day{Plural(days)}", BriefingDeskTone.Neutral));
         }
         else
         {
-            facts.Add(new BriefingDeskFactVm(row.CurrentStageCode, BriefingDeskTone.Neutral));
+            facts.Add(new BriefingDeskFactVm(stage, BriefingDeskTone.Neutral));
         }
 
         // A plan with the HoD is the PO's answer to a missing or passed PDC, so the header says
@@ -549,7 +558,8 @@ public static class BriefingDeskBuilder
             {
                 facts.Add(new BriefingDeskFactVm(
                     row.CurrentStagePdc is null ? $"PDC {planWithHod}" : $"Revised PDC {planWithHod}",
-                    BriefingDeskTone.Neutral));
+                    BriefingDeskTone.Neutral,
+                    CoveredByStep: pdcCovered));
             }
             else if (row.HasOverdueCurrentStage && row.CurrentStagePdc is DateOnly passed)
             {
@@ -561,11 +571,11 @@ public static class BriefingDeskBuilder
             }
             else if (row.CurrentStagePdc is DateOnly pdc)
             {
-                facts.Add(new BriefingDeskFactVm($"PDC {FormatDay(pdc)}", BriefingDeskTone.Neutral));
+                facts.Add(new BriefingDeskFactVm($"PDC {FormatDay(pdc)}", BriefingDeskTone.Neutral, CoveredByStep: pdcCovered));
             }
             else
             {
-                facts.Add(new BriefingDeskFactVm("PDC not set", BriefingDeskTone.Warning));
+                facts.Add(new BriefingDeskFactVm("PDC not set", BriefingDeskTone.Warning, CoveredByStep: pdcCovered));
             }
         }
 
@@ -575,7 +585,7 @@ public static class BriefingDeskBuilder
             0 => new BriefingDeskFactVm("Updated today", BriefingDeskTone.Good),
             var value when value <= UpdateWindowDays => new BriefingDeskFactVm($"Updated {value} day{Plural(value!.Value)} ago", BriefingDeskTone.Good),
             var value => new BriefingDeskFactVm($"Updated {value} days ago", value > 10 ? BriefingDeskTone.Danger : BriefingDeskTone.Warning)
-        });
+        } with { CoveredByStep = true }); // the update step and the box repeat it
 
         // Record health is optional, so it is not a header tag: "Improve the record" shows it
         // ("48% now") with the gaps that would raise it.
@@ -687,7 +697,7 @@ public static class BriefingDeskBuilder
             Facts = new[]
             {
                 new BriefingDeskFactVm(idea.Status, idea.Status == "On Hold" ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral),
-                new BriefingDeskFactVm($"Last activity {activityText}", idea.NeedsUpdate ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral),
+                new BriefingDeskFactVm($"Last activity {activityText}", idea.NeedsUpdate ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral, CoveredByStep: true),
                 new BriefingDeskFactVm($"{idea.DocumentCount} document{Plural(idea.DocumentCount)}", BriefingDeskTone.Neutral)
             },
             Direction = conference?.LatestDirection,

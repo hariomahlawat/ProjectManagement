@@ -29,7 +29,7 @@
     <div class="bd-check__copy">
         <span class="visually-hidden">@stateLabel: </span>
         <strong>@check.Label</strong>
-        <span>@check.Detail@(check.Points > 0 ? $" · +{check.Points} pts" : string.Empty)</span>
+        <span>@check.Detail</span>
     </div>
     <div class="bd-check__action">
         @switch (check.State)

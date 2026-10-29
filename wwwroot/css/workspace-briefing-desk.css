@@ -387,6 +387,17 @@
     display: none;
 }
 
+/* An open card shows each fact once: a tag that a step repeats is left to the step. */
+.bd-card.is-expanded .bd-fact--covered {
+    display: none;
+}
+
+/* In the ready group a folded card is one line of tags; "Ready. Nothing outstanding" is
+   what the group already says. */
+.bd-ready .bd-card:not(.is-expanded) .bd-card__next {
+    display: none;
+}
+
 .bd-card__body {
     border-top: 1px solid var(--pm-border-subtle);
     padding: 1rem 1.25rem 1.1rem;
@@ -941,6 +952,22 @@
     border-radius: 0.75rem;
 }
 
+/* A panel with nothing to show is one line: its name, why it is empty, and where to look. */
+.bd-panel--quiet {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    padding: 0.65rem 1rem;
+}
+
+.bd-panel--quiet h2 {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
 .bd-panel--danger {
     border-color: var(--pm-danger-soft-border);
 }
@@ -1086,6 +1113,12 @@
 
 /* SECTION: Small screens ------------------------------------------------ */
 @media (max-width: 575.98px) {
+    /* The headline carries the count; the line under it is left to wider screens so the
+       first card reaches the first screen. */
+    .bd-header__sub {
+        display: none;
+    }
+
     .bd-card__head,
     .bd-card__body {
         padding-inline: 1rem;
@@ -1164,137 +1197,9 @@
     color: var(--pm-text-secondary);
 }
 
-/* SECTION: Weekly round ------------------------------------------------- */
-.bd-round {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1rem;
-    padding: 1rem 1.25rem;
-    background: var(--pm-primary-soft);
-    border: 1px solid var(--pm-accent-blue-soft-1);
-    border-radius: 0.875rem;
-    scroll-margin-top: 5rem;
-}
-
-.bd-round[hidden],
-.bd-round-done[hidden] {
-    display: none;
-}
-
-.bd-round__copy {
-    flex: 1 1 18rem;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
-
-.bd-round__kicker {
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--pm-primary-strong);
-}
-
-.bd-round__title {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--pm-text-strong);
-}
-
-.bd-round__bar {
-    appearance: none;
-    width: 100%;
-    max-width: 26rem;
-    height: 0.375rem;
-    border: 0;
-    border-radius: 999px;
-    overflow: hidden;
-    background: var(--pm-card);
-}
-
-.bd-round__bar::-webkit-progress-bar {
-    background: var(--pm-card);
-    border-radius: 999px;
-}
-
-.bd-round__bar::-webkit-progress-value {
-    background: var(--pm-primary);
-    border-radius: 999px;
-}
-
-.bd-round__bar::-moz-progress-bar {
-    background: var(--pm-primary);
-    border-radius: 999px;
-}
-
-.bd-round__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.bd-btn--ghost {
-    color: var(--pm-text-secondary);
-    background: transparent;
-}
-
-.bd-btn--ghost:hover {
-    color: var(--pm-text-strong);
-    background: var(--pm-surface-subtle);
-}
-
 .bd-btn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
-}
-
-/* Focus mode: one card, no distractions. */
-.bd.is-round .bd-meters,
-.bd.is-round .bd-rail,
-.bd.is-round .bd-section__head,
-.bd.is-round .bd-completed,
-.bd.is-round [data-bd-round-start] {
-    display: none;
-}
-
-.bd-card.bd-round-hidden {
-    display: none;
-}
-
-.bd-round-done {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1rem;
-    padding: 1.1rem 1.25rem;
-    color: var(--pm-success-soft-text);
-    background: var(--pm-success-soft-bg);
-    border: 1px solid var(--pm-success-soft-border);
-    border-radius: 0.875rem;
-}
-
-.bd-round-done > .bi {
-    font-size: 1.75rem;
-}
-
-.bd-round-done__copy {
-    flex: 1 1 16rem;
-    min-width: 0;
-}
-
-.bd-round-done__copy h2 {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-}
-
-.bd-round-done__copy p {
-    margin: 0.2rem 0 0;
-    font-size: 0.9rem;
 }
 
 /* SECTION: Side panels -------------------------------------------------- */
@@ -1415,6 +1320,68 @@
 }
 
 .bd-completed > .bd-section__items {
+    margin-top: 0.75rem;
+}
+
+/* SECTION: Ready for conference group ---------------------------------- */
+.bd-section__items + .bd-ready {
+    margin-top: 0.75rem;
+}
+
+.bd-ready > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.9rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.875rem;
+    color: var(--pm-text-slate);
+    background: var(--pm-card);
+    border: 1px solid var(--pm-border);
+    border-radius: 0.75rem;
+}
+
+.bd-ready > summary::-webkit-details-marker {
+    display: none;
+}
+
+.bd-ready > summary:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+}
+
+.bd-ready > summary > .bi-check2-circle {
+    color: var(--pm-success);
+}
+
+.bd-ready__title {
+    font-weight: 600;
+    color: var(--pm-text-strong);
+}
+
+.bd-ready__count {
+    min-width: 1.5rem;
+    padding: 0.05rem 0.45rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--pm-success-soft-text);
+    background: var(--pm-success-soft-bg);
+    border-radius: 999px;
+}
+
+.bd-ready__chevron {
+    margin-left: auto;
+    color: var(--pm-text-secondary);
+    transition: transform 0.15s ease;
+}
+
+.bd-ready[open] .bd-ready__chevron {
+    transform: rotate(180deg);
+}
+
+.bd-ready > .bd-section__items {
     margin-top: 0.75rem;
 }
 

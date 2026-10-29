@@ -9,7 +9,7 @@ to brief?
 
 | Concern | Code |
 | --- | --- |
-| Brief-ready rules (pure, unit-tested) | `Services/Workspace/BriefingDeskBuilder.cs` |
+| Ready-for-conference rules (pure, unit-tested) | `Services/Workspace/BriefingDeskBuilder.cs` |
 | Data loading (projects, tasks, ideas, pending approvals, conference view) | `ProjectOfficerWorkspaceService.PopulateOverviewAsync` |
 | Inline posts from the desk | `Services/Workspace/BriefingDeskCommandService.cs`, `IndexModel.OnPostDesk*` handlers |
 | View models | `ViewModels/Workspace/BriefingDeskViewModels.cs` |
@@ -20,13 +20,13 @@ The **See as the Comdt sees it** preview shows the item from
 `IOfficerConferenceReadService.GetForProjectOfficerAsync`, the same read model as the Conference
 view, so the preview cannot disagree with what is shown in conference.
 
-## Brief-ready rules
+## Ready-for-conference rules
 
 Sections follow the Conference view order: Projects, Ideas, Tasks. Empty sections are hidden.
 
-| Item | Brief-ready when | Shown but never required |
+| Item | Ready for conference when | Shown but never required |
 | --- | --- | --- |
-| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set, or a plan with the HoD; every completed stage before the current stage has its completion date, or a pending date correction that proposes it | A PDC that has passed (a red "PDC passed …" note); other record-health gaps, grouped by the editor that fixes them, with the points each would add |
+| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set, or a plan with the HoD; every completed stage before the current stage has its completion date, or a pending date correction that proposes it | A PDC that has passed (a red "PDC passed …" note); other record-health gaps, grouped by the editor that fixes them, listed as optional details |
 | Idea | Activity within the existing 15-day idea rule; the latest direction answered with a note | — |
 | Task | Progress by the PO within 7 days; the latest direction answered; if overdue, submitted for closure or flagged blocked. A submitted task waits on the assigner and counts as ready | — |
 
@@ -36,7 +36,7 @@ any later remark, idea note or task update by the PO.
 **Submitted is done** (changed 2026-10-29). A missing PDC answered by a plan with the HoD, missing
 completion dates answered by a date correction with the HoD, and a task submitted for closure
 are the PO's part done. The step shows a green tick and "Sent to HoD on …" or "Sent to assigner
-on …", counts towards brief-ready, and asks nothing more. It comes back as a step if the HoD
+on …", counts towards ready for conference, and asks nothing more. It comes back as a step if the HoD
 returns it and the gap is still open. Plans and date corrections are project-scoped, so one
 sent by someone else (for example a previous PO) counts too.
 
@@ -54,10 +54,29 @@ stage (the record-health "Historical stage completion dates" gaps, recognised by
 header, linked to the full plan editor, and never blocks readiness. Actual start dates are
 optional and are not asked for on the desk.
 
-**Layout** (changed 2026-10-29). The per-section meters appear only when the desk has more than
-one section; with one, the headline and the section heading already give the count. A folded
-card shows its tags, its pill and the next step; the stage strip appears when the card is
-opened. Record health is not a header tag; "Improve the record" shows it with the gaps.
+**Wording.** On screen, "brief-ready" is **Ready for conference** (pill: "Ready"). The code
+keeps the name `IsBriefReady`.
+
+**Layout** (changed 2026-10-29).
+- The headline leads with what needs the PO ("3 items need you before the next conference");
+  the line under it gives the ready count.
+- In each section, items that need the PO are full cards, first one open. Ready items sit in a
+  folded **Ready for conference** group, one line each. The group opens by itself when a post,
+  `focus` or a URL hash points at one of its cards, and the PO can still open a ready card to
+  add a remark.
+- The per-section meters appear only when the desk has more than one section.
+- A folded card shows its tags, its pill and the next step. An open card shows the stage strip
+  (the current stage with its name) and its steps, and hides the tags its steps repeat
+  (`CoveredByStep`: the update tag, and the PDC tag when there is a PDC step) and the next-step
+  line. A passed PDC has no step, so its red note stays.
+- The stage tag names the stage from the workflow definition ("TEC · Technical Evaluation ·
+  28 days"), since there is no hover title on a phone. A stage whose name is its code (PNC)
+  shows the code once.
+- Record health is not a header tag; "Improve the record" shows it with the gaps.
+- Side panels with nothing to show (no unread circulars, nothing in the next 14 days) are one
+  line each, and **Sent for approval** is left out when nothing is pending.
+
+There is no weekly round (removed 2026-10-29): the "needs you" cards, in order, are the round.
 
 **Card header.** The header tags agree with the checks. When a plan is with the HoD for a
 missing or passed PDC, the PDC tag reads "PDC sent to HoD on …" or "Revised PDC sent to HoD on
@@ -72,8 +91,8 @@ folds behind "Add another remark" (or note, or progress), so the PO can still po
 under the button says which. Missing stage completion dates are a required step ("2 stage
 completion dates missing") that links to the date-correction editor. **Improve the record**
 lists the other, optional record-health gaps; it is
-folded to one line ("38% now · up to +53 points · 5 optional items") until opened, and its
-buttons are quiet (`bd-btn--optional`).
+folded to one line ("Record 38% complete · 5 optional details missing") until opened, and its
+buttons are quiet (`bd-btn--optional`). Points are not shown on the desk.
 
 ## What the PO can finish on the desk
 
@@ -117,7 +136,7 @@ entry and the reasons. In every other state the check links to the full editor.
 actual-date correction, stage change, project details or document request, that decision is
 finished: the PO learns of it from the notification and from the HoD's note at the top of the
 editor. The desk lists only what is still pending, so a returned item neither appears on the
-card nor stops it being brief-ready, and there is no Returned to you panel. Before this change
+card nor stops it being ready for conference, and there is no Returned to you panel. Before this change
 a return stayed listed until a newer submission was pending or approved, so it stuck when an
 Admin or HoD saved the plan directly, the PO discarded the correction draft or withdrew the
 resubmission, or the project was completed or handed to another PO.
@@ -131,22 +150,13 @@ listed under **Sent for approval** in the side column, as a record rather than a
 another user sent says who. Only plans, date corrections and submitted tasks also appear as a
 done step on the card, and a plan shows there only when it answers a missing PDC.
 
-## Weekly round
-
-**Start weekly round** walks the PO through every not-ready card, one at a time, in desk order.
-The meters, the side column, the section headings and Recently completed are hidden while it
-runs. The round is
-kept in `sessionStorage` (this tab only), so a post that reloads the page resumes on the same
-card. It ends with a summary of how many items from the round are now brief-ready. If storage
-is unavailable, the round still works within the page.
-
 ## Recently completed projects
 
 Completed projects stay in the Conference view for a while, so the PO may still be asked about
 them. They appear in a collapsed **Recently completed** section under the desk, built from the
 Conference view's own items (`IsRecentlyCompleted`). It opens by itself when a direction there
-still needs an answer. These projects never count towards brief-ready, have no weekly-update
-or timeline checks, and are not part of the weekly round.
+still needs an answer. These projects never count towards ready for conference, and have no
+weekly-update or timeline checks.
 
 ## Workspace menu
 
@@ -167,8 +177,8 @@ page. ERP activity stays under **My ERP activity**.
 
 ## Phones
 
-Below 576 px the meters sit in one compact row, so the first card is on the first
-screen. The workspace rail's glass layers are contained in its folded icon row
+Below 576 px the meters sit in one compact row and the line under the headline is hidden, so
+the first card is on the first screen. The workspace rail's glass layers are contained in its folded icon row
 (`position: relative`); when it was static they covered the first screen with a blur and made
 the page wider than the phone. Unread circulars are counted in the
 side column's Reading panel only. The workspace rail, folded, becomes a row of its icons above
