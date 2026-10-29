@@ -5,7 +5,7 @@
     var stateClass = check.State switch
     {
         BriefingDeskCheckState.Done => "bd-check--done",
-        BriefingDeskCheckState.Submitted => "bd-check--done bd-check--submitted",
+        BriefingDeskCheckState.Submitted => "bd-check--done",
         _ => "bd-check--open"
     };
     var stateLabel = check.State switch

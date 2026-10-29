@@ -115,7 +115,8 @@ public enum BriefingDeskTone
     Danger
 }
 
-public sealed record BriefingDeskFactVm(string Text, BriefingDeskTone Tone);
+/// <summary>A header tag on a card. <paramref name="Url"/> makes it a link to where it is fixed.</summary>
+public sealed record BriefingDeskFactVm(string Text, BriefingDeskTone Tone, string? Url = null);
 
 public enum BriefingDeskStepState
 {
@@ -213,12 +214,17 @@ public sealed class BriefingDeskItemRenderVm
     public string? Draft { get; init; }
 }
 
+/// <summary>
+/// Something sent for a decision. <paramref name="SentByName"/> is set when another user sent a
+/// project-scoped submission (a plan or date correction), for example a previous PO.
+/// </summary>
 public sealed record BriefingDeskWaitingVm(
     string Title,
     string Detail,
     string WaitingOn,
     DateTimeOffset SinceUtc,
-    string OpenUrl);
+    string OpenUrl,
+    string? SentByName = null);
 
 public static class BriefingDeskLabels
 {

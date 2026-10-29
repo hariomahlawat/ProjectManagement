@@ -25,9 +25,18 @@ public sealed record BriefingDeskProjectInput(
     WorkspaceProjectMatrixRowVm Row,
     IReadOnlyList<BriefingDeskStageInput> Stages,
     DateTimeOffset? PendingPlanSinceUtc = null,
-    DateTimeOffset? PendingActualsSinceUtc = null,
+    BriefingDeskPendingCorrection? PendingCorrection = null,
     ProcurementEditVm? ProcurementEdit = null,
     PlanEditorVm? PlanEditor = null);
+
+// The latest pending actual-date correction on a project: when it was sent, the stages whose
+// completion date it proposes, and whether official dates moved since, so the HoD cannot approve
+// it until the PO reviews and resubmits it.
+public sealed record BriefingDeskPendingCorrection(
+    DateTimeOffset SubmittedOn,
+    IReadOnlySet<string> ProposedCompletionStageCodes,
+    bool NeedsResubmission,
+    string? SubmittedByUserId = null);
 
 public sealed record BriefingDeskStageInput(string Code, string Name, StageStatus Status, int SortOrder);
 
@@ -51,8 +60,12 @@ public static class BriefingDeskBuilder
     private const string CurrentStageComponent = "Current-stage timeline (PDC)";
 
     // Completion dates of completed stages are required on the desk, not offered as improvements.
-    // Actual start dates are optional and never asked for here.
-    internal const string CompletionDatesComponent = "Historical stage completion dates";
+    // Actual start dates are optional and never asked for here. The gaps are recognised by the
+    // code ProjectRecordHealthService gives them ("<STAGE>_ACTUAL_COMPLETION"), not by a label.
+    internal const string CompletionDateGapSuffix = "_ACTUAL_COMPLETION";
+
+    public static bool IsCompletionDateGap(WorkspaceRecordGapVm gap)
+        => gap.Code.EndsWith(CompletionDateGapSuffix, StringComparison.Ordinal);
 
     public static BriefingDeskVm Build(BriefingDeskInput input)
     {
@@ -165,7 +178,7 @@ public static class BriefingDeskBuilder
             checks.Add(pdcCheck);
         }
 
-        if (ProjectCompletionDatesCheck(row, input.PendingActualsSinceUtc) is { } completionCheck)
+        if (ProjectCompletionDatesCheck(row, input.PendingCorrection) is { } completionCheck)
         {
             checks.Add(completionCheck);
         }
@@ -317,7 +330,7 @@ public static class BriefingDeskBuilder
             {
                 Key = "pdc",
                 Label = $"{code} PDC",
-                Detail = "Your plan is with the HoD. Nothing more is needed from you.",
+                Detail = "The plan is with the HoD. Nothing more is needed from you.",
                 State = BriefingDeskCheckState.Submitted,
                 Route = BriefingDeskRoute.Approval,
                 StateText = $"Sent to HoD on {FormatDay(since)}",
@@ -338,47 +351,68 @@ public static class BriefingDeskBuilder
         };
     }
 
-    // Completed stages must carry their completion date. A date correction already with the
-    // HoD is the PO's part done.
+    // Completed stages must carry their completion date. A pending date correction is the PO's
+    // part done only for the stages whose completion date it proposes, and only while the HoD
+    // can still approve it.
     private static BriefingDeskCheckVm? ProjectCompletionDatesCheck(
         WorkspaceProjectMatrixRowVm row,
-        DateTimeOffset? pendingActualsSinceUtc)
+        BriefingDeskPendingCorrection? pending)
     {
         var gaps = (row.RecordHealth?.GapDetails ?? Array.Empty<WorkspaceRecordGapVm>())
-            .Where(gap => string.Equals(gap.Component, CompletionDatesComponent, StringComparison.Ordinal))
+            .Where(IsCompletionDateGap)
             .ToList();
         if (gaps.Count == 0)
         {
             return null;
         }
 
-        var label = gaps.Count == 1
-            ? $"{ShortFieldLabel(gaps[0])} completion date missing"
-            : $"{gaps.Count} stage completion dates missing";
         var actionUrl = gaps.Select(gap => gap.ActionUrl).FirstOrDefault(url => !string.IsNullOrWhiteSpace(url))
             ?? WorkspaceRouteHelper.ProjectTimelineActuals(row.ProjectId);
 
-        if (pendingActualsSinceUtc is DateTimeOffset since)
+        if (pending is { NeedsResubmission: true })
+        {
+            return new BriefingDeskCheckVm
+            {
+                Key = "completion",
+                Label = "Review your date correction",
+                Detail = "Official dates changed after you sent it. The HoD cannot approve it until you review it and send it again.",
+                State = BriefingDeskCheckState.Open,
+                Route = BriefingDeskRoute.Approval,
+                ActionText = "Review",
+                ActionUrl = actionUrl
+            };
+        }
+
+        var missing = pending is null
+            ? gaps
+            : gaps.Where(gap => gap.StageCode is not { } code || !pending.ProposedCompletionStageCodes.Contains(code)).ToList();
+
+        if (missing.Count == 0)
         {
             return new BriefingDeskCheckVm
             {
                 Key = "completion",
                 Label = "Stage completion dates",
-                Detail = "Your date correction is with the HoD. Nothing more is needed from you.",
+                Detail = "The date correction is with the HoD. Nothing more is needed from you.",
                 State = BriefingDeskCheckState.Submitted,
                 Route = BriefingDeskRoute.Approval,
-                StateText = $"Sent to HoD on {FormatDay(since)}",
+                StateText = $"Sent to HoD on {FormatDay(pending!.SubmittedOn)}",
                 ActionUrl = actionUrl
             };
         }
 
+        var stages = string.Join(", ", missing.Select(ShortFieldLabel));
         return new BriefingDeskCheckVm
         {
             Key = "completion",
-            Label = label,
-            Detail = gaps.Count == 1
-                ? "The stage is completed but its completion date is not recorded."
-                : $"Completed stages without a completion date: {string.Join(", ", gaps.Select(ShortFieldLabel))}.",
+            Label = missing.Count == 1
+                ? $"{ShortFieldLabel(missing[0])} completion date missing"
+                : $"{missing.Count} stage completion dates missing",
+            Detail = pending is not null
+                ? $"Your date correction with the HoD does not include {stages}. Add {(missing.Count == 1 ? "it" : "them")} to it."
+                : missing.Count == 1
+                    ? "The stage is completed but its completion date is not recorded."
+                    : $"Completed stages without a completion date: {stages}.",
             State = BriefingDeskCheckState.Open,
             Route = BriefingDeskRoute.Approval,
             ActionText = "Add dates",
@@ -401,7 +435,7 @@ public static class BriefingDeskBuilder
 
         return health.GapDetails
             .Where(gap => !string.Equals(gap.Component, CurrentStageComponent, StringComparison.Ordinal))
-            .Where(gap => !string.Equals(gap.Component, CompletionDatesComponent, StringComparison.Ordinal))
+            .Where(gap => !IsCompletionDateGap(gap))
             .Where(gap => !string.IsNullOrWhiteSpace(gap.ActionUrl))
             .GroupBy(gap => gap.ActionUrl, StringComparer.Ordinal)
             .Select(group =>
@@ -516,7 +550,11 @@ public static class BriefingDeskBuilder
             }
             else if (row.HasOverdueCurrentStage && row.CurrentStagePdc is DateOnly passed)
             {
-                facts.Add(new BriefingDeskFactVm($"PDC passed {FormatDay(passed)}", BriefingDeskTone.Danger));
+                // Not a step: the red note links to the full plan editor for a PO who wants to revise it.
+                facts.Add(new BriefingDeskFactVm(
+                    $"PDC passed {FormatDay(passed)}",
+                    BriefingDeskTone.Danger,
+                    WorkspaceRouteHelper.ProjectPlanEdit(row.ProjectId, row.CurrentStageCode)));
             }
             else if (row.CurrentStagePdc is DateOnly pdc)
             {

@@ -13,6 +13,7 @@ using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Usage;
 using ProjectManagement.Services;
 using ProjectManagement.ViewModels;
@@ -220,7 +221,7 @@ public sealed class ProjectOfficerWorkspaceService
                     row,
                     stagesByProject.GetValueOrDefault(row.ProjectId) ?? Array.Empty<BriefingDeskStageInput>(),
                     pending.PlanSinceByProject.TryGetValue(row.ProjectId, out var planSince) ? planSince : null,
-                    pending.ActualsSinceByProject.TryGetValue(row.ProjectId, out var actualsSince) ? actualsSince : null,
+                    pending.CorrectionsByProject.GetValueOrDefault(row.ProjectId),
                     procurementEdits.GetValueOrDefault(row.ProjectId),
                     planEditors.GetValueOrDefault(row.ProjectId)))
                 .ToList(),
@@ -328,37 +329,82 @@ public sealed class ProjectOfficerWorkspaceService
         var waiting = new List<BriefingDeskWaitingVm>();
 
         // Plan and actual-date corrections are project-scoped: a pending submission answers
-        // the current-stage check on the card whoever submitted it. Plans use the canonical
-        // actionable-pending rule, so a superseded or withdrawn submission never counts.
+        // the card's check whoever submitted it. Plans use the canonical actionable-pending
+        // rule, so a superseded or withdrawn submission never counts.
         var pendingPlans = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
             .Where(plan => projectIds.Contains(plan.ProjectId))
-            .Select(plan => new { plan.ProjectId, plan.SubmittedOn, plan.CreatedOn })
+            .Select(plan => new { plan.ProjectId, plan.SubmittedOn, plan.CreatedOn, SubmittedBy = plan.SubmittedByUserId ?? plan.OwnerUserId })
             .ToListAsync(ct);
         var planSince = pendingPlans
             .GroupBy(plan => plan.ProjectId)
             .ToDictionary(group => group.Key, group => group.Min(plan => plan.SubmittedOn ?? plan.CreatedOn));
-        waiting.AddRange(planSince.Select(entry => new BriefingDeskWaitingVm(
-            "Timeline plan",
-            projectNames[entry.Key],
-            "HoD",
-            entry.Value,
-            WorkspaceRouteHelper.ProjectTimeline(entry.Key))));
 
-        var pendingActuals = await _db.ActualCorrectionRevisions
+        // The latest pending correction per project, as the date-correction editor reads it.
+        // Its items say which completion dates it proposes; its Before values say whether the
+        // official dates moved since, in which case the HoD cannot approve it until the PO
+        // reviews and resubmits.
+        var pendingRevisions = await _db.ActualCorrectionRevisions
             .AsNoTracking()
+            .Include(revision => revision.Items)
             .Where(revision => projectIds.Contains(revision.ProjectId) && revision.Status == ActualCorrectionRevisionStatus.Pending)
-            .Select(revision => new { revision.ProjectId, revision.SubmittedOn })
             .ToListAsync(ct);
-        var actualsSince = pendingActuals
+        var stagesByProject = projects.ToDictionary(project => project.Id, project => project.ProjectStages);
+        var corrections = pendingRevisions
             .GroupBy(revision => revision.ProjectId)
-            .ToDictionary(group => group.Key, group => group.Min(revision => revision.SubmittedOn));
-        waiting.AddRange(actualsSince.Select(entry => new BriefingDeskWaitingVm(
-            "Date correction",
-            projectNames[entry.Key],
-            "HoD",
-            entry.Value,
-            WorkspaceRouteHelper.ProjectTimelineActuals(entry.Key))));
+            .Select(group => group.OrderByDescending(revision => revision.RevisionNo).First())
+            .ToDictionary(
+                revision => revision.ProjectId,
+                revision => new BriefingDeskPendingCorrection(
+                    revision.SubmittedOn,
+                    revision.Items
+                        .Where(item => item.ProposedCompletedOn.HasValue)
+                        .Select(item => item.StageCode)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase),
+                    ActualCorrectionProposalService.ChangedSinceSubmission(revision, stagesByProject[revision.ProjectId]).Count > 0
+                        && !ActualCorrectionProposalService.AlreadySatisfied(revision, stagesByProject[revision.ProjectId]),
+                    revision.SubmittedByUserId));
+
+        // The side panel says who sent a project-scoped submission when it was not this PO.
+        var otherSubmitterIds = pendingPlans.Select(plan => plan.SubmittedBy)
+            .Concat(corrections.Values.Select(correction => correction.SubmittedByUserId))
+            .Where(id => !string.IsNullOrWhiteSpace(id) && !string.Equals(id, userId, StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var submitterNames = otherSubmitterIds.Length == 0
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : await _db.Users
+                .AsNoTracking()
+                .Where(user => otherSubmitterIds.Contains(user.Id))
+                .Select(user => new { user.Id, Name = string.IsNullOrEmpty(user.FullName) ? user.UserName : user.FullName })
+                .ToDictionaryAsync(user => user.Id, user => user.Name ?? "another user", StringComparer.Ordinal, ct);
+        string? SentBy(string? submitterId)
+            => string.IsNullOrWhiteSpace(submitterId) || string.Equals(submitterId, userId, StringComparison.Ordinal)
+                ? null
+                : submitterNames.GetValueOrDefault(submitterId) ?? "another user";
+
+        waiting.AddRange(pendingPlans
+            .GroupBy(plan => plan.ProjectId)
+            .Select(group => group.OrderBy(plan => plan.SubmittedOn ?? plan.CreatedOn).First())
+            .Select(plan => new BriefingDeskWaitingVm(
+                "Timeline plan",
+                projectNames[plan.ProjectId],
+                "HoD",
+                plan.SubmittedOn ?? plan.CreatedOn,
+                WorkspaceRouteHelper.ProjectTimeline(plan.ProjectId),
+                SentBy(plan.SubmittedBy))));
+
+        // A correction that needs resubmitting is work for the PO, so it is on the card and
+        // not in the "sent" list.
+        waiting.AddRange(corrections
+            .Where(entry => !entry.Value.NeedsResubmission)
+            .Select(entry => new BriefingDeskWaitingVm(
+                "Date correction",
+                projectNames[entry.Key],
+                "HoD",
+                entry.Value.SubmittedOn,
+                WorkspaceRouteHelper.ProjectTimelineActuals(entry.Key),
+                SentBy(entry.Value.SubmittedByUserId))));
 
         var stageRequests = await _db.StageChangeRequests
             .AsNoTracking()
@@ -405,7 +451,7 @@ public sealed class ProjectOfficerWorkspaceService
                 new DateTimeOffset(DateTime.SpecifyKind(task.SubmittedOnUtc ?? _clock.UtcNow, DateTimeKind.Utc)),
                 task.OpenUrl)));
 
-        return new BriefingDeskPendingApprovals(waiting, planSince, actualsSince);
+        return new BriefingDeskPendingApprovals(waiting, planSince, corrections);
     }
 
     // Latest progress the PO posted on each task; conference directions are not progress.
@@ -437,7 +483,7 @@ public sealed class ProjectOfficerWorkspaceService
     private sealed record BriefingDeskPendingApprovals(
         IReadOnlyList<BriefingDeskWaitingVm> Waiting,
         IReadOnlyDictionary<int, DateTimeOffset> PlanSinceByProject,
-        IReadOnlyDictionary<int, DateTimeOffset> ActualsSinceByProject);
+        IReadOnlyDictionary<int, BriefingDeskPendingCorrection> CorrectionsByProject);
 
     private async Task<ProjectOfficerOperationalContext> LoadOperationalContextAsync(
         string userId,

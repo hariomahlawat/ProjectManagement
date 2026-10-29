@@ -297,6 +297,18 @@
     font-weight: 600;
 }
 
+/* A tag that links to where it is fixed, such as a passed PDC to the plan editor. */
+.bd-fact__link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.bd-fact__link:hover,
+.bd-fact__link:focus-visible {
+    text-decoration-thickness: 2px;
+}
+
 .bd-pill {
     display: inline-flex;
     align-items: center;
@@ -1320,15 +1332,6 @@
     font-weight: 600;
 }
 
-.bd-plan-form__alert {
-    margin: 0;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.875rem;
-    color: var(--pm-danger-soft-text);
-    background: var(--pm-danger-soft-bg);
-    border: 1px solid var(--pm-danger-soft-border);
-    border-radius: 0.5rem;
-}
 
 .bd-plan-form__note {
     margin: 0;

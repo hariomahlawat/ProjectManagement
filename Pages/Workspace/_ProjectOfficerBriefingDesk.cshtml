@@ -180,7 +180,7 @@
                         {
                             <li class="bd-list__item">
                                 <i class="bi bi-check2 bd-list__icon bd-list__icon--sent" aria-hidden="true"></i>
-                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.Detail · sent to @item.WaitingOn on @IstClock.ToIst(item.SinceUtc).ToString("dd MMM")</span></a>
+                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.Detail · @(item.SentByName is null ? "sent" : $"sent by {item.SentByName}") to @item.WaitingOn on @IstClock.ToIst(item.SinceUtc).ToString("dd MMM")</span></a>
                             </li>
                         }
                     </ul>

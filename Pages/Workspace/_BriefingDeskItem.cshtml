@@ -60,7 +60,14 @@
         <ul class="bd-card__facts" aria-label="Key facts">
             @foreach (var fact in item.Facts)
             {
-                <li class="bd-fact @ToneClass(fact.Tone)">@fact.Text</li>
+                @if (string.IsNullOrWhiteSpace(fact.Url))
+                {
+                    <li class="bd-fact @ToneClass(fact.Tone)">@fact.Text</li>
+                }
+                else
+                {
+                    <li class="bd-fact @ToneClass(fact.Tone)"><a class="bd-fact__link" href="@fact.Url">@fact.Text<span class="visually-hidden"> (open the plan editor)</span></a></li>
+                }
             }
         </ul>
         @if (item.IsBriefReady)
@@ -150,7 +157,7 @@
             }
             else
             {
-                <div class="bd-say bd-say--settled">
+                <div class="bd-say">
                     <p class="bd-say__settled">
                         <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
                         <span><strong>Not needed now.</strong> @item.LastUpdateText</span>

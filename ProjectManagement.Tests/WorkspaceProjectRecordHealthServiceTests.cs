@@ -54,6 +54,9 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         // + 15 current-stage planning + 0 documents + 0 media = 65.
         Assert.Equal(65, health.HealthPercent);
         Assert.Contains(health.GapDetails, gap => gap.Code == "FS_ACTUAL_COMPLETION" && gap.FieldLabel == "FS — Actual Completion");
+        // The briefing desk turns these gaps into its required completion-date step by their code.
+        var completionGap = Assert.Single(health.GapDetails, BriefingDeskBuilder.IsCompletionDateGap);
+        Assert.Equal("FS", completionGap.StageCode);
         Assert.DoesNotContain(health.GapDetails, gap => gap.FieldLabel.Contains("planned", StringComparison.OrdinalIgnoreCase));
     }
 

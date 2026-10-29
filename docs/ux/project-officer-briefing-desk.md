@@ -26,22 +26,32 @@ Sections follow the Conference view order: Projects, Ideas, Tasks. Empty section
 
 | Item | Brief-ready when | Shown but never required |
 | --- | --- | --- |
-| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set, or a plan with the HoD; every completed stage has its completion date, or a date correction with the HoD | A PDC that has passed (a red "PDC passed …" note); other record-health gaps, grouped by the editor that fixes them, with the points each would add |
+| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set, or a plan with the HoD; every completed stage before the current stage has its completion date, or a pending date correction that proposes it | A PDC that has passed (a red "PDC passed …" note); other record-health gaps, grouped by the editor that fixes them, with the points each would add |
 | Idea | Activity within the existing 15-day idea rule; the latest direction answered with a note | — |
 | Task | Progress by the PO within 7 days; the latest direction answered; if overdue, submitted for closure or flagged blocked. A submitted task waits on the assigner and counts as ready | — |
 
 A direction counts as answered under the same rule `ProjectOfficerConferenceActionQuery` uses:
 any later remark, idea note or task update by the PO.
 
-**Submitted is done** (changed 2026-10-29). Anything the PO has sent for approval (a plan, a
-date correction, a task submitted for closure) is the PO's part done. The step shows a green
-tick and "Sent to HoD on …" or "Sent to assigner on …", counts towards brief-ready, and asks
-nothing more. It comes back as a step only if the HoD returns it and the gap is still open.
+**Submitted is done** (changed 2026-10-29). A missing PDC answered by a plan with the HoD, missing
+completion dates answered by a date correction with the HoD, and a task submitted for closure
+are the PO's part done. The step shows a green tick and "Sent to HoD on …" or "Sent to assigner
+on …", counts towards brief-ready, and asks nothing more. It comes back as a step if the HoD
+returns it and the gap is still open. Plans and date corrections are project-scoped, so one
+sent by someone else (for example a previous PO) counts too.
+
+A date correction counts only for the stages whose completion date it proposes; any other
+missing completion date stays a step ("Your date correction with the HoD does not include …").
+If official dates changed after the correction was sent, the HoD cannot approve it until the PO
+reviews and resubmits it, so the step reads "Review your date correction" instead of done, and
+the correction is not listed under **Sent for approval**.
 
 **Dates the desk asks for** (changed 2026-10-29). Only two dates are required: the current-stage
-PDC when it is missing, and the completion date of each completed stage. A PDC that has passed
-is shown only as a red note in the card header and never blocks readiness. Actual start dates
-are optional and are not asked for on the desk.
+PDC when it is missing, and the completion date of each completed stage before the current
+stage (the record-health "Historical stage completion dates" gaps, recognised by their
+`<STAGE>_ACTUAL_COMPLETION` code). A PDC that has passed is shown only as a red note in the card
+header, linked to the full plan editor, and never blocks readiness. Actual start dates are
+optional and are not asked for on the desk.
 
 **Card header.** The header tags agree with the checks. When a plan is with the HoD for a
 missing or passed PDC, the PDC tag reads "PDC sent to HoD on …" or "Revised PDC sent to HoD on
@@ -86,7 +96,8 @@ the upload returns to the gallery or library as before.
 
 **Current-stage PDC form.** When a project's current-stage PDC is missing, and nothing else
 would be submitted along with it, "Set PDC" opens a short side panel that asks only for the
-PDC. A PDC that has passed has no form on the desk; it is revised in the full plan editor. "Nothing else" means no private draft, no submission pending or locked,
+PDC. A PDC that has passed has no form on the desk; its red header note links to the full plan
+editor. "Nothing else" means no private draft, no submission pending or locked,
 and the plan open for submission. The panel posts one row to the plan editor's own handler
 (`Timeline/EditPlan`, exact mode, Submit): the stage code and name, the new PDC, and the
 existing planned start unchanged. The editor writes back exactly the rows it receives, so the
@@ -108,9 +119,11 @@ resubmission, or the project was completed or handed to another PO.
 
 Approval-routed work (plan dates, actual-date corrections, project details, documents) is
 linked to the exact editor. Plan links use `?oc=plan&stage=<code>`, which opens the plan
-editor with that stage's planned due date focused. While a submission is pending, the step is
-done ("Sent to HoD on …") and the item is listed under **Sent for approval** in the side column,
-as a record rather than a to-do.
+editor with that stage's planned due date focused. Everything pending a decision (plans, date
+corrections, stage changes, project details, documents and tasks submitted for closure) is
+listed under **Sent for approval** in the side column, as a record rather than a to-do; an entry
+another user sent says who. Only plans, date corrections and submitted tasks also appear as a
+done step on the card, and a plan shows there only when it answers a missing PDC.
 
 ## Weekly round
 
