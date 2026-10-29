@@ -35,7 +35,7 @@
             <span>@(item.OfficeCategoryName ?? "No office")</span>
             @if (!string.IsNullOrWhiteSpace(item.ReceivedFrom))
             {
-                <span>From @item.ReceivedFrom</span>
+                <span title="@item.ReceivedFrom">From @item.ReceivedFrom</span>
             }
             @if (textState is not null)
             {

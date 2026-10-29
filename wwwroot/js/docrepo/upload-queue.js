@@ -185,6 +185,11 @@
             item.element.querySelector("[data-item-size]").textContent =
                 `${formatSize(item.file.size)} · ${facts.pages} ${facts.pages === 1 ? "page" : "pages"}`;
             if (!stillEditable(item)) return;
+            if (facts.scanned && !item.touched.has("Subject")) {
+                const hint = item.element.querySelector('[data-suggest="Subject"]');
+                hint.replaceChildren(document.createTextNode("This PDF is a scan, so its title could not be read. Type the title from the paper; its text becomes searchable once it is read on the server."));
+                hint.hidden = false;
+            }
             if (facts.title && facts.title.length >= 6) setField(item, "Subject", tidyTitle(facts.title), true);
             if (facts.date) setField(item, "DocumentDate", facts.date, true);
         } catch (error) {

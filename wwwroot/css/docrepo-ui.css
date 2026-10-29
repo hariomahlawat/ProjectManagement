@@ -559,7 +559,7 @@
 }
 .library .library-cover__title a:hover { color: var(--pm-library-accent-strong); }
 .library-cover__meta { display: flex; flex-wrap: wrap; gap: 0 10px; margin: 3px 0 0; color: var(--pm-library-muted); font-size: .78rem; }
-.library-cover__meta > * { white-space: nowrap; }
+.library-cover__meta > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .library-cover .library-menu { grid-column: 2; grid-row: 2; margin: -4px -8px 0 0; }
 .library-cover.is-inactive .library-cover__art { opacity: .6; filter: grayscale(.7); }
 
@@ -783,7 +783,8 @@
 .library .library-row__title a:hover { color: var(--pm-library-accent-strong); text-decoration: underline; }
 .library-row.is-inactive .library-row__title a { color: var(--pm-library-muted); }
 .library-row__meta { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 4px 0 0; color: var(--pm-library-muted); font-size: .84rem; }
-.library-row__meta > span:not(.library-pill) { white-space: nowrap; }
+/* Short facts stay on one line; a long sender is cut with an ellipsis (the full name is its title). */
+.library-row__meta > span:not(.library-pill) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .library-row__snippet { margin: 8px 0 0; color: var(--pm-library-ink); font-size: .9rem; line-height: 1.55; }
 .library-row__snippet mark,
 .library-quick__item mark { padding: 0; border-radius: 2px; background: var(--pm-library-mark); color: var(--pm-library-mark-ink); }
@@ -1542,7 +1543,8 @@
 
 /* SECTION: Tables (Table layout and admin pages) */
 .library-tablecard { overflow: hidden; border: 1px solid var(--pm-library-border); border-radius: var(--library-radius); background: var(--pm-library-card); }
-.library-tablescroll { overflow-x: auto; }
+/* Positioned, so hidden header labels stay inside the scrolling box rather than widening the page. */
+.library-tablescroll { position: relative; overflow-x: auto; }
 .library-table { width: 100%; border-collapse: collapse; }
 .library-table thead th {
     padding: 12px 16px;
@@ -1600,16 +1602,23 @@
 .library-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 3px; background: var(--library-hue); }
 .library-table--documents td:not(:nth-child(2)) { white-space: nowrap; }
 .library-table--documents td:nth-child(2) { min-width: 16rem; }
+/* Office and sender names can be long: they wrap within a limit instead of widening the table. */
+.library-table--documents td:nth-child(4),
+.library-table--documents td:nth-child(5) { max-width: 12rem; white-space: normal; overflow-wrap: break-word; }
 .library-table--documents .library-table__title { overflow-wrap: break-word; }
-.library-table--documents .library-table__titleline { flex-wrap: nowrap; align-items: baseline; }
+/* The type marker stays beside the title; AOTS / New pills wrap beneath it when room runs out. */
+.library-table--documents .library-table__titleline { flex-wrap: wrap; align-items: baseline; }
 .library-table--documents .library-table__titleline .library-dot { align-self: center; }
+.library-table--documents .library-table__titleline .library-table__title { flex: 1 1 12rem; min-width: 0; }
 .library-table__buttons { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
-/* Mid-size screens keep the columns people scan most: title, type, date. */
-@media (min-width: 768px) and (max-width: 1399.98px) {
-    .library-table--documents th:nth-child(5),
-    .library-table--documents td:nth-child(5),
+/* Narrower screens keep the columns people scan most: title, type, office and date. */
+@media (min-width: 768px) and (max-width: 1599.98px) {
     .library-table--documents th:nth-child(7),
     .library-table--documents td:nth-child(7) { display: none; }
+}
+@media (min-width: 768px) and (max-width: 1399.98px) {
+    .library-table--documents th:nth-child(5),
+    .library-table--documents td:nth-child(5) { display: none; }
 }
 @media (min-width: 768px) and (max-width: 1199.98px) {
     .library-table--documents th:nth-child(4),

@@ -32,6 +32,15 @@ public sealed class DocRepoSnippetHtmlTests
     }
 
     [Fact]
+    public void Render_ShowsPageBreaksAsSpaces()
+    {
+        // ts_headline can quote across a page break of the OCR text (a form feed).
+        var html = Render("estimate by 28 Mar 2022.\fThe committee reviewed the <mark>sonar</mark> array");
+
+        Assert.Equal("estimate by 28 Mar 2022. The committee reviewed the <mark>sonar</mark> array", html);
+    }
+
+    [Fact]
     public void Render_ClosesAHighlightLeftOpenByTheDocumentText()
     {
         var html = Render("text <mark>radar</mark> and a stray <mark> from the PDF");

@@ -146,7 +146,7 @@
                             <li class="@(index >= 6 && !on ? "is-extra" : null)">
                                 <a href="@Model.UrlWith("officeCategoryId", on ? null : office.Value)" class="@(on ? "is-on" : null)" aria-current="@(on ? "true" : null)" data-library-link>
                                     <span class="library-facet__check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
-                                    <span class="library-facet__label">@office.Label</span>
+                                    <span class="library-facet__label" title="@office.Label">@office.Label</span>
                                     <span class="library-facet__count">@office.Count.ToString("N0")</span>
                                 </a>
                             </li>
@@ -170,7 +170,7 @@
                             <li class="@(index >= 6 && !on ? "is-extra" : null)">
                                 <a href="@Model.UrlWith("documentCategoryId", on ? null : type.Value)" class="@(on ? "is-on" : null)" aria-current="@(on ? "true" : null)" data-library-link>
                                     <span class="library-facet__check library-hue-@DocRepoFormat.Hue(int.Parse(type.Value))" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
-                                    <span class="library-facet__label">@type.Label</span>
+                                    <span class="library-facet__label" title="@type.Label">@type.Label</span>
                                     <span class="library-facet__count">@type.Count.ToString("N0")</span>
                                 </a>
                             </li>

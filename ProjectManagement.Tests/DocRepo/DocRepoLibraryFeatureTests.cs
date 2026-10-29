@@ -241,6 +241,20 @@ public sealed class DocRepoLibraryFeatureTests
     }
 
     [Fact]
+    public void Reader_FindsThePagesOfAScanFromItsStoredText()
+    {
+        const string text = "Cover page\fThe vendor asked for more time\fNothing here\fVENDOR reply and sanction";
+
+        Assert.Equal(new[] { 2, 4 }, ReaderModel.PagesContaining(text, "vendor"));
+        Assert.Equal(new[] { 2, 4 }, ReaderModel.PagesContaining(text, "\"vendor\" -draft type:letter"));
+        Assert.Equal(new[] { 4 }, ReaderModel.PagesContaining(text, "sanction"));
+        // No page breaks: the page is unknown rather than guessed.
+        Assert.Empty(ReaderModel.PagesContaining("one page about the vendor", "vendor"));
+        Assert.Empty(ReaderModel.PagesContaining(text, "of an"));
+        Assert.Empty(ReaderModel.PagesContaining(null, "vendor"));
+    }
+
+    [Fact]
     public void UserKey_IsStableAndDoesNotShowTheId()
     {
         var key = DocRepoFormat.UserKey("1b2c3d4e-user");

@@ -57,7 +57,9 @@
             documentId: reader.dataset.docId,
             userKey: reader.dataset.userKey,
             query: reader.dataset.query || "",
-            page: reader.dataset.page || null
+            page: reader.dataset.page || null,
+            matchPages: (reader.dataset.matchPages || "").split(",").map(Number).filter(Boolean),
+            textMatches: reader.dataset.textMatches === "true"
         }))
         .then(() => reader.querySelector("[data-viewer-stage]")?.focus({ preventScroll: true }))
         .catch(() => reader.classList.add("is-failed"));

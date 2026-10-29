@@ -112,6 +112,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public string UserKey { get; private set; } = "anon";
 
+        /// <summary>
+        /// Pages whose stored text (OCR) holds a word of the search, for scans: their PDF has no
+        /// text layer, so the viewer cannot highlight the words but can still open the right page.
+        /// </summary>
+        public IReadOnlyList<int> MatchPages { get; private set; } = Array.Empty<int>();
+
+        /// <summary>The stored text holds a word of the search (pages unknown when it has no page breaks).</summary>
+        public bool TextMatches { get; private set; }
+
         // SECTION: Query
         [FromQuery(Name = "returnUrl")]
         public string? ReturnUrlQuery { get; set; }
@@ -201,6 +210,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             UserKey = ProjectManagement.Areas.DocumentRepository.Models.DocRepoFormat.UserKey(userId);
             Query = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim()[..Math.Min(Query.Trim().Length, 200)];
+            if (Query is not null)
+            {
+                var text = await _db.DocumentTexts.AsNoTracking()
+                    .Where(documentText => documentText.DocumentId == id)
+                    .Select(documentText => documentText.OcrText)
+                    .FirstOrDefaultAsync(cancellationToken);
+                MatchPages = PagesContaining(text, Query);
+                TextMatches = MatchPages.Count > 0 || PagesContaining((text ?? string.Empty) + "\f", Query).Count > 0;
+            }
             if (StartPage is < 1) StartPage = null;
             if (!string.IsNullOrWhiteSpace(userId))
             {
@@ -248,6 +266,32 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             }
 
             return Page();
+        }
+
+        // OCR text separates pages with a form feed; a page matches when it holds any search word.
+        internal static IReadOnlyList<int> PagesContaining(string? text, string query, int limit = 20)
+        {
+            if (string.IsNullOrEmpty(text) || !text.Contains('\f'))
+            {
+                return Array.Empty<int>();
+            }
+
+            var words = System.Text.RegularExpressions.Regex.Matches(query, @"(?<![-\p{L}\p{N}:])[\p{L}\p{N}]{3,}(?![:\p{L}\p{N}])")
+                .Select(match => match.Value)
+                .Where(word => word is not ("and" or "not" or "AND" or "NOT"))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (words.Count == 0)
+            {
+                return Array.Empty<int>();
+            }
+
+            return text.Split('\f')
+                .Select((page, index) => (page, number: index + 1))
+                .Where(entry => words.Any(word => entry.page.Contains(word, StringComparison.OrdinalIgnoreCase)))
+                .Select(entry => entry.number)
+                .Take(limit)
+                .ToList();
         }
 
         private async Task RecordDocumentViewAsync(

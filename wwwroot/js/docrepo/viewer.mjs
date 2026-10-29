@@ -90,7 +90,8 @@ export async function mountViewer(root, options) {
         isEvalSupported: false
     });
     loading.onProgress = progress => {
-        if (!status || !progress.total) return;
+        // Range requests keep reporting after the pages are shown; only the opening is told.
+        if (!status || !progress.total || root.classList.contains("is-ready")) return;
         status.textContent = `Opening the PDF… ${Math.min(100, Math.round(100 * progress.loaded / progress.total))}%`;
     };
 
@@ -219,13 +220,32 @@ export async function mountViewer(root, options) {
     eventBus.on("updatefindmatchescount", event => showMatches(event.matchesCount));
     eventBus.on("updatefindcontrolstate", event => showMatches(event.matchesCount, event.state));
 
+    // A scanned PDF has no text to highlight; the stored OCR text still says which pages match.
+    const matchPages = Array.isArray(options.matchPages) ? options.matchPages.filter(page => clampPage(page)) : [];
+    let usedMatchPages = false;
+
     function showMatches(counts, state) {
         if (!findCount) return;
         if (!lastQuery) { findCount.textContent = ""; return; }
         if (state === 1 /* not found */ || counts?.total === 0) {
+            const pages = matchPages.length ? matchPages : options.textMatches && pdf.numPages === 1 ? [1] : [];
+            if ((pages.length || options.textMatches) && lastQuery === query) {
+                findCount.textContent = pages.length === 0
+                    ? "In the scanned text"
+                    : pages.length === 1
+                        ? `In the scanned text on page ${pages[0]}`
+                        : `In the scanned text on pages ${pages.slice(0, 6).join(", ")}${pages.length > 6 ? "…" : ""}`;
+                findCount.title = "This page is a scan: its words can be searched but not highlighted.";
+                if (!usedMatchPages && pages.length) {
+                    usedMatchPages = true;
+                    pdfViewer.currentPageNumber = pages[0];
+                }
+                return;
+            }
             findCount.textContent = "Not found";
             return;
         }
+        findCount.removeAttribute("title");
         if (counts?.total) findCount.textContent = `${counts.current} of ${counts.total}`;
     }
 
@@ -411,7 +431,14 @@ export async function readPdfFacts(libraryBase, bytes, { coverWidth = 192 } = {}
 
         const content = await page.getTextContent();
         const lines = groupLines(content.items, base.height);
-        return { pages: pdf.numPages, cover: canvas, title: guessTitle(lines), date: guessDate(lines.map(line => line.text).join("\n")) };
+        return {
+            pages: pdf.numPages,
+            cover: canvas,
+            // No text on page 1 means a scan: nothing can be read until OCR runs on the server.
+            scanned: lines.length === 0,
+            title: guessTitle(lines),
+            date: guessDate(lines.map(line => line.text).join("\n"))
+        };
     } finally {
         loading.destroy();
     }

@@ -31,7 +31,9 @@
          data-doc-id="@Model.DocumentId"
          data-user-key="@Model.UserKey"
          data-query="@Model.Query"
-         data-page="@Model.StartPage">
+         data-page="@Model.StartPage"
+         data-match-pages="@string.Join(",", Model.MatchPages)"
+         data-text-matches="@(Model.TextMatches ? "true" : "false")">
 
         <!-- SECTION: Title bar with the reading tools -->
         <header class="rd-bar">
