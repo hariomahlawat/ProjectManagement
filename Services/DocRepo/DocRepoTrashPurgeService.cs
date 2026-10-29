@@ -36,6 +36,7 @@ public sealed class DocRepoTrashPurgeService
     private readonly IClock _clock;
     private readonly IOptionsMonitor<DocRepoOptions> _options;
     private readonly ILogger<DocRepoTrashPurgeService>? _logger;
+    private readonly IDocRepoCoverService? _covers;
 
     public DocRepoTrashPurgeService(
         ApplicationDbContext db,
@@ -43,7 +44,8 @@ public sealed class DocRepoTrashPurgeService
         IDocRepoAuditService audit,
         IClock clock,
         IOptionsMonitor<DocRepoOptions> options,
-        ILogger<DocRepoTrashPurgeService>? logger = null)
+        ILogger<DocRepoTrashPurgeService>? logger = null,
+        IDocRepoCoverService? covers = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -51,6 +53,7 @@ public sealed class DocRepoTrashPurgeService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger;
+        _covers = covers;
     }
 
     /// <summary>
@@ -109,6 +112,7 @@ public sealed class DocRepoTrashPurgeService
         _db.Documents.Remove(document);
         await _audit.WriteAsync(document.Id, actorUserId, "Purged", details ?? new { document.Id }, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+        _covers?.DeleteCover(document.Id);
         return new DocRepoPurgeResult(DocRepoPurgeOutcome.Purged);
     }
 

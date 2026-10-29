@@ -1,0 +1,58 @@
+@model (ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel Page, DocumentSearchResultVm Item)
+@{
+    // The ⋮ menu on a row or card. Manage actions are links to the Manage page, which works
+    // without script; docrepo-ui.js turns them into a confirmation dialog. The menu is positioned
+    // "fixed" so the list's rounded, clipped border and the table's scroll area cannot cut it off.
+    var (list, item) = Model;
+    var manageUrl = Url.Page("./Manage", new { id = item.Id });
+}
+<div class="dropdown library-menu">
+    <button class="library-iconbtn" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for @item.Subject">
+        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" asp-page="./Reader" asp-route-id="@item.Id" asp-route-returnUrl="@list.ReturnUrl"><i class="bi bi-book me-2" aria-hidden="true"></i>Open in reader</a></li>
+        <li><a class="dropdown-item" asp-page="./View" asp-route-id="@item.Id" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-2" aria-hidden="true"></i>Open PDF in new tab</a></li>
+        <li><a class="dropdown-item" asp-page="./Download" asp-route-id="@item.Id"><i class="bi bi-download me-2" aria-hidden="true"></i>Download</a></li>
+        @if (list.CanEdit || list.CanManage)
+        {
+            <li><hr class="dropdown-divider" /></li>
+        }
+        @if (list.CanEdit)
+        {
+            <li><a class="dropdown-item" asp-page="./Edit" asp-route-id="@item.Id"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Edit details</a></li>
+        }
+        @if (list.CanManage)
+        {
+            @if (item.OcrStatus == DocOcrStatus.Failed)
+            {
+                <li>
+                    <a class="dropdown-item" href="@manageUrl" data-library-action="retry-ocr" data-doc-id="@item.Id" data-doc-subject="@item.Subject">
+                        <i class="bi bi-arrow-repeat me-2" aria-hidden="true"></i>Read text again…
+                    </a>
+                </li>
+            }
+            @if (item.IsActive)
+            {
+                <li>
+                    <a class="dropdown-item" href="@manageUrl" data-library-action="deactivate" data-doc-id="@item.Id" data-doc-subject="@item.Subject">
+                        <i class="bi bi-eye-slash me-2" aria-hidden="true"></i>Deactivate…
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li>
+                    <a class="dropdown-item" href="@manageUrl" data-library-action="activate" data-doc-id="@item.Id" data-doc-subject="@item.Subject">
+                        <i class="bi bi-eye me-2" aria-hidden="true"></i>Activate again…
+                    </a>
+                </li>
+            }
+            <li>
+                <a class="dropdown-item library-menu__danger" href="@manageUrl" data-library-action="request-delete" data-doc-id="@item.Id" data-doc-subject="@item.Subject">
+                    <i class="bi bi-trash3 me-2" aria-hidden="true"></i>Request deletion…
+                </a>
+            </li>
+        }
+    </ul>
+</div>

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Search;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.Trash;
 
@@ -37,6 +38,19 @@ public sealed class IndexModel : PageModel
     // SECTION: View data
     public IReadOnlyList<DeletedDocumentRow> Items { get; private set; } = Array.Empty<DeletedDocumentRow>();
 
+    /// <summary>Everything in the trash, before the search narrows it.</summary>
+    public int TotalCount { get; private set; }
+
+    public long TotalBytes { get; private set; }
+
+    [BindProperty(SupportsGet = true, Name = "q")]
+    public string? Query { get; set; }
+
+    public IReadOnlyDictionary<string, string> UserNames { get; private set; } = new Dictionary<string, string>();
+
+    public string NameOf(string? userId)
+        => string.IsNullOrWhiteSpace(userId) ? "Unknown" : UserNames.TryGetValue(userId, out var name) ? name : userId;
+
     [TempData]
     public string? StatusMessage { get; set; }
 
@@ -45,11 +59,17 @@ public sealed class IndexModel : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
+        var term = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim();
+        var pattern = term is null ? string.Empty : SearchLikePattern.Contains(term);
+        TotalCount = await _db.Documents.CountAsync(d => d.IsDeleted, cancellationToken);
+        TotalBytes = await _db.Documents.Where(d => d.IsDeleted).SumAsync(d => (long?)d.FileSizeBytes, cancellationToken) ?? 0;
+
         Items = await _db.Documents
             .AsNoTracking()
             .Include(d => d.OfficeCategory)
             .Include(d => d.DocumentCategory)
             .Where(d => d.IsDeleted)
+            .Where(d => string.IsNullOrEmpty(term) || EF.Functions.ILike(d.Subject, pattern, SearchLikePattern.EscapeCharacter))
             .OrderByDescending(d => d.DeletedAtUtc ?? DateTime.MinValue)
             .Select(d => new DeletedDocumentRow(
                 d.Id,
@@ -62,6 +82,12 @@ public sealed class IndexModel : PageModel
                 d.StoragePath,
                 d.FileSizeBytes))
             .ToListAsync(cancellationToken);
+
+        var userIds = Items.Select(item => item.DeletedByUserId).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
+        UserNames = await _db.Users.AsNoTracking()
+            .Where(user => userIds.Contains(user.Id))
+            .Select(user => new { user.Id, Name = string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName })
+            .ToDictionaryAsync(user => user.Id, user => user.Name ?? user.Id, cancellationToken);
     }
 
     // SECTION: Restore handler

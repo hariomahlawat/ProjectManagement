@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 {
@@ -30,6 +31,11 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public string ReturnUrl { get; private set; } = string.Empty;
 
         public IReadOnlyList<AotsViewerVm> Viewers { get; private set; } = Array.Empty<AotsViewerVm>();
+
+        /// <summary>Active people who have not opened the document yet (signed-in human accounts only).</summary>
+        public IReadOnlyList<AotsViewerVm> NotYetRead { get; private set; } = Array.Empty<AotsViewerVm>();
+
+        public int ReadPercent => Viewers.Count + NotYetRead.Count == 0 ? 0 : (int)Math.Round(100.0 * Viewers.Count / (Viewers.Count + NotYetRead.Count));
 
         // SECTION: Query
         [FromQuery(Name = "returnUrl")]
@@ -82,6 +88,19 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                                      : view.UserId,
                                  FirstViewedAtUtc = view.FirstViewedAtUtc
                              })
+                .ToListAsync(cancellationToken);
+
+            var readerIds = _db.DocRepoAotsViews.Where(view => view.DocumentId == id).Select(view => view.UserId);
+            NotYetRead = await _db.Users.AsNoTracking()
+                .Where(user => user.AccountKind == UserAccountKind.Human && !user.IsDisabled && !user.PendingDeletion)
+                .Where(user => !readerIds.Contains(user.Id))
+                .OrderBy(user => user.FullName).ThenBy(user => user.UserName)
+                .Select(user => new AotsViewerVm
+                {
+                    Rank = user.Rank,
+                    FullName = string.IsNullOrWhiteSpace(user.FullName) ? (user.UserName ?? user.Id) : user.FullName,
+                    UserName = user.UserName ?? user.Id
+                })
                 .ToListAsync(cancellationToken);
 
             return Page();

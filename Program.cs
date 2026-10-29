@@ -492,6 +492,7 @@ builder.Services
         "DocRepo:TrashRetentionDays must be 0 (off) or at least 7.")
     .ValidateOnStart();
 builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
+builder.Services.AddSingleton<IDocRepoCoverService, DocRepoCoverService>();
 builder.Services.AddScoped<DocRepoTrashPurgeService>();
 builder.Services.AddHostedService<DocRepoTrashPurgeWorker>();
 builder.Services.AddSingleton<IUrlBuilder, UrlBuilder>();
@@ -1381,8 +1382,11 @@ app.Use(async (ctx, next) =>
 var contentTypeProvider = new FileExtensionContentTypeProvider();
 contentTypeProvider.Mappings[".geojson"] = "application/geo+json";
 contentTypeProvider.Mappings[".topojson"] = "application/json";
-// pdf.js character maps used by PDF Tools to render CJK and other predefined-CMap fonts.
+// pdf.js ships ES modules, binary character maps and standard fonts: wwwroot/lib/pdfjs-dist for the
+// Document Repository viewer, wwwroot/lib/pdfjs for PDF Tools (which fetches its .bcmap files too).
+contentTypeProvider.Mappings[".mjs"] = "text/javascript";
 contentTypeProvider.Mappings[".bcmap"] = "application/octet-stream";
+contentTypeProvider.Mappings[".pfb"] = "application/octet-stream";
 
 app.UseStaticFiles(new StaticFileOptions
 {

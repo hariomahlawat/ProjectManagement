@@ -169,10 +169,7 @@ public sealed class DocRepoAccessAndAuditTests
 
     private static IndexModel CreateIndex(ProjectManagement.Data.ApplicationDbContext db, System.Security.Claims.ClaimsPrincipal user)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new[] { new System.Collections.Generic.KeyValuePair<string, string?>("DocRepo:EnableListViewUxUpgrade", "true") })
-            .Build();
-        var page = new IndexModel(db, new DocumentSearchService(), configuration, Access());
+        var page = new IndexModel(db, new DocumentSearchService(), Access(), Authorization(), new AotsUnreadService(db));
         ConfigurePage(page, user);
         return page;
     }

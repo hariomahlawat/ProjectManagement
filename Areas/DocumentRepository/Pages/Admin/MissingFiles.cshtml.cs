@@ -46,9 +46,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
 
         public bool IncludeDeleted { get; private set; }
 
-        public int TotalPages => TotalCount == 0 || PageSize == 0
-            ? 1
-            : (int)Math.Ceiling(TotalCount / (double)PageSize);
+        public int TotalPages => MissingCount == 0 || PageSize == 0 ? 1 : (int)Math.Ceiling(MissingCount / (double)PageSize);
 
         public bool HasPreviousPage => PageNumber > 1;
 
@@ -67,17 +65,29 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
             };
             IncludeDeleted = includeDeleted;
 
-            var query = _db.Documents
+            // SECTION: Check every document's file (a file-exists check is cheap), then page the missing ones
+            var documents = await _db.Documents
                 .AsNoTracking()
                 .Where(d => includeDeleted || !d.IsDeleted)
-                .OrderByDescending(d => d.CreatedAtUtc);
+                .OrderByDescending(d => d.CreatedAtUtc)
+                .Select(d => new { d.Id, d.StoragePath })
+                .ToListAsync(cancellationToken);
 
-            TotalCount = await query.CountAsync(cancellationToken);
+            TotalCount = documents.Count;
+            var missingIds = new List<Guid>();
+            foreach (var document in documents)
+            {
+                if (!await _storage.ExistsAsync(document.StoragePath ?? string.Empty, cancellationToken))
+                {
+                    missingIds.Add(document.Id);
+                }
+            }
 
-            // SECTION: Page selection
-            var pageDocs = await query
-                .Skip((PageNumber - 1) * PageSize)
-                .Take(PageSize)
+            MissingCount = missingIds.Count;
+            var pageIds = missingIds.Skip((PageNumber - 1) * PageSize).Take(PageSize).ToList();
+            var rows = await _db.Documents
+                .AsNoTracking()
+                .Where(d => pageIds.Contains(d.Id))
                 .Select(d => new MissingFileRow(
                     d.Id,
                     d.Subject ?? string.Empty,
@@ -88,19 +98,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
                     d.StoragePath ?? string.Empty))
                 .ToListAsync(cancellationToken);
 
-            // SECTION: Storage checks (page only)
-            var missingRows = new List<MissingFileRow>(pageDocs.Count);
-            foreach (var row in pageDocs)
-            {
-                var exists = await _storage.ExistsAsync(row.StoragePath, cancellationToken);
-                if (!exists)
-                {
-                    missingRows.Add(row);
-                }
-            }
-
-            Items = missingRows;
-            MissingCount = missingRows.Count;
+            Items = rows.OrderBy(row => pageIds.IndexOf(row.Id)).ToList();
         }
     }
 }

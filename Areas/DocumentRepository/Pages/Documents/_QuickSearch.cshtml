@@ -1,0 +1,30 @@
+@* Quick search ("/"): results while typing, from Index?handler=Quick. docrepo-ui.js runs it. *@
+<div class="modal fade library-quick" id="libraryQuick" tabindex="-1" aria-labelledby="libraryQuickTitle" aria-hidden="true" data-library-quick>
+    <div class="modal-dialog library-quick__dialog">
+        <div class="modal-content">
+            <h2 class="visually-hidden" id="libraryQuickTitle">Search the library</h2>
+            <div class="library-quick__bar">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <label class="visually-hidden" for="libraryQuickInput">Search the library</label>
+                <input id="libraryQuickInput" type="search" autocomplete="off" spellcheck="false"
+                       placeholder="Search titles and the text inside PDFs"
+                       role="combobox" aria-expanded="false" aria-controls="libraryQuickList" aria-autocomplete="list" />
+                <kbd>Esc</kbd>
+            </div>
+            <ul class="library-quick__list" id="libraryQuickList" role="listbox" aria-label="Matching documents"></ul>
+            <div class="library-quick__hint" data-quick-hint>
+                <p>Type a few letters of a title, a sender or any word in the PDFs.</p>
+                <p class="library-quick__shortcuts">
+                    Narrow it down with
+                    <code>type:minutes</code> <code>office:TEC</code> <code>tag:radar</code> <code>year:2025</code> <code>from:DRDO</code>
+                </p>
+            </div>
+            <p class="library-quick__none" data-quick-none hidden>No document matches. Press Enter to search the text of every PDF.</p>
+            <footer class="library-quick__foot">
+                <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+                <span><kbd>Enter</kbd> open</span>
+                <a href="#" class="library-quick__all" data-quick-all hidden>See all results <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </footer>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,73 @@
+@model DocumentPreviewVm
+@{
+    // The reading pane beside the results on wide screens (Index?handler=Preview).
+    var query = Model.Query;
+    var readerUrl = Url.Page("./Reader", new { id = Model.Id, returnUrl = Model.ReturnUrl, q = query });
+    var viewUrl = Url.Page("./View", new { id = Model.Id });
+}
+<div class="library-preview" data-library-preview data-doc-id="@Model.Id" data-query="@query">
+    <div class="library-preview__head">
+        <span class="library-eyebrow">@Model.DocumentCategoryName · @Model.OfficeName</span>
+        <button type="button" class="library-iconbtn" data-library-pane-close aria-label="Close preview">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+    <h2 class="library-preview__title" tabindex="-1">@Model.Subject</h2>
+    @if (Model.IsAots || !Model.IsActive)
+    {
+        <p class="library-card__flags">
+            @if (Model.IsAots)
+            {
+                <span class="library-pill library-pill--aots"><i class="bi bi-broadcast" aria-hidden="true"></i>All officers to see</span>
+            }
+            @if (!Model.IsActive)
+            {
+                <span class="library-pill library-pill--muted">Deactivated</span>
+            }
+        </p>
+    }
+
+    <div class="library-preview__actions">
+        <a class="btn btn-primary btn-sm" href="@readerUrl"><i class="bi bi-book" aria-hidden="true"></i> Open in reader</a>
+        <a class="btn btn-outline-secondary btn-sm" asp-page="./Download" asp-route-id="@Model.Id"><i class="bi bi-download" aria-hidden="true"></i> Download</a>
+        @if (Model.CanEdit)
+        {
+            <a class="btn btn-outline-secondary btn-sm" asp-page="./Edit" asp-route-id="@Model.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i> Edit</a>
+        }
+    </div>
+
+    <div class="library-preview__viewer" data-preview-viewer data-pdf-url="@viewUrl">
+        <div class="library-preview__tools" role="toolbar" aria-label="Preview tools">
+            <button type="button" class="library-iconbtn" data-viewer-action="previous" aria-label="Previous page"><i class="bi bi-chevron-up" aria-hidden="true"></i></button>
+            <label class="rd-pagebox">
+                <span class="visually-hidden">Page</span>
+                <input type="number" min="1" value="1" inputmode="numeric" data-viewer-page />
+                <span class="rd-pagebox__of">of <span data-viewer-pages>–</span></span>
+            </label>
+            <button type="button" class="library-iconbtn" data-viewer-action="next" aria-label="Next page"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+            <span class="library-preview__spacer"></span>
+            <button type="button" class="library-iconbtn" data-viewer-action="zoom-out" aria-label="Zoom out"><i class="bi bi-dash-lg" aria-hidden="true"></i></button>
+            <button type="button" class="rd-zoomlabel" data-viewer-action="fit-width" title="Fit to width" data-viewer-zoom-label>100%</button>
+            <button type="button" class="library-iconbtn" data-viewer-action="zoom-in" aria-label="Zoom in"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+        </div>
+        <div class="library-preview__stagewrap">
+            <div class="library-preview__stage" data-viewer-stage tabindex="-1"><div class="pdfViewer"></div></div>
+            <p class="library-preview__status" data-viewer-status role="status">Opening the PDF…</p>
+        </div>
+    </div>
+
+    <dl class="library-facts">
+        <div><dt>Document date</dt><dd>@DocRepoFormat.Date(Model.DocumentDate)</dd></div>
+        <div><dt>Received from</dt><dd>@(string.IsNullOrWhiteSpace(Model.ReceivedFrom) ? "Not recorded" : Model.ReceivedFrom)</dd></div>
+        <div><dt>Added</dt><dd>@DocRepoFormat.Date(Model.CreatedAtUtc)@(Model.CreatedByName is null ? null : $" by {Model.CreatedByName}")</dd></div>
+        <div><dt>File</dt><dd><span class="library-facts__file">@Model.OriginalFileName</span> · @DocRepoFormat.FileSize(Model.FileSizeBytes)</dd></div>
+        @if (Model.Tags.Count > 0)
+        {
+            <div><dt>Tags</dt><dd><ul class="library-tags">@foreach (var tag in Model.Tags) { <li><span>@tag</span></li> }</ul></dd></div>
+        }
+        @if (Model.CanManage && DocRepoFormat.TextState(Model.OcrStatus) is { } state)
+        {
+            <div><dt>Searchable text</dt><dd>@state</dd></div>
+        }
+    </dl>
+</div>
