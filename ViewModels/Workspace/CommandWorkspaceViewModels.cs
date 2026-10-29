@@ -16,7 +16,6 @@ public sealed class CommandWorkspaceRailVm
     public int ProjectOfficerCount { get; init; }
     public int TotalOngoingProjects { get; init; }
 
-    public int? ActionQueueCount { get; init; }
     public int AssignedProjectCount { get; init; }
     public int AssignedTaskCount { get; init; }
     public int AssignedIdeaCount { get; init; }

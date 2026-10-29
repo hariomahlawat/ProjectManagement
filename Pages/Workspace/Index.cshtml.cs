@@ -223,7 +223,6 @@ public class IndexModel : PageModel
             ActiveItem = activeItem,
             ProjectOfficerCount = command.ProjectOfficerCount,
             TotalOngoingProjects = command.TotalOngoingProjects,
-            ActionQueueCount = personal.ActionQueueBadgeCount,
             AssignedProjectCount = personal.AssignedProjectCount,
             AssignedTaskCount = personal.OfficialTaskCount,
             AssignedIdeaCount = personal.AssignedIdeaCount,
