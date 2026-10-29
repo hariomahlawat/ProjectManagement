@@ -154,24 +154,27 @@
   /** Renders a pdf.js page into a canvas at the given CSS width (or scale). */
   async function renderPage(page, canvas, { width, scale, maxPixels = MAX_RENDER_PIXELS, background = '#ffffff' } = {}) {
     const base = page.getViewport({ scale: 1 });
-    let renderScale = scale || (width / base.width);
+    const cssScale = scale || (width / base.width);
     const ratio = scale ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-    const pixels = base.width * base.height * renderScale * renderScale * ratio * ratio;
+    let pixelScale = cssScale * ratio;
+    const pixels = base.width * base.height * pixelScale * pixelScale;
     if (pixels > maxPixels) {
-      renderScale *= Math.sqrt(maxPixels / pixels);
+      // Lower only the backing-store resolution: the displayed size must stay as requested
+      // so the annotate overlay, sized from the same width, stays aligned with the page.
+      pixelScale *= Math.sqrt(maxPixels / pixels);
     }
-    const viewport = page.getViewport({ scale: renderScale * ratio });
+    const viewport = page.getViewport({ scale: pixelScale });
     canvas.width = Math.max(1, Math.floor(viewport.width));
     canvas.height = Math.max(1, Math.floor(viewport.height));
     if (!scale) {
-      canvas.style.width = `${Math.floor(viewport.width / ratio)}px`;
-      canvas.style.height = `${Math.floor(viewport.height / ratio)}px`;
+      canvas.style.width = `${base.width * cssScale}px`;
+      canvas.style.height = `${base.height * cssScale}px`;
     }
     const context = canvas.getContext('2d');
     context.fillStyle = background;
     context.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: context, viewport }).promise;
-    return { viewport, scale: renderScale };
+    return { viewport, scale: cssScale };
   }
 
   /** Renders thumbnails one at a time as they scroll into view, to bound memory use. */

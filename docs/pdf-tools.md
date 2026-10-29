@@ -44,7 +44,7 @@ pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types.
 
 | Tool | What it does |
 | --- | --- |
-| Organise & merge | Combine PDFs; drag to reorder; rotate, delete, select pages; save all or only the selected pages (extract). |
+| Organise & merge | Combine PDFs; drag to reorder; rotate, delete, select pages; save all or only the selected pages (extract). Form fields on the kept pages stay fillable (same-named fields from different files merge). |
 | Split PDF | By page ranges (`1-3, 5, 8-`), every page, or every N pages. Several outputs download as one ZIP. |
 | Images to PDF | JPG/PNG embedded as-is (JPEG EXIF orientation respected); WEBP/GIF/BMP re-encoded to PNG. Page size A4/A3/Letter/Legal or image size, orientation and margin. |
 | PDF to images | PNG or JPG at 72/150/300 dpi, optional page range; several pages download as a ZIP. |

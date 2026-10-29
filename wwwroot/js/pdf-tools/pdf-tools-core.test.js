@@ -238,6 +238,26 @@ test('assemblePages merges, reorders, repeats, drops and rotates pages', async (
   ]);
 });
 
+test('assemblePages keeps form fields and their values', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const first = document.addPage([300, 300]);
+  const second = document.addPage([300, 300]);
+  const form = document.getForm();
+  const name = form.createTextField('name');
+  name.setText('Ada');
+  name.addToPage(first, { x: 10, y: 10 });
+  form.createCheckBox('agree').addToPage(second, { x: 10, y: 10 });
+  const pdf = await document.save();
+
+  const output = await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 1 }, { source: 0, index: 0 }]);
+  const fields = (await PDFLib.PDFDocument.load(output)).getForm();
+  assert.deepEqual(fields.getFields().map((field) => field.getName()).sort(), ['agree', 'name']);
+  assert.equal(fields.getTextField('name').getText(), 'Ada');
+
+  const [onlySecond] = await tools.splitPdf(PDFLib, pdf, [[1]]);
+  assert.deepEqual((await PDFLib.PDFDocument.load(onlySecond)).getForm().getFields().map((field) => field.getName()), ['agree']);
+});
+
 test('assemblePages rejects empty selections and missing pages', async () => {
   const pdf = await makePdf([[100, 100]]);
   await assert.rejects(tools.assemblePages(PDFLib, [pdf], []), { code: 'no-pages' });

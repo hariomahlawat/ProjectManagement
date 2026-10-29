@@ -522,7 +522,61 @@
       copy.setRotation(PDFLib.degrees(normalizeRotation(current + (Number(page.rotate) || 0))));
       output.addPage(copy);
     }
+    carryFormFields(PDFLib, output, loaded);
     return save(output);
+  }
+
+  /**
+   * copyPages brings form widgets (and, through their /Parent links, their fields) across,
+   * but not the document-level /AcroForm that lists the fields, so viewers stop treating them
+   * as a form. Rebuild it from the widgets on the output pages, keeping the source form's
+   * default appearance settings. Fields with the same name in different sources merge, as
+   * they would in any PDF form.
+   */
+  function carryFormFields(PDFLib, output, sources) {
+    const { PDFName, PDFDict, PDFRef } = PDFLib;
+    const roots = new Map();
+    for (const page of output.getPages()) {
+      const annots = page.node.Annots();
+      if (!annots) continue;
+      for (let i = 0; i < annots.size(); i += 1) {
+        const ref = annots.get(i);
+        const annot = ref instanceof PDFRef ? output.context.lookup(ref) : null;
+        if (!(annot instanceof PDFDict) || String(annot.get(PDFName.of('Subtype'))) !== '/Widget') {
+          continue;
+        }
+        let fieldRef = ref;
+        let field = annot;
+        const seen = new Set();
+        while (field.get(PDFName.of('Parent')) instanceof PDFRef && !seen.has(String(fieldRef))) {
+          seen.add(String(fieldRef));
+          fieldRef = field.get(PDFName.of('Parent'));
+          field = output.context.lookup(fieldRef, PDFDict);
+        }
+        roots.set(String(fieldRef), fieldRef);
+      }
+    }
+    if (roots.size === 0) {
+      return;
+    }
+
+    const acroForm = output.context.obj({});
+    acroForm.set(PDFName.of('Fields'), output.context.obj(Array.from(roots.values())));
+    const sourceForm = sources
+      .filter(Boolean)
+      .map((document) => document.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict))
+      .find(Boolean);
+    if (sourceForm) {
+      const source = sources.find((document) => document && document.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict) === sourceForm);
+      const copier = PDFLib.PDFObjectCopier.for(source.context, output.context);
+      for (const key of ['DA', 'DR', 'NeedAppearances', 'Q']) {
+        const value = sourceForm.get(PDFName.of(key));
+        if (value !== undefined) {
+          acroForm.set(PDFName.of(key), copier.copy(value));
+        }
+      }
+    }
+    output.catalog.set(PDFName.of('AcroForm'), output.context.register(acroForm));
   }
 
   async function splitPdf(PDFLib, bytes, groups) {
