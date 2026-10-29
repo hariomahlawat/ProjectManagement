@@ -561,11 +561,14 @@ public static class BriefingDeskBuilder
                     BriefingDeskTone.Neutral,
                     CoveredByStep: pdcCovered));
             }
-            else if (row.HasOverdueCurrentStage && row.CurrentStagePdc is DateOnly passed)
+            else if (row.HasOverdueCurrentStage && row.CurrentStagePdc is not null)
             {
                 // Not a step: the red note links to the full plan editor for a PO who wants to revise it.
+                // Worded as the Conference view's attention line, so the desk and the Comdt's
+                // view say the same thing.
+                var overdueDays = Math.Max(1, -(row.DaysUntilCurrentStagePdc ?? -1));
                 facts.Add(new BriefingDeskFactVm(
-                    $"PDC passed {FormatDay(passed)}",
+                    $"PDC overdue by {overdueDays} day{Plural(overdueDays)}",
                     BriefingDeskTone.Danger,
                     WorkspaceRouteHelper.ProjectPlanEdit(row.ProjectId, row.CurrentStageCode)));
             }
@@ -698,8 +701,11 @@ public static class BriefingDeskBuilder
             {
                 new BriefingDeskFactVm(idea.Status, idea.Status == "On Hold" ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral),
                 new BriefingDeskFactVm($"Last activity {activityText}", idea.NeedsUpdate ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral, CoveredByStep: true),
-                new BriefingDeskFactVm($"{idea.DocumentCount} document{Plural(idea.DocumentCount)}", BriefingDeskTone.Neutral)
-            },
+                // "0 documents" says nothing, so the count shows only when there are some.
+                idea.DocumentCount > 0 ? new BriefingDeskFactVm($"{idea.DocumentCount} document{Plural(idea.DocumentCount)}", BriefingDeskTone.Neutral) : null
+            }
+            .OfType<BriefingDeskFactVm>()
+            .ToList(),
             Direction = conference?.LatestDirection,
             DirectionAwaitingProgress = directionAwaitingProgress,
             LastUpdateText = $"Last activity on this idea was {activityText}.",
@@ -786,8 +792,9 @@ public static class BriefingDeskBuilder
         }
 
         var dueDays = task.DueDate.DayNumber - today.DayNumber;
+        // An overdue task that is not blocked has an "Overdue by" step, so the open card shows it once.
         var dueFact = task.IsOverdue && !isSubmitted
-            ? new BriefingDeskFactVm($"Due {FormatDay(task.DueDate)} · overdue {task.DaysOverdue ?? 0} day{Plural(task.DaysOverdue ?? 0)}", BriefingDeskTone.Danger)
+            ? new BriefingDeskFactVm($"Due {FormatDay(task.DueDate)} · overdue {task.DaysOverdue ?? 0} day{Plural(task.DaysOverdue ?? 0)}", BriefingDeskTone.Danger, CoveredByStep: !isBlocked)
             : dueDays is >= 0 and <= 3 && !isSubmitted
                 ? new BriefingDeskFactVm(dueDays == 0 ? $"Due today" : $"Due {FormatDay(task.DueDate)} · in {dueDays} day{Plural(dueDays)}", BriefingDeskTone.Warning)
                 : new BriefingDeskFactVm($"Due {FormatDay(task.DueDate)}", BriefingDeskTone.Neutral);

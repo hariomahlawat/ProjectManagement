@@ -126,8 +126,7 @@
                         <details class="bd-ready" data-bd-ready-group open="@(readyOpen ? "open" : null)">
                             <summary class="bd-ready__summary">
                                 <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                                <span class="bd-ready__title">Ready for conference</span>
-                                <span class="bd-ready__count">@ready.Count</span>
+                                <span class="bd-ready__title">@ready.Count ready for conference</span>
                                 <i class="bi bi-chevron-down bd-ready__chevron" aria-hidden="true"></i>
                             </summary>
                             <div class="bd-section__items">
@@ -210,7 +209,7 @@
                 <section class="bd-panel bd-panel--quiet" aria-labelledby="bd-reading-title">
                     <h2 id="bd-reading-title">Reading</h2>
                     <span class="bd-panel__meta">No unread circulars</span>
-                    <a class="bd-link bd-link--small" href="@vm.AotsUrl">AOTS inbox</a>
+                    <span class="bd-panel__links"><a class="bd-link bd-link--small" href="@vm.AotsUrl">AOTS inbox</a></span>
                 </section>
             }
 
@@ -245,8 +244,10 @@
                 <section class="bd-panel bd-panel--quiet" aria-labelledby="bd-week-title">
                     <h2 id="bd-week-title">Next 14 days</h2>
                     <span class="bd-panel__meta">Nothing due</span>
-                    <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>
-                    <a class="bd-link bd-link--small" href="/Calendar">Calendar</a>
+                    <span class="bd-panel__links">
+                        <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>
+                        <a class="bd-link bd-link--small" href="/Calendar">Calendar</a>
+                    </span>
                 </section>
             }
         </aside>

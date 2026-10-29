@@ -111,7 +111,7 @@ public sealed class BriefingDeskBuilderTests
         Assert.True(item.IsBriefReady);
         Assert.DoesNotContain(item.Checks, check => check.Key == "pdc");
         var fact = Assert.Single(item.Facts, fact => fact.Text.Contains("PDC"));
-        Assert.Equal("PDC passed 03 Oct 2026", fact.Text);
+        Assert.Equal("PDC overdue by 18 days", fact.Text);
         Assert.Equal(BriefingDeskTone.Danger, fact.Tone);
     }
 
@@ -280,7 +280,7 @@ public sealed class BriefingDeskBuilderTests
     {
         var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) }));
 
-        var fact = Assert.Single(item.Facts, fact => fact.Text.StartsWith("PDC passed", StringComparison.Ordinal));
+        var fact = Assert.Single(item.Facts, fact => fact.Text.StartsWith("PDC overdue", StringComparison.Ordinal));
         Assert.Contains("oc=plan&stage=DEVP", fact.Url);
         Assert.All(item.Facts.Where(other => other != fact), other => Assert.Null(other.Url));
     }
@@ -307,7 +307,29 @@ public sealed class BriefingDeskBuilderTests
         Assert.False(withPdc.Facts[0].CoveredByStep);
 
         // A passed PDC has no step, so its red note stays on the open card.
-        Assert.False(passed.Facts.Single(fact => fact.Text.StartsWith("PDC passed", StringComparison.Ordinal)).CoveredByStep);
+        Assert.False(passed.Facts.Single(fact => fact.Text.StartsWith("PDC overdue", StringComparison.Ordinal)).CoveredByStep);
+    }
+
+    [Fact]
+    public void Idea_DocumentCount_ShowsOnlyWhenThereAreDocuments()
+    {
+        var none = SingleItem(Build(ideas: new[] { new BriefingDeskIdeaInput(Idea(1, needsUpdate: false)) }));
+        var some = Idea(2, needsUpdate: false);
+        some.DocumentCount = 3;
+        var withDocs = SingleItem(Build(ideas: new[] { new BriefingDeskIdeaInput(some) }));
+
+        Assert.DoesNotContain(none.Facts, fact => fact.Text.Contains("document", StringComparison.Ordinal));
+        Assert.Contains(withDocs.Facts, fact => fact.Text == "3 documents");
+    }
+
+    [Fact]
+    public void Task_OverdueDueTag_IsCoveredByTheOverdueStep_UnlessBlocked()
+    {
+        var overdue = SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.InProgress, overdueDays: 4, progressDaysAgo: 1) }));
+        var blocked = SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.Blocked, overdueDays: 4, progressDaysAgo: 1) }));
+
+        Assert.True(overdue.Facts.Single(fact => fact.Text.StartsWith("Due", StringComparison.Ordinal)).CoveredByStep);
+        Assert.False(blocked.Facts.Single(fact => fact.Text.StartsWith("Due", StringComparison.Ordinal)).CoveredByStep);
     }
 
     [Fact]

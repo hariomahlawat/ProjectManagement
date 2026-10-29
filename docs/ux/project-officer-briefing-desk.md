@@ -26,7 +26,7 @@ Sections follow the Conference view order: Projects, Ideas, Tasks. Empty section
 
 | Item | Ready for conference when | Shown but never required |
 | --- | --- | --- |
-| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set, or a plan with the HoD; every completed stage before the current stage has its completion date, or a pending date correction that proposes it | A PDC that has passed (a red "PDC passed …" note); other record-health gaps, grouped by the editor that fixes them, listed as optional details |
+| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set, or a plan with the HoD; every completed stage before the current stage has its completion date, or a pending date correction that proposes it | A PDC that has passed (a red "PDC overdue by … days" note, worded as the Conference view's attention line); other record-health gaps, grouped by the editor that fixes them, listed as optional details |
 | Idea | Activity within the existing 15-day idea rule; the latest direction answered with a note | — |
 | Task | Progress by the PO within 7 days; the latest direction answered; if overdue, submitted for closure or flagged blocked. A submitted task waits on the assigner and counts as ready | — |
 
@@ -61,7 +61,8 @@ keeps the name `IsBriefReady`.
 - The headline leads with what needs the PO ("3 items need you before the next conference");
   the line under it gives the ready count.
 - In each section, items that need the PO are full cards, first one open. Ready items sit in a
-  folded **Ready for conference** group, one line each. The group opens by itself when a post,
+  folded group under them, opened from a quiet "N ready for conference" line (not a bar), one
+  line each. The group opens by itself when a post,
   `focus` or a URL hash points at one of its cards, and the PO can still open a ready card to
   add a remark.
 - The per-section meters appear only when the desk has more than one section.
@@ -73,6 +74,9 @@ keeps the name `IsBriefReady`.
   28 days"), since there is no hover title on a phone. A stage whose name is its code (PNC)
   shows the code once.
 - Record health is not a header tag; "Improve the record" shows it with the gaps.
+- An overdue task's due tag is covered by its "Overdue by" step; an idea shows its document
+  count only when it has documents. The section heading keeps the count beside the title and
+  any register link on the right.
 - Side panels with nothing to show (no unread circulars, nothing in the next 14 days) are one
   line each, and **Sent for approval** is left out when nothing is pending.
 
@@ -80,7 +84,7 @@ There is no weekly round (removed 2026-10-29): the "needs you" cards, in order, 
 
 **Card header.** The header tags agree with the checks. When a plan is with the HoD for a
 missing or passed PDC, the PDC tag reads "PDC sent to HoD on …" or "Revised PDC sent to HoD on
-…" in a neutral tone, not "PDC not set" or a red "PDC passed …".
+…" in a neutral tone, not "PDC not set" or a red "PDC overdue by …".
 
 **Update box.** When the weekly update or a direction is due, the box is open on the card. When
 nothing is due, the card says "Not needed now" with the date of the last update, and the box
@@ -91,8 +95,9 @@ folds behind "Add another remark" (or note, or progress), so the PO can still po
 under the button says which. Missing stage completion dates are a required step ("2 stage
 completion dates missing") that links to the date-correction editor. **Improve the record**
 lists the other, optional record-health gaps; it is
-folded to one line ("Record 38% complete · 5 optional details missing") until opened, and its
-buttons are quiet (`bd-btn--optional`). Points are not shown on the desk.
+folded to one line ("Record 38% complete · optional") until opened, and its buttons are quiet
+(`bd-btn--optional`). Neither points nor a gap count are shown on the desk, so it cannot
+disagree with the gap count in the Comdt preview.
 
 ## What the PO can finish on the desk
 
