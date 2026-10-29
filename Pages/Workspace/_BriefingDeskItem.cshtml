@@ -8,12 +8,20 @@
     var previewId = $"{anchor}-preview";
     var inputId = $"{anchor}-say";
     var kindKey = BriefingDeskLabels.KindKey(item.Kind);
-    var (handler, postLabel, postHint, placeholder, sayTitle) = item.Kind switch
+    var (handler, postLabel, postHint, placeholder, sayTitle, addAnother) = item.Kind switch
     {
-        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post update", "Saved as a project remark. Counts as your weekly update.", "One or two lines: what moved, what is blocked, what is next.", "What you’ll say this week"),
-        ConferenceItemKind.ProjectIdea => ("DeskIdeaNote", "Post note", "Saved as a note on the idea.", "What you explored or learned since the last note.", "Note on progress"),
-        _ => ("DeskTaskProgress", "Post progress", "Saved as a progress update on the task.", "What is done, what remains, any blocker.", "Progress on this task")
+        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post remark", "Saved as a project remark. Counts as your weekly update.", "One or two lines: what moved, what is blocked, what is next.", "Your remark this week", "Add another remark"),
+        ConferenceItemKind.ProjectIdea => ("DeskIdeaNote", "Post note", "Saved as a note on the idea.", "What you explored or learned since the last note.", "Note on progress", "Add another note"),
+        _ => ("DeskTaskProgress", "Post progress", "Saved as a progress update on the task.", "What is done, what remains, any blocker.", "Progress on this task", "Add more progress")
     };
+    // When nothing is due the box folds away behind a quiet link: the PO sees that no update
+    // is needed but can still add one. A draft kept after a failed post reopens it.
+    // A kept draft goes back into the box it came from.
+    string? DraftFor(string field) => Model.DraftField == field ? Model.Draft : null;
+    var bodyDraft = DraftFor(BriefingDeskDraftFields.Body);
+    var submitDraft = DraftFor(BriefingDeskDraftFields.Submit);
+    var blockedDraft = DraftFor(BriefingDeskDraftFields.Blocked);
+    var sayOpen = item.IsUpdateDue || !string.IsNullOrEmpty(bodyDraft);
     if (item.DirectionAwaitingProgress)
     {
         sayTitle = "What you’ll report on the direction";
@@ -57,12 +65,20 @@
         <ul class="bd-card__facts" aria-label="Key facts">
             @foreach (var fact in item.Facts)
             {
-                <li class="bd-fact @ToneClass(fact.Tone)">@fact.Text</li>
+                var factClass = $"bd-fact {ToneClass(fact.Tone)} {(fact.CoveredByStep ? "bd-fact--covered" : string.Empty)}";
+                @if (string.IsNullOrWhiteSpace(fact.Url))
+                {
+                    <li class="@factClass">@fact.Text</li>
+                }
+                else
+                {
+                    <li class="@factClass"><a class="bd-fact__link" href="@fact.Url">@fact.Text<span class="visually-hidden"> (open the plan editor)</span></a></li>
+                }
             }
         </ul>
         @if (item.IsBriefReady)
         {
-            <span class="bd-pill bd-pill--ready"><i class="bi bi-check2" aria-hidden="true"></i>Brief-ready</span>
+            <span class="bd-pill bd-pill--ready"><i class="bi bi-check2" aria-hidden="true"></i>Ready</span>
         }
         else
         {
@@ -76,7 +92,7 @@
         <ol class="bd-strip" aria-label="@(item.Kind == ConferenceItemKind.Project ? "Project stages" : "Task status")">
             @foreach (var step in item.Strip)
             {
-                <li class="bd-step @StepClass(step.State)" title="@step.Title" aria-current="@(step.State is BriefingDeskStepState.Current or BriefingDeskStepState.Blocked ? "step" : null)">@step.Label</li>
+                <li class="bd-step @StepClass(step.State)" title="@step.Title" aria-current="@(step.State is BriefingDeskStepState.Current or BriefingDeskStepState.Blocked ? "step" : null)">@step.Label@(step.State is BriefingDeskStepState.Current && step.Title != step.Label ? $" · {step.Title}" : string.Empty)</li>
             }
         </ol>
     }
@@ -113,26 +129,51 @@
         }
 
         <div class="bd-card__work">
-            <form method="post"
-                  class="bd-say"
-                  asp-page="/Workspace/Index"
-                  asp-page-handler="@handler"
-                  asp-route-mode="project-officer">
-                <input type="hidden" name="itemId" value="@item.ItemId" />
-                <label class="bd-say__label" for="@inputId">@sayTitle</label>
-                <p class="bd-say__last">@item.LastUpdateText</p>
-                <textarea class="bd-say__input"
-                          id="@inputId"
-                          name="body"
-                          rows="4"
-                          maxlength="4000"
-                          required
-                          placeholder="@placeholder">@Model.Draft</textarea>
-                <div class="bd-say__actions">
-                    <button type="submit" class="bd-btn bd-btn--primary">@postLabel</button>
-                    <span class="bd-say__hint">@postHint</span>
+            @{
+                async Task SayForm()
+                {
+                    <form method="post"
+                          class="bd-say"
+                          asp-page="/Workspace/Index"
+                          asp-page-handler="@handler"
+                          asp-route-mode="project-officer">
+                        <input type="hidden" name="itemId" value="@item.ItemId" />
+                        <label class="bd-say__label" for="@inputId">@sayTitle</label>
+                        @if (sayOpen)
+                        {
+                            <p class="bd-say__last">@item.LastUpdateText</p>
+                        }
+                        <textarea class="bd-say__input"
+                                  id="@inputId"
+                                  name="body"
+                                  rows="4"
+                                  maxlength="4000"
+                                  required
+                                  placeholder="@placeholder">@bodyDraft</textarea>
+                        <div class="bd-say__actions">
+                            <button type="submit" class="bd-btn bd-btn--primary">@postLabel</button>
+                            <span class="bd-say__hint">@postHint</span>
+                        </div>
+                    </form>
+                }
+            }
+            @if (sayOpen)
+            {
+                await SayForm();
+            }
+            else
+            {
+                <div class="bd-say">
+                    <p class="bd-say__settled">
+                        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                        <span><strong>Not needed now.</strong> @item.LastUpdateText</span>
+                    </p>
+                    <details class="bd-say__more" data-bd-say-more>
+                        <summary class="bd-btn bd-btn--quiet"><i class="bi bi-plus-lg" aria-hidden="true"></i>@addAnother</summary>
+                        @{ await SayForm(); }
+                    </details>
                 </div>
-            </form>
+            }
 
             <div class="bd-checks">
                 <h4 class="bd-checks__title">Before you brief</h4>
@@ -148,26 +189,26 @@
                     <div class="bd-task-actions">
                         @if (item.CanSubmitTask)
                         {
-                            <details class="bd-task-action">
+                            <details class="bd-task-action" open="@(submitDraft is null ? null : "open")">
                                 <summary class="bd-btn bd-btn--approval">Submit for closure</summary>
                                 <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskSubmit" asp-route-mode="project-officer" class="bd-task-action__form">
                                     <input type="hidden" name="itemId" value="@item.ItemId" />
                                     <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
                                     <label for="@anchor-submit-note">Closure note</label>
-                                    <textarea id="@anchor-submit-note" name="note" rows="3" maxlength="4000" required placeholder="What was delivered, and where it is recorded."></textarea>
+                                    <textarea id="@anchor-submit-note" name="note" rows="3" maxlength="4000" required placeholder="What was delivered, and where it is recorded.">@submitDraft</textarea>
                                     <button type="submit" class="bd-btn bd-btn--primary">Submit to assigner</button>
                                 </form>
                             </details>
                         }
                         @if (item.CanFlagTaskBlocked)
                         {
-                            <details class="bd-task-action">
+                            <details class="bd-task-action" open="@(blockedDraft is null ? null : "open")">
                                 <summary class="bd-btn bd-btn--danger-outline">Flag blocked</summary>
                                 <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskBlocked" asp-route-mode="project-officer" class="bd-task-action__form">
                                     <input type="hidden" name="itemId" value="@item.ItemId" />
                                     <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
                                     <label for="@anchor-blocked-note">What is blocking it?</label>
-                                    <textarea id="@anchor-blocked-note" name="note" rows="3" maxlength="4000" required placeholder="The blocker, and who can clear it."></textarea>
+                                    <textarea id="@anchor-blocked-note" name="note" rows="3" maxlength="4000" required placeholder="The blocker, and who can clear it.">@blockedDraft</textarea>
                                     <button type="submit" class="bd-btn bd-btn--danger">Flag blocked</button>
                                 </form>
                             </details>
@@ -181,8 +222,8 @@
                     <details class="bd-improve">
                         <summary>
                             <h4 class="bd-checks__title bd-checks__title--improve">
-                                Improve the record
-                                <span>@item.RecordHealthPercent% now · up to +@item.ImprovementPoints points · @item.Improvements.Count optional item@(item.Improvements.Count == 1 ? string.Empty : "s")</span>
+                                <span class="bd-improve__title">Improve the record</span>
+                                <span class="bd-improve__meta">Record @item.RecordHealthPercent% complete · optional</span>
                                 <i class="bi bi-chevron-down bd-improve__chevron" aria-hidden="true"></i>
                             </h4>
                         </summary>

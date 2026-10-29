@@ -1,6 +1,7 @@
 using System.Globalization;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.ViewModels;
 using ProjectManagement.ViewModels.Workspace;
@@ -25,9 +26,20 @@ public sealed record BriefingDeskProjectInput(
     WorkspaceProjectMatrixRowVm Row,
     IReadOnlyList<BriefingDeskStageInput> Stages,
     DateTimeOffset? PendingPlanSinceUtc = null,
-    DateTimeOffset? PendingActualsSinceUtc = null,
+    BriefingDeskPendingCorrection? PendingCorrection = null,
     ProcurementEditVm? ProcurementEdit = null,
-    PlanEditorVm? PlanEditor = null);
+    PlanEditorVm? PlanEditor = null,
+    // A published ARPP record supplies the IPA completion date (the date editor locks it).
+    bool IpaCompletionFromArpp = false);
+
+// The latest pending actual-date correction on a project: when it was sent, the stages whose
+// completion date it proposes, and whether official dates moved since, so the HoD cannot approve
+// it until the PO reviews and resubmits it.
+public sealed record BriefingDeskPendingCorrection(
+    DateTimeOffset SubmittedOn,
+    IReadOnlySet<string> ProposedCompletionStageCodes,
+    bool NeedsResubmission,
+    string? SubmittedByUserId = null);
 
 public sealed record BriefingDeskStageInput(string Code, string Name, StageStatus Status, int SortOrder);
 
@@ -48,7 +60,20 @@ public static class BriefingDeskBuilder
     // Task progress follows the same weekly rhythm as project updates.
     public const int TaskProgressWindowDays = 7;
 
-    private const string CurrentStageComponent = "Current-stage timeline (PDC)";
+    // Current-stage gaps (PDC, planned start, actual start) are recognised by the code prefix
+    // ProjectRecordHealthService gives them, not by the component's display label.
+    internal const string CurrentStageGapPrefix = "CURRENT_STAGE_";
+
+    public static bool IsCurrentStageGap(WorkspaceRecordGapVm gap)
+        => gap.Code.StartsWith(CurrentStageGapPrefix, StringComparison.Ordinal);
+
+    // Completion dates of completed stages are required on the desk, not offered as improvements.
+    // Actual start dates are optional and never asked for here. The gaps are recognised by the
+    // code ProjectRecordHealthService gives them ("<STAGE>_ACTUAL_COMPLETION"), not by a label.
+    internal const string CompletionDateGapSuffix = "_ACTUAL_COMPLETION";
+
+    public static bool IsCompletionDateGap(WorkspaceRecordGapVm gap)
+        => gap.Code.EndsWith(CompletionDateGapSuffix, StringComparison.Ordinal);
 
     public static BriefingDeskVm Build(BriefingDeskInput input)
     {
@@ -136,10 +161,12 @@ public static class BriefingDeskBuilder
 
     // SECTION: Projects
     // Brief-ready = a PO update within the weekly window, the latest conference direction
-    // answered, and a current-stage PDC that is set and not overdue (or submitted to the HoD).
-    // Record gaps are offered as improvements and never block readiness. Work the HoD returned
-    // is not listed: a return is a finished decision, which the PO learns of from the
-    // notification and the editor's banner; the desk shows only what is still pending.
+    // answered, a current-stage PDC that is set, and every completed stage carrying its
+    // completion date. Anything submitted for approval is the PO's part done. A PDC that has
+    // passed is shown as a red note and never blocks readiness; actual start dates are optional
+    // and not asked for. Other record gaps are offered as improvements and never block
+    // readiness. Work the HoD returned is not listed: a return is a finished decision, which the
+    // PO learns of from the notification and the editor's banner.
     private static BriefingDeskItemVm BuildProject(
         BriefingDeskProjectInput input,
         DateOnly today,
@@ -154,13 +181,14 @@ public static class BriefingDeskBuilder
         var checks = new List<BriefingDeskCheckVm> { ProjectUpdateCheck(row, conference, directionAwaitingProgress) };
 
         var planPanel = hasStage && !planDirectSaveRole ? ShortPlanPanel(input, row, anchor) : null;
-        if (hasStage)
+        if (hasStage && ProjectPdcCheck(row, input.PendingPlanSinceUtc, planPanel?.PanelId) is { } pdcCheck)
         {
-            checks.Add(ProjectPdcCheck(row, input.PendingPlanSinceUtc, planPanel?.PanelId));
-            if (row.IsCurrentStageStartMissing)
-            {
-                checks.Add(ProjectStartCheck(row, input.PendingActualsSinceUtc));
-            }
+            checks.Add(pdcCheck);
+        }
+
+        if (ProjectCompletionDatesCheck(row, input.PendingCorrection, input.IpaCompletionFromArpp) is { } completionCheck)
+        {
+            checks.Add(completionCheck);
         }
 
         var procurementPanelId = input.ProcurementEdit is null ? null : $"{anchor}-procurement";
@@ -172,7 +200,7 @@ public static class BriefingDeskBuilder
             ItemId = row.ProjectId,
             Title = row.ProjectName,
             OpenUrl = row.OpenUrl,
-            Facts = ProjectFacts(row, hasStage, input.PendingPlanSinceUtc),
+            Facts = ProjectFacts(row, hasStage, input.PendingPlanSinceUtc, pdcCovered: checks.Any(check => check.Key == "pdc")),
             Strip = ProjectStrip(input.Stages, row.CurrentStageCode),
             Direction = conference?.LatestDirection,
             DirectionAwaitingProgress = directionAwaitingProgress,
@@ -231,18 +259,18 @@ public static class BriefingDeskBuilder
     }
 
     // SECTION: Current-stage plan form
-    // The short form posts only the current stage's row to the plan editor's own handler,
-    // which then validates and submits the whole plan exactly as the full editor does. It is
-    // offered only when nothing else would ride along: no private draft, no pending or locked
-    // submission, and a current stage that is still plannable.
+    // Offered only when the current-stage PDC is missing. The short form posts only the current
+    // stage's row to the plan editor's own handler, which then validates and submits the whole
+    // plan exactly as the full editor does. It is offered only when nothing else would ride
+    // along: no private draft, no pending or locked submission, and a current stage that is
+    // still plannable.
     internal static BriefingDeskPlanPanelVm? ShortPlanPanel(
         BriefingDeskProjectInput input,
         WorkspaceProjectMatrixRowVm row,
         string anchor)
     {
         var editor = input.PlanEditor;
-        var needsPdc = row.HasOverdueCurrentStage || row.CurrentStagePdc is null;
-        if (editor is null || !needsPdc || input.PendingPlanSinceUtc is not null)
+        if (editor is null || row.CurrentStagePdc is not null || input.PendingPlanSinceUtc is not null)
         {
             return null;
         }
@@ -270,13 +298,14 @@ public static class BriefingDeskBuilder
             StageName = stage.Name,
             PlannedStart = stage.PlannedStart,
             PlannedDue = stage.PlannedDue,
-            IsOverdue = row.HasOverdueCurrentStage,
             ReturnUrl = WorkspaceRouteHelper.BriefingDeskItem(anchor),
             FullEditorUrl = WorkspaceRouteHelper.ProjectPlanEdit(row.ProjectId, stage.Code)
         };
     }
 
-    private static BriefingDeskCheckVm ProjectPdcCheck(
+    // Only a missing PDC asks anything of the PO. A plan already with the HoD is the PO's part
+    // done; a PDC that has passed is a red note in the header, not a step.
+    private static BriefingDeskCheckVm? ProjectPdcCheck(
         WorkspaceProjectMatrixRowVm row,
         DateTimeOffset? pendingPlanSinceUtc,
         string? panelId = null)
@@ -284,97 +313,131 @@ public static class BriefingDeskBuilder
         var code = row.CurrentStageCode;
         var planUrl = WorkspaceRouteHelper.ProjectPlanEdit(row.ProjectId, code);
 
-        // A plan awaiting approval is the PO's answer to a missing or overdue PDC.
-        if (pendingPlanSinceUtc is DateTimeOffset since && (row.HasOverdueCurrentStage || row.CurrentStagePdc is null))
+        if (row.CurrentStagePdc is DateOnly pdc)
         {
+            if (row.HasOverdueCurrentStage)
+            {
+                return null;
+            }
+
+            var remaining = row.DaysUntilCurrentStagePdc ?? 0;
             return new BriefingDeskCheckVm
             {
                 Key = "pdc",
-                Label = $"{code} planned dates",
-                Detail = "Your plan is awaiting HoD approval. Official dates change when it is approved.",
-                State = BriefingDeskCheckState.Waiting,
+                Label = $"{code} PDC {FormatDay(pdc)}",
+                Detail = remaining == 0 ? "Due today." : $"{remaining} day{Plural(remaining)} remaining.",
+                State = BriefingDeskCheckState.Done,
                 Route = BriefingDeskRoute.Approval,
-                StateText = $"With HoD since {FormatDay(since)}",
                 ActionUrl = planUrl
             };
         }
 
-        if (row.HasOverdueCurrentStage && row.CurrentStagePdc is DateOnly overduePdc)
-        {
-            var overdueDays = Math.Max(0, -(row.DaysUntilCurrentStagePdc ?? 0));
-            return new BriefingDeskCheckVm
-            {
-                Key = "pdc",
-                Label = $"Revise {code} PDC",
-                Detail = $"PDC was {FormatDay(overduePdc)}, {overdueDays} day{Plural(overdueDays)} ago. Propose a revised date.",
-                State = BriefingDeskCheckState.Open,
-                Route = BriefingDeskRoute.Approval,
-                ActionText = "Propose date",
-                ActionUrl = planUrl,
-                PanelId = panelId
-            };
-        }
-
-        if (row.CurrentStagePdc is not DateOnly pdc)
+        if (pendingPlanSinceUtc is DateTimeOffset since)
         {
             return new BriefingDeskCheckVm
             {
                 Key = "pdc",
-                Label = $"Set {code} planned dates",
-                Detail = "The current stage has no planned completion date (PDC).",
-                State = BriefingDeskCheckState.Open,
+                Label = $"{code} PDC",
+                Detail = "The plan is with the HoD. Nothing more is needed from you.",
+                State = BriefingDeskCheckState.Submitted,
                 Route = BriefingDeskRoute.Approval,
-                ActionText = "Propose dates",
-                ActionUrl = planUrl,
-                PanelId = panelId
+                StateText = $"Sent to HoD on {FormatDay(since)}",
+                ActionUrl = planUrl
             };
         }
 
-        var remaining = row.DaysUntilCurrentStagePdc ?? 0;
         return new BriefingDeskCheckVm
         {
             Key = "pdc",
-            Label = $"{code} PDC {FormatDay(pdc)}",
-            Detail = remaining == 0 ? "Due today." : $"{remaining} day{Plural(remaining)} remaining.",
-            State = BriefingDeskCheckState.Done,
+            Label = $"Set {code} PDC",
+            Detail = "The current stage has no planned completion date (PDC).",
+            State = BriefingDeskCheckState.Open,
             Route = BriefingDeskRoute.Approval,
-            ActionUrl = planUrl
+            ActionText = "Set PDC",
+            ActionUrl = planUrl,
+            PanelId = panelId
         };
     }
 
-    private static BriefingDeskCheckVm ProjectStartCheck(WorkspaceProjectMatrixRowVm row, DateTimeOffset? pendingActualsSinceUtc)
+    // Completed stages must carry their completion date. A pending date correction is the PO's
+    // part done only for the stages whose completion date it proposes, and only while the HoD
+    // can still approve it; one the HoD cannot approve is a step even with no gap.
+    private static BriefingDeskCheckVm? ProjectCompletionDatesCheck(
+        WorkspaceProjectMatrixRowVm row,
+        BriefingDeskPendingCorrection? pending,
+        bool ipaCompletionFromArpp = false)
     {
-        var code = row.CurrentStageCode;
-        var actualsUrl = WorkspaceRouteHelper.ProjectTimelineActuals(row.ProjectId);
-        if (pendingActualsSinceUtc is DateTimeOffset since)
+        // Record health reads the stored date; when an ARPP record supplies the IPA date the PO
+        // cannot enter one, so that gap is never a step.
+        var gaps = (row.RecordHealth?.GapDetails ?? Array.Empty<WorkspaceRecordGapVm>())
+            .Where(IsCompletionDateGap)
+            .Where(gap => !(ipaCompletionFromArpp && string.Equals(gap.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        var actionUrl = gaps.Select(gap => gap.ActionUrl).FirstOrDefault(url => !string.IsNullOrWhiteSpace(url))
+            ?? WorkspaceRouteHelper.ProjectTimelineActuals(row.ProjectId);
+
+        // A correction the HoD cannot approve needs the PO whatever it proposes, including a
+        // change to a date that is already recorded, so it is checked before the gaps.
+        if (pending is { NeedsResubmission: true })
         {
             return new BriefingDeskCheckVm
             {
-                Key = "start",
-                Label = $"{code} actual start",
-                Detail = "Your date correction is awaiting HoD approval.",
-                State = BriefingDeskCheckState.Waiting,
+                Key = "completion",
+                Label = "Review your date correction",
+                Detail = "Official dates changed after you sent it. The HoD cannot approve it until you review it and send it again.",
+                State = BriefingDeskCheckState.Open,
                 Route = BriefingDeskRoute.Approval,
-                StateText = $"With HoD since {FormatDay(since)}",
-                ActionUrl = actualsUrl
+                ActionText = "Review",
+                ActionUrl = actionUrl,
+                RouteHint = "Opens the date editor"
             };
         }
 
+        if (gaps.Count == 0)
+        {
+            return null;
+        }
+
+        var missing = pending is null
+            ? gaps
+            : gaps.Where(gap => gap.StageCode is not { } code || !pending.ProposedCompletionStageCodes.Contains(code)).ToList();
+
+        if (missing.Count == 0)
+        {
+            return new BriefingDeskCheckVm
+            {
+                Key = "completion",
+                Label = "Stage completion dates",
+                Detail = "The date correction is with the HoD. Nothing more is needed from you.",
+                State = BriefingDeskCheckState.Submitted,
+                Route = BriefingDeskRoute.Approval,
+                StateText = $"Sent to HoD on {FormatDay(pending!.SubmittedOn)}",
+                ActionUrl = actionUrl
+            };
+        }
+
+        var stages = string.Join(", ", missing.Select(ShortFieldLabel));
         return new BriefingDeskCheckVm
         {
-            Key = "start",
-            Label = $"Record {code} actual start",
-            Detail = "The current stage is in progress but has no start date.",
+            Key = "completion",
+            Label = missing.Count == 1
+                ? $"{ShortFieldLabel(missing[0])} completion date missing"
+                : $"{missing.Count} stage completion dates missing",
+            Detail = pending is not null
+                ? $"Your date correction with the HoD does not include {stages}. Add {(missing.Count == 1 ? "it" : "them")} to it."
+                : missing.Count == 1
+                    ? "The stage is completed but its completion date is not recorded."
+                    : $"Completed stages without a completion date: {stages}.",
             State = BriefingDeskCheckState.Open,
             Route = BriefingDeskRoute.Approval,
-            ActionText = "Propose date",
-            ActionUrl = actualsUrl
+            ActionText = "Add dates",
+            ActionUrl = actionUrl
         };
     }
 
     // SECTION: Record-health improvements
-    // Gaps are grouped by the editor that fixes them. The current-stage PDC is excluded
-    // because the required PDC check above already covers it.
+    // Gaps are grouped by the editor that fixes them. The current-stage PDC and stage completion
+    // dates are excluded because the required checks above already cover them.
     internal static IReadOnlyList<BriefingDeskCheckVm> ProjectImprovements(
         WorkspaceRecordHealthVm? health,
         string? procurementPanelId = null,
@@ -386,7 +449,8 @@ public static class BriefingDeskBuilder
         }
 
         return health.GapDetails
-            .Where(gap => !string.Equals(gap.Component, CurrentStageComponent, StringComparison.Ordinal))
+            .Where(gap => !IsCurrentStageGap(gap))
+            .Where(gap => !IsCompletionDateGap(gap))
             .Where(gap => !string.IsNullOrWhiteSpace(gap.ActionUrl))
             .GroupBy(gap => gap.ActionUrl, StringComparer.Ordinal)
             .Select(group =>
@@ -461,34 +525,43 @@ public static class BriefingDeskBuilder
         _ => $"{component.ToLowerInvariant()} items missing"
     };
 
+    // The stage tag names the stage as well as its code, since a code alone ("PNC") means
+    // little on a phone, where there is no hover title.
+    internal static string StageLabel(string code, string? name)
+        => string.IsNullOrWhiteSpace(name) || string.Equals(name, code, StringComparison.OrdinalIgnoreCase) || name == "Not started"
+            ? code
+            : $"{code} · {name}";
+
     private static IReadOnlyList<BriefingDeskFactVm> ProjectFacts(
         WorkspaceProjectMatrixRowVm row,
         bool hasStage,
-        DateTimeOffset? pendingPlanSinceUtc = null)
+        DateTimeOffset? pendingPlanSinceUtc = null,
+        bool pdcCovered = false)
     {
         var facts = new List<BriefingDeskFactVm>();
+        var stage = StageLabel(row.CurrentStageCode, row.CurrentStageName);
         if (!hasStage)
         {
             facts.Add(new BriefingDeskFactVm("No current stage", BriefingDeskTone.Warning));
         }
         else if (row.IsCurrentStageNotStarted)
         {
-            facts.Add(new BriefingDeskFactVm($"{row.CurrentStageCode} not started", BriefingDeskTone.Warning));
+            facts.Add(new BriefingDeskFactVm($"{stage} · not started", BriefingDeskTone.Warning));
         }
         else if (row.DaysInCurrentStage is int days)
         {
-            facts.Add(new BriefingDeskFactVm($"{days} day{Plural(days)} in {row.CurrentStageCode}", BriefingDeskTone.Neutral));
+            facts.Add(new BriefingDeskFactVm($"{stage} · {days} day{Plural(days)}", BriefingDeskTone.Neutral));
         }
         else
         {
-            facts.Add(new BriefingDeskFactVm(row.CurrentStageCode, BriefingDeskTone.Neutral));
+            facts.Add(new BriefingDeskFactVm(stage, BriefingDeskTone.Neutral));
         }
 
-        // A revised plan with the HoD is the PO's answer to a missing or overdue PDC (the PDC
-        // check counts it as done), so the header says so instead of raising an alarm.
+        // A plan with the HoD is the PO's answer to a missing or passed PDC, so the header says
+        // it was sent instead of raising an alarm.
         var planWithHod = pendingPlanSinceUtc is DateTimeOffset since
             && (row.HasOverdueCurrentStage || row.CurrentStagePdc is null)
-            ? $"with HoD since {FormatDay(since)}"
+            ? $"sent to HoD on {FormatDay(since)}"
             : null;
 
         if (hasStage)
@@ -497,20 +570,27 @@ public static class BriefingDeskBuilder
             {
                 facts.Add(new BriefingDeskFactVm(
                     row.CurrentStagePdc is null ? $"PDC {planWithHod}" : $"Revised PDC {planWithHod}",
-                    BriefingDeskTone.Neutral));
+                    BriefingDeskTone.Neutral,
+                    CoveredByStep: pdcCovered));
             }
-            else if (row.HasOverdueCurrentStage && row.CurrentStagePdc is DateOnly overdue)
+            else if (row.HasOverdueCurrentStage && row.CurrentStagePdc is not null)
             {
-                var overdueDays = Math.Max(0, -(row.DaysUntilCurrentStagePdc ?? 0));
-                facts.Add(new BriefingDeskFactVm($"PDC {FormatDay(overdue)} · overdue {overdueDays} day{Plural(overdueDays)}", BriefingDeskTone.Danger));
+                // Not a step: the red note links to the full plan editor for a PO who wants to revise it.
+                // Worded as the Conference view's attention line, so the desk and the Comdt's
+                // view say the same thing.
+                var overdueDays = Math.Max(1, -(row.DaysUntilCurrentStagePdc ?? -1));
+                facts.Add(new BriefingDeskFactVm(
+                    $"PDC overdue by {overdueDays} day{Plural(overdueDays)}",
+                    BriefingDeskTone.Danger,
+                    WorkspaceRouteHelper.ProjectPlanEdit(row.ProjectId, row.CurrentStageCode)));
             }
             else if (row.CurrentStagePdc is DateOnly pdc)
             {
-                facts.Add(new BriefingDeskFactVm($"PDC {FormatDay(pdc)}", BriefingDeskTone.Neutral));
+                facts.Add(new BriefingDeskFactVm($"PDC {FormatDay(pdc)}", BriefingDeskTone.Neutral, CoveredByStep: pdcCovered));
             }
             else
             {
-                facts.Add(new BriefingDeskFactVm("PDC not set", BriefingDeskTone.Warning));
+                facts.Add(new BriefingDeskFactVm("PDC not set", BriefingDeskTone.Warning, CoveredByStep: pdcCovered));
             }
         }
 
@@ -520,12 +600,10 @@ public static class BriefingDeskBuilder
             0 => new BriefingDeskFactVm("Updated today", BriefingDeskTone.Good),
             var value when value <= UpdateWindowDays => new BriefingDeskFactVm($"Updated {value} day{Plural(value!.Value)} ago", BriefingDeskTone.Good),
             var value => new BriefingDeskFactVm($"Updated {value} days ago", value > 10 ? BriefingDeskTone.Danger : BriefingDeskTone.Warning)
-        });
+        } with { CoveredByStep = true }); // the update step and the box repeat it
 
-        facts.Add(new BriefingDeskFactVm(
-            $"Records {row.RecordHealthPercent}%",
-            row.RecordHealthPercent >= 80 ? BriefingDeskTone.Good : BriefingDeskTone.Neutral));
-
+        // Record health is optional, so it is not a header tag: "Improve the record" shows it
+        // ("48% now") with the gaps that would raise it.
         return facts;
     }
 
@@ -573,11 +651,6 @@ public static class BriefingDeskBuilder
         {
             new(string.IsNullOrWhiteSpace(conference.CurrentContext) ? "Completed" : conference.CurrentContext!, BriefingDeskTone.Good)
         };
-        if (conference.RecordHealth is { } health)
-        {
-            facts.Add(new BriefingDeskFactVm($"Records {health.HealthPercent}%", health.HealthPercent >= 80 ? BriefingDeskTone.Good : BriefingDeskTone.Neutral));
-        }
-
         return new BriefingDeskItemVm
         {
             Kind = ConferenceItemKind.Project,
@@ -639,9 +712,12 @@ public static class BriefingDeskBuilder
             Facts = new[]
             {
                 new BriefingDeskFactVm(idea.Status, idea.Status == "On Hold" ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral),
-                new BriefingDeskFactVm($"Last activity {activityText}", idea.NeedsUpdate ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral),
-                new BriefingDeskFactVm($"{idea.DocumentCount} document{Plural(idea.DocumentCount)}", BriefingDeskTone.Neutral)
-            },
+                new BriefingDeskFactVm($"Last activity {activityText}", idea.NeedsUpdate ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral, CoveredByStep: true),
+                // "0 documents" says nothing, so the count shows only when there are some.
+                idea.DocumentCount > 0 ? new BriefingDeskFactVm($"{idea.DocumentCount} document{Plural(idea.DocumentCount)}", BriefingDeskTone.Neutral) : null
+            }
+            .OfType<BriefingDeskFactVm>()
+            .ToList(),
             Direction = conference?.LatestDirection,
             DirectionAwaitingProgress = directionAwaitingProgress,
             LastUpdateText = $"Last activity on this idea was {activityText}.",
@@ -674,10 +750,12 @@ public static class BriefingDeskBuilder
             {
                 Key = "closure",
                 Label = "Submitted for closure",
-                Detail = "The assigner closes the task or returns it for further action.",
-                State = BriefingDeskCheckState.Waiting,
+                Detail = "The assigner closes the task or returns it. Nothing more is needed from you.",
+                State = BriefingDeskCheckState.Submitted,
                 Route = BriefingDeskRoute.Approval,
-                StateText = "With assigner"
+                StateText = task.SubmittedOnUtc is DateTime submittedOn
+                    ? $"Sent to assigner on {FormatDay(new DateTimeOffset(DateTime.SpecifyKind(submittedOn, DateTimeKind.Utc)))}"
+                    : "Sent to assigner"
             });
         }
         else
@@ -726,8 +804,9 @@ public static class BriefingDeskBuilder
         }
 
         var dueDays = task.DueDate.DayNumber - today.DayNumber;
+        // An overdue task that is not blocked has an "Overdue by" step, so the open card shows it once.
         var dueFact = task.IsOverdue && !isSubmitted
-            ? new BriefingDeskFactVm($"Due {FormatDay(task.DueDate)} · overdue {task.DaysOverdue ?? 0} day{Plural(task.DaysOverdue ?? 0)}", BriefingDeskTone.Danger)
+            ? new BriefingDeskFactVm($"Due {FormatDay(task.DueDate)} · overdue {task.DaysOverdue ?? 0} day{Plural(task.DaysOverdue ?? 0)}", BriefingDeskTone.Danger, CoveredByStep: !isBlocked)
             : dueDays is >= 0 and <= 3 && !isSubmitted
                 ? new BriefingDeskFactVm(dueDays == 0 ? $"Due today" : $"Due {FormatDay(task.DueDate)} · in {dueDays} day{Plural(dueDays)}", BriefingDeskTone.Warning)
                 : new BriefingDeskFactVm($"Due {FormatDay(task.DueDate)}", BriefingDeskTone.Neutral);

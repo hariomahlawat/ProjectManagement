@@ -130,23 +130,6 @@
     color: var(--pm-text-secondary);
 }
 
-.bd-meter--summary {
-    justify-content: center;
-    gap: 0.35rem;
-}
-
-.bd-meter__row {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75rem;
-    font-size: 0.875rem;
-    color: var(--pm-text-secondary);
-}
-
-.bd-meter__row strong {
-    color: var(--pm-text-strong);
-}
-
 .bd-text-danger {
     color: var(--pm-danger) !important;
 }
@@ -181,11 +164,14 @@
     gap: 0.75rem;
 }
 
+/* Title and count sit together on the left in every section; a register link, where there is
+   one, goes to the right. */
 .bd-section__head {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     align-items: baseline;
-    gap: 0.75rem;
+    gap: 0.25rem 0.75rem;
 }
 
 .bd-section__head h2 {
@@ -230,8 +216,10 @@
     cursor: pointer;
 }
 
+/* The title has the first row to itself; tags, pill and chevron share the row below, so a
+   card with few tags does not pull them up beside the title and push the chevron down. */
 .bd-card__heading {
-    flex: 1 1 18rem;
+    flex: 1 1 100%;
     min-width: 0;
     margin: 0;
 }
@@ -265,7 +253,11 @@
     color: var(--pm-text-strong);
 }
 
+/* The tags take the row's free space and wrap inside it, so the pill and chevron stay on the
+   tag row on a phone instead of dropping to a line of their own. */
 .bd-card__facts {
+    flex: 1 1 10rem;
+    min-width: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem;
@@ -314,6 +306,18 @@
     font-weight: 600;
 }
 
+/* A tag that links to where it is fixed, such as a passed PDC to the plan editor. */
+.bd-fact__link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.bd-fact__link:hover,
+.bd-fact__link:focus-visible {
+    text-decoration-thickness: 2px;
+}
+
 .bd-pill {
     display: inline-flex;
     align-items: center;
@@ -343,6 +347,11 @@
     margin: 0;
     padding: 0 1.25rem 0.75rem;
     list-style: none;
+}
+
+/* The stage strip is detail: a folded card shows only its tags and the next step. */
+.bd-card:not(.is-expanded) > .bd-strip {
+    display: none;
 }
 
 .bd-step {
@@ -382,6 +391,17 @@
 }
 
 .bd-card.is-expanded .bd-card__next {
+    display: none;
+}
+
+/* An open card shows each fact once: a tag that a step repeats is left to the step. */
+.bd-card.is-expanded .bd-fact--covered {
+    display: none;
+}
+
+/* In the ready group a folded card is one line of tags; "Ready. Nothing outstanding" is
+   what the group already says. */
+.bd-ready .bd-card:not(.is-expanded) .bd-card__next {
     display: none;
 }
 
@@ -493,6 +513,39 @@
     color: var(--pm-text-secondary);
 }
 
+/* Update box when nothing is due: a settled line and a quiet way to add another. */
+.bd-say__settled {
+    margin: 0;
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    font-size: 0.875rem;
+    color: var(--pm-text-secondary);
+}
+
+.bd-say__settled .bi {
+    margin-top: 0.15rem;
+    color: var(--pm-success);
+}
+
+.bd-say__settled strong {
+    color: var(--pm-text-strong);
+}
+
+.bd-say__more > summary {
+    list-style: none;
+    width: fit-content;
+    cursor: pointer;
+}
+
+.bd-say__more > summary::-webkit-details-marker {
+    display: none;
+}
+
+.bd-say__more[open] > summary {
+    margin-bottom: 0.6rem;
+}
+
 /* Checklist */
 .bd-checks {
     flex: 1.3 1 20rem;
@@ -509,15 +562,23 @@
     color: var(--pm-text-slate);
 }
 
+/* Title, summary and chevron stay on one row; only the summary wraps, so the chevron never
+   drops onto a line of its own. */
 .bd-checks__title--improve {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 0.6rem;
-    align-items: baseline;
+    gap: 0.6rem;
+    align-items: center;
     margin-top: 0.5rem;
 }
 
-.bd-checks__title--improve span {
+.bd-improve__title {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.bd-improve__meta {
+    flex: 1 1 auto;
+    min-width: 0;
     font-weight: 500;
     color: var(--pm-text-secondary);
 }
@@ -539,6 +600,8 @@
 }
 
 .bd-improve__chevron {
+    flex: 0 0 auto;
+    margin-left: auto;
     align-self: center;
     color: var(--pm-text-secondary);
     transition: transform 0.15s ease;
@@ -590,13 +653,6 @@
     color: var(--pm-card);
 }
 
-.bd-check--waiting .bd-check__mark {
-    border-style: solid;
-    border-color: var(--pm-accent-indigo-bright);
-    background: var(--pm-accent-indigo-bright);
-    color: var(--pm-card);
-}
-
 .bd-check__copy {
     flex: 1 1 auto;
     min-width: 0;
@@ -611,8 +667,7 @@
     color: var(--pm-text-strong);
 }
 
-.bd-check--done .bd-check__copy strong,
-.bd-check--waiting .bd-check__copy strong {
+.bd-check--done .bd-check__copy strong {
     color: var(--pm-text-secondary);
 }
 
@@ -643,10 +698,6 @@
 
 .bd-check__state--done {
     color: var(--pm-success-contrast);
-}
-
-.bd-check__state--waiting {
-    color: var(--pm-accent-indigo-bright);
 }
 
 .bd-checklist--improve .bd-check {
@@ -908,15 +959,38 @@
     border-radius: 0.75rem;
 }
 
+/* A panel with nothing to show is one line: its name, why it is empty, and where to look. */
+.bd-panel--quiet {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    padding: 0.65rem 1rem;
+}
+
+/* The links travel as one group, so they never split across lines. */
+.bd-panel--quiet .bd-panel__links {
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.bd-panel--quiet h2 {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--pm-text-strong);
+}
+
 .bd-panel--danger {
     border-color: var(--pm-danger-soft-border);
 }
 
 .bd-panel__head {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: baseline;
-    gap: 0.5rem;
+    gap: 0.15rem 0.5rem;
 }
 
 .bd-panel__head h2 {
@@ -929,6 +1003,7 @@
 .bd-panel__meta {
     font-size: 0.8125rem;
     color: var(--pm-text-secondary);
+    white-space: nowrap;
 }
 
 .bd-panel__empty {
@@ -1019,8 +1094,8 @@
     border-radius: 50%;
 }
 
-.bd-dot--waiting {
-    background: var(--pm-accent-indigo-bright);
+.bd-list__icon--sent {
+    color: var(--pm-success-contrast);
 }
 
 /* SECTION: Empty state -------------------------------------------------- */
@@ -1051,6 +1126,12 @@
 
 /* SECTION: Small screens ------------------------------------------------ */
 @media (max-width: 575.98px) {
+    /* The headline carries the count; the line under it is left to wider screens so the
+       first card reaches the first screen. */
+    .bd-header__sub {
+        display: none;
+    }
+
     .bd-card__head,
     .bd-card__body {
         padding-inline: 1rem;
@@ -1096,17 +1177,6 @@
     .bd-meter__value {
         white-space: nowrap;
     }
-
-    .bd-meter--summary {
-        grid-column: 1 / -1;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 0.25rem 1.25rem;
-    }
-
-    .bd-meter--summary .bd-meter__row {
-        gap: 0.4rem;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1140,137 +1210,9 @@
     color: var(--pm-text-secondary);
 }
 
-/* SECTION: Weekly round ------------------------------------------------- */
-.bd-round {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1rem;
-    padding: 1rem 1.25rem;
-    background: var(--pm-primary-soft);
-    border: 1px solid var(--pm-accent-blue-soft-1);
-    border-radius: 0.875rem;
-    scroll-margin-top: 5rem;
-}
-
-.bd-round[hidden],
-.bd-round-done[hidden] {
-    display: none;
-}
-
-.bd-round__copy {
-    flex: 1 1 18rem;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
-
-.bd-round__kicker {
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--pm-primary-strong);
-}
-
-.bd-round__title {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--pm-text-strong);
-}
-
-.bd-round__bar {
-    appearance: none;
-    width: 100%;
-    max-width: 26rem;
-    height: 0.375rem;
-    border: 0;
-    border-radius: 999px;
-    overflow: hidden;
-    background: var(--pm-card);
-}
-
-.bd-round__bar::-webkit-progress-bar {
-    background: var(--pm-card);
-    border-radius: 999px;
-}
-
-.bd-round__bar::-webkit-progress-value {
-    background: var(--pm-primary);
-    border-radius: 999px;
-}
-
-.bd-round__bar::-moz-progress-bar {
-    background: var(--pm-primary);
-    border-radius: 999px;
-}
-
-.bd-round__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.bd-btn--ghost {
-    color: var(--pm-text-secondary);
-    background: transparent;
-}
-
-.bd-btn--ghost:hover {
-    color: var(--pm-text-strong);
-    background: var(--pm-surface-subtle);
-}
-
 .bd-btn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
-}
-
-/* Focus mode: one card, no distractions. */
-.bd.is-round .bd-meters,
-.bd.is-round .bd-rail,
-.bd.is-round .bd-section__head,
-.bd.is-round .bd-completed,
-.bd.is-round [data-bd-round-start] {
-    display: none;
-}
-
-.bd-card.bd-round-hidden {
-    display: none;
-}
-
-.bd-round-done {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1rem;
-    padding: 1.1rem 1.25rem;
-    color: var(--pm-success-soft-text);
-    background: var(--pm-success-soft-bg);
-    border: 1px solid var(--pm-success-soft-border);
-    border-radius: 0.875rem;
-}
-
-.bd-round-done > .bi {
-    font-size: 1.75rem;
-}
-
-.bd-round-done__copy {
-    flex: 1 1 16rem;
-    min-width: 0;
-}
-
-.bd-round-done__copy h2 {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-}
-
-.bd-round-done__copy p {
-    margin: 0.2rem 0 0;
-    font-size: 0.9rem;
 }
 
 /* SECTION: Side panels -------------------------------------------------- */
@@ -1327,15 +1269,6 @@
     font-weight: 600;
 }
 
-.bd-plan-form__alert {
-    margin: 0;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.875rem;
-    color: var(--pm-danger-soft-text);
-    background: var(--pm-danger-soft-bg);
-    border: 1px solid var(--pm-danger-soft-border);
-    border-radius: 0.5rem;
-}
 
 .bd-plan-form__note {
     margin: 0;
@@ -1400,6 +1333,61 @@
 }
 
 .bd-completed > .bd-section__items {
+    margin-top: 0.75rem;
+}
+
+/* SECTION: Ready for conference group ---------------------------------- */
+.bd-section__items + .bd-ready {
+    margin-top: 0.35rem;
+}
+
+/* A quiet line, not a bar: a section can have its own ready group, and three full-width bars
+   read as clutter. */
+.bd-ready > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.3rem 0.1rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.875rem;
+    color: var(--pm-text-slate);
+    border-radius: 0.375rem;
+}
+
+.bd-ready > summary:hover .bd-ready__title {
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.bd-ready > summary::-webkit-details-marker {
+    display: none;
+}
+
+.bd-ready > summary:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+}
+
+.bd-ready > summary > .bi-check2-circle {
+    color: var(--pm-success);
+}
+
+.bd-ready__title {
+    font-weight: 600;
+    color: var(--pm-primary);
+}
+
+.bd-ready__chevron {
+    color: var(--pm-primary);
+    transition: transform 0.15s ease;
+}
+
+.bd-ready[open] .bd-ready__chevron {
+    transform: rotate(180deg);
+}
+
+.bd-ready > .bd-section__items {
     margin-top: 0.75rem;
 }
 

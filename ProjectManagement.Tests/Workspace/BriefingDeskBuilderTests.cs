@@ -70,9 +70,9 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
-    public void Project_WithOverduePdcAndAPendingPlan_ShowsWithHodAndCountsAsReady()
+    public void Project_WithMissingPdcAndAPlanWithTheHod_IsDoneAndCountsAsReady()
     {
-        var project = Project(daysSinceUpdate: 2, pdcInDays: -18) with
+        var project = Project(daysSinceUpdate: 2, pdcInDays: null) with
         {
             PendingPlanSinceUtc = new DateTimeOffset(2026, 10, 19, 6, 0, 0, TimeSpan.Zero)
         };
@@ -80,37 +80,322 @@ public sealed class BriefingDeskBuilderTests
         var item = SingleItem(Build(projects: new[] { project }));
 
         var pdc = item.Checks.Single(check => check.Key == "pdc");
-        Assert.Equal(BriefingDeskCheckState.Waiting, pdc.State);
-        Assert.Equal("With HoD since 19 Oct 2026", pdc.StateText);
+        Assert.Equal(BriefingDeskCheckState.Submitted, pdc.State);
+        Assert.Equal("Sent to HoD on 19 Oct 2026", pdc.StateText);
+        Assert.Null(pdc.ActionText);
         Assert.True(item.IsBriefReady);
     }
 
     [Fact]
-    public void Project_WithAPlanWithTheHod_SaysSoInTheHeader_InsteadOfAnAlarm()
+    public void Project_WithAPlanWithTheHod_SaysItWasSent_InsteadOfAnAlarm()
     {
         var since = new DateTimeOffset(2026, 10, 19, 6, 0, 0, TimeSpan.Zero);
-        var overdue = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) with { PendingPlanSinceUtc = since } }));
+        var passed = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) with { PendingPlanSinceUtc = since } }));
         var missing = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: null) with { PendingPlanSinceUtc = since } }));
 
-        var overdueFact = Assert.Single(overdue.Facts, fact => fact.Text.Contains("PDC"));
-        Assert.Equal("Revised PDC with HoD since 19 Oct 2026", overdueFact.Text);
-        Assert.Equal(BriefingDeskTone.Neutral, overdueFact.Tone);
-        Assert.DoesNotContain(overdue.Facts, fact => fact.Tone == BriefingDeskTone.Danger && fact.Text.Contains("overdue"));
+        var passedFact = Assert.Single(passed.Facts, fact => fact.Text.Contains("PDC"));
+        Assert.Equal("Revised PDC sent to HoD on 19 Oct 2026", passedFact.Text);
+        Assert.Equal(BriefingDeskTone.Neutral, passedFact.Tone);
+        Assert.DoesNotContain(passed.Checks, check => check.Key == "pdc");
 
         var missingFact = Assert.Single(missing.Facts, fact => fact.Text.Contains("PDC"));
-        Assert.Equal("PDC with HoD since 19 Oct 2026", missingFact.Text);
+        Assert.Equal("PDC sent to HoD on 19 Oct 2026", missingFact.Text);
         Assert.Equal(BriefingDeskTone.Neutral, missingFact.Tone);
     }
 
     [Fact]
-    public void Project_WithOverduePdcAndNoPlan_AsksForARevisedDate()
+    public void Project_WithPassedPdc_IsARedNoteThatNeverBlocksReadiness()
     {
         var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) }));
 
+        Assert.True(item.IsBriefReady);
+        Assert.DoesNotContain(item.Checks, check => check.Key == "pdc");
+        var fact = Assert.Single(item.Facts, fact => fact.Text.Contains("PDC"));
+        Assert.Equal("PDC overdue by 18 days", fact.Text);
+        Assert.Equal(BriefingDeskTone.Danger, fact.Tone);
+    }
+
+    [Fact]
+    public void Project_MissingActualStart_IsNeverAskedFor()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30, startMissing: true) }));
+
+        Assert.True(item.IsBriefReady);
+        Assert.DoesNotContain(item.Checks, check => check.Key == "start");
+    }
+
+    [Fact]
+    public void Project_MissingCompletionDates_AreARequiredStep_NotAnImprovement()
+    {
+        var health = new WorkspaceRecordHealthVm
+        {
+            ProjectId = 1,
+            HealthPercent = 70,
+            GapDetails = new[]
+            {
+                Gap("IPA_ACTUAL_COMPLETION", "Historical stage completion dates", "IPA — Actual Completion", 5m, "/Projects/Overview/1?oc=actuals#timeline"),
+                Gap("AON_ACTUAL_COMPLETION", "Historical stage completion dates", "AON — Actual Completion", 5m, "/Projects/Overview/1?oc=actuals#timeline")
+            }
+        };
+
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30, health: health) }));
+
+        Assert.False(item.IsBriefReady);
+        var completion = item.Checks.Single(check => check.Key == "completion");
+        Assert.True(completion.IsRequired);
+        Assert.Equal(BriefingDeskCheckState.Open, completion.State);
+        Assert.Equal("2 stage completion dates missing", completion.Label);
+        Assert.Contains("IPA, AON", completion.Detail);
+        Assert.Equal("/Projects/Overview/1?oc=actuals#timeline", completion.ActionUrl);
+        Assert.Empty(item.Improvements);
+    }
+
+    [Fact]
+    public void Project_MissingCompletionDates_WithACorrectionWithTheHod_AreDone()
+    {
+        var health = CompletionGaps("IPA");
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: health) with
+        {
+            PendingCorrection = Correction("IPA")
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        var completion = item.Checks.Single(check => check.Key == "completion");
+        Assert.Equal(BriefingDeskCheckState.Submitted, completion.State);
+        Assert.Equal("Sent to HoD on 20 Oct 2026", completion.StateText);
+        Assert.True(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_OneMissingCompletionDate_IsNamedInTheStep()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA")) }));
+
+        var completion = item.Checks.Single(check => check.Key == "completion");
+        Assert.Equal("IPA completion date missing", completion.Label);
+        Assert.Equal(BriefingDeskCheckState.Open, completion.State);
+    }
+
+    [Fact]
+    public void Project_ACorrectionForOtherStages_DoesNotAnswerAMissingCompletionDate()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA")) with
+        {
+            // Proposes only DEVP's completion; IPA is still missing.
+            PendingCorrection = Correction("DEVP")
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        var completion = item.Checks.Single(check => check.Key == "completion");
+        Assert.Equal(BriefingDeskCheckState.Open, completion.State);
+        Assert.Equal("IPA completion date missing", completion.Label);
+        Assert.Contains("does not include IPA", completion.Detail);
+        Assert.False(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_ACorrectionCoveringSomeStages_ListsOnlyTheRest()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA", "AON", "BID")) with
+        {
+            PendingCorrection = Correction("IPA")
+        };
+
+        var completion = SingleItem(Build(projects: new[] { project })).Checks.Single(check => check.Key == "completion");
+
+        Assert.Equal(BriefingDeskCheckState.Open, completion.State);
+        Assert.Equal("2 stage completion dates missing", completion.Label);
+        Assert.Contains("AON, BID", completion.Detail);
+        Assert.DoesNotContain("IPA", completion.Detail);
+    }
+
+    [Fact]
+    public void Project_IpaCompletionFromArpp_IsNeverAStep()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA", "AON")) with
+        {
+            IpaCompletionFromArpp = true
+        };
+
+        var completion = SingleItem(Build(projects: new[] { project })).Checks.Single(check => check.Key == "completion");
+
+        // The ARPP record supplies IPA's date and the editor locks it; only AON is asked for.
+        Assert.Equal("AON completion date missing", completion.Label);
+    }
+
+    [Fact]
+    public void Project_IpaCompletionFromArpp_AloneLeavesTheProjectReady()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA")) with
+        {
+            IpaCompletionFromArpp = true
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.DoesNotContain(item.Checks, check => check.Key == "completion");
+        Assert.True(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_ACorrectionNeedingResubmission_AsksThePoToReviewIt()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: CompletionGaps("IPA")) with
+        {
+            PendingCorrection = Correction("IPA") with { NeedsResubmission = true }
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        var completion = item.Checks.Single(check => check.Key == "completion");
+        Assert.Equal(BriefingDeskCheckState.Open, completion.State);
+        Assert.Equal("Review your date correction", completion.Label);
+        Assert.Equal("Review", completion.ActionText);
+        Assert.Equal("Opens the date editor", completion.RouteHint);
+        Assert.False(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_ACorrectionNeedingResubmission_IsAStepEvenWithNoMissingCompletionDate()
+    {
+        // For example the PO proposed a different date for a recorded completion, then the
+        // HoD published another date directly: no gap, but the correction cannot be approved.
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with
+        {
+            PendingCorrection = Correction("IPA") with { NeedsResubmission = true }
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        var review = item.Checks.Single(check => check.Key == "completion");
+        Assert.Equal("Review your date correction", review.Label);
+        Assert.Equal(BriefingDeskCheckState.Open, review.State);
+        Assert.Equal("/Projects/Overview/1?oc=actuals#timeline", review.ActionUrl);
+        Assert.False(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_ACurrentCorrectionWithNoMissingCompletionDate_AddsNoStep()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with { PendingCorrection = Correction("IPA") };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.DoesNotContain(item.Checks, check => check.Key == "completion");
+        Assert.True(item.IsBriefReady);
+    }
+
+    [Fact]
+    public void Project_PendingPlanWithAFuturePdc_StaysDoneWithThePdc()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with
+        {
+            PendingPlanSinceUtc = new DateTimeOffset(2026, 10, 19, 6, 0, 0, TimeSpan.Zero)
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
         var pdc = item.Checks.Single(check => check.Key == "pdc");
-        Assert.Equal("Revise DEVP PDC", pdc.Label);
-        Assert.Equal(BriefingDeskCheckState.Open, pdc.State);
-        Assert.Contains(item.Facts, fact => fact.Tone == BriefingDeskTone.Danger && fact.Text.Contains("overdue 18 days"));
+        Assert.Equal(BriefingDeskCheckState.Done, pdc.State);
+        Assert.Equal("DEVP PDC 20 Nov 2026", pdc.Label);
+        Assert.Contains(item.Facts, fact => fact.Text == "PDC 20 Nov 2026" && fact.Tone == BriefingDeskTone.Neutral);
+    }
+
+    [Fact]
+    public void Project_PassedPdcNote_LinksToThePlanEditor()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: -18) }));
+
+        var fact = Assert.Single(item.Facts, fact => fact.Text.StartsWith("PDC overdue", StringComparison.Ordinal));
+        Assert.Contains("oc=plan&stage=DEVP", fact.Url);
+        Assert.All(item.Facts.Where(other => other != fact), other => Assert.Null(other.Url));
+    }
+
+    [Fact]
+    public void Project_StageTag_NamesTheStage()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) }));
+
+        Assert.Equal("DEVP · Development · 40 days", item.Facts[0].Text);
+        Assert.Equal("DEVP", BriefingDeskBuilder.StageLabel("DEVP", "DEVP"));
+        Assert.Equal("DEVP", BriefingDeskBuilder.StageLabel("DEVP", null));
+    }
+
+    [Fact]
+    public void Project_TagsThatAStepRepeats_AreMarkedCovered()
+    {
+        var withPdc = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) }));
+        var passed = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: -5) }));
+
+        // The PDC and update tags repeat the PDC and update steps; the stage tag has no step.
+        Assert.True(withPdc.Facts.Single(fact => fact.Text.StartsWith("PDC", StringComparison.Ordinal)).CoveredByStep);
+        Assert.True(withPdc.Facts.Single(fact => fact.Text.StartsWith("Updated", StringComparison.Ordinal)).CoveredByStep);
+        Assert.False(withPdc.Facts[0].CoveredByStep);
+
+        // A passed PDC has no step, so its red note stays on the open card.
+        Assert.False(passed.Facts.Single(fact => fact.Text.StartsWith("PDC overdue", StringComparison.Ordinal)).CoveredByStep);
+    }
+
+    [Fact]
+    public void Idea_DocumentCount_ShowsOnlyWhenThereAreDocuments()
+    {
+        var none = SingleItem(Build(ideas: new[] { new BriefingDeskIdeaInput(Idea(1, needsUpdate: false)) }));
+        var some = Idea(2, needsUpdate: false);
+        some.DocumentCount = 3;
+        var withDocs = SingleItem(Build(ideas: new[] { new BriefingDeskIdeaInput(some) }));
+
+        Assert.DoesNotContain(none.Facts, fact => fact.Text.Contains("document", StringComparison.Ordinal));
+        Assert.Contains(withDocs.Facts, fact => fact.Text == "3 documents");
+    }
+
+    [Fact]
+    public void Task_OverdueDueTag_IsCoveredByTheOverdueStep_UnlessBlocked()
+    {
+        var overdue = SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.InProgress, overdueDays: 4, progressDaysAgo: 1) }));
+        var blocked = SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.Blocked, overdueDays: 4, progressDaysAgo: 1) }));
+
+        Assert.True(overdue.Facts.Single(fact => fact.Text.StartsWith("Due", StringComparison.Ordinal)).CoveredByStep);
+        Assert.False(blocked.Facts.Single(fact => fact.Text.StartsWith("Due", StringComparison.Ordinal)).CoveredByStep);
+    }
+
+    [Fact]
+    public void Project_RecordHealth_IsNotAHeaderTag()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) }));
+
+        Assert.DoesNotContain(item.Facts, fact => fact.Text.StartsWith("Records", StringComparison.Ordinal));
+        Assert.Equal(100, item.RecordHealthPercent);
+    }
+
+    [Fact]
+    public void Project_UpdateBox_IsDueOnlyWhenTheUpdateIsOpen()
+    {
+        var fresh = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: 30) }));
+        var stale = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 9, pdcInDays: 30) }));
+
+        Assert.False(fresh.IsUpdateDue);
+        Assert.True(stale.IsUpdateDue);
+    }
+
+    [Fact]
+    public void UpdateBox_IsDueForADirection_AStaleIdea_AndStaleTaskProgress_ButNotASubmittedTask()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30);
+        var withDirection = SingleItem(Build(
+            projects: new[] { project },
+            pendingDirections: new[] { new WorkspaceConferenceDirectionActionVm { Kind = ConferenceItemKind.Project, ItemId = project.Row.ProjectId } }));
+        Assert.True(withDirection.IsUpdateDue);
+
+        var ideas = Build(ideas: new[] { new BriefingDeskIdeaInput(Idea(1, needsUpdate: true)), new BriefingDeskIdeaInput(Idea(2, needsUpdate: false)) })
+            .Sections.Single().Items;
+        Assert.True(ideas.Single(item => item.ItemId == 1).IsUpdateDue);
+        Assert.False(ideas.Single(item => item.ItemId == 2).IsUpdateDue);
+
+        Assert.True(SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.InProgress, overdueDays: 0, progressDaysAgo: 12) })).IsUpdateDue);
+        Assert.False(SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.InProgress, overdueDays: 0, progressDaysAgo: 2) })).IsUpdateDue);
+        Assert.False(SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.Submitted, overdueDays: 0, progressDaysAgo: null) })).IsUpdateDue);
     }
 
     [Fact]
@@ -125,7 +410,7 @@ public sealed class BriefingDeskBuilderTests
                 Gap("L1_COST", "Procurement at a glance", "L1 Cost", 4.17m, "/Projects/Overview/1?oc=procurement#procurement"),
                 Gap("PNC_COST", "Procurement at a glance", "PNC Cost", 4.17m, "/Projects/Overview/1?oc=procurement#procurement"),
                 Gap("DOCS", "Published project documents", "1 additional project document", 5m, "/Projects/1/Documents"),
-                Gap("DEVP_PDC", "Current-stage timeline (PDC)", "DEVP — PDC", 9m, "/Projects/Overview/1?oc=actuals#timeline")
+                Gap("CURRENT_STAGE_PDC", "Current-stage timeline (PDC)", "DEVP — PDC", 9m, "/Projects/Overview/1?oc=actuals#timeline")
             }
         };
         var project = Project(daysSinceUpdate: 1, pdcInDays: 30, health: health);
@@ -272,6 +557,16 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_PassedPdc_HasNoPlanForm()
+    {
+        var project = Project(daysSinceUpdate: 1, pdcInDays: -5) with { PlanEditor = Editor() };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.Null(item.PlanPanel);
+    }
+
+    [Fact]
     public void Project_FuturePdc_HasNoPlanForm()
     {
         var project = Project(daysSinceUpdate: 1, pdcInDays: 30) with { PlanEditor = Editor() };
@@ -352,7 +647,9 @@ public sealed class BriefingDeskBuilderTests
         var item = SingleItem(Build(tasks: new[] { TaskInput(ActionTaskStatuses.Submitted, overdueDays: 0, progressDaysAgo: null) }));
 
         Assert.True(item.IsBriefReady);
-        Assert.Equal(BriefingDeskCheckState.Waiting, Assert.Single(item.Checks).State);
+        var closure = Assert.Single(item.Checks);
+        Assert.Equal(BriefingDeskCheckState.Submitted, closure.State);
+        Assert.Equal("Sent to assigner on 20 Oct 2026", closure.StateText);
         Assert.False(item.CanSubmitTask);
     }
 
@@ -533,19 +830,21 @@ public sealed class BriefingDeskBuilderTests
     private static BriefingDeskItemVm SingleItem(BriefingDeskVm desk)
         => Assert.Single(Assert.Single(desk.Sections).Items);
 
-    private static BriefingDeskProjectInput Project(int? daysSinceUpdate, int? pdcInDays, WorkspaceRecordHealthVm? health = null)
+    private static BriefingDeskProjectInput Project(int? daysSinceUpdate, int? pdcInDays, WorkspaceRecordHealthVm? health = null, bool startMissing = false)
     {
         var row = new WorkspaceProjectMatrixRowVm
         {
             ProjectId = 1,
             ProjectName = "VR Based BFSR",
             CurrentStageCode = "DEVP",
+            CurrentStageName = "Development",
             DaysInCurrentStage = 40,
             CurrentStagePdc = pdcInDays is int days ? Today.AddDays(days) : null,
             DaysUntilCurrentStagePdc = pdcInDays,
             DaysSinceLastPoRemark = daysSinceUpdate,
             HasOverdueCurrentStage = pdcInDays is < 0,
             IsCurrentStagePdcMissing = pdcInDays is null,
+            IsCurrentStageStartMissing = startMissing,
             RecordHealthPercent = health?.HealthPercent ?? 100,
             RecordHealth = health ?? new WorkspaceRecordHealthVm { ProjectId = 1, HealthPercent = 100 },
             OpenUrl = "/Projects/Overview/1"
@@ -559,9 +858,27 @@ public sealed class BriefingDeskBuilderTests
         return new BriefingDeskProjectInput(row, stages);
     }
 
-    private static WorkspaceRecordGapVm Gap(string code, string component, string label, decimal points, string url)
+    private static BriefingDeskPendingCorrection Correction(params string[] completionStages)
+        => new(
+            new DateTimeOffset(2026, 10, 20, 6, 0, 0, TimeSpan.Zero),
+            completionStages.ToHashSet(StringComparer.OrdinalIgnoreCase),
+            NeedsResubmission: false);
+
+    // Completion-date gaps as ProjectRecordHealthService produces them.
+    private static WorkspaceRecordHealthVm CompletionGaps(params string[] stages)
         => new()
         {
+            ProjectId = 1,
+            HealthPercent = 80,
+            GapDetails = stages
+                .Select(stage => Gap($"{stage}_ACTUAL_COMPLETION", "Historical stage completion dates", $"{stage} — Actual Completion", 5m, "/Projects/Overview/1?oc=actuals#timeline", stage))
+                .ToArray()
+        };
+
+    private static WorkspaceRecordGapVm Gap(string code, string component, string label, decimal points, string url, string? stageCode = null)
+        => new()
+        {
+            StageCode = stageCode,
             Code = code,
             Component = component,
             FieldLabel = label,
@@ -593,7 +910,8 @@ public sealed class BriefingDeskBuilderTests
                 DueDate = Today.AddDays(overdueDays > 0 ? -overdueDays : 5),
                 IsOverdue = overdueDays > 0,
                 DaysOverdue = overdueDays > 0 ? overdueDays : null,
-                OpenUrl = "/ActionTasks?taskId=7"
+                OpenUrl = "/ActionTasks?taskId=7",
+                SubmittedOnUtc = status == ActionTaskStatuses.Submitted ? new DateTime(2026, 10, 20, 6, 0, 0, DateTimeKind.Utc) : null
             },
             progressDaysAgo is int days ? new DateTime(2026, 10, 21, 6, 0, 0, DateTimeKind.Utc).AddDays(-days) : null,
             "AAAAAAAAB9E=");

@@ -23,6 +23,7 @@ public class IndexModel : PageModel
 
     public const string DeskDraftAnchorKey = "BriefingDesk.DraftAnchor";
     public const string DeskDraftTextKey = "BriefingDesk.DraftText";
+    public const string DeskDraftFieldKey = "BriefingDesk.DraftField";
 
     public ProjectOfficerWorkspaceVm Workspace { get; private set; } = new();
     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
@@ -305,29 +306,30 @@ public class IndexModel : PageModel
     // SECTION: Briefing desk commands
     // Each post returns to the desk with the same card open; failures keep the typed text.
     public Task<IActionResult> OnPostDeskProjectUpdateAsync(int itemId, string? body, CancellationToken ct)
-        => RunDeskCommandAsync(ConferenceItemKind.Project, itemId, body,
+        => RunDeskCommandAsync(ConferenceItemKind.Project, itemId, body, BriefingDeskDraftFields.Body,
             userId => _deskCommands.PostProjectUpdateAsync(User, userId, itemId, body, ct));
 
     public Task<IActionResult> OnPostDeskIdeaNoteAsync(int itemId, string? body, CancellationToken ct)
-        => RunDeskCommandAsync(ConferenceItemKind.ProjectIdea, itemId, body,
+        => RunDeskCommandAsync(ConferenceItemKind.ProjectIdea, itemId, body, BriefingDeskDraftFields.Body,
             userId => _deskCommands.PostIdeaNoteAsync(User, userId, itemId, body, ct));
 
     public Task<IActionResult> OnPostDeskTaskProgressAsync(int itemId, string? body, CancellationToken ct)
-        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, body,
+        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, body, BriefingDeskDraftFields.Body,
             userId => _deskCommands.PostTaskProgressAsync(User, userId, itemId, body, ct));
 
     public Task<IActionResult> OnPostDeskTaskSubmitAsync(int itemId, string? rowVersion, string? note, CancellationToken ct)
-        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, null,
+        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, note, BriefingDeskDraftFields.Submit,
             userId => _deskCommands.SubmitTaskAsync(User, userId, itemId, rowVersion, note, ct));
 
     public Task<IActionResult> OnPostDeskTaskBlockedAsync(int itemId, string? rowVersion, string? note, CancellationToken ct)
-        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, null,
+        => RunDeskCommandAsync(ConferenceItemKind.ActionTask, itemId, note, BriefingDeskDraftFields.Blocked,
             userId => _deskCommands.FlagTaskBlockedAsync(User, userId, itemId, rowVersion, note, ct));
 
     private async Task<IActionResult> RunDeskCommandAsync(
         ConferenceItemKind kind,
         int itemId,
         string? draft,
+        string draftField,
         Func<string, Task<BriefingDeskCommandResult>> command)
     {
         var userId = _userManager.GetUserId(User);
@@ -348,13 +350,17 @@ public class IndexModel : PageModel
             TempData["ToastSuccess"] = result.Message;
             TempData.Remove(DeskDraftAnchorKey);
             TempData.Remove(DeskDraftTextKey);
+            TempData.Remove(DeskDraftFieldKey);
         }
         else
         {
             TempData["ToastError"] = result.Message;
             if (!string.IsNullOrWhiteSpace(draft))
             {
+                // The text goes back into the box it came from, including a closure note or a
+                // blocker refused because the task changed in the meantime.
                 TempData[DeskDraftAnchorKey] = anchor;
+                TempData[DeskDraftFieldKey] = draftField;
                 TempData[DeskDraftTextKey] = draft.Length > BriefingDeskCommandService.MaxBodyLength
                     ? draft[..BriefingDeskCommandService.MaxBodyLength]
                     : draft;

@@ -54,6 +54,9 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         // + 15 current-stage planning + 0 documents + 0 media = 65.
         Assert.Equal(65, health.HealthPercent);
         Assert.Contains(health.GapDetails, gap => gap.Code == "FS_ACTUAL_COMPLETION" && gap.FieldLabel == "FS — Actual Completion");
+        // The briefing desk turns these gaps into its required completion-date step by their code.
+        var completionGap = Assert.Single(health.GapDetails, BriefingDeskBuilder.IsCompletionDateGap);
+        Assert.Equal("FS", completionGap.StageCode);
         Assert.DoesNotContain(health.GapDetails, gap => gap.FieldLabel.Contains("planned", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -137,6 +140,10 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         // BID and TEC have no persisted rows. The canonical current stage is BID,
         // so BM planning dates do not earn the 15 current-stage timeline points.
         Assert.Contains(health.GapDetails, gap => gap.Code == "CURRENT_STAGE_PDC" && gap.FieldLabel == "BID — PDC");
+        // The briefing desk recognises current-stage gaps by this code prefix, not the label.
+        Assert.All(
+            health.GapDetails.Where(gap => gap.Component == "Current-stage timeline (PDC)"),
+            gap => Assert.True(BriefingDeskBuilder.IsCurrentStageGap(gap)));
         Assert.Equal(48, health.HealthPercent);
     }
 

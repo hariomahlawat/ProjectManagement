@@ -15,7 +15,9 @@
     // Reading TempData (not Peek) consumes the draft, so it is restored once and never again.
     var draftAnchor = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftAnchorKey] as string;
     var draftText = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftTextKey] as string;
+    var draftField = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftFieldKey] as string ?? BriefingDeskDraftFields.Body;
 
+    // The headline leads with what needs the PO; the ready count is the line under it.
     string headline;
     if (desk.TotalCount == 0)
     {
@@ -23,18 +25,29 @@
     }
     else if (desk.NotReadyCount == 0)
     {
-        headline = "Everything is brief-ready";
+        headline = "Everything is ready for conference";
     }
     else
     {
-        headline = $"{desk.ReadyCount} of {desk.TotalCount} items brief-ready";
+        headline = $"{desk.NotReadyCount} item{(desk.NotReadyCount == 1 ? " needs" : "s need")} you before the next conference";
     }
 
     var subline = desk.TotalCount == 0
         ? "Projects, ideas and tasks assigned to you will appear here."
         : desk.NotReadyCount == 0
-            ? "Nothing needs you before the next conference."
-            : $"{desk.NotReadyCount} item{(desk.NotReadyCount == 1 ? " needs" : "s need")} you before the next conference. Most can be finished on this page.";
+            ? $"All {desk.TotalCount} item{(desk.TotalCount == 1 ? " is" : "s are")} ready. Nothing needs you before the next conference."
+            : $"{desk.ReadyCount} of {desk.TotalCount} ready for conference. Most of the rest can be finished on this page.";
+
+    async Task Card(BriefingDeskItemVm item)
+    {
+        await Html.RenderPartialAsync("_BriefingDeskItem", new BriefingDeskItemRenderVm
+        {
+            Item = item,
+            IsOpen = item.AnchorId == openAnchor,
+            Draft = draftAnchor == item.AnchorId ? draftText : null,
+            DraftField = draftField
+        });
+    }
 }
 <div class="bd" data-briefing-desk>
     <header class="bd-header">
@@ -47,42 +60,14 @@
             <a class="bd-link" asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="conference">
                 <i class="bi bi-easel2" aria-hidden="true"></i>Open my conference view
             </a>
-            @if (desk.NotReadyCount > 0)
-            {
-                <button type="button" class="bd-btn bd-btn--primary" data-bd-round-start>
-                    <i class="bi bi-play-circle" aria-hidden="true"></i>Start weekly round · @desk.NotReadyCount item@(desk.NotReadyCount == 1 ? string.Empty : "s")
-                </button>
-            }
         </div>
     </header>
 
-    @* Weekly round: one not-ready card at a time. The state lives in this tab only, so a post
-       that reloads the page resumes the round on the same card. *@
-    <section class="bd-round" data-bd-round hidden aria-labelledby="bd-round-title">
-        <div class="bd-round__copy">
-            <span class="bd-round__kicker">Weekly round</span>
-            <h2 class="bd-round__title" id="bd-round-title" data-bd-round-title aria-live="polite"></h2>
-            <progress class="bd-round__bar" data-bd-round-bar max="1" value="0"></progress>
-        </div>
-        <div class="bd-round__actions">
-            <button type="button" class="bd-btn bd-btn--quiet" data-bd-round-prev>Previous</button>
-            <button type="button" class="bd-btn bd-btn--primary" data-bd-round-next>Next item</button>
-            <button type="button" class="bd-btn bd-btn--ghost" data-bd-round-exit>Exit round</button>
-        </div>
-    </section>
-
-    <section class="bd-round-done" data-bd-round-done hidden tabindex="-1" aria-labelledby="bd-round-done-title">
-        <i class="bi bi-check2-circle" aria-hidden="true"></i>
-        <div class="bd-round-done__copy">
-            <h2 id="bd-round-done-title">Round complete</h2>
-            <p data-bd-round-summary></p>
-        </div>
-        <button type="button" class="bd-btn bd-btn--quiet" data-bd-round-close>Back to the desk</button>
-    </section>
-
-    @if (desk.TotalCount > 0)
+    @* With one section the headline and the section heading already give the count, so the
+       meters only appear when they split it across projects, ideas and tasks. *@
+    @if (desk.Sections.Count > 1)
     {
-        <div class="bd-meters" aria-label="Brief-ready summary">
+        <div class="bd-meters" aria-label="Ready for conference, by section">
             @foreach (var deskSection in desk.Sections)
             {
                 var percent = deskSection.Items.Count == 0 ? 0 : (int)Math.Round(deskSection.ReadyCount * 100d / deskSection.Items.Count);
@@ -91,13 +76,10 @@
                         <span class="bd-meter__label">@deskSection.Title</span>
                         <span class="bd-meter__value">@deskSection.ReadyCount / @deskSection.Items.Count</span>
                     </div>
-                    <progress class="bd-meter__bar" max="@deskSection.Items.Count" value="@deskSection.ReadyCount" aria-label="@deskSection.Title brief-ready: @deskSection.ReadyCount of @deskSection.Items.Count">@deskSection.ReadyCount of @deskSection.Items.Count</progress>
-                    <span class="bd-meter__caption">brief-ready</span>
+                    <progress class="bd-meter__bar" max="@deskSection.Items.Count" value="@deskSection.ReadyCount" aria-label="@deskSection.Title ready for conference: @deskSection.ReadyCount of @deskSection.Items.Count">@deskSection.ReadyCount of @deskSection.Items.Count</progress>
+                    <span class="bd-meter__caption">ready</span>
                 </div>
             }
-            <div class="bd-meter bd-meter--summary">
-                <div class="bd-meter__row"><span>With HoD / assigner</span><strong>@desk.WithOthers.Count</strong></div>
-            </div>
         </div>
     }
 
@@ -112,10 +94,15 @@
             }
             @foreach (var deskSection in desk.Sections)
             {
-                <section class="bd-section" aria-labelledby="bd-section-@BriefingDeskLabels.KindKey(deskSection.Kind)">
+                var kindKey = BriefingDeskLabels.KindKey(deskSection.Kind);
+                var needsYou = deskSection.Items.Where(item => !item.IsBriefReady).ToList();
+                var ready = deskSection.Items.Where(item => item.IsBriefReady).ToList();
+                // The ready group opens by itself when a post or a link points at one of its cards.
+                var readyOpen = ready.Any(item => item.AnchorId == Model.Focus);
+                <section class="bd-section" aria-labelledby="bd-section-@kindKey">
                     <div class="bd-section__head">
-                        <h2 id="bd-section-@BriefingDeskLabels.KindKey(deskSection.Kind)">@deskSection.Title</h2>
-                        <span>@deskSection.ReadyCount of @deskSection.Items.Count brief-ready</span>
+                        <h2 id="bd-section-@kindKey">@deskSection.Title</h2>
+                        <span>@(needsYou.Count == 0 ? $"All {ready.Count} ready" : $"{needsYou.Count} need{(needsYou.Count == 1 ? "s" : string.Empty)} you · {ready.Count} ready")</span>
                         @if (deskSection.Kind == ConferenceItemKind.ActionTask)
                         {
                             <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.ActionTasksMyWork()">Open task register<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
@@ -125,24 +112,40 @@
                             <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.ProjectIdeasMine()">Open idea register<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                         }
                     </div>
-                    <div class="bd-section__items">
-                        @foreach (var item in deskSection.Items)
-                        {
-                            @await Html.PartialAsync("_BriefingDeskItem", new BriefingDeskItemRenderVm
+                    @if (needsYou.Any())
+                    {
+                        <div class="bd-section__items">
+                            @foreach (var item in needsYou)
                             {
-                                Item = item,
-                                IsOpen = item.AnchorId == openAnchor,
-                                Draft = draftAnchor == item.AnchorId ? draftText : null
-                            })
-                        }
-                    </div>
+                                await Card(item);
+                            }
+                        </div>
+                    }
+                    @if (ready.Any())
+                    {
+                        @* Ready items ask nothing, so they fold to one line each until opened. A PO can
+                           still open a card to add a remark. *@
+                        <details class="bd-ready" data-bd-ready-group open="@(readyOpen ? "open" : null)">
+                            <summary class="bd-ready__summary">
+                                <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                                <span class="bd-ready__title">@ready.Count ready for conference</span>
+                                <i class="bi bi-chevron-down bd-ready__chevron" aria-hidden="true"></i>
+                            </summary>
+                            <div class="bd-section__items">
+                                @foreach (var item in ready)
+                                {
+                                    await Card(item);
+                                }
+                            </div>
+                        </details>
+                    }
                 </section>
             }
 
             @if (desk.RecentlyCompleted.Any())
             {
                 var completedNeedsYou = desk.RecentlyCompleted.Count(item => !item.IsBriefReady);
-                <details class="bd-completed" open="@(completedNeedsYou > 0 ? "open" : null)">
+                <details class="bd-completed" open="@(completedNeedsYou > 0 || desk.RecentlyCompleted.Any(item => item.AnchorId == Model.Focus) ? "open" : null)">
                     <summary>
                         <span class="bd-completed__title" id="bd-section-completed">Recently completed</span>
                         <span class="bd-completed__meta">
@@ -160,7 +163,8 @@
                             {
                                 Item = item,
                                 IsOpen = item.AnchorId == Model.Focus,
-                                Draft = draftAnchor == item.AnchorId ? draftText : null
+                                Draft = draftAnchor == item.AnchorId ? draftText : null,
+                                DraftField = draftField
                             })
                         }
                     </div>
@@ -168,35 +172,30 @@
             }
         </div>
 
-        <aside class="bd-rail" aria-label="Waiting, reading and the next 14 days">
-            <section class="bd-panel" aria-labelledby="bd-waiting-title">
-                <div class="bd-panel__head"><h2 id="bd-waiting-title">With others</h2><span class="bd-panel__meta">@desk.WithOthers.Count waiting</span></div>
-                @if (!desk.WithOthers.Any())
-                {
-                    <p class="bd-panel__empty">Nothing you submitted is waiting for approval.</p>
-                }
-                else
-                {
+        @* Empty panels fold to a single line, so the column only takes space when it has
+           something to show. *@
+        <aside class="bd-rail" aria-label="Sent for approval, reading and the next 14 days">
+            @if (desk.WithOthers.Any())
+            {
+                @* Submitting is the PO's part done; this is a record of what was sent, not a to-do list. *@
+                <section class="bd-panel" aria-labelledby="bd-waiting-title">
+                    <div class="bd-panel__head"><h2 id="bd-waiting-title">Sent for approval</h2><span class="bd-panel__meta">No action needed</span></div>
                     <ul class="bd-list">
                         @foreach (var item in desk.WithOthers)
                         {
                             <li class="bd-list__item">
-                                <span class="bd-dot bd-dot--waiting" aria-hidden="true"></span>
-                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.Detail · with @item.WaitingOn since @IstClock.ToIst(item.SinceUtc).ToString("dd MMM")</span></a>
+                                <i class="bi bi-check2 bd-list__icon bd-list__icon--sent" aria-hidden="true"></i>
+                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.Detail · @(item.SentByName is null ? "sent" : $"sent by {item.SentByName}") to @item.WaitingOn on @IstClock.ToIst(item.SinceUtc).ToString("dd MMM")</span></a>
                             </li>
                         }
                     </ul>
-                }
-            </section>
+                </section>
+            }
 
-            <section class="bd-panel" aria-labelledby="bd-reading-title">
-                <div class="bd-panel__head"><h2 id="bd-reading-title">Reading</h2><span class="bd-panel__meta">@vm.AotsUnreadCount unread circular@(vm.AotsUnreadCount == 1 ? string.Empty : "s")</span></div>
-                @if (!vm.AotsDocuments.Any())
-                {
-                    <p class="bd-panel__empty">No unread circulars.</p>
-                }
-                else
-                {
+            @if (vm.AotsDocuments.Any())
+            {
+                <section class="bd-panel" aria-labelledby="bd-reading-title">
+                    <div class="bd-panel__head"><h2 id="bd-reading-title">Reading</h2><span class="bd-panel__meta">@vm.AotsUnreadCount unread circular@(vm.AotsUnreadCount == 1 ? string.Empty : "s")</span></div>
                     <ul class="bd-list">
                         @foreach (var document in vm.AotsDocuments.Take(4))
                         {
@@ -205,18 +204,22 @@
                             </li>
                         }
                     </ul>
-                }
-                <a class="bd-link bd-link--small" href="@vm.AotsUrl">Open AOTS inbox<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-            </section>
+                    <a class="bd-link bd-link--small" href="@vm.AotsUrl">Open AOTS inbox<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                </section>
+            }
+            else
+            {
+                <section class="bd-panel bd-panel--quiet" aria-labelledby="bd-reading-title">
+                    <h2 id="bd-reading-title">Reading</h2>
+                    <span class="bd-panel__meta">No unread circulars</span>
+                    <span class="bd-panel__links"><a class="bd-link bd-link--small" href="@vm.AotsUrl">AOTS inbox</a></span>
+                </section>
+            }
 
-            <section class="bd-panel" aria-labelledby="bd-week-title">
-                <div class="bd-panel__head"><h2 id="bd-week-title">Next 14 days</h2><span class="bd-panel__meta">Reminders and events</span></div>
-                @if (!vm.PersonalReminders.Any() && !vm.UpcomingEvents.Any())
-                {
-                    <p class="bd-panel__empty">No reminders due and no events in the next 14 days.</p>
-                }
-                else
-                {
+            @if (vm.PersonalReminders.Any() || vm.UpcomingEvents.Any())
+            {
+                <section class="bd-panel" aria-labelledby="bd-week-title">
+                    <div class="bd-panel__head"><h2 id="bd-week-title">Next 14 days</h2><span class="bd-panel__meta">Reminders and events</span></div>
                     <ul class="bd-list">
                         @foreach (var reminder in vm.PersonalReminders.Take(5))
                         {
@@ -233,12 +236,23 @@
                             </li>
                         }
                     </ul>
-                }
-                <div class="bd-panel__links">
-                    <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>
-                    <a class="bd-link bd-link--small" href="/Calendar">Calendar</a>
-                </div>
-            </section>
+                    <div class="bd-panel__links">
+                        <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>
+                        <a class="bd-link bd-link--small" href="/Calendar">Calendar</a>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <section class="bd-panel bd-panel--quiet" aria-labelledby="bd-week-title">
+                    <h2 id="bd-week-title">Next 14 days</h2>
+                    <span class="bd-panel__meta">Nothing due</span>
+                    <span class="bd-panel__links">
+                        <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>
+                        <a class="bd-link bd-link--small" href="/Calendar">Calendar</a>
+                    </span>
+                </section>
+            }
         </aside>
     </div>
     @* Side panels live outside the cards: a collapsed card hides its body, and a panel inside it. *@
@@ -256,8 +270,9 @@
         </div>
     }
 
-    @* Current-stage plan form: posts this one stage to the plan editor's own handler, which
-       validates and submits the whole plan for HoD approval. A refusal opens the full editor. *@
+    @* Current-stage PDC form, offered only when the PDC is missing: posts this one stage to the
+       plan editor's own handler, which validates and submits the whole plan for HoD approval.
+       A refusal opens the full editor. *@
     @foreach (var panel in allItems.Where(candidate => candidate.PlanPanel is not null).Select(candidate => candidate.PlanPanel!))
     {
         <div class="offcanvas offcanvas-end bd-drawer" tabindex="-1" id="@panel.PanelId" aria-labelledby="@panel.PanelId-title">
@@ -280,11 +295,6 @@
                     <input type="hidden" name="Input.Rows[0].Code" value="@panel.StageCode" />
                     <input type="hidden" name="Input.Rows[0].Name" value="@panel.StageName" />
 
-                    @if (panel.IsOverdue && panel.PlannedDue is DateOnly passed)
-                    {
-                        <p class="bd-plan-form__alert">The planned completion date, @passed.ToString("dd MMM yyyy"), has passed. Propose a revised date.</p>
-                    }
-
                     @* The editor writes back exactly what is posted, so the existing planned start
                        travels unchanged; only the PDC is asked for. *@
                     <input type="hidden" name="Input.Rows[0].PlannedStart" value="@(panel.PlannedStart?.ToString("yyyy-MM-dd"))" />
@@ -295,6 +305,7 @@
                     <div class="bd-plan-form__field">
                         <label for="@panel.PanelId-due">Planned completion (PDC)</label>
                         <input class="form-control" type="date" id="@panel.PanelId-due" name="Input.Rows[0].PlannedDue" required
+                               min="@(panel.PlannedStart?.ToString("yyyy-MM-dd"))"
                                value="@(panel.PlannedDue?.ToString("yyyy-MM-dd"))" />
                     </div>
 

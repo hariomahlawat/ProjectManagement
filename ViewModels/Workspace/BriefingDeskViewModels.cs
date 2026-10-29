@@ -50,6 +50,12 @@ public sealed class BriefingDeskItemVm
 
     public int OpenCount => Checks.Count(check => check.IsRequired && check.State == BriefingDeskCheckState.Open);
 
+    /// <summary>
+    /// True when the update box answers an open step (the weekly update or a direction). When
+    /// false the PO may still post, but the card says no update is needed.
+    /// </summary>
+    public bool IsUpdateDue => Checks.Any(check => check.Route == BriefingDeskRoute.Update && check.State == BriefingDeskCheckState.Open);
+
     public IReadOnlyList<BriefingDeskFactVm> Facts { get; init; } = Array.Empty<BriefingDeskFactVm>();
 
     public IReadOnlyList<BriefingDeskStepVm> Strip { get; init; } = Array.Empty<BriefingDeskStepVm>();
@@ -109,7 +115,12 @@ public enum BriefingDeskTone
     Danger
 }
 
-public sealed record BriefingDeskFactVm(string Text, BriefingDeskTone Tone);
+/// <summary>
+/// A header tag on a card. <paramref name="Url"/> makes it a link to where it is fixed.
+/// <paramref name="CoveredByStep"/> marks a tag that a step on the open card repeats, so the open
+/// card shows it once, as the step.
+/// </summary>
+public sealed record BriefingDeskFactVm(string Text, BriefingDeskTone Tone, string? Url = null, bool CoveredByStep = false);
 
 public enum BriefingDeskStepState
 {
@@ -129,8 +140,11 @@ public enum BriefingDeskCheckState
     /// <summary>Complete.</summary>
     Done,
 
-    /// <summary>Submitted and waiting on a HoD or the task assigner.</summary>
-    Waiting
+    /// <summary>
+    /// Submitted to the HoD or the task assigner. The Project Officer's part is done, so it
+    /// counts towards brief-ready and is shown as done.
+    /// </summary>
+    Submitted
 }
 
 public enum BriefingDeskRoute
@@ -168,6 +182,12 @@ public sealed class BriefingDeskCheckVm
     /// <summary>When set, the action opens this panel on the desk instead of navigating.</summary>
     public string? PanelId { get; init; }
 
+    /// <summary>
+    /// Replaces the line under the action button ("Needs HoD approval", "You complete it")
+    /// when that would mislead, for example a step that only reopens the PO's own submission.
+    /// </summary>
+    public string? RouteHint { get; init; }
+
     public int Points { get; init; }
 }
 
@@ -189,8 +209,6 @@ public sealed class BriefingDeskPlanPanelVm
 
     public DateOnly? PlannedDue { get; init; }
 
-    public bool IsOverdue { get; init; }
-
     public string ReturnUrl { get; init; } = string.Empty;
 
     public string FullEditorUrl { get; init; } = string.Empty;
@@ -202,16 +220,34 @@ public sealed class BriefingDeskItemRenderVm
 
     public bool IsOpen { get; init; }
 
-    /// <summary>Text from a post that failed validation, restored into the update box.</summary>
+    /// <summary>Text from a post that failed validation, restored into the box it came from.</summary>
     public string? Draft { get; init; }
+
+    /// <summary>
+    /// Which box <see cref="Draft"/> belongs to: <c>body</c> (the update box), <c>submit</c>
+    /// (the closure note) or <c>blocked</c> (the blocker).
+    /// </summary>
+    public string DraftField { get; init; } = BriefingDeskDraftFields.Body;
 }
 
+public static class BriefingDeskDraftFields
+{
+    public const string Body = "body";
+    public const string Submit = "submit";
+    public const string Blocked = "blocked";
+}
+
+/// <summary>
+/// Something sent for a decision. <paramref name="SentByName"/> is set when another user sent a
+/// project-scoped submission (a plan or date correction), for example a previous PO.
+/// </summary>
 public sealed record BriefingDeskWaitingVm(
     string Title,
     string Detail,
     string WaitingOn,
     DateTimeOffset SinceUtc,
-    string OpenUrl);
+    string OpenUrl,
+    string? SentByName = null);
 
 public static class BriefingDeskLabels
 {

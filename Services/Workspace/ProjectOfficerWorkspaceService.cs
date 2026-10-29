@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectIdeas;
@@ -13,6 +12,8 @@ using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Usage;
 using ProjectManagement.Services;
 using ProjectManagement.ViewModels;
@@ -31,11 +32,11 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly IAotsUnreadService _aotsUnreadService;
     private readonly IProjectOfficerConferenceActionQuery _conferenceActions;
     private readonly IErpUsageQueryService _erpUsage;
-    private readonly IMemoryCache _cache;
     private readonly IOfficerConferenceReadService _conference;
     private readonly ProjectProcurementReadService _procurement;
     private readonly ProjectManagement.Services.Stages.PlanReadService _planRead;
     private readonly ProcurementFactAvailabilityService _procurementFactAvailability;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
@@ -47,13 +48,14 @@ public sealed class ProjectOfficerWorkspaceService
         IAotsUnreadService aotsUnreadService,
         IProjectOfficerConferenceActionQuery conferenceActions,
         IErpUsageQueryService erpUsage,
-        IMemoryCache cache,
         IOfficerConferenceReadService conference,
         ProjectProcurementReadService procurement,
         ProjectManagement.Services.Stages.PlanReadService planRead,
-        ProcurementFactAvailabilityService? procurementFactAvailability = null)
+        ProcurementFactAvailabilityService? procurementFactAvailability = null,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _procurementFactAvailability = procurementFactAvailability ?? ProcurementFactAvailabilityService.Create(db);
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
         _db = db;
         _users = users;
         _health = health;
@@ -63,7 +65,6 @@ public sealed class ProjectOfficerWorkspaceService
         _aotsUnreadService = aotsUnreadService;
         _conferenceActions = conferenceActions;
         _erpUsage = erpUsage;
-        _cache = cache;
         _conference = conference;
         _procurement = procurement;
         _planRead = planRead;
@@ -106,12 +107,7 @@ public sealed class ProjectOfficerWorkspaceService
 
         var today = DateOnly.FromDateTime(_clock.IstToday);
         var user = await _users.FindByIdAsync(userId);
-        var navigation = await LoadNavigationSummaryAsync(
-            userId,
-            today,
-            // The menu no longer shows an action-queue badge; the desk carries its own counts.
-            includeActionCount: false,
-            ct);
+        var navigation = await LoadNavigationSummaryAsync(userId, today, ct);
         var vm = CreateWorkspaceShell(userId, principal, user, navigation);
 
         switch (view)
@@ -161,7 +157,6 @@ public sealed class ProjectOfficerWorkspaceService
             AssignedProjectCount = navigation.AssignedProjectCount,
             OfficialTaskCount = navigation.AssignedTaskCount,
             AssignedIdeaCount = navigation.AssignedIdeaCount,
-            NavigationActionCount = navigation.ActionCount,
             NavigationFollowUpCount = navigation.FollowUpCount,
             AotsUnreadCount = navigation.AotsUnreadCount,
             AotsUrl = WorkspaceRouteHelper.AotsInbox()
@@ -181,20 +176,24 @@ public sealed class ProjectOfficerWorkspaceService
         var reminders = await LoadPersonalRemindersAsync(userId, ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
         var matrixRows = BuildProjectMatrix(projects, health, userId, today);
-        var operational = await LoadOperationalContextAsync(
+        // The desk reads only unread circulars and pending conference directions here. The old
+        // action queue (returned items, remarks due, tasks due) is no longer shown anywhere, so it
+        // is not built.
+        var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
+        var conferenceDirections = await _conferenceActions.GetPendingAsync(
             userId,
-            today,
-            projects,
-            tasks,
-            ideas,
-            matrixRows,
-            vm.AotsUnreadCount,
+            projects.ToDictionary(project => project.Id, project => project.Name),
+            ideas.ToDictionary(idea => idea.IdeaId, idea => idea.Title),
+            tasks.ToDictionary(task => task.TaskId, task => task.Title),
             ct);
         var conference = await _conference.GetForProjectOfficerAsync(userId, ct);
         var pending = await LoadPendingApprovalsAsync(userId, projects, tasks, ct);
         var lastTaskProgress = await LoadLastTaskProgressAsync(userId, tasks, ct);
         var procurementEdits = await LoadProcurementEditorsAsync(projects, health, ct);
         var planEditors = await LoadPlanEditorsAsync(userId, matrixRows, pending.PlanSinceByProject, ct);
+        // A published ARPP record supplies the IPA completion date, and the date editor will not
+        // take one, so the desk never asks the PO for it.
+        var ipaFromArpp = await _arppIpaStageAuthority.ResolveManyAsync(projects.Select(project => project.Id).ToArray(), ct);
         var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadResultAsync(
             _db,
             userId,
@@ -220,9 +219,10 @@ public sealed class ProjectOfficerWorkspaceService
                     row,
                     stagesByProject.GetValueOrDefault(row.ProjectId) ?? Array.Empty<BriefingDeskStageInput>(),
                     pending.PlanSinceByProject.TryGetValue(row.ProjectId, out var planSince) ? planSince : null,
-                    pending.ActualsSinceByProject.TryGetValue(row.ProjectId, out var actualsSince) ? actualsSince : null,
+                    pending.CorrectionsByProject.GetValueOrDefault(row.ProjectId),
                     procurementEdits.GetValueOrDefault(row.ProjectId),
-                    planEditors.GetValueOrDefault(row.ProjectId)))
+                    planEditors.GetValueOrDefault(row.ProjectId),
+                    IpaCompletionFromArpp: ipaFromArpp.ContainsKey(row.ProjectId)))
                 .ToList(),
             ideas.Select(idea => new BriefingDeskIdeaInput(idea)).ToList(),
             tasks
@@ -231,14 +231,13 @@ public sealed class ProjectOfficerWorkspaceService
                     lastTaskProgress.TryGetValue(task.TaskId, out var lastProgress) ? lastProgress : null,
                     task.RowVersion))
                 .ToList(),
-            operational.ConferenceDirections,
+            conferenceDirections,
             conference,
             pending.Waiting,
             PlanDirectSaveRole: principal.IsInRole(ProjectManagement.Configuration.RoleNames.Admin)
                 || principal.IsInRole(ProjectManagement.Configuration.RoleNames.HoD)));
 
-        ApplyOperationalContext(vm, operational);
-        CacheNavigationActionCount(userId, operational.ActionQueue.TotalCount);
+        vm.AotsDocuments = aotsDocuments;
         vm.NavigationFollowUpCount = reminders.Count;
         vm.ProjectMatrix = matrixRows;
         vm.OfficialTasks = tasks;
@@ -294,7 +293,7 @@ public sealed class ProjectOfficerWorkspaceService
 
     // SECTION: Plan editor state for the desk's current-stage form
     // Read with the same PlanReadService as Project Overview, and only for projects whose
-    // current-stage PDC is missing or overdue with nothing already awaiting approval.
+    // current-stage PDC is missing with nothing already awaiting approval.
     private async Task<IReadOnlyDictionary<int, ProjectManagement.ViewModels.PlanEditorVm>> LoadPlanEditorsAsync(
         string userId,
         IReadOnlyList<WorkspaceProjectMatrixRowVm> rows,
@@ -305,8 +304,7 @@ public sealed class ProjectOfficerWorkspaceService
         foreach (var row in rows)
         {
             var hasStage = !string.IsNullOrWhiteSpace(row.CurrentStageCode) && row.CurrentStageCode != "—";
-            var needsPdc = row.HasOverdueCurrentStage || row.CurrentStagePdc is null;
-            if (!hasStage || !needsPdc || pendingPlans.ContainsKey(row.ProjectId))
+            if (!hasStage || row.CurrentStagePdc is not null || pendingPlans.ContainsKey(row.ProjectId))
             {
                 continue;
             }
@@ -329,37 +327,82 @@ public sealed class ProjectOfficerWorkspaceService
         var waiting = new List<BriefingDeskWaitingVm>();
 
         // Plan and actual-date corrections are project-scoped: a pending submission answers
-        // the current-stage check on the card whoever submitted it. Plans use the canonical
-        // actionable-pending rule, so a superseded or withdrawn submission never counts.
+        // the card's check whoever submitted it. Plans use the canonical actionable-pending
+        // rule, so a superseded or withdrawn submission never counts.
         var pendingPlans = await PlanRevisionConsistency.ActionablePending(_db)
             .AsNoTracking()
             .Where(plan => projectIds.Contains(plan.ProjectId))
-            .Select(plan => new { plan.ProjectId, plan.SubmittedOn, plan.CreatedOn })
+            .Select(plan => new { plan.ProjectId, plan.SubmittedOn, plan.CreatedOn, SubmittedBy = plan.SubmittedByUserId ?? plan.OwnerUserId })
             .ToListAsync(ct);
         var planSince = pendingPlans
             .GroupBy(plan => plan.ProjectId)
             .ToDictionary(group => group.Key, group => group.Min(plan => plan.SubmittedOn ?? plan.CreatedOn));
-        waiting.AddRange(planSince.Select(entry => new BriefingDeskWaitingVm(
-            "Timeline plan",
-            projectNames[entry.Key],
-            "HoD",
-            entry.Value,
-            WorkspaceRouteHelper.ProjectTimeline(entry.Key))));
 
-        var pendingActuals = await _db.ActualCorrectionRevisions
+        // The latest pending correction per project, as the date-correction editor reads it.
+        // Its items say which completion dates it proposes; its Before values say whether the
+        // official dates moved since, in which case the HoD cannot approve it until the PO
+        // reviews and resubmits.
+        var pendingRevisions = await _db.ActualCorrectionRevisions
             .AsNoTracking()
+            .Include(revision => revision.Items)
             .Where(revision => projectIds.Contains(revision.ProjectId) && revision.Status == ActualCorrectionRevisionStatus.Pending)
-            .Select(revision => new { revision.ProjectId, revision.SubmittedOn })
             .ToListAsync(ct);
-        var actualsSince = pendingActuals
+        var stagesByProject = projects.ToDictionary(project => project.Id, project => project.ProjectStages);
+        var corrections = pendingRevisions
             .GroupBy(revision => revision.ProjectId)
-            .ToDictionary(group => group.Key, group => group.Min(revision => revision.SubmittedOn));
-        waiting.AddRange(actualsSince.Select(entry => new BriefingDeskWaitingVm(
-            "Date correction",
-            projectNames[entry.Key],
-            "HoD",
-            entry.Value,
-            WorkspaceRouteHelper.ProjectTimelineActuals(entry.Key))));
+            .Select(group => group.OrderByDescending(revision => revision.RevisionNo).First())
+            .ToDictionary(
+                revision => revision.ProjectId,
+                revision => new BriefingDeskPendingCorrection(
+                    revision.SubmittedOn,
+                    revision.Items
+                        .Where(item => item.ProposedCompletedOn.HasValue)
+                        .Select(item => item.StageCode)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase),
+                    ActualCorrectionProposalService.ChangedSinceSubmission(revision, stagesByProject[revision.ProjectId]).Count > 0
+                        && !ActualCorrectionProposalService.AlreadySatisfied(revision, stagesByProject[revision.ProjectId]),
+                    revision.SubmittedByUserId));
+
+        // The side panel says who sent a project-scoped submission when it was not this PO.
+        var otherSubmitterIds = pendingPlans.Select(plan => plan.SubmittedBy)
+            .Concat(corrections.Values.Select(correction => correction.SubmittedByUserId))
+            .Where(id => !string.IsNullOrWhiteSpace(id) && !string.Equals(id, userId, StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var submitterNames = otherSubmitterIds.Length == 0
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : await _db.Users
+                .AsNoTracking()
+                .Where(user => otherSubmitterIds.Contains(user.Id))
+                .Select(user => new { user.Id, Name = string.IsNullOrEmpty(user.FullName) ? user.UserName : user.FullName })
+                .ToDictionaryAsync(user => user.Id, user => user.Name ?? "another user", StringComparer.Ordinal, ct);
+        string? SentBy(string? submitterId)
+            => string.IsNullOrWhiteSpace(submitterId) || string.Equals(submitterId, userId, StringComparison.Ordinal)
+                ? null
+                : submitterNames.GetValueOrDefault(submitterId) ?? "another user";
+
+        waiting.AddRange(pendingPlans
+            .GroupBy(plan => plan.ProjectId)
+            .Select(group => group.OrderBy(plan => plan.SubmittedOn ?? plan.CreatedOn).First())
+            .Select(plan => new BriefingDeskWaitingVm(
+                "Timeline plan",
+                projectNames[plan.ProjectId],
+                "HoD",
+                plan.SubmittedOn ?? plan.CreatedOn,
+                WorkspaceRouteHelper.ProjectTimeline(plan.ProjectId),
+                SentBy(plan.SubmittedBy))));
+
+        // A correction that needs resubmitting is work for the PO, so it is on the card and
+        // not in the "sent" list.
+        waiting.AddRange(corrections
+            .Where(entry => !entry.Value.NeedsResubmission)
+            .Select(entry => new BriefingDeskWaitingVm(
+                "Date correction",
+                projectNames[entry.Key],
+                "HoD",
+                entry.Value.SubmittedOn,
+                WorkspaceRouteHelper.ProjectTimelineActuals(entry.Key),
+                SentBy(entry.Value.SubmittedByUserId))));
 
         var stageRequests = await _db.StageChangeRequests
             .AsNoTracking()
@@ -406,7 +449,7 @@ public sealed class ProjectOfficerWorkspaceService
                 new DateTimeOffset(DateTime.SpecifyKind(task.SubmittedOnUtc ?? _clock.UtcNow, DateTimeKind.Utc)),
                 task.OpenUrl)));
 
-        return new BriefingDeskPendingApprovals(waiting, planSince, actualsSince);
+        return new BriefingDeskPendingApprovals(waiting, planSince, corrections);
     }
 
     // Latest progress the PO posted on each task; conference directions are not progress.
@@ -438,80 +481,7 @@ public sealed class ProjectOfficerWorkspaceService
     private sealed record BriefingDeskPendingApprovals(
         IReadOnlyList<BriefingDeskWaitingVm> Waiting,
         IReadOnlyDictionary<int, DateTimeOffset> PlanSinceByProject,
-        IReadOnlyDictionary<int, DateTimeOffset> ActualsSinceByProject);
-
-    private async Task<ProjectOfficerOperationalContext> LoadOperationalContextAsync(
-        string userId,
-        DateOnly today,
-        IReadOnlyList<Project> projects,
-        IReadOnlyList<WorkspaceTaskVm> tasks,
-        IReadOnlyList<WorkspaceIdeaVm> ideas,
-        IReadOnlyList<WorkspaceProjectMatrixRowVm> projectRows,
-        int aotsUnreadCount,
-        CancellationToken ct)
-    {
-        var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
-        var returnedItems = await BuildReturnedItemsAsync(userId, ct);
-        var officialTasksDue = tasks
-            .Where(task => task.IsOverdue || IsDueSoon(task.DueDate, today))
-            .OrderByDescending(task => task.IsOverdue)
-            .ThenBy(task => task.DueDate)
-            .ToList();
-        var ideasNeedingUpdate = ideas
-            .Where(idea => idea.NeedsUpdate)
-            .OrderBy(idea => idea.LastActivityAtUtc)
-            .ToList();
-        var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
-        var pendingConferenceDirections = await _conferenceActions.GetPendingAsync(
-            userId,
-            projects.ToDictionary(project => project.Id, project => project.Name),
-            ideas.ToDictionary(idea => idea.IdeaId, idea => idea.Title),
-            tasks.ToDictionary(task => task.TaskId, task => task.Title),
-            ct);
-        var actionQueue = WorkspaceActionQueueBuilder.Build(
-            returnedItems,
-            officialTasksDue,
-            remarksDue,
-            ideasNeedingUpdate,
-            aotsDocuments,
-            aotsUnreadCount,
-            projectRows,
-            pendingConferenceDirections);
-
-        return new ProjectOfficerOperationalContext(
-            actionQueue,
-            remarksDue,
-            returnedItems,
-            officialTasksDue,
-            ideasNeedingUpdate,
-            aotsDocuments,
-            pendingConferenceDirections);
-    }
-
-    private static void ApplyOperationalContext(
-        ProjectOfficerWorkspaceVm vm,
-        ProjectOfficerOperationalContext operational)
-    {
-        var queue = operational.ActionQueue;
-        vm.ActionQueue = queue.Items;
-        vm.ActionQueueGroups = queue.Groups;
-        vm.AllActionQueue = queue.AllItems;
-        vm.AllActionQueueGroups = queue.AllGroups;
-        vm.ActionQueueTotalCount = queue.TotalCount;
-        vm.NavigationActionCount = queue.TotalCount;
-        vm.DailyActionCount = queue.TotalCount;
-        vm.ActionSummary = queue.Summary;
-        vm.ActionProjectCount = queue.Summary.ProjectCount;
-        vm.ActionIdeaCount = queue.Summary.IdeaCount;
-        vm.ActionTaskCount = queue.Summary.TaskCount;
-        vm.PendingConferenceDirectionCount = queue.Summary.ConferenceDirectionCount;
-        vm.RemarksDueCount = operational.RemarksDue.Count;
-        vm.OfficialTasksDue = operational.OfficialTasksDue;
-        vm.IdeasNeedingUpdate = operational.IdeasNeedingUpdate;
-        vm.IdeasNeedingUpdateCount = operational.IdeasNeedingUpdate.Count;
-        vm.AotsDocuments = operational.AotsDocuments;
-        vm.ReturnedItems = operational.ReturnedItems.Take(5).ToList();
-    }
+        IReadOnlyDictionary<int, BriefingDeskPendingCorrection> CorrectionsByProject);
 
     private IReadOnlyList<WorkspaceProjectMatrixRowVm> BuildProjectMatrix(
         IReadOnlyList<Project> projects,
@@ -544,53 +514,27 @@ public sealed class ProjectOfficerWorkspaceService
     private async Task<ProjectOfficerNavigationSummary> LoadNavigationSummaryAsync(
         string userId,
         DateOnly today,
-        bool includeActionCount,
         CancellationToken ct)
     {
-        var cacheKey = NavigationActionCountCacheKey(userId);
-        var cachedActionCount = 0;
-        var hasCachedActionCount = includeActionCount
-            && _cache.TryGetValue(cacheKey, out cachedActionCount);
-        var calculateActionCount = includeActionCount && !hasCachedActionCount;
+        // The menu shows counts only; the old action-queue badge is gone, so nothing here
+        // builds the action queue.
+        var assignedProjectCount = await _db.Projects
+            .AsNoTracking()
+            .CountAsync(project =>
+                project.LeadPoUserId == userId
+                && !project.IsDeleted
+                && !project.IsArchived
+                && project.LifecycleStatus == ProjectLifecycleStatus.Active,
+                ct);
 
-        IReadOnlyList<Project>? projects = null;
-        IReadOnlyList<WorkspaceTaskVm>? tasks = null;
-
-        int assignedProjectCount;
-        if (calculateActionCount)
-        {
-            projects = await LoadAssignedProjectsAsync(userId, ct);
-            assignedProjectCount = projects.Count;
-        }
-        else
-        {
-            assignedProjectCount = await _db.Projects
-                .AsNoTracking()
-                .CountAsync(project =>
-                    project.LeadPoUserId == userId
-                    && !project.IsDeleted
-                    && !project.IsArchived
-                    && project.LifecycleStatus == ProjectLifecycleStatus.Active,
-                    ct);
-        }
-
-        int assignedTaskCount;
-        if (calculateActionCount)
-        {
-            tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
-            assignedTaskCount = tasks.Count;
-        }
-        else
-        {
-            assignedTaskCount = await _db.ActionTasks
-                .AsNoTracking()
-                .CountAsync(task =>
-                    !task.IsDeleted
-                    && task.AssignedToUserId == userId
-                    && task.Status != ActionTaskStatuses.Closed
-                    && task.Status != ActionTaskStatuses.Backlog,
-                    ct);
-        }
+        var assignedTaskCount = await _db.ActionTasks
+            .AsNoTracking()
+            .CountAsync(task =>
+                !task.IsDeleted
+                && task.AssignedToUserId == userId
+                && task.Status != ActionTaskStatuses.Closed
+                && task.Status != ActionTaskStatuses.Backlog,
+                ct);
 
         var ideaSummaries = await LoadProjectIdeaProjectionsAsync(userId, ct);
         var ideas = ideaSummaries.Select(idea => BuildWorkspaceIdeaVm(idea, today)).ToList();
@@ -606,76 +550,13 @@ public sealed class ProjectOfficerWorkspaceService
                 ct);
 
         var aotsUnreadCount = await _aotsUnreadService.GetUnreadCountAsync(userId, ct);
-        int? actionCount = hasCachedActionCount ? cachedActionCount : null;
-
-        if (calculateActionCount && projects is not null && tasks is not null)
-        {
-            actionCount = await CalculateNavigationActionCountAsync(
-                userId,
-                today,
-                projects,
-                tasks,
-                ideas,
-                aotsUnreadCount,
-                ct);
-            CacheNavigationActionCount(userId, actionCount.Value);
-        }
-
         return new ProjectOfficerNavigationSummary(
             assignedProjectCount,
             assignedTaskCount,
             assignedIdeaCount,
             reminderFollowUpCount,
-            aotsUnreadCount,
-            actionCount);
+            aotsUnreadCount);
     }
-
-    private async Task<int> CalculateNavigationActionCountAsync(
-        string userId,
-        DateOnly today,
-        IReadOnlyList<Project> projects,
-        IReadOnlyList<WorkspaceTaskVm> tasks,
-        IReadOnlyList<WorkspaceIdeaVm> ideas,
-        int aotsUnreadCount,
-        CancellationToken ct)
-    {
-        var projectRows = projects.Select(project => BuildActionProjectRow(project, userId, today)).ToList();
-        var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
-        var returnedItems = await BuildReturnedItemsAsync(userId, ct);
-        var officialTasksDue = tasks
-            .Where(task => task.IsOverdue || IsDueSoon(task.DueDate, today))
-            .ToList();
-        var ideasNeedingUpdate = ideas.Where(idea => idea.NeedsUpdate).ToList();
-        var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
-        var conferenceDirections = await _conferenceActions.GetPendingAsync(
-            userId,
-            projects.ToDictionary(project => project.Id, project => project.Name),
-            ideas.ToDictionary(idea => idea.IdeaId, idea => idea.Title),
-            tasks.ToDictionary(task => task.TaskId, task => task.Title),
-            ct);
-
-        return WorkspaceActionQueueBuilder.Build(
-            returnedItems,
-            officialTasksDue,
-            remarksDue,
-            ideasNeedingUpdate,
-            aotsDocuments,
-            aotsUnreadCount,
-            projectRows,
-            conferenceDirections).TotalCount;
-    }
-
-    private static string NavigationActionCountCacheKey(string userId)
-        => $"workspace:project-officer:{userId}:action-count";
-
-    private void CacheNavigationActionCount(string userId, int count)
-        => _cache.Set(
-            NavigationActionCountCacheKey(userId),
-            count,
-            new MemoryCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30)
-            });
 
     private DateTimeOffset EndOfIstOperatingDayUtc()
     {
@@ -690,17 +571,7 @@ public sealed class ProjectOfficerWorkspaceService
         int AssignedTaskCount,
         int AssignedIdeaCount,
         int FollowUpCount,
-        int AotsUnreadCount,
-        int? ActionCount);
-
-    private sealed record ProjectOfficerOperationalContext(
-        WorkspaceActionQueueBuildResult ActionQueue,
-        IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue,
-        IReadOnlyList<WorkspaceAttentionItemVm> ReturnedItems,
-        IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue,
-        IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate,
-        IReadOnlyList<WorkspaceAotsDocumentVm> AotsDocuments,
-        IReadOnlyList<WorkspaceConferenceDirectionActionVm> ConferenceDirections);
+        int AotsUnreadCount);
 
     // SECTION: Assigned projects include current-stage context for the workspace matrix.
     private async Task<IReadOnlyList<Project>> LoadAssignedProjectsAsync(string userId, CancellationToken ct)
@@ -709,7 +580,12 @@ public sealed class ProjectOfficerWorkspaceService
             .AsNoTracking()
             .AsSplitQuery()
             .Include(p => p.ProjectStages)
-            .Include(p => p.Remarks)
+            // Only the PO's latest remark is read (WorkspaceNudgeService.LastPoRemark), so only it
+            // is loaded rather than every remark on every project.
+            .Include(p => p.Remarks
+                .Where(r => !r.IsDeleted && r.AuthorUserId == userId)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .Take(1))
             .Where(p =>
                 p.LeadPoUserId == userId &&
                 !p.IsDeleted &&
@@ -887,13 +763,6 @@ public sealed class ProjectOfficerWorkspaceService
             .Select(candidate => candidate!.Value)
             .Append(baseline)
             .Max();
-
-    // SECTION: Due-soon detection uses the workspace operating date without timezone coercion.
-    private static bool IsDueSoon(DateOnly dueDate, DateOnly today)
-    {
-        var days = dueDate.DayNumber - today.DayNumber;
-        return days is >= 0 and <= 3;
-    }
 
     private sealed record ProjectIdeaProjection(
         int Id,
@@ -1134,140 +1003,6 @@ public sealed class ProjectOfficerWorkspaceService
         string Office,
         string Category);
 
-    // SECTION: Returned items are surfaced as actionable corrections for the PO.
-    // The action queue and side list show a short preview (30 days, a few per type). The
-    // briefing desk does not list them: a return is a finished HoD decision.
-    private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildReturnedItemsAsync(string userId, CancellationToken ct)
-    {
-        const int fetchLimit = 10;
-        const int keepLimit = 5;
-        const int totalLimit = 12;
-        var items = new List<WorkspaceAttentionItemVm>();
-        var returnedCutoffUtc = DateTimeOffset.UtcNow.AddDays(-30);
-        var rejectedPlans = await _db.PlanVersions.AsNoTracking().Include(p => p.Project).Where(p => (p.CreatedByUserId == userId || p.SubmittedByUserId == userId) && p.RejectedOn.HasValue && p.RejectedOn >= returnedCutoffUtc).OrderByDescending(p => p.RejectedOn).Take(fetchLimit).ToListAsync(ct);
-        var rejectedPlanProjectIds = rejectedPlans.Select(p => p.ProjectId).ToArray();
-        var newerPlanProjects = await _db.PlanVersions.AsNoTracking().Where(p => rejectedPlanProjectIds.Contains(p.ProjectId) && (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Approved)).Select(p => new { p.ProjectId, EventAt = p.SubmittedOn ?? p.ApprovedOn ?? p.CreatedOn }).ToListAsync(ct);
-        rejectedPlans = rejectedPlans.Where(p => !newerPlanProjects.Any(n => n.ProjectId == p.ProjectId && p.RejectedOn.HasValue && n.EventAt > p.RejectedOn.Value)).Take(keepLimit).ToList();
-        items.AddRange(rejectedPlans.Select(p => new WorkspaceAttentionItemVm
-        {
-            ProjectId = p.ProjectId,
-            WorkItemKey = $"project:{p.ProjectId}",
-            Type = "Timeline",
-            Title = p.Project?.Name ?? "Timeline plan",
-            Detail = "Timeline plan returned for correction",
-            Severity = "Danger",
-            BadgeText = "Returned",
-            ActionText = "Correct",
-            ActionUrl = WorkspaceRouteHelper.ProjectPlanEdit(p.ProjectId),
-            DueOrEventDateUtc = p.RejectedOn?.UtcDateTime,
-            ReviewerNote = p.RejectionNote
-        }));
-
-        var rejectedStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOn.HasValue && r.DecidedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOn).Take(fetchLimit).ToListAsync(ct);
-        var rejectedStageProjectIds = rejectedStages.Select(r => r.ProjectId).ToArray();
-        var newerStageProjects = await _db.StageChangeRequests.AsNoTracking().Where(r => rejectedStageProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, r.StageCode, EventAt = r.DecidedOn ?? r.RequestedOn }).ToListAsync(ct);
-        // Only a newer request for the same stage resolves a returned one.
-        rejectedStages = rejectedStages.Where(r => !newerStageProjects.Any(n => n.ProjectId == r.ProjectId && string.Equals(n.StageCode, r.StageCode, StringComparison.OrdinalIgnoreCase) && r.DecidedOn.HasValue && n.EventAt > r.DecidedOn.Value)).Take(keepLimit).ToList();
-        items.AddRange(rejectedStages.Select(r => new WorkspaceAttentionItemVm
-        {
-            ProjectId = r.ProjectId,
-            WorkItemKey = $"project:{r.ProjectId}",
-            Type = "Stage",
-            Title = r.StageCode,
-            Detail = "Stage update returned by HoD",
-            Severity = "Danger",
-            BadgeText = "Returned",
-            ActionText = "Correct",
-            ActionUrl = WorkspaceRouteHelper.ProjectTimeline(r.ProjectId),
-            DueOrEventDateUtc = r.DecidedOn?.UtcDateTime,
-            ReviewerNote = r.DecisionNote
-        }));
-
-        var rejectedMeta = await _db.ProjectMetaChangeRequests.AsNoTracking().Include(r => r.Project).Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOnUtc.HasValue && r.DecidedOnUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOnUtc).Take(fetchLimit).ToListAsync(ct);
-        var rejectedMetaProjectIds = rejectedMeta.Select(r => r.ProjectId).ToArray();
-        var newerMetaProjects = await _db.ProjectMetaChangeRequests.AsNoTracking().Where(r => rejectedMetaProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, EventAt = r.DecidedOnUtc ?? r.RequestedOnUtc }).ToListAsync(ct);
-        rejectedMeta = rejectedMeta.Where(r => !newerMetaProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOnUtc.HasValue && n.EventAt > r.DecidedOnUtc.Value)).Take(keepLimit).ToList();
-        items.AddRange(rejectedMeta.Select(r => new WorkspaceAttentionItemVm
-        {
-            ProjectId = r.ProjectId,
-            WorkItemKey = $"project:{r.ProjectId}",
-            Type = "Metadata",
-            Title = r.Project?.Name ?? "Metadata change",
-            Detail = "Project details update returned by HoD",
-            Severity = "Danger",
-            BadgeText = "Returned",
-            ActionText = "Correct",
-            ActionUrl = WorkspaceRouteHelper.ProjectMetaRequest(r.ProjectId),
-            DueOrEventDateUtc = r.DecidedOnUtc?.UtcDateTime,
-            ReviewerNote = r.DecisionNote
-        }));
-
-        var rejectedDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Rejected && r.ReviewedAtUtc.HasValue && r.ReviewedAtUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.ReviewedAtUtc).Take(fetchLimit).ToListAsync(ct);
-        var rejectedDocumentProjectIds = rejectedDocuments.Select(r => r.ProjectId).ToArray();
-        var newerDocumentRequests = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => rejectedDocumentProjectIds.Contains(r.ProjectId) && (r.Status == ProjectDocumentRequestStatus.Submitted || r.Status == ProjectDocumentRequestStatus.Approved)).Select(r => new { r.ProjectId, r.RequestType, r.DocumentId, r.StageId, r.Title, EventAt = r.ReviewedAtUtc ?? r.RequestedAtUtc }).ToListAsync(ct);
-        // Document requests are independent, so only a newer request for the same item
-        // (same document for a replace or delete, same stage and title for an upload)
-        // resolves a returned one; other document activity on the project does not.
-        rejectedDocuments = rejectedDocuments.Where(r => !newerDocumentRequests.Any(n =>
-                n.ProjectId == r.ProjectId
-                && r.ReviewedAtUtc.HasValue
-                && n.EventAt > r.ReviewedAtUtc.Value
-                && DocumentRequestIdentity(n.RequestType, n.DocumentId, n.StageId, n.Title) == DocumentRequestIdentity(r.RequestType, r.DocumentId, r.StageId, r.Title)))
-            .Take(keepLimit)
-            .ToList();
-        items.AddRange(rejectedDocuments.Select(r => new WorkspaceAttentionItemVm
-        {
-            ProjectId = r.ProjectId,
-            WorkItemKey = $"project:{r.ProjectId}",
-            Type = "Document",
-            Title = r.Title,
-            Detail = "Document request rejected",
-            Severity = "Danger",
-            BadgeText = "Returned",
-            ActionText = "Correct",
-            ActionUrl = WorkspaceRouteHelper.ProjectDocumentRequest(r.ProjectId),
-            DueOrEventDateUtc = r.ReviewedAtUtc?.UtcDateTime,
-            ReviewerNote = r.ReviewerNote
-        }));
-
-        // Date corrections the HoD returned, unless a newer one is pending or approved.
-        var rejectedActuals = await _db.ActualCorrectionRevisions.AsNoTracking().Include(r => r.Project).Where(r => r.SubmittedByUserId == userId && r.Status == ActualCorrectionRevisionStatus.Rejected && r.ClosedOn.HasValue && r.ClosedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.ClosedOn).Take(fetchLimit).ToListAsync(ct);
-        var rejectedActualProjectIds = rejectedActuals.Select(r => r.ProjectId).ToArray();
-        var newerActualProjects = await _db.ActualCorrectionRevisions.AsNoTracking().Where(r => rejectedActualProjectIds.Contains(r.ProjectId) && (r.Status == ActualCorrectionRevisionStatus.Pending || r.Status == ActualCorrectionRevisionStatus.Approved)).Select(r => new { r.ProjectId, EventAt = r.ClosedOn ?? r.SubmittedOn }).ToListAsync(ct);
-        rejectedActuals = rejectedActuals.Where(r => !newerActualProjects.Any(n => n.ProjectId == r.ProjectId && r.ClosedOn.HasValue && n.EventAt > r.ClosedOn.Value)).Take(keepLimit).ToList();
-        items.AddRange(rejectedActuals.Select(r => new WorkspaceAttentionItemVm
-        {
-            ProjectId = r.ProjectId,
-            WorkItemKey = $"project:{r.ProjectId}",
-            Type = "Actuals",
-            Title = r.Project?.Name ?? "Date correction",
-            Detail = "Date correction returned by HoD",
-            Severity = "Danger",
-            BadgeText = "Returned",
-            ActionText = "Correct",
-            ActionUrl = WorkspaceRouteHelper.ProjectTimelineActuals(r.ProjectId),
-            DueOrEventDateUtc = r.ClosedOn?.UtcDateTime,
-            ReviewerNote = r.DecisionNote
-        }));
-        return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(totalLimit).ToList();
-    }
-    internal static string DocumentRequestIdentity(ProjectDocumentRequestType type, int? documentId, int? stageId, string? title)
-        => type == ProjectDocumentRequestType.Upload
-            ? $"upload|{stageId}|{(title ?? string.Empty).Trim().ToUpperInvariant()}"
-            : $"{type}|{documentId}";
-
-    private WorkspaceProjectMatrixRowVm BuildActionProjectRow(Project project, string userId, DateOnly today)
-    {
-        var neutralHealth = new WorkspaceRecordHealthVm
-        {
-            ProjectId = project.Id,
-            ProjectName = project.Name,
-            HealthPercent = 100
-        };
-
-        return BuildMatrixRow(project, neutralHealth, userId, today);
-    }
-
     private WorkspaceProjectMatrixRowVm BuildMatrixRow(Project p, WorkspaceRecordHealthVm health, string userId, DateOnly today)
     {
         var stage = WorkspaceNudgeService.GetCurrentStage(p);
@@ -1338,11 +1073,4 @@ public sealed class ProjectOfficerWorkspaceService
         return 4;
     }
 
-    private static bool HasProjectTimelineIssue(WorkspaceProjectMatrixRowVm row)
-        => row.HasOverdueCurrentStage || row.HasCurrentStageIssue || row.HasBackfill;
-
-    private static bool RequiresProjectAttention(WorkspaceProjectMatrixRowVm row)
-        => row.UpdateStatus is "ActionRequired" or "Attention"
-            || HasProjectTimelineIssue(row)
-            || row.RecordGapCount > 0;
 }
