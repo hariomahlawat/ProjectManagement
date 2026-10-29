@@ -213,8 +213,10 @@
     cursor: pointer;
 }
 
+/* The title has the first row to itself; tags, pill and chevron share the row below, so a
+   card with few tags does not pull them up beside the title and push the chevron down. */
 .bd-card__heading {
-    flex: 1 1 18rem;
+    flex: 1 1 100%;
     min-width: 0;
     margin: 0;
 }
@@ -338,6 +340,11 @@
     margin: 0;
     padding: 0 1.25rem 0.75rem;
     list-style: none;
+}
+
+/* The stage strip is detail: a folded card shows only its tags and the next step. */
+.bd-card:not(.is-expanded) > .bd-strip {
+    display: none;
 }
 
 .bd-step {
@@ -537,15 +544,23 @@
     color: var(--pm-text-slate);
 }
 
+/* Title, summary and chevron stay on one row; only the summary wraps, so the chevron never
+   drops onto a line of its own. */
 .bd-checks__title--improve {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 0.6rem;
-    align-items: baseline;
+    gap: 0.6rem;
+    align-items: center;
     margin-top: 0.5rem;
 }
 
-.bd-checks__title--improve span {
+.bd-improve__title {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.bd-improve__meta {
+    flex: 1 1 auto;
+    min-width: 0;
     font-weight: 500;
     color: var(--pm-text-secondary);
 }
@@ -567,6 +582,8 @@
 }
 
 .bd-improve__chevron {
+    flex: 0 0 auto;
+    margin-left: auto;
     align-self: center;
     color: var(--pm-text-secondary);
     transition: transform 0.15s ease;
@@ -930,9 +947,10 @@
 
 .bd-panel__head {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: baseline;
-    gap: 0.5rem;
+    gap: 0.15rem 0.5rem;
 }
 
 .bd-panel__head h2 {
@@ -945,6 +963,7 @@
 .bd-panel__meta {
     font-size: 0.8125rem;
     color: var(--pm-text-secondary);
+    white-space: nowrap;
 }
 
 .bd-panel__empty {

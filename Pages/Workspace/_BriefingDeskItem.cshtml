@@ -162,7 +162,7 @@
                         <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
                         <span><strong>Not needed now.</strong> @item.LastUpdateText</span>
                     </p>
-                    <details class="bd-say__more">
+                    <details class="bd-say__more" data-bd-say-more>
                         <summary class="bd-btn bd-btn--quiet"><i class="bi bi-plus-lg" aria-hidden="true"></i>@addAnother</summary>
                         @{ await SayForm(); }
                     </details>
@@ -216,8 +216,8 @@
                     <details class="bd-improve">
                         <summary>
                             <h4 class="bd-checks__title bd-checks__title--improve">
-                                Improve the record
-                                <span>@item.RecordHealthPercent% now · up to +@item.ImprovementPoints points · @item.Improvements.Count optional item@(item.Improvements.Count == 1 ? string.Empty : "s")</span>
+                                <span class="bd-improve__title">Improve the record</span>
+                                <span class="bd-improve__meta">@item.RecordHealthPercent% now · up to +@item.ImprovementPoints points · @item.Improvements.Count optional item@(item.Improvements.Count == 1 ? string.Empty : "s")</span>
                                 <i class="bi bi-chevron-down bd-improve__chevron" aria-hidden="true"></i>
                             </h4>
                         </summary>

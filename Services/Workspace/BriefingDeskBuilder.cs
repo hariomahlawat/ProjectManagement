@@ -376,7 +376,8 @@ public static class BriefingDeskBuilder
                 State = BriefingDeskCheckState.Open,
                 Route = BriefingDeskRoute.Approval,
                 ActionText = "Review",
-                ActionUrl = actionUrl
+                ActionUrl = actionUrl,
+                RouteHint = "Opens the date editor"
             };
         }
 
@@ -576,10 +577,8 @@ public static class BriefingDeskBuilder
             var value => new BriefingDeskFactVm($"Updated {value} days ago", value > 10 ? BriefingDeskTone.Danger : BriefingDeskTone.Warning)
         });
 
-        facts.Add(new BriefingDeskFactVm(
-            $"Records {row.RecordHealthPercent}%",
-            row.RecordHealthPercent >= 80 ? BriefingDeskTone.Good : BriefingDeskTone.Neutral));
-
+        // Record health is optional, so it is not a header tag: "Improve the record" shows it
+        // ("48% now") with the gaps that would raise it.
         return facts;
     }
 
@@ -627,11 +626,6 @@ public static class BriefingDeskBuilder
         {
             new(string.IsNullOrWhiteSpace(conference.CurrentContext) ? "Completed" : conference.CurrentContext!, BriefingDeskTone.Good)
         };
-        if (conference.RecordHealth is { } health)
-        {
-            facts.Add(new BriefingDeskFactVm($"Records {health.HealthPercent}%", health.HealthPercent >= 80 ? BriefingDeskTone.Good : BriefingDeskTone.Neutral));
-        }
-
         return new BriefingDeskItemVm
         {
             Kind = ConferenceItemKind.Project,

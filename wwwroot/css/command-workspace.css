@@ -609,8 +609,12 @@
     .command-workspace.project-officer-workspace.is-nav-expanded {
         grid-template-columns:minmax(0,1fr);
     }
+    /* Relative, not static: the rail's absolutely positioned glass layers (frost, aurora)
+       must stay inside the icon row. Static let them cover the first screen and widen the
+       page; top:auto drops the desktop sticky offset. */
     .command-workspace .cw-local-rail:not(.is-expanded) {
-        position:static;
+        position:relative;
+        top:auto;
         display:flex;
         align-items:center;
         gap:4px;

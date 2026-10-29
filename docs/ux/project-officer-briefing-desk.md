@@ -54,6 +54,11 @@ stage (the record-health "Historical stage completion dates" gaps, recognised by
 header, linked to the full plan editor, and never blocks readiness. Actual start dates are
 optional and are not asked for on the desk.
 
+**Layout** (changed 2026-10-29). The per-section meters appear only when the desk has more than
+one section; with one, the headline and the section heading already give the count. A folded
+card shows its tags, its pill and the next step; the stage strip appears when the card is
+opened. Record health is not a header tag; "Improve the record" shows it with the gaps.
+
 **Card header.** The header tags agree with the checks. When a plan is with the HoD for a
 missing or passed PDC, the PDC tag reads "PDC sent to HoD on …" or "Revised PDC sent to HoD on
 …" in a neutral tone, not "PDC not set" or a red "PDC passed …".
@@ -162,7 +167,9 @@ page. ERP activity stays under **My ERP activity**.
 
 ## Phones
 
-Below 576 px the three meters sit in one compact row, so the first card is on the first
-screen. Unread circulars are counted in the
+Below 576 px the meters sit in one compact row, so the first card is on the first
+screen. The workspace rail's glass layers are contained in its folded icon row
+(`position: relative`); when it was static they covered the first screen with a blur and made
+the page wider than the phone. Unread circulars are counted in the
 side column's Reading panel only. The workspace rail, folded, becomes a row of its icons above
 the page (`command-workspace.css`, all workspace pages); expanding it opens the usual overlay.

@@ -48,12 +48,12 @@
                             data-bs-toggle="offcanvas"
                             data-bs-target="#@check.PanelId"
                             aria-controls="@check.PanelId">@check.ActionText<span class="visually-hidden">: @check.Label</span></button>
-                    <small class="bd-check__route">@(check.Route == BriefingDeskRoute.Direct ? "You complete it here" : "Needs HoD approval")</small>
+                    <small class="bd-check__route">@(check.RouteHint ?? (check.Route == BriefingDeskRoute.Direct ? "You complete it here" : "Needs HoD approval"))</small>
                 }
                 else if (!string.IsNullOrWhiteSpace(check.ActionUrl) && !string.IsNullOrWhiteSpace(check.ActionText))
                 {
                     <a class="bd-btn @buttonClass" href="@check.ActionUrl">@check.ActionText<span class="visually-hidden">: @check.Label</span></a>
-                    <small class="bd-check__route">@(check.Route == BriefingDeskRoute.Direct ? "You complete it" : "Needs HoD approval")</small>
+                    <small class="bd-check__route">@(check.RouteHint ?? (check.Route == BriefingDeskRoute.Direct ? "You complete it" : "Needs HoD approval"))</small>
                 }
                 else if (check.Route == BriefingDeskRoute.Update)
                 {

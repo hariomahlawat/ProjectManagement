@@ -225,6 +225,7 @@ public sealed class BriefingDeskBuilderTests
         Assert.Equal(BriefingDeskCheckState.Open, completion.State);
         Assert.Equal("Review your date correction", completion.Label);
         Assert.Equal("Review", completion.ActionText);
+        Assert.Equal("Opens the date editor", completion.RouteHint);
         Assert.False(item.IsBriefReady);
     }
 
@@ -282,6 +283,15 @@ public sealed class BriefingDeskBuilderTests
         var fact = Assert.Single(item.Facts, fact => fact.Text.StartsWith("PDC passed", StringComparison.Ordinal));
         Assert.Contains("oc=plan&stage=DEVP", fact.Url);
         Assert.All(item.Facts.Where(other => other != fact), other => Assert.Null(other.Url));
+    }
+
+    [Fact]
+    public void Project_RecordHealth_IsNotAHeaderTag()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30) }));
+
+        Assert.DoesNotContain(item.Facts, fact => fact.Text.StartsWith("Records", StringComparison.Ordinal));
+        Assert.Equal(100, item.RecordHealthPercent);
     }
 
     [Fact]

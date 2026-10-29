@@ -178,6 +178,12 @@ public sealed class BriefingDeskCheckVm
     /// <summary>When set, the action opens this panel on the desk instead of navigating.</summary>
     public string? PanelId { get; init; }
 
+    /// <summary>
+    /// Replaces the line under the action button ("Needs HoD approval", "You complete it")
+    /// when that would mislead, for example a step that only reopens the PO's own submission.
+    /// </summary>
+    public string? RouteHint { get; init; }
+
     public int Points { get; init; }
 }
 

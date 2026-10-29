@@ -80,7 +80,9 @@
         <button type="button" class="bd-btn bd-btn--quiet" data-bd-round-close>Back to the desk</button>
     </section>
 
-    @if (desk.TotalCount > 0)
+    @* With one section the headline and the section heading already give the count, so the
+       meters only appear when they split it across projects, ideas and tasks. *@
+    @if (desk.Sections.Count > 1)
     {
         <div class="bd-meters" aria-label="Brief-ready summary">
             @foreach (var deskSection in desk.Sections)
@@ -168,7 +170,7 @@
         <aside class="bd-rail" aria-label="Sent for approval, reading and the next 14 days">
             @* Submitting is the PO's part done; this is a record of what was sent, not a to-do list. *@
             <section class="bd-panel" aria-labelledby="bd-waiting-title">
-                <div class="bd-panel__head"><h2 id="bd-waiting-title">Sent for approval</h2><span class="bd-panel__meta">Nothing needed from you</span></div>
+                <div class="bd-panel__head"><h2 id="bd-waiting-title">Sent for approval</h2><span class="bd-panel__meta">No action needed</span></div>
                 @if (!desk.WithOthers.Any())
                 {
                     <p class="bd-panel__empty">Nothing you sent is awaiting a decision.</p>

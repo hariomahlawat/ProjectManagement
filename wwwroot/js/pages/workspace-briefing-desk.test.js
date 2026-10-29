@@ -204,3 +204,23 @@ test('recently completed cards are not part of the weekly round', () => {
 
     assert.equal(doc.querySelector('[data-bd-round-title]').textContent, 'Item 1 of 1: BFSR');
 });
+
+test('opening "Add another remark" puts the cursor in the box', () => {
+    const window = createDom(`
+<article class="bd-card is-expanded" id="desk-project-9" data-bd-card>
+    <div class="bd-card__head"><h3><button type="button" data-bd-toggle aria-expanded="true" aria-controls="desk-project-9-body">Title</button></h3></div>
+    <div class="bd-card__body" id="desk-project-9-body">
+        <details class="bd-say__more" data-bd-say-more>
+            <summary>Add another remark</summary>
+            <form><textarea name="body"></textarea><button type="submit">Post remark</button></form>
+        </details>
+    </div>
+</article>`);
+    const doc = window.document;
+    const more = doc.querySelector('[data-bd-say-more]');
+
+    more.open = true;
+    more.dispatchEvent(new window.Event('toggle'));
+
+    assert.equal(doc.activeElement, more.querySelector('textarea'));
+});

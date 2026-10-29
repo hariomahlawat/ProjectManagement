@@ -57,6 +57,17 @@
             });
         }
 
+        // SECTION: Add another remark
+        // Opening the folded box puts the cursor in it.
+        card.querySelectorAll('[data-bd-say-more]').forEach(function (more) {
+            more.addEventListener('toggle', function () {
+                const input = more.open ? more.querySelector('textarea') : null;
+                if (input) {
+                    input.focus();
+                }
+            });
+        });
+
         // SECTION: Double-submit guard
         card.querySelectorAll('form').forEach(function (form) {
             form.addEventListener('submit', function () {
