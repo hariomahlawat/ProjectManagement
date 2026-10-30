@@ -13,7 +13,9 @@ namespace ProjectManagement.Services.ActionTasks;
 public class ActionTaskService : IActionTaskService
 {
     private const int MaxClosureRemarksLength = 2000;
-    private const int MaxProgressRemarksLength = 4000;
+    // Remarks on a status change, a submission or a return are also written to the audit log,
+    // whose Remarks column holds 2000 characters, so they are held to that length.
+    private const int MaxAuditedRemarksLength = 2000;
     private static readonly string[] AllowedPriorities = { "Low", "Normal", "High", "Critical" };
 
     private readonly ApplicationDbContext _context;
@@ -404,9 +406,9 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Remarks are required when returning a submitted task for further action.");
         }
 
-        if (trimmedRemarks.Length > MaxProgressRemarksLength)
+        if (trimmedRemarks.Length > MaxAuditedRemarksLength)
         {
-            throw new InvalidOperationException($"Remarks cannot exceed {MaxProgressRemarksLength} characters.");
+            throw new InvalidOperationException($"Remarks cannot exceed {MaxAuditedRemarksLength} characters.");
         }
 
         _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
@@ -745,9 +747,9 @@ public class ActionTaskService : IActionTaskService
 
     private static void ValidateProgressRemarksLength(string? remarks)
     {
-        if ((remarks?.Trim().Length ?? 0) > MaxProgressRemarksLength)
+        if ((remarks?.Trim().Length ?? 0) > MaxAuditedRemarksLength)
         {
-            throw new InvalidOperationException($"Remarks cannot exceed {MaxProgressRemarksLength} characters.");
+            throw new InvalidOperationException($"Remarks cannot exceed {MaxAuditedRemarksLength} characters.");
         }
     }
 

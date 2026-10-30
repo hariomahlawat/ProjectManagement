@@ -17,26 +17,54 @@
     var draftText = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftTextKey] as string;
     var draftField = TempData[ProjectManagement.Pages.Workspace.IndexModel.DeskDraftFieldKey] as string ?? BriefingDeskDraftFields.Body;
 
-    // The headline leads with what needs the PO; the ready count is the line under it.
+    // The headline leads with what needs the PO; the ready count is the line under it. A recently
+    // completed project with a direction to answer needs the PO too, though it never counts
+    // towards ready for conference.
+    var completedNeedsYou = desk.RecentlyCompleted.Count(item => !item.IsBriefReady);
+    var needsYouCount = desk.NotReadyCount + completedNeedsYou;
+    var deskIsEmpty = desk.TotalCount == 0 && !desk.RecentlyCompleted.Any();
+
     string headline;
-    if (desk.TotalCount == 0)
+    if (needsYouCount > 0)
     {
-        headline = "Nothing is assigned to you yet";
+        headline = $"{needsYouCount} item{(needsYouCount == 1 ? " needs" : "s need")} you before the next conference";
     }
-    else if (desk.NotReadyCount == 0)
+    else if (desk.TotalCount > 0)
     {
         headline = "Everything is ready for conference";
     }
+    else if (!deskIsEmpty)
+    {
+        headline = "Nothing needs you before the next conference";
+    }
     else
     {
-        headline = $"{desk.NotReadyCount} item{(desk.NotReadyCount == 1 ? " needs" : "s need")} you before the next conference";
+        headline = "Nothing is assigned to you yet";
     }
 
-    var subline = desk.TotalCount == 0
-        ? "Projects, ideas and tasks assigned to you will appear here."
-        : desk.NotReadyCount == 0
-            ? $"All {desk.TotalCount} item{(desk.TotalCount == 1 ? " is" : "s are")} ready. Nothing needs you before the next conference."
-            : $"{desk.ReadyCount} of {desk.TotalCount} ready for conference. Most of the rest can be finished on this page.";
+    var sublineParts = new List<string>();
+    if (deskIsEmpty)
+    {
+        sublineParts.Add("Projects, ideas and tasks assigned to you will appear here.");
+    }
+    else
+    {
+        if (desk.TotalCount > 0)
+        {
+            sublineParts.Add(desk.NotReadyCount == 0
+                ? $"All {desk.TotalCount} item{(desk.TotalCount == 1 ? " is" : "s are")} ready for conference."
+                : $"{desk.ReadyCount} of {desk.TotalCount} ready for conference.");
+        }
+        if (completedNeedsYou > 0)
+        {
+            sublineParts.Add($"{completedNeedsYou} recently completed project{(completedNeedsYou == 1 ? " has" : "s have")} a direction to answer.");
+        }
+        if (needsYouCount > 0)
+        {
+            sublineParts.Add("Most of it can be finished on this page.");
+        }
+    }
+    var subline = string.Join(" ", sublineParts);
 
     async Task Card(BriefingDeskItemVm item)
     {
@@ -85,7 +113,7 @@
 
     <div class="bd-layout">
         <div class="bd-main">
-            @if (desk.TotalCount == 0)
+            @if (deskIsEmpty)
             {
                 <div class="bd-empty">
                     <i class="bi bi-inbox" aria-hidden="true"></i>
@@ -144,7 +172,6 @@
 
             @if (desk.RecentlyCompleted.Any())
             {
-                var completedNeedsYou = desk.RecentlyCompleted.Count(item => !item.IsBriefReady);
                 <details class="bd-completed" open="@(completedNeedsYou > 0 || desk.RecentlyCompleted.Any(item => item.AnchorId == Model.Focus) ? "open" : null)">
                     <summary>
                         <span class="bd-completed__title" id="bd-section-completed">Recently completed</span>

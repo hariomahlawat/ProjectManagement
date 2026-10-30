@@ -285,6 +285,22 @@ public class ActionTaskServiceTests
     }
 
     [Fact]
+    public async Task SubmitTaskAsync_RejectsRemarksLongerThanTheAuditLogHolds()
+    {
+        // The submit remarks are also written to ActionTaskAuditLog.Remarks (2000 characters);
+        // longer remarks used to fail the save with a database error.
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SubmitTaskAsync(task.Id, task.RowVersion, "assignee", RoleNames.Ta, new string('x', 2001)));
+
+        Assert.Equal("Remarks cannot exceed 2000 characters.", ex.Message);
+        Assert.Equal(ActionTaskStatuses.InProgress, (await db.ActionTasks.SingleAsync(x => x.Id == task.Id)).Status);
+    }
+
+    [Fact]
     public async Task CloseTaskDirectlyAsync_RejectsOverlengthClosureRemarksBeforeSaving()
     {
         // SECTION: Arrange

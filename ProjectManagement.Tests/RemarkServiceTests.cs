@@ -23,6 +23,26 @@ namespace ProjectManagement.Tests;
 public sealed class RemarkServiceTests
 {
     [Fact]
+    public async Task CreateRemarkAsync_RefusesABodyThatOverflowsOnceEncoded()
+    {
+        // 3600 characters as typed; "&" is stored as "&amp;", so it no longer fits the 4000-character column.
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 10);
+        var clock = FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0);
+        var service = CreateService(db, clock, out _, out _);
+        var actor = new RemarkActorContext("user-1", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
+        var body = string.Concat(Enumerable.Repeat("A&B ", 900));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateRemarkAsync(
+            new CreateRemarkRequest(10, actor, RemarkType.Internal, RemarkScope.General, body, new DateOnly(2024, 9, 30), null, null, null),
+            CancellationToken.None));
+
+        Assert.Contains("too long", ex.Message);
+        Assert.Empty(db.Remarks);
+    }
+
+    [Fact]
     public async Task CreateRemarkAsync_AllowsInternalForRecognisedRole()
     {
         await using var scope = await CreateContextAsync();

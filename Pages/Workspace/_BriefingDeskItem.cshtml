@@ -1,4 +1,5 @@
 @using ProjectManagement.Infrastructure
+@using ProjectManagement.Services.Workspace
 @using ProjectManagement.ViewModels.Workspace
 @model BriefingDeskItemRenderVm
 @{
@@ -196,7 +197,7 @@
                                     <input type="hidden" name="itemId" value="@item.ItemId" />
                                     <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
                                     <label for="@anchor-submit-note">Closure note</label>
-                                    <textarea id="@anchor-submit-note" name="note" rows="3" maxlength="4000" required placeholder="What was delivered, and where it is recorded.">@submitDraft</textarea>
+                                    <textarea id="@anchor-submit-note" name="note" rows="3" maxlength="@BriefingDeskCommandService.MaxTaskNoteLength" required placeholder="What was delivered, and where it is recorded.">@submitDraft</textarea>
                                     <button type="submit" class="bd-btn bd-btn--primary">Submit to assigner</button>
                                 </form>
                             </details>
@@ -209,7 +210,7 @@
                                     <input type="hidden" name="itemId" value="@item.ItemId" />
                                     <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
                                     <label for="@anchor-blocked-note">What is blocking it?</label>
-                                    <textarea id="@anchor-blocked-note" name="note" rows="3" maxlength="4000" required placeholder="The blocker, and who can clear it.">@blockedDraft</textarea>
+                                    <textarea id="@anchor-blocked-note" name="note" rows="3" maxlength="@BriefingDeskCommandService.MaxTaskNoteLength" required placeholder="The blocker, and who can clear it.">@blockedDraft</textarea>
                                     <button type="submit" class="bd-btn bd-btn--danger">Flag blocked</button>
                                 </form>
                             </details>

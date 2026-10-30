@@ -138,7 +138,7 @@ function ajaxCard(id, { open = true, title = 'Night sight', body = '' } = {}) {
 }
 
 function fragmentResponse(html, { message = 'Update posted.', ready = false } = {}) {
-    const headers = { 'X-Desk-Fragment': '1', 'X-Desk-Message': encodeURIComponent(message), 'X-Desk-Item-Ready': ready ? 'true' : 'false' };
+    const headers = { 'X-Desk-Fragment': '1', 'X-Desk-Message': encodeURIComponent(message), 'X-Desk-Became-Ready': ready ? 'true' : 'false' };
     return { ok: true, status: 200, redirected: false, headers: { get: (name) => headers[name] ?? null }, text: async () => html };
 }
 
@@ -232,4 +232,38 @@ test('the swapped-in desk has its procurement rupee previews bound again', async
 
     assert.equal(bound.length, 1);
     assert.ok(bound[0].matches('[data-briefing-desk][data-fresh]'));
+});
+
+test('the post tells the server whether the card was already ready', async () => {
+    const window = createDom(ajaxCard('desk-project-1').replace('data-bd-card', 'data-bd-card data-bd-ready="true"'));
+    let sent;
+    window.fetch = async (url, options) => { sent = options.headers; return fragmentResponse(`<div data-briefing-desk>${ajaxCard('desk-project-1')}</div>`); };
+
+    submitFirstForm(window);
+    await settle(window);
+
+    assert.equal(sent['X-Desk-Was-Ready'], 'true');
+});
+
+test('a failure while showing a saved post does not invite a second post', async () => {
+    const window = createDom(ajaxCard('desk-project-1', { body: 'My remark' }));
+    // The swap succeeds but a later step throws; the script then reloads (jsdom only logs that).
+    window.ProcurementInrPreview = { init: () => { throw new Error('boom'); } };
+    window.fetch = async () => fragmentResponse(`<div data-briefing-desk>${ajaxCard('desk-project-1')}</div>`);
+
+    const form = submitFirstForm(window);
+    await settle(window);
+
+    // Not treated as a network failure: no "post again" message and the old button is not freed.
+    assert.equal(window.document.querySelector('[data-bd-toasts]').children.length, 0);
+    assert.equal(form.querySelector('button[type="submit"]').disabled, true);
+});
+
+test('the toast container exists, empty, before the first message', () => {
+    const window = createDom(ajaxCard('desk-project-1'));
+    const container = window.document.querySelector('[data-bd-toasts]');
+
+    assert.ok(container);
+    assert.equal(container.children.length, 0);
+    assert.equal(container.getAttribute('aria-live'), 'polite');
 });
