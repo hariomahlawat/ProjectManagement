@@ -7,6 +7,9 @@
         module.exports = api;
     }
     if (root && root.document) {
+        // Exposed so a page that swaps in new procurement fields (the briefing desk after a
+        // post without a reload) can bind them too.
+        root.ProcurementInrPreview = api;
         api.init(root.document);
     }
 }(typeof window !== 'undefined' ? window : null, function () {
@@ -78,10 +81,11 @@
         update();
     }
 
-    function init(doc) {
-        const run = () => doc.querySelectorAll('[data-inr-preview-source]').forEach(bind);
-        if (doc.readyState === 'loading') {
-            doc.addEventListener('DOMContentLoaded', run, { once: true });
+    // root is a document, or an element already in the document (newly inserted content).
+    function init(root) {
+        const run = () => root.querySelectorAll('[data-inr-preview-source]').forEach(bind);
+        if (root.readyState === 'loading') {
+            root.addEventListener('DOMContentLoaded', run, { once: true });
         } else {
             run();
         }

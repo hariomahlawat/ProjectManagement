@@ -146,6 +146,11 @@
 
         current.replaceWith(fresh);
         wireDesk(fresh);
+        // The procurement drawers are part of the desk; their rupee previews bind per field,
+        // so the new fields are bound here (procurement-inr-preview.js).
+        if (window.ProcurementInrPreview && typeof window.ProcurementInrPreview.init === 'function') {
+            window.ProcurementInrPreview.init(fresh);
+        }
 
         const card = document.getElementById(anchor);
         const title = card ? card.dataset.bdTitle : '';

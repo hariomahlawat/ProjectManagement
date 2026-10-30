@@ -220,3 +220,16 @@ test('a network failure is never resent: the text stays and the button is freed'
     assert.equal(form.querySelector('button[type="submit"]').disabled, false);
     assert.match(window.document.querySelector('[data-bd-toasts]').textContent, /could not be reached/);
 });
+
+test('the swapped-in desk has its procurement rupee previews bound again', async () => {
+    const window = createDom(ajaxCard('desk-project-1'));
+    const bound = [];
+    window.ProcurementInrPreview = { init: (root) => bound.push(root) };
+    window.fetch = async () => fragmentResponse(`<div data-briefing-desk data-fresh>${ajaxCard('desk-project-1')}</div>`);
+
+    submitFirstForm(window);
+    await settle(window);
+
+    assert.equal(bound.length, 1);
+    assert.ok(bound[0].matches('[data-briefing-desk][data-fresh]'));
+});
