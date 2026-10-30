@@ -151,7 +151,7 @@
                 <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
                 <input type="hidden" name="status" value="@ActionTaskStatuses.Blocked" />
                 <div class="at-task-action-copy"><strong>Block task</strong><span>Record the blocker so the next action is clear.</span></div>
-                <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="What is blocking progress?"></textarea></div>
+                <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="2000" required placeholder="What is blocking progress?"></textarea></div>
                 <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-warning btn-sm">Mark blocked</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
             </form>
         </section>
@@ -165,7 +165,7 @@
                 <input type="hidden" name="id" value="@task.Id" />
                 <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
                 <div class="at-task-action-copy"><strong>Submit for closure</strong><span>Record what has been completed for command review.</span></div>
-                <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="Completion remarks"></textarea></div>
+                <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="2000" required placeholder="Completion remarks"></textarea></div>
                 <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Submit for closure</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
             </form>
         </section>
@@ -179,7 +179,7 @@
                 <input type="hidden" name="id" value="@task.Id" />
                 <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
                 <div class="at-task-action-copy"><strong>Return for action</strong><span>Record the further direction before reopening work.</span></div>
-                <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="Further direction / reason for return"></textarea></div>
+                <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="2000" required placeholder="Further direction / reason for return"></textarea></div>
                 <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Return for action</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
             </form>
         </section>

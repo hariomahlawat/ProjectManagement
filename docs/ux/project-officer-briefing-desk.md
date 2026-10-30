@@ -59,9 +59,18 @@ optional and are not asked for on the desk.
 **Wording.** On screen, "brief-ready" is **Ready for conference** (pill: "Ready"). The code
 keeps the name `IsBriefReady`.
 
+**Lengths.** The update box takes up to 4000 characters. A closure note or a blocker takes up to
+2000, because `ActionTaskService` also writes it to the task's audit log (2000-character
+`Remarks`). A project remark is checked again after `RemarkService` encodes `&`, `<` and `>`, so
+one that would overflow the stored 4000 characters is refused with a reason rather than failing
+the save. "Flag blocked" on a task that is already blocked is refused ("Post the new reason as
+progress instead"), because the task service would save nothing.
+
 **Layout** (changed 2026-10-29).
 - The headline leads with what needs the PO ("3 items need you before the next conference");
-  the line under it gives the ready count.
+  the line under it gives the ready count. A recently completed project with a direction to
+  answer counts as needing the PO here (and the line says so), though it never counts towards
+  ready for conference; the empty state shows only when there is nothing at all.
 - In each section, items that need the PO are full cards, first one open. Ready items sit in a
   folded group under them, opened from a quiet "N ready for conference" line (not a bar), one
   line each. The group opens by itself when a post,
@@ -120,14 +129,18 @@ are unchanged. The desk adds its own check that the item is assigned to the sign
 redirect they answer with:
 - **Success:** the desk re-rendered by `_ProjectOfficerBriefingDesk` (header `X-Desk-Fragment: 1`),
   which replaces the desk on the page. The readiness rules stay in `BriefingDeskBuilder`; the
-  script repeats none of them. A card that still needs work stays open and is highlighted; a
-  card now ready folds into its "ready for conference" group (`X-Desk-Item-Ready: true`), the
-  group line is highlighted, the next card that needs work is open and has focus, and a toast
-  says the item is ready.
+  script repeats none of them. The script sends whether the card was ready before the post
+  (`X-Desk-Was-Ready`). Only a card the post made ready (`X-Desk-Became-Ready: true`) folds into
+  its "ready for conference" group: the group line is highlighted, the next card that needs
+  work is open and has focus, and a toast says the item is ready. Any other card (still needs
+  work, already ready, or a recently completed project) stays open where it is, highlighted,
+  with focus.
 - **Refused:** a JSON reason (422, or 403/404), shown as a toast. The typed text stays in its
   box and the button is freed.
 - **Anything else** (signed out, a server error): the page is loaded again with a GET. A network
-  failure shows a message and keeps the text. The post is never sent a second time.
+  failure shows a message and keeps the text. A failure while showing an answered post (for
+  example while swapping the desk in) also reloads, since the post may have been saved. The
+  post is never sent a second time.
 
 Without script the forms are ordinary posts: a refused one returns to the same card with the
 typed text back in the box it came from (the update box, the closure note or the blocker, with

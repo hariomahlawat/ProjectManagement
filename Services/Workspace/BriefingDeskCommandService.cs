@@ -42,6 +42,10 @@ public sealed class BriefingDeskCommandService
 {
     public const int MaxBodyLength = 4000;
 
+    // A closure note or a blocker is also written to the task's audit log, which holds 2000
+    // characters (ActionTaskService refuses longer), so the desk asks for no more than that.
+    public const int MaxTaskNoteLength = 2000;
+
     private readonly ApplicationDbContext _db;
     private readonly IRemarkService _remarks;
     private readonly ProjectIdeaCommandService _ideaCommands;
@@ -174,7 +178,7 @@ public sealed class BriefingDeskCommandService
         string? remarks,
         CancellationToken ct)
     {
-        if (!TryNormalizeBody(remarks, out var text, out var error, "Add a closure note.")) return error!;
+        if (!TryNormalizeBody(remarks, out var text, out var error, "Add a closure note.", MaxTaskNoteLength)) return error!;
         var (role, denied) = await AuthorizeTaskAsync(user, userId, taskId, ct);
         if (denied is not null) return denied;
 
@@ -198,9 +202,21 @@ public sealed class BriefingDeskCommandService
         string? reason,
         CancellationToken ct)
     {
-        if (!TryNormalizeBody(reason, out var text, out var error, "Say what is blocking the task.")) return error!;
+        if (!TryNormalizeBody(reason, out var text, out var error, "Say what is blocking the task.", MaxTaskNoteLength)) return error!;
         var (role, denied) = await AuthorizeTaskAsync(user, userId, taskId, ct);
         if (denied is not null) return denied;
+
+        // ActionTaskService treats Blocked to Blocked as nothing to do and saves no reason, so a
+        // stale page would report success and lose the text. Say so instead.
+        var status = await _db.ActionTasks
+            .AsNoTracking()
+            .Where(t => t.Id == taskId)
+            .Select(t => t.Status)
+            .FirstOrDefaultAsync(ct);
+        if (string.Equals(status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+        {
+            return BriefingDeskCommandResult.Invalid("This task is already flagged blocked. Post the new reason as progress instead.");
+        }
 
         try
         {
@@ -239,7 +255,8 @@ public sealed class BriefingDeskCommandService
         string? body,
         out string text,
         out BriefingDeskCommandResult? error,
-        string emptyMessage = "Write something before posting.")
+        string emptyMessage = "Write something before posting.",
+        int maxLength = MaxBodyLength)
     {
         text = body?.Trim() ?? string.Empty;
         error = null;
@@ -249,9 +266,9 @@ public sealed class BriefingDeskCommandService
             return false;
         }
 
-        if (text.Length > MaxBodyLength)
+        if (text.Length > maxLength)
         {
-            error = BriefingDeskCommandResult.Invalid($"Keep it under {MaxBodyLength} characters.");
+            error = BriefingDeskCommandResult.Invalid($"Keep it to {maxLength} characters or fewer.");
             return false;
         }
 

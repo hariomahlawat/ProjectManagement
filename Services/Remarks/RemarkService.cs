@@ -85,6 +85,7 @@ public sealed class RemarkService : IRemarkService
         {
             throw new InvalidOperationException("Remark body cannot be empty after sanitisation.");
         }
+        EnsureStoredBodyFits(processedBody.Body);
 
         var stage = await ResolveStageForCreateAsync(
             request.ProjectId,
@@ -283,6 +284,7 @@ public sealed class RemarkService : IRemarkService
         {
             throw new InvalidOperationException("Remark body cannot be empty after sanitisation.");
         }
+        EnsureStoredBodyFits(processedBody.Body);
 
         var stage = remark.Type == RemarkType.Conference
             ? (StageRef: remark.StageRef, StageNameSnapshot: remark.StageNameSnapshot)
@@ -456,6 +458,20 @@ public sealed class RemarkService : IRemarkService
         if (eventDate > today)
         {
             throw new InvalidOperationException("Event date cannot be in the future.");
+        }
+    }
+
+    // Remark.Body holds 4000 characters. Sanitising encodes &, < and > (for example & becomes
+    // &amp;), so text under the limit as typed can exceed it as stored; refuse it with a reason
+    // instead of failing the save.
+    private const int MaxStoredBodyLength = 4000;
+
+    private static void EnsureStoredBodyFits(string storedBody)
+    {
+        if (storedBody.Length > MaxStoredBodyLength)
+        {
+            throw new InvalidOperationException(
+                "This remark is too long once characters such as &, < and > are stored. Shorten it and post again.");
         }
     }
 

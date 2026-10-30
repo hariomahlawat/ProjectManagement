@@ -83,20 +83,28 @@
     // SECTION: Toasts
     // The same markup as the server's toasts (_Toasts.cshtml), for messages from a post that
     // did not reload the page.
-    function showToast(message, level) {
+    // The container is created empty when the desk loads: a live region that appears already
+    // holding its message is often not announced by screen readers.
+    function toastContainer() {
         let container = document.querySelector('[data-bd-toasts]');
         if (!container) {
             container = document.createElement('div');
             container.className = 'toast-container position-fixed top-0 end-0 p-3 app-toast-container';
             container.setAttribute('data-bd-toasts', '');
             container.setAttribute('aria-live', 'polite');
-            container.setAttribute('aria-atomic', 'true');
             document.body.appendChild(container);
         }
+        return container;
+    }
 
+    function showToast(message, level) {
+        const container = toastContainer();
         const toast = document.createElement('div');
         toast.className = 'toast show app-toast app-toast-' + level;
-        toast.setAttribute('role', level === 'danger' ? 'alert' : 'status');
+        // The container announces a success politely; a refusal interrupts as an alert.
+        if (level === 'danger') {
+            toast.setAttribute('role', 'alert');
+        }
         toast.innerHTML = '<div class="toast-header"><span class="app-toast-indicator" aria-hidden="true"></span>'
             + '<strong class="me-auto"></strong>'
             + '<button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button></div>'
@@ -192,13 +200,15 @@
         const anchor = card.id;
         const headers = {};
         headers[DESK_FETCH_HEADER] = 'fetch';
+        // Lets the server tell "this post made the card ready" from "it was ready already".
+        headers['X-Desk-Was-Ready'] = card.dataset.bdReady === 'true' ? 'true' : 'false';
 
         window.fetch(form.action, { method: 'POST', body: new window.FormData(form), headers: headers, credentials: 'same-origin' })
             .then(function (response) {
                 if (response.ok && response.headers.get('X-Desk-Fragment') === '1') {
                     return response.text().then(function (html) {
                         const message = decodeURIComponent(response.headers.get('X-Desk-Message') || '') || 'Saved.';
-                        if (!swapDesk(html, anchor, message, response.headers.get('X-Desk-Item-Ready') === 'true')) {
+                        if (!swapDesk(html, anchor, message, response.headers.get('X-Desk-Became-Ready') === 'true')) {
                             window.location.reload();
                         }
                     });
@@ -219,11 +229,17 @@
                     window.location.reload();
                 }
                 return undefined;
-            })
-            .catch(function () {
-                // The request may not have reached PRISM, so nothing is resent automatically.
+            }, function () {
+                // Only a failed request lands here: it may not have reached PRISM, so nothing is
+                // resent automatically and the text stays in the box.
                 releaseButton(form);
                 showToast('PRISM could not be reached. Check the connection and post again; your text is still in the box.', 'danger');
+            })
+            .catch(function () {
+                // The post was answered but showing the result failed (for example while swapping
+                // the desk in). It may well have been saved, so load the page again rather than
+                // invite a second post.
+                window.location.reload();
             });
     }
 
@@ -238,6 +254,7 @@
         }
 
         wireDesk(desk);
+        toastContainer();
         // Delegated, so forms in a swapped-in desk are handled too.
         document.addEventListener('submit', postWithoutReload);
 

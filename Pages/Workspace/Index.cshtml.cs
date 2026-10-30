@@ -31,7 +31,10 @@ public class IndexModel : PageModel
     public const string DeskFetchValue = "fetch";
     public const string DeskFragmentHeader = "X-Desk-Fragment";
     public const string DeskMessageHeader = "X-Desk-Message";
-    public const string DeskItemReadyHeader = "X-Desk-Item-Ready";
+    // Sent by the script: whether the card was ready before the post. Answered: whether the post
+    // made it ready, so only that case folds the card away.
+    public const string DeskWasReadyHeader = "X-Desk-Was-Ready";
+    public const string DeskBecameReadyHeader = "X-Desk-Became-Ready";
 
     public ProjectOfficerWorkspaceVm Workspace { get; private set; } = new();
     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
@@ -411,15 +414,17 @@ public class IndexModel : PageModel
         var desk = Workspace.BriefingDesk;
         var item = desk.Sections
             .SelectMany(section => section.Items)
-            .Concat(desk.RecentlyCompleted)
             .FirstOrDefault(candidate => candidate.AnchorId == anchor);
-        // A card that still needs work stays open; one now ready folds away and the next opens.
-        var ready = item?.IsBriefReady ?? false;
-        Focus = ready ? null : anchor;
+        // Only a card the post made ready folds away (and the next card opens). A card that was
+        // already ready, still needs work, or is a recently completed project (never counted as
+        // ready for conference) stays open where it is.
+        var wasReady = string.Equals(Request.Headers[DeskWasReadyHeader], "true", StringComparison.Ordinal);
+        var becameReady = item is { IsBriefReady: true } && !wasReady;
+        Focus = becameReady ? null : anchor;
 
         Response.Headers[DeskFragmentHeader] = "1";
         Response.Headers[DeskMessageHeader] = Uri.EscapeDataString(message);
-        Response.Headers[DeskItemReadyHeader] = ready ? "true" : "false";
+        Response.Headers[DeskBecameReadyHeader] = becameReady ? "true" : "false";
         Response.Headers.CacheControl = "no-store";
         return Partial("_ProjectOfficerBriefingDesk", this);
     }

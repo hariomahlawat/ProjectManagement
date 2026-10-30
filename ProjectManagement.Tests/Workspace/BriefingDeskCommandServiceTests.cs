@@ -185,6 +185,34 @@ public sealed class BriefingDeskCommandServiceTests
         Assert.Equal("This task was updated by another user.", result.Message);
     }
 
+    [Fact]
+    public async Task SubmitTask_ClosureNoteOverTheAuditLimit_IsInvalidBeforeTheTaskServiceIsCalled()
+    {
+        await using var scope = await TestScope.CreateAsync();
+
+        var note = new string('x', BriefingDeskCommandService.MaxTaskNoteLength + 1);
+        var result = await scope.Service.SubmitTaskAsync(Officer(), OfficerId, scope.TaskId, "AQI=", note, CancellationToken.None);
+
+        Assert.Equal(BriefingDeskCommandOutcome.Invalid, result.Outcome);
+        Assert.Contains("2000 characters", result.Message);
+        Assert.Empty(scope.TaskCalls.Calls);
+    }
+
+    [Fact]
+    public async Task FlagBlocked_OnAnAlreadyBlockedTask_IsRefusedInsteadOfDroppingTheReason()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var task = await scope.Db.ActionTasks.SingleAsync(t => t.Id == scope.TaskId);
+        task.Status = ActionTaskStatuses.Blocked;
+        await scope.Db.SaveChangesAsync();
+
+        var result = await scope.Service.FlagTaskBlockedAsync(Officer(), OfficerId, scope.TaskId, "AQI=", "New blocker.", CancellationToken.None);
+
+        Assert.Equal(BriefingDeskCommandOutcome.Invalid, result.Outcome);
+        Assert.Contains("already flagged blocked", result.Message);
+        Assert.Empty(scope.TaskCalls.Calls);
+    }
+
     // SECTION: Test scope
     private static ClaimsPrincipal Officer(string userId = OfficerId) => Principal(userId, RoleNames.ProjectOfficer);
 
