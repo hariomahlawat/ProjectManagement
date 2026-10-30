@@ -68,7 +68,6 @@ public sealed class CommandDeskModel : PageModel
             ActiveItem = "command-desk",
             ProjectOfficerCount = navigation.ProjectOfficerCount,
             TotalOngoingProjects = navigation.TotalOngoingProjects,
-            ActionQueueCount = personal.ActionQueueBadgeCount,
             AssignedProjectCount = personal.AssignedProjectCount,
             AssignedTaskCount = personal.OfficialTaskCount,
             AssignedIdeaCount = personal.AssignedIdeaCount,

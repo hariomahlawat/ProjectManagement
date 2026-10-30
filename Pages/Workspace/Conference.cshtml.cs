@@ -112,7 +112,6 @@ public sealed class ConferenceModel : PageModel
                 ? OfficerOptions.Count
                 : navigation.ProjectOfficerCount,
             TotalOngoingProjects = navigation.TotalOngoingProjects,
-            ActionQueueCount = personalNavigation.ActionQueueBadgeCount,
             AssignedProjectCount = personalNavigation.AssignedProjectCount,
             AssignedTaskCount = personalNavigation.OfficialTaskCount,
             AssignedIdeaCount = personalNavigation.AssignedIdeaCount,

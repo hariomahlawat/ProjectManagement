@@ -134,6 +134,7 @@
                 {
                     <form method="post"
                           class="bd-say"
+                          data-bd-ajax
                           asp-page="/Workspace/Index"
                           asp-page-handler="@handler"
                           asp-route-mode="project-officer">
@@ -191,7 +192,7 @@
                         {
                             <details class="bd-task-action" open="@(submitDraft is null ? null : "open")">
                                 <summary class="bd-btn bd-btn--approval">Submit for closure</summary>
-                                <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskSubmit" asp-route-mode="project-officer" class="bd-task-action__form">
+                                <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskSubmit" asp-route-mode="project-officer" class="bd-task-action__form" data-bd-ajax>
                                     <input type="hidden" name="itemId" value="@item.ItemId" />
                                     <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
                                     <label for="@anchor-submit-note">Closure note</label>
@@ -204,7 +205,7 @@
                         {
                             <details class="bd-task-action" open="@(blockedDraft is null ? null : "open")">
                                 <summary class="bd-btn bd-btn--danger-outline">Flag blocked</summary>
-                                <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskBlocked" asp-route-mode="project-officer" class="bd-task-action__form">
+                                <form method="post" asp-page="/Workspace/Index" asp-page-handler="DeskTaskBlocked" asp-route-mode="project-officer" class="bd-task-action__form" data-bd-ajax>
                                     <input type="hidden" name="itemId" value="@item.ItemId" />
                                     <input type="hidden" name="rowVersion" value="@item.TaskRowVersion" />
                                     <label for="@anchor-blocked-note">What is blocking it?</label>

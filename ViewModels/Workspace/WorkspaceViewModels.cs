@@ -14,16 +14,13 @@ public sealed class ProjectOfficerWorkspaceVm
     public string RecordHealthSummaryLabel { get; set; } = "Good";
     public int AssignedProjectCount { get; set; }
     public int PendingWithMeCount { get; set; }
-    public int DailyActionCount { get; set; }
     public int OverdueTaskCount { get; set; }
     public int RecordGapCount { get; set; }
     public int ProjectsNeedingAttentionCount { get; set; }
     public int ProjectTimelineIssueCount { get; set; }
     public int AssignedIdeaCount { get; set; }
     public int UpcomingEventCount { get; set; }
-    public int PendingConferenceDirectionCount { get; set; }
     public int AotsUnreadCount { get; set; }
-    public int? NavigationActionCount { get; set; }
     public int? NavigationFollowUpCount { get; set; }
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
@@ -35,121 +32,13 @@ public sealed class ProjectOfficerWorkspaceVm
     public WorkspaceDataCompletenessInsightVm DataCompletenessInsight { get; set; } = new();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
-    public IReadOnlyList<WorkspaceActionQueueItemVm> ActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
-    public IReadOnlyList<WorkspaceActionQueueGroupVm> ActionQueueGroups { get; set; } = Array.Empty<WorkspaceActionQueueGroupVm>();
-    public IReadOnlyList<WorkspaceActionQueueItemVm> AllActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
-    public IReadOnlyList<WorkspaceActionQueueGroupVm> AllActionQueueGroups { get; set; } = Array.Empty<WorkspaceActionQueueGroupVm>();
-    public int ActionQueueTotalCount { get; set; }
-    public int ActionProjectCount { get; set; }
-    public int ActionIdeaCount { get; set; }
-    public int ActionTaskCount { get; set; }
-    public WorkspaceActionQueueSummaryVm ActionSummary { get; set; } = new();
-
-    public string ActionHeadline => ActionQueueTotalCount switch
-    {
-        0 when RecordGapCount == 1 => "1 record gap requires attention",
-        0 when RecordGapCount > 1 => $"{RecordGapCount} record gaps require attention",
-        0 => "Your workspace is clear",
-        1 => "1 action requires attention",
-        _ => $"{ActionQueueTotalCount} actions require attention"
-    };
 
     public int FollowUpCount => NavigationFollowUpCount
         ?? PersonalReminders.Count;
 
-    public int? ActionQueueBadgeCount
-    {
-        get
-        {
-            var count = NavigationActionCount ?? ActionQueueTotalCount;
-            return count > 0 ? count : null;
-        }
-    }
-
-    public string OperationalSummary
-    {
-        get
-        {
-            var scope = new List<string>();
-            var projectCount = ActionSummary.ProjectCount > 0 ? ActionSummary.ProjectCount : ActionProjectCount;
-            var ideaCount = ActionSummary.IdeaCount > 0 ? ActionSummary.IdeaCount : ActionIdeaCount;
-            var taskCount = ActionSummary.TaskCount > 0 ? ActionSummary.TaskCount : ActionTaskCount;
-
-            if (projectCount > 0)
-            {
-                scope.Add($"{projectCount} project{(projectCount == 1 ? string.Empty : "s")}");
-            }
-
-            if (ideaCount > 0)
-            {
-                scope.Add($"{ideaCount} idea{(ideaCount == 1 ? string.Empty : "s")}");
-            }
-
-            if (taskCount > 0)
-            {
-                scope.Add($"{taskCount} task{(taskCount == 1 ? string.Empty : "s")}");
-            }
-
-            var parts = new List<string>();
-            if (scope.Count > 0)
-            {
-                parts.Add($"Across {JoinHumanReadable(scope)}");
-            }
-            else if (AssignedProjectCount > 0 && ActionQueueTotalCount == 0)
-            {
-                parts.Add($"Across {AssignedProjectCount} project{(AssignedProjectCount == 1 ? string.Empty : "s")}");
-            }
-
-            AddCount(parts, ActionSummary.ReturnedCount, "returned item", "returned items");
-            AddCount(parts, ActionSummary.OverdueTaskCount, "overdue task", "overdue tasks");
-            AddCount(parts,
-                ActionSummary.ConferenceDirectionCount > 0 ? ActionSummary.ConferenceDirectionCount : PendingConferenceDirectionCount,
-                "conference direction",
-                "conference directions");
-            AddCount(parts,
-                ActionSummary.TimelineCount > 0 ? ActionSummary.TimelineCount : ProjectTimelineIssueCount,
-                "timeline action",
-                "timeline actions");
-            AddCount(parts, ActionSummary.ProjectUpdateCount, "overdue update", "overdue updates");
-            AddCount(parts, ActionSummary.IdeaUpdateCount, "idea update", "idea updates");
-            AddCount(parts, ActionSummary.DueSoonTaskCount, "task due soon", "tasks due soon");
-            AddCount(parts, ActionSummary.AotsCount, "AOTS document", "AOTS documents");
-
-            if (RecordGapCount > 0)
-            {
-                AddCount(parts, RecordGapCount, "record gap", "record gaps");
-            }
-
-            return parts.Count == 0 ? "No immediate action required" : string.Join(" · ", parts);
-        }
-    }
-
-    private static void AddCount(ICollection<string> parts, int count, string singular, string plural)
-    {
-        if (count > 0)
-        {
-            parts.Add($"{count} {(count == 1 ? singular : plural)}");
-        }
-    }
-
-    private static string JoinHumanReadable(IReadOnlyList<string> values) => values.Count switch
-    {
-        0 => string.Empty,
-        1 => values[0],
-        2 => $"{values[0]} and {values[1]}",
-        _ => $"{string.Join(", ", values.Take(values.Count - 1))} and {values[^1]}"
-    };
-
-    public int ActionQueueHiddenCount => Math.Max(0, ActionQueueTotalCount - ActionQueue.Sum(item => item.RepresentedActionCount));
-    public IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
-    public IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue { get; set; } = Array.Empty<WorkspaceTaskVm>();
-    public IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate { get; set; } = Array.Empty<WorkspaceIdeaVm>();
     public IReadOnlyList<WorkspaceAotsDocumentVm> AotsDocuments { get; set; } = Array.Empty<WorkspaceAotsDocumentVm>();
-    public IReadOnlyList<WorkspaceAttentionItemVm> ReturnedItems { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> TimelineAlerts { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public int OfficialTaskCount { get; set; }
-    public int RemarksDueCount { get; set; }
-    public int IdeasNeedingUpdateCount { get; set; }
     public IReadOnlyList<WorkspaceAttentionItemVm> WaitingOnOthers { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceProjectMatrixRowVm> ProjectMatrix { get; set; } = Array.Empty<WorkspaceProjectMatrixRowVm>();
     public IReadOnlyList<WorkspaceTaskVm> OfficialTasks { get; set; } = Array.Empty<WorkspaceTaskVm>();
@@ -198,12 +87,6 @@ public sealed class ProjectOfficerDocumentListRenderVm
     public string EmptyTitle { get; init; } = "No documents";
     public string EmptyText { get; init; } = "Documents will appear here when available.";
     public string DateMode { get; init; } = "document";
-}
-
-public sealed class ProjectOfficerActionGroupsRenderVm
-{
-    public IReadOnlyList<WorkspaceActionQueueGroupVm> Groups { get; init; } = Array.Empty<WorkspaceActionQueueGroupVm>();
-    public bool ShowRecommended { get; init; } = true;
 }
 
 public sealed class ProjectOfficerProjectTableRenderVm
@@ -333,73 +216,6 @@ public sealed class WorkspaceConferenceDirectionActionVm
     public DateTime IssuedAtUtc { get; set; }
 
     public string ActionUrl { get; set; } = string.Empty;
-}
-
-public sealed class WorkspaceActionQueueItemVm
-{
-    public int? ProjectId { get; set; }
-
-    public string WorkItemKey { get; set; } = string.Empty;
-
-    public int RepresentedActionCount { get; set; } = 1;
-
-    public string Type { get; set; } = string.Empty;
-
-    public string BadgeText { get; set; } = string.Empty;
-
-    public string Title { get; set; } = string.Empty;
-
-    public string Detail { get; set; } = string.Empty;
-
-    public string Meta { get; set; } = string.Empty;
-
-    public string PriorityReason { get; set; } = string.Empty;
-
-    public string Severity { get; set; } = "Info";
-
-    public string ActionText { get; set; } = string.Empty;
-
-    public string ActionUrl { get; set; } = string.Empty;
-
-    public DateTime? SortDateUtc { get; set; }
-
-    // Lower values appear first in the unified action queue.
-    public int PriorityRank { get; set; } = 100;
-}
-
-public sealed class WorkspaceActionQueueGroupVm
-{
-    public string Key { get; set; } = string.Empty;
-
-    public int? ProjectId { get; set; }
-
-    public string Title { get; set; } = string.Empty;
-
-    public string PrimaryUrl { get; set; } = string.Empty;
-
-    public string Severity { get; set; } = "Info";
-
-    public bool IsRecommended { get; set; }
-
-    public IReadOnlyList<WorkspaceActionQueueItemVm> Actions { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
-
-    public int ActionCount => Actions.Sum(action => action.RepresentedActionCount);
-}
-
-public sealed class WorkspaceActionQueueSummaryVm
-{
-    public int TotalCount { get; set; }
-    public int ProjectCount { get; set; }
-    public int IdeaCount { get; set; }
-    public int TaskCount { get; set; }
-    public int ReturnedCount { get; set; }
-    public int OverdueTaskCount { get; set; }
-    public int ConferenceDirectionCount { get; set; }
-    public int TimelineCount { get; set; }
-    public int ProjectUpdateCount { get; set; }
-    public int IdeaUpdateCount { get; set; }
-    public int AotsCount { get; set; }
-    public int DueSoonTaskCount { get; set; }
 }
 
 public sealed class WorkspaceAttentionItemVm

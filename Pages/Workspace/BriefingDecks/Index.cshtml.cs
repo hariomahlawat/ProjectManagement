@@ -915,7 +915,6 @@ public sealed class IndexModel : PageModel
             ActiveItem = "command-briefing-decks",
             ProjectOfficerCount = navigation.ProjectOfficerCount,
             TotalOngoingProjects = navigation.TotalOngoingProjects,
-            ActionQueueCount = personalNavigation.ActionQueueBadgeCount,
             AssignedProjectCount = personalNavigation.AssignedProjectCount,
             AssignedTaskCount = personalNavigation.OfficialTaskCount,
             AssignedIdeaCount = personalNavigation.AssignedIdeaCount,

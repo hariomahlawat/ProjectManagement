@@ -56,3 +56,19 @@ test('updates the hint as the amount is typed and restores it when cleared', asy
     assert.equal(hint.textContent, 'In rupees.');
     assert.ok(!hint.classList.contains('text-danger'));
 });
+
+test('binds fields inside an element added after load', () => {
+    const dom = new JSDOM('<!DOCTYPE html><body><div id="host"></div></body>');
+    const doc = dom.window.document;
+    const host = doc.getElementById('host');
+    host.innerHTML = `
+        <input id="Input_L1Cost" aria-describedby="Input_L1Cost_Hint" data-inr-preview-source />
+        <div id="Input_L1Cost_Hint"><span data-inr-preview>In rupees.</span></div>`;
+
+    init(host);
+
+    const input = doc.getElementById('Input_L1Cost');
+    input.value = '48000000';
+    input.dispatchEvent(new dom.window.Event('input'));
+    assert.equal(doc.querySelector('[data-inr-preview]').textContent, 'Reads as ₹4.8 crore');
+});

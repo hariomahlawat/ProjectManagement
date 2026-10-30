@@ -1179,10 +1179,29 @@
     }
 }
 
+/* After a post that did not reload the page: the card (or the ready line it folded into) is
+   picked out briefly, so the PO sees where the change landed. */
+@keyframes bd-updated {
+    from { box-shadow: 0 0 0 3px var(--pm-success); background-color: var(--pm-success-soft-bg); }
+    to { box-shadow: 0 0 0 0 transparent; }
+}
+
+.bd-card--updated,
+.bd-ready > summary.bd-ready--updated {
+    animation: bd-updated 2s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .bd-card,
     .bd-card__chevron {
         transition: none;
+    }
+
+    .bd-card--updated,
+    .bd-ready > summary.bd-ready--updated {
+        animation: none;
+        outline: 2px solid var(--pm-success);
+        outline-offset: 2px;
     }
 }
 
