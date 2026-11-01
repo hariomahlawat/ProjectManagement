@@ -216,7 +216,8 @@
     grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:
         "title pill chevron"
-        "facts facts facts";
+        "facts facts facts"
+        "next next next";
     align-items: start;
     gap: 0.6rem 0.75rem;
     padding: 1rem 1.25rem 0.75rem;
@@ -403,12 +404,37 @@
     font-weight: 700;
 }
 
+/* The "Next:" line sits in the card head, under the tags; each step on it is a shortcut to
+   where it is done. */
 .bd-card__next {
+    grid-area: next;
     margin: 0;
-    padding: 0.7rem 1.25rem;
+    padding-top: 0.6rem;
     font-size: 0.875rem;
     color: var(--pm-text-slate);
     border-top: 1px solid var(--pm-border-subtle);
+}
+
+.bd-next__step {
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: var(--pm-primary-strong);
+    background: none;
+    border: 0;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.bd-next__step:hover,
+.bd-next__step:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.bd-next__sep {
+    margin-inline: 0.35rem;
+    color: var(--pm-text-secondary);
 }
 
 .bd-card.is-expanded .bd-card__next {
@@ -842,9 +868,13 @@
 .bd-card__foot {
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.75rem 1.25rem;
+}
+
+/* "Next to prepare" ends the footer, where the eye lands after the last step. */
+.bd-card__onward {
+    margin-left: auto;
 }
 
 /* SECTION: Buttons and links -------------------------------------------- */
@@ -1254,32 +1284,33 @@
 }
 
 /* SECTION: Wide screens -------------------------------------------------- */
-/* When the desk column has room (about 1920px screens and up), folded cards sit two to a row,
-   halving the scroll through a long desk. An open card spans the row, so the remark box and
-   the steps keep their width. */
+/* From a 48rem desk column (a laptop) a folded card is one band: the title over its tags on
+   the left, the "Next:" steps on the right. The desk stays one list, which scans faster than a
+   grid of cards and keeps a long desk to about one screen. */
+@container bd-main (min-width: 48rem) {
+    .bd-card:not(.is-expanded) .bd-card__head {
+        grid-template-columns: minmax(0, 1fr) minmax(0, max-content) auto auto;
+        grid-template-areas:
+            "title next pill chevron"
+            "facts next pill chevron";
+        column-gap: 1.25rem;
+    }
+
+    .bd-card:not(.is-expanded) .bd-card__next {
+        align-self: center;
+        max-width: 24rem;
+        padding-top: 0;
+        border-top: 0;
+        text-align: right;
+    }
+}
+
 @container bd-main (min-width: 68rem) {
-    .bd-section__items {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-items: start;
-    }
-
-    .bd-section__items > .bd-card.is-expanded {
-        grid-column: 1 / -1;
-    }
-
     /* In an open card the remark box and the steps sit side by side at equal width. */
     .bd-card__work {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 1.5rem;
-    }
-}
-
-/* Very wide desk column (2240px shell on a 2560px screen): three folded cards to a row. */
-@container bd-main (min-width: 100rem) {
-    .bd-section__items {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
@@ -1296,8 +1327,7 @@
         padding-inline: 1rem;
     }
 
-    .bd-strip,
-    .bd-card__next {
+    .bd-strip {
         padding-inline: 1rem;
     }
 

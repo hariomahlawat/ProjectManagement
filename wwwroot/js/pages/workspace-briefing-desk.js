@@ -266,6 +266,56 @@
         }
     }
 
+    // SECTION: Shortcuts to a step and to the next card
+    // A "Next:" step marked data-bd-go="say" opens its card with the cursor in the remark box
+    // (unfolding "Add another remark" when the box is folded); "open" just opens the card.
+    // "Next to prepare" (data-bd-go="next") closes the card it sits in and opens the next one.
+    // Panel steps are ordinary offcanvas buttons and plain links navigate, so neither is handled here.
+    function goToStep(event) {
+        const link = event.target instanceof window.Element ? event.target.closest('[data-bd-go]') : null;
+        if (!link) {
+            return;
+        }
+        const card = document.getElementById(link.getAttribute('data-bd-card-target') || '');
+        if (!card || !card.matches('[data-bd-card]')) {
+            return;
+        }
+
+        event.preventDefault();
+        const mode = link.getAttribute('data-bd-go');
+        const from = link.closest('[data-bd-card]');
+        if (mode === 'next' && from && from !== card) {
+            setExpanded(from, false);
+        }
+        // A ready card sits in the folded "Ready for conference" group; open it first.
+        const group = card.closest('details');
+        if (group) {
+            group.open = true;
+        }
+        setExpanded(card, true);
+        if (typeof card.scrollIntoView === 'function') {
+            card.scrollIntoView({ block: 'start' });
+        }
+
+        if (mode === 'say') {
+            const more = card.querySelector('[data-bd-say-more]');
+            if (more && !more.open) {
+                // Its toggle handler puts the cursor in the box.
+                more.open = true;
+                return;
+            }
+            const input = card.querySelector('textarea[name="body"]');
+            if (input) {
+                input.focus({ preventScroll: true });
+                return;
+            }
+        }
+        const toggle = card.querySelector('[data-bd-toggle]');
+        if (toggle) {
+            toggle.focus({ preventScroll: true });
+        }
+    }
+
     function wireDesk(desk) {
         desk.querySelectorAll('[data-bd-card]').forEach(wireCard);
     }
@@ -281,6 +331,7 @@
         // Delegated, so forms in a swapped-in desk are handled too.
         document.addEventListener('submit', postWithoutReload);
         document.addEventListener('click', confirmPlanStage);
+        document.addEventListener('click', goToStep);
 
         // A post returns here with the card's id in the hash: open it and move focus to it.
         const hash = window.location.hash ? window.location.hash.slice(1) : '';

@@ -78,7 +78,15 @@ works through them:
 
 **Next line.** A folded card's "Next:" line names the open steps. One reads in full ("Set DEVP
 PDC"); several are named briefly, in order ("Remark · Set DEVP PDC · Procurement",
-`BriefingDeskCheckVm.NextText`).
+`BriefingDeskCheckVm.NextText`). Each name is a shortcut to where the step is done (changed
+2026-11-01): the remark opens the card with the cursor in the box (unfolding "Add another
+remark" when the box is folded); a step with a side panel (PDC, procurement) opens the panel
+without opening the card; a step done elsewhere (the plan editor for an Admin or HoD, the
+project page for an unrecorded stage) is a link there; anything else opens the card.
+
+**Next to prepare.** An open card's footer ends with "Next to prepare", which closes the card and
+opens the next one that still needs the PO, in desk order, wrapping to the first. It is left out
+when only one card needs the PO.
 
 **Gaps that never block** (changed 2026-11-01). Completion dates of earlier stages (the
 `<STAGE>_ACTUAL_COMPLETION` gaps) are listed first under **Improve the record**, with their date
@@ -243,9 +251,10 @@ done step on the card, and a plan shows there only when it answers a missing PDC
 ## Wide screens
 
 The cards follow the width of the desk column (a CSS container query on `.bd-main`), not the
-window. From a 68rem column (about a 1920px screen) folded cards sit two to a row and an open
-card spans the row, with its remark box and steps side by side; from 100rem (a 2560px screen)
-three to a row. The My Workspace shell is capped at 140rem (2240px; `--pm-shell-desk`), shared
+window. The desk is always one list (changed 2026-11-01; folded cards used to sit two or three
+to a row, which made a long desk harder to scan). From a 48rem column (a laptop) a folded card
+is one band: the title over its tags on the left, the "Next:" steps on the right. From 68rem an
+open card puts its remark box and steps side by side. The My Workspace shell is capped at 140rem (2240px; `--pm-shell-desk`), shared
 by the top bar so the menu rail stays aligned.
 
 ## Recently completed projects

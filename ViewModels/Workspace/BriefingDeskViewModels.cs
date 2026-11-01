@@ -99,21 +99,27 @@ public sealed class BriefingDeskItemVm
     /// <summary>The same item as the Conference view shows it to the Comdt.</summary>
     public OfficerConferenceItemVm? Conference { get; init; }
 
+    /// <summary>The required steps still open, in the order the PO works through them.</summary>
+    public IReadOnlyList<BriefingDeskCheckVm> OpenSteps =>
+        Checks.Where(check => check.IsRequired && check.State == BriefingDeskCheckState.Open).ToList();
+
+    /// <summary>
+    /// A step's name on the "Next:" line: one open step reads in full ("Set DEVP PDC"); several
+    /// are named briefly ("Remark", "Procurement").
+    /// </summary>
+    public string NextTextFor(BriefingDeskCheckVm check)
+        => OpenSteps.Count == 1 ? check.Label : check.NextText ?? check.Label;
+
     public string NextStepText
     {
         get
         {
-            var open = Checks.Where(check => check.IsRequired && check.State == BriefingDeskCheckState.Open).ToList();
-            if (open.Count == 0)
-            {
-                return "Nothing outstanding before the conference.";
-            }
-
+            var open = OpenSteps;
             // One open step reads in full ("Set DEVP PDC"); several are named in order, briefly
             // ("Remark · Set DEVP PDC · Procurement"), so a folded card says what is left.
-            return open.Count == 1
-                ? open[0].Label
-                : string.Join(" · ", open.Select(check => check.NextText ?? check.Label));
+            return open.Count == 0
+                ? "Nothing outstanding before the conference."
+                : string.Join(" · ", open.Select(NextTextFor));
         }
     }
 }
@@ -276,6 +282,12 @@ public sealed class BriefingDeskItemRenderVm
     /// (the closure note) or <c>blocked</c> (the blocker).
     /// </summary>
     public string DraftField { get; init; } = BriefingDeskDraftFields.Body;
+
+    /// <summary>
+    /// The next card that still needs the PO, in desk order (wrapping to the first); null when
+    /// this is the only one. The card's footer offers it ("Next to prepare").
+    /// </summary>
+    public BriefingDeskItemVm? NextItem { get; init; }
 }
 
 public static class BriefingDeskDraftFields

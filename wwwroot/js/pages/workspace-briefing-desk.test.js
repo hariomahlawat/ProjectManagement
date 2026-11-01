@@ -267,3 +267,30 @@ test('the toast container exists, empty, before the first message', () => {
     assert.equal(container.children.length, 0);
     assert.equal(container.getAttribute('aria-live'), 'polite');
 });
+
+test('a "Next:" remark step opens its card with the cursor in the box', () => {
+    const window = createDom(card('desk-project-1')
+        + '<a href="#desk-project-1" data-bd-go="say" data-bd-card-target="desk-project-1" id="go">Remark</a>');
+    const doc = window.document;
+
+    doc.getElementById('go').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    assert.ok(doc.getElementById('desk-project-1').classList.contains('is-expanded'));
+    assert.equal(doc.activeElement, doc.querySelector('#desk-project-1 textarea'));
+});
+
+test('"Next to prepare" closes this card and opens the next', () => {
+    const first = card('desk-project-1', { open: true }).replace(
+        '</article>',
+        '<a href="#desk-project-2" data-bd-go="next" data-bd-card-target="desk-project-2" id="onward">Next to prepare</a></article>');
+    const window = createDom(first + card('desk-project-2'));
+    const doc = window.document;
+
+    const click = new window.MouseEvent('click', { bubbles: true, cancelable: true });
+    doc.getElementById('onward').dispatchEvent(click);
+
+    assert.equal(click.defaultPrevented, true);
+    assert.equal(doc.getElementById('desk-project-1').classList.contains('is-expanded'), false);
+    assert.ok(doc.getElementById('desk-project-2').classList.contains('is-expanded'));
+    assert.equal(doc.activeElement, doc.querySelector('#desk-project-2 [data-bd-toggle]'));
+});
