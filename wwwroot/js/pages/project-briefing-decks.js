@@ -1192,7 +1192,7 @@ if (root) {
       button.disabled = total === 0 || available >= total;
       button.title = button.disabled ? 'No missing projects for this requirement' : 'Filter the project list to missing content';
     });
-    if (selectedTotal) selectedTotal.textContent = String(total);
+    if (selectedTotal) selectedTotal.textContent = String((deck?.projects || []).length);
     if (generateButton) generateButton.disabled = total === 0;
     syncPreflightRequirementVisibility();
 
@@ -1283,7 +1283,7 @@ if (root) {
     const additionalGaps = [];
     if (isUpdateSheet(deck)) {
       const hideEmpty = Boolean(root.querySelector('input[name="HideEmptyUpdateSheetValues"]')?.checked);
-      const projects = deck?.projects || [];
+      const projects = (deck?.projects || []).filter((project) => !project.isDeletedOrArchived);
       const hasText = (value) => Boolean(String(value || '').trim());
       const hasFirm = (project) => Array.isArray(project?.jdpNames) && project.jdpNames.some(hasText);
       const hasFundingValue = (project) => hasText(project?.fund) || hasText(project?.dfpdsSchedule) || hasText(project?.cfa);
@@ -1322,7 +1322,7 @@ if (root) {
       isUpdateSheet(deck) ? 'Supporting project metadata is complete.' : 'No additional metadata is required by this template.',
       isUpdateSheet(deck) ? 'is-ready' : 'is-neutral');
 
-    const projects = deck?.projects || [];
+    const projects = (deck?.projects || []).filter((project) => !project.isDeletedOrArchived);
     const affectedProjectCount = projects.filter((project) => {
       const statusMissing = includesStatus() && !String(project.externalStatus || '').trim();
       const costMissing = includesCostRd() && !project.costRd?.isAvailable;
@@ -1635,6 +1635,12 @@ if (root) {
     const meta = document.createElement('small');
     meta.textContent = `${project.lifecycleDisplay} · ${project.projectCategory || 'Not categorised'} · ${project.technicalCategory || 'No technical category'}`;
     projectCell.append(link, meta);
+    if (project.isDeletedOrArchived) {
+      const leftOut = document.createElement('span');
+      leftOut.className = 'pbd-missing';
+      leftOut.textContent = 'Left out of the PowerPoint';
+      projectCell.append(leftOut);
+    }
 
     const stageCell = document.createElement('td');
     const stagePill = document.createElement('span');
@@ -1773,11 +1779,22 @@ if (root) {
     refreshBulkActions();
   };
 
+  const leftOutNotice = root.querySelector('[data-pbd-left-out-notice]');
+  const leftOutText = root.querySelector('[data-pbd-left-out-text]');
+  const updateLeftOutNotice = (projects) => {
+    const count = projects.filter((project) => project.isDeletedOrArchived).length;
+    if (leftOutNotice) leftOutNotice.hidden = count === 0;
+    if (leftOutText && count > 0) {
+      leftOutText.textContent = `${count} ${count === 1 ? 'project in this deck is' : 'projects in this deck are'} deleted or archived and will be left out of the PowerPoint. Remove ${count === 1 ? 'it' : 'them'} from the deck, or restore the project to include it again.`;
+    }
+  };
+
   const applyEditorState = (deck, { preserveScroll = false } = {}) => {
     if (!deck) return;
     const scrollTop = preserveScroll ? window.scrollY : null;
     updateRowVersion(deck.rowVersion);
     updateReadinessSummary(deck);
+    updateLeftOutNotice(deck.projects || []);
     renderSelectedProjects(deck.projects || []);
     if (scrollTop !== null) {
       window.requestAnimationFrame(() => window.scrollTo({ top: scrollTop, behavior: 'auto' }));

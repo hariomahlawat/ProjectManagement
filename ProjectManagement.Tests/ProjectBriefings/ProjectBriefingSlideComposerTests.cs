@@ -1698,6 +1698,60 @@ public sealed class ProjectBriefingSlideComposerTests
 
 
     [Fact]
+    public void Compose_KeepsHandlingMarkingOnDataAsOnFootersAndTheClosingSlide()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 881,
+            DeckName = "Marked profile deck",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            HandlingMarking = "OFFICIAL",
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+            Projects = new[]
+            {
+                BriefingProject(
+                    881,
+                    "MARKED PROJECT",
+                    StageCodes.DEVP,
+                    ProjectBriefingStageOrder.Development,
+                    1,
+                    projectBrief: "Marking regression coverage.")
+            },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 },
+            InstitutionalProfile = new ProjectBriefingInstitutionalProfileData
+            {
+                Title = "SDD – Growth over the years",
+                // 20:00 UTC is already the next day in IST, which the footer must use.
+                DataAsOnUtc = new DateTimeOffset(2026, 8, 3, 20, 0, 0, TimeSpan.Zero),
+                Modules = new[]
+                {
+                    new ProjectBriefingInstitutionalModuleData(
+                        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
+                        "Simulators/Projects Developed",
+                        "160",
+                        new[] { new ProjectBriefingInstitutionalMetricRow("AR/VR", "19") })
+                }
+            }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var profileText = SlideText(slides[0]);
+        Assert.Contains("SDD – Growth over the years", profileText, StringComparison.Ordinal);
+        Assert.Contains("OFFICIAL", profileText, StringComparison.Ordinal);
+        Assert.Contains("Data as on 04 Aug 2026", profileText, StringComparison.Ordinal);
+        Assert.True(IsClosingSlide(slides[^1]));
+        Assert.Contains("OFFICIAL", SlideText(slides[^1]), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Compose_PlacesModularInstitutionalProfileAfterCoverWithConfiguredAuthoritativeBreakdowns()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");

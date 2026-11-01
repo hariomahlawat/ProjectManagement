@@ -302,6 +302,50 @@ public sealed class ProjectModerationServiceTests
         Assert.Equal(1, await db.ProliferationYearlies.CountAsync(record => record.ProjectId == 17));
     }
 
+    [Fact]
+    public async Task PurgeAsync_RemovesBriefingDeckItemsAndRotatesTheDeckVersion()
+    {
+        // Deck items restrict their project, so purge must remove them or the delete fails.
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Users.Add(new ApplicationUser { Id = "comdt", UserName = "comdt" });
+        db.Projects.Add(new Project
+        {
+            Id = 18,
+            Name = "In a briefing deck",
+            CreatedAt = new DateTime(2024, 1, 12),
+            CreatedByUserId = "creator",
+            IsDeleted = true,
+            DeletedAt = new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero),
+            DeleteReason = "Cleanup"
+        });
+        db.Projects.Add(new Project { Id = 19, Name = "Kept", CreatedAt = new DateTime(2024, 1, 12), CreatedByUserId = "creator" });
+        var originalVersion = Guid.NewGuid().ToByteArray();
+        var deck = new ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck
+        {
+            OwnerUserId = "comdt",
+            Name = "Monthly review",
+            NormalizedName = "MONTHLY REVIEW",
+            RowVersion = originalVersion
+        };
+        deck.Items.Add(new ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeckItem { ProjectId = 18, SortOrder = 1 });
+        deck.Items.Add(new ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeckItem { ProjectId = 19, SortOrder = 2 });
+        db.ProjectBriefingDecks.Add(deck);
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var result = await CreateService(db, clock, temp).PurgeAsync(18, "admin", includeAssets: false);
+
+        Assert.Equal(ProjectModerationStatus.Success, result.Status);
+        Assert.False(await db.Projects.AnyAsync(project => project.Id == 18));
+        var remaining = await db.ProjectBriefingDeckItems.Select(item => item.ProjectId).ToListAsync();
+        Assert.Equal(new[] { 19 }, remaining);
+        var savedDeck = await db.ProjectBriefingDecks.AsNoTracking().SingleAsync();
+        Assert.NotEqual(originalVersion, savedDeck.RowVersion);
+    }
+
     private static ProliferationYearly ProliferationYearly(int projectId, ApprovalStatus status, Guid? amendsId)
         => new()
         {
