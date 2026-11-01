@@ -119,6 +119,16 @@ public sealed class ProjectOverviewPresentationContractTests
     }
 
     [Fact]
+    public void ProjectRegister_OpensTheProjectPageInANewTab()
+    {
+        var workspaceTable = ReadRepoFile("Pages", "Workspace", "_ProjectOfficerProjectTable.cshtml");
+
+        // The project name opens the project overview, not the briefing desk card.
+        Assert.Contains("<a class=\"po-project-name\" href=\"@item.OpenUrl\" target=\"_blank\" rel=\"noopener noreferrer\"", workspaceTable, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"po-project-name\" href=\"@WorkspaceRouteHelper.BriefingDeskItem", workspaceTable, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DocumentRequests_RenderAsTheWaitingBarUnderTheHeader()
     {
         var overview = ReadRepoFile("Pages", "Projects", "Overview.cshtml");
