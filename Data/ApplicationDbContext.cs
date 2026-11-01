@@ -851,6 +851,11 @@ namespace ProjectManagement.Data
                     .HasMaxLength(32)
                     .HasDefaultValue(ProjectBriefingItemPresentation.Slides)
                     .IsRequired();
+                // Deleting the photo clears the choice; the deck then uses the cover photo again.
+                entity.HasOne<ProjectPhoto>()
+                    .WithMany()
+                    .HasForeignKey(item => item.PhotoId)
+                    .OnDelete(DeleteBehavior.SetNull);
                 entity.HasIndex(item => new { item.DeckId, item.ProjectId }).IsUnique();
                 entity.HasIndex(item => new { item.DeckId, item.SortOrder });
                 entity.HasOne(item => item.Deck)

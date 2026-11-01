@@ -136,14 +136,19 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
    older builds ignore; one server-side definition (`ProjectBriefingDeckPresets`) both applies a
    preset and decides "adjusted".
 6. **Per-project control**, in small PRs, each stored per deck item:
-   - 6a, done (this change): how the project appears, chosen in This slide: **Own slides**,
+   - 6a, done (#2846): how the project appears, chosen in This slide: **Own slides**,
      **Table row only** (a row in the status table with no slides of its own; decks without a
      status table list these projects in an "Other projects in this briefing" table after the
      project slides or update sheets) or **Leave out** (kept in the deck, not in the PowerPoint,
      listed last in the outline under "Not in the PowerPoint"). Checks, counts, photos and the
      slide estimate follow the choice. Column `ProjectBriefingDeckItems.Presentation` (default
      `Slides`, so existing decks are unchanged).
-   - 6b: photo choice per project.
+   - 6b, done (this change): the photograph a deck shows for a project. This slide's
+     **Photograph** section (for projects with their own slides in a format that shows photos)
+     opens the project's photos; choosing one stores it on the deck item
+     (`ProjectBriefingDeckItems.PhotoId`), choosing the cover clears it so the deck follows the
+     project's cover. Deleting the photo clears the choice (foreign key, set null); a stored
+     photo that no longer belongs to the project is ignored.
    - 6c: speaker notes written into the PowerPoint's notes.
    - 6d: continuation slides for long project briefs and Role & Charter (fixes 5).
 7. **Library and lifecycle**: deck cards (purpose, owner, last generated and presented, search,

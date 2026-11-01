@@ -130,6 +130,9 @@ public sealed class ProjectBriefingProjectVm
     // HasCoverPhoto now means the selected photograph is actually readable and PowerPoint-ready.
     public bool HasCoverPhoto { get; init; }
     public bool HasSelectedCoverPhoto { get; init; }
+    // The photo this deck uses for the project (CoverPhotoId): the deck's own choice when one is
+    // stored and still belongs to the project (ChosenPhotoId), otherwise the project's cover.
+    public int? ChosenPhotoId { get; init; }
     public int? CoverPhotoId { get; init; }
     public string? CoverPhotoReadinessReason { get; init; }
     /// <summary>Presentation-ready capability overview. Retained under the legacy name for deck-specific overrides.</summary>
@@ -398,6 +401,16 @@ public sealed class ProjectBriefingPresentationData
     public ProjectBriefingInstitutionalProfileData? InstitutionalProfile { get; init; }
     public ProjectBriefingRoleCharterData? RoleCharter { get; init; }
     public ProjectBriefingFfcGlobalFootprintData? FfcGlobalFootprint { get; init; }
+}
+
+public sealed class ProjectBriefingPhotoOptionVm
+{
+    public int PhotoId { get; init; }
+    public string? Caption { get; init; }
+    // The photo the deck shows when no photo is chosen for it (the project's cover).
+    public bool IsDefault { get; init; }
+    public bool IsLowResolution { get; init; }
+    public string ThumbnailUrl { get; init; } = string.Empty;
 }
 
 public sealed class ProjectBriefingPresentationProject
