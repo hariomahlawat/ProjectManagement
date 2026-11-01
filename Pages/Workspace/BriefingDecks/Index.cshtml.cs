@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services.Ffc;
@@ -797,6 +798,47 @@ public sealed class IndexModel : PageModel
             membership.TryGetValue(project.ProjectId, out var sortOrder) ? sortOrder : null))
             .ToArray();
         return new JsonResult(rows);
+    }
+
+    public async Task<IActionResult> OnGetPreviewAsync(long deckId, CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        try
+        {
+            var composed = await _exportService.ComposeAsync(deckId, userId, cancellationToken);
+            var preview = ProjectBriefingSlidePreviewRenderer.Render(composed.Content, composed.Data.GeneratedAtUtc);
+            return new JsonResult(new
+            {
+                preview.SlideCount,
+                generatedAt = IstClock.ToIst(preview.GeneratedAtUtc).ToString("dd MMM yyyy, HH:mm"),
+                slides = preview.Slides,
+                images = preview.Images
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (ProjectBriefingPresentationIntegrityException exception)
+        {
+            var traceId = HttpContext.TraceIdentifier;
+            _logger.LogError(exception, "Project briefing preview failed integrity validation. DeckId={DeckId}, TraceId={TraceId}", deckId, traceId);
+            return StatusCode(
+                StatusCodes.Status422UnprocessableEntity,
+                new { message = $"The slides could not be previewed: {exception.GetUserSafeSummary()}. Reference: {traceId}" });
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+        catch (Exception exception)
+        {
+            var traceId = HttpContext.TraceIdentifier;
+            _logger.LogError(exception, "Project briefing preview failed. DeckId={DeckId}, TraceId={TraceId}", deckId, traceId);
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new { message = $"The slide preview could not be built. Reference: {traceId}" });
+        }
     }
 
     public async Task<IActionResult> OnPostGenerateAsync(long deckId, CancellationToken cancellationToken)

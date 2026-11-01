@@ -5090,3 +5090,376 @@ body.pbd-profile-drawer-open {
     --pbd-surface: #ffffff;
     --pbd-teal: #147a78;
 }
+
+/* Slide preview: exact slides from the composed deck, as scaled thumbnails and a viewer.
+   Slide colours come from the PowerPoint itself (inline styles), so only the chrome is themed. */
+.pbd-preview {
+    margin-bottom: .75rem;
+    padding: .8rem .85rem .7rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .76rem;
+    background: var(--pm-card, var(--pbd-surface));
+}
+
+.pbd-preview__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .6rem 1rem;
+    margin-bottom: .7rem;
+}
+
+.pbd-preview__header h3 {
+    margin: .05rem 0 .1rem;
+    color: var(--pbd-ink);
+    font-size: 1.08rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pbd-preview__header p {
+    margin: 0;
+    color: var(--pbd-muted);
+    font-size: .82rem;
+}
+
+.pbd-preview.is-error .pbd-preview__header p {
+    color: var(--pbd-red);
+}
+
+.pbd-preview__actions {
+    display: flex;
+    gap: .4rem;
+}
+
+.pbd-preview__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(11rem, 13vw, 17rem), 1fr));
+    gap: .75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pbd-preview.is-stale .pbd-preview__grid,
+.pbd-preview.is-busy .pbd-preview__grid {
+    opacity: .55;
+    transition: opacity .2s ease;
+}
+
+.pbd-preview__item {
+    min-width: 0;
+}
+
+.pbd-preview__thumb {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+}
+
+.pbd-slide-frame {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--pbd-border);
+    border-radius: .4rem;
+    background: var(--pbd-canvas);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--pbd-ink) 10%, transparent);
+}
+
+.pbd-preview__thumb .pbd-slide-frame {
+    transition: box-shadow .15s ease, border-color .15s ease;
+}
+
+.pbd-preview__thumb:hover .pbd-slide-frame,
+.pbd-preview__thumb:focus-visible .pbd-slide-frame {
+    border-color: var(--pbd-blue);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--pbd-blue) 35%, transparent);
+}
+
+.pbd-preview__thumb:focus-visible {
+    outline: none;
+}
+
+.pbd-preview__caption {
+    display: flex;
+    gap: .4rem;
+    min-width: 0;
+    margin-top: .32rem;
+    color: var(--pbd-muted);
+    font-size: .76rem;
+    line-height: 1.25;
+}
+
+.pbd-preview__caption b {
+    flex: none;
+    color: var(--pbd-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.pbd-preview__caption span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pbd-preview__item.is-loading .pbd-slide-frame {
+    background: linear-gradient(100deg, var(--pbd-canvas) 30%, var(--pbd-blue-soft) 50%, var(--pbd-canvas) 70%) 0 0 / 300% 100%;
+    animation: pbd-preview-shimmer 1.3s linear infinite;
+}
+
+.pbd-preview__item.is-loading .pbd-preview__caption {
+    width: 60%;
+    height: .7rem;
+    border-radius: .3rem;
+    background: var(--pbd-canvas);
+}
+
+@keyframes pbd-preview-shimmer {
+    to { background-position: -300% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pbd-preview__item.is-loading .pbd-slide-frame { animation: none; }
+}
+
+.pbd-preview__empty {
+    grid-column: 1 / -1;
+    padding: 1.2rem;
+    border: 1px dashed var(--pbd-border);
+    border-radius: .5rem;
+    color: var(--pbd-muted);
+    text-align: center;
+}
+
+.pbd-preview__footer {
+    margin-top: .4rem;
+    text-align: center;
+}
+
+/* Rendered slide content (shared by thumbnails and the viewer). */
+.pbd-slide-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+    transform-origin: 0 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+.pbd-slide-stage * {
+    box-sizing: border-box;
+}
+
+.pbd-slide-shape,
+.pbd-slide-picture,
+.pbd-slide-line,
+.pbd-slide-table {
+    position: absolute;
+}
+
+.pbd-slide-shape {
+    overflow: hidden;
+}
+
+.pbd-slide-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.pbd-slide-stage p {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+.pbd-slide-line {
+    overflow: visible;
+}
+
+.pbd-slide-picture {
+    display: block;
+    max-width: none;
+}
+
+.pbd-slide-table {
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.pbd-slide-table td {
+    overflow: hidden;
+}
+
+/* Viewer: the slide fills the window; the strip sits beside it on wide screens. */
+.pbd-viewer {
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: var(--pbd-canvas);
+    color: var(--pbd-ink);
+}
+
+.pbd-viewer::backdrop {
+    background: color-mix(in srgb, var(--pbd-navy) 60%, transparent);
+}
+
+.pbd-viewer__surface {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
+}
+
+.pbd-viewer__header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .7rem 1.1rem;
+    border-bottom: 1px solid var(--pbd-border);
+    background: var(--pbd-surface);
+}
+
+.pbd-viewer__header > div {
+    flex: 1;
+    min-width: 0;
+}
+
+.pbd-viewer__header h2 {
+    overflow: hidden;
+    margin: .05rem 0 0;
+    font-size: 1.05rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pbd-viewer__counter {
+    color: var(--pbd-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.pbd-viewer__body {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr) 3rem;
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .5rem;
+    min-height: 0;
+    padding: 1rem;
+}
+
+.pbd-viewer__stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    container-type: size;
+}
+
+.pbd-viewer__stage .pbd-slide-frame {
+    width: min(100cqw, 100cqh * 16 / 9);
+    border-radius: .3rem;
+    box-shadow: 0 .6rem 2rem color-mix(in srgb, var(--pbd-navy) 22%, transparent);
+}
+
+.pbd-viewer__nav {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: 50%;
+    background: var(--pbd-surface);
+    color: var(--pbd-ink);
+}
+
+.pbd-viewer__nav:hover {
+    border-color: var(--pbd-blue);
+    color: var(--pbd-blue);
+}
+
+.pbd-viewer__strip {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: .5rem;
+    overflow-x: auto;
+    margin: 0;
+    padding: .2rem .1rem .4rem;
+    list-style: none;
+}
+
+.pbd-viewer__strip li {
+    flex: 0 0 9.5rem;
+}
+
+.pbd-viewer__thumb {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
+.pbd-viewer__thumb > span {
+    position: absolute;
+    z-index: 1;
+    top: .25rem;
+    left: .25rem;
+    padding: 0 .3rem;
+    border-radius: .25rem;
+    background: var(--pbd-surface);
+    color: var(--pbd-ink);
+    font-size: .7rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pbd-viewer__thumb.is-active .pbd-slide-frame {
+    border-color: var(--pbd-blue);
+    box-shadow: 0 0 0 2px var(--pbd-blue);
+}
+
+@media (min-width: 1400px) {
+    .pbd-viewer__body {
+        grid-template-columns: 3rem minmax(0, 1fr) 3rem clamp(12rem, 14vw, 18rem);
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .pbd-viewer__strip {
+        grid-column: 4;
+        flex-direction: column;
+        align-self: stretch;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: .2rem .4rem .2rem .2rem;
+    }
+
+    .pbd-viewer__strip li {
+        flex: none;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .pbd-viewer__body {
+        grid-template-columns: minmax(0, 1fr);
+        padding: .5rem;
+    }
+
+    .pbd-viewer__nav {
+        display: none;
+    }
+}

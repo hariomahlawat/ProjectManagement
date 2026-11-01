@@ -1511,6 +1511,7 @@ if (root) {
       });
       updateRowVersion(payload?.rowVersion);
       setState(sortStatus, 'Slide order saved.', 'saved');
+      announceDeckChange();
     } catch (error) {
       setState(sortStatus, error.message || 'Slide order could not be saved.', 'error');
     }
@@ -1779,6 +1780,11 @@ if (root) {
     refreshBulkActions();
   };
 
+  // The slide preview listens for this and rebuilds after any in-place change.
+  const announceDeckChange = (detail = {}) => {
+    document.dispatchEvent(new CustomEvent('pbd:deck-changed', { detail }));
+  };
+
   const leftOutNotice = root.querySelector('[data-pbd-left-out-notice]');
   const leftOutText = root.querySelector('[data-pbd-left-out-text]');
   const updateLeftOutNotice = (projects) => {
@@ -1796,6 +1802,7 @@ if (root) {
     updateReadinessSummary(deck);
     updateLeftOutNotice(deck.projects || []);
     renderSelectedProjects(deck.projects || []);
+    announceDeckChange({ hasProjects: (deck.projects || []).some((project) => !project.isDeletedOrArchived) });
     if (scrollTop !== null) {
       window.requestAnimationFrame(() => window.scrollTo({ top: scrollTop, behavior: 'auto' }));
     }
@@ -2109,6 +2116,7 @@ if (root) {
       const editorButton = root.querySelector(`[data-pbd-edit-description][data-project-id="${projectId}"]`);
       if (editorButton) editorButton.dataset.description = descriptionValue?.value || '';
       setState(descriptionStatus, 'Deck-specific capability overview saved.', 'success');
+      announceDeckChange();
       window.setTimeout(() => descriptionModal?.hide(), 450);
     } catch (error) {
       setState(descriptionStatus, error.message || 'Capability overview could not be saved.', 'error');

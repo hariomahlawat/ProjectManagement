@@ -61,6 +61,64 @@ public sealed class ProjectBriefingSlideComposerTests
 
 
     [Fact]
+    public void PreviewRenderer_RendersEveryComposedSlideWithTitlesAndSharedImages()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = BuildData();
+        var (content, slideCount) = composer.Compose(data);
+
+        var preview = ProjectBriefingSlidePreviewRenderer.Render(content, data.GeneratedAtUtc);
+
+        Assert.Equal(slideCount, preview.SlideCount);
+        Assert.Equal(slideCount, preview.Slides.Count);
+        Assert.Equal(Enumerable.Range(1, slideCount), preview.Slides.Select(slide => slide.Number));
+        Assert.Equal("Cover", preview.Slides[0].Title);
+        Assert.Contains("QUARTERLY COMMAND REVIEW", preview.Slides[0].Html, StringComparison.Ordinal);
+        Assert.Contains(preview.Slides, slide => slide.Title.StartsWith("Project status summary", StringComparison.Ordinal));
+        Assert.Contains("<table class=\"pbd-slide-table\"", string.Concat(preview.Slides.Select(slide => slide.Html)), StringComparison.Ordinal);
+        Assert.All(preview.Slides, slide => Assert.StartsWith("<div class=\"pbd-slide-stage\" style=\"width:1280px;height:720px;", slide.Html, StringComparison.Ordinal));
+
+        // The insignia appear on every slide but are shipped once each.
+        var keys = preview.Slides
+            .SelectMany(slide => System.Text.RegularExpressions.Regex.Matches(slide.Html, "data-pbd-preview-image=\"([0-9a-f]+)\""))
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+        Assert.NotEmpty(keys);
+        Assert.All(keys, key => Assert.True(preview.Images.ContainsKey(key)));
+        Assert.True(preview.Images.Count < keys.Length);
+        Assert.All(preview.Images.Values, uri => Assert.Matches("^data:image/(png|jpeg);base64,", uri));
+    }
+
+    [Fact]
+    public void PreviewRenderer_EncodesSlideTextSoItCannotBecomeMarkup()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = BuildData();
+        var hostile = new ProjectBriefingPresentationData
+        {
+            DeckId = data.DeckId,
+            DeckName = "<script>alert(1)</script>",
+            DeckDescription = "\"><img src=x onerror=alert(2)>",
+            Layout = data.Layout,
+            PresentationMode = data.PresentationMode,
+            CostMode = data.CostMode,
+            GeneratedAtUtc = data.GeneratedAtUtc,
+            Projects = data.Projects,
+            Summary = data.Summary
+        };
+        var (content, _) = composer.Compose(hostile);
+
+        var html = string.Concat(ProjectBriefingSlidePreviewRenderer.Render(content, hostile.GeneratedAtUtc)
+            .Slides.Select(slide => slide.Html));
+
+        Assert.DoesNotContain("<script", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<img src=x", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("&lt;SCRIPT&gt;", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Compose_StageSummary_UsesExecutiveLifecycleBandAndOngoingStageInfographic()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");

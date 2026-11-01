@@ -7928,6 +7928,13 @@ body {
     width: min(calc(100% - (2 * var(--pm-shell-desk-gutter))), var(--pm-shell-desk));
     max-width: none;
 }
+/* Builders that lay out slides or canvases (Briefing decks) use the whole window on wide
+   monitors. The chrome follows so the side rail still lines up with the menu button. */
+.pm-page-shell--studio,
+.pm-chrome-shell--studio {
+    width: calc(100% - (2 * var(--pm-shell-desk-gutter)));
+    max-width: none;
+}
 .pm-page-shell--landing { max-width: none; width: 100%; }
 
 main[role="main"].analytics-main {
