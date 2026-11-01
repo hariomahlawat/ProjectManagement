@@ -890,6 +890,62 @@ public sealed class IndexModel : PageModel
         }
     }
 
+    public async Task<IActionResult> OnGetPhotoOptionsAsync(
+        long deckId,
+        int projectId,
+        CancellationToken cancellationToken)
+    {
+        RequireUserId();
+        if (deckId <= 0 || projectId <= 0)
+        {
+            return BadRequest(new { message = "The photo request is invalid." });
+        }
+
+        var photos = await _dataService.GetPhotoOptionsAsync(deckId, projectId, cancellationToken);
+        return photos is null
+            ? NotFound(new { message = "The project is not part of this deck." })
+            : new JsonResult(new { photos });
+    }
+
+    public async Task<IActionResult> OnPostUpdateItemPhotoAsync(
+        [FromBody] UpdateItemPhotoInput? input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (input is null || input.DeckId <= 0 || input.ProjectId <= 0 || input.PhotoId <= 0
+            || string.IsNullOrWhiteSpace(input.RowVersion))
+        {
+            return BadRequest(new { message = "The photo choice is invalid." });
+        }
+
+        try
+        {
+            var rowVersion = await _deckService.UpdateItemPhotoAsync(
+                input.DeckId,
+                input.ProjectId,
+                userId,
+                input.PhotoId,
+                input.RowVersion,
+                cancellationToken);
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
+            return new JsonResult(new { saved = true, rowVersion, deck });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new JsonResult(new
+            {
+                message = "The deck was updated by another user. Reload before choosing the photograph."
+            })
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            };
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+    }
+
     public async Task<IActionResult> OnGetSearchProjectsAsync(
         long deckId,
         string? query,
@@ -1452,6 +1508,15 @@ public sealed class IndexModel : PageModel
         public long DeckId { get; set; }
         public int ProjectId { get; set; }
         public string? Value { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed class UpdateItemPhotoInput
+    {
+        public long DeckId { get; set; }
+        public int ProjectId { get; set; }
+        // Null goes back to the project's cover photo.
+        public int? PhotoId { get; set; }
         public string RowVersion { get; set; } = string.Empty;
     }
 

@@ -5939,6 +5939,9 @@ namespace ProjectManagement.Migrations
                     b.Property<long>("DeckId")
                         .HasColumnType("bigint");
 
+                    b.Property<int?>("PhotoId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
@@ -5958,6 +5961,8 @@ namespace ProjectManagement.Migrations
                         .IsUnique();
 
                     b.HasIndex("DeckId", "SortOrder");
+
+                    b.HasIndex("PhotoId");
 
                     b.HasIndex("ProjectId");
 
@@ -9670,6 +9675,11 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("DeckId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ProjectPhoto", null)
+                        .WithMany()
+                        .HasForeignKey("PhotoId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("ProjectManagement.Models.Project", "Project")
                         .WithMany()

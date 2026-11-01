@@ -261,5 +261,8 @@ public sealed class ProjectBriefingDeckItem
 
     public ProjectBriefingItemPresentation Presentation { get; set; } = ProjectBriefingItemPresentation.Slides;
 
+    // The photograph this deck shows for the project; null uses the project's cover photo.
+    public int? PhotoId { get; set; }
+
     public DateTimeOffset AddedAtUtc { get; set; }
 }

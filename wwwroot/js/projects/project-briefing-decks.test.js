@@ -426,3 +426,15 @@ test('a refused presentation change puts back the saved choice before rebuilding
   assert.match(studioSource, /document\.addEventListener\('pbd:project-presentation-failed'[\s\S]*?project\.presentation = event\.detail\.previous;/);
   assert.match(source, /new CustomEvent\('pbd:project-presentation-failed', \{\s*detail: \{ projectId, previous: event\.detail\?\.previous \}\s*\}\)\);\s*announceDeckChange\(\{\}\);/);
 });
+
+test('the Studio chooses the photograph a deck shows, saved through the deck queue', () => {
+  // Only projects shown with their own slides in a format that uses photos get the picker.
+  assert.match(studioSource, /const usesPhoto = \(project\) => !project\.isDeletedOrArchived\s*&& \(project\.presentation \|\| 'Slides'\) === 'Slides'/);
+  assert.match(studioSource, /if \(usesPhoto\(project\)\) nodes\.push\(photoSection\(project\)\);/);
+  // The cover is stored as no choice, so the deck follows the project's cover.
+  assert.match(studioSource, /const photoId = photo\.isDefault \? null : photo\.photoId;/);
+  assert.match(studioSource, /url\.searchParams\.set\('projectId', String\(project\.projectId\)\);/);
+  assert.match(source, /document\.addEventListener\('pbd:set-project-photo'[\s\S]*?runDeckMutation\(async \(\) => \{[\s\S]*?root\.dataset\.itemPhotoUrl/);
+  assert.match(source, /new CustomEvent\('pbd:project-photo-failed'/);
+  assert.match(viewSource, /data-photo-options-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "PhotoOptions"\)"/);
+});

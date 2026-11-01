@@ -133,6 +133,14 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    Task<string> UpdateItemPhotoAsync(
+        long deckId,
+        int projectId,
+        string requestingUserId,
+        int? photoId,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task DeleteAsync(
         long deckId,
         string requestingUserId,
@@ -317,6 +325,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                     SortOrder = item.SortOrder,
                     BriefDescriptionOverride = item.BriefDescriptionOverride,
                     Presentation = item.Presentation,
+                    PhotoId = item.PhotoId,
                     AddedAtUtc = now
                 })
                 .ToList()
@@ -1120,6 +1129,43 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 ["ProjectId"] = projectId.ToString(),
                 ["From"] = previous.ToString(),
                 ["To"] = presentation.ToString()
+            });
+        return Encode(deck.RowVersion);
+    }
+
+    public async Task<string> UpdateItemPhotoAsync(
+        long deckId,
+        int projectId,
+        string requestingUserId,
+        int? photoId,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
+        var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
+            ?? throw new KeyNotFoundException("The project is not part of this deck.");
+        if (photoId is { } chosen
+            && !await _db.ProjectPhotos.AnyAsync(photo => photo.Id == chosen && photo.ProjectId == projectId, cancellationToken))
+        {
+            throw new InvalidOperationException("That photograph is not one of the project's photos.");
+        }
+
+        if (item.PhotoId == photoId)
+        {
+            return Encode(deck.RowVersion);
+        }
+
+        item.PhotoId = photoId;
+        Touch(deck, userId);
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync("ProjectBriefing.ItemPhotoChanged", userId, deck, "Project briefing item photo changed.",
+            new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["PhotoId"] = photoId?.ToString()
             });
         return Encode(deck.RowVersion);
     }

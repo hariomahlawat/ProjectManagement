@@ -253,6 +253,98 @@ if (root) {
     return wrapper;
   };
 
+  // Photograph: the deck can show any of the project's photos instead of its cover.
+  let photoPicker = { projectId: null, photos: null, loading: false, saving: false, error: '' };
+  const usesPhoto = (project) => !project.isDeletedOrArchived
+    && (project.presentation || 'Slides') === 'Slides'
+    && (deckShape.layout === 'ProjectUpdateSheet' || deckShape.mode !== 'ExecutiveTable');
+  const refreshInspector = () => renderSlideInspector(entryForIndex(current));
+  const closePhotoPicker = () => {
+    photoPicker = { projectId: null, photos: null, loading: false, saving: false, error: '' };
+  };
+
+  const loadPhotoOptions = async (project) => {
+    photoPicker = { projectId: project.projectId, photos: null, loading: true, saving: false, error: '' };
+    refreshInspector();
+    try {
+      const url = new URL(page.dataset.photoOptionsUrl, window.location.origin);
+      url.searchParams.set('deckId', deckKey);
+      url.searchParams.set('projectId', String(project.projectId));
+      const response = await fetch(url, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.message || `The photographs could not be loaded (${response.status}).`);
+      if (photoPicker.projectId !== project.projectId) return;
+      photoPicker = { ...photoPicker, photos: Array.isArray(payload?.photos) ? payload.photos : [], loading: false };
+    } catch (error) {
+      if (photoPicker.projectId !== project.projectId) return;
+      photoPicker = { ...photoPicker, loading: false, error: error.message || 'The photographs could not be loaded.' };
+    }
+    refreshInspector();
+  };
+
+  const choosePhoto = (project, photo) => {
+    // The cover is stored as "no choice", so the deck follows the project if its cover changes.
+    const photoId = photo.isDefault ? null : photo.photoId;
+    if ((project.chosenPhotoId ?? null) === photoId || photoPicker.saving) return;
+    photoPicker = { ...photoPicker, saving: true, error: '' };
+    refreshInspector();
+    document.dispatchEvent(new CustomEvent('pbd:set-project-photo', { detail: { projectId: project.projectId, photoId } }));
+  };
+
+  const photoSection = (project) => {
+    const section = el('div', 'pbd-inspector__photo');
+    section.append(el('h5', 'pbd-inspector__heading', 'Photograph'));
+    section.append(el('p', 'pbd-inspector__note', project.chosenPhotoId
+      ? 'Chosen for this deck. The project’s own cover is unchanged.'
+      : (project.hasCoverPhoto ? 'The project’s cover photo.' : (project.coverPhotoReadinessReason || 'No usable photograph yet.'))));
+    if (photoPicker.projectId !== project.projectId) {
+      section.append(actionButton(project.chosenPhotoId ? 'Change photograph' : 'Choose a photograph', () => loadPhotoOptions(project)));
+      return section;
+    }
+    if (photoPicker.loading) {
+      section.append(el('p', 'pbd-inspector__note', 'Loading the photographs…'));
+      return section;
+    }
+    if (photoPicker.error) section.append(el('p', 'pbd-inspector__note is-error', photoPicker.error));
+    const photos = photoPicker.photos || [];
+    if (photos.length === 0 && !photoPicker.error) {
+      section.append(el('p', 'pbd-inspector__note', 'This project has no photographs yet.'));
+      section.append(actionLink('Add in Photos', `/Projects/${project.projectId}/Photos`, project.projectId));
+      return section;
+    }
+    const list = el('ul', 'pbd-photo-picker');
+    list.setAttribute('aria-label', `Photographs of ${project.projectName}`);
+    photos.forEach((photo, index) => {
+      const item = el('li');
+      const button = el('button', 'pbd-photo-picker__option');
+      button.type = 'button';
+      button.disabled = photoPicker.saving;
+      const selected = project.chosenPhotoId ? photo.photoId === project.chosenPhotoId : photo.isDefault;
+      button.setAttribute('aria-pressed', String(Boolean(selected)));
+      const image = el('img');
+      image.src = photo.thumbnailUrl;
+      image.alt = photo.caption || `Photograph ${index + 1}`;
+      image.loading = 'lazy';
+      button.append(image);
+      const tags = [photo.isDefault ? 'Cover' : '', photo.isLowResolution ? 'Low resolution' : ''].filter(Boolean);
+      if (tags.length) button.append(el('span', 'pbd-photo-picker__tag', tags.join(' · ')));
+      button.title = [photo.caption, ...tags].filter(Boolean).join(' · ') || image.alt;
+      button.addEventListener('click', () => choosePhoto(project, photo));
+      item.append(button);
+      list.append(item);
+    });
+    section.append(list);
+    if (photoPicker.saving) section.append(el('p', 'pbd-inspector__note', 'Saving…'));
+    section.append(actionButton('Done', () => {
+      closePhotoPicker();
+      refreshInspector();
+    }));
+    return section;
+  };
+
   const entryTitle = (entry) => {
     if (entry.projectId) return projects.get(entry.projectId)?.projectName || slides[entry.indices[0]]?.title || 'Project';
     const title = (slides[entry.indices[0]]?.title || ROLES[entry.role]?.label || '').replace(/\s*\(\d+\/\d+\)$/, '');
@@ -530,6 +622,7 @@ if (root) {
         : fact('Slides', 'None', 'Not in the PowerPoint'));
       nodes.push(facts);
       if (!project.isDeletedOrArchived) nodes.push(presentationControl(project));
+      if (usesPhoto(project)) nodes.push(photoSection(project));
 
       nodes.push(el('h5', 'pbd-inspector__heading', 'Present status'));
       nodes.push(project.externalStatus
@@ -924,6 +1017,13 @@ if (root) {
     selectIndex(current + (event.key === 'ArrowRight' ? 1 : -1));
   });
 
+  // A photo choice the server refused: say why and let the person choose again.
+  document.addEventListener('pbd:project-photo-failed', (event) => {
+    if (photoPicker.projectId !== Number(event.detail?.projectId)) return;
+    photoPicker = { ...photoPicker, saving: false, error: event.detail?.message || 'The photograph could not be saved.' };
+    refreshInspector();
+  });
+
   // A presentation change the server refused: put back the saved choice before the rebuild.
   document.addEventListener('pbd:project-presentation-failed', (event) => {
     const project = projects.get(Number(event.detail?.projectId));
@@ -940,6 +1040,7 @@ if (root) {
   document.addEventListener('pbd:deck-changed', (event) => {
     if (typeof event.detail?.hasProjects === 'boolean') hasProjects = event.detail.hasProjects;
     if (event.detail?.deck) {
+      if (photoPicker.saving) photoPicker = { ...photoPicker, saving: false };
       if (event.detail.deck.layout) deckShape.layout = event.detail.deck.layout;
       if (event.detail.deck.presentationMode) deckShape.mode = event.detail.deck.presentationMode;
       readStudioData({ projects: event.detail.deck.projects, contentGaps: event.detail.deck.contentGaps });

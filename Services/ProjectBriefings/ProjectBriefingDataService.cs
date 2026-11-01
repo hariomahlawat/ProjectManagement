@@ -24,6 +24,13 @@ public interface IProjectBriefingDataService
         long deckId,
         string requestingUserId,
         CancellationToken cancellationToken = default);
+
+    // The project's photographs, for choosing the one a deck shows; null when the project is not
+    // in the deck.
+    Task<IReadOnlyList<ProjectBriefingPhotoOptionVm>?> GetPhotoOptionsAsync(
+        long deckId,
+        int projectId,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ProjectBriefingDataService : IProjectBriefingDataService
@@ -144,6 +151,54 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 snapshot.AdditionalSlideOrder,
                 snapshot.CostMode, snapshot.NarrativeMode, presentedProjects)
         };
+    }
+
+    public async Task<IReadOnlyList<ProjectBriefingPhotoOptionVm>?> GetPhotoOptionsAsync(
+        long deckId,
+        int projectId,
+        CancellationToken cancellationToken = default)
+    {
+        var inDeck = await _db.Set<ProjectBriefingDeckItem>()
+            .AsNoTracking()
+            .AnyAsync(item => item.DeckId == deckId && item.ProjectId == projectId, cancellationToken);
+        if (!inDeck)
+        {
+            return null;
+        }
+
+        var coverPhotoId = await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => project.CoverPhotoId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var photos = await _db.ProjectPhotos
+            .AsNoTracking()
+            .Where(photo => photo.ProjectId == projectId)
+            .OrderByDescending(photo => photo.IsCover)
+            .ThenBy(photo => photo.Ordinal)
+            .ThenBy(photo => photo.Id)
+            .Select(photo => new { photo.Id, photo.Caption, photo.IsCover, photo.IsLowResolution, photo.Ordinal, photo.Version })
+            .ToListAsync(cancellationToken);
+        // The photo a deck shows when it has no choice of its own: the same rule as the slides.
+        var defaultPhotoId = coverPhotoId is { } cover && photos.Any(photo => photo.Id == cover)
+            ? cover
+            : photos
+                .OrderByDescending(photo => photo.IsCover)
+                .ThenBy(photo => photo.IsLowResolution)
+                .ThenBy(photo => photo.Ordinal)
+                .ThenBy(photo => photo.Id)
+                .Select(photo => (int?)photo.Id)
+                .FirstOrDefault();
+        return photos
+            .Select(photo => new ProjectBriefingPhotoOptionVm
+            {
+                PhotoId = photo.Id,
+                Caption = string.IsNullOrWhiteSpace(photo.Caption) ? null : photo.Caption.Trim(),
+                IsDefault = photo.Id == defaultPhotoId,
+                IsLowResolution = photo.IsLowResolution,
+                ThumbnailUrl = $"/Projects/{projectId}/Photos/{photo.Id}/View/sm?v={photo.Version}"
+            })
+            .ToArray();
     }
 
     public async Task<ProjectBriefingPresentationData> BuildPresentationDataAsync(
@@ -324,6 +379,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.SortOrder,
                 item.BriefDescriptionOverride,
                 item.Presentation,
+                item.PhotoId,
                 item.Project.Name,
                 item.Project.Description,
                 item.Project.ProjectBrief,
@@ -442,6 +498,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.SortOrder,
                 item.BriefDescriptionOverride,
                 item.Presentation,
+                item.PhotoId,
                 item.ProjectName,
                 item.ProjectDescription,
                 item.ProjectBrief,
@@ -555,6 +612,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     LifecycleDisplay = ResolveLifecycleDisplay(item),
                     IsDeletedOrArchived = item.IsDeleted || item.IsArchived,
                     Presentation = item.Presentation,
+                    ChosenPhotoId = ResolveChosenPhotoId(item),
                     PresentStageCode = stageCode,
                     PresentStage = ResolveStageName(item),
                     PresentStageOrder = ProjectBriefingStageOrder.Resolve(item.LifecycleStatus, stageCode),
@@ -1033,8 +1091,17 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         };
     }
 
+    // The photo chosen for this deck, while it still belongs to the project.
+    private static int? ResolveChosenPhotoId(DeckItemSnapshot item)
+        => item.PhotoId is { } photoId && item.Photos.Any(photo => photo.Id == photoId) ? photoId : null;
+
     private static int? ResolveCoverPhotoId(DeckItemSnapshot item)
     {
+        if (ResolveChosenPhotoId(item) is { } chosen)
+        {
+            return chosen;
+        }
+
         if (item.CoverPhotoId.HasValue && item.Photos.Any(photo => photo.Id == item.CoverPhotoId.Value))
         {
             return item.CoverPhotoId;
@@ -1112,6 +1179,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         int SortOrder,
         string? BriefDescriptionOverride,
         ProjectBriefingItemPresentation Presentation,
+        int? PhotoId,
         string ProjectName,
         string? ProjectDescription,
         string? ProjectBrief,
@@ -1164,6 +1232,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         int SortOrder,
         string? BriefDescriptionOverride,
         ProjectBriefingItemPresentation Presentation,
+        int? PhotoId,
         string ProjectName,
         string? ProjectDescription,
         string? ProjectBrief,

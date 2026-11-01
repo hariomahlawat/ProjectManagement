@@ -1408,6 +1408,32 @@ if (root) {
     }
   });
 
+  // The photograph a deck shows for a project: asked for by the Studio inspector.
+  document.addEventListener('pbd:set-project-photo', async (event) => {
+    const projectId = Number(event.detail?.projectId);
+    const photoId = event.detail?.photoId ?? null;
+    if (deckId <= 0 || !Number.isInteger(projectId)) return;
+    setState(membershipStatus, 'Saving the photograph…', 'saving');
+    try {
+      const payload = await runDeckMutation(async () => {
+        const reply = await requestJson(root.dataset.itemPhotoUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, projectId, photoId, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(reply?.rowVersion);
+        return reply;
+      });
+      applyEditorState(payload?.deck);
+      setState(membershipStatus, 'Saved.', 'saved');
+    } catch (error) {
+      if (error instanceof RequestError && error.status === 409) showConflict(error.message);
+      setState(membershipStatus, error.message || 'The photograph could not be saved.', 'error');
+      document.dispatchEvent(new CustomEvent('pbd:project-photo-failed', {
+        detail: { projectId, message: error.message }
+      }));
+    }
+  });
+
   // Reorder: the Studio outline asks for a new project order (within present stages).
   document.addEventListener('pbd:reorder-projects', async (event) => {
     const projectIds = (event.detail?.projectIds || []).map(Number).filter(Number.isInteger);
