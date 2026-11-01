@@ -200,8 +200,8 @@ public sealed class ProjectOfficerWorkspaceService
             userId,
             _clock.UtcNow,
             ct,
-            windowDays: 14,
-            maxItems: 5);
+            windowDays: BriefingDeskAgendaBuilder.WindowDays,
+            maxItems: BriefingDeskAgendaBuilder.ComingLimit);
 
         var stagesByProject = projects.ToDictionary(
             project => project.Id,
@@ -239,7 +239,11 @@ public sealed class ProjectOfficerWorkspaceService
                 || principal.IsInRole(ProjectManagement.Configuration.RoleNames.HoD)));
 
         vm.AotsDocuments = aotsDocuments;
-        vm.NavigationFollowUpCount = reminders.Count;
+        // The rail's follow-up count keeps its rule (pinned, or due by the end of today); the
+        // side column also shows reminders due in the next 14 days.
+        var endTodayUtc = EndOfIstOperatingDayUtc();
+        vm.NavigationFollowUpCount = reminders.Count(reminder =>
+            reminder.IsPinned || (reminder.DueAtUtc is { } due && due < endTodayUtc));
         vm.ProjectMatrix = matrixRows;
         vm.OfficialTasks = tasks;
         vm.Ideas = OrderIdeas(ideas);
@@ -251,6 +255,11 @@ public sealed class ProjectOfficerWorkspaceService
         vm.RecordGapCount = health.Values.Sum(item => item.GapDetails.Count);
         vm.UpcomingEvents = upcomingEvents.Items;
         vm.UpcomingEventCount = upcomingEvents.TotalCount;
+        vm.BriefingDeskAgenda = BriefingDeskAgendaBuilder.Build(
+            reminders,
+            upcomingEvents.Items,
+            upcomingEvents.TotalCount,
+            DateOnly.FromDateTime(_clock.IstToday));
     }
 
     // SECTION: Procurement editors for the desk
@@ -702,11 +711,13 @@ public sealed class ProjectOfficerWorkspaceService
     }
 
     // SECTION: Follow-ups contain reminders that are due or intentionally pinned by the officer.
+    // Pinned notes, and reminders due before the end of the side column's 14-day window
+    // (overdue ones included).
     private async Task<IReadOnlyList<WorkspaceReminderVm>> LoadPersonalRemindersAsync(
         string userId,
         CancellationToken ct)
     {
-        var endTodayUtc = EndOfIstOperatingDayUtc();
+        var windowEndUtc = IstClock.StartOfDayIstToUtc(DateOnly.FromDateTime(_clock.IstToday).AddDays(BriefingDeskAgendaBuilder.WindowDays));
 
         return await _db.NotebookItems
             .AsNoTracking()
@@ -714,7 +725,7 @@ public sealed class ProjectOfficerWorkspaceService
                 item.OwnerId == userId
                 && item.DeletedAtUtc == null
                 && item.Status == NotebookItemStatus.Active
-                && (item.IsPinned || (item.ReminderAtUtc != null && item.ReminderAtUtc < endTodayUtc)))
+                && (item.IsPinned || (item.ReminderAtUtc != null && item.ReminderAtUtc < windowEndUtc)))
             .OrderByDescending(item => item.IsPinned)
             .ThenBy(item => item.ReminderAtUtc)
             .Select(item => new WorkspaceReminderVm

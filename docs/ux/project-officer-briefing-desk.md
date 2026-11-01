@@ -134,7 +134,7 @@ progress instead"), because the task service would save nothing.
 - An overdue task's due tag is covered by its "Overdue by" step; an idea shows its document
   count only when it has documents. The section heading keeps the count beside the title and
   any register link on the right.
-- Side panels with nothing to show (no unread circulars, nothing in the next 14 days) are one
+- Side panels with nothing to show (no unread circulars, no reminders or events) are one
   line each, and **Sent for approval** is left out when nothing is pending.
 
 There is no weekly round (removed 2026-10-29): the "needs you" cards, in order, are the round.
@@ -270,7 +270,31 @@ The PO menu has five entries: **Briefing desk**, **My conference review**, **Pro
   Their addresses still work and redirect to the desk (`IsFoldedIntoDesk`): tasks to
   `#bd-section-task`, ideas to `#bd-section-idea`, follow-ups to `#bd-week-title`.
 - The task and idea registers are linked from the desk's Tasks and Ideas section headings. The
-  side panel lists reminders and events for the **next 14 days**.
+  side panel lists the PO's reminders and events (below).
+
+## Reminders and events (side column)
+
+Changed 2026-11-01. The panel used to be headed "Next 14 days" but listed pinned notes with no
+date and reminders overdue for days, and it never listed a reminder due later than today. It is
+now **Reminders and events**, in three groups (`BriefingDeskAgendaBuilder`, unit-tested), each
+left out when empty and capped with a "N more" link:
+
+- **Overdue** (red label): reminders whose date has passed, oldest first, at most 3.
+- **Next 14 days**: reminders and calendar events from today for 14 days, in date order
+  ("Today · 11:00", "Tomorrow · 09:30–10:30", "Tue 3 Nov · 15:00"), at most 5. A pinned note
+  with a date in the window is listed here by its date.
+- **Pinned**: pinned notes with no date, or a date beyond the window, at most 3.
+
+Each "more" link opens a page that lists what the group left out: the Notebook's Overdue view,
+its Reminders view (reminders beyond the five) or Calendar (events beyond the five), and the
+Notebook's Home board for pinned notes. The Notebook's Today view would show none of them.
+
+The reminder query reads pinned notes and reminders due before the end of the window
+(`LoadPersonalRemindersAsync`). The workspace rail's follow-up count keeps its own rule (pinned,
+or due by the end of today), so it does not grow with the wider window.
+
+The header link to the conference page reads **Open my conference review**, the same name as the
+menu entry and the page itself.
 
 The previous overview's Command view card and ERP activity heatmap were removed from the landing
 page. ERP activity stays under **My ERP activity**.

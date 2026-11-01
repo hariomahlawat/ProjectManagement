@@ -1045,6 +1045,24 @@
     gap: 1rem;
 }
 
+/* Reminders and events: small group labels (Overdue, Next 14 days, Pinned) inside the panel. */
+.bd-agenda__group {
+    margin: 0.4rem 0 0;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pm-text-secondary);
+}
+
+.bd-agenda__group--overdue {
+    color: var(--pm-danger-soft-text);
+}
+
+.bd-agenda__more {
+    align-self: flex-start;
+}
+
 .bd-count {
     min-width: 1.5rem;
     padding: 0.05rem 0.45rem;
