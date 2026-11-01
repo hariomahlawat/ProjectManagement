@@ -137,13 +137,20 @@ if (root) {
   };
 
   const loadPreview = async () => {
+    // Cancel any request still running so an obsolete response cannot restore old slides.
+    controller?.abort();
+    controller = null;
     if (!hasProjects) {
+      if (viewer?.open) viewer.close();
+      root.classList.remove('is-busy', 'is-stale', 'is-error');
+      if (refreshButton) refreshButton.disabled = false;
+      if (status) status.textContent = defaultStatus;
       renderEmpty('Add projects to see the slides.');
       return;
     }
 
-    controller?.abort();
-    controller = new AbortController();
+    const request = new AbortController();
+    controller = request;
     root.classList.add('is-busy');
     if (slides.length === 0) renderSkeleton();
     if (status) status.textContent = 'Building slides from current PRISM data…';
@@ -152,26 +159,40 @@ if (root) {
       const response = await fetch(root.dataset.previewUrl, {
         credentials: 'same-origin',
         headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        signal: controller.signal
+        signal: request.signal
       });
       const payload = await response.json().catch(() => null);
+      // A newer request (or an emptied deck) superseded this one: drop its response.
+      if (request.signal.aborted) return;
       if (!response.ok || !payload) throw new Error(payload?.message || `The slide preview could not be built (${response.status}).`);
       slides = Array.isArray(payload.slides) ? payload.slides : [];
       images = payload.images || {};
       renderSlides();
       updateCounts(payload);
       if (openButton) openButton.disabled = slides.length === 0;
-      if (viewer?.open) showSlide(Math.min(current, slides.length - 1));
+      if (viewer?.open) {
+        // The strip belongs to the old slide list; rebuild it before moving the current slide.
+        if (slides.length === 0) {
+          viewer.close();
+        } else {
+          buildStrip();
+          showSlide(Math.min(current, slides.length - 1));
+        }
+      }
     } catch (error) {
-      if (error.name === 'AbortError') return;
+      if (error.name === 'AbortError' || request.signal.aborted) return;
       if (slides.length === 0) renderEmpty('The slide preview is not available.');
       if (status) status.textContent = error.message || 'The slide preview could not be built.';
       root.classList.add('is-error');
       return;
     } finally {
-      if (refreshButton) refreshButton.disabled = false;
-      root.classList.remove('is-busy');
+      if (controller === request) {
+        controller = null;
+        if (refreshButton) refreshButton.disabled = false;
+        root.classList.remove('is-busy');
+      }
     }
+    if (request.signal.aborted) return;
     root.classList.remove('is-error', 'is-stale');
   };
 

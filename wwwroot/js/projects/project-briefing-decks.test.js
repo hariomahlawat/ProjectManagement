@@ -306,3 +306,16 @@ test('in-place deck edits ask the slide preview to rebuild', () => {
   const announcements = source.match(/announceDeckChange\(/g) || [];
   assert.ok(announcements.length >= 3, 'membership, order and overview saves');
 });
+
+test('slide preview drops superseded responses and rebuilds an open viewer strip', () => {
+  const previewSource = fs.readFileSync(
+    path.resolve(__dirname, '..', 'pages', 'project-briefing-preview.js'),
+    'utf8');
+  const load = previewSource.slice(previewSource.indexOf('const loadPreview'), previewSource.indexOf('// Viewer:'));
+  // Any running request is cancelled before the empty-deck path returns.
+  assert.ok(load.indexOf('controller?.abort();') < load.indexOf('if (!hasProjects)'));
+  assert.match(load, /if \(request\.signal\.aborted\) return;/);
+  assert.match(load, /if \(controller === request\)/);
+  // An open viewer gets a strip built from the new slide list.
+  assert.match(load, /buildStrip\(\);\s*showSlide\(Math\.min\(current, slides\.length - 1\)\);/);
+});
