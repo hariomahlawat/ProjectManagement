@@ -907,7 +907,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         var hasPhoto = project.CoverPhoto is { Length: > 0 };
         var costCards = CostCards(canvas, data.CostMode, project);
-        var costHeight = costCards.Count == 0 ? 0d : 1.03;
+        var costHeight = costCards.Count == 0 ? 0d : 1.16;
         var costY = costCards.Count == 0 ? contentBottom : contentBottom - costHeight;
         var positionBottom = costCards.Count == 0 ? contentBottom : costY - sectionGap;
         var layout = CalculateDetailedLayout(
@@ -918,10 +918,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             sectionGap,
             data.StandardSlideOptions.ShowPresentStage,
             data.StandardSlideOptions.ShowPresentStatus,
-            statusCharactersPerLine: 48,
+            statusCharactersPerLine: StatusCharactersPerLine,
             minimumPhotoHeight: 1.48,
             minimumPlaceholderHeight: 1.20,
-            maximumContextHeight: 2.78);
+            // The status text is larger now; cap its card so a long remark leaves the photo room.
+            maximumContextHeight: 2.30);
 
         AddProjectPhoto(
             canvas,
@@ -1612,12 +1613,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 {
                     new RichTextRun(
                         heading,
-                        10.5,
+                        12.5,
                         canvas.Theme.NarrativeAccent,
                         Bold: true)
                 },
                 SpaceAfterPoints: 10.0,
-                LineSpacingPoints: 12.6)
+                LineSpacingPoints: 15.0)
         };
 
         foreach (var block in blocks)
@@ -1626,9 +1627,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 ? canvas.Theme.TextMuted
                 : canvas.Theme.TextPrimary;
             var spaceAfter = Math.Max(0, block.SpaceAfter * 72d);
-            var lineSpacing = block.Type == ProjectBriefingCapabilityBlockType.Heading
-                ? 16.2
-                : block.FontSize * 1.20;
+            var lineSpacing = block.FontSize * 1.20;
 
             if (block.Type == ProjectBriefingCapabilityBlockType.Heading)
             {
@@ -1715,7 +1714,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         double sectionGap,
         bool showPresentStage,
         bool showPresentStatus,
-        int statusCharactersPerLine = 48,
+        int statusCharactersPerLine = StatusCharactersPerLine,
         double minimumPhotoHeight = 1.48,
         double minimumPlaceholderHeight = 1.20,
         double maximumContextHeight = 2.78)
@@ -1759,8 +1758,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             1,
             8);
         return Math.Clamp(
-            .62 + (estimatedLines * .21),
-            .92,
+            .66 + (estimatedLines * .21),
+            .98,
             maximumHeight);
     }
 
@@ -1788,12 +1787,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             .08,
             "Present status panel");
 
-        var estimatedLines = EstimateWrappedLines(value, compact ? 58 : 48);
+        var estimatedLines = EstimateWrappedLines(value, compact ? StatusCharactersPerLineCompact : StatusCharactersPerLine);
         var valueFont = estimatedLines switch
         {
-            <= 1 => compact ? 10.0 : 10.5,
-            <= 3 => compact ? 9.3 : 9.8,
-            _ => compact ? 8.6 : 9.0
+            <= 1 => compact ? 13.0 : 14.0,
+            <= 3 => compact ? 12.0 : 13.0,
+            _ => compact ? 11.5 : 12.0
         };
 
         canvas.AddRichTextBox(
@@ -1808,12 +1807,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     {
                         new RichTextRun(
                             "PRESENT STATUS",
-                            compact ? 8.4 : 9.0,
+                            compact ? 10.5 : 11.0,
                             canvas.Theme.OperationalAccent,
                             Bold: true)
                     },
                     SpaceAfterPoints: compact ? 5.0 : 6.0,
-                    LineSpacingPoints: compact ? 9.8 : 10.5),
+                    LineSpacingPoints: compact ? 12.5 : 13.0),
                 new RichTextParagraph(
                     new[]
                     {
@@ -1833,6 +1832,10 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             topInset: 0,
             bottomInset: 0);
     }
+
+    // Characters per line of the present-status text at its 12-14 pt sizes.
+    private const int StatusCharactersPerLine = 42;
+    private const int StatusCharactersPerLineCompact = 52;
 
     private static string NormalizeExternalStatus(string? value)
     {
@@ -1925,8 +1928,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         string fill,
         string? note = null)
     {
-        var titleFont = width < 2.3 ? 8.0 : 9.2;
-        var valueFont = width < 2.3 ? 12.0 : 13.5;
+        var titleFont = width < 2.3 ? 10.0 : 11.0;
+        var valueFont = width < 2.3 ? 15.0 : 17.0;
         var paragraphs = new List<RichTextParagraph>
         {
             new(
@@ -1960,10 +1963,10 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 {
                     new RichTextRun(
                         note!,
-                        7.8,
+                        10.0,
                         canvas.Theme.TextMuted)
                 },
-                LineSpacingPoints: 9.0));
+                LineSpacingPoints: 11.5));
         }
 
         canvas.AddTextShape(
@@ -2141,6 +2144,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             SubtitleShapeName: "Slide subtitle");
     }
 
+    private const double FooterFontSize = 9.0;
+
     private static void AddFooter(
         SlideCanvas canvas,
         ProjectBriefingPresentationData data,
@@ -2154,7 +2159,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         }
 
         canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
-        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
+        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", FooterFontSize, canvas.Theme.TextMuted, true, "l");
         DateTimeOffset? dataAsOnUtc = kind switch
         {
             SlidePlanKind.InstitutionalProfile when data.InstitutionalProfile is not null
@@ -2176,12 +2181,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         {
             if (dataAsOn is null)
             {
-                canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
+                canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, FooterFontSize, canvas.Theme.Critical, true, "ctr");
             }
             else
             {
-                canvas.AddText(4.95, 7.12, 3.45, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
-                canvas.AddText(8.45, 7.12, 1.85, .18, $"Data as on {dataAsOn}", 7.5, canvas.Theme.TextMuted, false, "r");
+                canvas.AddText(4.95, 7.12, 3.45, .18, data.HandlingMarking!, FooterFontSize, canvas.Theme.Critical, true, "ctr");
+                canvas.AddText(8.45, 7.12, 1.85, .18, $"Data as on {dataAsOn}", FooterFontSize, canvas.Theme.TextMuted, false, "r");
             }
         }
         else if (dataAsOn is not null)
@@ -2192,12 +2197,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 5.05,
                 .18,
                 $"Data as on {dataAsOn} · Source: PRISM ERP",
-                7.8,
+                FooterFontSize,
                 canvas.Theme.TextMuted,
                 false,
                 "ctr");
         }
-        canvas.AddText(10.35, 7.12, 2.35, .18, $"{slideNumber}/{slideCount}", 7.5, canvas.Theme.TextMuted, true, "r");
+        canvas.AddText(10.35, 7.12, 2.35, .18, $"{slideNumber}/{slideCount}", FooterFontSize, canvas.Theme.TextMuted, true, "r");
     }
 
     private static void AddEmptyMessage(SlideCanvas canvas, string message)
@@ -3137,6 +3142,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             var nonVisualShapeProperties = isTextBox
                 ? "<p:cNvSpPr txBox=\"1\"/>"
                 : "<p:cNvSpPr/>";
+            if (string.IsNullOrWhiteSpace(geometryAdjustmentsXml) && geometry == "roundRect")
+            {
+                geometryAdjustmentsXml = CornerRadiusAdjustment(width, height);
+            }
+
             var geometryXml = string.IsNullOrWhiteSpace(geometryAdjustmentsXml)
                 ? $"<a:prstGeom prst=\"{geometry}\"><a:avLst/></a:prstGeom>"
                 : $"<a:prstGeom prst=\"{geometry}\"><a:avLst>{geometryAdjustmentsXml}</a:avLst></a:prstGeom>";
@@ -3148,6 +3158,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
   {textXml}
 </p:sp>
 """);
+        }
+
+        // Rounded shapes share one modest corner: PowerPoint's default (a sixth of the shorter side)
+        // is kept for small cards and chips, and capped for large panels, which it turns into bubbles.
+        internal const double MaximumCornerRadiusInches = .12;
+
+        private static string CornerRadiusAdjustment(double width, double height)
+        {
+            var shorterSide = Math.Max(.01, Math.Min(width, height));
+            var adjustment = Math.Min(16_667d, MaximumCornerRadiusInches / shorterSide * 100_000d);
+            return $"<a:gd name=\"adj\" fmla=\"val {Math.Round(adjustment).ToString(CultureInfo.InvariantCulture)}\"/>";
         }
 
         private static string BuildTableTextBody(NativeTableCell cell)
