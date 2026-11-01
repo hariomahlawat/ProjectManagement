@@ -238,13 +238,14 @@ if (root) {
       button.dataset.pbdPresentation = value;
       button.setAttribute('aria-pressed', String((project.presentation || 'Slides') === value));
       button.addEventListener('click', () => {
-        if ((project.presentation || 'Slides') === value) return;
+        const previous = project.presentation || 'Slides';
+        if (previous === value) return;
         project.presentation = value;
         project.isPresented = value !== 'LeftOut' && !project.isDeletedOrArchived;
         renderOutline();
         renderStage();
         root.querySelector(`[data-pbd-presentation="${value}"]`)?.focus();
-        document.dispatchEvent(new CustomEvent('pbd:set-project-presentation', { detail: { projectId: project.projectId, presentation: value } }));
+        document.dispatchEvent(new CustomEvent('pbd:set-project-presentation', { detail: { projectId: project.projectId, presentation: value, previous } }));
       });
       group.append(button);
     });
@@ -921,6 +922,18 @@ if (root) {
     if (target instanceof HTMLElement && (target.closest('input, textarea, select, [contenteditable="true"], [role="tablist"]'))) return;
     event.preventDefault();
     selectIndex(current + (event.key === 'ArrowRight' ? 1 : -1));
+  });
+
+  // A presentation change the server refused: put back the saved choice before the rebuild.
+  document.addEventListener('pbd:project-presentation-failed', (event) => {
+    const project = projects.get(Number(event.detail?.projectId));
+    if (!project || !event.detail?.previous) return;
+    project.presentation = event.detail.previous;
+    project.isPresented = project.presentation !== 'LeftOut' && !project.isDeletedOrArchived;
+    if (!slides.length) entries = buildEntries([]);
+    renderOutline();
+    renderStage();
+    renderChecksPanel();
   });
 
   // The builder announces in-place edits (membership, order, overrides); rebuild shortly after.

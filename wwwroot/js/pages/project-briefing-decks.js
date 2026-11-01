@@ -1400,7 +1400,10 @@ if (root) {
     } catch (error) {
       if (error instanceof RequestError && error.status === 409) showConflict(error.message);
       setState(membershipStatus, error.message || 'The change could not be saved.', 'error');
-      // Rebuild from the server so the Studio drops the choice that was not saved.
+      // The Studio puts back the saved choice, then rebuilds from the server.
+      document.dispatchEvent(new CustomEvent('pbd:project-presentation-failed', {
+        detail: { projectId, previous: event.detail?.previous }
+      }));
       announceDeckChange({});
     }
   });

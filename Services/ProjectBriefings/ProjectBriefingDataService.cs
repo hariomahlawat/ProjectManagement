@@ -819,7 +819,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ? 0
             : ProjectBriefingTablePagination.Paginate(
                 tableProjects,
-                costMode,
+                ProjectBriefingContentGaps.EffectiveTableCostMode(layout, costMode),
                 project => ProjectBriefingTablePagination.Measure(
                     project.ProjectName,
                     project.PresentStage,

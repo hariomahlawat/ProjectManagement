@@ -92,6 +92,25 @@ public sealed class ProjectBriefingItemPresentationTests
     }
 
     [Fact]
+    public void UpdateSheetDeck_ChecksATableRowForTheRdCostItsTableShows()
+    {
+        // Update-sheet decks render their tables with R&D cost whatever cost choice is stored.
+        var settings = new ProjectBriefingContentGapSettings(
+            ProjectBriefingLayout.ProjectUpdateSheet,
+            ProjectBriefingPresentationMode.Combined,
+            ProjectBriefingCostMode.ProliferationOnly,
+            ProjectBriefingNarrativeMode.Both,
+            ProjectBriefingStandardSlideOptions.Default,
+            ProjectBriefingUpdateSheetOptions.Default);
+
+        var gaps = ProjectBriefingContentGaps.Resolve(
+            new[] { EmptyProject(2, ProjectBriefingItemPresentation.TableRowOnly) },
+            settings);
+
+        Assert.Equal(new[] { ProjectBriefingContentGaps.Status, ProjectBriefingContentGaps.CostRd }, gaps[2]);
+    }
+
+    [Fact]
     public void LeftOutAndDeletedProjects_AreNotPresented()
     {
         Assert.True(EmptyProject(1, ProjectBriefingItemPresentation.Slides).IsPresented);

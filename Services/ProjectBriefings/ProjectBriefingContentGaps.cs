@@ -50,6 +50,10 @@ public static class ProjectBriefingContentGaps
         return gaps;
     }
 
+    // The cost columns a status table shows for a deck: update-sheet decks always show R&D cost.
+    public static ProjectBriefingCostMode EffectiveTableCostMode(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode)
+        => layout == ProjectBriefingLayout.ProjectUpdateSheet ? ProjectBriefingCostMode.CostRdOnly : costMode;
+
     public static bool HasCapabilityOverview(string? value)
     {
         var text = value?.Trim();
@@ -74,15 +78,21 @@ public static class ProjectBriefingContentGaps
         bool ProjectBrief,
         bool UpdateSheetFacts)
     {
-        // A table row shows the present stage, the status remark and the deck's costs.
-        public static Uses TableRow(ProjectBriefingContentGapSettings settings) => new(
-            Status: true,
-            CostRd: settings.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both,
-            ProliferationCost: settings.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both,
-            Photo: false,
-            CapabilityOverview: false,
-            ProjectBrief: false,
-            UpdateSheetFacts: false);
+        // A table row shows the present stage, the status remark and the deck's costs. An
+        // update-sheet deck's table shows the R&D cost whatever cost choice is stored (the
+        // generator renders those decks with CostRdOnly).
+        public static Uses TableRow(ProjectBriefingContentGapSettings settings)
+        {
+            var costMode = EffectiveTableCostMode(settings.Layout, settings.CostMode);
+            return new Uses(
+                Status: true,
+                CostRd: costMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both,
+                ProliferationCost: costMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both,
+                Photo: false,
+                CapabilityOverview: false,
+                ProjectBrief: false,
+                UpdateSheetFacts: false);
+        }
 
         // Mirrors which content each template, format and narrative choice puts on a slide.
         public static Uses From(ProjectBriefingContentGapSettings settings)

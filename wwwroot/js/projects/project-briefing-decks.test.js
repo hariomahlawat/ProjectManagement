@@ -398,7 +398,7 @@ test('individual search follows every membership change and keeps unapplied tick
 test('each project can be shown as slides, a table row only, or left out', () => {
   // The Studio asks; the builder saves through the deck mutation queue.
   assert.match(studioSource, /const PRESENTATIONS = \['Slides', 'TableRowOnly', 'LeftOut'\];/);
-  assert.match(studioSource, /new CustomEvent\('pbd:set-project-presentation', \{ detail: \{ projectId: project\.projectId, presentation: value \} \}\)/);
+  assert.match(studioSource, /new CustomEvent\('pbd:set-project-presentation', \{ detail: \{ projectId: project\.projectId, presentation: value, previous \} \}\)/);
   assert.match(source, /document\.addEventListener\('pbd:set-project-presentation'[\s\S]*?runDeckMutation\(async \(\) => \{[\s\S]*?root\.dataset\.itemPresentationUrl/);
   assert.match(viewSource, /data-item-presentation-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateItemPresentation"\)"/);
   // Projects not in the PowerPoint are listed last, with no slide, so they can be brought back.
@@ -419,4 +419,10 @@ test('a deck whose projects are all left out still lists them so they can be bro
   const stage = studioSource.slice(studioSource.indexOf('const renderStage'), studioSource.indexOf('const selectEntry'));
   assert.ok(stage.indexOf('entry.indices.length === 0') < stage.indexOf('if (!slide) {'));
   assert.match(studioSource, /if \(!entry \|\| \(!slide && entry\.indices\.length\)\) \{/);
+});
+
+test('a refused presentation change puts back the saved choice before rebuilding', () => {
+  assert.match(studioSource, /presentation: value, previous \} \}\)\);/);
+  assert.match(studioSource, /document\.addEventListener\('pbd:project-presentation-failed'[\s\S]*?project\.presentation = event\.detail\.previous;/);
+  assert.match(source, /new CustomEvent\('pbd:project-presentation-failed', \{\s*detail: \{ projectId, previous: event\.detail\?\.previous \}\s*\}\)\);\s*announceDeckChange\(\{\}\);/);
 });
