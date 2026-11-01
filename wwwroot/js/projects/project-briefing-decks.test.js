@@ -146,6 +146,20 @@ test('profile and additional-slide posts wait for a pending settings save', () =
   assert.doesNotMatch(additionalSlidesSource, /additionalSlideOrderForm\.submit\(\)/);
 });
 
+test('in-place deck changes run one at a time with the latest row version', () => {
+  assert.match(source, /const run = deckMutationTail\.then\(\(\) => mutate\(\)\);\s*deckMutationTail = run\.catch\(\(\) => \{\}\);/);
+  // Settings, presets, membership, quick selections, reorder and capability overviews all queue.
+  const queued = source.match(/runDeckMutation\(/g) || [];
+  assert.ok(queued.length >= 6, `expected six queued deck changes, found ${queued.length}`);
+  const rowVersionReads = source.match(/currentRowVersion\(\)/g) || [];
+  // Each read that sends a row version sits inside a queued change (the helper itself defines one).
+  for (const match of source.matchAll(/body\.set\('RowVersion', currentRowVersion\(\)\)|rowVersion: currentRowVersion\(\)/g)) {
+    const before = source.slice(Math.max(0, match.index - 400), match.index);
+    assert.match(before, /runDeckMutation\(/, `row version sent outside the queue near: ${source.slice(match.index, match.index + 60)}`);
+  }
+  assert.ok(rowVersionReads.length > 0);
+});
+
 test('purpose presets apply on the server and the deck tab shows the current one', () => {
   assert.match(viewSource, /@foreach \(var preset in ProjectBriefingDeckPresets\.All\)/);
   assert.match(viewSource, /data-pbd-preset="@preset\.Preset"/);

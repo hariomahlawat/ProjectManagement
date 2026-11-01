@@ -52,6 +52,15 @@ if (root) {
     rowVersionInputs.forEach((input) => { input.value = value; });
   };
 
+  // Every in-place change to the deck sends its row version, so they run one at a time: each
+  // starts after the previous one has finished and picked up the version the server returned.
+  let deckMutationTail = Promise.resolve();
+  const runDeckMutation = (mutate) => {
+    const run = deckMutationTail.then(() => mutate());
+    deckMutationTail = run.catch(() => {});
+    return run;
+  };
+
   // Deck settings: the form in the Studio's Deck tab, saved in place as it changes.
   const settingsForm = root.querySelector('[data-pbd-settings-form]');
   const settingsStatus = root.querySelector('[data-pbd-settings-status]');
@@ -882,15 +891,19 @@ if (root) {
 
     setState(settingsStatus, 'Saving…', 'saving');
     try {
-      const body = new FormData(settingsForm);
-      body.set('RowVersion', currentRowVersion());
-      const response = await fetch(settingsForm.action, {
-        method: 'POST',
-        credentials: 'same-origin',
-        body,
-        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+      const { response, payload } = await runDeckMutation(async () => {
+        const body = new FormData(settingsForm);
+        body.set('RowVersion', currentRowVersion());
+        const reply = await fetch(settingsForm.action, {
+          method: 'POST',
+          credentials: 'same-origin',
+          body,
+          headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const replyPayload = await reply.json().catch(() => null);
+        if (reply.ok) updateRowVersion(replyPayload?.deck?.rowVersion);
+        return { response: reply, payload: replyPayload };
       });
-      const payload = await response.json().catch(() => null);
       if (response.status === 409) {
         showConflict(payload?.message);
         throw new Error('Not saved: someone else changed this deck.');
@@ -977,10 +990,10 @@ if (root) {
     root.querySelectorAll('[data-pbd-preset]').forEach((other) => { other.disabled = true; });
     setState(settingsStatus, 'Applying the preset…', 'saving');
     try {
-      await requestJson(root.dataset.presetUrl, {
+      await runDeckMutation(() => requestJson(root.dataset.presetUrl, {
         method: 'POST',
         body: JSON.stringify({ deckId, preset: button.dataset.pbdPreset, rowVersion: currentRowVersion() })
-      });
+      }));
       window.location.reload();
     } catch (error) {
       if (error instanceof RequestError && error.status === 409) showConflict(error.message);
@@ -1260,9 +1273,13 @@ if (root) {
     if (deckId <= 0 || (addProjectIds.length === 0 && removeProjectIds.length === 0)) return null;
     setState(statusElement, 'Saving deck membership…', 'saving');
     try {
-      const payload = await requestJson(root.dataset.membershipUrl, {
-        method: 'POST',
-        body: JSON.stringify({ deckId, addProjectIds, removeProjectIds, rowVersion: currentRowVersion() })
+      const payload = await runDeckMutation(async () => {
+        const reply = await requestJson(root.dataset.membershipUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, addProjectIds, removeProjectIds, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(reply?.deck?.rowVersion);
+        return reply;
       });
       applyEditorState(payload?.deck);
       const changes = [];
@@ -1327,16 +1344,20 @@ if (root) {
     button?.setAttribute('disabled', 'disabled');
     setState(addProjectsStatus, 'Adding projects…', 'saving');
     try {
-      const body = new FormData(form);
-      body.set('RowVersion', currentRowVersion());
-      const response = await fetch(form.action, {
-        method: 'POST',
-        credentials: 'same-origin',
-        body,
-        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+      const payload = await runDeckMutation(async () => {
+        const body = new FormData(form);
+        body.set('RowVersion', currentRowVersion());
+        const response = await fetch(form.action, {
+          method: 'POST',
+          credentials: 'same-origin',
+          body,
+          headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const reply = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(reply?.message || `Projects could not be added (${response.status}).`);
+        updateRowVersion(reply?.deck?.rowVersion);
+        return reply;
       });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.message || `Projects could not be added (${response.status}).`);
       applyEditorState(payload?.deck);
       setState(addProjectsStatus, payload?.message || 'Deck updated.', 'saved');
       setState(membershipStatus, payload?.message || 'Deck updated.', 'saved');
@@ -1353,11 +1374,13 @@ if (root) {
     if (deckId <= 0 || projectIds.length === 0) return;
     setState(membershipStatus, 'Saving slide order…', 'saving');
     try {
-      const payload = await requestJson(root.dataset.reorderUrl, {
-        method: 'POST',
-        body: JSON.stringify({ deckId, projectIds, rowVersion: currentRowVersion() })
+      await runDeckMutation(async () => {
+        const payload = await requestJson(root.dataset.reorderUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, projectIds, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(payload?.rowVersion);
       });
-      updateRowVersion(payload?.rowVersion);
       setState(membershipStatus, 'Slide order saved.', 'saved');
     } catch (error) {
       setState(membershipStatus, error.message || 'Slide order could not be saved.', 'error');
@@ -1565,11 +1588,14 @@ if (root) {
     submit?.setAttribute('disabled', 'disabled');
     setState(descriptionStatus, 'Saving…');
     try {
-      const payload = await requestJson(root.dataset.descriptionUrl, {
-        method: 'POST',
-        body: JSON.stringify({ deckId, projectId, value: descriptionValue?.value || null, rowVersion: currentRowVersion() })
+      const payload = await runDeckMutation(async () => {
+        const reply = await requestJson(root.dataset.descriptionUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, projectId, value: descriptionValue?.value || null, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(reply?.rowVersion);
+        return reply;
       });
-      updateRowVersion(payload?.rowVersion);
       // The table row and the Studio inspector both carry an editor button for the project.
       root.querySelectorAll(`[data-pbd-edit-description][data-project-id="${projectId}"]`).forEach((editorButton) => {
         editorButton.dataset.description = descriptionValue?.value || '';
