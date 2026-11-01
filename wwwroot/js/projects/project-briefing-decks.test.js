@@ -330,3 +330,22 @@ test('studio reuses the builder save paths instead of its own', () => {
   assert.match(source, /event\.target\.closest\('\[data-pbd-remove-project\]'\)/);
   assert.match(source, /event\.target\.closest\('\[data-pbd-edit-description\]'\)/);
 });
+
+test('saving a capability overview refreshes the studio project data', () => {
+  // The save returns the refreshed deck, every editor button for the project is updated, and the
+  // studio re-renders from the new projects and gaps.
+  const handler = fs.readFileSync(
+    path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', 'Index.cshtml.cs'),
+    'utf8');
+  assert.match(handler, /return new JsonResult\(new \{ saved = true, rowVersion, deck \}\);/);
+  assert.match(source, /querySelectorAll\(`\[data-pbd-edit-description\]\[data-project-id="\$\{projectId\}"\]`\)\.forEach/);
+  assert.match(source, /announceDeckChange\(payload\?\.deck \? \{ deck: payload\.deck \} : \{\}\);/);
+  const changed = studioSource.slice(studioSource.indexOf("addEventListener('pbd:deck-changed'"));
+  assert.match(changed, /readStudioData\([\s\S]*?renderOutline\(\);\s*renderStage\(\);\s*renderChecksPanel\(\);/);
+});
+
+test('an emptied deck clears the slide grid and says why', () => {
+  const empty = studioSource.slice(studioSource.indexOf('const renderEmpty'), studioSource.indexOf('const loadPreview'));
+  assert.match(empty, /releaseFrames\(gridBox\);\s*gridBox\?\.replaceChildren\(\);/);
+  assert.ok(empty.indexOf('renderStage();') < empty.indexOf("slideBox?.replaceChildren(el('p', 'pbd-stage__empty', message));"));
+});

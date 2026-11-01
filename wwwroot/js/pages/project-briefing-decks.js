@@ -2114,10 +2114,12 @@ if (root) {
         body: JSON.stringify({ deckId, projectId, value: descriptionValue?.value || null, rowVersion: currentRowVersion() })
       });
       updateRowVersion(payload?.rowVersion);
-      const editorButton = root.querySelector(`[data-pbd-edit-description][data-project-id="${projectId}"]`);
-      if (editorButton) editorButton.dataset.description = descriptionValue?.value || '';
+      // The table row and the Studio inspector both carry an editor button for the project.
+      root.querySelectorAll(`[data-pbd-edit-description][data-project-id="${projectId}"]`).forEach((editorButton) => {
+        editorButton.dataset.description = descriptionValue?.value || '';
+      });
       setState(descriptionStatus, 'Deck-specific capability overview saved.', 'success');
-      announceDeckChange();
+      announceDeckChange(payload?.deck ? { deck: payload.deck } : {});
       window.setTimeout(() => descriptionModal?.hide(), 450);
     } catch (error) {
       setState(descriptionStatus, error.message || 'Capability overview could not be saved.', 'error');

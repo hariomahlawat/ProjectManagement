@@ -748,7 +748,9 @@ public sealed class IndexModel : PageModel
                 input.Value,
                 input.RowVersion,
                 cancellationToken);
-            return new JsonResult(new { saved = true, rowVersion });
+            // The refreshed deck lets the Studio update the project's text and content gaps.
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
+            return new JsonResult(new { saved = true, rowVersion, deck });
         }
         catch (DbUpdateConcurrencyException)
         {

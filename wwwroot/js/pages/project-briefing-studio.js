@@ -528,13 +528,15 @@ if (root) {
   const renderEmpty = (message) => {
     slides = [];
     entries = [];
-    releaseFrames(slideBox);
-    slideBox?.replaceChildren(el('p', 'pbd-stage__empty', message));
+    releaseFrames(gridBox);
+    gridBox?.replaceChildren();
     outlineNav?.replaceChildren(el('p', 'pbd-outline__empty', message));
     if (presentButton) presentButton.disabled = true;
     if (status) status.textContent = message;
     renderStage();
     renderChecksPanel();
+    // renderStage clears the slide area when there are no slides; say why after it.
+    slideBox?.replaceChildren(el('p', 'pbd-stage__empty', message));
   };
 
   const loadPreview = async () => {
@@ -702,6 +704,8 @@ if (root) {
     if (typeof event.detail?.hasProjects === 'boolean') hasProjects = event.detail.hasProjects;
     if (event.detail?.deck) {
       readStudioData({ projects: event.detail.deck.projects, contentGaps: event.detail.deck.contentGaps });
+      renderOutline();
+      renderStage();
       renderChecksPanel();
     }
     root.classList.add('is-stale');
