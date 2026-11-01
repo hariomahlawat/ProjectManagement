@@ -247,7 +247,9 @@
                pinned notes are not mixed into what is coming (BriefingDeskAgendaBuilder). *@
             @{
                 var agenda = vm.BriefingDeskAgenda;
-                void AgendaGroup(string title, IReadOnlyList<BriefingDeskAgendaEntryVm> entries, int moreCount, string moreUrl, string? modifier = null)
+                // Each "more" link opens the page that lists what the group left out: the Notebook's
+                // Overdue, Reminders or pinned (Home) view, or the Calendar for events.
+                void AgendaGroup(string title, IReadOnlyList<BriefingDeskAgendaEntryVm> entries, IReadOnlyList<(int Count, string Noun, string Url)> more, string? modifier = null)
                 {
                     if (entries.Count == 0)
                     {
@@ -263,9 +265,9 @@
                             </li>
                         }
                     </ul>
-                    if (moreCount > 0)
+                    foreach (var (count, noun, url) in more.Where(link => link.Count > 0))
                     {
-                        <a class="bd-link bd-link--small bd-agenda__more" href="@moreUrl">@moreCount more</a>
+                        <a class="bd-link bd-link--small bd-agenda__more" href="@url">@count more @noun@(count == 1 ? string.Empty : "s")</a>
                     }
                 }
             }
@@ -274,9 +276,13 @@
                 <section class="bd-panel" aria-labelledby="bd-week-title">
                     <div class="bd-panel__head"><h2 id="bd-week-title">Reminders and events</h2></div>
                     @{
-                        AgendaGroup("Overdue", agenda.Overdue, agenda.OverdueMoreCount, WorkspaceRouteHelper.PersonalReminders(), "bd-agenda__group--overdue");
-                        AgendaGroup("Next 14 days", agenda.Coming, agenda.ComingMoreCount, "/Calendar");
-                        AgendaGroup("Pinned", agenda.Pinned, agenda.PinnedMoreCount, WorkspaceRouteHelper.PersonalReminders());
+                        AgendaGroup("Overdue", agenda.Overdue, new[] { (agenda.OverdueMoreCount, "reminder", WorkspaceRouteHelper.NotebookOverdue()) }, "bd-agenda__group--overdue");
+                        AgendaGroup("Next 14 days", agenda.Coming, new[]
+                        {
+                            (agenda.ComingReminderMoreCount, "reminder", WorkspaceRouteHelper.NotebookReminders()),
+                            (agenda.ComingEventMoreCount, "event", "/Calendar")
+                        });
+                        AgendaGroup("Pinned", agenda.Pinned, new[] { (agenda.PinnedMoreCount, "pinned note", WorkspaceRouteHelper.NotebookPinned()) });
                     }
                     <div class="bd-panel__links">
                         <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>

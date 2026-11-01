@@ -56,7 +56,10 @@ public sealed class BriefingDeskAgendaBuilderTests
         // Oldest first: the one overdue longest leads.
         Assert.Equal("Overdue 6", agenda.Overdue[0].Title);
         Assert.Equal(BriefingDeskAgendaBuilder.ComingLimit, agenda.Coming.Count);
-        Assert.Equal(4 + 8 - BriefingDeskAgendaBuilder.ComingLimit, agenda.ComingMoreCount);
+        // Shown in date order: three reminders and two events. The rest are counted apart, since
+        // reminders are listed in the Notebook and events in the Calendar.
+        Assert.Equal(1, agenda.ComingReminderMoreCount);
+        Assert.Equal(8 - 2, agenda.ComingEventMoreCount);
         Assert.Equal(BriefingDeskAgendaBuilder.PinnedLimit, agenda.Pinned.Count);
         Assert.Equal(2, agenda.PinnedMoreCount);
     }

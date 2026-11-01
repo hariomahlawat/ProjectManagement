@@ -58,14 +58,17 @@ public static class BriefingDeskAgendaBuilder
                 item.OpenUrl,
                 "bi-calendar-event")))
             .ToList();
-        var coming = comingReminders
-            .Concat(comingEvents)
+        var shown = comingReminders.Select(pair => (pair.At, pair.Entry, IsEvent: false))
+            .Concat(comingEvents.Select(pair => (pair.At, pair.Entry, IsEvent: true)))
             .OrderBy(pair => pair.At)
             .Take(ComingLimit)
-            .Select(pair => pair.Entry)
             .ToList();
-        // The event query returns only its first few, so the total comes from its own count.
-        var comingTotal = comingReminders.Count + Math.Max(eventTotalCount, comingEvents.Count);
+        var coming = shown.Select(pair => pair.Entry).ToList();
+        // Reminders left out are in the Notebook and events in the Calendar, so each is counted
+        // apart and linked to its own page. The event query returns only its first few, so the
+        // event total comes from its own count.
+        var comingRemindersMore = comingReminders.Count - shown.Count(pair => !pair.IsEvent);
+        var comingEventsMore = Math.Max(eventTotalCount, comingEvents.Count) - shown.Count(pair => pair.IsEvent);
 
         // A pinned note with a date inside the window is listed by its date above.
         var pinnedOther = reminders
@@ -85,7 +88,8 @@ public static class BriefingDeskAgendaBuilder
             Overdue = overdue,
             OverdueMoreCount = overdueAll.Count - overdue.Count,
             Coming = coming,
-            ComingMoreCount = Math.Max(0, comingTotal - coming.Count),
+            ComingReminderMoreCount = Math.Max(0, comingRemindersMore),
+            ComingEventMoreCount = Math.Max(0, comingEventsMore),
             Pinned = pinned,
             PinnedMoreCount = Math.Max(0, pinnedOther.Count - pinned.Count)
         };

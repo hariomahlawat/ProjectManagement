@@ -285,6 +285,10 @@ left out when empty and capped with a "N more" link:
   with a date in the window is listed here by its date.
 - **Pinned**: pinned notes with no date, or a date beyond the window, at most 3.
 
+Each "more" link opens a page that lists what the group left out: the Notebook's Overdue view,
+its Reminders view (reminders beyond the five) or Calendar (events beyond the five), and the
+Notebook's Home board for pinned notes. The Notebook's Today view would show none of them.
+
 The reminder query reads pinned notes and reminders due before the end of the window
 (`LoadPersonalRemindersAsync`). The workspace rail's follow-up count keeps its own rule (pinned,
 or due by the end of today), so it does not grow with the wider window.

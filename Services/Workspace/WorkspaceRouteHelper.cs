@@ -102,6 +102,17 @@ internal static class WorkspaceRouteHelper
     public static string PersonalReminders()
         => "/Notebook?view=today";
 
+    // Notebook views the desk's "N more" links open: each lists the entries the desk left out.
+    public static string NotebookOverdue()
+        => "/Notebook?view=overdue";
+
+    public static string NotebookReminders()
+        => "/Notebook?view=reminders";
+
+    // Home is the Notebook's pinned board.
+    public static string NotebookPinned()
+        => "/Notebook?view=home";
+
     public static string PersonalReminder(Guid itemId)
         => $"/Notebook?view=today&note={itemId}";
 

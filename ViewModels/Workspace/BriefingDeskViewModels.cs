@@ -328,7 +328,11 @@ public sealed class BriefingDeskAgendaVm
 
     public IReadOnlyList<BriefingDeskAgendaEntryVm> Coming { get; init; } = Array.Empty<BriefingDeskAgendaEntryVm>();
 
-    public int ComingMoreCount { get; init; }
+    /// <summary>Reminders in the window beyond the cap; listed in the Notebook's Reminders view.</summary>
+    public int ComingReminderMoreCount { get; init; }
+
+    /// <summary>Events in the window beyond the cap; listed in the Calendar.</summary>
+    public int ComingEventMoreCount { get; init; }
 
     public IReadOnlyList<BriefingDeskAgendaEntryVm> Pinned { get; init; } = Array.Empty<BriefingDeskAgendaEntryVm>();
 
