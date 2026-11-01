@@ -127,10 +127,13 @@ test('settings drawer keeps a consistent appearance section and compact default 
 });
 
 test('pending settings saves finish before navigation, posts and generation', () => {
-  assert.match(source, /if \(!settingsPending\(\) && !profileDirty\) return;\s*event\.preventDefault\(\);\s*event\.returnValue = '';/);
+  assert.match(source, /if \(!settingsPending\(\) && !profileDirty && !notesUnsaved\(\)\) return;\s*event\.preventDefault\(\);\s*event\.returnValue = '';/);
   // A failed save keeps the form unsaved, and leaving then asks instead of going ahead.
   assert.match(source, /serializeSettings\(\) !== settingsSavedState\)\);/);
-  assert.match(source, /if \(!settingsPending\(\) \|\| await saveSettingsNow\(\)\) return true;\s*const discard = await prismConfirm\(/);
+  assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*const discard = await prismConfirm\(/);
+  // Speaker notes the Studio could not save are protected the same way.
+  assert.match(source, /return settleNotesBeforeLeaving\(\);/);
+  assert.match(source, /const settleNotesBeforeLeaving = async \(\) => \{[\s\S]*?await deckMutationTail;\s*if \(!notesUnsaved\(\)\) return true;\s*const discard = await prismConfirm\(/);
   assert.match(source, /document\.addEventListener\('click'[\s\S]*?if \(!\(await settleSettingsBeforeLeaving\(\)\)\) return;/);
   assert.match(source, /document\.addEventListener\('submit'[\s\S]*?if \(!\(await settleSettingsBeforeLeaving\(\)\)\) return;/);
   assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*setState\(generateStatus, 'Save the deck settings before generating the PowerPoint\.', 'error'\);/);

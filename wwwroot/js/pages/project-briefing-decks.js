@@ -947,18 +947,40 @@ if (root) {
   // Navigation and full-page posts go ahead only once the settings are saved, or when the
   // person chooses to leave them unsaved. Forms that ask their own question first (remove an
   // additional slide) call it through the root after that question.
-  const settleSettingsBeforeLeaving = async () => {
-    if (!settingsPending() || await saveSettingsNow()) return true;
+  // Speaker notes the Studio holds but has not saved (a save that failed or is still running).
+  let notesDiscarded = false;
+  const notesUnsaved = () => !notesDiscarded
+    && Boolean(document.querySelector('[data-pbd-studio][data-unsaved-notes="true"]'));
+  const settleNotesBeforeLeaving = async () => {
+    // A notes save started when the box lost focus finishes first.
+    await deckMutationTail;
+    if (!notesUnsaved()) return true;
     const discard = await prismConfirm({
-      title: 'Leave without saving the settings?',
-      message: 'Your latest deck settings change could not be saved and will be lost if you continue.',
+      title: 'Leave without saving the speaker notes?',
+      message: 'Speaker notes for a project could not be saved and will be lost if you continue.',
       confirmText: 'Leave anyway',
       cancelText: 'Stay here',
       tone: 'danger',
       returnFocus: document.activeElement
     });
-    if (discard) settingsDiscarded = true;
+    if (discard) notesDiscarded = true;
     return discard;
+  };
+
+  const settleSettingsBeforeLeaving = async () => {
+    if (settingsPending() && !(await saveSettingsNow())) {
+      const discard = await prismConfirm({
+        title: 'Leave without saving the settings?',
+        message: 'Your latest deck settings change could not be saved and will be lost if you continue.',
+        confirmText: 'Leave anyway',
+        cancelText: 'Stay here',
+        tone: 'danger',
+        returnFocus: document.activeElement
+      });
+      if (!discard) return false;
+      settingsDiscarded = true;
+    }
+    return settleNotesBeforeLeaving();
   };
   root.pbdSettleSettings = settleSettingsBeforeLeaving;
 
@@ -980,7 +1002,7 @@ if (root) {
     saveSettingsNow();
   });
   window.addEventListener('beforeunload', (event) => {
-    if (!settingsPending() && !profileDirty) return;
+    if (!settingsPending() && !profileDirty && !notesUnsaved()) return;
     event.preventDefault();
     event.returnValue = '';
   });
@@ -1066,7 +1088,7 @@ if (root) {
   };
 
   document.addEventListener('click', async (event) => {
-    if ((!settingsPending() && !profileDirty) || event.defaultPrevented || event.button !== 0
+    if ((!settingsPending() && !profileDirty && !notesUnsaved()) || event.defaultPrevented || event.button !== 0
         || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const link = event.target.closest('a[href]');
     if (!(link instanceof HTMLAnchorElement) || profileDrawer?.contains(link)) return;
@@ -1089,7 +1111,7 @@ if (root) {
         || submittedForm === profileForm
         || submittedForm === renameForm
         || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form], [data-pbd-remove-additional-slide-form]')) return;
-    if (!settingsPending() && !profileDirty) return;
+    if (!settingsPending() && !profileDirty && !notesUnsaved()) return;
 
     event.preventDefault();
     if (!(await settleSettingsBeforeLeaving())) return;
