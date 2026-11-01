@@ -107,8 +107,17 @@ public sealed class BriefingDeskCommandService
                     : $"The current stage is now {current.StageCode}. Reload the desk before confirming the stage.");
             }
 
-            stageRef = current.StageCode;
-            stageName = StageCodes.DisplayNameOf(current.StageCode);
+            // Only a saved stage row can tag a remark (RemarkService refuses others once the
+            // project has any stage rows). A current stage the workflow supplies without a row is
+            // not offered on the desk; if a stale page still sends it, the remark is posted
+            // untagged rather than refused.
+            var stageIsRecorded = project.ProjectStages.Count == 0
+                || project.ProjectStages.Any(stage => string.Equals(stage.StageCode, current.StageCode, StringComparison.OrdinalIgnoreCase));
+            if (stageIsRecorded)
+            {
+                stageRef = current.StageCode;
+                stageName = StageCodes.DisplayNameOf(current.StageCode);
+            }
         }
 
         var actor = new RemarkActorContext(userId, RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
@@ -132,7 +141,10 @@ public sealed class BriefingDeskCommandService
             return BriefingDeskCommandResult.Invalid(ex.Message);
         }
 
-        return BriefingDeskCommandResult.Success(stageRef is null ? "Remark posted." : $"Remark posted. Stage {stageRef} confirmed.");
+        return BriefingDeskCommandResult.Success(
+            stageRef is not null ? $"Remark posted. Stage {stageRef} confirmed."
+            : !string.IsNullOrWhiteSpace(confirmStage) ? "Remark posted. The stage is not recorded on the project yet, so it was not confirmed; update it on the project page."
+            : "Remark posted.");
     }
 
     // SECTION: Idea note by the assigned PO

@@ -59,7 +59,10 @@ works through them:
    the current stage within 10 days counts, wherever it was posted
    (`ProjectOfficerWorkspaceService.LoadStageConfirmationsAsync`). Unticked, the remark posts
    normally and the stage step stays open. "Wrong stage? Change it" opens the project page in
-   the project's own tab (`ProjectTab.Name`), where the stage is changed.
+   the project's own tab (`ProjectTab.Name`), where the stage is changed. A current stage that the
+   workflow supplies without a saved stage row cannot tag a remark (`RemarkService` accepts only
+   saved stages once a project has any), so the box offers no tick and the step asks the PO to
+   update the stage on the project page; a stale tick for such a stage posts the remark untagged.
 3. **PDC.** A missing current-stage PDC is a step. Its side panel first asks "Is DEVP ·
    Development the project's current stage?": **Yes** shows the PDC form (submitted to the HoD,
    as before); **No** opens the project page in the project's tab. A PDC that has passed is a

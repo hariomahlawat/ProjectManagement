@@ -8,6 +8,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.ProjectIdeas;
 using ProjectManagement.Services.Remarks;
@@ -79,6 +80,22 @@ public sealed class BriefingDeskCommandServiceTests
         Assert.False(result.Succeeded);
         Assert.Contains("now ATP", result.Message);
         Assert.Null(scope.Remarks.Request);
+    }
+
+    [Fact]
+    public async Task ProjectUpdate_ConfirmingAStageWithoutASavedRow_PostsTheRemarkUntagged()
+    {
+        // Only FS is saved; the workflow makes the next stage (SOW) current without a row.
+        // RemarkService would refuse a remark tagged SOW, so the remark posts untagged.
+        await using var scope = await TestScope.CreateAsync();
+        scope.Db.ProjectStages.Add(new ProjectStage { ProjectId = 10, StageCode = StageCodes.FS, SortOrder = 1, Status = StageStatus.Completed });
+        await scope.Db.SaveChangesAsync();
+
+        var result = await scope.Service.PostProjectUpdateAsync(Officer(), OfficerId, 10, "Update", CancellationToken.None, confirmStage: StageCodes.SOW);
+
+        Assert.True(result.Succeeded);
+        Assert.Null(scope.Remarks.Request!.StageRef);
+        Assert.Contains("not recorded on the project", result.Message);
     }
 
     [Fact]

@@ -182,7 +182,14 @@ public static class BriefingDeskBuilder
         var anchor = $"desk-{BriefingDeskLabels.KindKey(ConferenceItemKind.Project)}-{row.ProjectId}";
 
         var projectTab = ProjectManagement.Infrastructure.ProjectTab.Name(row.ProjectId);
-        var stageToConfirm = hasStage
+        // The current stage can come from the workflow without a saved stage row (for example a
+        // project with only FS recorded). A remark can only be tagged with a saved stage
+        // (RemarkService checks it), so such a stage is not offered for confirmation: the PO
+        // records it on the project page first.
+        // With no stage rows at all, RemarkService accepts any stage of the workflow.
+        var stageIsRecorded = hasStage && (input.Stages.Count == 0 || input.Stages.Any(stage =>
+            string.Equals(stage.Code, row.CurrentStageCode, StringComparison.OrdinalIgnoreCase)));
+        var stageToConfirm = stageIsRecorded
             ? new BriefingDeskStageVm(row.CurrentStageCode, StageLabel(row.CurrentStageCode, row.CurrentStageName), row.OpenUrl, projectTab)
             : null;
 
@@ -191,7 +198,7 @@ public static class BriefingDeskBuilder
         var checks = new List<BriefingDeskCheckVm>
         {
             ProjectUpdateCheck(row, conference, directionAwaitingProgress, today),
-            ProjectStageCheck(row, stageToConfirm, today)
+            ProjectStageCheck(row, hasStage, stageToConfirm, today)
         };
 
         var planPanel = hasStage && !planDirectSaveRole ? ShortPlanPanel(input, row, anchor) : null;
@@ -289,9 +296,25 @@ public static class BriefingDeskBuilder
     // is changed on the project page, which opens in the project's own tab.
     private static BriefingDeskCheckVm ProjectStageCheck(
         WorkspaceProjectMatrixRowVm row,
+        bool hasStage,
         BriefingDeskStageVm? stage,
         DateOnly today)
     {
+        if (hasStage && stage is null)
+        {
+            return new BriefingDeskCheckVm
+            {
+                Key = "stage",
+                Label = $"Stage: {StageLabel(row.CurrentStageCode, row.CurrentStageName)}",
+                Detail = "This stage is not recorded on the project yet, so a remark cannot confirm it. Update the stage on the project page.",
+                State = BriefingDeskCheckState.Open,
+                Route = BriefingDeskRoute.Direct,
+                SecondaryText = "Update it on the project page",
+                SecondaryUrl = row.OpenUrl,
+                SecondaryTarget = ProjectManagement.Infrastructure.ProjectTab.Name(row.ProjectId)
+            };
+        }
+
         if (stage is null)
         {
             return new BriefingDeskCheckVm

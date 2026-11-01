@@ -108,6 +108,27 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
+    public void Project_CurrentStageWithoutASavedRow_IsNotOfferedForConfirmation()
+    {
+        // The workflow supplies DEVP as current, but only SO has a saved stage row. A remark cannot
+        // be tagged with an unsaved stage, so the box offers no tick and the step sends the PO to
+        // the project page to record the stage.
+        var project = Project(daysSinceUpdate: 1, pdcInDays: 30, stageConfirmedDaysAgo: null) with
+        {
+            Stages = new[] { new BriefingDeskStageInput("SO", "Supply Order", StageStatus.Completed, 1) }
+        };
+
+        var item = SingleItem(Build(projects: new[] { project }));
+
+        Assert.Null(item.StageToConfirm);
+        var stage = item.Checks.Single(check => check.Key == "stage");
+        Assert.Equal(BriefingDeskCheckState.Open, stage.State);
+        Assert.Equal(BriefingDeskRoute.Direct, stage.Route);
+        Assert.Contains("not recorded on the project", stage.Detail);
+        Assert.Equal("/Projects/Overview/1", stage.SecondaryUrl);
+    }
+
+    [Fact]
     public void Project_ChecksFollowTheOrderThePoWorksThrough()
     {
         var health = new WorkspaceRecordHealthVm
