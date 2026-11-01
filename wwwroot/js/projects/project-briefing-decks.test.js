@@ -361,3 +361,12 @@ test('every slide rebuild also refreshes project facts and gaps', () => {
   // Facts are read before the outline and checks are drawn from them.
   assert.ok(load.indexOf('readStudioData(') < load.indexOf('renderOutline();'));
 });
+
+test('table-only decks list each project against its status-table page', () => {
+  const build = studioSource.slice(studioSource.indexOf('const buildEntries'), studioSource.indexOf('const entryTitle'));
+  assert.match(build, /if \(!result\.some\(\(entry\) => entry\.section === 'project'\)\)/);
+  assert.match(build, /item\.listedProjectIds \|\| \[\]/);
+  // The row the person chose stays selected while several projects share one slide.
+  assert.match(studioSource, /row\.addEventListener\('click', \(\) => selectIndex\(entry\.indices\[0\], \{ from: 'outline', key: entry\.key \}\)\);/);
+  assert.match(studioSource, /if \(chosen && chosen\.indices\.includes\(index\)\) return chosen;/);
+});

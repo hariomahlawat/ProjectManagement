@@ -85,6 +85,7 @@ if (root) {
   let refreshTimer = 0;
   let hasProjects = root.dataset.hasProjects === 'true';
   let viewerIndex = 0;
+  let selectedKey = '';
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -159,6 +160,18 @@ if (root) {
       }
       result.push({ key: `${item.role}-${index}`, section: role.section, role: item.role, indices: [index] });
     });
+    // A deck with no project slides (executive table only) still lists each project, pointing at
+    // the status-table page that shows it, so the Checks filter and inspector work there too.
+    if (!result.some((entry) => entry.section === 'project')) {
+      outline.forEach((item, index) => {
+        (item.listedProjectIds || []).forEach((projectId) => {
+          if (byProject.has(projectId)) return;
+          const entry = { key: `project-${projectId}`, section: 'project', projectId, role: item.role, indices: [index] };
+          byProject.set(projectId, entry);
+          result.push(entry);
+        });
+      });
+    }
     return result;
   };
 
@@ -168,7 +181,14 @@ if (root) {
     return entry.indices.length > 1 ? `${title} · ${plural(entry.indices.length, 'slide')}` : title;
   };
 
-  const entryForIndex = (index) => entries.find((entry) => entry.indices.includes(index));
+  // Several entries can share a slide (projects on one status-table page); the one the person
+  // chose stays selected while they remain on that slide.
+  const entryForIndex = (index) => {
+    const chosen = selectedKey ? entries.find((entry) => entry.key === selectedKey) : null;
+    if (chosen && chosen.indices.includes(index)) return chosen;
+    return entries.find((entry) => entry.indices.includes(index) && !entry.projectId)
+      || entries.find((entry) => entry.indices.includes(index));
+  };
 
   const matchesFilters = (entry) => {
     if (filterGap && !(entry.projectId && gapsFor(entry.projectId).includes(filterGap))) return false;
@@ -243,7 +263,7 @@ if (root) {
             badge.setAttribute('aria-label', `${plural(missing.length, 'item')} missing`);
             row.append(badge);
           }
-          row.addEventListener('click', () => selectIndex(entry.indices[0], { from: 'outline' }));
+          row.addEventListener('click', () => selectIndex(entry.indices[0], { from: 'outline', key: entry.key }));
           item.append(row);
           list.append(item);
         });
@@ -479,9 +499,10 @@ if (root) {
     gridBox?.querySelectorAll('.pbd-stage__thumb').forEach((thumb, index) => thumb.classList.toggle('is-selected', index === current));
   };
 
-  const selectIndex = (index, { from } = {}) => {
+  const selectIndex = (index, { from, key = '' } = {}) => {
     if (!slides.length) return;
     current = Math.max(0, Math.min(index, slides.length - 1));
+    selectedKey = key;
     renderStage();
     markOutlineSelection();
     if (from !== 'outline') {
@@ -580,6 +601,7 @@ if (root) {
       current = sameProject
         ? sameProject.indices[0]
         : Math.min(Math.max(0, (keepNumber || 1) - 1), Math.max(0, slides.length - 1));
+      selectedKey = sameProject ? sameProject.key : '';
       updateCounts(payload);
       renderOutline();
       if (view === 'grid') renderGrid();

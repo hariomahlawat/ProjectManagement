@@ -822,7 +822,8 @@ public sealed class IndexModel : PageModel
                 {
                     item.Number,
                     role = item.Role.ToString(),
-                    item.ProjectId
+                    item.ProjectId,
+                    item.ListedProjectIds
                 }),
                 projects = deck?.Projects,
                 contentGaps = deck?.ContentGaps

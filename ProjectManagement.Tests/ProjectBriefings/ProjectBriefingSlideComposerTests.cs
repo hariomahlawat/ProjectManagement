@@ -120,6 +120,16 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Equal(
             data.Projects.Select(project => project.ProjectId).OrderBy(id => id),
             composition.Outline.Where(item => item.ProjectId.HasValue).Select(item => item.ProjectId!.Value).Distinct().OrderBy(id => id));
+
+        // Status-table pages name the projects they list, together covering every project once.
+        var listed = composition.Outline
+            .Where(item => item.Role == ProjectBriefingSlideRole.StatusTable)
+            .SelectMany(item => item.ListedProjectIds)
+            .ToArray();
+        Assert.Equal(data.Projects.Select(project => project.ProjectId).OrderBy(id => id), listed.OrderBy(id => id));
+        Assert.All(
+            composition.Outline.Where(item => item.Role != ProjectBriefingSlideRole.StatusTable),
+            item => Assert.Empty(item.ListedProjectIds));
     }
 
     [Fact]

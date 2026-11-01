@@ -105,7 +105,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         var content = stream.ToArray();
         ProjectBriefingPresentationIntegrityValidator.Validate(content, plans.Count);
         var outline = plans
-            .Select((plan, index) => new ProjectBriefingSlideOutlineItem(index + 1, plan.Role, plan.ProjectId))
+            .Select((plan, index) => new ProjectBriefingSlideOutlineItem(
+                index + 1,
+                plan.Role,
+                plan.ProjectId,
+                plan.ListedProjectIds ?? Array.Empty<int>()))
             .ToArray();
         return new ProjectBriefingComposition(content, outline);
     }
@@ -606,7 +610,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 captured.RowHeights,
                 capturedIndex + 1,
                 pages.Count),
-                ProjectBriefingSlideRole.StatusTable));
+                ProjectBriefingSlideRole.StatusTable,
+                ListedProjectIds: captured.Items.Select(project => project.ProjectId).ToArray()));
         }
     }
 
@@ -2290,7 +2295,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         SlidePlanKind Kind,
         Action<SlideCanvas> Render,
         ProjectBriefingSlideRole Role,
-        int? ProjectId = null);
+        int? ProjectId = null,
+        IReadOnlyList<int>? ListedProjectIds = null);
 
     private sealed class SlideCanvas
     {

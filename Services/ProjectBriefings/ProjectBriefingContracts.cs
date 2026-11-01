@@ -320,10 +320,13 @@ public enum ProjectBriefingSlideRole
     Closing
 }
 
+// ProjectId names the project a project slide is about; ListedProjectIds names the projects a
+// status-table page lists, so table-only decks can still point at each project.
 public sealed record ProjectBriefingSlideOutlineItem(
     int Number,
     ProjectBriefingSlideRole Role,
-    int? ProjectId);
+    int? ProjectId,
+    IReadOnlyList<int> ListedProjectIds);
 
 public sealed record ProjectBriefingComposition(
     byte[] Content,
