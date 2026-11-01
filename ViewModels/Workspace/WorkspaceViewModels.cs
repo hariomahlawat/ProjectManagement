@@ -28,6 +28,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public ErpActivityYearVm ActivityYear { get; set; } = new();
     public WorkspaceDocumentHubVm DocumentHub { get; set; } = new();
     public BriefingDeskVm BriefingDesk { get; set; } = new();
+    public BriefingDeskAgendaVm BriefingDeskAgenda { get; set; } = new();
     public IReadOnlyList<WorkspaceCommandChipVm> CommandChips { get; set; } = Array.Empty<WorkspaceCommandChipVm>();
     public WorkspaceDataCompletenessInsightVm DataCompletenessInsight { get; set; } = new();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();

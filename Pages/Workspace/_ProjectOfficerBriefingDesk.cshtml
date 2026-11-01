@@ -82,7 +82,7 @@
         </div>
         <div class="bd-header__actions">
             <a class="bd-link" asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="conference">
-                <i class="bi bi-easel2" aria-hidden="true"></i>Open my conference view
+                <i class="bi bi-easel2" aria-hidden="true"></i>Open my conference review
             </a>
         </div>
     </header>
@@ -243,26 +243,41 @@
                 </section>
             }
 
-            @if (vm.PersonalReminders.Any() || vm.UpcomingEvents.Any())
-            {
-                <section class="bd-panel" aria-labelledby="bd-week-title">
-                    <div class="bd-panel__head"><h2 id="bd-week-title">Next 14 days</h2><span class="bd-panel__meta">Reminders and events</span></div>
+            @* The PO's own reminders and calendar, grouped so that overdue reminders and undated
+               pinned notes are not mixed into what is coming (BriefingDeskAgendaBuilder). *@
+            @{
+                var agenda = vm.BriefingDeskAgenda;
+                void AgendaGroup(string title, IReadOnlyList<BriefingDeskAgendaEntryVm> entries, int moreCount, string moreUrl, string? modifier = null)
+                {
+                    if (entries.Count == 0)
+                    {
+                        return;
+                    }
+                    <h3 class="bd-agenda__group @modifier">@title</h3>
                     <ul class="bd-list">
-                        @foreach (var reminder in vm.PersonalReminders.Take(5))
+                        @foreach (var entry in entries)
                         {
                             <li class="bd-list__item">
-                                <i class="bi @(reminder.IsPinned ? "bi-pin-angle" : "bi-bell") bd-list__icon" aria-hidden="true"></i>
-                                <a class="bd-list__copy bd-list__copy--link" href="@reminder.OpenUrl"><strong>@reminder.Title</strong><span>@(reminder.IsPinned ? "Pinned" : "Reminder") · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</span></a>
-                            </li>
-                        }
-                        @foreach (var item in vm.UpcomingEvents)
-                        {
-                            <li class="bd-list__item">
-                                <i class="bi bi-calendar-event bd-list__icon" aria-hidden="true"></i>
-                                <a class="bd-list__copy bd-list__copy--link" href="@item.OpenUrl"><strong>@item.Title</strong><span>@item.LocalDate.ToString("ddd d MMM") · @item.TimeLabel</span></a>
+                                <i class="bi @entry.Icon bd-list__icon" aria-hidden="true"></i>
+                                <a class="bd-list__copy bd-list__copy--link" href="@entry.Url"><strong>@entry.Title</strong><span>@entry.Meta</span></a>
                             </li>
                         }
                     </ul>
+                    if (moreCount > 0)
+                    {
+                        <a class="bd-link bd-link--small bd-agenda__more" href="@moreUrl">@moreCount more</a>
+                    }
+                }
+            }
+            @if (!agenda.IsEmpty)
+            {
+                <section class="bd-panel" aria-labelledby="bd-week-title">
+                    <div class="bd-panel__head"><h2 id="bd-week-title">Reminders and events</h2></div>
+                    @{
+                        AgendaGroup("Overdue", agenda.Overdue, agenda.OverdueMoreCount, WorkspaceRouteHelper.PersonalReminders(), "bd-agenda__group--overdue");
+                        AgendaGroup("Next 14 days", agenda.Coming, agenda.ComingMoreCount, "/Calendar");
+                        AgendaGroup("Pinned", agenda.Pinned, agenda.PinnedMoreCount, WorkspaceRouteHelper.PersonalReminders());
+                    }
                     <div class="bd-panel__links">
                         <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>
                         <a class="bd-link bd-link--small" href="/Calendar">Calendar</a>
@@ -272,8 +287,8 @@
             else
             {
                 <section class="bd-panel bd-panel--quiet" aria-labelledby="bd-week-title">
-                    <h2 id="bd-week-title">Next 14 days</h2>
-                    <span class="bd-panel__meta">Nothing due</span>
+                    <h2 id="bd-week-title">Reminders and events</h2>
+                    <span class="bd-panel__meta">Nothing in the next 14 days</span>
                     <span class="bd-panel__links">
                         <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.PersonalReminders()">Notebook</a>
                         <a class="bd-link bd-link--small" href="/Calendar">Calendar</a>

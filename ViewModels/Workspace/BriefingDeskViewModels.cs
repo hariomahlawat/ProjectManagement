@@ -315,3 +315,26 @@ public static class BriefingDeskLabels
         _ => "Item"
     };
 }
+
+/// <summary>
+/// The side column's own reminders and calendar, grouped (<c>BriefingDeskAgendaBuilder</c>).
+/// Each group is capped; the "more" counts are what the Notebook and Calendar hold beyond it.
+/// </summary>
+public sealed class BriefingDeskAgendaVm
+{
+    public IReadOnlyList<BriefingDeskAgendaEntryVm> Overdue { get; init; } = Array.Empty<BriefingDeskAgendaEntryVm>();
+
+    public int OverdueMoreCount { get; init; }
+
+    public IReadOnlyList<BriefingDeskAgendaEntryVm> Coming { get; init; } = Array.Empty<BriefingDeskAgendaEntryVm>();
+
+    public int ComingMoreCount { get; init; }
+
+    public IReadOnlyList<BriefingDeskAgendaEntryVm> Pinned { get; init; } = Array.Empty<BriefingDeskAgendaEntryVm>();
+
+    public int PinnedMoreCount { get; init; }
+
+    public bool IsEmpty => Overdue.Count == 0 && Coming.Count == 0 && Pinned.Count == 0;
+}
+
+public sealed record BriefingDeskAgendaEntryVm(string Title, string Meta, string Url, string Icon);
