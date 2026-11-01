@@ -75,7 +75,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         }
 
         var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
-        var presentedProjects = projects.Where(project => !project.IsDeletedOrArchived).ToArray();
+        var presentedProjects = projects.Where(project => project.IsPresented).ToArray();
         var ffcPreview = await LoadFfcFootprintPreviewAsync(snapshot.Id, cancellationToken);
         return new ProjectBriefingDeckVm
         {
@@ -154,12 +154,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken)
             ?? throw new KeyNotFoundException("The saved deck was not found.");
         var allProjectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
-        var projectVms = allProjectVms.Where(project => !project.IsDeletedOrArchived).ToArray();
+        var projectVms = allProjectVms.Where(project => project.IsPresented).ToArray();
         if (projectVms.Length == 0)
         {
             throw new InvalidOperationException(allProjectVms.Count == 0
                 ? "Add at least one project before generating the PowerPoint deck."
-                : "Every project in this deck is deleted or archived. Add a current project before generating the PowerPoint deck.");
+                : allProjectVms.All(project => project.IsDeletedOrArchived)
+                    ? "Every project in this deck is deleted or archived. Add a current project before generating the PowerPoint deck."
+                    : "Every project in this deck is left out. Show at least one as slides or a table row before generating the PowerPoint deck.");
         }
 
         var projects = ProjectBriefingProjectOrdering.OrderProjects(projectVms.Select(project =>
@@ -195,6 +197,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 ProjectOfficer = project.ProjectOfficer,
                 LineDirectorate = project.LineDirectorate,
                 SortOrder = project.SortOrder,
+                TableRowOnly = project.Presentation == ProjectBriefingItemPresentation.TableRowOnly,
                 CoverPhotoId = project.CoverPhotoId,
                 CoverPhotoIsReady = project.HasCoverPhoto
             }));
@@ -320,6 +323,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.ProjectId,
                 item.SortOrder,
                 item.BriefDescriptionOverride,
+                item.Presentation,
                 item.Project.Name,
                 item.Project.Description,
                 item.Project.ProjectBrief,
@@ -437,6 +441,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.ProjectId,
                 item.SortOrder,
                 item.BriefDescriptionOverride,
+                item.Presentation,
                 item.ProjectName,
                 item.ProjectDescription,
                 item.ProjectBrief,
@@ -549,6 +554,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     LifecycleStatus = item.LifecycleStatus,
                     LifecycleDisplay = ResolveLifecycleDisplay(item),
                     IsDeletedOrArchived = item.IsDeleted || item.IsArchived,
+                    Presentation = item.Presentation,
                     PresentStageCode = stageCode,
                     PresentStage = ResolveStageName(item),
                     PresentStageOrder = ProjectBriefingStageOrder.Resolve(item.LifecycleStatus, stageCode),
@@ -763,7 +769,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             TotalProliferationCostInRupees = projects.Sum(project => project.ProliferationCost.AmountInRupees ?? 0m),
             ProliferationCostRecordedCount = projects.Count(project => project.ProliferationCost.IsAvailable),
             MissingExternalStatusCount = projects.Count(project => string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.Ordinal)),
-            MissingPhotoCount = projects.Count(project => !project.CoverPhotoIsReady),
+            MissingPhotoCount = projects.Count(project => !project.TableRowOnly && !project.CoverPhotoIsReady),
             StageSummary = stageSummary,
             OngoingStageSummary = ongoingStageSummary,
             ProjectCategorySummary = projectCategorySummary,
@@ -804,9 +810,29 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             : 0;
         var ffcCountryWiseBreakdownSlides = Math.Max(0, ffcGlobalFootprintSlides - (ffcGlobalFootprintSlides > 0 ? 1 : 0));
         var configuredSlides = coverAndPortfolioSlides + institutionalProfileSlides + roleCharterSlides + ffcGlobalFootprintSlides;
+        // Table row only projects get no slides of their own; a deck without a status table lists
+        // them in a short table of their own (the composer's AddTableRowOnlySlides).
+        var slideProjects = projects
+            .Where(project => project.Presentation != ProjectBriefingItemPresentation.TableRowOnly)
+            .ToArray();
+        int CountTablePages(IReadOnlyList<ProjectBriefingProjectVm> tableProjects) => tableProjects.Count == 0
+            ? 0
+            : ProjectBriefingTablePagination.Paginate(
+                tableProjects,
+                ProjectBriefingContentGaps.EffectiveTableCostMode(layout, costMode),
+                project => ProjectBriefingTablePagination.Measure(
+                    project.ProjectName,
+                    project.PresentStage,
+                    project.ExternalStatus,
+                    project.CostRd.IsAvailable && !string.IsNullOrWhiteSpace(project.CostRd.BasisDisplay),
+                    hasProliferationCostBasis: false))
+                .Count;
+        var tableRowOnlyPages = CountTablePages(projects
+            .Where(project => project.Presentation == ProjectBriefingItemPresentation.TableRowOnly)
+            .ToArray());
         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
         {
-            var projectUpdateSheetSlides = projects.Sum(project =>
+            var projectUpdateSheetSlides = slideProjects.Sum(project =>
                 ProjectBriefingUpdateSheetPlanner.EstimateSlideCount(project, updateSheetOptions));
             return new ProjectBriefingSlideEstimateVm
             {
@@ -816,8 +842,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 RoleCharterSlides = roleCharterSlides,
                 FfcGlobalFootprintSlides = ffcGlobalFootprintSlides,
                 FfcCountryWiseBreakdownSlides = ffcCountryWiseBreakdownSlides,
+                ExecutiveTableSlides = tableRowOnlyPages,
                 ClosingSlides = 1,
-                TotalSlides = configuredSlides + projectUpdateSheetSlides + 1
+                TotalSlides = configuredSlides + projectUpdateSheetSlides + tableRowOnlyPages + 1
             };
         }
 
@@ -844,17 +871,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         var executiveSlides = presentationMode is ProjectBriefingPresentationMode.ExecutiveTable
             or ProjectBriefingPresentationMode.Combined
-            ? ProjectBriefingTablePagination.Paginate(
-                projects,
-                costMode,
-                project => ProjectBriefingTablePagination.Measure(
-                    project.ProjectName,
-                    project.PresentStage,
-                    project.ExternalStatus,
-                    project.CostRd.IsAvailable && !string.IsNullOrWhiteSpace(project.CostRd.BasisDisplay),
-                    hasProliferationCostBasis: false))
-                .Count
-            : 0;
+            ? CountTablePages(projects)
+            : tableRowOnlyPages;
 
         var includesDetailedSlides = presentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined;
@@ -862,14 +880,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             or ProjectBriefingNarrativeMode.Both;
         var includeProjectBrief = narrativeMode is ProjectBriefingNarrativeMode.ProjectBrief
             or ProjectBriefingNarrativeMode.Both;
-        var detailSlides = includesDetailedSlides && includeCapabilities ? projects.Count : 0;
+        var detailSlides = includesDetailedSlides && includeCapabilities ? slideProjects.Length : 0;
         var capabilityContinuationSlides = includesDetailedSlides && includeCapabilities
-            ? projects.Sum(project =>
+            ? slideProjects.Sum(project =>
                 ProjectBriefingCapabilityPaginator
                     .Paginate(project.BriefDescription)
                     .ContinuationSlideCount)
             : 0;
-        var projectBriefSlides = includesDetailedSlides && includeProjectBrief ? projects.Count : 0;
+        var projectBriefSlides = includesDetailedSlides && includeProjectBrief ? slideProjects.Length : 0;
 
         return new ProjectBriefingSlideEstimateVm
         {
@@ -1093,6 +1111,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         int ProjectId,
         int SortOrder,
         string? BriefDescriptionOverride,
+        ProjectBriefingItemPresentation Presentation,
         string ProjectName,
         string? ProjectDescription,
         string? ProjectBrief,
@@ -1144,6 +1163,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         int ProjectId,
         int SortOrder,
         string? BriefDescriptionOverride,
+        ProjectBriefingItemPresentation Presentation,
         string ProjectName,
         string? ProjectDescription,
         string? ProjectBrief,

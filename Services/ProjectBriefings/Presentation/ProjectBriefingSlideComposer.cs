@@ -272,7 +272,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             var includeProjectBrief = data.NarrativeMode is ProjectBriefingNarrativeMode.ProjectBrief
                 or ProjectBriefingNarrativeMode.Both;
 
-            foreach (var project in orderedProjects)
+            // A table row only project is listed in a table and gets no slides of its own.
+            foreach (var project in orderedProjects.Where(project => !project.TableRowOnly))
             {
                 var capturedProject = project;
                 if (includeCapabilities)
@@ -309,6 +310,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                         capturedProject.ProjectId));
                 }
             }
+        }
+
+        if (data.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)
+        {
+            AddTableRowOnlySlides(plans, data, orderedProjects);
         }
 
         return plans;
@@ -584,10 +590,25 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         canvas.AddNativeTable(1.02, 1.10, new[] { 8.05, 1.75, 1.55 }, heights, rows, "Stage-wise project distribution table");
     }
 
+    // Decks without a status table list their table row only projects in a short table of
+    // their own, after the project slides, so those projects still appear in the PowerPoint.
+    private static void AddTableRowOnlySlides(
+        List<SlidePlan> plans,
+        ProjectBriefingPresentationData data,
+        IReadOnlyList<ProjectBriefingPresentationProject> orderedProjects)
+    {
+        var tableRowOnly = orderedProjects.Where(project => project.TableRowOnly).ToArray();
+        if (tableRowOnly.Length > 0)
+        {
+            AddExecutiveTableSlides(plans, data, tableRowOnly, "Other projects in this briefing");
+        }
+    }
+
     private static void AddExecutiveTableSlides(
         List<SlidePlan> plans,
         ProjectBriefingPresentationData data,
-        IReadOnlyList<ProjectBriefingPresentationProject> projects)
+        IReadOnlyList<ProjectBriefingPresentationProject> projects,
+        string title = "Project status summary")
     {
         var pages = ProjectBriefingTablePagination.Paginate(
             projects,
@@ -609,7 +630,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 captured.Items,
                 captured.RowHeights,
                 capturedIndex + 1,
-                pages.Count),
+                pages.Count,
+                title),
                 ProjectBriefingSlideRole.StatusTable,
                 ListedProjectIds: captured.Items.Select(project => project.ProjectId).ToArray()));
         }
@@ -621,11 +643,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         IReadOnlyList<ProjectBriefingPresentationProject> projects,
         IReadOnlyList<double> rowHeights,
         int page,
-        int pages)
+        int pages,
+        string title)
     {
         AddSlideTitle(
             canvas,
-            "Project status summary" + (pages > 1 ? $" ({page}/{pages})" : string.Empty));
+            title + (pages > 1 ? $" ({page}/{pages})" : string.Empty));
 
         var headers = new List<string> { "PROJECT" };
         var widths = new List<double>();

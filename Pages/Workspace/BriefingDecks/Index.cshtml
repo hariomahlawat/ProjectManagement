@@ -9,8 +9,8 @@
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "studio";
     var deck = Model.SelectedDeck;
-    var presentedProjects = deck?.Projects.Where(project => !project.IsDeletedOrArchived).ToArray();
-    var leftOutProjectCount = deck is null ? 0 : deck.Projects.Count - presentedProjects!.Length;
+    var presentedProjects = deck?.Projects.Where(project => project.IsPresented).ToArray();
+    var leftOutProjectCount = deck?.Projects.Count(project => project.IsDeletedOrArchived) ?? 0;
     var activeDeckName = deck?.Name ?? "No deck selected";
     var isUpdateSheet = deck?.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
     var layoutLabel = isUpdateSheet ? "Project Update Sheets" : "Standard PRISM Briefing";
@@ -140,7 +140,11 @@
         ? "null"
         : System.Text.Json.JsonSerializer.Serialize(
             new { projects = deck.Projects, contentGaps = deck.ContentGaps },
-            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            // Enums as names, the same as the in-page JSON responses the Studio also reads.
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+            {
+                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+            });
 }
 
 @section Styles {
@@ -156,6 +160,7 @@
           data-reorder-url="@Url.Page("/Workspace/BriefingDecks/Index", "Reorder")"
           data-membership-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateMembership")"
           data-description-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateDescription")"
+          data-item-presentation-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateItemPresentation")"
           data-preset-url="@Url.Page("/Workspace/BriefingDecks/Index", "ApplyPreset")">
         <form method="post" class="pbd-antiforgery" aria-hidden="true">
             @Html.AntiForgeryToken()
@@ -319,6 +324,8 @@
                         <section class="pbd-studio" aria-label="Briefing studio" data-pbd-studio
                                  data-preview-url="@Url.Page("/Workspace/BriefingDecks/Index", "Preview", new { deckId = deck.Id })"
                                  data-estimated-slides="@deck.SlideEstimate.TotalSlides"
+                                 data-layout="@deck.Layout"
+                                 data-presentation-mode="@deck.PresentationMode"
                                  data-has-projects="@((presentedProjects!.Length > 0).ToString().ToLowerInvariant())"
                                  data-uses-capability="@((!isUpdateSheet && standardNeedsCapabilities && standardIncludesDetailedSlides).ToString().ToLowerInvariant())"
                                  data-uses-brief="@((isUpdateSheet || (standardNeedsProjectBrief && standardIncludesDetailedSlides)).ToString().ToLowerInvariant())"

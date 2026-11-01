@@ -29,9 +29,12 @@ public static class ProjectBriefingContentGaps
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(settings);
         var uses = Uses.From(settings);
+        var tableRowUses = Uses.TableRow(settings);
         return projects
-            .Where(project => !project.IsDeletedOrArchived)
-            .ToDictionary(project => project.ProjectId, project => For(project, uses));
+            .Where(project => project.IsPresented)
+            .ToDictionary(
+                project => project.ProjectId,
+                project => For(project, project.Presentation == ProjectBriefingItemPresentation.TableRowOnly ? tableRowUses : uses));
     }
 
     private static IReadOnlyList<string> For(ProjectBriefingProjectVm project, Uses uses)
@@ -46,6 +49,10 @@ public static class ProjectBriefingContentGaps
         if (uses.UpdateSheetFacts && !project.IsUpdateSheetCoreFactsReady) gaps.Add(UpdateSheetFacts);
         return gaps;
     }
+
+    // The cost columns a status table shows for a deck: update-sheet decks always show R&D cost.
+    public static ProjectBriefingCostMode EffectiveTableCostMode(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode)
+        => layout == ProjectBriefingLayout.ProjectUpdateSheet ? ProjectBriefingCostMode.CostRdOnly : costMode;
 
     public static bool HasCapabilityOverview(string? value)
     {
@@ -71,6 +78,22 @@ public static class ProjectBriefingContentGaps
         bool ProjectBrief,
         bool UpdateSheetFacts)
     {
+        // A table row shows the present stage, the status remark and the deck's costs. An
+        // update-sheet deck's table shows the R&D cost whatever cost choice is stored (the
+        // generator renders those decks with CostRdOnly).
+        public static Uses TableRow(ProjectBriefingContentGapSettings settings)
+        {
+            var costMode = EffectiveTableCostMode(settings.Layout, settings.CostMode);
+            return new Uses(
+                Status: true,
+                CostRd: costMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both,
+                ProliferationCost: costMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both,
+                Photo: false,
+                CapabilityOverview: false,
+                ProjectBrief: false,
+                UpdateSheetFacts: false);
+        }
+
         // Mirrors which content each template, format and narrative choice puts on a slide.
         public static Uses From(ProjectBriefingContentGapSettings settings)
         {

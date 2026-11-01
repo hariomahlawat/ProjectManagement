@@ -125,6 +125,14 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    Task<string> UpdateItemPresentationAsync(
+        long deckId,
+        int projectId,
+        string requestingUserId,
+        ProjectBriefingItemPresentation presentation,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task DeleteAsync(
         long deckId,
         string requestingUserId,
@@ -308,6 +316,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                     ProjectId = item.ProjectId,
                     SortOrder = item.SortOrder,
                     BriefDescriptionOverride = item.BriefDescriptionOverride,
+                    Presentation = item.Presentation,
                     AddedAtUtc = now
                 })
                 .ToList()
@@ -1074,6 +1083,44 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync("ProjectBriefing.DescriptionUpdated", userId, deck, "Project briefing description updated.",
             new Dictionary<string, string?> { ["ProjectId"] = projectId.ToString() });
+        return Encode(deck.RowVersion);
+    }
+
+    public async Task<string> UpdateItemPresentationAsync(
+        long deckId,
+        int projectId,
+        string requestingUserId,
+        ProjectBriefingItemPresentation presentation,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.IsDefined(presentation))
+        {
+            throw new InvalidOperationException("Choose how the project appears in the deck.");
+        }
+
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
+        var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
+            ?? throw new KeyNotFoundException("The project is not part of this deck.");
+        if (item.Presentation == presentation)
+        {
+            return Encode(deck.RowVersion);
+        }
+
+        var previous = item.Presentation;
+        item.Presentation = presentation;
+        Touch(deck, userId);
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync("ProjectBriefing.ItemPresentationChanged", userId, deck, "Project briefing item presentation changed.",
+            new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["From"] = previous.ToString(),
+                ["To"] = presentation.ToString()
+            });
         return Encode(deck.RowVersion);
     }
 

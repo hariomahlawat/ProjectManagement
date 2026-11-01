@@ -125,7 +125,7 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
    fixing bug 4); the checks section, additional-slides section, projects table and Add
    projects panel below the Studio are retired. Done before the settings step (owner, 1 Nov
    2026) so in-place settings never leave older sections stale.
-5. **Deck settings in the inspector**: done (this change). Purpose presets at the top of the Deck tab (Monthly
+5. **Deck settings in the inspector**: done (#2844). Purpose presets at the top of the Deck tab (Monthly
    command review: standard, combined, capability overview, both costs, stage summary,
    Editorial Light, Jai Hind; Visit or external audience: detailed slides with photos, no
    costs, SDD profile, Thank You; Project update sheets: one sheet per project with the
@@ -135,9 +135,17 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
    their CSS. The preset is stored as an additive `preset` key in the deck configuration, which
    older builds ignore; one server-side definition (`ProjectBriefingDeckPresets`) both applies a
    preset and decides "adjusted".
-6. **Per-project control**: stored per deck item: photo choice, table row only, leave out of the
-   deck, show stage/status per project, and speaker notes written into the PowerPoint's notes;
-   continuation slides for long briefs and Role & Charter (fixes 5).
+6. **Per-project control**, in small PRs, each stored per deck item:
+   - 6a, done (this change): how the project appears, chosen in This slide: **Own slides**,
+     **Table row only** (a row in the status table with no slides of its own; decks without a
+     status table list these projects in an "Other projects in this briefing" table after the
+     project slides or update sheets) or **Leave out** (kept in the deck, not in the PowerPoint,
+     listed last in the outline under "Not in the PowerPoint"). Checks, counts, photos and the
+     slide estimate follow the choice. Column `ProjectBriefingDeckItems.Presentation` (default
+     `Slides`, so existing decks are unchanged).
+   - 6b: photo choice per project.
+   - 6c: speaker notes written into the PowerPoint's notes.
+   - 6d: continuation slides for long project briefs and Role & Charter (fixes 5).
 7. **Library and lifecycle**: deck cards (purpose, owner, last generated and presented, search,
    pin, archive); Draft, Finalised (locked, PowerPoint kept on the LAN store), Presented; a
    "What changed since the last briefing" slide reusing the PO desk's What-moved facts;

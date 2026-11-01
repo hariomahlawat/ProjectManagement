@@ -1271,7 +1271,7 @@ if (root) {
     const projects = deck.projects || [];
     latestProjects = projects;
     reconcileSearchMembership(projects);
-    const presented = projects.filter((project) => !project.isDeletedOrArchived).length;
+    const presented = projects.filter((project) => project.isPresented).length;
     updateRowVersion(deck.rowVersion);
     updateLeftOutNotice(projects);
     if (generateButton) generateButton.disabled = presented === 0;
@@ -1377,6 +1377,34 @@ if (root) {
       setState(addProjectsStatus, error.message || 'Projects could not be added.', 'error');
     } finally {
       button?.removeAttribute('disabled');
+    }
+  });
+
+  // How a project appears (own slides, table row only, left out): asked for by the Studio inspector.
+  document.addEventListener('pbd:set-project-presentation', async (event) => {
+    const projectId = Number(event.detail?.projectId);
+    const presentation = event.detail?.presentation;
+    if (deckId <= 0 || !Number.isInteger(projectId) || !presentation) return;
+    setState(membershipStatus, 'Saving how the project appears…', 'saving');
+    try {
+      const payload = await runDeckMutation(async () => {
+        const reply = await requestJson(root.dataset.itemPresentationUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, projectId, presentation, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(reply?.rowVersion);
+        return reply;
+      });
+      applyEditorState(payload?.deck);
+      setState(membershipStatus, 'Saved.', 'saved');
+    } catch (error) {
+      if (error instanceof RequestError && error.status === 409) showConflict(error.message);
+      setState(membershipStatus, error.message || 'The change could not be saved.', 'error');
+      // The Studio puts back the saved choice, then rebuilds from the server.
+      document.dispatchEvent(new CustomEvent('pbd:project-presentation-failed', {
+        detail: { projectId, previous: event.detail?.previous }
+      }));
+      announceDeckChange({});
     }
   });
 

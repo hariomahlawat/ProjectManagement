@@ -88,7 +88,8 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
     {
         foreach (var project in data.Projects)
         {
-            if (!project.CoverPhotoId.HasValue)
+            // A table row shows no photograph.
+            if (!project.CoverPhotoId.HasValue || project.TableRowOnly)
             {
                 continue;
             }
