@@ -11,10 +11,30 @@ agreed plan to turn the builder into a **Briefing Studio**.
 | Page | `Pages/Workspace/BriefingDecks/Index.cshtml(.cs)`; editors `_InstitutionalProfileEditor`, `_RoleCharterEditor`, `_FfcGlobalFootprintEditor` |
 | Deck persistence | `Services/ProjectBriefings/ProjectBriefingDeckService.cs`; options in `SelectionRulesJson` via `ProjectBriefingDeckConfigurationCodec` |
 | Page data, readiness, slide estimate | `Services/ProjectBriefings/ProjectBriefingDataService.cs` |
-| Slide generation | `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer*.cs`, `ProjectBriefingPowerPointExportService.cs`, `ProjectBriefingPresentationIntegrityValidator.cs` |
-| Scripts and styles | `wwwroot/js/pages/project-briefing-decks.js`, `project-briefing-additional-slides.js`; `wwwroot/css/pages/project-briefing-decks.css` |
+| Slide generation | `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer*.cs`, `ProjectBriefingPowerPointExportService.cs` (`ComposeAsync` builds the deck; `GenerateAsync` also records the generation), `ProjectBriefingPresentationIntegrityValidator.cs` |
+| Slide preview | `ProjectBriefingSlidePreviewRenderer.cs` (composed PowerPoint → positioned HTML); page handler `OnGetPreviewAsync`; `wwwroot/js/pages/project-briefing-preview.js` |
+| Scripts and styles | `wwwroot/js/pages/project-briefing-decks.js`, `project-briefing-additional-slides.js`, `project-briefing-preview.js`; `wwwroot/css/pages/project-briefing-decks.css` |
 | Access | `Policies.ProjectBriefingDecks.Manage` (Comdt, HoD); every deck is shared |
 | Tests | `ProjectManagement.Tests/ProjectBriefings/*`, `wwwroot/js/projects/project-briefing-decks.test.js` |
+
+## Slide preview
+
+The builder shows the deck's slides under the settings bar. The server composes the same
+PowerPoint that **Generate PowerPoint** downloads (without recording a generation) and reads it
+back into positioned HTML: shapes, text, lines, pictures, tables and groups, in the composer's
+own colours. So the preview and its slide count are exact, not estimated. Pictures are shrunk
+to 960px and sent once each, however many slides use them. Every text value is encoded on the
+server; the script inserts only that slide HTML and writes titles as text.
+
+- Thumbnails fill the width: more columns on wider screens. Two rows show by default, with
+  **Show all slides** for the rest.
+- **Open viewer** (or any thumbnail) shows one slide as large as the window allows, with a strip
+  of every slide: beside the slide from 1400px, below it on narrower screens. Arrow keys,
+  Page Up/Down, Home and End move between slides; Escape closes.
+- Adding, removing or reordering projects and saving a capability overview rebuild the
+  preview about a second later. Settings saves reload the page, which rebuilds it too.
+- Fonts follow the PowerPoint (Aptos, then Segoe UI), so line breaks can differ slightly where
+  Aptos is not installed.
 
 ## Review findings (1 Nov 2026)
 
@@ -43,24 +63,27 @@ Role & Charter) re-entered per deck; generation runs in the request with photos 
 
 ## Plan: Briefing Studio
 
-1. **Fixes** — bugs 1–3, the empty-deck copy, and the status date on slides.
-2. **One slide plan and an SVG preview** — the composer draws through one canvas; an SVG back end
-   gives exact thumbnails offline, and the page count comes from the real plan (fixes 6).
-3. **Studio layout** — slide outline, live preview, inspector; every change saves in place with
+1. **Fixes** — done (#2836): bugs 1–3 and the empty-deck copy.
+2. **Slide preview** — done: the preview is read back from the composed PowerPoint, so the
+   slides and their count are exact. The pre-preview estimate in the checks panel is replaced
+   by the exact count once the preview loads; removing the estimate code waits for the Studio.
+3. **Status date on slides** — show the external-status date on the table, detail slides and
+   update sheets, with the date counted in table pagination on both sides.
+4. **Studio layout** — slide outline, live preview, inspector; every change saves in place with
    one conflict banner; ordering rules match the generator (fixes 4).
-4. **Library and presets** — deck cards (purpose, owner, last generated and presented, search,
+5. **Library and presets** — deck cards (purpose, owner, last generated and presented, search,
    pin, archive) and a three-step guide: purpose preset, projects (live rules or hand-picked),
    review and generate.
-5. **Lifecycle** — Draft, Finalised (locked, PPTX stored on the LAN store), Presented; generation
+6. **Lifecycle** — Draft, Finalised (locked, PPTX stored on the LAN store), Presented; generation
    history; a "What changed since the last briefing" slide reusing the PO desk's What-moved facts.
-6. **Per-project control and content** — per-briefing status and brief overrides, photo choice,
+7. **Per-project control and content** — per-briefing status and brief overrides, photo choice,
    speaker notes, continuation slides for long text (fixes 5), organisation content library.
 
 ### Wide screens
 
 The Studio must use wide monitors, not just fit them:
 
-- The Studio opts out of the 1840px desk shell and uses the full window, like other builders.
+- The page uses the `studio` shell (done with the preview): page and top bar take the full window, less the desk gutter, instead of the 1840px desk cap.
 - **≥ 1600px**: three panes — outline (about 280px), preview (fluid, 16:9), inspector (about 380px).
 - **≥ 2200px**: the preview shows the selected slide large with a filmstrip, or two slides side by
   side; the outline can show thumbnails instead of titles. Line length in the inspector stays

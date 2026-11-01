@@ -123,6 +123,7 @@
             "calendar" => "calendar",
             "workspace" => "workspace",
             "desk" => "desk",
+            "studio" => "studio",
             "analytics" => "analytics",
             "landing" => "landing",
             _ when !signedIn && string.Equals(currentPage, "/Index", StringComparison.OrdinalIgnoreCase) => "landing",
@@ -139,7 +140,12 @@
             _ => "standard"
         };
         var mainContainerClass = $"pm-page-shell pm-page-shell--{shellVariant}";
-        var chromeShellClass = shellVariant == "desk" ? "pm-chrome-shell pm-chrome-shell--desk" : "pm-chrome-shell";
+        var chromeShellClass = shellVariant switch
+        {
+            "desk" => "pm-chrome-shell pm-chrome-shell--desk",
+            "studio" => "pm-chrome-shell pm-chrome-shell--studio",
+            _ => "pm-chrome-shell"
+        };
         var breadcrumbModel = ViewData["Breadcrumb"] as BreadcrumbModel;
         var publicHeaderMode = ViewData["PublicHeaderMode"]?.ToString();
         var isPublicAuthPage = !signedIn && string.Equals(publicHeaderMode, "Auth", StringComparison.OrdinalIgnoreCase);

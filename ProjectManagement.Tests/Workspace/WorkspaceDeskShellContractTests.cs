@@ -12,7 +12,6 @@ public sealed class WorkspaceDeskShellContractTests
     [InlineData("Pages", "Workspace", "Index.cshtml")]
     [InlineData("Pages", "Workspace", "CommandDesk.cshtml")]
     [InlineData("Pages", "Workspace", "Conference.cshtml")]
-    [InlineData("Pages", "Workspace", "BriefingDecks", "Index.cshtml")]
     public void MyWorkspacePages_UseTheDeskShell(params string[] path)
     {
         var markup = ReadRepoFile(path);
@@ -21,12 +20,25 @@ public sealed class WorkspaceDeskShellContractTests
     }
 
     [Fact]
-    public void Layout_GivesTheChromeTheDeskWidthOnDeskPages()
+    public void BriefingDecks_UsesTheFullWidthStudioShell()
+    {
+        // The slide preview and project table use every column a wide monitor offers.
+        var markup = ReadRepoFile("Pages", "Workspace", "BriefingDecks", "Index.cshtml");
+        var css = ReadRepoFile("wwwroot", "css", "site.css").Replace("\r\n", "\n");
+
+        Assert.Contains("ViewData[\"PageShell\"] = \"studio\"", markup, StringComparison.Ordinal);
+        Assert.Contains(".pm-page-shell--studio,\n.pm-chrome-shell--studio {\n    width: calc(100% - (2 * var(--pm-shell-desk-gutter)));", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Layout_GivesTheChromeThePageWidthOnDeskAndStudioPages()
     {
         var layout = ReadRepoFile("Pages", "Shared", "_Layout.cshtml");
 
         Assert.Contains("\"desk\" => \"desk\"", layout, StringComparison.Ordinal);
-        Assert.Contains("shellVariant == \"desk\" ? \"pm-chrome-shell pm-chrome-shell--desk\"", layout, StringComparison.Ordinal);
+        Assert.Contains("\"studio\" => \"studio\"", layout, StringComparison.Ordinal);
+        Assert.Contains("\"desk\" => \"pm-chrome-shell pm-chrome-shell--desk\"", layout, StringComparison.Ordinal);
+        Assert.Contains("\"studio\" => \"pm-chrome-shell pm-chrome-shell--studio\"", layout, StringComparison.Ordinal);
         Assert.Contains("<div class=\"@chromeShellClass pm-topbar__inner\">", layout, StringComparison.Ordinal);
         Assert.DoesNotContain("<div class=\"pm-chrome-shell", layout, StringComparison.Ordinal);
     }

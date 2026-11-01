@@ -289,6 +289,24 @@ public sealed record ProjectBriefingExportResult(
     string FileName,
     int SlideCount);
 
+public sealed record ProjectBriefingComposedDeck(
+    ProjectBriefingPresentationData Data,
+    byte[] Content,
+    int SlideCount);
+
+public sealed record ProjectBriefingSlidePreview(
+    int SlideCount,
+    DateTimeOffset GeneratedAtUtc,
+    IReadOnlyList<ProjectBriefingSlidePreviewSlide> Slides,
+    IReadOnlyDictionary<string, string> Images);
+
+// Html is built server-side from the composed PowerPoint with every text value encoded.
+// Pictures are referenced by key (data-pbd-preview-image) and shipped once in Images.
+public sealed record ProjectBriefingSlidePreviewSlide(
+    int Number,
+    string Title,
+    string Html);
+
 public sealed class ProjectBriefingPresentationData
 {
     public long DeckId { get; init; }

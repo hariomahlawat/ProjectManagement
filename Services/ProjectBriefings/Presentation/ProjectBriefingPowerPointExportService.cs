@@ -33,31 +33,7 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
         string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        var data = await _dataService.BuildPresentationDataAsync(deckId, requestingUserId, cancellationToken);
-        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-            || data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
-                or ProjectBriefingPresentationMode.Combined)
-        {
-            await AttachPhotosAsync(data, cancellationToken);
-        }
-
-        byte[] content;
-        int slideCount;
-        try
-        {
-            (content, slideCount) = _composer.Compose(data);
-        }
-        catch (ProjectBriefingPresentationIntegrityException exception)
-        {
-            _logger.LogError(
-                exception,
-                "Generated briefing deck failed PowerPoint integrity validation. "
-                + "DeckId={DeckId}, IssueCount={IssueCount}, Issues={IntegrityIssues}",
-                deckId,
-                exception.Issues.Count,
-                string.Join(" || ", exception.Issues));
-            throw;
-        }
+        var (data, content, slideCount) = await ComposeAsync(deckId, requestingUserId, cancellationToken);
 
         await _deckService.MarkGeneratedAsync(deckId, requestingUserId, slideCount, cancellationToken);
 
@@ -73,6 +49,37 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
             ContentType,
             $"{safeName}_{date}.pptx",
             slideCount);
+    }
+
+    public async Task<ProjectBriefingComposedDeck> ComposeAsync(
+        long deckId,
+        string requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var data = await _dataService.BuildPresentationDataAsync(deckId, requestingUserId, cancellationToken);
+        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+            || data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
+                or ProjectBriefingPresentationMode.Combined)
+        {
+            await AttachPhotosAsync(data, cancellationToken);
+        }
+
+        try
+        {
+            var (content, slideCount) = _composer.Compose(data);
+            return new ProjectBriefingComposedDeck(data, content, slideCount);
+        }
+        catch (ProjectBriefingPresentationIntegrityException exception)
+        {
+            _logger.LogError(
+                exception,
+                "Generated briefing deck failed PowerPoint integrity validation. "
+                + "DeckId={DeckId}, IssueCount={IssueCount}, Issues={IntegrityIssues}",
+                deckId,
+                exception.Issues.Count,
+                string.Join(" || ", exception.Issues));
+            throw;
+        }
     }
 
     private async Task AttachPhotosAsync(
