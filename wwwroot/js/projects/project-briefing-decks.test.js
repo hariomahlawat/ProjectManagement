@@ -136,6 +136,16 @@ test('pending settings saves finish before navigation, posts and generation', ()
   assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*setState\(generateStatus, 'Save the deck settings before generating the PowerPoint\.', 'error'\);/);
 });
 
+test('profile and additional-slide posts wait for a pending settings save', () => {
+  // The profile posts with the deck's row version, so it waits for the settings save to finish.
+  assert.match(source, /if \(settingsPending\(\)\) \{\s*event\.preventDefault\(\);\s*if \(!\(await saveSettingsNow\(\)\)\) \{/);
+  assert.match(source, /profileDirty = false;\s*HTMLFormElement\.prototype\.submit\.call\(profileForm\);/);
+  // Programmatic slide posts go through the submit guard rather than around it.
+  assert.match(source, /if \(form instanceof HTMLFormElement\) form\.requestSubmit\(\);/);
+  assert.match(additionalSlidesSource, /additionalSlideOrderForm\.requestSubmit\(\);/);
+  assert.doesNotMatch(additionalSlidesSource, /additionalSlideOrderForm\.submit\(\)/);
+});
+
 test('purpose presets apply on the server and the deck tab shows the current one', () => {
   assert.match(viewSource, /@foreach \(var preset in ProjectBriefingDeckPresets\.All\)/);
   assert.match(viewSource, /data-pbd-preset="@preset\.Preset"/);

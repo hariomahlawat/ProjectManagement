@@ -60,7 +60,8 @@ if (root) {
           .map((card) => card.dataset.slideType || '')
           .filter(Boolean);
         additionalSlideOrderInput.value = order.join(',');
-        additionalSlideOrderForm.submit();
+        // requestSubmit, so the page's submit guard waits for a pending settings save first.
+        additionalSlideOrderForm.requestSubmit();
       }
     });
   }

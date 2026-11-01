@@ -731,7 +731,7 @@ if (root) {
   });
   profileForm?.addEventListener('input', refreshProfileDirtyState);
   profileForm?.addEventListener('change', refreshProfileDirtyState);
-  profileForm?.addEventListener('submit', (event) => {
+  profileForm?.addEventListener('submit', async (event) => {
     syncInstitutionalHistoryEditor();
     syncInstitutionalPartnershipEditor();
     syncInstitutionalModuleOrder();
@@ -753,6 +753,23 @@ if (root) {
       profileStatus.classList.remove('is-dirty');
       profileStatus.classList.add('is-saving');
     }
+    // Both saves change the deck's row version, so the profile posts only after a pending
+    // settings save has finished (it then carries the new row version).
+    if (settingsPending()) {
+      event.preventDefault();
+      if (!(await saveSettingsNow())) {
+        if (profileSave) profileSave.disabled = false;
+        if (profileStatus) {
+          profileStatus.textContent = 'The deck settings could not be saved, so the profile was not saved either.';
+          profileStatus.classList.remove('is-saving');
+          profileStatus.classList.add('is-dirty');
+        }
+        return;
+      }
+      profileDirty = false;
+      HTMLFormElement.prototype.submit.call(profileForm);
+      return;
+    }
     profileDirty = false;
   });
 
@@ -765,7 +782,8 @@ if (root) {
       const form = toggle.closest('[data-pbd-additional-slide-toggle-form]');
       const enabledInput = form?.querySelector('[data-pbd-additional-slide-enabled]');
       if (enabledInput instanceof HTMLInputElement) enabledInput.value = String(toggle.checked);
-      if (form instanceof HTMLFormElement) form.submit();
+      // requestSubmit, so the page's submit guard waits for a pending settings save first.
+      if (form instanceof HTMLFormElement) form.requestSubmit();
     });
   });
 
