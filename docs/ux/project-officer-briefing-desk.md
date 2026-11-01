@@ -85,8 +85,10 @@ without opening the card; a step done elsewhere (the plan editor for an Admin or
 project page for an unrecorded stage) is a link there; anything else opens the card.
 
 **Next to prepare.** An open card's footer ends with "Next to prepare", which closes the card and
-opens the next one that still needs the PO, in desk order, wrapping to the first. It is left out
-when only one card needs the PO.
+opens the next one that still needs the PO, in desk order, wrapping to the first. A recently
+completed project with a direction to answer comes last in that order. It is left out when only
+one card needs the PO. Any shortcut closes a "See as the Comdt sees it" preview left open on the
+card, so the working area shows.
 
 **Gaps that never block** (changed 2026-11-01). Completion dates of earlier stages (the
 `<STAGE>_ACTUAL_COMPLETION` gaps) are listed first under **Improve the record**, with their date

@@ -63,8 +63,12 @@
     var subline = string.Join(" ", sublineParts);
 
     // "Next to prepare" in a card's footer moves through the cards that still need the PO, in
-    // desk order, wrapping to the first.
-    var needsYouOrder = desk.Sections.SelectMany(group => group.Items).Where(item => !item.IsBriefReady).ToList();
+    // desk order, wrapping to the first. A recently completed project with a direction to answer
+    // needs the PO too (the headline counts it), so it comes last.
+    var needsYouOrder = desk.Sections.SelectMany(group => group.Items)
+        .Concat(desk.RecentlyCompleted)
+        .Where(item => !item.IsBriefReady)
+        .ToList();
     BriefingDeskItemVm? NextAfter(BriefingDeskItemVm item)
     {
         var index = needsYouOrder.IndexOf(item);
@@ -205,7 +209,8 @@
                                 Item = item,
                                 IsOpen = item.AnchorId == Model.Focus,
                                 Draft = draftAnchor == item.AnchorId ? draftText : null,
-                                DraftField = draftField
+                                DraftField = draftField,
+                                NextItem = NextAfter(item)
                             })
                         }
                     </div>

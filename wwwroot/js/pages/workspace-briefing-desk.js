@@ -293,6 +293,12 @@
             group.open = true;
         }
         setExpanded(card, true);
+        // A card left showing "See as the Comdt sees it" has its working area hidden; a shortcut
+        // goes to the work, so the preview is closed first.
+        const preview = card.querySelector('[data-bd-preview-toggle][aria-expanded="true"]');
+        if (preview) {
+            preview.click();
+        }
         if (typeof card.scrollIntoView === 'function') {
             card.scrollIntoView({ block: 'start' });
         }

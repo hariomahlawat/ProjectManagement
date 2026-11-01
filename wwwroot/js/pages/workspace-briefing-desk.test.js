@@ -294,3 +294,17 @@ test('"Next to prepare" closes this card and opens the next', () => {
     assert.ok(doc.getElementById('desk-project-2').classList.contains('is-expanded'));
     assert.equal(doc.activeElement, doc.querySelector('#desk-project-2 [data-bd-toggle]'));
 });
+
+test('a remark shortcut closes the conference preview so the box shows', () => {
+    const window = createDom(card('desk-project-1', { open: true })
+        + '<a href="#desk-project-1" data-bd-go="say" data-bd-card-target="desk-project-1" id="go">Remark</a>');
+    const doc = window.document;
+    doc.querySelector('[data-bd-preview-toggle]').click();
+    doc.querySelector('[data-bd-toggle]').click();
+
+    doc.getElementById('go').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    assert.equal(doc.querySelector('.bd-card__work').hidden, false);
+    assert.equal(doc.getElementById('desk-project-1-preview').hidden, true);
+    assert.equal(doc.activeElement, doc.querySelector('#desk-project-1 textarea'));
+});
