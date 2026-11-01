@@ -438,3 +438,13 @@ test('the Studio chooses the photograph a deck shows, saved through the deck que
   assert.match(source, /new CustomEvent\('pbd:project-photo-failed'/);
   assert.match(viewSource, /data-photo-options-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "PhotoOptions"\)"/);
 });
+
+test('speaker notes are edited in the inspector and saved through the deck queue', () => {
+  assert.match(studioSource, /if \(hasOwnSlides\(project\)\) nodes\.push\(notesSection\(project\)\);/);
+  assert.match(studioSource, /field\.addEventListener\('blur', \(\) => saveNotes\(project\)\);/);
+  assert.match(studioSource, /new CustomEvent\('pbd:set-project-notes', \{ detail: \{ projectId: project\.projectId, notes: text \} \}\)/);
+  // A draft survives re-rendering until the saved notes come back with the deck.
+  assert.match(studioSource, /const notesText = \(project\) => \(notesDraft\.projectId === project\.projectId \? notesDraft\.text : project\.speakerNotes \|\| ''\);/);
+  assert.match(source, /document\.addEventListener\('pbd:set-project-notes'[\s\S]*?runDeckMutation\(async \(\) => \{[\s\S]*?root\.dataset\.speakerNotesUrl/);
+  assert.match(viewSource, /data-speaker-notes-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateSpeakerNotes"\)"/);
+});

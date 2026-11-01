@@ -1408,6 +1408,32 @@ if (root) {
     }
   });
 
+  // Speaker notes for a project: asked for by the Studio inspector.
+  document.addEventListener('pbd:set-project-notes', async (event) => {
+    const projectId = Number(event.detail?.projectId);
+    if (deckId <= 0 || !Number.isInteger(projectId)) return;
+    const notes = event.detail?.notes ?? '';
+    setState(membershipStatus, 'Saving the speaker notes…', 'saving');
+    try {
+      const payload = await runDeckMutation(async () => {
+        const reply = await requestJson(root.dataset.speakerNotesUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, projectId, notes, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(reply?.rowVersion);
+        return reply;
+      });
+      applyEditorState(payload?.deck);
+      setState(membershipStatus, 'Saved.', 'saved');
+    } catch (error) {
+      if (error instanceof RequestError && error.status === 409) showConflict(error.message);
+      setState(membershipStatus, error.message || 'The speaker notes could not be saved.', 'error');
+      document.dispatchEvent(new CustomEvent('pbd:project-notes-failed', {
+        detail: { projectId, message: error.message }
+      }));
+    }
+  });
+
   // The photograph a deck shows for a project: asked for by the Studio inspector.
   document.addEventListener('pbd:set-project-photo', async (event) => {
     const projectId = Number(event.detail?.projectId);

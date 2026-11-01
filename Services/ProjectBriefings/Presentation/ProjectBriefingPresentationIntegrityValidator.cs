@@ -308,6 +308,30 @@ internal static class ProjectBriefingPresentationIntegrityValidator
                 slidePart.Uri.ToString(),
                 $"slide {index + 1}",
                 issues);
+
+            // Speaker notes are generated too: each notes page must reach the notes master.
+            if (slidePart.NotesSlidePart is { } notesPart)
+            {
+                if (notesPart.NotesMasterPart is null)
+                {
+                    issues.Add($"The speaker notes of slide {index + 1} have no notes master.");
+                }
+
+                AddSchemaErrors(
+                    validator.Validate(notesPart.NotesSlide),
+                    notesPart.Uri.ToString(),
+                    $"speaker notes of slide {index + 1}",
+                    issues);
+            }
+        }
+
+        if (presentationPart.NotesMasterPart is { } notesMaster)
+        {
+            AddSchemaErrors(
+                validator.Validate(notesMaster.NotesMaster),
+                notesMaster.Uri.ToString(),
+                "notes master",
+                issues);
         }
     }
 

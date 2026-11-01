@@ -14,8 +14,9 @@ using Xunit;
 
 namespace ProjectManagement.Tests.ProjectBriefings;
 
-// The photograph a deck shows for a project: any of that project's photos, or its cover.
-public sealed class ProjectBriefingItemPhotoTests
+// Per-project choices stored on a deck item: the photograph (any of the project's photos, or
+// its cover) and the speaker notes.
+public sealed class ProjectBriefingDeckItemServiceTests
 {
     private const string UserId = "user-1";
 
@@ -67,6 +68,31 @@ public sealed class ProjectBriefingItemPhotoTests
             Service(db).UpdateItemPhotoAsync(deck.Id, 10, UserId, 102, Convert.ToBase64String(Guid.NewGuid().ToByteArray())));
     }
 
+    [Fact]
+    public async Task SpeakerNotes_AreStoredWithTidiedLineEnds_AndClearedWhenEmpty()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db);
+        var service = Service(db);
+
+        var version = await service.UpdateItemSpeakerNotesAsync(
+            deck.Id, 10, UserId, "  First point.\r\nSecond point.  ", Convert.ToBase64String(deck.RowVersion));
+        Assert.Equal("First point.\nSecond point.", (await db.Set<ProjectBriefingDeckItem>().SingleAsync()).SpeakerNotes);
+
+        await service.UpdateItemSpeakerNotesAsync(deck.Id, 10, UserId, "   ", version);
+        Assert.Null((await db.Set<ProjectBriefingDeckItem>().SingleAsync()).SpeakerNotes);
+    }
+
+    [Fact]
+    public async Task SpeakerNotes_LongerThanTheLimit_AreRefused()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Service(db).UpdateItemSpeakerNotesAsync(
+            deck.Id, 10, UserId, new string('x', ProjectBriefingDeckService.SpeakerNotesMaxLength + 1), Convert.ToBase64String(deck.RowVersion)));
+    }
+
     private static async Task<ProjectBriefingDeck> SeedAsync(ApplicationDbContext db, int? chosenPhotoId = null)
     {
         db.Projects.AddRange(Project(10, "Project ten"), Project(20, "Project twenty"));
@@ -116,7 +142,7 @@ public sealed class ProjectBriefingItemPhotoTests
 
     private static ApplicationDbContext CreateDb()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase($"briefing-photo-{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"briefing-deck-item-{Guid.NewGuid()}")
             .Options);
 
     private sealed class NoAudit : IAuditService

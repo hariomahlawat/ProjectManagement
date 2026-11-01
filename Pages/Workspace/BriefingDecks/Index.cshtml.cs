@@ -907,6 +907,44 @@ public sealed class IndexModel : PageModel
             : new JsonResult(new { photos });
     }
 
+    public async Task<IActionResult> OnPostUpdateSpeakerNotesAsync(
+        [FromBody] UpdateSpeakerNotesInput? input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (input is null || input.DeckId <= 0 || input.ProjectId <= 0 || string.IsNullOrWhiteSpace(input.RowVersion))
+        {
+            return BadRequest(new { message = "The speaker-notes request is invalid." });
+        }
+
+        try
+        {
+            var rowVersion = await _deckService.UpdateItemSpeakerNotesAsync(
+                input.DeckId,
+                input.ProjectId,
+                userId,
+                input.Notes,
+                input.RowVersion,
+                cancellationToken);
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
+            return new JsonResult(new { saved = true, rowVersion, deck });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new JsonResult(new
+            {
+                message = "The deck was updated by another user. Reload before editing the speaker notes."
+            })
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            };
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+    }
+
     public async Task<IActionResult> OnPostUpdateItemPhotoAsync(
         [FromBody] UpdateItemPhotoInput? input,
         CancellationToken cancellationToken)
@@ -1508,6 +1546,14 @@ public sealed class IndexModel : PageModel
         public long DeckId { get; set; }
         public int ProjectId { get; set; }
         public string? Value { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed class UpdateSpeakerNotesInput
+    {
+        public long DeckId { get; set; }
+        public int ProjectId { get; set; }
+        public string? Notes { get; set; }
         public string RowVersion { get; set; } = string.Empty;
     }
 

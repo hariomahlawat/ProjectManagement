@@ -345,6 +345,64 @@ if (root) {
     return section;
   };
 
+  // Speaker notes: written into the PowerPoint's notes for the project's first slide. A draft
+  // survives the inspector re-rendering (rebuilds, other saves) until it is saved.
+  const NOTES_MAX = 4000;
+  let notesDraft = { projectId: null, text: '', saving: false, error: '' };
+  const hasOwnSlides = (project) => !project.isDeletedOrArchived
+    && (project.presentation || 'Slides') === 'Slides'
+    && (deckShape.layout === 'ProjectUpdateSheet' || deckShape.mode !== 'ExecutiveTable');
+  const notesText = (project) => (notesDraft.projectId === project.projectId ? notesDraft.text : project.speakerNotes || '');
+
+  const saveNotes = (project) => {
+    const text = notesText(project).trim();
+    if (text === (project.speakerNotes || '').trim() || notesDraft.saving) return;
+    if (text.length > NOTES_MAX) return;
+    notesDraft = { projectId: project.projectId, text, saving: true, error: '' };
+    refreshInspector();
+    document.dispatchEvent(new CustomEvent('pbd:set-project-notes', { detail: { projectId: project.projectId, notes: text } }));
+  };
+
+  const notesSection = (project) => {
+    const section = el('div', 'pbd-inspector__notes');
+    const label = el('label', 'pbd-inspector__heading', 'Speaker notes');
+    const field = el('textarea', 'form-control form-control-sm');
+    field.id = `pbd-speaker-notes-${project.projectId}`;
+    label.htmlFor = field.id;
+    field.rows = 5;
+    field.maxLength = NOTES_MAX;
+    field.placeholder = 'What to say on this project. Shown to the presenter, not on the slide.';
+    field.value = notesText(project);
+    field.disabled = notesDraft.saving && notesDraft.projectId === project.projectId;
+    const footer = el('div', 'pbd-inspector__notes-footer');
+    const state = el('small', 'pbd-inspector__notes-state');
+    const counter = el('small', 'pbd-inspector__notes-count');
+    const save = el('button', 'btn btn-sm btn-outline-primary', 'Save notes');
+    save.type = 'button';
+    const refresh = () => {
+      const dirty = field.value.trim() !== (project.speakerNotes || '').trim();
+      counter.textContent = `${field.value.length} / ${NOTES_MAX}`;
+      save.disabled = !dirty || field.disabled;
+      if (notesDraft.projectId === project.projectId && notesDraft.error) {
+        state.textContent = notesDraft.error;
+        state.className = 'pbd-inspector__notes-state is-error';
+      } else {
+        state.textContent = field.disabled ? 'Saving…' : (dirty ? 'Not saved yet' : (project.speakerNotes ? 'Saved. On the project’s first slide.' : ''));
+        state.className = 'pbd-inspector__notes-state';
+      }
+    };
+    field.addEventListener('input', () => {
+      notesDraft = { projectId: project.projectId, text: field.value, saving: false, error: '' };
+      refresh();
+    });
+    field.addEventListener('blur', () => saveNotes(project));
+    save.addEventListener('click', () => saveNotes(project));
+    refresh();
+    footer.append(state, counter, save);
+    section.append(label, field, footer);
+    return section;
+  };
+
   const entryTitle = (entry) => {
     if (entry.projectId) return projects.get(entry.projectId)?.projectName || slides[entry.indices[0]]?.title || 'Project';
     const title = (slides[entry.indices[0]]?.title || ROLES[entry.role]?.label || '').replace(/\s*\(\d+\/\d+\)$/, '');
@@ -623,6 +681,7 @@ if (root) {
       nodes.push(facts);
       if (!project.isDeletedOrArchived) nodes.push(presentationControl(project));
       if (usesPhoto(project)) nodes.push(photoSection(project));
+      if (hasOwnSlides(project)) nodes.push(notesSection(project));
 
       nodes.push(el('h5', 'pbd-inspector__heading', 'Present status'));
       nodes.push(project.externalStatus
@@ -1017,6 +1076,13 @@ if (root) {
     selectIndex(current + (event.key === 'ArrowRight' ? 1 : -1));
   });
 
+  // Speaker notes the server refused: keep the draft and say why.
+  document.addEventListener('pbd:project-notes-failed', (event) => {
+    if (notesDraft.projectId !== Number(event.detail?.projectId)) return;
+    notesDraft = { ...notesDraft, saving: false, error: event.detail?.message || 'The speaker notes could not be saved.' };
+    refreshInspector();
+  });
+
   // A photo choice the server refused: say why and let the person choose again.
   document.addEventListener('pbd:project-photo-failed', (event) => {
     if (photoPicker.projectId !== Number(event.detail?.projectId)) return;
@@ -1041,6 +1107,13 @@ if (root) {
     if (typeof event.detail?.hasProjects === 'boolean') hasProjects = event.detail.hasProjects;
     if (event.detail?.deck) {
       if (photoPicker.saving) photoPicker = { ...photoPicker, saving: false };
+      // Saved notes come back with the deck; a draft that now matches them is done.
+      if (notesDraft.saving) {
+        const saved = (event.detail.deck.projects || []).find((project) => project.projectId === notesDraft.projectId);
+        notesDraft = (saved?.speakerNotes || '').trim() === notesDraft.text.trim()
+          ? { projectId: null, text: '', saving: false, error: '' }
+          : { ...notesDraft, saving: false };
+      }
       if (event.detail.deck.layout) deckShape.layout = event.detail.deck.layout;
       if (event.detail.deck.presentationMode) deckShape.mode = event.detail.deck.presentationMode;
       readStudioData({ projects: event.detail.deck.projects, contentGaps: event.detail.deck.contentGaps });

@@ -845,6 +845,7 @@ namespace ProjectManagement.Data
             {
                 entity.ToTable("ProjectBriefingDeckItems");
                 entity.Property(item => item.BriefDescriptionOverride).HasMaxLength(1200);
+                entity.Property(item => item.SpeakerNotes).HasMaxLength(4000);
                 // Rows written by earlier builds (and existing rows) take the database default.
                 entity.Property(item => item.Presentation)
                     .HasConversion<string>()

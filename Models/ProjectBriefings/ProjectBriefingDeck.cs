@@ -264,5 +264,9 @@ public sealed class ProjectBriefingDeckItem
     // The photograph this deck shows for the project; null uses the project's cover photo.
     public int? PhotoId { get; set; }
 
+    // What the presenter says for the project, written into the PowerPoint's speaker notes.
+    [MaxLength(4000)]
+    public string? SpeakerNotes { get; set; }
+
     public DateTimeOffset AddedAtUtc { get; set; }
 }
