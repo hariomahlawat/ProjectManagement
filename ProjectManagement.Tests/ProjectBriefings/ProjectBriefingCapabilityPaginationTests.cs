@@ -217,7 +217,26 @@ public sealed class ProjectBriefingCapabilityPaginationTests
         Assert.All(
             pagination.Pages.SelectMany(page => page.Blocks)
                 .Where(block => block.Type != ProjectBriefingCapabilityBlockType.Heading),
-            block => Assert.True(block.FontSize <= 12.0));
+            // Dense text is the compact size, but never below what a room can read.
+            block => Assert.InRange(block.FontSize, 13.5, 14.0));
+        // The larger type moves more of a long overview onto continuation slides.
+        Assert.True(pagination.Pages.Count >= 2);
+    }
+
+    [Fact]
+    public void ListText_IsAtLeastFourteenPoints_AndTheLineBudgetFollowsTheSize()
+    {
+        foreach (var density in Enum.GetValues<ProjectBriefingNarrativeDensity>())
+        {
+            var bullet = ProjectBriefingNarrativeTypography.ResolveCapabilityBlock(ProjectBriefingCapabilityBlockType.Bullet, false, density);
+            Assert.True(bullet.FontSize >= 14.0, $"{density} bullets are {bullet.FontSize} pt");
+            Assert.True(bullet.LineHeight >= bullet.FontSize * 1.2 / 72, $"{density} line height is shorter than the renderer's line spacing");
+        }
+
+        // Larger type fits fewer characters on a line of the same width.
+        Assert.True(
+            ProjectBriefingNarrativeTypography.AdjustCapabilityCharactersPerLine(72, 16.0)
+            < ProjectBriefingNarrativeTypography.AdjustCapabilityCharactersPerLine(72, 12.7));
     }
 
     [Fact]

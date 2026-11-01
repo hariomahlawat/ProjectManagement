@@ -56,34 +56,34 @@ public static class ProjectBriefingNarrativeTypography
     {
         var profile = (type, density) switch
         {
-            (ProjectBriefingCapabilityBlockType.Heading, ProjectBriefingNarrativeDensity.Sparse) => (15.0, .252, .120),
-            (ProjectBriefingCapabilityBlockType.Heading, ProjectBriefingNarrativeDensity.Dense) => (12.7, .218, .082),
-            (ProjectBriefingCapabilityBlockType.Heading, _) => (13.6, .235, .105),
+            // Sized to be read from the back of a room: list text never below 14 pt. The line
+            // height is the renderer's 1.2 line spacing plus a small allowance.
+            (ProjectBriefingCapabilityBlockType.Heading, ProjectBriefingNarrativeDensity.Sparse) => (19.0, .320, .130),
+            (ProjectBriefingCapabilityBlockType.Heading, ProjectBriefingNarrativeDensity.Dense) => (15.5, .262, .090),
+            (ProjectBriefingCapabilityBlockType.Heading, _) => (17.0, .287, .110),
 
             (ProjectBriefingCapabilityBlockType.Bullet or ProjectBriefingCapabilityBlockType.NumberedItem or ProjectBriefingCapabilityBlockType.LetteredItem,
-                ProjectBriefingNarrativeDensity.Sparse) => (14.4, .238, .082),
+                ProjectBriefingNarrativeDensity.Sparse) => (18.0, .303, .090),
             (ProjectBriefingCapabilityBlockType.Bullet or ProjectBriefingCapabilityBlockType.NumberedItem or ProjectBriefingCapabilityBlockType.LetteredItem,
-                ProjectBriefingNarrativeDensity.Dense) => (11.8, .198, .046),
+                ProjectBriefingNarrativeDensity.Dense) => (14.0, .236, .055),
             (ProjectBriefingCapabilityBlockType.Bullet or ProjectBriefingCapabilityBlockType.NumberedItem or ProjectBriefingCapabilityBlockType.LetteredItem,
-                _) => (12.7, .215, .060),
+                _) => (16.0, .270, .070),
 
-            (_, ProjectBriefingNarrativeDensity.Sparse) => (isMuted ? 13.3 : 14.6, .242, .120),
-            (_, ProjectBriefingNarrativeDensity.Dense) => (isMuted ? 11.7 : 12.0, .202, .072),
-            _ => (isMuted ? 12.5 : 13.0, .222, .105)
+            (_, ProjectBriefingNarrativeDensity.Sparse) => (isMuted ? 17.0 : 18.0, .303, .130),
+            (_, ProjectBriefingNarrativeDensity.Dense) => (isMuted ? 13.5 : 14.0, .236, .080),
+            _ => (isMuted ? 15.0 : 16.0, .270, .115)
         };
 
         return new ProjectBriefingCapabilityTypography(profile.Item1, profile.Item2, profile.Item3);
     }
 
+    // Panel line budgets are measured at 12.7 pt; larger type fits proportionally fewer characters.
+    private const double CapabilityBudgetFontSize = 12.7;
+
     public static int AdjustCapabilityCharactersPerLine(
-        int standardCharactersPerLine,
-        ProjectBriefingNarrativeDensity density)
-        => density switch
-        {
-            ProjectBriefingNarrativeDensity.Sparse => Math.Max(24, standardCharactersPerLine - 7),
-            ProjectBriefingNarrativeDensity.Dense => standardCharactersPerLine + 8,
-            _ => standardCharactersPerLine
-        };
+        int charactersPerLineAtBudgetSize,
+        double fontSize)
+        => Math.Max(24, (int)Math.Floor(charactersPerLineAtBudgetSize * CapabilityBudgetFontSize / Math.Max(1d, fontSize)));
 
     public static ProjectBriefingNarrativeTypographyProfile ResolveProjectBrief(string? value)
     {

@@ -5,11 +5,11 @@ namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 public static class ProjectBriefingCapabilityPaginator
 {
     private static readonly LayoutProfile PrimaryProfile = new(
-        AvailableHeight: 4.42,
+        AvailableHeight: 4.38,
         CharactersPerLine: 72);
 
     private static readonly LayoutProfile ContinuationProfile = new(
-        AvailableHeight: 4.58,
+        AvailableHeight: 4.54,
         CharactersPerLine: 118);
 
     public static ProjectBriefingCapabilityPagination Paginate(string? value)
@@ -132,7 +132,7 @@ public static class ProjectBriefingCapabilityPaginator
 
         var characterBudget = ProjectBriefingNarrativeTypography.AdjustCapabilityCharactersPerLine(
             profile.CharactersPerLine,
-            density);
+            fontSize);
         if (block.Type is ProjectBriefingCapabilityBlockType.Bullet
             or ProjectBriefingCapabilityBlockType.NumberedItem
             or ProjectBriefingCapabilityBlockType.LetteredItem)
@@ -227,7 +227,7 @@ public static class ProjectBriefingCapabilityPaginator
 
         var characterBudget = ProjectBriefingNarrativeTypography.AdjustCapabilityCharactersPerLine(
             profile.CharactersPerLine,
-            density);
+            sample.FontSize);
         if (block.Type is ProjectBriefingCapabilityBlockType.Bullet
             or ProjectBriefingCapabilityBlockType.NumberedItem
             or ProjectBriefingCapabilityBlockType.LetteredItem)

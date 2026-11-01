@@ -73,6 +73,12 @@ the server; the script inserts only slide HTML and writes all other text as text
 - Fonts follow the PowerPoint (Aptos, then Segoe UI), so line breaks can differ slightly where
   Aptos is not installed.
 
+- Project slides use one modest corner (rounded shapes are capped at 0.12 in; PowerPoint's
+  default of a sixth of the shorter side turned large panels into bubbles) and type sized for a
+  room: capability points 14–18 pt by density (14 pt minimum), present status 12–14 pt, cost
+  figures 15–17 pt, footer 9 pt. The capability line budget scales with the type size, so long
+  overviews continue onto further slides instead of overflowing.
+
 ## Review findings (1 Nov 2026)
 
 **Bugs**

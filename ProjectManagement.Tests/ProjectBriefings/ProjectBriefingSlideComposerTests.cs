@@ -133,6 +133,44 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void ProjectSlides_RoundedShapesShareOneModestCorner()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var composition = composer.ComposeWithOutline(BuildData());
+
+        using var stream = new MemoryStream(composition.Content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var part = document.PresentationPart!;
+        var orderedSlides = part.Presentation.SlideIdList!.Elements<P.SlideId>()
+            .Select(id => (SlidePart)part.GetPartById(id.RelationshipId!))
+            .ToArray();
+        // Project slides: capability, continuation and brief slides.
+        var projectSlides = composition.Outline
+            .Where(item => item.ProjectId.HasValue)
+            .Select(item => orderedSlides[item.Number - 1])
+            .ToArray();
+        Assert.NotEmpty(projectSlides);
+        var corners = projectSlides
+            .SelectMany(slide => slide.Slide.Descendants<P.Shape>())
+            .Select(shape => shape.ShapeProperties)
+            .Where(properties => properties?.GetFirstChild<A.PresetGeometry>()?.Preset?.Value == A.ShapeTypeValues.RoundRectangle)
+            .Select(properties =>
+            {
+                var extents = properties!.Transform2D!.Extents!;
+                var shorterSide = Math.Min(extents.Cx!.Value, extents.Cy!.Value) / 914_400d;
+                var guide = properties.GetFirstChild<A.PresetGeometry>()!.AdjustValueList?.GetFirstChild<A.ShapeGuide>();
+                var adjustment = guide is null ? 16_667d : double.Parse(guide.Formula!.Value!.Replace("val ", string.Empty), System.Globalization.CultureInfo.InvariantCulture);
+                return shorterSide * adjustment / 100_000d;
+            })
+            .ToArray();
+
+        Assert.NotEmpty(corners);
+        // Large panels no longer get PowerPoint's default corner of a sixth of their shorter side.
+        Assert.All(corners, radius => Assert.True(radius <= .121, $"corner radius {radius:0.###} in"));
+    }
+
+    [Fact]
     public void PreviewRenderer_EncodesSlideTextSoItCannotBecomeMarkup()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
