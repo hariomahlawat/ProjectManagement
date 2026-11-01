@@ -8,6 +8,11 @@ internal static class WorkspaceRouteHelper
     public static string ProjectOverview(int projectId)
         => $"/Projects/Overview/{projectId}";
 
+    // Browser tab name for a project's page. Links that share it reuse one tab per project
+    // instead of opening a new tab on every click.
+    public static string ProjectTabName(int projectId)
+        => $"prism-project-{projectId}";
+
     public static string ProjectTimeline(int projectId)
         => $"/Projects/Overview/{projectId}#timeline";
 

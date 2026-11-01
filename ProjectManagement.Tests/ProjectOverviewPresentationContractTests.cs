@@ -119,12 +119,13 @@ public sealed class ProjectOverviewPresentationContractTests
     }
 
     [Fact]
-    public void ProjectRegister_OpensTheProjectPageInANewTab()
+    public void ProjectRegister_OpensOneTabPerProject()
     {
         var workspaceTable = ReadRepoFile("Pages", "Workspace", "_ProjectOfficerProjectTable.cshtml");
 
         // The project name opens the project overview, not the briefing desk card.
-        Assert.Contains("<a class=\"po-project-name\" href=\"@item.OpenUrl\" target=\"_blank\" rel=\"noopener noreferrer\"", workspaceTable, StringComparison.Ordinal);
+        // One named tab per project, so a repeat click lands in the tab already open.
+        Assert.Contains("<a class=\"po-project-name\" href=\"@item.OpenUrl\" target=\"@WorkspaceRouteHelper.ProjectTabName(item.ItemId)\"", workspaceTable, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"po-project-name\" href=\"@WorkspaceRouteHelper.BriefingDeskItem", workspaceTable, StringComparison.Ordinal);
     }
 
