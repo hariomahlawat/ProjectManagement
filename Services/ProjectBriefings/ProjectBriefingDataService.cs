@@ -75,6 +75,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         }
 
         var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
+        var presentedProjects = projects.Where(project => !project.IsDeletedOrArchived).ToArray();
         var ffcPreview = await LoadFfcFootprintPreviewAsync(snapshot.Id, cancellationToken);
         return new ProjectBriefingDeckVm
         {
@@ -106,7 +107,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             CreatedByDisplay = snapshot.CreatedByDisplay,
             LastModifiedByDisplay = snapshot.LastModifiedByDisplay,
             Projects = projects,
-            Readiness = BuildReadiness(projects),
+            Readiness = BuildReadiness(presentedProjects),
             SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
                 snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
                 snapshot.IncludeTechnicalCategorySummary, snapshot.StandardSlideOptions,
@@ -114,7 +115,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 snapshot.InstitutionalProfileOptions, snapshot.RoleCharterOptions,
                 snapshot.FfcGlobalFootprintOptions, ffcPreview.CountryCount,
                 snapshot.AdditionalSlideOrder,
-                snapshot.CostMode, snapshot.NarrativeMode, projects)
+                snapshot.CostMode, snapshot.NarrativeMode, presentedProjects)
         };
     }
 
@@ -125,10 +126,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     {
         var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken)
             ?? throw new KeyNotFoundException("The saved deck was not found.");
-        var projectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
-        if (projectVms.Count == 0)
+        var allProjectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
+        var projectVms = allProjectVms.Where(project => !project.IsDeletedOrArchived).ToArray();
+        if (projectVms.Length == 0)
         {
-            throw new InvalidOperationException("Add at least one project before generating the PowerPoint deck.");
+            throw new InvalidOperationException(allProjectVms.Count == 0
+                ? "Add at least one project before generating the PowerPoint deck."
+                : "Every project in this deck is deleted or archived. Add a current project before generating the PowerPoint deck.");
         }
 
         var projects = ProjectBriefingProjectOrdering.OrderProjects(projectVms.Select(project =>
@@ -511,6 +515,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     ProjectName = item.ProjectName,
                     LifecycleStatus = item.LifecycleStatus,
                     LifecycleDisplay = ResolveLifecycleDisplay(item),
+                    IsDeletedOrArchived = item.IsDeleted || item.IsArchived,
                     PresentStageCode = stageCode,
                     PresentStage = ResolveStageName(item),
                     PresentStageOrder = ProjectBriefingStageOrder.Resolve(item.LifecycleStatus, stageCode),

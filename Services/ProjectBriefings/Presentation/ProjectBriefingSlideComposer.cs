@@ -352,6 +352,22 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             true,
             "ctr",
             name: "Closing organisation");
+
+        // Every slide carries the handling marking, the closing slide included.
+        if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
+        {
+            canvas.AddText(
+                2.02,
+                6.52,
+                9.29,
+                .26,
+                data.HandlingMarking!,
+                9.5,
+                theme.CoverMuted,
+                true,
+                "ctr",
+                name: "Closing handling marking");
+        }
     }
 
     private static void RenderCover(
@@ -1953,11 +1969,37 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
         canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
-        if (kind == SlidePlanKind.InstitutionalProfile && data.InstitutionalProfile is not null)
+        DateTimeOffset? dataAsOnUtc = kind switch
         {
-            var dataAsOn = data.InstitutionalProfile.DataAsOnUtc
-                .ToUniversalTime()
-                .ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            SlidePlanKind.InstitutionalProfile when data.InstitutionalProfile is not null
+                => data.InstitutionalProfile.DataAsOnUtc,
+            SlidePlanKind.FfcGlobalFootprint when data.FfcGlobalFootprint is not null
+                => data.GeneratedAtUtc,
+            _ => null
+        };
+        var dataAsOn = dataAsOnUtc.HasValue
+            ? TimeZoneInfo
+                .ConvertTime(dataAsOnUtc.Value, TimeZoneHelper.GetIst())
+                .ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+            : null;
+        var hasMarking = !string.IsNullOrWhiteSpace(data.HandlingMarking);
+
+        // The handling marking always keeps the centre of the footer. A data-as-on note then
+        // moves, shortened, to sit just left of the slide number.
+        if (hasMarking)
+        {
+            if (dataAsOn is null)
+            {
+                canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
+            }
+            else
+            {
+                canvas.AddText(4.95, 7.12, 3.45, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
+                canvas.AddText(8.45, 7.12, 1.85, .18, $"Data as on {dataAsOn}", 7.5, canvas.Theme.TextMuted, false, "r");
+            }
+        }
+        else if (dataAsOn is not null)
+        {
             canvas.AddText(
                 4.15,
                 7.12,
@@ -1968,26 +2010,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 canvas.Theme.TextMuted,
                 false,
                 "ctr");
-        }
-        else if (kind == SlidePlanKind.FfcGlobalFootprint && data.FfcGlobalFootprint is not null)
-        {
-            var dataAsOn = TimeZoneInfo
-                .ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst())
-                .ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
-            canvas.AddText(
-                4.15,
-                7.12,
-                5.05,
-                .18,
-                $"Data as on {dataAsOn} · Source: PRISM ERP",
-                7.8,
-                canvas.Theme.TextMuted,
-                false,
-                "ctr");
-        }
-        else if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
-        {
-            canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
         }
         canvas.AddText(10.35, 7.12, 2.35, .18, $"{slideNumber}/{slideCount}", 7.5, canvas.Theme.TextMuted, true, "r");
     }

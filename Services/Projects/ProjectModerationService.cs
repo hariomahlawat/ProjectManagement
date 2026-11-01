@@ -519,6 +519,20 @@ public sealed class ProjectModerationService
         metadata["metaChangeRequestCount"] = metaRequests.Count;
         _db.ProjectMetaChangeRequests.RemoveRange(metaRequests);
 
+        // Briefing-deck items restrict the project, so a purged project leaves every shared
+        // deck it was in. Each such deck gets a new version so an open editor reloads instead
+        // of saving an order or override for a project that no longer exists.
+        var briefingDeckItems = await _db.ProjectBriefingDeckItems
+            .Include(item => item.Deck)
+            .Where(item => item.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        metadata["briefingDeckItemCount"] = briefingDeckItems.Count;
+        foreach (var deck in briefingDeckItems.Select(item => item.Deck).Distinct())
+        {
+            deck.RowVersion = Guid.NewGuid().ToByteArray();
+        }
+        _db.ProjectBriefingDeckItems.RemoveRange(briefingDeckItems);
+
         var projectEntity = await _db.Projects
             .FirstOrDefaultAsync(candidate => candidate.Id == projectId, cancellationToken);
         if (projectEntity is not null)

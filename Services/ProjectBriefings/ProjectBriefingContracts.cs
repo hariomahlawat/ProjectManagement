@@ -102,6 +102,9 @@ public sealed class ProjectBriefingProjectVm
     public string ProjectName { get; init; } = string.Empty;
     public string LifecycleDisplay { get; init; } = string.Empty;
     public ProjectLifecycleStatus LifecycleStatus { get; init; }
+    // A deleted or archived project stays listed in the deck so it can be removed, but it is
+    // left out of the PowerPoint, the readiness counts and the slide estimate.
+    public bool IsDeletedOrArchived { get; init; }
     public string PresentStageCode { get; init; } = string.Empty;
     public string PresentStage { get; init; } = string.Empty;
     public int PresentStageOrder { get; init; } = ProjectBriefingStageOrder.Unknown;

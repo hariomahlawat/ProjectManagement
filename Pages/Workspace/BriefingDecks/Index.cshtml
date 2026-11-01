@@ -9,6 +9,8 @@
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "desk";
     var deck = Model.SelectedDeck;
+    var presentedProjects = deck?.Projects.Where(project => !project.IsDeletedOrArchived).ToArray();
+    var leftOutProjectCount = deck is null ? 0 : deck.Projects.Count - presentedProjects!.Length;
     var activeDeckName = deck?.Name ?? "No deck selected";
     var isUpdateSheet = deck?.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
     var layoutLabel = isUpdateSheet ? "Project Update Sheets" : "Standard PRISM Briefing";
@@ -161,7 +163,7 @@
           + (standardNeedsProjectBrief ? $" · {projectBriefLayoutLabel}" : string.Empty)
           + additionalSlidesSummary
           + $" · {themeLabel} · {costModeLabel} · {closingSlideLabel}";
-    var missingArppNumberCount = deck?.Projects.Count(project =>
+    var missingArppNumberCount = presentedProjects?.Count(project =>
         project.ArppPppNumberApplicable && string.IsNullOrWhiteSpace(project.ArppReference)) ?? 0;
     var missingFundingCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ArppDetailsAvailableCount;
     var missingAonDateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.AonDateAvailableCount;
@@ -175,7 +177,7 @@
     // reportable. The PDC/completion row is intentionally always retained.
     var reportedMissingArppNumberCount = hideEmptyUpdateSheetValues ? 0 : missingArppNumberCount;
     var reportedMissingFundingCount = hideEmptyUpdateSheetValues
-        ? deck?.Projects.Count(project =>
+        ? presentedProjects?.Count(project =>
             (!string.IsNullOrWhiteSpace(project.Fund)
                 || !string.IsNullOrWhiteSpace(project.DfpdsSchedule)
                 || !string.IsNullOrWhiteSpace(project.Cfa))
@@ -183,13 +185,13 @@
         : missingFundingCount;
     var reportedMissingAonDateCount = hideEmptyUpdateSheetValues ? 0 : missingAonDateCount;
     var reportedMissingSupplyOrderDateCount = hideEmptyUpdateSheetValues
-        ? deck?.Projects.Count(project => !project.SupplyOrderDate.HasValue && project.JdpNames.Count > 0) ?? 0
+        ? presentedProjects?.Count(project => !project.SupplyOrderDate.HasValue && project.JdpNames.Count > 0) ?? 0
         : missingSupplyOrderDateCount;
     var reportedMissingJdpCount = hideEmptyUpdateSheetValues
-        ? deck?.Projects.Count(project => project.SupplyOrderDate.HasValue && project.JdpNames.Count == 0) ?? 0
+        ? presentedProjects?.Count(project => project.SupplyOrderDate.HasValue && project.JdpNames.Count == 0) ?? 0
         : missingJdpCount;
     var reportedMissingProjectOfficerCount = hideEmptyUpdateSheetValues
-        ? deck?.Projects.Count(project =>
+        ? presentedProjects?.Count(project =>
             !string.IsNullOrWhiteSpace(project.ProjectOfficer) && !project.ProjectOfficerIsComplete) ?? 0
         : missingProjectOfficerCount;
     var reportedMissingLineDirectorateCount = hideEmptyUpdateSheetValues ? 0 : missingLineDirectorateCount;
@@ -208,7 +210,7 @@
             + (updateNeedsProjectOfficer ? reportedMissingProjectOfficerCount : 0)
             + (updateNeedsLineDirectorate ? reportedMissingLineDirectorateCount : 0)
         : 0;
-    var affectedProjectCount = deck?.Projects.Count(project =>
+    var affectedProjectCount = presentedProjects?.Count(project =>
     {
         var capabilityText = project.BriefDescription?.Trim();
         var hasCapability = !string.IsNullOrWhiteSpace(capabilityText)
@@ -359,7 +361,7 @@
                                 <div class="pbd-generate-action">
                                     <form method="post" asp-page-handler="Generate" data-pbd-generate-form>
                                         <input type="hidden" name="deckId" value="@deck.Id" />
-                                        <button type="submit" class="btn btn-primary" disabled="@(deck.Projects.Count == 0)" data-pbd-generate>
+                                        <button type="submit" class="btn btn-primary" disabled="@(presentedProjects!.Length == 0)" data-pbd-generate>
                                             <span data-pbd-generate-label><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Generate PowerPoint</span>
                                             <span class="d-none" data-pbd-generate-progress><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generating…</span>
                                         </button>
@@ -800,6 +802,11 @@
                                 </div>
                             </header>
 
+                            <div class="alert alert-warning pbd-alert" role="status" data-pbd-left-out-notice hidden="@(leftOutProjectCount == 0)">
+                                <i class="bi bi-archive" aria-hidden="true"></i>
+                                <span data-pbd-left-out-text>@leftOutProjectCount @(leftOutProjectCount == 1 ? "project in this deck is" : "projects in this deck are") deleted or archived and will be left out of the PowerPoint. Remove @(leftOutProjectCount == 1 ? "it" : "them") from the deck, or restore the project to include it again.</span>
+                            </div>
+
                             <div class="pbd-preflight-metrics" data-pbd-preflight-metrics>
                                 <button type="button" class="pbd-preflight-metric" data-pbd-requirement="status" data-pbd-readiness-filter="missing-status" hidden="@(!includesStatus)" disabled="@(missingStatusCount == 0)">
                                     <strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong>
@@ -1224,7 +1231,7 @@
                             <div class="pbd-empty-projects" data-pbd-empty-projects @(deck.Projects.Count == 0 ? null : "hidden")>
                                 <i class="bi bi-file-earmark-plus" aria-hidden="true"></i>
                                 <strong>No projects selected</strong>
-                                <span>Use a quick selection or Manage individually above.</span>
+                                <span>Use Add projects below to pick a quick selection, a category or individual projects.</span>
                             </div>
 
                             <div class="pbd-table-wrap" data-pbd-selected-table-wrap @(deck.Projects.Count == 0 ? "hidden" : null)>
@@ -1304,6 +1311,10 @@
                                                 <td class="pbd-project-name">
                                                     <a href="@project.OpenUrl" target="_blank" rel="noopener" title="@project.ProjectName">@project.ProjectName</a>
                                                     <small>@project.LifecycleDisplay · @(project.ProjectCategory ?? "Not categorised") · @(project.TechnicalCategory ?? "No technical category")</small>
+                                                    @if (project.IsDeletedOrArchived)
+                                                    {
+                                                        <span class="pbd-missing">Left out of the PowerPoint</span>
+                                                    }
                                                 </td>
                                                 <td><span class="pbd-stage">@project.PresentStage</span></td>
                                                 <td class="pbd-cost">
