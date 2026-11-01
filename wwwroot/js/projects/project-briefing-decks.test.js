@@ -41,13 +41,15 @@ test('briefing deck selection tabs support keyboard navigation', () => {
   assert.match(source, /aria-selected/);
 });
 
-test('briefing deck slide order supports drag and keyboard reordering within stage groups', () => {
-  assert.match(source, /window\.Sortable\.create/);
-  assert.match(source, /ArrowUp/);
-  assert.match(source, /ArrowDown/);
-  assert.match(source, /saveProjectOrder/);
-  assert.match(source, /sameStage/);
-  assert.match(source, /Projects remain grouped by maturity/);
+test('studio outline reorders projects only within their present stage', () => {
+  // Drag (grip handle) and Alt+Arrow keys move a project inside its stage group; the full order
+  // goes to the builder, which saves it and asks the Studio to rebuild.
+  assert.match(studioSource, /window\.Sortable\.create\(list, \{\s*handle: '\.pbd-outline__grip'/);
+  assert.match(studioSource, /if \(!event\.altKey \|\| \(event\.key !== 'ArrowUp' && event\.key !== 'ArrowDown'\)\) return;/);
+  assert.match(studioSource, /new CustomEvent\('pbd:reorder-projects', \{ detail: \{ projectIds: order \} \}\)/);
+  assert.match(studioSource, /const canReorder = \(\) => !query && !filterGap;/);
+  assert.match(source, /document\.addEventListener\('pbd:reorder-projects'/);
+  assert.match(source, /body: JSON\.stringify\(\{ deckId, projectIds, rowVersion: currentRowVersion\(\) \}\)/);
 });
 
 test('briefing-specific descriptions are saved without leaving the builder', () => {
@@ -74,21 +76,9 @@ test('briefing deck client updates optimistic concurrency after inline mutations
   assert.match(source, /input\[name="RowVersion"\]/);
 });
 
-test('selected-project filtering reveals the first matching row without changing slide order', () => {
-  assert.match(source, /revealFirstFilterMatch/);
-  assert.match(source, /applySelectedFilters\(\{ revealFirstMatch: true \}\)/);
-  assert.match(source, /sortable\.option\('disabled', filtered\)/);
-  assert.match(source, /matching \$\{noun\}/);
-});
-
-test('selected-project stage filtering uses canonical stage codes rather than display labels', () => {
-  assert.match(source, /row\.dataset\.stageCode === stage/);
-  assert.match(source, /new Option\(stage\.label, stage\.code\)/);
-});
-
-test('inline membership changes preserve the current page position', () => {
-  assert.match(source, /applyEditorState\(payload\?\.deck, \{ preserveScroll: true \}\)/);
-  assert.match(source, /window\.scrollTo\(\{ top: scrollTop, behavior: 'auto' \}\)/);
+test('membership changes refresh the studio from the returned deck', () => {
+  assert.match(source, /applyEditorState\(payload\?\.deck\);/);
+  assert.match(source, /announceDeckChange\(\{ hasProjects: presented > 0, deck \}\);/);
 });
 
 test('briefing deck shell folds the shared-deck list at every width to make room for the Studio', () => {
@@ -98,19 +88,14 @@ test('briefing deck shell folds the shared-deck list at every width to make room
   assert.match(source, /aria-expanded/);
 });
 
-test('briefing deck preflight is template-aware and separates supporting metadata', () => {
-  assert.match(source, /syncPreflightRequirementVisibility/);
-  assert.match(source, /data-pbd-requirement/);
-  assert.match(source, /usedGapList/);
-  assert.match(source, /additionalGapList/);
-  assert.match(source, /Supporting project metadata/);
-  assert.doesNotMatch(source, /metric\('update-facts'\)/);
-});
-
-test('selected-project management can open the collapsed add-projects workflow', () => {
-  assert.match(source, /data-pbd-open-selector/);
-  assert.match(source, /selectorDetails\.open = true/);
-  assert.match(source, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
+test('add projects opens as a dialog whose selections save in place', () => {
+  assert.match(source, /addProjectsModal\?\.show\(\);/);
+  assert.match(viewSource, /id="pbd-add-projects-modal"/);
+  const addSelectionForms = viewSource.match(/asp-page-handler="AddSelection" class="pbd-(quick-card|inline-form|category-form)" data-pbd-add-selection-form/g) || [];
+  assert.equal(addSelectionForms.length, 5);
+  assert.match(source, /event\.target\.closest\('\[data-pbd-add-selection-form\]'\)/);
+  assert.match(source, /'X-Requested-With': 'XMLHttpRequest'/);
+  assert.doesNotMatch(viewSource, /data-pbd-selector-details/);
 });
 
 test('deck settings use an isolated drawer with canonical dirty-state protection', () => {
@@ -120,19 +105,6 @@ test('deck settings use an isolated drawer with canonical dirty-state protection
   assert.match(source, /beforeunload/);
   assert.match(source, /Save or discard settings before generating/);
   assert.match(source, /confirmSettingsDiscard/);
-});
-
-test('preflight requirements filter the selected-project list directly', () => {
-  assert.match(source, /data-pbd-readiness-filter/);
-  assert.match(source, /selectedReadiness\.value = filter/);
-  assert.match(source, /applySelectedFilters\(\{ revealFirstMatch: true \}\)/);
-  assert.match(source, /selectedSection\?\.scrollIntoView/);
-});
-
-test('preflight headline reports affected projects rather than summed metadata values', () => {
-  assert.match(source, /affectedProjectCount/);
-  assert.match(source, /projects have.*content gaps|project has.*content gaps/);
-  assert.doesNotMatch(source, /Review \$\{totalGapCount\} content and metadata gaps/);
 });
 
 test('deck settings hide standard-only sections for update sheets and persist collapsible section state', () => {
@@ -146,14 +118,6 @@ test('deck settings hide standard-only sections for update sheets and persist co
 test('settings drawer keeps a consistent appearance section and compact default state', () => {
   assert.doesNotMatch(source, /appearanceTitle\.textContent/);
   assert.match(source, /defaultOpenSettingsSections = \(\) => new Set\(\['content'\]\)/);
-});
-
-test('readiness indicators expose accessible labels and professional hover-focus tooltips', () => {
-  assert.match(source, /data-pbd-readiness-tip/);
-  assert.match(source, /setAttribute\('aria-label', title\)/);
-  assert.match(source, /setAttribute\('role', 'img'\)/);
-  assert.match(source, /Tooltip\.getOrCreateInstance/);
-  assert.match(source, /trigger: 'hover focus'/);
 });
 
 test('unsaved settings protect explicit navigation as well as browser and generation paths', () => {
@@ -177,14 +141,6 @@ test('Project Update Sheet rows can be selected, reordered, validated and reset 
   assert.match(source, /updateRowRecommendedOrder/);
 });
 
-test('Project Update Sheet preflight follows selected rows and hide-empty policy', () => {
-  assert.match(source, /updateSheetRowIsSelected\('PresentStatus'\)/);
-  assert.match(source, /updateSheetRowIsSelected\('ProjectCost'\)/);
-  assert.match(source, /HideEmptyUpdateSheetValues/);
-  assert.match(source, /arppReferenceAvailableCount/);
-  assert.match(source, /PdcOrCompletionStatus/);
-});
-
 test('presentation theme previews follow the selected Standard or Project Update Sheet template', () => {
   assert.match(source, /data-pbd-theme-preview/);
   assert.match(source, /preview\.classList\.toggle\('is-update-sheet', updateSheet\)/);
@@ -193,8 +149,7 @@ test('presentation theme previews follow the selected Standard or Project Update
 test('Standard detailed slides expose project-brief design and independent context choices', () => {
   assert.match(source, /data-pbd-detailed-settings/);
   assert.match(source, /data-pbd-project-brief-layout-settings/);
-  assert.match(source, /ShowPresentStatus/);
-  assert.match(source, /executiveUsesStatus/);
+  assert.match(viewSource, /name="ShowPresentStatus"/);
   assert.match(source, /includesDetailedSlides\(\)/);
   assert.match(source, /includesProjectBrief\(\)/);
 });
@@ -223,7 +178,6 @@ test('SDD institutional profile uses a dedicated additional-slide editor with is
   assert.match(source, /syncInstitutionalPartnershipEditor/);
   assert.match(source, /syncInstitutionalLayoutSummary/);
   assert.match(source, /footerValid/);
-  assert.match(source, /institutionalProfileSlides/);
 });
 
 

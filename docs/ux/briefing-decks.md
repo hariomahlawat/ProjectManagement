@@ -31,8 +31,11 @@ the server; the script inserts only slide HTML and writes all other text as text
 - **Outline** (left): Opening, Portfolio, one group per present stage (in the deck's maturity
   order), then Closing. A project's slides share one row; runs of status-table, category and FFC
   breakdown pages fold into one row. Project rows carry an amber count of missing content.
-  Search filters by title, stage and category. **Projects** opens Add projects; **Slide** opens
-  the additional-slide library.
+  Search filters by title, stage and category. Drag a project row by its grip, or press Alt+Up or
+  Alt+Down on it, to move it within its stage; the generator groups projects by present stage, so
+  order is only ever changed inside a stage (bug 4). Left-out (deleted or archived) projects keep
+  their place. **Projects** opens Add projects; **Slide** opens the additional-slide library. A
+  status line under the search reports membership and order saves.
 - **Slide** (centre): the selected slide as large as the pane allows, or **All slides** as a grid
   that adds columns on wider screens. Arrow keys and the arrow buttons move between slides;
   **Present** opens the full-window viewer (strip beside the slide from 1400px, below it on
@@ -43,8 +46,15 @@ the server; the script inserts only slide HTML and writes all other text as text
   source and slide numbers, with Open project, Remove from deck and the deck-specific capability
   overview (saved through the existing editor). Other slides explain what they show and offer
   Deck settings or, for the SDD profile, Role & Charter and FFC slides, Edit slide content.
-  **Deck** lists the current settings and opens the settings drawer. **Checks** counts, per
-  item, how many projects lack it, and **Show** narrows the outline to them.
+  **Deck** lists the current settings, opens the settings drawer, and holds the additional-slide
+  cards (enable, edit, reorder, remove; these still save with a page reload). **Checks** counts,
+  per item, how many projects lack it, and **Show** narrows the outline to them. Remove from deck
+  asks for confirmation first.
+- **Add projects** is a dialog with the earlier selection methods (quick add, recently completed,
+  project and technical category, individual search). Each saves in place: the handler answers an
+  in-page request with the refreshed deck, and plain form posts still redirect.
+- The Studio remembers the selected project or slide, the view and the inspector tab for the
+  session, so a page reload (settings, additional slides) returns to the same place.
 - "Missing" has one rule, `ProjectBriefingContentGaps`, applied on the server to the deck's own
   settings (template, format, costs, narrative, update-sheet rows); deleted and archived projects
   are left out.
@@ -55,8 +65,6 @@ the server; the script inserts only slide HTML and writes all other text as text
   shared-deck list folds into a strip above the Studio at every width.
 - Fonts follow the PowerPoint (Aptos, then Segoe UI), so line breaks can differ slightly where
   Aptos is not installed.
-- The older sections (checks, additional slides, projects table, Add projects) remain below under
-  **Manage this deck** until step 5 of the plan retires them.
 
 ## Review findings (1 Nov 2026)
 
@@ -93,7 +101,7 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
 1. **Fixes**: done (#2836). Bugs 1–3 and the empty-deck copy.
 2. **Slide preview**: done (#2837). The preview is read back from the composed PowerPoint, so the
    slides and their count are exact; the page uses the full-width `studio` shell.
-3. **Studio frame**: done (this change). The three panes replace the preview section.
+3. **Studio frame**: done (#2839). The three panes replace the preview section.
    - Outline built from the composer's own slide roles (Opening, Portfolio, one group per present
      stage, Closing), with a gap count on each project row and a search box.
    - The selected slide large, or all slides as a grid; arrow keys move; Present opens the
@@ -104,14 +112,19 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
    - Inspector, Deck: the current settings at a glance, opening the existing settings drawer.
    - Inspector, Checks: deck-wide counts from one rule for "missing" (`ProjectBriefingContentGaps`),
      each narrowing the outline to the projects that need it.
-   - The older sections (checks, additional slides, projects table, Add projects) stay below
-     under Manage until step 5 retires them.
-4. **Deck settings in the inspector**: purpose presets (Monthly command review, Visit or external
-   audience, Project update sheets) with the detailed options under Advanced, saved in place with
-   one conflict banner; the settings drawer is retired.
-5. **Projects and slides in the Studio**: Add projects and Add slide as dialogs, reorder and
-   remove from the outline (ordering rules match the generator, fixing bug 4); the projects
-   table, the checks section and the long page below the Studio are retired.
+4. **Projects and slides in the Studio**: done (this change). Add projects as a dialog that saves in place; the
+   additional slides (SDD profile, Role & Charter, FFC footprint) managed from the Deck tab;
+   drag to reorder projects within a stage in the outline (the generator's stage grouping,
+   fixing bug 4); the checks section, additional-slides section, projects table and Add
+   projects panel below the Studio are retired. Done before the settings step (owner, 1 Nov
+   2026) so in-place settings never leave older sections stale.
+5. **Deck settings in the inspector**: purpose presets at the top of the Deck tab (Monthly
+   command review: standard, combined, capability overview, both costs, stage summary,
+   Editorial Light, Jai Hind; Visit or external audience: detailed slides with photos, no
+   costs, SDD profile, Thank You; Project update sheets: one sheet per project with the
+   recommended rows), the chosen preset remembered ("adjusted" after changes), every option
+   under Advanced, each change saved in place with one conflict banner, the deck name and
+   description edited in the header; the settings drawer and summary bar are retired.
 6. **Per-project control**: stored per deck item: photo choice, table row only, leave out of the
    deck, show stage/status per project, and speaker notes written into the PowerPoint's notes;
    continuation slides for long briefs and Role & Charter (fixes 5).

@@ -19,43 +19,47 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Technical category", page, StringComparison.Ordinal);
         Assert.Contains("Available for proliferation", page, StringComparison.Ordinal);
         Assert.Contains("Manage individually", page, StringComparison.Ordinal);
-        Assert.Contains("Status <small>external remark</small>", page, StringComparison.Ordinal);
         Assert.Contains("Cost (R&amp;D)", page, StringComparison.Ordinal);
         Assert.Contains("Generate PowerPoint", page, StringComparison.Ordinal);
         Assert.Contains("Project Update Review", page, StringComparison.Ordinal);
         Assert.Contains("Shared decks", page, StringComparison.Ordinal);
-        Assert.Contains("Estimated deck size", page, StringComparison.Ordinal);
+        Assert.Contains("Add projects", page, StringComparison.Ordinal);
         Assert.Contains("recommended chart", page, StringComparison.Ordinal);
         Assert.Contains("optional supporting slide", page, StringComparison.Ordinal);
     }
 
 
     [Fact]
-    public void Builder_KeepsCompactPreflightAboveProjectsAndUsesTemplateAwareChecks()
+    public void Builder_ReplacesTheLongPageWithTheStudio()
     {
         var page = Read("Index.cshtml");
         var script = Read("project-briefing-decks.js");
 
-        Assert.Contains("Projects in this deck", page, StringComparison.Ordinal);
-        Assert.Contains("Content used by this presentation", page, StringComparison.Ordinal);
-        Assert.Contains("Supporting project metadata", page, StringComparison.Ordinal);
+        // The checks section, projects table and Add projects panel are retired; the Studio and
+        // the Add projects dialog take their place.
+        Assert.DoesNotContain("Content used by this presentation", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-pbd-selected-section", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-pbd-selector-details", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Manage this deck", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-studio", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"pbd-add-projects-modal\"", page, StringComparison.Ordinal);
         Assert.Contains("Missing content uses defined placeholders", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-selector-details", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-decks-toggle", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-pbd-metric=\"update-facts\"", page, StringComparison.Ordinal);
-        Assert.Contains("syncPreflightRequirementVisibility", script, StringComparison.Ordinal);
         Assert.Contains("is-decks-collapsed", script, StringComparison.Ordinal);
-        Assert.True(
-            page.IndexOf("Deck preflight", StringComparison.Ordinal) < page.IndexOf("Projects in this deck", StringComparison.Ordinal),
-            "Deck preflight must remain the compact decision checkpoint above project management.");
+
+        // Additional slides live in the inspector's Deck tab, before the Checks tab.
+        var deckPanel = page.IndexOf("data-pbd-inspector-panel=\"deck\"", StringComparison.Ordinal);
+        var additional = page.IndexOf("id=\"pbd-additional-slides\"", StringComparison.Ordinal);
+        var checksPanel = page.IndexOf("data-pbd-inspector-panel=\"checks\"", StringComparison.Ordinal);
+        Assert.True(deckPanel >= 0 && deckPanel < additional && additional < checksPanel,
+            "The additional-slide cards belong to the Deck tab.");
+
+        // The deleted/archived notice moved into the Studio stage.
+        Assert.Contains("pbd-stage__notice", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-settings-drawer", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-settings-dirty", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-standard-section", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-settings-collapsible", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-readiness-tip", page, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Readiness indicator order", page, StringComparison.Ordinal);
-        Assert.Contains("projects have", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("Review {totalPreflightGapCount}", page, StringComparison.Ordinal);
     }
 
 
@@ -73,7 +77,6 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("beforeunload", script, StringComparison.Ordinal);
         Assert.Contains("confirmSettingsNavigation", script, StringComparison.Ordinal);
         Assert.Contains("restoreSettingsSectionState", script, StringComparison.Ordinal);
-        Assert.Contains("initialiseReadinessTooltips", script, StringComparison.Ordinal);
         Assert.Contains("Save or discard settings before generating", script, StringComparison.Ordinal);
         Assert.Contains("contain: inline-size", css, StringComparison.Ordinal);
         Assert.Contains("overflow-x: clip", css, StringComparison.Ordinal);
@@ -368,7 +371,6 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"None\"", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-project-brief-layout-settings", page, StringComparison.Ordinal);
-        Assert.Contains("ShowPresentStatus", script, StringComparison.Ordinal);
         Assert.Contains("ResolveProjectBriefLayout", composer, StringComparison.Ordinal);
         Assert.Contains("RenderStandardProjectBrief", composer, StringComparison.Ordinal);
         Assert.Contains("RenderPhotoEmphasisProjectBrief", composer, StringComparison.Ordinal);
@@ -427,19 +429,22 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
-    public void Builder_ManagesMembershipWithoutFullPageReloadAndSearchesSelectedProjects()
+    public void Builder_ManagesMembershipWithoutFullPageReload()
     {
         var page = Read("Index.cshtml");
         var script = Read("project-briefing-decks.js");
+        var handler = Read("Index.cshtml.cs");
         var service = Read("ProjectBriefingDeckService.cs");
 
         Assert.Contains("data-membership-url", page, StringComparison.Ordinal);
-        Assert.Contains("Search within this deck", page, StringComparison.Ordinal);
         Assert.Contains("In this deck", page, StringComparison.Ordinal);
         Assert.Contains("Not in this deck", page, StringComparison.Ordinal);
         Assert.Contains("Apply changes", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-add-selection-form", page, StringComparison.Ordinal);
         Assert.Contains("updateMembership", script, StringComparison.Ordinal);
         Assert.Contains("sessionStorage", script, StringComparison.Ordinal);
+        // An in-page Add projects request is answered with the refreshed deck, not a redirect.
+        Assert.Contains("return new JsonResult(new { saved = true, message, deck });", handler, StringComparison.Ordinal);
         Assert.Contains("UpdateMembershipAsync", service, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefing.MembershipUpdated", service, StringComparison.Ordinal);
     }
@@ -467,9 +472,6 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Editorial Light", page, StringComparison.Ordinal);
         Assert.Contains("Graphite Dark", page, StringComparison.Ordinal);
         Assert.Contains("Presentation branding", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-clear-selected-filters", page, StringComparison.Ordinal);
-        Assert.Contains("revealFirstFilterMatch", script, StringComparison.Ordinal);
-        Assert.Contains("matching ${noun}", script, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingThemeCatalog.Resolve", composer, StringComparison.Ordinal);
         Assert.Contains("AddBrandingImages", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("SIMULATOR DEVELOPMENT DIVISION · PRISM ERP", composer, StringComparison.Ordinal);
@@ -478,16 +480,14 @@ public sealed class ProjectBriefingContractTests
     [Fact]
     public void Builder_KeepsCanonicalStageGroupsAndReordersOnlyWithinAStage()
     {
-        var page = Read("Index.cshtml");
+        var studio = Read("project-briefing-studio.js");
         var script = Read("project-briefing-decks.js");
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("Projects are grouped by present stage in maturity order", page, StringComparison.Ordinal);
-        Assert.Contains("Top of stage", page, StringComparison.Ordinal);
-        Assert.Contains("data-stage-order", page, StringComparison.Ordinal);
-        Assert.Contains("row.dataset.stageCode === stage", script, StringComparison.Ordinal);
-        Assert.Contains("sameStage", script, StringComparison.Ordinal);
-        Assert.Contains("Projects remain grouped by maturity", script, StringComparison.Ordinal);
+        // The outline groups projects by present stage and only reorders inside a group.
+        Assert.Contains("Projects are grouped by present stage, in the deck's (maturity) order.", studio, StringComparison.Ordinal);
+        Assert.Contains("requestReorder(stageIdsFromList(list))", studio, StringComparison.Ordinal);
+        Assert.Contains("document.addEventListener('pbd:reorder-projects'", script, StringComparison.Ordinal);
         Assert.Contains("double LeftMargin = .05", composer, StringComparison.Ordinal);
         Assert.Contains("double TopMargin = .025", composer, StringComparison.Ordinal);
         Assert.Contains("Emu(cell.LeftMargin)", composer, StringComparison.Ordinal);
