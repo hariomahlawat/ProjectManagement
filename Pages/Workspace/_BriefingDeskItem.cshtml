@@ -77,6 +77,48 @@
                 }
             }
         </ul>
+        @* What is left, each step a shortcut to where it is done: the remark box (the card opens
+           with the cursor in it), a side panel, or the page that holds it. *@
+        <p class="bd-card__next">
+            @if (item.IsBriefReady)
+            {
+                <strong>Ready.</strong> @item.NextStepText
+            }
+            else
+            {
+                <strong>Next:</strong>
+                var first = true;
+                foreach (var step in item.OpenSteps)
+                {
+                    if (!first)
+                    {
+                        <span class="bd-next__sep" aria-hidden="true">·</span>
+                    }
+                    first = false;
+                    var stepText = item.NextTextFor(step);
+                    if (step.Route == BriefingDeskRoute.Update)
+                    {
+                        <a class="bd-next__step" href="#@anchor" data-bd-go="say" data-bd-card-target="@anchor">@stepText</a>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(step.PanelId))
+                    {
+                        <button type="button" class="bd-next__step" data-bs-toggle="offcanvas" data-bs-target="#@step.PanelId" aria-controls="@step.PanelId">@stepText</button>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(step.ActionUrl))
+                    {
+                        <a class="bd-next__step" href="@step.ActionUrl">@stepText</a>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(step.SecondaryUrl))
+                    {
+                        <a class="bd-next__step" href="@step.SecondaryUrl" target="@(step.SecondaryTarget ?? "_blank")">@stepText</a>
+                    }
+                    else
+                    {
+                        <a class="bd-next__step" href="#@anchor" data-bd-go="open" data-bd-card-target="@anchor">@stepText</a>
+                    }
+                }
+            }
+        </p>
         @if (item.IsBriefReady)
         {
             <span class="bd-pill bd-pill--ready"><i class="bi bi-check2" aria-hidden="true"></i>Ready</span>
@@ -95,17 +137,6 @@
         </ol>
     }
 
-    <p class="bd-card__next">
-        @if (item.IsBriefReady)
-        {
-            <strong>Ready.</strong>
-        }
-        else
-        {
-            <strong>Next:</strong>
-        }
-        @item.NextStepText
-    </p>
 
     <div class="bd-card__body" id="@bodyId" hidden="@(Model.IsOpen ? null : "hidden")">
         @if (item.Direction is not null)
@@ -297,6 +328,14 @@
                 </button>
             }
             <a class="bd-link bd-link--small" href="@item.OpenUrl">Open full @kindKey<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            @if (Model.NextItem is { } nextItem)
+            {
+                @* Closes this card and opens the next one that needs the PO, so a pass through the
+                   desk is one button per card. *@
+                <a class="bd-btn bd-btn--quiet bd-card__onward" href="#@nextItem.AnchorId" data-bd-go="next" data-bd-card-target="@nextItem.AnchorId">
+                    Next to prepare<span class="visually-hidden">: @nextItem.Title</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+            }
         </div>
     </div>
 </article>
