@@ -366,7 +366,13 @@ if (root) {
     });
   };
 
-  const settingsLauncher = () => page.querySelector('[data-pbd-settings-open]');
+  // Deck settings live in the Deck tab, under All settings.
+  const showDeckSettings = () => {
+    setTab('deck');
+    const advanced = root.querySelector('[data-pbd-deck-advanced]');
+    if (advanced instanceof HTMLDetailsElement) advanced.open = true;
+    advanced?.querySelector('summary')?.focus();
+  };
 
   const actionButton = (label, onClick, className = 'btn btn-sm btn-outline-secondary') => {
     const button = el('button', className, label);
@@ -480,7 +486,7 @@ if (root) {
       if (role.editor && page.querySelector(role.editor)) {
         actions.append(actionButton('Edit slide content', () => page.querySelector(role.editor)?.click(), 'btn btn-sm btn-outline-primary'));
       }
-      actions.append(actionButton('Deck settings', () => settingsLauncher()?.click()));
+      actions.append(actionButton('Deck settings', showDeckSettings));
       nodes.push(actions);
     }
     panel.replaceChildren(...nodes);
@@ -824,7 +830,9 @@ if (root) {
   });
 
   setView(savedPlace.view === 'grid' ? 'grid' : 'slide');
-  setTab(['slide', 'deck', 'checks'].includes(savedPlace.tab) ? savedPlace.tab : 'slide');
+  // A new, empty deck opens on the Deck tab, where its purpose is chosen.
+  const firstTab = root.dataset.pbdOpenSettings === 'true' ? 'deck' : 'slide';
+  setTab(['slide', 'deck', 'checks'].includes(savedPlace.tab) ? savedPlace.tab : firstTab);
   renderChecksPanel();
   loadPreview();
 }

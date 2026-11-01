@@ -98,13 +98,18 @@ test('add projects opens as a dialog whose selections save in place', () => {
   assert.doesNotMatch(viewSource, /data-pbd-selector-details/);
 });
 
-test('deck settings use an isolated drawer with canonical dirty-state protection', () => {
-  assert.match(source, /data-pbd-settings-drawer/);
-  assert.match(source, /serializeSettings/);
-  assert.match(source, /setSettingsDirty/);
-  assert.match(source, /beforeunload/);
-  assert.match(source, /Save or discard settings before generating/);
-  assert.match(source, /confirmSettingsDiscard/);
+test('deck settings save themselves in place, one save at a time', () => {
+  const save = source.slice(source.indexOf('const saveSettingsNow'), source.indexOf('const refreshSettingsDirtyState'));
+  // A save already running queues the next one instead of overlapping it.
+  assert.match(save, /if \(settingsRequest\) \{\s*settingsQueued = true;/);
+  assert.match(save, /if \(state === settingsSavedState\)/);
+  assert.match(save, /'X-Requested-With': 'XMLHttpRequest'/);
+  assert.match(save, /applyEditorState\(payload\?\.deck\);/);
+  // A collision with someone else's change shows the one conflict banner.
+  assert.match(save, /if \(response\.status === 409\) \{\s*showConflict\(payload\?\.message\);/);
+  assert.match(source, /settingsForm\?\.addEventListener\('change', \(\) => refreshSettingsDirtyState\(400\)\);/);
+  assert.doesNotMatch(source, /data-pbd-settings-drawer|openSettingsDrawer|closeSettingsDrawer/);
+  assert.doesNotMatch(viewSource, /data-pbd-settings-drawer|data-pbd-settings-save/);
 });
 
 test('deck settings hide standard-only sections for update sheets and persist collapsible section state', () => {
@@ -120,13 +125,26 @@ test('settings drawer keeps a consistent appearance section and compact default 
   assert.match(source, /defaultOpenSettingsSections = \(\) => new Set\(\['content'\]\)/);
 });
 
-test('unsaved settings protect explicit navigation as well as browser and generation paths', () => {
-  assert.match(source, /confirmSettingsNavigation/);
-  assert.match(source, /Your unsaved deck settings will be lost if you continue/);
-  assert.match(source, /document\.addEventListener\('click'/);
-  assert.match(source, /document\.addEventListener\('submit'/);
-  assert.match(source, /beforeunload/);
-  assert.match(source, /Save or discard settings before generating/);
+test('pending settings saves finish before navigation, posts and generation', () => {
+  assert.match(source, /if \(!settingsPending\(\) && !profileDirty\) return;\s*event\.preventDefault\(\);\s*event\.returnValue = '';/);
+  assert.match(source, /document\.addEventListener\('click'[\s\S]*?if \(settingsPending\(\)\) await saveSettingsNow\(\);/);
+  assert.match(source, /document\.addEventListener\('submit'[\s\S]*?if \(settingsPending\(\)\) await saveSettingsNow\(\);/);
+  assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*setState\(generateStatus, 'Save the deck settings before generating the PowerPoint\.', 'error'\);/);
+});
+
+test('purpose presets apply on the server and the deck tab shows the current one', () => {
+  assert.match(viewSource, /@foreach \(var preset in ProjectBriefingDeckPresets\.All\)/);
+  assert.match(viewSource, /data-pbd-preset="@preset\.Preset"/);
+  assert.match(viewSource, /data-preset-url=/);
+  assert.match(source, /body: JSON\.stringify\(\{ deckId, preset: button\.dataset\.pbdPreset, rowVersion: currentRowVersion\(\) \}\)/);
+  assert.match(source, /\$\{deck\.presetAdjusted \? ', adjusted' : ''\}/);
+});
+
+test('the deck name and description are edited in the header and saved with the settings', () => {
+  assert.match(viewSource, /data-pbd-rename-form/);
+  assert.match(viewSource, /<input type="hidden" name="Name" value="@deck\.Name" data-pbd-settings-name \/>/);
+  const rename = source.slice(source.indexOf("renameForm?.addEventListener('submit'"));
+  assert.match(rename, /if \(settingsName\) settingsName\.value = name;[\s\S]*?await saveSettingsNow\(\);/);
 });
 
 

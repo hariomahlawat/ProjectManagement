@@ -402,7 +402,12 @@ public sealed record ProjectBriefingDeckConfiguration(
     ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions,
     ProjectBriefingRoleCharterOptions RoleCharterOptions,
     ProjectBriefingFfcGlobalFootprintOptions FfcGlobalFootprintOptions,
-    IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder);
+    IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder)
+{
+    // The purpose preset the deck was last set from; null for decks set up by hand or saved by
+    // older builds. Older builds ignore the key when reading.
+    public ProjectBriefingDeckPreset? Preset { get; init; }
+}
 
 /// <summary>
 /// Stores selection provenance and presentation preferences in the existing JSONB deck configuration field.
@@ -437,13 +442,30 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ReadInstitutionalProfileOptions(root["institutionalProfile"] as JsonObject),
                 ReadRoleCharterOptions(root["roleCharter"] as JsonObject),
                 ReadFfcGlobalFootprintOptions(root["ffcGlobalFootprint"] as JsonObject),
-                ReadAdditionalSlideOrder(root["additionalSlides"] as JsonArray));
+                ReadAdditionalSlideOrder(root["additionalSlides"] as JsonArray))
+            {
+                Preset = ReadPreset(root["preset"])
+            };
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
         {
             return Defaults(json);
         }
     }
+
+    public static string WithPreset(string? existingJson, ProjectBriefingDeckPreset? preset)
+    {
+        var current = Read(existingJson);
+        return Write(current with { Preset = preset });
+    }
+
+    private static ProjectBriefingDeckPreset? ReadPreset(JsonNode? node)
+        => node is JsonValue value
+            && value.TryGetValue<string>(out var text)
+            && Enum.TryParse<ProjectBriefingDeckPreset>(text, ignoreCase: false, out var preset)
+            && ProjectBriefingDeckPresets.IsDefined(preset)
+                ? preset
+                : null;
 
     public static string WithSelectionRules(string? existingJson, string? selectionRulesJson)
     {
@@ -826,6 +848,10 @@ public static class ProjectBriefingDeckConfigurationCodec
             },
             ["additionalSlides"] = ToEnumArray(normalizedAdditionalSlideOrder)
         };
+        if (configuration.Preset is { } preset && ProjectBriefingDeckPresets.IsDefined(preset))
+        {
+            root["preset"] = preset.ToString();
+        }
 
         return root.ToJsonString(JsonOptions);
     }

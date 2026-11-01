@@ -56,35 +56,39 @@ public sealed class ProjectBriefingContractTests
 
         // The deleted/archived notice moved into the Studio stage.
         Assert.Contains("pbd-stage__notice", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-settings-drawer", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-settings-dirty", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-settings-form", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-preset=", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-standard-section", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-settings-collapsible", page, StringComparison.Ordinal);
     }
 
 
     [Fact]
-    public void Builder_UsesDrawerSettingsAndResponsiveWidthContainment()
+    public void Builder_KeepsSettingsInTheDeckTabSavedInPlace()
     {
         var page = Read("Index.cshtml");
         var script = Read("project-briefing-decks.js");
         var css = Read("project-briefing-decks.css");
 
-        Assert.Contains("pbd-settings-drawer", page, StringComparison.Ordinal);
-        Assert.Contains("Save settings", page, StringComparison.Ordinal);
-        Assert.Contains("Unsaved settings", page, StringComparison.Ordinal);
+        // The drawer is gone: every setting sits under All settings in the Deck tab and saves itself.
+        Assert.DoesNotContain("data-pbd-settings-drawer", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Save settings", page, StringComparison.Ordinal);
+        var deckPanel = page.IndexOf("data-pbd-inspector-panel=\"deck\"", StringComparison.Ordinal);
+        var form = page.IndexOf("data-pbd-settings-form", StringComparison.Ordinal);
+        var checksPanel = page.IndexOf("data-pbd-inspector-panel=\"checks\"", StringComparison.Ordinal);
+        Assert.True(deckPanel >= 0 && deckPanel < form && form < checksPanel, "The settings form belongs to the Deck tab.");
+        Assert.Contains("data-pbd-deck-advanced", page, StringComparison.Ordinal);
         Assert.Contains("serializeSettings", script, StringComparison.Ordinal);
         Assert.Contains("beforeunload", script, StringComparison.Ordinal);
-        Assert.Contains("confirmSettingsNavigation", script, StringComparison.Ordinal);
+        Assert.Contains("saveSettingsNow", script, StringComparison.Ordinal);
         Assert.Contains("restoreSettingsSectionState", script, StringComparison.Ordinal);
-        Assert.Contains("Save or discard settings before generating", script, StringComparison.Ordinal);
         Assert.Contains("contain: inline-size", css, StringComparison.Ordinal);
         Assert.Contains("overflow-x: clip", css, StringComparison.Ordinal);
         Assert.Contains("max-width: 1499px", css, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Builder_UsesCompactTemplateAwareSettingsDrawerLayout()
+    public void Builder_UsesCompactTemplateAwareSettingsLayout()
     {
         var page = Read("Index.cshtml");
         var script = Read("project-briefing-decks.js");
@@ -102,10 +106,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("background: #242a34;", css, StringComparison.Ordinal);
         Assert.Contains("border: 1px solid #4a5260;", css, StringComparison.Ordinal);
         Assert.DoesNotContain("appearanceTitle.textContent", script, StringComparison.Ordinal);
-        Assert.Contains(".pbd-settings-drawer .pbd-choice-cards--three", css, StringComparison.Ordinal);
-        Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
-        Assert.Contains(".pbd-settings-drawer .pbd-theme-cards", css, StringComparison.Ordinal);
-        Assert.Contains(".pbd-settings-drawer .pbd-branding-options", css, StringComparison.Ordinal);
+        // In the narrow Deck tab every choice group stacks in one column.
+        Assert.Contains(".pbd-deck-settings .pbd-choice-cards,\n.pbd-deck-settings .pbd-theme-cards,\n.pbd-deck-settings .pbd-form-grid {\n    grid-template-columns: minmax(0, 1fr);", css.Replace("\r\n", "\n"), StringComparison.Ordinal);
     }
 
     [Fact]

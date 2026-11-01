@@ -102,6 +102,24 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
             UpdateSheetOptions = snapshot.UpdateSheetOptions,
             HandlingMarking = snapshot.HandlingMarking,
+            Preset = snapshot.Preset,
+            PresetAdjusted = snapshot.Preset is { } preset
+                && !ProjectBriefingDeckPresets.Matches(preset, new ProjectBriefingDeckPresetState(
+                    snapshot.Layout,
+                    snapshot.PresentationMode,
+                    snapshot.NarrativeMode,
+                    snapshot.CostMode,
+                    snapshot.StandardSlideOptions.ShowPresentStage,
+                    snapshot.StandardSlideOptions.ShowPresentStatus,
+                    snapshot.IncludeStageSummary,
+                    snapshot.PresentationTheme,
+                    snapshot.ClosingSlideType,
+                    snapshot.UpdateSheetOptions.Rows,
+                    snapshot.UpdateSheetOptions.HideEmptyValues,
+                    snapshot.IncludeCoverSlide,
+                    snapshot.IncludePortfolioSummarySlide,
+                    snapshot.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
+                        && snapshot.InstitutionalProfileOptions.IncludeSlide)),
             RowVersion = Encode(snapshot.RowVersion),
             UpdatedAtUtc = snapshot.UpdatedAtUtc,
             CreatedByDisplay = snapshot.CreatedByDisplay,
@@ -346,7 +364,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 deck.CreatedByDisplay,
                 deck.LastModifiedByDisplay,
                 deck.RowVersion,
-                Array.Empty<DeckItemSnapshot>());
+                Array.Empty<DeckItemSnapshot>())
+            {
+                Preset = deckConfiguration.Preset
+            };
         }
 
         var projectIds = itemRows.Select(item => item.ProjectId).Distinct().ToArray();
@@ -461,7 +482,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             deck.CreatedByDisplay,
             deck.LastModifiedByDisplay,
             deck.RowVersion,
-            items);
+            items)
+            {
+                Preset = deckConfiguration.Preset
+            };
     }
 
     private async Task<IReadOnlyList<ProjectBriefingProjectVm>> BuildProjectsAsync(
@@ -1110,7 +1134,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string CreatedByDisplay,
         string LastModifiedByDisplay,
         byte[] RowVersion,
-        IReadOnlyList<DeckItemSnapshot> Items);
+        IReadOnlyList<DeckItemSnapshot> Items)
+    {
+        public ProjectBriefingDeckPreset? Preset { get; init; }
+    }
 
     private sealed record DeckItemSnapshot(
         long ItemId,
