@@ -139,7 +139,6 @@ public sealed class ProjectOverviewPresentationContractTests
         {
             new[] { "Pages", "Workspace", "_ProjectOfficerRecordModals.cshtml" },
             new[] { "Pages", "Workspace", "_ConferenceItemRow.cshtml" },
-            new[] { "Pages", "Workspace", "BriefingDecks", "Index.cshtml" },
             new[] { "Pages", "Projects", "Reports", "ArppFyUpdate.cshtml" },
             new[] { "Pages", "Projects", "Reports", "FfcProjectsUpdate.cshtml" },
             new[] { "Pages", "Projects", "Arpp", "_CurrentPositionTable.cshtml" },
@@ -152,7 +151,8 @@ public sealed class ProjectOverviewPresentationContractTests
         }
 
         // Script-built links use the same name format as the server helper.
-        Assert.Contains("prism-project-${project.projectId}", ReadRepoFile("wwwroot", "js", "pages", "project-briefing-decks.js"), StringComparison.Ordinal);
+        // The briefing Studio builds its project links (Open project and the fix links) in script.
+        Assert.Contains("link.target = projectId ? `prism-project-${projectId}` : '_blank';", ReadRepoFile("wwwroot", "js", "pages", "project-briefing-studio.js"), StringComparison.Ordinal);
         var compendium = ReadRepoFile("wwwroot", "js", "pages", "projects-compendium.js");
         Assert.Contains("reviewOpen.target = `prism-project-${review.projectId}`", compendium, StringComparison.Ordinal);
         Assert.Contains("prism-project-${projectId}", compendium, StringComparison.Ordinal);

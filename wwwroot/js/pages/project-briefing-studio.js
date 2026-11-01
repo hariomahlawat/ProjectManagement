@@ -86,6 +86,17 @@ if (root) {
   let hasProjects = root.dataset.hasProjects === 'true';
   let viewerIndex = 0;
   let selectedKey = '';
+  let outlineSortables = [];
+  const deckKey = root.closest('[data-deck-id]')?.dataset.deckId || '';
+  const placeStorageKey = `projectBriefingStudio:${deckKey}:place`;
+  const readPlace = () => {
+    try {
+      return JSON.parse(window.sessionStorage.getItem(placeStorageKey) || 'null') || {};
+    } catch {
+      return {};
+    }
+  };
+  const savedPlace = readPlace();
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -219,8 +230,32 @@ if (root) {
     return groups;
   };
 
+  // Reordering stays inside a present stage, which is how the generator orders project slides.
+  // The full order sent back keeps every other project (left-out ones included) where it was.
+  const requestReorder = (stageProjectIds) => {
+    const moving = new Set(stageProjectIds);
+    const existingOrder = [...projects.values()]
+      .sort((first, second) => (first.sortOrder ?? 0) - (second.sortOrder ?? 0) || first.projectId - second.projectId)
+      .map((project) => project.projectId);
+    const queue = [...stageProjectIds];
+    const order = existingOrder.map((projectId) => (moving.has(projectId) ? queue.shift() : projectId));
+    order.forEach((projectId, index) => {
+      const project = projects.get(projectId);
+      if (project) project.sortOrder = (index + 1) * 10;
+    });
+    document.dispatchEvent(new CustomEvent('pbd:reorder-projects', { detail: { projectIds: order } }));
+  };
+
+  const stageIdsFromList = (list) => [...list.querySelectorAll('[data-pbd-outline-project]')]
+    .map((row) => Number(row.dataset.pbdOutlineProject))
+    .filter(Number.isInteger);
+
+  const canReorder = () => !query && !filterGap;
+
   const renderOutline = () => {
     if (!outlineNav) return;
+    outlineSortables.forEach((sortable) => sortable.destroy());
+    outlineSortables = [];
     const groups = groupsForOutline();
     if (groups.length === 0) {
       outlineNav.replaceChildren(el('p', 'pbd-outline__empty', slides.length ? 'No slides match.' : 'No slides yet.'));
@@ -252,6 +287,27 @@ if (root) {
           const row = el('button', 'pbd-outline__row');
           row.type = 'button';
           row.dataset.pbdOutlineKey = entry.key;
+          if (group.isStage && entry.projectId) {
+            row.dataset.pbdOutlineProject = String(entry.projectId);
+            if (canReorder()) {
+              const grip = el('span', 'pbd-outline__grip');
+              grip.append(icon('bi-grip-vertical'));
+              grip.title = 'Drag to reorder within this stage';
+              item.append(grip);
+              row.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+              row.addEventListener('keydown', (event) => {
+                if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const sibling = event.key === 'ArrowUp' ? item.previousElementSibling : item.nextElementSibling;
+                if (!sibling) return;
+                if (event.key === 'ArrowUp') item.parentElement.insertBefore(item, sibling);
+                else item.parentElement.insertBefore(sibling, item);
+                row.focus();
+                requestReorder(stageIdsFromList(item.parentElement));
+              });
+            }
+          }
           const number = slides[entry.indices[0]]?.number ?? entry.indices[0] + 1;
           const title = entryTitle(entry);
           row.title = title;
@@ -268,6 +324,16 @@ if (root) {
           list.append(item);
         });
         wrapper.append(list);
+        if (group.isStage && canReorder() && group.entries.length > 1 && typeof window.Sortable?.create === 'function') {
+          outlineSortables.push(window.Sortable.create(list, {
+            handle: '.pbd-outline__grip',
+            animation: 130,
+            ghostClass: 'is-dragging',
+            onEnd: (event) => {
+              if (event.oldIndex !== event.newIndex) requestReorder(stageIdsFromList(list));
+            }
+          }));
+        }
       }
       nodes.push(wrapper);
     });
@@ -275,7 +341,22 @@ if (root) {
     markOutlineSelection();
   };
 
+  const rememberPlace = () => {
+    try {
+      const entry = entryForIndex(current);
+      window.sessionStorage.setItem(placeStorageKey, JSON.stringify({
+        number: slides[current]?.number || null,
+        projectId: entry?.projectId || null,
+        view,
+        tab: tabs.find((tab) => tab.classList.contains('is-active'))?.dataset.pbdInspectorTab || 'slide'
+      }));
+    } catch {
+      // Private windows can refuse storage; the Studio then starts at the first slide.
+    }
+  };
+
   const markOutlineSelection = () => {
+    rememberPlace();
     const entry = entryForIndex(current);
     outlineNav?.querySelectorAll('[data-pbd-outline-key]').forEach((row) => {
       const selected = entry && row.dataset.pbdOutlineKey === entry.key;
@@ -293,10 +374,11 @@ if (root) {
     button.addEventListener('click', onClick);
     return button;
   };
-  const actionLink = (label, href, className = 'btn btn-sm btn-outline-secondary') => {
+  // Project pages open in the one named tab PRISM keeps per project (ProjectTab.Name).
+  const actionLink = (label, href, projectId, className = 'btn btn-sm btn-outline-secondary') => {
     const link = el('a', className, label);
     link.href = href;
-    link.target = '_blank';
+    link.target = projectId ? `prism-project-${projectId}` : '_blank';
     link.rel = 'noopener';
     return link;
   };
@@ -335,7 +417,7 @@ if (root) {
       text.append(el('strong', null, gap.label), el('small', null, key === 'photo' && project.coverPhotoReadinessReason ? project.coverPhotoReadinessReason : gap.missing));
       card.append(icon('bi-exclamation-circle'), text);
       if (gap.describe && usesCapability) card.append(describeButton(project, gap.fix));
-      else if (gap.href) card.append(actionLink(gap.fix, gap.href(project)));
+      else if (gap.href) card.append(actionLink(gap.fix, gap.href(project), project.projectId));
       return card;
     }));
   };
@@ -382,11 +464,12 @@ if (root) {
       }
 
       const actions = el('div', 'pbd-inspector__actions');
-      actions.append(actionLink('Open project', project.openUrl));
+      actions.append(actionLink('Open project', project.openUrl, project.projectId));
       const remove = el('button', 'btn btn-sm btn-outline-danger', 'Remove from deck');
       remove.type = 'button';
       remove.dataset.pbdRemoveProject = '';
       remove.dataset.projectId = String(project.projectId);
+      remove.dataset.projectName = project.projectName;
       actions.append(remove);
       nodes.push(actions);
     } else {
@@ -536,6 +619,7 @@ if (root) {
       if (active && focus) tab.focus();
     });
     Object.entries(panels).forEach(([key, panel]) => { panel.hidden = key !== name; });
+    rememberPlace();
   };
 
   const updateCounts = (payload) => {
@@ -574,9 +658,9 @@ if (root) {
 
     const request = new AbortController();
     controller = request;
-    const keepEntry = entryForIndex(current);
-    const keepProject = keepEntry?.projectId;
-    const keepNumber = slides[current]?.number;
+    const keepEntry = slides.length ? entryForIndex(current) : null;
+    const keepProject = slides.length ? keepEntry?.projectId : savedPlace.projectId;
+    const keepNumber = slides.length ? slides[current]?.number : savedPlace.number;
     root.classList.add('is-busy');
     if (status) status.textContent = slides.length ? 'Updating the slides…' : 'Building the slides from current PRISM data…';
     if (refreshButton) refreshButton.disabled = true;
@@ -739,8 +823,8 @@ if (root) {
     refreshTimer = window.setTimeout(loadPreview, 900);
   });
 
-  setView('slide');
-  setTab('slide');
+  setView(savedPlace.view === 'grid' ? 'grid' : 'slide');
+  setTab(['slide', 'deck', 'checks'].includes(savedPlace.tab) ? savedPlace.tab : 'slide');
   renderChecksPanel();
   loadPreview();
 }

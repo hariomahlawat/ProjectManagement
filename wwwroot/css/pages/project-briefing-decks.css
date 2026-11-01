@@ -5980,3 +5980,175 @@ body.pbd-profile-drawer-open {
         display: none;
     }
 }
+
+/* Studio: projects and additional slides managed in place. */
+.pbd-outline__status {
+    min-height: 1.1rem;
+    margin: 0 .75rem .35rem;
+    color: var(--pbd-muted);
+    font-size: .74rem;
+}
+
+.pbd-outline__status:empty {
+    display: none;
+}
+
+.pbd-outline__status.is-error {
+    color: var(--pbd-red);
+}
+
+.pbd-outline__status.is-saved {
+    color: var(--pbd-green);
+}
+
+.pbd-outline__rows > li {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.pbd-outline__rows > li > .pbd-outline__row {
+    flex: 1;
+    min-width: 0;
+}
+
+.pbd-outline__grip {
+    position: absolute;
+    left: -.2rem;
+    display: grid;
+    place-items: center;
+    width: .9rem;
+    height: 1.4rem;
+    color: var(--pbd-muted);
+    font-size: .75rem;
+    cursor: grab;
+    opacity: 0;
+    transition: opacity .12s ease;
+}
+
+.pbd-outline__rows > li:hover .pbd-outline__grip,
+.pbd-outline__rows > li:focus-within .pbd-outline__grip {
+    opacity: 1;
+}
+
+.pbd-outline__rows > li.is-dragging {
+    opacity: .5;
+}
+
+@media (hover: none) {
+    .pbd-outline__grip {
+        opacity: 1;
+    }
+}
+
+.pbd-stage__notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .75rem;
+    margin: 0;
+}
+
+.pbd-stage__notice > span {
+    flex: 1 1 18rem;
+}
+
+.pbd-stage__notice[hidden] {
+    display: none;
+}
+
+/* Additional slides inside the Deck tab: the same cards, stacked for the narrow panel. */
+.pbd-inspector__panel .pbd-additional-slides {
+    margin: 1.1rem -.25rem 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+}
+
+.pbd-inspector__panel .pbd-section-header--additional-slides {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .4rem .6rem;
+    padding: .9rem .25rem .5rem;
+    border-top: 1px solid var(--pbd-border);
+    border-bottom: 0;
+}
+
+.pbd-inspector__panel .pbd-section-header--additional-slides h3 {
+    margin: 0;
+    color: var(--pbd-muted);
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.pbd-inspector__panel .pbd-section-header--additional-slides p {
+    margin: .2rem 0 0;
+    color: var(--pbd-muted);
+    font-size: .78rem;
+}
+
+.pbd-inspector__panel .pbd-additional-slide-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem .55rem;
+    margin: .45rem .25rem;
+    padding: .6rem .65rem;
+}
+
+.pbd-inspector__panel .pbd-additional-slide-card__body {
+    flex: 1 1 10rem;
+    min-width: 0;
+}
+
+.pbd-inspector__panel .pbd-additional-slide-card__body p {
+    display: none;
+}
+
+.pbd-inspector__panel .pbd-additional-slide-card__actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+}
+
+.pbd-inspector__panel .pbd-additional-slides__empty {
+    margin: .3rem .25rem;
+}
+
+.pbd-inspector__panel .pbd-additional-slide-zone-heading {
+    margin: .6rem .25rem .1rem;
+}
+
+/* Add projects dialog: the selection methods from the old panel, in a modal. */
+.pbd-add-projects .modal-body {
+    padding-top: .6rem;
+}
+
+.pbd-add-projects__lead {
+    margin: .2rem 0 0;
+    color: var(--pbd-muted);
+    font-size: .85rem;
+}
+
+.pbd-add-projects__status {
+    min-height: 1.2rem;
+    margin: 0 0 .5rem;
+    font-size: .85rem;
+}
+
+.pbd-add-projects__status.is-saved {
+    color: var(--pbd-green);
+}
+
+.pbd-add-projects__status.is-error {
+    color: var(--pbd-red);
+}
+
+.pbd-add-projects .pbd-selector-tabs {
+    border: 1px solid var(--pbd-border);
+    border-radius: .6rem;
+}

@@ -570,12 +570,29 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        if (string.IsNullOrWhiteSpace(input.RowVersion))
+        // The Studio's Add projects dialog posts in place and refreshes from the returned deck;
+        // a plain form post keeps the redirect with a status message.
+        var isAjax = string.Equals(
+            Request.Headers["X-Requested-With"],
+            "XMLHttpRequest",
+            StringComparison.OrdinalIgnoreCase);
+        IActionResult Fail(string message, int statusCode = StatusCodes.Status400BadRequest)
         {
-            ErrorMessage = "The deck version is missing. Reload and try again.";
+            if (isAjax)
+            {
+                return new JsonResult(new { message }) { StatusCode = statusCode };
+            }
+
+            ErrorMessage = message;
             return RedirectToPage(new { deckId = input.DeckId });
         }
 
+        if (string.IsNullOrWhiteSpace(input.RowVersion))
+        {
+            return Fail("The deck version is missing. Reload and try again.");
+        }
+
+        string message;
         try
         {
             var selection = await _selectionService.ResolveAsync(
@@ -592,8 +609,7 @@ public sealed class IndexModel : PageModel
 
             if (selection.ProjectIds.Count == 0)
             {
-                ErrorMessage = "No projects match the selected criteria.";
-                return RedirectToPage(new { deckId = input.DeckId });
+                return Fail("No projects match the selected criteria.");
             }
 
             var added = await _deckService.AddProjectsAsync(
@@ -603,23 +619,32 @@ public sealed class IndexModel : PageModel
                 selection.SelectionRulesJson,
                 input.RowVersion,
                 cancellationToken);
-            StatusMessage = added == 0
+            message = added == 0
                 ? "All matching projects are already in this deck."
                 : $"{added} project{(added == 1 ? string.Empty : "s")} added — {selection.RuleSummary}.";
         }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
-            ErrorMessage = exception.Message;
+            return Fail(exception.Message);
         }
         catch (DbUpdateConcurrencyException)
         {
-            ErrorMessage = "The matching projects could not be added because another user updated the deck. Reload and try again.";
+            return Fail(
+                "The matching projects could not be added because another user updated the deck. Reload and try again.",
+                StatusCodes.Status409Conflict);
         }
         catch (DbUpdateException)
         {
-            ErrorMessage = "The matching projects could not be added because of a database error. Reload and try again.";
+            return Fail("The matching projects could not be added because of a database error. Reload and try again.");
         }
 
+        if (isAjax)
+        {
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
+            return new JsonResult(new { saved = true, message, deck });
+        }
+
+        StatusMessage = message;
         return RedirectToPage(new { deckId = input.DeckId });
     }
 
