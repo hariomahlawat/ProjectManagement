@@ -571,6 +571,9 @@ if (root) {
       if (!response.ok || !payload) throw new Error(payload?.message || `The slides could not be built (${response.status}).`);
       slides = Array.isArray(payload.slides) ? payload.slides : [];
       images = payload.images || {};
+      if (Array.isArray(payload.projects)) {
+        readStudioData({ projects: payload.projects, contentGaps: payload.contentGaps });
+      }
       entries = buildEntries(Array.isArray(payload.outline) ? payload.outline : []);
       // Keep the same project (or slide number) selected across rebuilds.
       const sameProject = keepProject ? entries.find((entry) => entry.projectId === keepProject) : null;

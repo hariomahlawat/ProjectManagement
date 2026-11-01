@@ -349,3 +349,15 @@ test('an emptied deck clears the slide grid and says why', () => {
   assert.match(empty, /releaseFrames\(gridBox\);\s*gridBox\?\.replaceChildren\(\);/);
   assert.ok(empty.indexOf('renderStage();') < empty.indexOf("slideBox?.replaceChildren(el('p', 'pbd-stage__empty', message));"));
 });
+
+test('every slide rebuild also refreshes project facts and gaps', () => {
+  const handler = fs.readFileSync(
+    path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', 'Index.cshtml.cs'),
+    'utf8');
+  const preview = handler.slice(handler.indexOf('OnGetPreviewAsync'), handler.indexOf('OnPostGenerateAsync'));
+  assert.match(preview, /projects = deck\?\.Projects,\s*contentGaps = deck\?\.ContentGaps/);
+  const load = studioSource.slice(studioSource.indexOf('const loadPreview'), studioSource.indexOf('// Present:'));
+  assert.match(load, /readStudioData\(\{ projects: payload\.projects, contentGaps: payload\.contentGaps \}\)/);
+  // Facts are read before the outline and checks are drawn from them.
+  assert.ok(load.indexOf('readStudioData(') < load.indexOf('renderOutline();'));
+});

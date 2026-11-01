@@ -809,6 +809,9 @@ public sealed class IndexModel : PageModel
         {
             var composed = await _exportService.ComposeAsync(deckId, userId, cancellationToken);
             var preview = ProjectBriefingSlidePreviewRenderer.Render(composed.Content, composed.Data.GeneratedAtUtc);
+            // Project facts and gaps travel with the slides, so a rebuild after a fix made in
+            // another tab also clears the Studio's outline badges and checks.
+            var deck = await _dataService.GetDeckAsync(deckId, userId, cancellationToken);
             return new JsonResult(new
             {
                 preview.SlideCount,
@@ -820,7 +823,9 @@ public sealed class IndexModel : PageModel
                     item.Number,
                     role = item.Role.ToString(),
                     item.ProjectId
-                })
+                }),
+                projects = deck?.Projects,
+                contentGaps = deck?.ContentGaps
             });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
