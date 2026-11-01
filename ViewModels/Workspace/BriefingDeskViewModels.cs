@@ -109,7 +109,11 @@ public sealed class BriefingDeskItemVm
                 return "Nothing outstanding before the conference.";
             }
 
-            return open.Count == 1 ? open[0].Label : $"{open[0].Label} and {open.Count - 1} more";
+            // One open step reads in full ("Set DEVP PDC"); several are named in order, briefly
+            // ("Remark · Set DEVP PDC · Procurement"), so a folded card says what is left.
+            return open.Count == 1
+                ? open[0].Label
+                : string.Join(" · ", open.Select(check => check.NextText ?? check.Label));
         }
     }
 }
@@ -179,6 +183,9 @@ public sealed class BriefingDeskCheckVm
     public string Key { get; init; } = string.Empty;
 
     public string Label { get; init; } = string.Empty;
+
+    /// <summary>A short name for the card's "Next:" line ("Procurement"); the label when unset.</summary>
+    public string? NextText { get; init; }
 
     public string Detail { get; init; } = string.Empty;
 

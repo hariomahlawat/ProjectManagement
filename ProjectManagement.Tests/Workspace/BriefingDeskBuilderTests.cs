@@ -53,21 +53,35 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Fact]
-    public void Project_StageNotConfirmed_IsNotReady_AndOffersTheProjectPage()
+    public void Project_StageNotConfirmed_IsNotReady_AndAsksForARemarkWithTheTick()
     {
         var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: 30, stageConfirmedDaysAgo: null) }));
 
         Assert.False(item.IsBriefReady);
-        var stage = item.Checks.Single(check => check.Key == "stage");
-        Assert.Equal(BriefingDeskCheckState.Open, stage.State);
-        Assert.Equal(BriefingDeskRoute.Update, stage.Route);
-        Assert.Equal("Stage: DEVP · Development", stage.Label);
-        Assert.Contains("Stage is still DEVP", stage.Detail);
-        Assert.Equal("/Projects/Overview/1", stage.SecondaryUrl);
-        Assert.Equal(ProjectManagement.Infrastructure.ProjectTab.Name(1), stage.SecondaryTarget);
+        // The remark and the stage are one step: one post with the tick does both.
+        Assert.DoesNotContain(item.Checks, check => check.Key == "stage");
+        var update = item.Checks.Single(check => check.Key == "update");
+        Assert.Equal(BriefingDeskCheckState.Open, update.State);
+        Assert.Equal(BriefingDeskRoute.Update, update.Route);
+        Assert.Equal("Confirm stage DEVP", update.Label);
+        Assert.Contains("Stage is still DEVP · Development", update.Detail);
+        Assert.Equal("/Projects/Overview/1", update.SecondaryUrl);
+        Assert.Equal(ProjectManagement.Infrastructure.ProjectTab.Name(1), update.SecondaryTarget);
+        Assert.True(item.IsUpdateDue);
         // The remark box offers the tick for the current stage.
         Assert.Equal("DEVP", item.StageToConfirm?.Code);
         Assert.Equal("DEVP · Development", item.StageToConfirm?.Label);
+    }
+
+    [Fact]
+    public void Project_NoRemarkAndNoConfirmation_IsOneStep()
+    {
+        var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: null, pdcInDays: 30, stageConfirmedDaysAgo: null) }));
+
+        Assert.Equal(1, item.OpenCount);
+        var update = item.Checks.Single(check => check.Key == "update");
+        Assert.Equal("Remark", update.Label);
+        Assert.EndsWith("with the stage ticked.", update.Detail);
     }
 
     [Fact]
@@ -76,9 +90,13 @@ public sealed class BriefingDeskBuilderTests
         var recent = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30, stageConfirmedDaysAgo: 9) }));
         var lapsed = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: 30, stageConfirmedDaysAgo: 10) }));
 
-        Assert.Equal(BriefingDeskCheckState.Done, recent.Checks.Single(check => check.Key == "stage").State);
+        var recentUpdate = recent.Checks.Single(check => check.Key == "update");
+        Assert.Equal(BriefingDeskCheckState.Done, recentUpdate.State);
         Assert.True(recent.IsBriefReady);
-        Assert.Equal(BriefingDeskCheckState.Open, lapsed.Checks.Single(check => check.Key == "stage").State);
+        // Due soon is counted from the older of the remark and the confirmation.
+        Assert.True(recentUpdate.IsDueSoon);
+        Assert.Equal("Posted yesterday, stage confirmed 9 days ago. Post again within 1 day.", recentUpdate.Detail);
+        Assert.Equal(BriefingDeskCheckState.Open, lapsed.Checks.Single(check => check.Key == "update").State);
         Assert.False(lapsed.IsBriefReady);
     }
 
@@ -139,7 +157,32 @@ public sealed class BriefingDeskBuilderTests
 
         var item = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: null, health: health) }));
 
-        Assert.Equal(new[] { "update", "stage", "pdc", "procurement" }, item.Checks.Select(check => check.Key));
+        Assert.Equal(new[] { "update", "pdc", "procurement" }, item.Checks.Select(check => check.Key));
+    }
+
+    [Fact]
+    public void Project_NextLine_NamesEveryOpenStepBriefly()
+    {
+        var health = new WorkspaceRecordHealthVm
+        {
+            ProjectId = 1,
+            GapDetails = new[] { Gap("L1_COST", "Procurement at a glance", "L1 Cost", 4.17m, "/Projects/Overview/1?oc=procurement#procurement") }
+        };
+
+        var several = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: null, pdcInDays: null, health: health) }));
+        var one = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 1, pdcInDays: null) }));
+
+        Assert.Equal("Remark · Set DEVP PDC · Procurement", several.NextStepText);
+        Assert.Equal("Set DEVP PDC", one.NextStepText);
+    }
+
+    [Theory]
+    [InlineData("At least three published, non-archived project documents are required.", "At least three published, non-archived project documents are recommended.")]
+    [InlineData("At least one project video is required as supporting evidence.", "At least one project video is recommended as supporting evidence.")]
+    [InlineData("Required for every project and must contain a meaningful description.", "Recommended for every project and should contain a meaningful description.")]
+    public void Improvements_PutRecordHealthReasonsAsRecommendations(string reason, string expected)
+    {
+        Assert.Equal(expected, BriefingDeskBuilder.AsSuggestion(reason));
     }
 
     [Fact]

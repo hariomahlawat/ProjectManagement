@@ -193,13 +193,17 @@ public static class BriefingDeskBuilder
             ? new BriefingDeskStageVm(row.CurrentStageCode, StageLabel(row.CurrentStageCode, row.CurrentStageName), row.OpenUrl, projectTab)
             : null;
 
-        // In the order the PO works through them: the remark, the stage it confirms, the
-        // stage's PDC, then procurement for the stages already completed.
+        // In the order the PO works through them: the remark (which also confirms the stage), the
+        // stage's PDC, then procurement for the stages already completed. A stage that a remark
+        // cannot confirm is a step of its own, done on the project page.
         var checks = new List<BriefingDeskCheckVm>
         {
-            ProjectUpdateCheck(row, conference, directionAwaitingProgress, today),
-            ProjectStageCheck(row, hasStage, stageToConfirm, today)
+            ProjectUpdateCheck(row, conference, directionAwaitingProgress, stageToConfirm, today)
         };
+        if (ProjectStageCheck(row, hasStage, stageToConfirm) is { } stageCheck)
+        {
+            checks.Add(stageCheck);
+        }
 
         var planPanel = hasStage && !planDirectSaveRole ? ShortPlanPanel(input, row, anchor) : null;
         if (hasStage && ProjectPdcCheck(row, input.PendingPlanSinceUtc, planPanel?.PanelId) is { } pdcCheck)
@@ -252,14 +256,29 @@ public static class BriefingDeskBuilder
         };
     }
 
+    // One step for the remark and the stage it confirms, since one post does both: the remark box
+    // carries "Stage is still …", ticked by default. The step is done while a PO remark is under
+    // UpdateWindowDays old and the current stage was confirmed on one in the same window. It
+    // turns amber (due soon) from UpdateDueSoonDays, counted from the older of the two.
     private static BriefingDeskCheckVm ProjectUpdateCheck(
         WorkspaceProjectMatrixRowVm row,
         OfficerConferenceItemVm? conference,
         bool directionAwaitingProgress,
+        BriefingDeskStageVm? stage,
         DateOnly today)
     {
-        var fresh = row.DaysSinceLastPoRemark is int days && days < UpdateWindowDays;
-        var dueSoon = fresh && row.DaysSinceLastPoRemark >= UpdateDueSoonDays;
+        var remarkDays = row.DaysSinceLastPoRemark;
+        int? confirmedDays = row.CurrentStageConfirmedAtUtc is DateTime confirmedAt
+            ? Math.Max(0, today.DayNumber - WorkspaceNudgeService.ToIstDate(confirmedAt).DayNumber)
+            : null;
+        var fresh = remarkDays is int days && days < UpdateWindowDays;
+        var stageConfirmed = stage is null || confirmedDays is int confirmed && confirmed < UpdateWindowDays;
+        var withTick = stage is null ? string.Empty : ", with the stage ticked";
+
+        // The wrong-stage link travels with the step; with the remark box open it sits beside the
+        // tick instead (bd-card--stage-in-box).
+        var secondaryText = stage is null ? null : "Wrong stage? Change it on the project page";
+
         if (directionAwaitingProgress)
         {
             var issued = conference?.LatestDirection?.CreatedAtUtc;
@@ -267,45 +286,103 @@ public static class BriefingDeskBuilder
             {
                 Key = "update",
                 Label = "Report progress on the direction",
-                Detail = issued is DateTime issuedAt
+                NextText = "Direction",
+                Detail = (issued is DateTime issuedAt
                     ? $"No progress recorded since the direction of {FormatDay(WorkspaceNudgeService.ToIstDate(issuedAt))}."
-                    : "No progress recorded since the latest direction.",
+                    : "No progress recorded since the latest direction.")
+                    + (stageConfirmed ? string.Empty : " Post it with the stage ticked."),
                 State = BriefingDeskCheckState.Open,
-                Route = BriefingDeskRoute.Update
+                Route = BriefingDeskRoute.Update,
+                SecondaryText = secondaryText,
+                SecondaryUrl = stage?.ProjectPageUrl,
+                SecondaryTarget = stage?.ProjectTabName
             };
         }
+
+        if (!fresh)
+        {
+            return new BriefingDeskCheckVm
+            {
+                Key = "update",
+                Label = "Remark",
+                Detail = remarkDays is int stale
+                    ? $"Last remark {stale} days ago. Post one at least every {UpdateWindowDays} days{withTick}."
+                    : $"No remark yet. Post one at least every {UpdateWindowDays} days{withTick}.",
+                State = BriefingDeskCheckState.Open,
+                Route = BriefingDeskRoute.Update,
+                SecondaryText = secondaryText,
+                SecondaryUrl = stage?.ProjectPageUrl,
+                SecondaryTarget = stage?.ProjectTabName
+            };
+        }
+
+        if (!stageConfirmed)
+        {
+            return new BriefingDeskCheckVm
+            {
+                Key = "update",
+                Label = $"Confirm stage {stage!.Code}",
+                NextText = "Confirm stage",
+                Detail = $"Your last remark, {DaysAgo(remarkDays!.Value)}, did not confirm the stage. Post a remark with “Stage is still {stage.Label}” ticked.",
+                State = BriefingDeskCheckState.Open,
+                Route = BriefingDeskRoute.Update,
+                SecondaryText = secondaryText,
+                SecondaryUrl = stage.ProjectPageUrl,
+                SecondaryTarget = stage.ProjectTabName
+            };
+        }
+
+        // The step lapses with the older of the remark and the confirmation.
+        var oldest = Math.Max(remarkDays!.Value, confirmedDays ?? 0);
+        var dueSoon = oldest >= UpdateDueSoonDays;
+        var posted = stage is null
+            ? $"Posted {DaysAgo(remarkDays.Value)}."
+            : confirmedDays == remarkDays
+                ? $"Posted {DaysAgo(remarkDays.Value)}, stage confirmed."
+                : $"Posted {DaysAgo(remarkDays.Value)}, stage confirmed {DaysAgo(confirmedDays!.Value)}.";
+        var left = UpdateWindowDays - oldest;
 
         return new BriefingDeskCheckVm
         {
             Key = "update",
             Label = "Remark",
-            Detail = row.DaysSinceLastPoRemark switch
-            {
-                null => $"No remark yet. Post one at least every {UpdateWindowDays} days.",
-                var value when dueSoon => $"Posted {value} days ago. Due within {UpdateWindowDays - value!.Value} day{Plural(UpdateWindowDays - value.Value)}.",
-                var value when fresh => value == 0 ? "Posted today." : $"Posted {value} day{Plural(value!.Value)} ago.",
-                var value => $"Last remark {value} days ago. Post one at least every {UpdateWindowDays} days."
-            },
-            State = fresh ? BriefingDeskCheckState.Done : BriefingDeskCheckState.Open,
+            Detail = dueSoon ? $"{posted} Post again within {left} day{Plural(left)}." : posted,
+            State = BriefingDeskCheckState.Done,
             IsDueSoon = dueSoon,
-            Route = BriefingDeskRoute.Update
+            Route = BriefingDeskRoute.Update,
+            SecondaryText = secondaryText,
+            SecondaryUrl = stage?.ProjectPageUrl,
+            SecondaryTarget = stage?.ProjectTabName
         };
     }
 
-    // The PO confirms the current stage by ticking "Stage is still …" on a remark. A wrong stage
-    // is changed on the project page, which opens in the project's own tab.
-    private static BriefingDeskCheckVm ProjectStageCheck(
+    private static string DaysAgo(int days) => days switch
+    {
+        0 => "today",
+        1 => "yesterday",
+        _ => $"{days} days ago"
+    };
+
+    // A current stage that a remark cannot confirm: none at all, or one the workflow supplies
+    // without a saved stage row. Either is fixed on the project page, which opens in the
+    // project's own tab. Otherwise the stage is confirmed on the remark (ProjectUpdateCheck).
+    private static BriefingDeskCheckVm? ProjectStageCheck(
         WorkspaceProjectMatrixRowVm row,
         bool hasStage,
-        BriefingDeskStageVm? stage,
-        DateOnly today)
+        BriefingDeskStageVm? stage)
     {
-        if (hasStage && stage is null)
+        if (stage is not null)
+        {
+            return null;
+        }
+
+        if (hasStage)
         {
             return new BriefingDeskCheckVm
             {
                 Key = "stage",
-                Label = $"Stage: {StageLabel(row.CurrentStageCode, row.CurrentStageName)}",
+                Label = $"Record stage {row.CurrentStageCode}",
+                NextText = "Record stage",
                 Detail = "This stage is not recorded on the project yet, so a remark cannot confirm it. Update the stage on the project page.",
                 State = BriefingDeskCheckState.Open,
                 Route = BriefingDeskRoute.Direct,
@@ -315,38 +392,17 @@ public static class BriefingDeskBuilder
             };
         }
 
-        if (stage is null)
-        {
-            return new BriefingDeskCheckVm
-            {
-                Key = "stage",
-                Label = "No current stage",
-                Detail = "Set the project's current stage on the project page.",
-                State = BriefingDeskCheckState.Open,
-                Route = BriefingDeskRoute.Direct,
-                SecondaryText = "Set it on the project page",
-                SecondaryUrl = row.OpenUrl,
-                SecondaryTarget = ProjectManagement.Infrastructure.ProjectTab.Name(row.ProjectId)
-            };
-        }
-
-        int? daysSinceConfirmed = row.CurrentStageConfirmedAtUtc is DateTime confirmedAt
-            ? Math.Max(0, today.DayNumber - WorkspaceNudgeService.ToIstDate(confirmedAt).DayNumber)
-            : null;
-        var confirmed = daysSinceConfirmed is int days && days < UpdateWindowDays;
-
         return new BriefingDeskCheckVm
         {
             Key = "stage",
-            Label = $"Stage: {stage.Label}",
-            Detail = confirmed
-                ? $"You confirmed it {(daysSinceConfirmed == 0 ? "today" : daysSinceConfirmed == 1 ? "yesterday" : $"{daysSinceConfirmed} days ago")}."
-                : $"Not confirmed in the last {UpdateWindowDays} days. Tick “Stage is still {stage.Code}” on your remark.",
-            State = confirmed ? BriefingDeskCheckState.Done : BriefingDeskCheckState.Open,
-            Route = BriefingDeskRoute.Update,
-            SecondaryText = "Wrong stage? Update it on the project page",
-            SecondaryUrl = stage.ProjectPageUrl,
-            SecondaryTarget = stage.ProjectTabName
+            Label = "Set the current stage",
+            NextText = "Set stage",
+            Detail = "The project has no current stage. Set it on the project page.",
+            State = BriefingDeskCheckState.Open,
+            Route = BriefingDeskRoute.Direct,
+            SecondaryText = "Set it on the project page",
+            SecondaryUrl = row.OpenUrl,
+            SecondaryTarget = ProjectManagement.Infrastructure.ProjectTab.Name(row.ProjectId)
         };
     }
 
@@ -376,6 +432,7 @@ public static class BriefingDeskBuilder
         return new BriefingDeskCheckVm
         {
             Key = "procurement",
+            NextText = "Procurement",
             Label = gaps.Count == 1 ? $"{gaps[0].FieldLabel} missing" : $"{gaps.Count} procurement entries missing",
             Detail = gaps.Count == 1 ? gaps[0].Reason : $"Needed for the stages already completed: {fields}.",
             State = BriefingDeskCheckState.Open,
@@ -602,7 +659,7 @@ public static class BriefingDeskBuilder
                 {
                     Key = $"gap:{gaps[0].Code}",
                     Label = gaps.Count == 1 ? gaps[0].FieldLabel : $"{gaps.Count} {PluralComponent(gaps[0].Component)}",
-                    Detail = gaps.Count == 1 ? gaps[0].Reason : fields,
+                    Detail = gaps.Count == 1 ? AsSuggestion(gaps[0].Reason) : fields,
                     State = BriefingDeskCheckState.Open,
                     Route = route,
                     IsRequired = false,
@@ -618,6 +675,14 @@ public static class BriefingDeskBuilder
             .ThenBy(item => item.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    // Record health explains each gap as a requirement of the record ("… are required."). On the
+    // desk these gaps are optional, so the same reason is put as a recommendation.
+    internal static string AsSuggestion(string reason) => reason
+        .Replace(" are required", " are recommended", StringComparison.Ordinal)
+        .Replace(" is required", " is recommended", StringComparison.Ordinal)
+        .Replace("Required for", "Recommended for", StringComparison.Ordinal)
+        .Replace(" must ", " should ", StringComparison.Ordinal);
 
     // Procurement figures and project media are edited directly by the assigned PO; other
     // editors (project details, documents, historical dates) submit for HoD approval.
@@ -818,6 +883,7 @@ public static class BriefingDeskBuilder
         {
             Key = "update",
             Label = directionAwaitingProgress ? "Reply to the conference direction" : "Note on progress",
+            NextText = directionAwaitingProgress ? "Direction" : "Note",
             Detail = directionAwaitingProgress
                 ? "No note since the latest direction. Your note is the reply."
                 : $"Optional. Last activity {activityText}.",
@@ -887,6 +953,7 @@ public static class BriefingDeskBuilder
             {
                 Key = "update",
                 Label = directionAwaitingProgress ? "Report progress on the direction" : "Progress update",
+                NextText = directionAwaitingProgress ? "Direction" : "Progress",
                 Detail = directionAwaitingProgress
                     ? "No progress recorded since the latest direction."
                     : daysSinceProgress switch
