@@ -409,3 +409,14 @@ test('each project can be shown as slides, a table row only, or left out', () =>
   assert.match(studioSource, /filter\(\(project\) => project\.isPresented\)/);
   assert.match(source, /projects\.filter\(\(project\) => project\.isPresented\)\.length/);
 });
+
+test('a deck whose projects are all left out still lists them so they can be brought back', () => {
+  const empty = studioSource.slice(studioSource.indexOf('const renderEmpty'), studioSource.indexOf('const loadPreview'));
+  assert.match(empty, /entries = buildEntries\(\[\]\);/);
+  assert.match(empty, /if \(entries\.length\) \{[\s\S]*?renderOutline\(\);/);
+  assert.match(studioSource, /'Every project in this deck is left out of the PowerPoint\. Bring one back to build the slides\.'/);
+  // The no-slide entry is shown before the empty-deck branch, and the inspector accepts it without a slide.
+  const stage = studioSource.slice(studioSource.indexOf('const renderStage'), studioSource.indexOf('const selectEntry'));
+  assert.ok(stage.indexOf('entry.indices.length === 0') < stage.indexOf('if (!slide) {'));
+  assert.match(studioSource, /if \(!entry \|\| \(!slide && entry\.indices\.length\)\) \{/);
+});

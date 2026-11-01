@@ -502,7 +502,8 @@ if (root) {
     const panel = panels.slide;
     if (!panel) return;
     const slide = slides[current];
-    if (!slide || !entry) {
+    // A project with no slide (left out) is still shown, even when the deck has no slides at all.
+    if (!entry || (!slide && entry.indices.length)) {
       panel.replaceChildren(el('p', 'pbd-inspector__empty', hasProjects ? 'Select a slide in the outline.' : 'Add projects to build the deck.'));
       return;
     }
@@ -641,14 +642,6 @@ if (root) {
     const entry = entryForIndex(current);
     if (prevButton) prevButton.disabled = !slide || current === 0;
     if (nextButton) nextButton.disabled = !slide || current >= slides.length - 1;
-    if (!slide) {
-      if (stageMeta) stageMeta.textContent = 'Slide preview';
-      releaseFrames(slideBox);
-      slideBox?.replaceChildren();
-      renderChecks(null);
-      renderSlideInspector(null);
-      return;
-    }
     if (entry && entry.indices.length === 0) {
       const project = projects.get(entry.projectId);
       if (stageMeta) stageMeta.textContent = 'Not in the PowerPoint';
@@ -661,6 +654,14 @@ if (root) {
       }
       renderChecks(null);
       renderSlideInspector(entry);
+      return;
+    }
+    if (!slide) {
+      if (stageMeta) stageMeta.textContent = 'Slide preview';
+      releaseFrames(slideBox);
+      slideBox?.replaceChildren();
+      renderChecks(null);
+      renderSlideInspector(null);
       return;
     }
     const role = ROLES[entry?.role] || { label: '' };
@@ -736,12 +737,20 @@ if (root) {
 
   const renderEmpty = (message) => {
     slides = [];
-    entries = [];
+    // Projects kept in the deck but not in the PowerPoint stay listed, so they can be brought back.
+    entries = buildEntries([]);
     releaseFrames(gridBox);
     gridBox?.replaceChildren();
-    outlineNav?.replaceChildren(el('p', 'pbd-outline__empty', message));
     if (presentButton) presentButton.disabled = true;
     if (status) status.textContent = message;
+    if (entries.length) {
+      if (!entries.some((entry) => entry.key === selectedKey)) selectedKey = entries[0].key;
+      renderOutline();
+      renderStage();
+      renderChecksPanel();
+      return;
+    }
+    outlineNav?.replaceChildren(el('p', 'pbd-outline__empty', message));
     renderStage();
     renderChecksPanel();
     // renderStage clears the slide area when there are no slides; say why after it.
@@ -756,7 +765,9 @@ if (root) {
       if (viewer?.open) viewer.close();
       root.classList.remove('is-busy', 'is-stale', 'is-error');
       if (refreshButton) refreshButton.disabled = false;
-      renderEmpty('Add projects to build the slides.');
+      renderEmpty(projects.size
+        ? 'Every project in this deck is left out of the PowerPoint. Bring one back to build the slides.'
+        : 'Add projects to build the slides.');
       return;
     }
 
