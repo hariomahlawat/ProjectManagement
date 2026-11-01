@@ -852,6 +852,44 @@ public sealed class IndexModel : PageModel
         }
     }
 
+    public async Task<IActionResult> OnPostUpdateItemPresentationAsync(
+        [FromBody] UpdateItemPresentationInput? input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (input is null || input.DeckId <= 0 || input.ProjectId <= 0 || string.IsNullOrWhiteSpace(input.RowVersion))
+        {
+            return BadRequest(new { message = "The request to change how the project appears is invalid." });
+        }
+
+        try
+        {
+            var rowVersion = await _deckService.UpdateItemPresentationAsync(
+                input.DeckId,
+                input.ProjectId,
+                userId,
+                input.Presentation,
+                input.RowVersion,
+                cancellationToken);
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
+            return new JsonResult(new { saved = true, rowVersion, deck });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new JsonResult(new
+            {
+                message = "The deck was updated by another user. Reload before changing how the project appears."
+            })
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            };
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+    }
+
     public async Task<IActionResult> OnGetSearchProjectsAsync(
         long deckId,
         string? query,
@@ -1414,6 +1452,14 @@ public sealed class IndexModel : PageModel
         public long DeckId { get; set; }
         public int ProjectId { get; set; }
         public string? Value { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed class UpdateItemPresentationInput
+    {
+        public long DeckId { get; set; }
+        public int ProjectId { get; set; }
+        public ProjectBriefingItemPresentation Presentation { get; set; }
         public string RowVersion { get; set; } = string.Empty;
     }
 }

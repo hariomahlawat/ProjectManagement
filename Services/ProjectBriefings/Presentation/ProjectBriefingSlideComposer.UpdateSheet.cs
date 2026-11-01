@@ -14,7 +14,8 @@ public sealed partial class ProjectBriefingSlideComposer
         var plans = new List<SlidePlan>();
         AddIntroductoryPlans(plans, data);
 
-        foreach (var project in OrderProjects(data.Projects))
+        var orderedProjects = OrderProjects(data.Projects);
+        foreach (var project in orderedProjects.Where(project => !project.TableRowOnly))
         {
             var rows = ProjectBriefingUpdateSheetPlanner.ResolveRows(project, data.UpdateSheetOptions);
             var plan = ProjectBriefingUpdateSheetPlanner.Plan(
@@ -44,6 +45,8 @@ public sealed partial class ProjectBriefingSlideComposer
                     capturedProject.ProjectId));
             }
         }
+
+        AddTableRowOnlySlides(plans, data, orderedProjects);
 
         return plans;
     }

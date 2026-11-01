@@ -59,7 +59,8 @@ if (root) {
     { key: 'opening', label: 'Opening' },
     { key: 'portfolio', label: 'Portfolio' },
     { key: 'project', label: 'Projects' },
-    { key: 'closing', label: 'Closing' }
+    { key: 'closing', label: 'Closing' },
+    { key: 'leftout', label: 'Not in the PowerPoint' }
   ];
   const GAPS = {
     status: { label: 'Status remark', missing: 'No external status remark yet', fix: 'Add in project', href: (p) => p.openUrl },
@@ -87,6 +88,8 @@ if (root) {
   let viewerIndex = 0;
   let selectedKey = '';
   let outlineSortables = [];
+  // The deck's template and format decide what "own slides" and "table row only" mean.
+  const deckShape = { layout: root.dataset.layout || '', mode: root.dataset.presentationMode || '' };
   const deckKey = root.closest('[data-deck-id]')?.dataset.deckId || '';
   const placeStorageKey = `projectBriefingStudio:${deckKey}:place`;
   const readPlace = () => {
@@ -171,19 +174,82 @@ if (root) {
       }
       result.push({ key: `${item.role}-${index}`, section: role.section, role: item.role, indices: [index] });
     });
-    // A deck with no project slides (executive table only) still lists each project, pointing at
-    // the status-table page that shows it, so the Checks filter and inspector work there too.
-    if (!result.some((entry) => entry.section === 'project')) {
-      outline.forEach((item, index) => {
-        (item.listedProjectIds || []).forEach((projectId) => {
-          if (byProject.has(projectId)) return;
-          const entry = { key: `project-${projectId}`, section: 'project', projectId, role: item.role, indices: [index] };
-          byProject.set(projectId, entry);
-          result.push(entry);
-        });
+    // A project without slides of its own (an executive-table deck, or a table row only project)
+    // is listed against the table page that shows it, so the Checks filter and inspector work too.
+    outline.forEach((item, index) => {
+      (item.listedProjectIds || []).forEach((projectId) => {
+        if (byProject.has(projectId)) return;
+        const entry = { key: `project-${projectId}`, section: 'project', projectId, role: item.role, indices: [index] };
+        byProject.set(projectId, entry);
+        result.push(entry);
       });
-    }
+    });
+    // Projects kept in the deck but not in the PowerPoint (left out, deleted or archived) have
+    // no slide; they are listed last so they can be brought back or removed.
+    [...projects.values()]
+      .filter((project) => !project.isPresented && !byProject.has(project.projectId))
+      .sort((first, second) => (first.sortOrder ?? 0) - (second.sortOrder ?? 0))
+      .forEach((project) => {
+        result.push({ key: `project-${project.projectId}`, section: 'leftout', projectId: project.projectId, role: '', indices: [] });
+      });
     return result;
+  };
+
+  // How the project appears, for the outline row and the inspector.
+  const presentationTag = (project) => {
+    if (!project) return '';
+    if (project.isDeletedOrArchived) return project.lifecycleDisplay || 'Archived';
+    if (project.presentation === 'LeftOut') return 'Left out';
+    if (project.presentation === 'TableRowOnly' && deckShape.mode !== 'ExecutiveTable') return 'Table row';
+    return '';
+  };
+
+  const PRESENTATIONS = ['Slides', 'TableRowOnly', 'LeftOut'];
+  const presentationLabel = (value) => {
+    if (value === 'Slides') return deckShape.layout === 'ProjectUpdateSheet' ? 'Update sheet' : 'Own slides';
+    if (value === 'TableRowOnly') return 'Table row only';
+    return 'Leave out';
+  };
+  const presentationMeaning = (value) => {
+    const sheets = deckShape.layout === 'ProjectUpdateSheet';
+    if (value === 'LeftOut') return 'Kept in this deck but not in the PowerPoint. Choose another option to bring it back.';
+    if (value === 'TableRowOnly') {
+      if (!sheets && deckShape.mode === 'ExecutiveTable') return 'A row in the status table. In this format every project is a table row.';
+      if (!sheets && deckShape.mode === 'Combined') return 'A row in the status table, with no slides of its own.';
+      return `Listed in the “Other projects in this briefing” table after the ${sheets ? 'update sheets' : 'project slides'}.`;
+    }
+    if (sheets) return 'Its own update sheet.';
+    if (deckShape.mode === 'ExecutiveTable') return 'A row in the status table.';
+    if (deckShape.mode === 'Combined') return 'Its own slides and a row in the status table.';
+    return 'Its own slides.';
+  };
+
+  // Asks the builder (which owns every deck save) to change how a project appears.
+  const presentationControl = (project) => {
+    const wrapper = el('div', 'pbd-inspector__presentation');
+    const heading = el('h5', 'pbd-inspector__heading', 'In this deck');
+    heading.id = `pbd-presentation-${project.projectId}`;
+    const group = el('div', 'pbd-segmented');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-labelledby', heading.id);
+    PRESENTATIONS.forEach((value) => {
+      const button = el('button', 'pbd-segmented__option', presentationLabel(value));
+      button.type = 'button';
+      button.dataset.pbdPresentation = value;
+      button.setAttribute('aria-pressed', String((project.presentation || 'Slides') === value));
+      button.addEventListener('click', () => {
+        if ((project.presentation || 'Slides') === value) return;
+        project.presentation = value;
+        project.isPresented = value !== 'LeftOut' && !project.isDeletedOrArchived;
+        renderOutline();
+        renderStage();
+        root.querySelector(`[data-pbd-presentation="${value}"]`)?.focus();
+        document.dispatchEvent(new CustomEvent('pbd:set-project-presentation', { detail: { projectId: project.projectId, presentation: value } }));
+      });
+      group.append(button);
+    });
+    wrapper.append(heading, group, el('p', 'pbd-inspector__note', presentationMeaning(project.presentation || 'Slides')));
+    return wrapper;
   };
 
   const entryTitle = (entry) => {
@@ -196,7 +262,8 @@ if (root) {
   // chose stays selected while they remain on that slide.
   const entryForIndex = (index) => {
     const chosen = selectedKey ? entries.find((entry) => entry.key === selectedKey) : null;
-    if (chosen && chosen.indices.includes(index)) return chosen;
+    // A project with no slide stays selected until another entry or slide is chosen.
+    if (chosen && (chosen.indices.includes(index) || chosen.indices.length === 0)) return chosen;
     return entries.find((entry) => entry.indices.includes(index) && !entry.projectId)
       || entries.find((entry) => entry.indices.includes(index));
   };
@@ -308,10 +375,13 @@ if (root) {
               });
             }
           }
-          const number = slides[entry.indices[0]]?.number ?? entry.indices[0] + 1;
+          const number = entry.indices.length ? slides[entry.indices[0]]?.number ?? entry.indices[0] + 1 : '–';
           const title = entryTitle(entry);
           row.title = title;
           row.append(el('span', 'pbd-outline__number', String(number)), el('span', 'pbd-outline__name', title));
+          const project = entry.projectId ? projects.get(entry.projectId) : null;
+          const tag = presentationTag(project);
+          if (tag) row.append(el('span', 'pbd-outline__tag', tag));
           const missing = entry.projectId ? gapsFor(entry.projectId) : [];
           if (missing.length) {
             const badge = el('span', 'pbd-outline__gaps', String(missing.length));
@@ -319,7 +389,7 @@ if (root) {
             badge.setAttribute('aria-label', `${plural(missing.length, 'item')} missing`);
             row.append(badge);
           }
-          row.addEventListener('click', () => selectIndex(entry.indices[0], { from: 'outline', key: entry.key }));
+          row.addEventListener('click', () => selectEntry(entry));
           item.append(row);
           list.append(item);
         });
@@ -453,8 +523,11 @@ if (root) {
       };
       facts.append(fact('Cost (R&D)', project.costRd?.displayValue || 'Not recorded', project.costRd?.basisDisplay));
       facts.append(fact('Proliferation', project.proliferationCost?.displayValue || 'Not recorded'));
-      facts.append(fact('Slides', plural(entry.indices.length, 'slide'), entry.indices.map((index) => slides[index]?.number).join(', ')));
+      facts.append(entry.indices.length
+        ? fact('Slides', plural(entry.indices.length, 'slide'), entry.indices.map((index) => slides[index]?.number).join(', '))
+        : fact('Slides', 'None', 'Not in the PowerPoint'));
       nodes.push(facts);
+      if (!project.isDeletedOrArchived) nodes.push(presentationControl(project));
 
       nodes.push(el('h5', 'pbd-inspector__heading', 'Present status'));
       nodes.push(project.externalStatus
@@ -495,7 +568,7 @@ if (root) {
   const renderChecksPanel = () => {
     const panel = panels.checks;
     if (!panel) return;
-    const presented = [...projects.values()].filter((project) => !project.isDeletedOrArchived);
+    const presented = [...projects.values()].filter((project) => project.isPresented);
     const total = presented.length;
     const counts = {};
     let projectsWithGaps = 0;
@@ -576,6 +649,20 @@ if (root) {
       renderSlideInspector(null);
       return;
     }
+    if (entry && entry.indices.length === 0) {
+      const project = projects.get(entry.projectId);
+      if (stageMeta) stageMeta.textContent = 'Not in the PowerPoint';
+      if (stageTitle) stageTitle.textContent = project?.projectName || 'Project';
+      if (view === 'slide' && slideBox) {
+        releaseFrames(slideBox);
+        slideBox.replaceChildren(el('p', 'pbd-stage__empty', project?.isDeletedOrArchived
+          ? 'This project is deleted or archived, so the PowerPoint leaves it out. Remove it from the deck, or restore the project.'
+          : 'This project is left out of the PowerPoint. Choose Own slides or Table row only in the inspector to bring it back.'));
+      }
+      renderChecks(null);
+      renderSlideInspector(entry);
+      return;
+    }
     const role = ROLES[entry?.role] || { label: '' };
     if (stageMeta) stageMeta.textContent = `Slide ${slide.number} of ${slides.length}${role.label ? ` · ${role.label}` : ''}`;
     if (stageTitle) stageTitle.textContent = slide.title;
@@ -586,6 +673,17 @@ if (root) {
     renderChecks(entry);
     renderSlideInspector(entry);
     gridBox?.querySelectorAll('.pbd-stage__thumb').forEach((thumb, index) => thumb.classList.toggle('is-selected', index === current));
+  };
+
+  const selectEntry = (entry) => {
+    if (entry.indices.length) {
+      selectIndex(entry.indices[0], { from: 'outline', key: entry.key });
+      return;
+    }
+    selectedKey = entry.key;
+    if (view !== 'slide') setView('slide');
+    else renderStage();
+    markOutlineSelection();
   };
 
   const selectIndex = (index, { from, key = '' } = {}) => {
@@ -688,7 +786,7 @@ if (root) {
       entries = buildEntries(Array.isArray(payload.outline) ? payload.outline : []);
       // Keep the same project (or slide number) selected across rebuilds.
       const sameProject = keepProject ? entries.find((entry) => entry.projectId === keepProject) : null;
-      current = sameProject
+      current = sameProject?.indices.length
         ? sameProject.indices[0]
         : Math.min(Math.max(0, (keepNumber || 1) - 1), Math.max(0, slides.length - 1));
       selectedKey = sameProject ? sameProject.key : '';
@@ -818,6 +916,8 @@ if (root) {
   document.addEventListener('pbd:deck-changed', (event) => {
     if (typeof event.detail?.hasProjects === 'boolean') hasProjects = event.detail.hasProjects;
     if (event.detail?.deck) {
+      if (event.detail.deck.layout) deckShape.layout = event.detail.deck.layout;
+      if (event.detail.deck.presentationMode) deckShape.mode = event.detail.deck.presentationMode;
       readStudioData({ projects: event.detail.deck.projects, contentGaps: event.detail.deck.contentGaps });
       renderOutline();
       renderStage();

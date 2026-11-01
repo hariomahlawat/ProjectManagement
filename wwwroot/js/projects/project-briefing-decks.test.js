@@ -370,13 +370,14 @@ test('every slide rebuild also refreshes project facts and gaps', () => {
   assert.ok(load.indexOf('readStudioData(') < load.indexOf('renderOutline();'));
 });
 
-test('table-only decks list each project against its status-table page', () => {
-  const build = studioSource.slice(studioSource.indexOf('const buildEntries'), studioSource.indexOf('const entryTitle'));
-  assert.match(build, /if \(!result\.some\(\(entry\) => entry\.section === 'project'\)\)/);
-  assert.match(build, /item\.listedProjectIds \|\| \[\]/);
+test('projects without slides of their own are listed against the table page that shows them', () => {
+  const build = studioSource.slice(studioSource.indexOf('const buildEntries'), studioSource.indexOf('const presentationTag'));
+  // Any project not yet listed (an executive-table deck, or a table row only project) points at its table page.
+  assert.match(build, /\(item\.listedProjectIds \|\| \[\]\)\.forEach\(\(projectId\) => \{\s*if \(byProject\.has\(projectId\)\) return;/);
+  assert.doesNotMatch(build, /if \(!result\.some\(\(entry\) => entry\.section === 'project'\)\)/);
   // The row the person chose stays selected while several projects share one slide.
-  assert.match(studioSource, /row\.addEventListener\('click', \(\) => selectIndex\(entry\.indices\[0\], \{ from: 'outline', key: entry\.key \}\)\);/);
-  assert.match(studioSource, /if \(chosen && chosen\.indices\.includes\(index\)\) return chosen;/);
+  assert.match(studioSource, /row\.addEventListener\('click', \(\) => selectEntry\(entry\)\);/);
+  assert.match(studioSource, /selectIndex\(entry\.indices\[0\], \{ from: 'outline', key: entry\.key \}\);/);
 });
 
 test('deleted or archived members can still be removed from the deck', () => {
@@ -392,4 +393,19 @@ test('individual search follows every membership change and keeps unapplied tick
   const reconcile = source.slice(source.indexOf('const reconcileSearchMembership'), source.indexOf('const renderSearchResults'));
   assert.match(reconcile, /if \(desired !== resultBaseline\.get\(projectId\)\) pending\.set\(projectId, desired\);/);
   assert.match(reconcile, /isSelected: members\.has\(Number\(project\.projectId\)\)/);
+});
+
+test('each project can be shown as slides, a table row only, or left out', () => {
+  // The Studio asks; the builder saves through the deck mutation queue.
+  assert.match(studioSource, /const PRESENTATIONS = \['Slides', 'TableRowOnly', 'LeftOut'\];/);
+  assert.match(studioSource, /new CustomEvent\('pbd:set-project-presentation', \{ detail: \{ projectId: project\.projectId, presentation: value \} \}\)/);
+  assert.match(source, /document\.addEventListener\('pbd:set-project-presentation'[\s\S]*?runDeckMutation\(async \(\) => \{[\s\S]*?root\.dataset\.itemPresentationUrl/);
+  assert.match(viewSource, /data-item-presentation-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateItemPresentation"\)"/);
+  // Projects not in the PowerPoint are listed last, with no slide, so they can be brought back.
+  assert.match(studioSource, /\.filter\(\(project\) => !project\.isPresented && !byProject\.has\(project\.projectId\)\)/);
+  assert.match(studioSource, /section: 'leftout', projectId: project\.projectId, role: '', indices: \[\]/);
+  assert.match(studioSource, /if \(chosen && \(chosen\.indices\.includes\(index\) \|\| chosen\.indices\.length === 0\)\) return chosen;/);
+  // Counts and checks follow what is actually in the PowerPoint.
+  assert.match(studioSource, /filter\(\(project\) => project\.isPresented\)/);
+  assert.match(source, /projects\.filter\(\(project\) => project\.isPresented\)\.length/);
 });

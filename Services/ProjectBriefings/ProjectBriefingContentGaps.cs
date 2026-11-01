@@ -29,9 +29,12 @@ public static class ProjectBriefingContentGaps
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(settings);
         var uses = Uses.From(settings);
+        var tableRowUses = Uses.TableRow(settings);
         return projects
-            .Where(project => !project.IsDeletedOrArchived)
-            .ToDictionary(project => project.ProjectId, project => For(project, uses));
+            .Where(project => project.IsPresented)
+            .ToDictionary(
+                project => project.ProjectId,
+                project => For(project, project.Presentation == ProjectBriefingItemPresentation.TableRowOnly ? tableRowUses : uses));
     }
 
     private static IReadOnlyList<string> For(ProjectBriefingProjectVm project, Uses uses)
@@ -71,6 +74,16 @@ public static class ProjectBriefingContentGaps
         bool ProjectBrief,
         bool UpdateSheetFacts)
     {
+        // A table row shows the present stage, the status remark and the deck's costs.
+        public static Uses TableRow(ProjectBriefingContentGapSettings settings) => new(
+            Status: true,
+            CostRd: settings.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both,
+            ProliferationCost: settings.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both,
+            Photo: false,
+            CapabilityOverview: false,
+            ProjectBrief: false,
+            UpdateSheetFacts: false);
+
         // Mirrors which content each template, format and narrative choice puts on a slide.
         public static Uses From(ProjectBriefingContentGapSettings settings)
         {

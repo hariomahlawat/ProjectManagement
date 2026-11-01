@@ -4884,3 +4884,41 @@ body.pbd-profile-drawer-open {
 .pbd-conflict > span {
     flex: 1 1 20rem;
 }
+
+/* How a project appears in its deck: own slides, a table row only, or left out. */
+.pbd-inspector__presentation .pbd-segmented {
+    display: flex;
+    width: 100%;
+}
+
+.pbd-segmented .pbd-segmented__option {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: .3rem .4rem;
+    line-height: 1.2;
+}
+
+.pbd-segmented .pbd-segmented__option[aria-pressed="true"] {
+    background: var(--pm-card, var(--pbd-surface));
+    color: var(--pbd-ink);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--pbd-ink) 14%, transparent);
+}
+
+.pbd-segmented .pbd-segmented__option:focus-visible {
+    outline: 2px solid var(--pbd-blue);
+    outline-offset: 1px;
+}
+
+.pbd-inspector__presentation .pbd-inspector__note {
+    margin-top: .4rem;
+}
+
+.pbd-outline__tag {
+    flex: none;
+    padding: 0 .35rem;
+    border-radius: 999px;
+    background: var(--pbd-canvas);
+    color: var(--pbd-muted);
+    font-size: .66rem;
+    font-weight: 700;
+}

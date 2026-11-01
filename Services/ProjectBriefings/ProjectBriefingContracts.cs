@@ -112,6 +112,11 @@ public sealed class ProjectBriefingProjectVm
     // A deleted or archived project stays listed in the deck so it can be removed, but it is
     // left out of the PowerPoint, the readiness counts and the slide estimate.
     public bool IsDeletedOrArchived { get; init; }
+    // How the deck shows the project: its own slides, a table row only, or left out (kept in the
+    // deck but not in the PowerPoint).
+    public ProjectBriefingItemPresentation Presentation { get; init; } = ProjectBriefingItemPresentation.Slides;
+    // In the PowerPoint at all: neither deleted/archived nor left out by choice.
+    public bool IsPresented => !IsDeletedOrArchived && Presentation != ProjectBriefingItemPresentation.LeftOut;
     public string PresentStageCode { get; init; } = string.Empty;
     public string PresentStage { get; init; } = string.Empty;
     public int PresentStageOrder { get; init; } = ProjectBriefingStageOrder.Unknown;
@@ -427,6 +432,8 @@ public sealed class ProjectBriefingPresentationProject
     public string? ProjectOfficer { get; init; }
     public string? LineDirectorate { get; init; }
     public int SortOrder { get; init; }
+    // Listed in a status table only; no slides of its own.
+    public bool TableRowOnly { get; init; }
     public int? CoverPhotoId { get; init; }
     public bool CoverPhotoIsReady { get; init; }
     public byte[]? CoverPhoto { get; set; }

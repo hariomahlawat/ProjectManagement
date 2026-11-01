@@ -16,6 +16,16 @@ public enum ProjectBriefingPresentationMode
     Combined = 3
 }
 
+// How one project appears in its deck. A table row only project is listed in the status table
+// (or, in decks without one, in a short table after the project slides) but gets no slides of its
+// own; a left-out project stays in the deck for later but is not in the PowerPoint.
+public enum ProjectBriefingItemPresentation
+{
+    Slides = 0,
+    TableRowOnly = 1,
+    LeftOut = 2
+}
+
 public enum ProjectBriefingCostMode
 {
     CostRdOnly = 1,
@@ -248,6 +258,8 @@ public sealed class ProjectBriefingDeckItem
 
     [MaxLength(1200)]
     public string? BriefDescriptionOverride { get; set; }
+
+    public ProjectBriefingItemPresentation Presentation { get; set; } = ProjectBriefingItemPresentation.Slides;
 
     public DateTimeOffset AddedAtUtc { get; set; }
 }
