@@ -945,7 +945,8 @@ if (root) {
   };
 
   // Navigation and full-page posts go ahead only once the settings are saved, or when the
-  // person chooses to leave them unsaved.
+  // person chooses to leave them unsaved. Forms that ask their own question first (remove an
+  // additional slide) call it through the root after that question.
   const settleSettingsBeforeLeaving = async () => {
     if (!settingsPending() || await saveSettingsNow()) return true;
     const discard = await prismConfirm({
@@ -959,6 +960,7 @@ if (root) {
     if (discard) settingsDiscarded = true;
     return discard;
   };
+  root.pbdSettleSettings = settleSettingsBeforeLeaving;
 
   // Kept under its earlier name: the row, profile-module and stage-summary editors call it.
   const refreshSettingsDirtyState = (delay = 700) => {
@@ -1039,11 +1041,21 @@ if (root) {
       renameName?.focus();
       return;
     }
+    const previousName = settingsName?.value || '';
+    const previousDescription = settingsDescription?.value || '';
     if (settingsName) settingsName.value = name;
     if (settingsDescription) settingsDescription.value = (renameDescription?.value || '').trim();
     setRenaming(false);
-    await saveSettingsNow();
-    root.querySelector('[data-pbd-rename]')?.focus();
+    if (await saveSettingsNow()) {
+      root.querySelector('[data-pbd-rename]')?.focus();
+      return;
+    }
+    // A refused name (already taken, say) must not ride along with every later settings save:
+    // restore the saved name and reopen the editor with what was typed.
+    if (settingsName) settingsName.value = previousName;
+    if (settingsDescription) settingsDescription.value = previousDescription;
+    setRenaming(true);
+    renameName?.focus();
   });
 
   const confirmProfileNavigation = async () => {
@@ -1076,7 +1088,7 @@ if (root) {
         || submittedForm === settingsForm
         || submittedForm === profileForm
         || submittedForm === renameForm
-        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form]')) return;
+        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form], [data-pbd-remove-additional-slide-form]')) return;
     if (!settingsPending() && !profileDirty) return;
 
     event.preventDefault();

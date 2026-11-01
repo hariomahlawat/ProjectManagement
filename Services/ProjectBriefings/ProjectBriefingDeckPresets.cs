@@ -107,7 +107,8 @@ public static class ProjectBriefingDeckPresets
 
     // Whether the deck still has every setting its preset decides. Only the settings that matter
     // for the chosen template are compared: an update-sheet deck ignores standard-briefing
-    // choices, and a standard deck ignores the update-sheet rows.
+    // choices, and a standard deck ignores the update-sheet rows. The SDD profile counts only
+    // for a preset that adds it; the others leave it as the deck had it.
     public static bool Matches(ProjectBriefingDeckPreset preset, ProjectBriefingDeckPresetState current)
     {
         ArgumentNullException.ThrowIfNull(current);
@@ -115,7 +116,7 @@ public static class ProjectBriefingDeckPresets
         if (current.Layout != expected.Layout
             || current.PresentationTheme != expected.PresentationTheme
             || current.ClosingSlideType != expected.ClosingSlideType
-            || current.IncludesInstitutionalProfile != expected.IncludesInstitutionalProfile)
+            || (expected.IncludesInstitutionalProfile && !current.IncludesInstitutionalProfile))
         {
             return false;
         }

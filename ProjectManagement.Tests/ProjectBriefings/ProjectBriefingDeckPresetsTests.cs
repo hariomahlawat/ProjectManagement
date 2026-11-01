@@ -23,7 +23,19 @@ public sealed class ProjectBriefingDeckPresetsTests
 
         Assert.False(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.MonthlyCommandReview, monthly with { CostMode = ProjectBriefingCostMode.None }));
         Assert.False(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.MonthlyCommandReview, monthly with { PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark }));
-        Assert.False(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.MonthlyCommandReview, monthly with { IncludesInstitutionalProfile = true }));
+        var visit = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.VisitOrExternalAudience).State;
+        Assert.False(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.VisitOrExternalAudience, visit with { IncludesInstitutionalProfile = false }));
+    }
+
+    [Fact]
+    public void APresetThatLeavesTheProfileAlone_IsNotAdjustedByIt()
+    {
+        // Applying Monthly or Update sheets keeps an SDD profile the deck already had.
+        var monthly = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.MonthlyCommandReview).State;
+        var sheets = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.ProjectUpdateSheets).State;
+
+        Assert.True(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.MonthlyCommandReview, monthly with { IncludesInstitutionalProfile = true }));
+        Assert.True(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.ProjectUpdateSheets, sheets with { IncludesInstitutionalProfile = true }));
     }
 
     [Fact]

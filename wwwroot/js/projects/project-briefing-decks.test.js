@@ -160,6 +160,12 @@ test('in-place deck changes run one at a time with the latest row version', () =
   assert.ok(rowVersionReads.length > 0);
 });
 
+test('removing an additional slide asks first, then waits for a pending settings save', () => {
+  assert.match(source, /\[data-pbd-individual-form\], \[data-pbd-remove-additional-slide-form\]'\)\) return;/);
+  assert.match(source, /root\.pbdSettleSettings = settleSettingsBeforeLeaving;/);
+  assert.match(additionalSlidesSource, /if \(!confirmed\) return;[\s\S]*?if \(typeof root\.pbdSettleSettings === 'function' && !\(await root\.pbdSettleSettings\(\)\)\) return;\s*HTMLFormElement\.prototype\.submit\.call\(form\);/);
+});
+
 test('purpose presets apply on the server and the deck tab shows the current one', () => {
   assert.match(viewSource, /@foreach \(var preset in ProjectBriefingDeckPresets\.All\)/);
   assert.match(viewSource, /data-pbd-preset="@preset\.Preset"/);
@@ -172,7 +178,9 @@ test('the deck name and description are edited in the header and saved with the 
   assert.match(viewSource, /data-pbd-rename-form/);
   assert.match(viewSource, /<input type="hidden" name="Name" value="@deck\.Name" data-pbd-settings-name \/>/);
   const rename = source.slice(source.indexOf("renameForm?.addEventListener('submit'"));
-  assert.match(rename, /if \(settingsName\) settingsName\.value = name;[\s\S]*?await saveSettingsNow\(\);/);
+  assert.match(rename, /if \(settingsName\) settingsName\.value = name;[\s\S]*?if \(await saveSettingsNow\(\)\)/);
+  // A refused rename restores the saved name so later settings saves are not blocked by it.
+  assert.match(rename, /if \(settingsName\) settingsName\.value = previousName;/);
 });
 
 

@@ -31,7 +31,11 @@ if (root) {
         tone: 'danger',
         returnFocus: form.querySelector('button[type="submit"]')
       });
-      if (confirmed) HTMLFormElement.prototype.submit.call(form);
+      if (!confirmed) return;
+      // The page's submit guard skips this form so the two questions never overlap; wait for a
+      // pending settings save here instead.
+      if (typeof root.pbdSettleSettings === 'function' && !(await root.pbdSettleSettings())) return;
+      HTMLFormElement.prototype.submit.call(form);
     });
   });
 
