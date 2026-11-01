@@ -67,9 +67,10 @@ public sealed class ProjectContentPresentationContractTests
         var partial = ReadRepoFile("Pages", "Projects", "_ProjectContentTabs.cshtml");
 
         // Readers see the content; the word-count advice and readiness chips are for whoever writes it.
-        Assert.Matches(@"@if \(canEdit\)\s*\{\s*<div class=""project-content__guidance"">\s*Recommended:", partial);
+        // The brief has its own editor rule: Admin, HoD or the project's assigned PO.
+        Assert.Matches(@"@if \(canEditBrief\)\s*\{\s*<div class=""project-content__guidance"">\s*Recommended:", partial);
         Assert.Matches(@"@if \(canEdit\)\s*\{\s*<div class=""project-content__guidance"">\s*Use @ProjectFieldLimits", partial);
-        Assert.Matches(@"@if \(canEdit\)\s*\{\s*<span class=""project-content__status @briefStatusClass"">", partial);
+        Assert.Matches(@"@if \(canEditBrief\)\s*\{\s*<span class=""project-content__status @briefStatusClass"">", partial);
         Assert.Matches(@"@if \(canEdit\)\s*\{\s*<span class=""project-content__status @capabilityStatusClass"">", partial);
     }
 

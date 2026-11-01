@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Projects;
@@ -27,6 +28,10 @@ public partial class OverviewModel
     public ProjectCapabilityReadiness CapabilityReadiness { get; private set; }
     public string ProjectContentRowVersion { get; private set; } = string.Empty;
     public bool CanEditProjectContent => Roles.IsAdmin || Roles.IsHoD;
+
+    // The project brief can also be written by the project's own Project Officer, who knows the
+    // project best. Capabilities, specifications and the full description stay with Admin and HoD.
+    public bool CanEditProjectBrief => CanEditProjectContent || Roles.IsAssignedProjectOfficer;
 
     [BindProperty(SupportsGet = true, Name = "content")]
     public string? ContentTab { get; set; }
@@ -85,7 +90,7 @@ public partial class OverviewModel
 
     public async Task<IActionResult> OnPostSaveProjectBriefAsync(int id, CancellationToken ct)
     {
-        if (!CanCurrentUserEditProjectContent())
+        if (!CanCurrentUserEditProjectContent() && !await IsCurrentUserAssignedProjectOfficerAsync(id, ct))
         {
             return Forbid();
         }
@@ -261,6 +266,29 @@ public partial class OverviewModel
 
     private bool CanCurrentUserEditProjectContent() =>
         User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD);
+
+    // Same rule as the page's assigned-PO check: the Project Officer role and the project's lead PO.
+    private async Task<bool> IsCurrentUserAssignedProjectOfficerAsync(int projectId, CancellationToken ct)
+    {
+        if (!User.IsInRole(RoleNames.ProjectOfficer))
+        {
+            return false;
+        }
+
+        var userId = _users.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return false;
+        }
+
+        var leadPoUserId = await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => project.LeadPoUserId)
+            .FirstOrDefaultAsync(ct);
+
+        return string.Equals(leadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
+    }
 
     private async Task<(string UserId, string UserDisplay)> GetContentEditorIdentityAsync()
     {

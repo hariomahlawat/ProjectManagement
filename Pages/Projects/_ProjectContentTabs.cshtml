@@ -6,6 +6,7 @@
 @{
     var activeTab = Model.ContentTab ?? "brief";
     var canEdit = Model.CanEditProjectContent;
+    var canEditBrief = Model.CanEditProjectBrief;
     var briefIsActive = string.Equals(activeTab, "brief", StringComparison.OrdinalIgnoreCase);
     var capabilitiesAreActive = string.Equals(activeTab, "capabilities", StringComparison.OrdinalIgnoreCase);
     var technicalIsActive = string.Equals(activeTab, "technical", StringComparison.OrdinalIgnoreCase);
@@ -148,7 +149,7 @@
             <div class="project-content__view" data-content-view>
                 <div class="project-content__toolbar">
                     @* Writing guidance and the length chip are for whoever writes the brief. *@
-                    @if (canEdit)
+                    @if (canEditBrief)
                     {
                         <div class="project-content__guidance">
                             Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords words.
@@ -156,7 +157,7 @@
                         </div>
                     }
                     <div class="project-content__toolbar-actions">
-                        @if (canEdit)
+                        @if (canEditBrief)
                         {
                             <span class="project-content__status @briefStatusClass">@briefStatusText</span>
                             <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
@@ -181,7 +182,7 @@
                     </div>
                 }
             </div>
-            @if (canEdit)
+            @if (canEditBrief)
             {
                 <form method="post"
                       asp-page-handler="SaveProjectBrief"
