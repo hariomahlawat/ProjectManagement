@@ -143,13 +143,18 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
      listed last in the outline under "Not in the PowerPoint"). Checks, counts, photos and the
      slide estimate follow the choice. Column `ProjectBriefingDeckItems.Presentation` (default
      `Slides`, so existing decks are unchanged).
-   - 6b, done (this change): the photograph a deck shows for a project. This slide's
+   - 6b, done (#2847): the photograph a deck shows for a project. This slide's
      **Photograph** section (for projects with their own slides in a format that shows photos)
      opens the project's photos; choosing one stores it on the deck item
      (`ProjectBriefingDeckItems.PhotoId`), choosing the cover clears it so the deck follows the
      project's cover. Deleting the photo clears the choice (foreign key, set null); a stored
      photo that no longer belongs to the project is ignored.
-   - 6c: speaker notes written into the PowerPoint's notes.
+   - 6c, done (this change): speaker notes. This slide's **Speaker notes** box (for projects
+     with their own slides) saves when it loses focus or with Save notes
+     (`ProjectBriefingDeckItems.SpeakerNotes`, up to 4,000 characters). The composer writes them
+     into the PowerPoint's notes for the project's first slide only, adding a notes master
+     when the deck has notes (the template has none); the integrity check validates the notes
+     pages and master. The slide preview is unchanged.
    - 6d: continuation slides for long project briefs and Role & Charter (fixes 5).
 7. **Library and lifecycle**: deck cards (purpose, owner, last generated and presented, search,
    pin, archive); Draft, Finalised (locked, PowerPoint kept on the LAN store), Presented; a

@@ -127,10 +127,13 @@ test('settings drawer keeps a consistent appearance section and compact default 
 });
 
 test('pending settings saves finish before navigation, posts and generation', () => {
-  assert.match(source, /if \(!settingsPending\(\) && !profileDirty\) return;\s*event\.preventDefault\(\);\s*event\.returnValue = '';/);
+  assert.match(source, /if \(!settingsPending\(\) && !profileDirty && !notesUnsaved\(\)\) return;\s*event\.preventDefault\(\);\s*event\.returnValue = '';/);
   // A failed save keeps the form unsaved, and leaving then asks instead of going ahead.
   assert.match(source, /serializeSettings\(\) !== settingsSavedState\)\);/);
-  assert.match(source, /if \(!settingsPending\(\) \|\| await saveSettingsNow\(\)\) return true;\s*const discard = await prismConfirm\(/);
+  assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*const discard = await prismConfirm\(/);
+  // Speaker notes the Studio could not save are protected the same way.
+  assert.match(source, /return settleNotesBeforeLeaving\(\);/);
+  assert.match(source, /const settleNotesBeforeLeaving = async \(\) => \{[\s\S]*?await deckMutationTail;\s*if \(!notesUnsaved\(\)\) return true;\s*const discard = await prismConfirm\(/);
   assert.match(source, /document\.addEventListener\('click'[\s\S]*?if \(!\(await settleSettingsBeforeLeaving\(\)\)\) return;/);
   assert.match(source, /document\.addEventListener\('submit'[\s\S]*?if \(!\(await settleSettingsBeforeLeaving\(\)\)\) return;/);
   assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*setState\(generateStatus, 'Save the deck settings before generating the PowerPoint\.', 'error'\);/);
@@ -437,4 +440,24 @@ test('the Studio chooses the photograph a deck shows, saved through the deck que
   assert.match(source, /document\.addEventListener\('pbd:set-project-photo'[\s\S]*?runDeckMutation\(async \(\) => \{[\s\S]*?root\.dataset\.itemPhotoUrl/);
   assert.match(source, /new CustomEvent\('pbd:project-photo-failed'/);
   assert.match(viewSource, /data-photo-options-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "PhotoOptions"\)"/);
+});
+
+test('speaker notes are edited in the inspector and saved through the deck queue', () => {
+  assert.match(studioSource, /if \(hasOwnSlides\(project\)\) nodes\.push\(notesSection\(project\)\);/);
+  assert.match(studioSource, /field\.addEventListener\('blur', \(\) => saveNotes\(project\)\);/);
+  assert.match(studioSource, /new CustomEvent\('pbd:set-project-notes', \{ detail: \{ projectId: project\.projectId, notes: text \} \}\)/);
+  // A draft survives re-rendering until the saved notes come back with the deck.
+  assert.match(studioSource, /const notesText = \(project\) => notesDrafts\.get\(project\.projectId\)\?\.text \?\? \(project\.speakerNotes \|\| ''\);/);
+  // Each project keeps its own draft, so a failed save is not lost by typing notes elsewhere.
+  assert.match(studioSource, /const notesDrafts = new Map\(\);/);
+  assert.match(studioSource, /const unsaved = \[\.\.\.notesDrafts\]\.some\(/);
+  assert.match(source, /document\.addEventListener\('pbd:set-project-notes'[\s\S]*?runDeckMutation\(async \(\) => \{[\s\S]*?root\.dataset\.speakerNotesUrl/);
+  assert.match(viewSource, /data-speaker-notes-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateSpeakerNotes"\)"/);
+});
+
+test('generating waits for in-place saves and refuses unsaved speaker notes', () => {
+  const generate = source.slice(source.indexOf("generateForm?.addEventListener('submit'"));
+  assert.match(generate, /await deckMutationTail;\s*if \(document\.querySelector\('\[data-pbd-studio\]\[data-unsaved-notes="true"\]'\)\) \{\s*setState\(generateStatus, 'Save the speaker notes before generating the PowerPoint\.', 'error'\);/);
+  assert.match(studioSource, /root\.dataset\.unsavedNotes = String\(unsaved\);/);
+  assert.match(studioSource, /notesDrafts\.set\(project\.projectId, \{ text: field\.value, saving: false, error: '' \}\);\s*markUnsavedNotes\(\);/);
 });

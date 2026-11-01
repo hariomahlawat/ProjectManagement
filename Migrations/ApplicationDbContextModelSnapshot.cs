@@ -5955,6 +5955,10 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SpeakerNotes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DeckId", "ProjectId")

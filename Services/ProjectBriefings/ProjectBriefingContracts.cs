@@ -134,6 +134,8 @@ public sealed class ProjectBriefingProjectVm
     // stored and still belongs to the project (ChosenPhotoId), otherwise the project's cover.
     public int? ChosenPhotoId { get; init; }
     public int? CoverPhotoId { get; init; }
+    // Written into the speaker notes of the project's first slide.
+    public string? SpeakerNotes { get; init; }
     public string? CoverPhotoReadinessReason { get; init; }
     /// <summary>Presentation-ready capability overview. Retained under the legacy name for deck-specific overrides.</summary>
     public string BriefDescription { get; init; } = string.Empty;
@@ -447,6 +449,7 @@ public sealed class ProjectBriefingPresentationProject
     public int SortOrder { get; init; }
     // Listed in a status table only; no slides of its own.
     public bool TableRowOnly { get; init; }
+    public string? SpeakerNotes { get; init; }
     public int? CoverPhotoId { get; init; }
     public bool CoverPhotoIsReady { get; init; }
     public byte[]? CoverPhoto { get; set; }

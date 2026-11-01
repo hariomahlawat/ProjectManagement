@@ -4985,3 +4985,36 @@ body.pbd-profile-drawer-open {
 .pbd-inspector__note.is-error {
     color: var(--pbd-red);
 }
+
+/* Speaker notes: written into the PowerPoint's notes, not shown on the slide. */
+.pbd-inspector__notes {
+    display: grid;
+    gap: .35rem;
+}
+
+.pbd-inspector__notes textarea {
+    resize: vertical;
+    min-height: 6rem;
+    font-size: .82rem;
+}
+
+.pbd-inspector__notes-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem .6rem;
+}
+
+.pbd-inspector__notes-state {
+    flex: 1 1 8rem;
+    color: var(--pbd-muted);
+}
+
+.pbd-inspector__notes-state.is-error {
+    color: var(--pbd-red);
+}
+
+.pbd-inspector__notes-count {
+    color: var(--pbd-muted);
+    font-variant-numeric: tabular-nums;
+}

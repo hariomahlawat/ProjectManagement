@@ -345,6 +345,79 @@ if (root) {
     return section;
   };
 
+  // Speaker notes: written into the PowerPoint's notes for the project's first slide. Each
+  // project keeps its own draft until it is saved, through rebuilds, other saves and moving
+  // between projects.
+  const NOTES_MAX = 4000;
+  const notesDrafts = new Map();
+  const hasOwnSlides = (project) => !project.isDeletedOrArchived
+    && (project.presentation || 'Slides') === 'Slides'
+    && (deckShape.layout === 'ProjectUpdateSheet' || deckShape.mode !== 'ExecutiveTable');
+  const notesText = (project) => notesDrafts.get(project.projectId)?.text ?? (project.speakerNotes || '');
+  const differsFromSaved = (projectId, text) => text.trim() !== (projects.get(projectId)?.speakerNotes || '').trim();
+  // Tells the builder (Generate) whether any project holds notes that are not saved.
+  const markUnsavedNotes = () => {
+    const unsaved = [...notesDrafts].some(([projectId, draft]) => projects.has(projectId) && differsFromSaved(projectId, draft.text));
+    root.dataset.unsavedNotes = String(unsaved);
+  };
+
+  const saveNotes = (project) => {
+    const draft = notesDrafts.get(project.projectId);
+    const text = notesText(project).trim();
+    if (draft?.saving) return;
+    if (!differsFromSaved(project.projectId, text)) {
+      notesDrafts.delete(project.projectId);
+      markUnsavedNotes();
+      return;
+    }
+    if (text.length > NOTES_MAX) return;
+    notesDrafts.set(project.projectId, { text, saving: true, error: '' });
+    refreshInspector();
+    document.dispatchEvent(new CustomEvent('pbd:set-project-notes', { detail: { projectId: project.projectId, notes: text } }));
+  };
+
+  const notesSection = (project) => {
+    const section = el('div', 'pbd-inspector__notes');
+    const label = el('label', 'pbd-inspector__heading', 'Speaker notes');
+    const field = el('textarea', 'form-control form-control-sm');
+    field.id = `pbd-speaker-notes-${project.projectId}`;
+    label.htmlFor = field.id;
+    field.rows = 5;
+    field.maxLength = NOTES_MAX;
+    field.placeholder = 'What to say on this project. Shown to the presenter, not on the slide.';
+    field.value = notesText(project);
+    const draft = notesDrafts.get(project.projectId);
+    field.disabled = Boolean(draft?.saving);
+    const footer = el('div', 'pbd-inspector__notes-footer');
+    const state = el('small', 'pbd-inspector__notes-state');
+    const counter = el('small', 'pbd-inspector__notes-count');
+    const save = el('button', 'btn btn-sm btn-outline-primary', 'Save notes');
+    save.type = 'button';
+    const refresh = () => {
+      const dirty = field.value.trim() !== (project.speakerNotes || '').trim();
+      counter.textContent = `${field.value.length} / ${NOTES_MAX}`;
+      save.disabled = !dirty || field.disabled;
+      if (draft?.error) {
+        state.textContent = draft.error;
+        state.className = 'pbd-inspector__notes-state is-error';
+      } else {
+        state.textContent = field.disabled ? 'Saving…' : (dirty ? 'Not saved yet' : (project.speakerNotes ? 'Saved. On the project’s first slide.' : ''));
+        state.className = 'pbd-inspector__notes-state';
+      }
+    };
+    field.addEventListener('input', () => {
+      notesDrafts.set(project.projectId, { text: field.value, saving: false, error: '' });
+      markUnsavedNotes();
+      refresh();
+    });
+    field.addEventListener('blur', () => saveNotes(project));
+    save.addEventListener('click', () => saveNotes(project));
+    refresh();
+    footer.append(state, counter, save);
+    section.append(label, field, footer);
+    return section;
+  };
+
   const entryTitle = (entry) => {
     if (entry.projectId) return projects.get(entry.projectId)?.projectName || slides[entry.indices[0]]?.title || 'Project';
     const title = (slides[entry.indices[0]]?.title || ROLES[entry.role]?.label || '').replace(/\s*\(\d+\/\d+\)$/, '');
@@ -623,6 +696,7 @@ if (root) {
       nodes.push(facts);
       if (!project.isDeletedOrArchived) nodes.push(presentationControl(project));
       if (usesPhoto(project)) nodes.push(photoSection(project));
+      if (hasOwnSlides(project)) nodes.push(notesSection(project));
 
       nodes.push(el('h5', 'pbd-inspector__heading', 'Present status'));
       nodes.push(project.externalStatus
@@ -1017,6 +1091,16 @@ if (root) {
     selectIndex(current + (event.key === 'ArrowRight' ? 1 : -1));
   });
 
+  // Speaker notes the server refused: keep the draft and say why.
+  document.addEventListener('pbd:project-notes-failed', (event) => {
+    const projectId = Number(event.detail?.projectId);
+    const draft = notesDrafts.get(projectId);
+    if (!draft) return;
+    notesDrafts.set(projectId, { ...draft, saving: false, error: event.detail?.message || 'The speaker notes could not be saved.' });
+    markUnsavedNotes();
+    refreshInspector();
+  });
+
   // A photo choice the server refused: say why and let the person choose again.
   document.addEventListener('pbd:project-photo-failed', (event) => {
     if (photoPicker.projectId !== Number(event.detail?.projectId)) return;
@@ -1041,9 +1125,17 @@ if (root) {
     if (typeof event.detail?.hasProjects === 'boolean') hasProjects = event.detail.hasProjects;
     if (event.detail?.deck) {
       if (photoPicker.saving) photoPicker = { ...photoPicker, saving: false };
+      // Saved notes come back with the deck; a draft that now matches them is done.
+      const savedNotes = new Map((event.detail.deck.projects || []).map((project) => [project.projectId, project.speakerNotes || '']));
+      notesDrafts.forEach((draft, projectId) => {
+        if (!draft.saving) return;
+        if ((savedNotes.get(projectId) || '').trim() === draft.text.trim()) notesDrafts.delete(projectId);
+        else notesDrafts.set(projectId, { ...draft, saving: false });
+      });
       if (event.detail.deck.layout) deckShape.layout = event.detail.deck.layout;
       if (event.detail.deck.presentationMode) deckShape.mode = event.detail.deck.presentationMode;
       readStudioData({ projects: event.detail.deck.projects, contentGaps: event.detail.deck.contentGaps });
+      markUnsavedNotes();
       renderOutline();
       renderStage();
       renderChecksPanel();

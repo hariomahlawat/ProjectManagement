@@ -133,6 +133,14 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    Task<string> UpdateItemSpeakerNotesAsync(
+        long deckId,
+        int projectId,
+        string requestingUserId,
+        string? notes,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task<string> UpdateItemPhotoAsync(
         long deckId,
         int projectId,
@@ -326,6 +334,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                     BriefDescriptionOverride = item.BriefDescriptionOverride,
                     Presentation = item.Presentation,
                     PhotoId = item.PhotoId,
+                    SpeakerNotes = item.SpeakerNotes,
                     AddedAtUtc = now
                 })
                 .ToList()
@@ -1131,6 +1140,49 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 ["To"] = presentation.ToString()
             });
         return Encode(deck.RowVersion);
+    }
+
+    public async Task<string> UpdateItemSpeakerNotesAsync(
+        long deckId,
+        int projectId,
+        string requestingUserId,
+        string? notes,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeSpeakerNotes(notes);
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
+        var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
+            ?? throw new KeyNotFoundException("The project is not part of this deck.");
+        if (string.Equals(item.SpeakerNotes, normalized, StringComparison.Ordinal))
+        {
+            return Encode(deck.RowVersion);
+        }
+
+        item.SpeakerNotes = normalized;
+        Touch(deck, userId);
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync("ProjectBriefing.SpeakerNotesUpdated", userId, deck, "Project briefing speaker notes updated.",
+            new Dictionary<string, string?> { ["ProjectId"] = projectId.ToString() });
+        return Encode(deck.RowVersion);
+    }
+
+    public const int SpeakerNotesMaxLength = 4000;
+
+    private static string? NormalizeSpeakerNotes(string? value)
+    {
+        var text = value?.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        return text.Length > SpeakerNotesMaxLength
+            ? throw new InvalidOperationException($"Speaker notes can hold up to {SpeakerNotesMaxLength} characters.")
+            : text;
     }
 
     public async Task<string> UpdateItemPhotoAsync(
