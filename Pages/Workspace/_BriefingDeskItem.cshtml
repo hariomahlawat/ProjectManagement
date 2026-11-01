@@ -11,7 +11,7 @@
     var kindKey = BriefingDeskLabels.KindKey(item.Kind);
     var (handler, postLabel, postHint, placeholder, sayTitle, addAnother) = item.Kind switch
     {
-        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post remark", "Saved as a project remark. Counts as your weekly update.", "One or two lines: what moved, what is blocked, what is next.", "Your remark this week", "Add another remark"),
+        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post remark", "Saved as a project remark.", "One or two lines: what moved, what is blocked, what is next.", "Your remark", "Add another remark"),
         ConferenceItemKind.ProjectIdea => ("DeskIdeaNote", "Post note", "Saved as a note on the idea.", "What you explored or learned since the last note.", "Note on progress", "Add another note"),
         _ => ("DeskTaskProgress", "Post progress", "Saved as a progress update on the task.", "What is done, what remains, any blocker.", "Progress on this task", "Add more progress")
     };
@@ -46,7 +46,7 @@
 
     var conference = item.Conference;
 }
-<article class="bd-card @(item.IsBriefReady ? "bd-card--ready" : "bd-card--open") @(Model.IsOpen ? "is-expanded" : string.Empty)"
+<article class="bd-card @(item.IsBriefReady ? "bd-card--ready" : "bd-card--open") @(Model.IsOpen ? "is-expanded" : string.Empty) @(sayOpen && item.StageToConfirm is not null ? "bd-card--stage-in-box" : string.Empty)"
          id="@anchor"
          data-bd-card
          data-bd-ready="@(item.IsBriefReady ? "true" : "false")"
@@ -152,6 +152,18 @@
                                   maxlength="4000"
                                   required
                                   placeholder="@placeholder">@bodyDraft</textarea>
+                        @if (item.StageToConfirm is { } stageToConfirm)
+                        {
+                            @* Ticked, the remark is tagged with the stage: that is the PO's stage confirmation.
+                               The server checks the code against the current stage before saving. *@
+                            <div class="bd-say__stage">
+                                <label class="bd-say__stage-check">
+                                    <input type="checkbox" name="confirmStage" value="@stageToConfirm.Code" checked />
+                                    <span>Stage is still <strong>@stageToConfirm.Label</strong></span>
+                                </label>
+                                <a class="bd-link bd-link--small" href="@stageToConfirm.ProjectPageUrl" target="@stageToConfirm.ProjectTabName">Wrong stage? Change it<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> on the project page (opens in the project's tab)</span></a>
+                            </div>
+                        }
                         <div class="bd-say__actions">
                             <button type="submit" class="bd-btn bd-btn--primary">@postLabel</button>
                             <span class="bd-say__hint">@postHint</span>

@@ -4,12 +4,14 @@
     var check = Model;
     var stateClass = check.State switch
     {
+        BriefingDeskCheckState.Done when check.IsDueSoon => "bd-check--soon",
         BriefingDeskCheckState.Done => "bd-check--done",
         BriefingDeskCheckState.Submitted => "bd-check--done",
         _ => "bd-check--open"
     };
     var stateLabel = check.State switch
     {
+        BriefingDeskCheckState.Done when check.IsDueSoon => "Due soon",
         BriefingDeskCheckState.Done => "Done",
         BriefingDeskCheckState.Submitted => "Done",
         _ => check.IsRequired ? "To do" : "Optional"
@@ -24,18 +26,25 @@
         _ => string.Empty
     };
 }
-<li class="bd-check @stateClass">
+<li class="bd-check @stateClass" data-check="@check.Key">
     <span class="bd-check__mark" aria-hidden="true">@if (!string.IsNullOrEmpty(icon)) { <i class="bi @icon"></i> }</span>
     <div class="bd-check__copy">
         <span class="visually-hidden">@stateLabel: </span>
         <strong>@check.Label</strong>
         <span>@check.Detail</span>
+        @if (!string.IsNullOrWhiteSpace(check.SecondaryUrl) && !string.IsNullOrWhiteSpace(check.SecondaryText))
+        {
+            <a class="bd-check__secondary" href="@check.SecondaryUrl" target="@(check.SecondaryTarget ?? "_blank")">@check.SecondaryText<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (opens in another tab)</span></a>
+        }
     </div>
     <div class="bd-check__action">
         @switch (check.State)
         {
             case BriefingDeskCheckState.Submitted:
                 <span class="bd-check__state bd-check__state--done">@check.StateText</span>
+                break;
+            case BriefingDeskCheckState.Done when check.IsDueSoon:
+                <span class="bd-check__state bd-check__state--soon">Due soon</span>
                 break;
             case BriefingDeskCheckState.Done:
                 <span class="bd-check__state bd-check__state--done">Done</span>
@@ -57,7 +66,11 @@
                 }
                 else if (check.Route == BriefingDeskRoute.Update)
                 {
-                    <small class="bd-check__route">Write it in the box</small>
+                    <small class="bd-check__route">@(check.Key == "stage" ? "Tick it on your remark" : "Write it in the box")</small>
+                }
+                else if (!string.IsNullOrWhiteSpace(check.SecondaryUrl))
+                {
+                    <small class="bd-check__route">On the project page</small>
                 }
                 else
                 {

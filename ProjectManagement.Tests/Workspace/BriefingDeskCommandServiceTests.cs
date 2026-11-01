@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.ActionTasks;
@@ -37,6 +38,47 @@ public sealed class BriefingDeskCommandServiceTests
         Assert.Equal(OfficerId, request.Actor.UserId);
         Assert.Equal("Vendor trials moved to 4 Nov.", request.Body);
         Assert.Equal(new DateOnly(2030, 1, 15), request.EventDate);
+    }
+
+    [Fact]
+    public async Task ProjectUpdate_WithoutTheStageTick_LeavesTheRemarkUntagged()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        await scope.AddCurrentStageAsync("DEVP");
+
+        var result = await scope.Service.PostProjectUpdateAsync(Officer(), OfficerId, 10, "Update", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Null(scope.Remarks.Request!.StageRef);
+        Assert.Null(scope.Remarks.Request.StageNameSnapshot);
+    }
+
+    [Fact]
+    public async Task ProjectUpdate_WithTheStageTick_TagsTheRemarkWithTheCurrentStage()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        await scope.AddCurrentStageAsync("DEVP");
+
+        var result = await scope.Service.PostProjectUpdateAsync(Officer(), OfficerId, 10, "Update", CancellationToken.None, confirmStage: "devp");
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("DEVP", scope.Remarks.Request!.StageRef);
+        Assert.Equal("Development", scope.Remarks.Request.StageNameSnapshot);
+        Assert.Contains("Stage DEVP confirmed", result.Message);
+    }
+
+    [Fact]
+    public async Task ProjectUpdate_ConfirmingAStageThatIsNoLongerCurrent_IsRefused()
+    {
+        // The page was loaded while DEVP was current; the stage has since moved to ATP.
+        await using var scope = await TestScope.CreateAsync();
+        await scope.AddCurrentStageAsync("ATP");
+
+        var result = await scope.Service.PostProjectUpdateAsync(Officer(), OfficerId, 10, "Update", CancellationToken.None, confirmStage: "DEVP");
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("now ATP", result.Message);
+        Assert.Null(scope.Remarks.Request);
     }
 
     [Fact]
@@ -277,6 +319,12 @@ public sealed class BriefingDeskCommandServiceTests
             scope.IdeaId = idea.Id;
             scope.TaskId = task.Id;
             return scope;
+        }
+
+        public async Task AddCurrentStageAsync(string code)
+        {
+            Db.ProjectStages.Add(new ProjectStage { ProjectId = 10, StageCode = code, SortOrder = 1, Status = StageStatus.InProgress });
+            await Db.SaveChangesAsync();
         }
 
         public ValueTask DisposeAsync() => Db.DisposeAsync();

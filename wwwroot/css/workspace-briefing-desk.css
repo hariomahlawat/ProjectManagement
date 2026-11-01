@@ -145,6 +145,8 @@
 .bd-main {
     flex: 999 1 34rem;
     min-width: 0;
+    /* The card grid below follows the desk column's own width, not the window's. */
+    container: bd-main / inline-size;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -236,6 +238,17 @@
 .bd-card__toggle:focus-visible {
     outline: 2px solid var(--pm-primary);
     outline-offset: 3px;
+}
+
+/* Inside a section headed "Projects" (or Ideas, Tasks) the kind label repeats the heading, so it
+   is kept for screen readers only. */
+.bd-section .bd-card__kind {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
 }
 
 .bd-card__kind {
@@ -1122,6 +1135,119 @@
 
 .bd-empty span {
     color: var(--pm-text-secondary);
+}
+
+/* SECTION: Stage confirmation, due-soon and secondary links -------------- */
+.bd-say__stage {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 1rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: 0.6rem;
+    background: var(--pm-surface-subtle);
+    border: 1px solid var(--pm-border-subtle);
+}
+
+.bd-say__stage-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--pm-text-strong);
+    cursor: pointer;
+}
+
+.bd-say__stage-check input {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: var(--pm-primary);
+}
+
+.bd-check--soon .bd-check__mark {
+    border-style: solid;
+    border-color: var(--pm-warning-soft-border);
+    background: var(--pm-warning-soft-bg);
+}
+
+.bd-check__state--soon {
+    color: var(--pm-warning-soft-text);
+}
+
+/* With the remark box open, the "wrong stage" link sits beside the tick, so the stage step
+   does not repeat it. */
+.bd-card--stage-in-box .bd-check[data-check="stage"] .bd-check__secondary {
+    display: none;
+}
+
+.bd-check__secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    width: fit-content;
+    font-size: 0.78rem;
+    color: var(--pm-primary-strong);
+}
+
+.bd-check__secondary i,
+.bd-say__stage .bd-link i {
+    font-size: 0.7rem;
+}
+
+/* PDC panel: the stage question comes before the form. */
+.bd-plan-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.bd-plan-stage[hidden],
+.bd-plan-form[hidden] {
+    display: none;
+}
+
+.bd-plan-stage__question {
+    margin: 0;
+    font-size: 0.9375rem;
+}
+
+.bd-plan-stage__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* SECTION: Wide screens -------------------------------------------------- */
+/* When the desk column has room (about 1920px screens and up), folded cards sit two to a row,
+   halving the scroll through a long desk. An open card spans the row, so the remark box and
+   the steps keep their width. */
+@container bd-main (min-width: 68rem) {
+    .bd-section__items {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+
+    .bd-section__items > .bd-card.is-expanded {
+        grid-column: 1 / -1;
+    }
+
+    /* In an open card the remark box and the steps sit side by side at equal width. */
+    .bd-card__work {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 1.5rem;
+    }
+}
+
+/* Very wide desk column (2240px shell on a 2560px screen): three folded cards to a row. */
+@container bd-main (min-width: 100rem) {
+    .bd-section__items {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
 }
 
 /* SECTION: Small screens ------------------------------------------------ */

@@ -317,9 +317,9 @@ public class IndexModel : PageModel
     // Each post returns to the desk with the same card open; failures keep the typed text.
     // Posted by the desk's script, the reply is the re-rendered desk instead, so the page does
     // not reload; a plain form post (no script) keeps the redirect.
-    public Task<IActionResult> OnPostDeskProjectUpdateAsync(int itemId, string? body, CancellationToken ct)
+    public Task<IActionResult> OnPostDeskProjectUpdateAsync(int itemId, string? body, CancellationToken ct, string? confirmStage = null)
         => RunDeskCommandAsync(ConferenceItemKind.Project, itemId, body, BriefingDeskDraftFields.Body,
-            userId => _deskCommands.PostProjectUpdateAsync(User, userId, itemId, body, ct), ct);
+            userId => _deskCommands.PostProjectUpdateAsync(User, userId, itemId, body, ct, confirmStage), ct);
 
     public Task<IActionResult> OnPostDeskIdeaNoteAsync(int itemId, string? body, CancellationToken ct)
         => RunDeskCommandAsync(ConferenceItemKind.ProjectIdea, itemId, body, BriefingDeskDraftFields.Body,

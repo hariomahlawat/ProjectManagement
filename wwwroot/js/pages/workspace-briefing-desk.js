@@ -243,6 +243,29 @@
             });
     }
 
+    // The PDC panel asks "Is <stage> the project's current stage?" before its form. "Yes" shows
+    // the form; "No" is a link to the project page, so it needs no script.
+    function confirmPlanStage(event) {
+        const yes = event.target instanceof window.Element ? event.target.closest('[data-bd-plan-stage-yes]') : null;
+        if (!yes) {
+            return;
+        }
+        const body = yes.closest('.offcanvas-body');
+        const question = body ? body.querySelector('[data-bd-plan-stage]') : null;
+        const form = body ? body.querySelector('[data-bd-plan-form]') : null;
+        if (!form) {
+            return;
+        }
+        form.hidden = false;
+        if (question) {
+            question.hidden = true;
+        }
+        const date = form.querySelector('input[type="date"]');
+        if (date) {
+            date.focus();
+        }
+    }
+
     function wireDesk(desk) {
         desk.querySelectorAll('[data-bd-card]').forEach(wireCard);
     }
@@ -257,6 +280,7 @@
         toastContainer();
         // Delegated, so forms in a swapped-in desk are handled too.
         document.addEventListener('submit', postWithoutReload);
+        document.addEventListener('click', confirmPlanStage);
 
         // A post returns here with the card's id in the hash: open it and move focus to it.
         const hash = window.location.hash ? window.location.hash.slice(1) : '';

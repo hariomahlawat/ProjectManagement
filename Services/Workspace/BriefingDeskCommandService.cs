@@ -6,6 +6,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.ProjectIdeas;
 using ProjectManagement.Services.Remarks;
@@ -73,23 +74,42 @@ public sealed class BriefingDeskCommandService
     }
 
     // SECTION: Project update (an Internal remark by the assigned PO)
+    // confirmStage is the stage code the PO ticked "Stage is still …" for. It is checked against
+    // the project's current stage now, never trusted as sent: a match tags the remark with the
+    // stage (the desk's stage confirmation); a stage that moved since the page loaded is refused.
     public async Task<BriefingDeskCommandResult> PostProjectUpdateAsync(
         ClaimsPrincipal user,
         string userId,
         int projectId,
         string? body,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? confirmStage = null)
     {
         if (!TryNormalizeBody(body, out var text, out var error)) return error!;
         if (!user.IsInRole(RoleNames.ProjectOfficer)) return BriefingDeskCommandResult.Forbidden();
 
         var project = await _db.Projects
             .AsNoTracking()
-            .Where(p => p.Id == projectId && !p.IsDeleted)
-            .Select(p => new { p.Id, p.LeadPoUserId })
-            .FirstOrDefaultAsync(ct);
+            .Include(p => p.ProjectStages)
+            .FirstOrDefaultAsync(p => p.Id == projectId && !p.IsDeleted, ct);
         if (project is null) return BriefingDeskCommandResult.NotFound("The project");
         if (!string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase)) return BriefingDeskCommandResult.Forbidden();
+
+        string? stageRef = null;
+        string? stageName = null;
+        if (!string.IsNullOrWhiteSpace(confirmStage))
+        {
+            var current = WorkspaceNudgeService.GetCurrentStage(project);
+            if (current is null || !string.Equals(current.StageCode, confirmStage.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return BriefingDeskCommandResult.Invalid(current is null
+                    ? "The project no longer has a current stage. Reload the desk before confirming the stage."
+                    : $"The current stage is now {current.StageCode}. Reload the desk before confirming the stage.");
+            }
+
+            stageRef = current.StageCode;
+            stageName = StageCodes.DisplayNameOf(current.StageCode);
+        }
 
         var actor = new RemarkActorContext(userId, RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         try
@@ -102,8 +122,8 @@ public sealed class BriefingDeskCommandService
                     Scope: RemarkScope.General,
                     Body: text,
                     EventDate: DateOnly.FromDateTime(_clock.IstToday),
-                    StageRef: null,
-                    StageNameSnapshot: null,
+                    StageRef: stageRef,
+                    StageNameSnapshot: stageName,
                     Meta: null),
                 ct);
         }
@@ -112,7 +132,7 @@ public sealed class BriefingDeskCommandService
             return BriefingDeskCommandResult.Invalid(ex.Message);
         }
 
-        return BriefingDeskCommandResult.Success("Update posted.");
+        return BriefingDeskCommandResult.Success(stageRef is null ? "Remark posted." : $"Remark posted. Stage {stageRef} confirmed.");
     }
 
     // SECTION: Idea note by the assigned PO
