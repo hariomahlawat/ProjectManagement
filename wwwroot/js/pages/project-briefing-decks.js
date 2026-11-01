@@ -1123,9 +1123,19 @@ if (root) {
     }
   };
 
+  // The deck's current members, kept for actions on projects that have no slides.
+  let latestProjects = [];
+  try {
+    latestProjects = JSON.parse(root.querySelector('[data-pbd-studio-data]')?.textContent || 'null')?.projects || [];
+  } catch {
+    latestProjects = [];
+  }
+
   const applyEditorState = (deck) => {
     if (!deck) return;
     const projects = deck.projects || [];
+    latestProjects = projects;
+    reconcileSearchMembership(projects);
     const presented = projects.filter((project) => !project.isDeletedOrArchived).length;
     updateRowVersion(deck.rowVersion);
     updateLeftOutNotice(projects);
@@ -1145,19 +1155,6 @@ if (root) {
         body: JSON.stringify({ deckId, addProjectIds, removeProjectIds, rowVersion: currentRowVersion() })
       });
       applyEditorState(payload?.deck);
-      if (searchRows.length > 0) {
-        const added = new Set(addProjectIds.map(Number));
-        const removed = new Set(removeProjectIds.map(Number));
-        searchRows = searchRows.map((project) => ({
-          ...project,
-          isSelected: added.has(project.projectId)
-            ? true
-            : removed.has(project.projectId)
-              ? false
-              : project.isSelected
-        }));
-        renderSearchResults(searchRows);
-      }
       const changes = [];
       if (payload?.addedCount) changes.push(`${payload.addedCount} added`);
       if (payload?.removedCount) changes.push(`${payload.removedCount} removed`);
@@ -1188,6 +1185,27 @@ if (root) {
     try { await updateMembership([], [projectId]); }
     catch { /* the status line already explains the failure */ }
     finally { remove.disabled = false; }
+  });
+
+  // Deleted or archived members have no slides; the notice above the slide removes them.
+  root.querySelector('[data-pbd-remove-left-out]')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const leftOut = latestProjects.filter((project) => project.isDeletedOrArchived);
+    if (leftOut.length === 0) return;
+    const names = leftOut.map((project) => project.projectName).join(', ');
+    const confirmed = await prismConfirm({
+      title: leftOut.length === 1 ? 'Remove the left-out project?' : `Remove ${leftOut.length} left-out projects?`,
+      message: `${names} ${leftOut.length === 1 ? 'is' : 'are'} deleted or archived and already left out of the PowerPoint. Removing ${leftOut.length === 1 ? 'it' : 'them'} only tidies this deck; the project records are not changed.`,
+      confirmText: leftOut.length === 1 ? 'Remove project' : 'Remove projects',
+      cancelText: 'Keep',
+      tone: 'danger',
+      returnFocus: button
+    });
+    if (!confirmed) return;
+    button.disabled = true;
+    try { await updateMembership([], leftOut.map((project) => project.projectId)); }
+    catch { /* the status line already explains the failure */ }
+    finally { button.disabled = false; }
   });
 
   // Quick selections and category selections: posted in place, the deck refreshed from the reply.
@@ -1283,6 +1301,26 @@ if (root) {
       if (visible) shown += 1;
     });
     setState(searchStatus, searchRows.length ? `${shown} of ${searchRows.length} matching projects shown.` : 'No projects match this search.');
+  };
+
+  // After any membership change (search, quick add, categories, removals), mark search results
+  // from the deck's actual members while keeping ticks the person has not applied yet.
+  const reconcileSearchMembership = (projects) => {
+    if (searchRows.length === 0) return;
+    const members = new Set(projects.map((project) => Number(project.projectId)));
+    const pending = new Map();
+    resultDesired.forEach((desired, projectId) => {
+      if (desired !== resultBaseline.get(projectId)) pending.set(projectId, desired);
+    });
+    searchRows = searchRows.map((project) => ({ ...project, isSelected: members.has(Number(project.projectId)) }));
+    renderSearchResults(searchRows);
+    pending.forEach((desired, projectId) => {
+      if (desired === members.has(projectId)) return;
+      const checkbox = searchResults?.querySelector(`[data-project-result="${projectId}"] input[type="checkbox"]`);
+      if (!(checkbox instanceof HTMLInputElement) || checkbox.checked === desired) return;
+      checkbox.checked = desired;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+    });
   };
 
   const renderSearchResults = (rows) => {

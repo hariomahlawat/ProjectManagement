@@ -6042,7 +6042,15 @@ body.pbd-profile-drawer-open {
 }
 
 .pbd-stage__notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .75rem;
     margin: 0;
+}
+
+.pbd-stage__notice > span {
+    flex: 1 1 18rem;
 }
 
 .pbd-stage__notice[hidden] {

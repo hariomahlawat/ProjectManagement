@@ -354,6 +354,8 @@
                             <div class="alert alert-warning pbd-alert pbd-stage__notice" role="status" data-pbd-left-out-notice hidden="@(leftOutProjectCount == 0)">
                                 <i class="bi bi-archive" aria-hidden="true"></i>
                                 <span data-pbd-left-out-text>@leftOutProjectCount @(leftOutProjectCount == 1 ? "project in this deck is" : "projects in this deck are") deleted or archived and will be left out of the PowerPoint. Remove @(leftOutProjectCount == 1 ? "it" : "them") from the deck, or restore the project to include it again.</span>
+                                @* These projects have no slides, so the outline cannot reach them; remove them here. *@
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-pbd-remove-left-out>Remove from deck</button>
                             </div>
                                 <div class="pbd-stage__slide" data-pbd-stage-slide></div>
                                 <div class="pbd-stage__checks" data-pbd-stage-checks></div>

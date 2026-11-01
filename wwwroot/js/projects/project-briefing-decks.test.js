@@ -324,3 +324,18 @@ test('table-only decks list each project against its status-table page', () => {
   assert.match(studioSource, /row\.addEventListener\('click', \(\) => selectIndex\(entry\.indices\[0\], \{ from: 'outline', key: entry\.key \}\)\);/);
   assert.match(studioSource, /if \(chosen && chosen\.indices\.includes\(index\)\) return chosen;/);
 });
+
+test('deleted or archived members can still be removed from the deck', () => {
+  // They have no slides, so the outline cannot reach them; the notice offers the removal.
+  assert.match(viewSource, /data-pbd-left-out-notice[\s\S]*?data-pbd-remove-left-out/);
+  assert.match(source, /latestProjects\.filter\(\(project\) => project\.isDeletedOrArchived\)/);
+  assert.match(source, /await updateMembership\(\[\], leftOut\.map\(\(project\) => project\.projectId\)\);/);
+});
+
+test('individual search follows every membership change and keeps unapplied ticks', () => {
+  const apply = source.slice(source.indexOf('const applyEditorState'), source.indexOf('const updateMembership'));
+  assert.match(apply, /reconcileSearchMembership\(projects\);/);
+  const reconcile = source.slice(source.indexOf('const reconcileSearchMembership'), source.indexOf('const renderSearchResults'));
+  assert.match(reconcile, /if \(desired !== resultBaseline\.get\(projectId\)\) pending\.set\(projectId, desired\);/);
+  assert.match(reconcile, /isSelected: members\.has\(Number\(project\.projectId\)\)/);
+});
