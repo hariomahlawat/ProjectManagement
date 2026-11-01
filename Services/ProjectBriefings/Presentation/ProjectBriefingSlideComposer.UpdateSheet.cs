@@ -26,7 +26,9 @@ public sealed partial class ProjectBriefingSlideComposer
             var capturedPlan = plan;
 
             plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                RenderProjectUpdateSheet(canvas, capturedProject, capturedRows, capturedPlan)));
+                RenderProjectUpdateSheet(canvas, capturedProject, capturedRows, capturedPlan),
+                ProjectBriefingSlideRole.ProjectUpdateSheet,
+                capturedProject.ProjectId));
 
             for (var index = 1; index < plan.BriefPages.Count; index++)
             {
@@ -37,7 +39,9 @@ public sealed partial class ProjectBriefingSlideComposer
                         canvas,
                         capturedProject,
                         continuationPage,
-                        continuationNumber)));
+                        continuationNumber),
+                    ProjectBriefingSlideRole.ProjectUpdateSheetContinuation,
+                    capturedProject.ProjectId));
             }
         }
 

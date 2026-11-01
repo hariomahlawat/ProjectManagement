@@ -93,6 +93,9 @@ public sealed class ProjectBriefingDeckVm
     public string LastModifiedByDisplay { get; init; } = string.Empty;
     public IReadOnlyList<ProjectBriefingProjectVm> Projects { get; init; } = Array.Empty<ProjectBriefingProjectVm>();
     public ProjectBriefingReadinessVm Readiness { get; init; } = new();
+    // Per project id, the content keys from ProjectBriefingContentGaps the deck will show but the project lacks.
+    public IReadOnlyDictionary<int, IReadOnlyList<string>> ContentGaps { get; init; }
+        = new Dictionary<int, IReadOnlyList<string>>();
     public ProjectBriefingSlideEstimateVm SlideEstimate { get; init; } = new();
 }
 
@@ -292,7 +295,45 @@ public sealed record ProjectBriefingExportResult(
 public sealed record ProjectBriefingComposedDeck(
     ProjectBriefingPresentationData Data,
     byte[] Content,
-    int SlideCount);
+    int SlideCount,
+    IReadOnlyList<ProjectBriefingSlideOutlineItem> Outline);
+
+// What each generated slide is, in deck order, so the builder's outline can group slides and
+// link project slides to their project without parsing slide text.
+public enum ProjectBriefingSlideRole
+{
+    Cover,
+    InstitutionalProfile,
+    RoleCharter,
+    PortfolioSummary,
+    StageSummary,
+    StageDistributionTable,
+    CategorySummary,
+    StatusTable,
+    ProjectCapability,
+    ProjectCapabilityContinuation,
+    ProjectBrief,
+    ProjectUpdateSheet,
+    ProjectUpdateSheetContinuation,
+    FfcGlobalFootprint,
+    FfcCountryBreakdown,
+    Closing
+}
+
+// ProjectId names the project a project slide is about; ListedProjectIds names the projects a
+// status-table page lists, so table-only decks can still point at each project.
+public sealed record ProjectBriefingSlideOutlineItem(
+    int Number,
+    ProjectBriefingSlideRole Role,
+    int? ProjectId,
+    IReadOnlyList<int> ListedProjectIds);
+
+public sealed record ProjectBriefingComposition(
+    byte[] Content,
+    IReadOnlyList<ProjectBriefingSlideOutlineItem> Outline)
+{
+    public int SlideCount => Outline.Count;
+}
 
 public sealed record ProjectBriefingSlidePreview(
     int SlideCount,

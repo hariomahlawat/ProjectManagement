@@ -235,6 +235,13 @@
     if (includesDetailedSlides && needsProjectBrief && missingProjectBriefCount > 0) usedGapSummaryParts.Add($"{missingProjectBriefCount} missing project brief");
     if (includesDetailedSlides && missingPhotoCount > 0) usedGapSummaryParts.Add($"{missingPhotoCount} missing photograph");
     var usedGapSummaryText = string.Join(" · ", usedGapSummaryParts);
+    // Projects and their content gaps for the Studio outline and inspector, in the same shape the
+    // membership endpoint returns, so in-place edits can refresh it.
+    var studioDataJson = deck is null
+        ? "null"
+        : System.Text.Json.JsonSerializer.Serialize(
+            new { projects = deck.Projects, contentGaps = deck.ContentGaps },
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
 }
 
 @section Styles {
@@ -391,44 +398,132 @@
                         </header>
                         <div class="pbd-generate-status" data-pbd-generate-status aria-live="polite"></div>
 
-                        <section class="pbd-settings pbd-settings-summary" data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
-                            <button type="button"
-                                    class="pbd-settings-summary__button"
-                                    data-pbd-settings-open
-                                    aria-controls="pbd-settings-drawer"
-                                    aria-expanded="false">
-                                <span class="pbd-settings-summary__title"><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
-                                <small data-pbd-settings-summary-text>@settingsSummaryLabel</small>
-                                <span class="pbd-settings-summary__dirty" data-pbd-settings-dirty hidden>Unsaved settings</span>
-                                <i class="bi bi-chevron-right pbd-settings-summary__chevron" aria-hidden="true"></i>
-                            </button>
-                        </section>
-
-                        <section class="pbd-preview" aria-labelledby="pbd-preview-title"
-                                 data-pbd-preview
+                        <section class="pbd-studio" aria-label="Briefing studio" data-pbd-studio
                                  data-preview-url="@Url.Page("/Workspace/BriefingDecks/Index", "Preview", new { deckId = deck.Id })"
                                  data-estimated-slides="@deck.SlideEstimate.TotalSlides"
-                                 data-has-projects="@((presentedProjects!.Length > 0).ToString().ToLowerInvariant())">
-                            <header class="pbd-preview__header">
-                                <div>
-                                    <span class="pbd-eyebrow">Slide preview</span>
-                                    <h3 id="pbd-preview-title" data-pbd-preview-count>Slides</h3>
-                                    <p data-pbd-preview-status aria-live="polite">Exactly what Generate PowerPoint will download, built from current PRISM data.</p>
+                                 data-has-projects="@((presentedProjects!.Length > 0).ToString().ToLowerInvariant())"
+                                 data-uses-capability="@((!isUpdateSheet && standardNeedsCapabilities && standardIncludesDetailedSlides).ToString().ToLowerInvariant())"
+                                 data-uses-brief="@((isUpdateSheet || (standardNeedsProjectBrief && standardIncludesDetailedSlides)).ToString().ToLowerInvariant())"
+                                 data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
+                            <script type="application/json" data-pbd-studio-data>@Html.Raw(studioDataJson)</script>
+
+                            <aside class="pbd-studio__outline" aria-labelledby="pbd-outline-title">
+                                <header class="pbd-outline__header">
+                                    <h3 id="pbd-outline-title">Slides <span data-pbd-studio-count>@deck.SlideEstimate.TotalSlides</span></h3>
+                                    <div class="pbd-outline__actions">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-open-selector>
+                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Projects
+                                        </button>
+                                        @if (missingAdditionalSlideTypes.Length > 0)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#pbd-additional-slide-library-modal">
+                                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Slide
+                                            </button>
+                                        }
+                                    </div>
+                                </header>
+                                <label class="pbd-outline__search">
+                                    <span class="visually-hidden">Find a slide or project</span>
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="search" class="form-control form-control-sm" placeholder="Find a slide or project" autocomplete="off" data-pbd-outline-search />
+                                </label>
+                                <div class="pbd-outline__filter" data-pbd-outline-filter hidden>
+                                    <span data-pbd-outline-filter-text></span>
+                                    <button type="button" class="btn btn-sm btn-link" data-pbd-outline-filter-clear>Show all</button>
                                 </div>
-                                <div class="pbd-preview__actions">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-preview-refresh>
-                                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-primary" data-pbd-preview-open disabled>
-                                        <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i> Open viewer
-                                    </button>
-                                </div>
-                            </header>
-                            <ol class="pbd-preview__grid is-collapsed" data-pbd-preview-grid aria-label="Slides in this deck"></ol>
-                            <div class="pbd-preview__footer" data-pbd-preview-footer hidden>
-                                <button type="button" class="btn btn-sm btn-link" data-pbd-preview-expand aria-expanded="false">Show all slides</button>
+                                <nav class="pbd-outline__list" aria-label="Slides in deck order" data-pbd-outline>
+                                    <p class="pbd-outline__empty">Building the slide list…</p>
+                                </nav>
+                            </aside>
+
+                            <div class="pbd-studio__stage" data-pbd-stage>
+                                <header class="pbd-stage__bar">
+                                    <div class="pbd-stage__heading">
+                                        <span class="pbd-eyebrow" data-pbd-stage-meta>Slide preview</span>
+                                        <h3 data-pbd-stage-title>@deck.Name</h3>
+                                    </div>
+                                    <div class="pbd-stage__tools">
+                                        <div class="pbd-segmented" role="group" aria-label="View">
+                                            <button type="button" class="is-active" aria-pressed="true" data-pbd-stage-view="slide">Slide</button>
+                                            <button type="button" aria-pressed="false" data-pbd-stage-view="grid">All slides</button>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-stage-prev aria-label="Previous slide" aria-keyshortcuts="ArrowLeft"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-stage-next aria-label="Next slide" aria-keyshortcuts="ArrowRight"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-preview-refresh aria-label="Rebuild the slides from current PRISM data" title="Rebuild from current PRISM data"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-preview-open disabled><i class="bi bi-play-fill" aria-hidden="true"></i> Present</button>
+                                    </div>
+                                </header>
+                                <p class="pbd-stage__status" data-pbd-preview-status aria-live="polite">Building the slides from current PRISM data…</p>
+                                <div class="pbd-stage__slide" data-pbd-stage-slide></div>
+                                <div class="pbd-stage__checks" data-pbd-stage-checks></div>
+                                <ol class="pbd-stage__grid" data-pbd-stage-grid aria-label="All slides" hidden></ol>
                             </div>
+
+                            <aside class="pbd-studio__inspector" aria-label="Inspector">
+                                <div class="pbd-inspector__tabs" role="tablist" aria-label="Inspector">
+                                    <button type="button" role="tab" id="pbd-inspector-tab-slide" class="is-active" aria-selected="true" aria-controls="pbd-inspector-slide" data-pbd-inspector-tab="slide">This slide</button>
+                                    <button type="button" role="tab" id="pbd-inspector-tab-deck" aria-selected="false" aria-controls="pbd-inspector-deck" data-pbd-inspector-tab="deck" tabindex="-1">Deck</button>
+                                    <button type="button" role="tab" id="pbd-inspector-tab-checks" aria-selected="false" aria-controls="pbd-inspector-checks" data-pbd-inspector-tab="checks" tabindex="-1">Checks <span class="pbd-inspector__badge" data-pbd-checks-badge hidden></span></button>
+                                </div>
+
+                                <div id="pbd-inspector-slide" role="tabpanel" aria-labelledby="pbd-inspector-tab-slide" class="pbd-inspector__panel" data-pbd-inspector-panel="slide">
+                                    <p class="pbd-inspector__empty">Select a slide in the outline.</p>
+                                </div>
+
+                                <div id="pbd-inspector-deck" role="tabpanel" aria-labelledby="pbd-inspector-tab-deck" class="pbd-inspector__panel" data-pbd-inspector-panel="deck" hidden>
+                                    <dl class="pbd-inspector__facts">
+                                        <div><dt>Template</dt><dd>@layoutLabel</dd></div>
+                                        @if (isUpdateSheet)
+                                        {
+                                            <div><dt>Sheet rows</dt><dd>@selectedUpdateSheetRows.Count of @ProjectBriefingUpdateSheetOptions.AllRows.Count</dd></div>
+                                        }
+                                        else
+                                        {
+                                            <div><dt>Format</dt><dd>@presentationModeLabel</dd></div>
+                                            <div><dt>Project content</dt><dd>@narrativeModeLabel</dd></div>
+                                            <div><dt>Costs</dt><dd>@costModeLabel</dd></div>
+                                        }
+                                        <div><dt>Look</dt><dd>@themeLabel</dd></div>
+                                        <div><dt>Closing</dt><dd>@closingSlideLabel</dd></div>
+                                        <div><dt>Marking</dt><dd>@(string.IsNullOrWhiteSpace(deck.HandlingMarking) ? "None" : deck.HandlingMarking)</dd></div>
+                                    </dl>
+                                    <button type="button"
+                                            class="btn btn-outline-primary w-100 pbd-inspector__settings"
+                                            data-pbd-settings-open
+                                            aria-controls="pbd-settings-drawer"
+                                            aria-expanded="false">
+                                        <i class="bi bi-sliders" aria-hidden="true"></i> Edit deck settings
+                                        <span class="pbd-settings-summary__dirty" data-pbd-settings-dirty hidden>Unsaved settings</span>
+                                    </button>
+                                    <small class="visually-hidden" data-pbd-settings-summary-text>@settingsSummaryLabel</small>
+
+                                    <h4 class="pbd-inspector__heading">Additional slides</h4>
+                                    @if (additionalSlideOrder.Count == 0)
+                                    {
+                                        <p class="pbd-inspector__note">None added. Use Slide in the outline to add the SDD profile, Role &amp; Charter or the FFC footprint.</p>
+                                    }
+                                    else
+                                    {
+                                        <ul class="pbd-inspector__list">
+                                            @foreach (var slideType in additionalSlideOrder)
+                                            {
+                                                <li>
+                                                    <span>@AdditionalSlideDisplayName(slideType)</span>
+                                                    <small>@(AdditionalSlideIsEnabled(slideType) ? "On" : "Off")</small>
+                                                </li>
+                                            }
+                                        </ul>
+                                        <a class="btn btn-sm btn-link px-0" href="#pbd-additional-slides">Manage additional slides</a>
+                                    }
+                                </div>
+
+                                <div id="pbd-inspector-checks" role="tabpanel" aria-labelledby="pbd-inspector-tab-checks" class="pbd-inspector__panel" data-pbd-inspector-panel="checks" hidden>
+                                    <p class="pbd-inspector__empty">Checking the deck…</p>
+                                </div>
+                            </aside>
                         </section>
+
+                        <h3 class="pbd-manage-heading">Manage this deck</h3>
 
                         <dialog class="pbd-viewer" data-pbd-viewer aria-labelledby="pbd-viewer-title">
                             <div class="pbd-viewer__surface">
@@ -1654,5 +1749,5 @@
     <script type="module" src="~/js/pages/command-workspace.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/project-briefing-decks.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/project-briefing-additional-slides.js" asp-append-version="true"></script>
-    <script type="module" src="~/js/pages/project-briefing-preview.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/pages/project-briefing-studio.js" asp-append-version="true"></script>
 }

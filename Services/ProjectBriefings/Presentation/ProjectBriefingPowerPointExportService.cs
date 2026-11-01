@@ -33,7 +33,7 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
         string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        var (data, content, slideCount) = await ComposeAsync(deckId, requestingUserId, cancellationToken);
+        var (data, content, slideCount, _) = await ComposeAsync(deckId, requestingUserId, cancellationToken);
 
         await _deckService.MarkGeneratedAsync(deckId, requestingUserId, slideCount, cancellationToken);
 
@@ -66,8 +66,8 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
 
         try
         {
-            var (content, slideCount) = _composer.Compose(data);
-            return new ProjectBriefingComposedDeck(data, content, slideCount);
+            var composition = _composer.ComposeWithOutline(data);
+            return new ProjectBriefingComposedDeck(data, composition.Content, composition.SlideCount, composition.Outline);
         }
         catch (ProjectBriefingPresentationIntegrityException exception)
         {

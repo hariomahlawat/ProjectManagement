@@ -748,7 +748,9 @@ public sealed class IndexModel : PageModel
                 input.Value,
                 input.RowVersion,
                 cancellationToken);
-            return new JsonResult(new { saved = true, rowVersion });
+            // The refreshed deck lets the Studio update the project's text and content gaps.
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
+            return new JsonResult(new { saved = true, rowVersion, deck });
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -807,12 +809,24 @@ public sealed class IndexModel : PageModel
         {
             var composed = await _exportService.ComposeAsync(deckId, userId, cancellationToken);
             var preview = ProjectBriefingSlidePreviewRenderer.Render(composed.Content, composed.Data.GeneratedAtUtc);
+            // Project facts and gaps travel with the slides, so a rebuild after a fix made in
+            // another tab also clears the Studio's outline badges and checks.
+            var deck = await _dataService.GetDeckAsync(deckId, userId, cancellationToken);
             return new JsonResult(new
             {
                 preview.SlideCount,
                 generatedAt = IstClock.ToIst(preview.GeneratedAtUtc).ToString("dd MMM yyyy, HH:mm"),
                 slides = preview.Slides,
-                images = preview.Images
+                images = preview.Images,
+                outline = composed.Outline.Select(item => new
+                {
+                    item.Number,
+                    role = item.Role.ToString(),
+                    item.ProjectId,
+                    item.ListedProjectIds
+                }),
+                projects = deck?.Projects,
+                contentGaps = deck?.ContentGaps
             });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -979,11 +979,12 @@ if (root) {
   window.addEventListener('pagehide', () => sessionStorage.setItem(`${storagePrefix}scroll`, String(window.scrollY)));
   restoreScroll();
 
-  // Collapse the secondary saved-deck rail on laptop widths without losing deck context.
+  // The shared-deck list folds away at every width so the Studio keeps its three panes; it
+  // stays open only when the person opened it in this session.
   const deckWorkspace = root.querySelector('.pbd-workspace');
   const savedDecksPanel = root.querySelector('[data-pbd-saved-decks]');
   const savedDecksToggle = root.querySelector('[data-pbd-decks-toggle]');
-  const savedDecksMedia = window.matchMedia('(max-width: 1499px)');
+  const savedDecksMedia = window.matchMedia('(min-width: 0px)');
   const savedDecksStorageKey = `${storagePrefix}savedDecksOpen`;
 
   const setSavedDecksOpen = (open, persist = true) => {
@@ -1803,7 +1804,7 @@ if (root) {
     updateReadinessSummary(deck);
     updateLeftOutNotice(deck.projects || []);
     renderSelectedProjects(deck.projects || []);
-    announceDeckChange({ hasProjects: (deck.projects || []).some((project) => !project.isDeletedOrArchived) });
+    announceDeckChange({ hasProjects: (deck.projects || []).some((project) => !project.isDeletedOrArchived), deck });
     if (scrollTop !== null) {
       window.requestAnimationFrame(() => window.scrollTo({ top: scrollTop, behavior: 'auto' }));
     }
@@ -2114,10 +2115,12 @@ if (root) {
         body: JSON.stringify({ deckId, projectId, value: descriptionValue?.value || null, rowVersion: currentRowVersion() })
       });
       updateRowVersion(payload?.rowVersion);
-      const editorButton = root.querySelector(`[data-pbd-edit-description][data-project-id="${projectId}"]`);
-      if (editorButton) editorButton.dataset.description = descriptionValue?.value || '';
+      // The table row and the Studio inspector both carry an editor button for the project.
+      root.querySelectorAll(`[data-pbd-edit-description][data-project-id="${projectId}"]`).forEach((editorButton) => {
+        editorButton.dataset.description = descriptionValue?.value || '';
+      });
       setState(descriptionStatus, 'Deck-specific capability overview saved.', 'success');
-      announceDeckChange();
+      announceDeckChange(payload?.deck ? { deck: payload.deck } : {});
       window.setTimeout(() => descriptionModal?.hide(), 450);
     } catch (error) {
       setState(descriptionStatus, error.message || 'Capability overview could not be saved.', 'error');

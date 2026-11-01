@@ -108,6 +108,15 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             LastModifiedByDisplay = snapshot.LastModifiedByDisplay,
             Projects = projects,
             Readiness = BuildReadiness(presentedProjects),
+            ContentGaps = ProjectBriefingContentGaps.Resolve(
+                presentedProjects,
+                new ProjectBriefingContentGapSettings(
+                    snapshot.Layout,
+                    snapshot.PresentationMode,
+                    snapshot.CostMode,
+                    snapshot.NarrativeMode,
+                    snapshot.StandardSlideOptions,
+                    snapshot.UpdateSheetOptions)),
             SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
                 snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
                 snapshot.IncludeTechnicalCategorySummary, snapshot.StandardSlideOptions,
