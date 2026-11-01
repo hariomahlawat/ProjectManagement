@@ -444,7 +444,10 @@ test('speaker notes are edited in the inspector and saved through the deck queue
   assert.match(studioSource, /field\.addEventListener\('blur', \(\) => saveNotes\(project\)\);/);
   assert.match(studioSource, /new CustomEvent\('pbd:set-project-notes', \{ detail: \{ projectId: project\.projectId, notes: text \} \}\)/);
   // A draft survives re-rendering until the saved notes come back with the deck.
-  assert.match(studioSource, /const notesText = \(project\) => \(notesDraft\.projectId === project\.projectId \? notesDraft\.text : project\.speakerNotes \|\| ''\);/);
+  assert.match(studioSource, /const notesText = \(project\) => notesDrafts\.get\(project\.projectId\)\?\.text \?\? \(project\.speakerNotes \|\| ''\);/);
+  // Each project keeps its own draft, so a failed save is not lost by typing notes elsewhere.
+  assert.match(studioSource, /const notesDrafts = new Map\(\);/);
+  assert.match(studioSource, /const unsaved = \[\.\.\.notesDrafts\]\.some\(/);
   assert.match(source, /document\.addEventListener\('pbd:set-project-notes'[\s\S]*?runDeckMutation\(async \(\) => \{[\s\S]*?root\.dataset\.speakerNotesUrl/);
   assert.match(viewSource, /data-speaker-notes-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateSpeakerNotes"\)"/);
 });
@@ -453,5 +456,5 @@ test('generating waits for in-place saves and refuses unsaved speaker notes', ()
   const generate = source.slice(source.indexOf("generateForm?.addEventListener('submit'"));
   assert.match(generate, /await deckMutationTail;\s*if \(document\.querySelector\('\[data-pbd-studio\]\[data-unsaved-notes="true"\]'\)\) \{\s*setState\(generateStatus, 'Save the speaker notes before generating the PowerPoint\.', 'error'\);/);
   assert.match(studioSource, /root\.dataset\.unsavedNotes = String\(unsaved\);/);
-  assert.match(studioSource, /notesDraft = \{ projectId: project\.projectId, text: field\.value, saving: false, error: '' \};\s*markUnsavedNotes\(\);/);
+  assert.match(studioSource, /notesDrafts\.set\(project\.projectId, \{ text: field\.value, saving: false, error: '' \}\);\s*markUnsavedNotes\(\);/);
 });
