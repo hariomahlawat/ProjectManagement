@@ -63,7 +63,7 @@
             var recordGapLabel = $"{recordHealth.RecordGapCount} gap{(recordHealth.RecordGapCount == 1 ? string.Empty : "s")}";
             <a class="oc-record-health oc-record-health--@recordHealthCss"
                href="@recordHealth.OpenUrl"
-               target="_blank"
+               target="@ProjectTab.Name(recordHealth.ProjectId)"
                rel="noopener"
                title="Open project record for @item.Title"
                aria-label="@item.Title: @recordHealth.HealthPercent percent overall record health with @recordGapLabel">

@@ -1471,7 +1471,8 @@
 
         if (reviewOpen) {
             reviewOpen.href = review.projectUrl || `/Projects/Overview?id=${review.projectId}`;
-            reviewOpen.target = "_blank";
+            // One tab per project; same name format as ProjectTab.Name on the server.
+            reviewOpen.target = `prism-project-${review.projectId}`;
             reviewOpen.rel = "noopener noreferrer";
         }
         if (reviewManagePhotos) reviewManagePhotos.href = review.photosUrl || `/Projects/Photos/Index?id=${review.projectId}`;
@@ -2138,7 +2139,7 @@
         if (imageAction) return `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="image" data-finding-project="${projectId}">Review image</button>`;
         if (reviewAction) return `<button type="button" class="btn btn-sm btn-outline-secondary" data-finding-action="review" data-finding-project="${projectId}">Review project</button>`;
         const canEdit = canMaintainProjectData && normalize(project.lifecycle) === "completed";
-        return `<a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer" href="${canEdit ? `/Projects/CompletedSummary/Edit?id=${projectId}&returnUrl=${encodeURIComponent(location.pathname + location.search)}` : `/Projects/Overview?id=${projectId}`}">${canEdit ? "Edit record" : "Open project"}</a>`;
+        return `<a class="btn btn-sm btn-outline-secondary" target="${canEdit ? "_blank" : `prism-project-${projectId}`}" rel="noopener noreferrer" href="${canEdit ? `/Projects/CompletedSummary/Edit?id=${projectId}&returnUrl=${encodeURIComponent(location.pathname + location.search)}` : `/Projects/Overview?id=${projectId}`}">${canEdit ? "Edit record" : "Open project"}</a>`;
     };
 
     const renderFindings = () => {

@@ -311,7 +311,18 @@
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
             </div>
             <div class="offcanvas-body">
+                @* The PDC belongs to the current stage, so the PO confirms the stage first. A wrong
+                   stage is changed on the project page, in the project's tab. *@
+                <div class="bd-plan-stage" data-bd-plan-stage>
+                    <p class="bd-plan-stage__question">Is <strong>@panel.StageLabel</strong> the project's current stage?</p>
+                    <div class="bd-plan-stage__actions">
+                        <button type="button" class="bd-btn bd-btn--primary" data-bd-plan-stage-yes>Yes, set its PDC</button>
+                        <a class="bd-btn bd-btn--quiet" href="@panel.ProjectPageUrl" target="@panel.ProjectTabName">No, update the stage<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (opens the project page in its tab)</span></a>
+                    </div>
+                </div>
                 <form method="post"
+                      hidden
+                      data-bd-plan-form
                       class="bd-plan-form"
                       asp-page="/Projects/Timeline/EditPlan"
                       asp-route-id="@panel.ProjectId"

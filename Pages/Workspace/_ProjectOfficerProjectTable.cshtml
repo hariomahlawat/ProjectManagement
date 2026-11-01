@@ -9,16 +9,13 @@ else
 {
     <div class="po-table-wrap">
         <table class="po-project-table bd-register">
-            <thead><tr><th scope="col">Project</th><th scope="col">Stage and PDC</th><th scope="col">Last update</th><th scope="col">Records</th><th scope="col">Before you brief</th></tr></thead>
+            <thead><tr><th scope="col">Project</th><th scope="col">Stage and PDC</th><th scope="col">Last remark</th><th scope="col">Records</th><th scope="col">Before you brief</th></tr></thead>
             <tbody>
             @foreach (var item in Model.Projects)
             {
-                // Facts come from the desk: stage, PDC, update, records (in that order).
-                var stageFacts = item.Facts.Where(fact => !fact.Text.StartsWith("Updated", StringComparison.Ordinal)
-                        && !fact.Text.StartsWith("No update", StringComparison.Ordinal)
-                        && !fact.Text.StartsWith("Records", StringComparison.Ordinal))
-                    .ToList();
-                var updateFact = item.Facts.FirstOrDefault(fact => fact.Text.StartsWith("Updated", StringComparison.Ordinal) || fact.Text.StartsWith("No update", StringComparison.Ordinal));
+                // Facts come from the desk; the remark tag has its own column, found by its key.
+                var stageFacts = item.Facts.Where(fact => fact.Key != BriefingDeskFactKeys.Remark).ToList();
+                var updateFact = item.Facts.FirstOrDefault(fact => fact.Key == BriefingDeskFactKeys.Remark);
                 var health = Model.RecordHealth.GetValueOrDefault(item.ItemId);
                 var stageCode = item.Strip.FirstOrDefault(step => step.State is BriefingDeskStepState.Current or BriefingDeskStepState.Blocked)?.Label ?? string.Empty;
                 var filterText = $"{item.Title} {stageCode} {item.NextStepText}".ToLowerInvariant();
@@ -29,8 +26,9 @@ else
                     data-attention="@(item.IsBriefReady ? "current" : "attention")">
                     <td data-label="Project">
                         <div class="bd-register__project">
-                            <a class="po-project-name" href="@WorkspaceRouteHelper.BriefingDeskItem(item.AnchorId)">@item.Title</a>
-                            <a class="bd-register__open" href="@item.OpenUrl">Open project<span class="visually-hidden"> @item.Title</span></a>
+                            @* The register opens the project page itself in one named tab per project, so a repeat
+                               click lands in the tab already open. *@
+                            <a class="po-project-name" href="@item.OpenUrl" target="@ProjectTab.Name(item.ItemId)" title="Open project page in its own tab">@item.Title<i class="bi bi-box-arrow-up-right bd-register__external" aria-hidden="true"></i><span class="visually-hidden"> (opens in a new tab)</span></a>
                         </div>
                     </td>
                     <td data-label="Stage and PDC">
@@ -41,7 +39,7 @@ else
                             }
                         </div>
                     </td>
-                    <td data-label="Last update">
+                    <td data-label="Last remark">
                         @if (updateFact is not null)
                         {
                             <span class="bd-fact @(updateFact.Tone switch { BriefingDeskTone.Danger => "bd-fact--danger", BriefingDeskTone.Warning => "bd-fact--warning", BriefingDeskTone.Good => "bd-fact--good", _ => string.Empty })">@updateFact.Text</span>

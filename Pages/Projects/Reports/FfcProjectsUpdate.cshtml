@@ -281,7 +281,7 @@
                                             {
                                                 <a asp-page="/Projects/Overview"
                                                    asp-route-id="@row.LinkedProjectId.Value"
-                                                   target="_blank"
+                                                   target="@ProjectTab.Name(row.LinkedProjectId.Value)"
                                                    rel="noopener noreferrer">@row.ProjectName</a>
                                             }
                                             else

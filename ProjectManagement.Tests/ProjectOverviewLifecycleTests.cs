@@ -317,6 +317,116 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Equal(ProjectLifecycleStatus.Active, project!.LifecycleStatus);
     }
 
+    [Fact]
+    public async Task SaveProjectBrief_AllowsTheAssignedProjectOfficer()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 21, hodUserId: "hod-21", poUserId: "po-21");
+        var content = new RecordingProjectContentService();
+        var overview = CreateOverviewPage(db, new FixedClock(DateTimeOffset.UtcNow), content);
+        overview.ContentBriefInput = new ProjectsOverviewModel.ProjectBriefContentInput
+        {
+            ProjectId = 21,
+            Brief = "Written by the project officer.",
+            RowVersion = "Aw=="
+        };
+        ConfigurePageContext(overview, CreateUser("po-21", "Project Officer"));
+
+        var result = await overview.OnPostSaveProjectBriefAsync(21, CancellationToken.None);
+
+        Assert.IsNotType<ForbidResult>(result);
+        Assert.Equal(new[] { "brief:21:Written by the project officer." }, content.Calls);
+    }
+
+    [Fact]
+    public async Task SaveProjectBrief_ForbidsAProjectOfficerOfAnotherProject()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 22, hodUserId: "hod-22", poUserId: "po-22");
+        var content = new RecordingProjectContentService();
+        var overview = CreateOverviewPage(db, new FixedClock(DateTimeOffset.UtcNow), content);
+        overview.ContentBriefInput = new ProjectsOverviewModel.ProjectBriefContentInput
+        {
+            ProjectId = 22,
+            Brief = "Not my project.",
+            RowVersion = "Aw=="
+        };
+        ConfigurePageContext(overview, CreateUser("po-other", "Project Officer"));
+
+        var result = await overview.OnPostSaveProjectBriefAsync(22, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+        Assert.Empty(content.Calls);
+    }
+
+    [Fact]
+    public async Task SaveProjectDescription_StillForbidsTheAssignedProjectOfficer()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 23, hodUserId: "hod-23", poUserId: "po-23");
+        var content = new RecordingProjectContentService();
+        var overview = CreateOverviewPage(db, new FixedClock(DateTimeOffset.UtcNow), content);
+        overview.ContentDescriptionInput = new ProjectsOverviewModel.ProjectDescriptionContentInput
+        {
+            ProjectId = 23,
+            Description = "Only Admin and HoD write this.",
+            RowVersion = "Aw=="
+        };
+        ConfigurePageContext(overview, CreateUser("po-23", "Project Officer"));
+
+        var result = await overview.OnPostSaveProjectDescriptionAsync(23, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+        Assert.Empty(content.Calls);
+    }
+
+    [Fact]
+    public async Task Overview_ShowsTheBriefEditorToTheAssignedProjectOfficerOnly()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 24, hodUserId: "hod-24", poUserId: "po-24");
+
+        var assigned = CreateOverviewPage(db, new FixedClock(DateTimeOffset.UtcNow));
+        ConfigurePageContext(assigned, CreateUser("po-24", "Project Officer"));
+        Assert.IsType<PageResult>(await assigned.OnGetAsync(24, CancellationToken.None));
+        Assert.True(assigned.CanEditProjectBrief);
+        Assert.False(assigned.CanEditProjectContent);
+
+        var other = CreateOverviewPage(db, new FixedClock(DateTimeOffset.UtcNow));
+        ConfigurePageContext(other, CreateUser("po-other", "Project Officer"));
+        Assert.IsType<PageResult>(await other.OnGetAsync(24, CancellationToken.None));
+        Assert.False(other.CanEditProjectBrief);
+    }
+
+    private sealed class RecordingProjectContentService : IProjectContentService
+    {
+        public List<string> Calls { get; } = new();
+
+        public Task<ProjectContentSaveResult> SaveBriefAsync(int projectId, string? brief, string rowVersion, string userId, string userDisplay, CancellationToken cancellationToken = default)
+        {
+            Calls.Add($"brief:{projectId}:{brief}");
+            return Task.FromResult(ProjectContentSaveResult.Success());
+        }
+
+        public Task<ProjectContentSaveResult> SaveCapabilitiesAsync(int projectId, IReadOnlyList<string?> statements, string rowVersion, string userId, string userDisplay, CancellationToken cancellationToken = default)
+        {
+            Calls.Add($"capabilities:{projectId}");
+            return Task.FromResult(ProjectContentSaveResult.Success());
+        }
+
+        public Task<ProjectContentSaveResult> SaveTechnicalSpecificationsAsync(int projectId, IReadOnlyList<string?> items, string rowVersion, string userId, string userDisplay, CancellationToken cancellationToken = default)
+        {
+            Calls.Add($"technical:{projectId}");
+            return Task.FromResult(ProjectContentSaveResult.Success());
+        }
+
+        public Task<ProjectContentSaveResult> SaveDescriptionAsync(int projectId, string? description, string rowVersion, string userId, string userDisplay, CancellationToken cancellationToken = default)
+        {
+            Calls.Add($"description:{projectId}");
+            return Task.FromResult(ProjectContentSaveResult.Success());
+        }
+    }
+
     private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId)
     {
         db.Projects.Add(new Project
@@ -467,7 +577,7 @@ public sealed class ProjectOverviewLifecycleTests
         await db.SaveChangesAsync();
     }
 
-    private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)
+    private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock, IProjectContentService? content = null)
     {
         var procure = new ProjectProcurementReadService(db);
         var workflowMetadata = new WorkflowStageMetadataProvider();
@@ -487,7 +597,7 @@ public sealed class ProjectOverviewLifecycleTests
         var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
         var proliferationProfiles = new ProjectProliferationProfileService(db, clock, audit);
         var industryPartners = new IndustryPartnerService(db);
-        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners, new ThrowingProjectContentService());
+        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners, content ?? new ThrowingProjectContentService());
     }
 
     private sealed class PassThroughMarkdownRenderer : IMarkdownRenderer

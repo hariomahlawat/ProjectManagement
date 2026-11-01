@@ -42,13 +42,15 @@ test('phase 37.5 retains recovered rule height as editorial breathing reserve', 
   assert.match(pagination, /preservedEditorialBreathingPoints\s*=\s*6f/);
 });
 
-test('phase 37.5 opens project and edit actions in a new tab without giving the new tab opener access', () => {
+test('phase 37.5 opens project and edit actions in another tab without giving the new tab opener access', () => {
   assert.match(indexView, /data-review-open-project[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
   assert.match(indexView, /data-review-edit-record[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
-  assert.match(mainJs, /reviewOpen\.target\s*=\s*"_blank"/);
+  // The project page reuses one named tab per project (prism-project-{id}).
+  assert.match(mainJs, /reviewOpen\.target\s*=\s*`prism-project-\$\{review\.projectId\}`/);
   assert.match(mainJs, /reviewOpen\.rel\s*=\s*"noopener noreferrer"/);
   assert.match(mainJs, /reviewEdit\.target\s*=\s*"_blank"/);
-  assert.match(mainJs, /target="_blank" rel="noopener noreferrer" href="\$\{canEdit/);
+  // Finding actions: "Edit record" opens a new tab; "Open project" reuses the project's named tab.
+  assert.match(mainJs, /target="\$\{canEdit \? "_blank" : `prism-project-\$\{projectId\}`\}" rel="noopener noreferrer" href="\$\{canEdit/);
 });
 
 test('phase 37.5 changes renderer identity without changing persisted schema or structure state version', () => {

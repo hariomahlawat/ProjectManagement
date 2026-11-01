@@ -176,6 +176,7 @@ public sealed class ProjectOfficerWorkspaceService
         var reminders = await LoadPersonalRemindersAsync(userId, ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
         var matrixRows = BuildProjectMatrix(projects, health, userId, today);
+        await LoadStageConfirmationsAsync(userId, matrixRows, ct);
         // The desk reads only unread circulars and pending conference directions here. The old
         // action queue (returned items, remarks due, tasks due) is no longer shown anywhere, so it
         // is not built.
@@ -476,6 +477,44 @@ public sealed class ProjectOfficerWorkspaceService
             .ToListAsync(ct);
 
         return rows.ToDictionary(row => row.TaskId, row => row.Last);
+    }
+
+    // SECTION: Stage confirmations
+    // A PO confirms the current stage by ticking "Stage is still …" on a desk remark, which tags
+    // the remark with the stage. A remark tagged elsewhere with the current stage counts too.
+    // Only remarks inside the update window are read: an older one no longer confirms anything.
+    private async Task LoadStageConfirmationsAsync(
+        string userId,
+        IReadOnlyList<WorkspaceProjectMatrixRowVm> rows,
+        CancellationToken ct)
+    {
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        var projectIds = rows.Select(row => row.ProjectId).ToArray();
+        // One day of slack: the builder counts whole IST days, so it makes the final cut.
+        var sinceUtc = _clock.UtcNow.AddDays(-(BriefingDeskBuilder.UpdateWindowDays + 1));
+        var tagged = await _db.Remarks
+            .AsNoTracking()
+            .Where(remark =>
+                projectIds.Contains(remark.ProjectId)
+                && !remark.IsDeleted
+                && remark.AuthorUserId == userId
+                && remark.StageRef != null
+                && remark.CreatedAtUtc >= sinceUtc)
+            .Select(remark => new { remark.ProjectId, remark.StageRef, remark.CreatedAtUtc })
+            .ToListAsync(ct);
+
+        foreach (var row in rows)
+        {
+            row.CurrentStageConfirmedAtUtc = tagged
+                .Where(remark => remark.ProjectId == row.ProjectId
+                    && string.Equals(remark.StageRef, row.CurrentStageCode, StringComparison.OrdinalIgnoreCase))
+                .Select(remark => (DateTime?)remark.CreatedAtUtc)
+                .Max();
+        }
     }
 
     private sealed record BriefingDeskPendingApprovals(

@@ -212,7 +212,7 @@
                             <span>@warning.Message</span>
                             @if (warning.ProjectId.HasValue)
                             {
-                                <a asp-page="/Projects/Overview" asp-route-id="@warning.ProjectId.Value" target="_blank" rel="noopener noreferrer">Open project</a>
+                                <a asp-page="/Projects/Overview" asp-route-id="@warning.ProjectId.Value" target="@ProjectTab.Name(warning.ProjectId.Value)" rel="noopener noreferrer">Open project</a>
                             }
                         </div>
                     }
@@ -282,7 +282,7 @@
                                     <td class="text-center">@row.SerialNumber</td>
                                     <td class="text-center formal-report-arpp">@ArppNumber(row.PppNumber)</td>
                                     <td class="formal-report-project" title="Current position: @row.StageDisplay">
-                                        <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" target="_blank" rel="noopener noreferrer">@row.ProjectName</a>
+                                        <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" target="@ProjectTab.Name(row.ProjectId)" rel="noopener noreferrer">@row.ProjectName</a>
                                     </td>
                                     <td class="text-center">@Date(presentationOptions.ResolveListingDate(row))</td>
                                     <td class="text-center">@(row.DfpdsSchedule ?? "—")</td>

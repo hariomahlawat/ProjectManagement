@@ -7893,7 +7893,7 @@ body {
     --pm-shell-calendar: 115rem; /* 1840px */
     --pm-shell-analytics: 108rem;/* 1728px */
     --pm-shell-landing: 96rem;   /* 1536px */
-    --pm-shell-desk: 115rem;     /* 1840px: My Workspace pages */
+    --pm-shell-desk: 140rem;     /* 2240px: My Workspace pages (briefing desk lays cards in two columns) */
     --pm-shell-desk-gutter: clamp(.75rem, 1.2vw, 1.5rem);
     --pm-shell-gutter: clamp(1rem, 2.15vw, 2.5rem);
 }

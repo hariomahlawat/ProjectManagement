@@ -1722,7 +1722,8 @@ if (root) {
       const briefLink = document.createElement('a');
       briefLink.className = 'btn btn-sm btn-link';
       briefLink.href = `${project.openUrl || '#'}?content=brief#content-brief`;
-      briefLink.target = '_blank';
+      // One tab per project; same name format as ProjectTab.Name on the server.
+      briefLink.target = `prism-project-${project.projectId}`;
       briefLink.rel = 'noopener';
       briefLink.title = 'Open project brief';
       briefLink.setAttribute('aria-label', `Open project brief for ${project.projectName} in a new tab`);

@@ -26,8 +26,8 @@ Sections follow the Conference view order: Projects, Ideas, Tasks. Empty section
 
 | Item | Ready for conference when | Shown but never required |
 | --- | --- | --- |
-| Project | A PO update (any remark by the PO) within 7 days; the latest conference direction answered; a current-stage PDC that is set, or a plan with the HoD; every completed stage before the current stage has its completion date, or a pending date correction that proposes it | A PDC that has passed (a red "PDC overdue by … days" note, worded as the Conference view's attention line); other record-health gaps, grouped by the editor that fixes them, listed as optional details |
-| Idea | Activity within the existing 15-day idea rule; the latest direction answered with a note | — |
+| Project | A PO remark within 10 days (amber from 7 days, red and not ready from 10); the current stage confirmed on a PO remark within the same 10 days; the latest conference direction answered; a current-stage PDC that is set, or a plan with the HoD; no procurement figure missing for the stages already completed | A PDC that has passed (a plain date, never an alarm); completion dates of earlier stages and the other record-health gaps, listed under **Improve the record** |
+| Idea | The latest conference direction answered with a note. Otherwise a note is optional and there is no time limit | — |
 | Task | Progress by the PO within 7 days; the latest direction answered; if overdue, submitted for closure or flagged blocked. A submitted task waits on the assigner and counts as ready | — |
 
 A direction counts as answered under the same rule `ProjectOfficerConferenceActionQuery` uses:
@@ -47,14 +47,40 @@ reviews and resubmits it, so the step reads "Review your date correction" instea
 when no completion date is missing, for example a proposed change to a recorded date), and the
 correction is not listed under **Sent for approval**.
 
-**Dates the desk asks for** (changed 2026-10-29). Only two dates are required: the current-stage
-PDC when it is missing, and the completion date of each completed stage before the current
-stage (the record-health "Historical stage completion dates" gaps, recognised by their
-`<STAGE>_ACTUAL_COMPLETION` code; current-stage gaps likewise by their `CURRENT_STAGE_` prefix).
-When a published ARPP record supplies the IPA completion date (`IArppIpaStageAuthorityService`),
-the date editor locks it, so a missing stored IPA date is never a step. A PDC that has passed is shown only as a red note in the card
-header, linked to the full plan editor, and never blocks readiness. Actual start dates are
-optional and are not asked for on the desk.
+**Project steps** (changed 2026-11-01). A project card lists its steps in the order the PO
+works through them:
+
+1. **Remark.** Green under 7 days, amber ("Due soon", the box open) from 7, red from 10, when the
+   project stops being ready for conference (`UpdateWindowDays`, `UpdateDueSoonDays`).
+2. **Stage.** The remark box carries a tick, on by default: "Stage is still DEVP · Development".
+   Ticked, the remark is saved with the stage (`Remark.StageRef`, `StageNameSnapshot`); that is
+   the PO's confirmation. The server checks the posted code against the project's current stage
+   and refuses the post if the stage has moved since the page loaded. Any PO remark tagged with
+   the current stage within 10 days counts, wherever it was posted
+   (`ProjectOfficerWorkspaceService.LoadStageConfirmationsAsync`). Unticked, the remark posts
+   normally and the stage step stays open. "Wrong stage? Change it" opens the project page in
+   the project's own tab (`ProjectTab.Name`), where the stage is changed. A current stage that the
+   workflow supplies without a saved stage row cannot tag a remark (`RemarkService` accepts only
+   saved stages once a project has any), so the box offers no tick and the step asks the PO to
+   update the stage on the project page; a stale tick for such a stage posts the remark untagged.
+3. **PDC.** A missing current-stage PDC is a step. Its side panel first asks "Is DEVP ·
+   Development the project's current stage?": **Yes** shows the PDC form (submitted to the HoD,
+   as before); **No** opens the project page in the project's tab. A PDC that has passed is a
+   plain date and a done step, never a red note.
+4. **Procurement.** Figures that the completed stages make applicable (record health decides
+   which: an AoN cost once AoN is done, and so on) are a required step, edited in the procurement
+   side panel on the desk.
+
+**Gaps that never block** (changed 2026-11-01). Completion dates of earlier stages (the
+`<STAGE>_ACTUAL_COMPLETION` gaps) are listed first under **Improve the record**, with their date
+correction state ("Sent to HoD on …", "Review your date correction"), followed by the other
+record-health gaps. When a published ARPP record supplies the IPA completion date
+(`IArppIpaStageAuthorityService`), the date editor locks it, so a missing stored IPA date is
+never listed. Actual start dates are optional and are not asked for on the desk.
+
+**Rollout.** Remarks written before this change carry no stage, so on the first day every
+project shows its stage step open until its PO posts a remark with the tick. This was accepted
+as a one-time confirmation of every project's stage.
 
 **Wording.** On screen, "brief-ready" is **Ready for conference** (pill: "Ready"). The code
 keeps the name `IsBriefReady`.
@@ -95,17 +121,18 @@ There is no weekly round (removed 2026-10-29): the "needs you" cards, in order, 
 
 **Card header.** The header tags agree with the checks. When a plan is with the HoD for a
 missing or passed PDC, the PDC tag reads "PDC sent to HoD on …" or "Revised PDC sent to HoD on
-…" in a neutral tone, not "PDC not set" or a red "PDC overdue by …".
+…" in a neutral tone, not "PDC not set". A passed PDC is shown as its date ("PDC 07 Oct 2026").
+Inside a section the "Project" / "Idea" / "Task" kind label is kept for screen readers only,
+since the section heading says it.
 
-**Update box.** When the weekly update or a direction is due, the box is open on the card. When
+**Update box.** When a remark is due (amber or red) or a direction waits, the box is open on the card. When
 nothing is due, the card says "Not needed now" with the date of the last update, and the box
 folds behind "Add another remark" (or note, or progress), so the PO can still post.
 
 **Required and optional.** In "Before you brief", required steps carry the strong button
 (`bd-btn--required`), whether the PO completes them on the desk or they go to the HoD; the line
-under the button says which. Missing stage completion dates are a required step ("2 stage
-completion dates missing") that links to the date-correction editor. **Improve the record**
-lists the other, optional record-health gaps; it is
+under the button says which. **Improve the record** lists the optional record-health gaps,
+missing stage completion dates first; it is
 folded to one line ("Record 38% complete · optional") until opened, and its buttons are quiet
 (`bd-btn--optional`). Neither points nor a gap count are shown on the desk, so it cannot
 disagree with the gap count in the Comdt preview.
@@ -117,7 +144,7 @@ are unchanged. The desk adds its own check that the item is assigned to the sign
 
 | Action | Service used | Result |
 | --- | --- | --- |
-| Project update | `IRemarkService.CreateRemarkAsync` (Internal remark, Project Officer actor) | Counts as the weekly update and as progress on a direction |
+| Project remark | `IRemarkService.CreateRemarkAsync` (Internal remark, Project Officer actor; tagged with the current stage when "Stage is still …" is ticked) | Counts as the remark, as the stage confirmation when tagged, and as progress on a direction |
 | Idea note | `ProjectIdeaCommandService.AddNoteAsync` | Note titled "Progress update · date" |
 | Task progress | `IActionTaskCollaborationService.AddUpdateAsync` (Comment) | Counts as task progress |
 | Submit task for closure | `IActionTaskService.SubmitTaskAsync` | Waits on the assigner |
@@ -160,9 +187,9 @@ and a successful upload returns to the desk with a toast. Without a local `/Work
 the upload returns to the gallery or library as before.
 
 **Current-stage PDC form.** When a project's current-stage PDC is missing, and nothing else
-would be submitted along with it, "Set PDC" opens a short side panel that asks only for the
-PDC. A PDC that has passed has no form on the desk; its red header note links to the full plan
-editor. "Nothing else" means no private draft, no submission pending or locked,
+would be submitted along with it, "Set PDC" opens a short side panel that first asks whether the
+current stage is right, then asks only for the PDC. A PDC that has passed has no form on the
+desk. "Nothing else" means no private draft, no submission pending or locked,
 and the plan open for submission. The panel posts one row to the plan editor's own handler
 (`Timeline/EditPlan`, exact mode, Submit): the stage code and name, the new PDC, and the
 existing planned start unchanged. The editor writes back exactly the rows it receives, so the
@@ -190,13 +217,21 @@ listed under **Sent for approval** in the side column, as a record rather than a
 another user sent says who. Only plans, date corrections and submitted tasks also appear as a
 done step on the card, and a plan shows there only when it answers a missing PDC.
 
+## Wide screens
+
+The cards follow the width of the desk column (a CSS container query on `.bd-main`), not the
+window. From a 68rem column (about a 1920px screen) folded cards sit two to a row and an open
+card spans the row, with its remark box and steps side by side; from 100rem (a 2560px screen)
+three to a row. The My Workspace shell is capped at 140rem (2240px; `--pm-shell-desk`), shared
+by the top bar so the menu rail stays aligned.
+
 ## Recently completed projects
 
 Completed projects stay in the Conference view for a while, so the PO may still be asked about
 them. They appear in a collapsed **Recently completed** section under the desk, built from the
 Conference view's own items (`IsRecentlyCompleted`). It opens by itself when a direction there
 still needs an answer. These projects never count towards ready for conference, and have no
-weekly-update or timeline checks.
+remark, stage or timeline checks.
 
 ## Workspace menu
 
@@ -205,7 +240,9 @@ The PO menu has five entries: **Briefing desk**, **My conference review**, **Pro
 
 - **Project register** (`view=projects`) is a table built from the desk's own project cards
   (stage and PDC, last update, record health with the gap breakdown, and readiness). The two
-  pages cannot disagree. Each row links to its desk card.
+  pages cannot disagree. The project name opens the project page in the project's own tab
+  (`ProjectTab.Name`), so a second click returns to the tab already open; the "Before you
+  brief" link goes to the desk card.
 - The Action queue, Assigned tasks, My ideas and Follow-ups views were folded into the desk.
   Their addresses still work and redirect to the desk (`IsFoldedIntoDesk`): tasks to
   `#bd-section-task`, ideas to `#bd-section-idea`, follow-ups to `#bd-week-title`.

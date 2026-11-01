@@ -284,6 +284,12 @@ public sealed class WorkspaceProjectMatrixRowVm
 
     public DateTime? LastPoRemarkAtUtc { get; set; }
 
+    /// <summary>
+    /// The latest recent remark by this PO tagged with the current stage (the desk's "Stage is
+    /// still …" tick). Loaded for the briefing desk only; null elsewhere.
+    /// </summary>
+    public DateTime? CurrentStageConfirmedAtUtc { get; set; }
+
     public bool HasBackfill { get; set; }
 
     public bool HasCurrentStageIssue { get; set; }

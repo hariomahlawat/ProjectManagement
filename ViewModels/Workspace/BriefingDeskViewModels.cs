@@ -54,7 +54,14 @@ public sealed class BriefingDeskItemVm
     /// True when the update box answers an open step (the weekly update or a direction). When
     /// false the PO may still post, but the card says no update is needed.
     /// </summary>
-    public bool IsUpdateDue => Checks.Any(check => check.Route == BriefingDeskRoute.Update && check.State == BriefingDeskCheckState.Open);
+    public bool IsUpdateDue => Checks.Any(check => check.Route == BriefingDeskRoute.Update
+        && (check.State == BriefingDeskCheckState.Open || check.IsDueSoon));
+
+    /// <summary>
+    /// The current stage the remark box offers to confirm ("Stage is still DEVP"). Null for
+    /// ideas, tasks, completed projects and a project with no current stage.
+    /// </summary>
+    public BriefingDeskStageVm? StageToConfirm { get; init; }
 
     public IReadOnlyList<BriefingDeskFactVm> Facts { get; init; } = Array.Empty<BriefingDeskFactVm>();
 
@@ -118,9 +125,17 @@ public enum BriefingDeskTone
 /// <summary>
 /// A header tag on a card. <paramref name="Url"/> makes it a link to where it is fixed.
 /// <paramref name="CoveredByStep"/> marks a tag that a step on the open card repeats, so the open
-/// card shows it once, as the step.
+/// card shows it once, as the step. <paramref name="Key"/> names what the tag is about
+/// (<see cref="BriefingDeskFactKeys"/>), so other views can place it without reading its wording.
 /// </summary>
-public sealed record BriefingDeskFactVm(string Text, BriefingDeskTone Tone, string? Url = null, bool CoveredByStep = false);
+public sealed record BriefingDeskFactVm(string Text, BriefingDeskTone Tone, string? Url = null, bool CoveredByStep = false, string? Key = null);
+
+public static class BriefingDeskFactKeys
+{
+    public const string Stage = "stage";
+    public const string Pdc = "pdc";
+    public const string Remark = "remark";
+}
 
 public enum BriefingDeskStepState
 {
@@ -189,7 +204,26 @@ public sealed class BriefingDeskCheckVm
     public string? RouteHint { get; init; }
 
     public int Points { get; init; }
+
+    /// <summary>
+    /// Done, but close to falling due (a remark 7 to 9 days old): still counts towards ready for
+    /// conference, shown in amber so the PO acts before it turns red.
+    /// </summary>
+    public bool IsDueSoon { get; init; }
+
+    /// <summary>
+    /// A second way out, opened in the project's own tab: "Wrong stage? Update it on the project
+    /// page". <see cref="SecondaryTarget"/> is the tab name (ProjectTab.Name).
+    /// </summary>
+    public string? SecondaryText { get; init; }
+
+    public string? SecondaryUrl { get; init; }
+
+    public string? SecondaryTarget { get; init; }
 }
+
+/// <summary>The stage a remark confirms: stored on the remark as StageRef and StageNameSnapshot.</summary>
+public sealed record BriefingDeskStageVm(string Code, string Label, string ProjectPageUrl, string ProjectTabName);
 
 public sealed class BriefingDeskPlanPanelVm
 {
@@ -212,6 +246,13 @@ public sealed class BriefingDeskPlanPanelVm
     public string ReturnUrl { get; init; } = string.Empty;
 
     public string FullEditorUrl { get; init; } = string.Empty;
+
+    /// <summary>Asked before the PDC form: the PDC belongs to this stage, so it must be the right one.</summary>
+    public string StageLabel { get; init; } = string.Empty;
+
+    public string ProjectPageUrl { get; init; } = string.Empty;
+
+    public string ProjectTabName { get; init; } = string.Empty;
 }
 
 public sealed class BriefingDeskItemRenderVm

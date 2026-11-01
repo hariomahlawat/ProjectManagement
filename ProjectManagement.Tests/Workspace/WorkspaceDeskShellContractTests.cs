@@ -48,7 +48,7 @@ public sealed class WorkspaceDeskShellContractTests
     {
         var css = ReadRepoFile("wwwroot", "css", "site.css").Replace("\r\n", "\n");
 
-        Assert.Contains("--pm-shell-desk: 115rem;", css, StringComparison.Ordinal);
+        Assert.Contains("--pm-shell-desk: 140rem;", css, StringComparison.Ordinal);
         Assert.Contains(".pm-page-shell--desk,\n.pm-chrome-shell--desk {\n    width: min(calc(100% - (2 * var(--pm-shell-desk-gutter))), var(--pm-shell-desk));", css, StringComparison.Ordinal);
     }
 

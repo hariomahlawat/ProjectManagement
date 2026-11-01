@@ -47,7 +47,7 @@ else
                             <a class="project-arpp-table__project project-arpp-table__project-link"
                                asp-page="/Projects/Overview"
                                asp-route-id="@row.ProjectId"
-                               target="_blank"
+                               target="@ProjectTab.Name(row.ProjectId)"
                                rel="noopener noreferrer"
                                title="Open project in a new tab">
                                 <span>@row.ProjectName</span>
