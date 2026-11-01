@@ -99,9 +99,10 @@ test('add projects opens as a dialog whose selections save in place', () => {
 });
 
 test('deck settings save themselves in place, one save at a time', () => {
-  const save = source.slice(source.indexOf('const saveSettingsNow'), source.indexOf('const refreshSettingsDirtyState'));
-  // A save already running queues the next one instead of overlapping it.
-  assert.match(save, /if \(settingsRequest\) \{\s*settingsQueued = true;/);
+  const save = source.slice(source.indexOf('const saveSettingsOnce'), source.indexOf('const refreshSettingsDirtyState'));
+  // A save already running is joined, and the shared promise settles only after queued changes are saved.
+  assert.match(save, /if \(settingsDrain\) \{\s*settingsQueued = true;\s*return settingsDrain;/);
+  assert.match(save, /\} while \(settingsQueued\);\s*return saved && serializeSettings\(\) === settingsSavedState;/);
   assert.match(save, /if \(state === settingsSavedState\)/);
   assert.match(save, /'X-Requested-With': 'XMLHttpRequest'/);
   assert.match(save, /applyEditorState\(payload\?\.deck\);/);
@@ -127,8 +128,11 @@ test('settings drawer keeps a consistent appearance section and compact default 
 
 test('pending settings saves finish before navigation, posts and generation', () => {
   assert.match(source, /if \(!settingsPending\(\) && !profileDirty\) return;\s*event\.preventDefault\(\);\s*event\.returnValue = '';/);
-  assert.match(source, /document\.addEventListener\('click'[\s\S]*?if \(settingsPending\(\)\) await saveSettingsNow\(\);/);
-  assert.match(source, /document\.addEventListener\('submit'[\s\S]*?if \(settingsPending\(\)\) await saveSettingsNow\(\);/);
+  // A failed save keeps the form unsaved, and leaving then asks instead of going ahead.
+  assert.match(source, /serializeSettings\(\) !== settingsSavedState\)\);/);
+  assert.match(source, /if \(!settingsPending\(\) \|\| await saveSettingsNow\(\)\) return true;\s*const discard = await prismConfirm\(/);
+  assert.match(source, /document\.addEventListener\('click'[\s\S]*?if \(!\(await settleSettingsBeforeLeaving\(\)\)\) return;/);
+  assert.match(source, /document\.addEventListener\('submit'[\s\S]*?if \(!\(await settleSettingsBeforeLeaving\(\)\)\) return;/);
   assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*setState\(generateStatus, 'Save the deck settings before generating the PowerPoint\.', 'error'\);/);
 });
 

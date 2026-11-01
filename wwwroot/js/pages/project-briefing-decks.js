@@ -790,16 +790,23 @@ if (root) {
   const conflictText = root.querySelector('[data-pbd-conflict-text]');
   let settingsSavedState = '';
   let settingsTimer = 0;
-  let settingsRequest = null;
+  let settingsDrain = null;
   let settingsQueued = false;
+  let settingsDiscarded = false;
 
-  const settingsPending = () => Boolean(settingsTimer) || Boolean(settingsRequest);
+  // Unsaved means the form differs from what the server last accepted, so a failed save (invalid,
+  // offline, conflict) still counts until a later save succeeds or the person discards it.
+  const settingsPending = () => !settingsDiscarded && (Boolean(settingsTimer) || Boolean(settingsDrain)
+    || (settingsForm instanceof HTMLFormElement && serializeSettings() !== settingsSavedState));
 
   const showConflict = (message) => {
     if (conflictText && message) conflictText.textContent = `${message} Your last change was not saved.`;
     if (conflictBanner) conflictBanner.hidden = false;
   };
-  root.querySelector('[data-pbd-conflict-reload]')?.addEventListener('click', () => window.location.reload());
+  root.querySelector('[data-pbd-conflict-reload]')?.addEventListener('click', () => {
+    settingsDiscarded = true;
+    window.location.reload();
+  });
 
   const settingsValueLabel = (name) => {
     const input = settingsForm?.querySelector(`input[name="${name}"]:checked`);
@@ -840,14 +847,7 @@ if (root) {
     }
   };
 
-  const saveSettingsNow = async () => {
-    window.clearTimeout(settingsTimer);
-    settingsTimer = 0;
-    if (!(settingsForm instanceof HTMLFormElement)) return true;
-    if (settingsRequest) {
-      settingsQueued = true;
-      return settingsRequest;
-    }
+  const saveSettingsOnce = async () => {
     if (!validateUpdateSheetRows({ focus: false })) {
       setState(settingsStatus, 'Select at least one Project Update Sheet row; nothing was saved.', 'error');
       return false;
@@ -863,41 +863,70 @@ if (root) {
     }
 
     setState(settingsStatus, 'Saving…', 'saving');
-    settingsRequest = (async () => {
-      try {
-        const body = new FormData(settingsForm);
-        body.set('RowVersion', currentRowVersion());
-        const response = await fetch(settingsForm.action, {
-          method: 'POST',
-          credentials: 'same-origin',
-          body,
-          headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        const payload = await response.json().catch(() => null);
-        if (response.status === 409) {
-          showConflict(payload?.message);
-          throw new Error('Not saved: someone else changed this deck.');
-        }
-        if (!response.ok) throw new Error(payload?.message || `The settings could not be saved (${response.status}).`);
-        settingsSavedState = state;
-        applyEditorState(payload?.deck);
-        applySettingsDeck(payload?.deck);
-        refreshSettingsSummary();
-        setState(settingsStatus, 'All changes saved.', 'saved');
-        return true;
-      } catch (error) {
-        setState(settingsStatus, error.message || 'The settings could not be saved.', 'error');
-        return false;
-      } finally {
-        settingsRequest = null;
+    try {
+      const body = new FormData(settingsForm);
+      body.set('RowVersion', currentRowVersion());
+      const response = await fetch(settingsForm.action, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body,
+        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const payload = await response.json().catch(() => null);
+      if (response.status === 409) {
+        showConflict(payload?.message);
+        throw new Error('Not saved: someone else changed this deck.');
       }
-    })();
-    const saved = await settingsRequest;
-    if (settingsQueued) {
-      settingsQueued = false;
-      return saveSettingsNow();
+      if (!response.ok) throw new Error(payload?.message || `The settings could not be saved (${response.status}).`);
+      settingsSavedState = state;
+      applyEditorState(payload?.deck);
+      applySettingsDeck(payload?.deck);
+      refreshSettingsSummary();
+      setState(settingsStatus, 'All changes saved.', 'saved');
+      return true;
+    } catch (error) {
+      setState(settingsStatus, error.message || 'The settings could not be saved.', 'error');
+      return false;
     }
-    return saved;
+  };
+
+  // One shared save: a call while a save is running joins it, and it resolves only once every
+  // change queued meanwhile has been saved too (true) or a save has failed (false).
+  const saveSettingsNow = () => {
+    window.clearTimeout(settingsTimer);
+    settingsTimer = 0;
+    if (!(settingsForm instanceof HTMLFormElement)) return Promise.resolve(true);
+    if (settingsDrain) {
+      settingsQueued = true;
+      return settingsDrain;
+    }
+    settingsDrain = (async () => {
+      let saved;
+      do {
+        settingsQueued = false;
+        saved = await saveSettingsOnce();
+      } while (settingsQueued);
+      return saved && serializeSettings() === settingsSavedState;
+    })().finally(() => {
+      settingsDrain = null;
+    });
+    return settingsDrain;
+  };
+
+  // Navigation and full-page posts go ahead only once the settings are saved, or when the
+  // person chooses to leave them unsaved.
+  const settleSettingsBeforeLeaving = async () => {
+    if (!settingsPending() || await saveSettingsNow()) return true;
+    const discard = await prismConfirm({
+      title: 'Leave without saving the settings?',
+      message: 'Your latest deck settings change could not be saved and will be lost if you continue.',
+      confirmText: 'Leave anyway',
+      cancelText: 'Stay here',
+      tone: 'danger',
+      returnFocus: document.activeElement
+    });
+    if (discard) settingsDiscarded = true;
+    return discard;
   };
 
   // Kept under its earlier name: the row, profile-module and stage-summary editors call it.
@@ -1003,7 +1032,7 @@ if (root) {
         || link.target === '_blank' || link.target.startsWith('prism-project-') || link.hasAttribute('download')) return;
 
     event.preventDefault();
-    if (settingsPending()) await saveSettingsNow();
+    if (!(await settleSettingsBeforeLeaving())) return;
     if (profileDirty && !(await confirmProfileNavigation())) return;
     window.location.assign(link.href);
   }, true);
@@ -1020,7 +1049,7 @@ if (root) {
     if (!settingsPending() && !profileDirty) return;
 
     event.preventDefault();
-    if (settingsPending()) await saveSettingsNow();
+    if (!(await settleSettingsBeforeLeaving())) return;
     if (profileDirty && !(await confirmProfileNavigation())) return;
     HTMLFormElement.prototype.submit.call(submittedForm);
   }, true);
