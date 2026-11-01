@@ -41,6 +41,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
     public (byte[] Content, int SlideCount) Compose(ProjectBriefingPresentationData data)
     {
+        var composition = ComposeWithOutline(data);
+        return (composition.Content, composition.SlideCount);
+    }
+
+    public ProjectBriefingComposition ComposeWithOutline(ProjectBriefingPresentationData data)
+    {
         ArgumentNullException.ThrowIfNull(data);
         if (!File.Exists(_templatePath))
         {
@@ -98,7 +104,10 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         var content = stream.ToArray();
         ProjectBriefingPresentationIntegrityValidator.Validate(content, plans.Count);
-        return (content, plans.Count);
+        var outline = plans
+            .Select((plan, index) => new ProjectBriefingSlideOutlineItem(index + 1, plan.Role, plan.ProjectId))
+            .ToArray();
+        return new ProjectBriefingComposition(content, outline);
     }
 
     private static List<SlidePlan> BuildPlans(ProjectBriefingPresentationData data)
@@ -112,7 +121,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         // Every exported presentation ends with one deliberate ceremonial closing slide.
         plans.Add(new SlidePlan(
             SlidePlanKind.Closing,
-            canvas => RenderClosingSlide(canvas, data)));
+            canvas => RenderClosingSlide(canvas, data),
+            ProjectBriefingSlideRole.Closing));
         return plans;
     }
 
@@ -125,7 +135,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         if (data.IncludeCoverSlide)
         {
-            plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
+            plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data), ProjectBriefingSlideRole.Cover));
         }
 
         foreach (var slideType in data.AdditionalSlideOrder.Where(type =>
@@ -140,7 +150,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     var institutionalProfile = data.InstitutionalProfile;
                     plans.Add(new SlidePlan(
                         SlidePlanKind.InstitutionalProfile,
-                        canvas => RenderInstitutionalProfile(canvas, institutionalProfile)));
+                        canvas => RenderInstitutionalProfile(canvas, institutionalProfile),
+                        ProjectBriefingSlideRole.InstitutionalProfile));
                     break;
                 }
                 case ProjectBriefingAdditionalSlideType.RoleAndCharter
@@ -152,7 +163,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                         var capturedPage = page;
                         plans.Add(new SlidePlan(
                             SlidePlanKind.RoleCharter,
-                            canvas => RenderRoleCharter(canvas, roleCharter, capturedPage)));
+                            canvas => RenderRoleCharter(canvas, roleCharter, capturedPage),
+                            ProjectBriefingSlideRole.RoleCharter));
                     }
                     break;
                 }
@@ -161,7 +173,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         if (data.IncludePortfolioSummarySlide)
         {
-            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
+            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data), ProjectBriefingSlideRole.PortfolioSummary));
         }
     }
 
@@ -179,7 +191,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 var footprint = data.FfcGlobalFootprint;
                 plans.Add(new SlidePlan(
                     SlidePlanKind.FfcGlobalFootprint,
-                    canvas => RenderFfcGlobalFootprint(canvas, footprint)));
+                    canvas => RenderFfcGlobalFootprint(canvas, footprint),
+                    ProjectBriefingSlideRole.FfcGlobalFootprint));
 
                 if (footprint.IncludeCountryWiseBreakdown && footprint.Countries.Count > 0)
                 {
@@ -198,7 +211,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                                 footprint,
                                 capturedCountries,
                                 capturedPageIndex + 1,
-                                pages.Length)));
+                                pages.Length),
+                            ProjectBriefingSlideRole.FfcCountryBreakdown));
                     }
                 }
             }
@@ -262,7 +276,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
                     var primaryPage = capability.Pages[0];
                     plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                        RenderProjectDetail(canvas, data, capturedProject, primaryPage)));
+                        RenderProjectDetail(canvas, data, capturedProject, primaryPage),
+                        ProjectBriefingSlideRole.ProjectCapability,
+                        capturedProject.ProjectId));
 
                     var continuationPages = capability.Pages.Skip(1).ToArray();
                     for (var index = 0; index < continuationPages.Length; index++)
@@ -275,14 +291,18 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                                 capturedProject,
                                 capturedPage,
                                 capturedIndex + 1,
-                                continuationPages.Length)));
+                                continuationPages.Length),
+                            ProjectBriefingSlideRole.ProjectCapabilityContinuation,
+                            capturedProject.ProjectId));
                     }
                 }
 
                 if (includeProjectBrief)
                 {
                     plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                        RenderProjectBrief(canvas, data, capturedProject)));
+                        RenderProjectBrief(canvas, data, capturedProject),
+                        ProjectBriefingSlideRole.ProjectBrief,
+                        capturedProject.ProjectId));
                 }
             }
         }
@@ -456,11 +476,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     {
         plans.Add(new SlidePlan(
             SlidePlanKind.Summary,
-            canvas => RenderStageWiseExecutiveSummary(canvas, data)));
+            canvas => RenderStageWiseExecutiveSummary(canvas, data),
+            ProjectBriefingSlideRole.StageSummary));
 
         if (data.StandardSlideOptions.IncludeStageDistributionTable)
         {
-            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderStageSummaryTable(canvas, data)));
+            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderStageSummaryTable(canvas, data), ProjectBriefingSlideRole.StageDistributionTable));
         }
     }
 
@@ -489,7 +510,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     accent,
                     capturedPageIndex + 1,
                     pages.Count,
-                    capturedRankOffset)));
+                    capturedRankOffset),
+                ProjectBriefingSlideRole.CategorySummary));
             rankOffset += capturedPage.Count;
         }
     }
@@ -583,7 +605,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 captured.Items,
                 captured.RowHeights,
                 capturedIndex + 1,
-                pages.Count)));
+                pages.Count),
+                ProjectBriefingSlideRole.StatusTable));
         }
     }
 
@@ -2262,7 +2285,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         int GridSpan = 1,
         bool HorizontalMerge = false);
     private sealed record ProjectBriefingBrandingAssets(byte[]? LeftLogo, byte[]? RightLogo);
-    private sealed record SlidePlan(SlidePlanKind Kind, Action<SlideCanvas> Render);
+    // Role and ProjectId describe the slide for the builder's outline; they do not affect rendering.
+    private sealed record SlidePlan(
+        SlidePlanKind Kind,
+        Action<SlideCanvas> Render,
+        ProjectBriefingSlideRole Role,
+        int? ProjectId = null);
 
     private sealed class SlideCanvas
     {

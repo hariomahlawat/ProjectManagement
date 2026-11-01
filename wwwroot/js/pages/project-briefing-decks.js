@@ -979,11 +979,12 @@ if (root) {
   window.addEventListener('pagehide', () => sessionStorage.setItem(`${storagePrefix}scroll`, String(window.scrollY)));
   restoreScroll();
 
-  // Collapse the secondary saved-deck rail on laptop widths without losing deck context.
+  // The shared-deck list folds away at every width so the Studio keeps its three panes; it
+  // stays open only when the person opened it in this session.
   const deckWorkspace = root.querySelector('.pbd-workspace');
   const savedDecksPanel = root.querySelector('[data-pbd-saved-decks]');
   const savedDecksToggle = root.querySelector('[data-pbd-decks-toggle]');
-  const savedDecksMedia = window.matchMedia('(max-width: 1499px)');
+  const savedDecksMedia = window.matchMedia('(min-width: 0px)');
   const savedDecksStorageKey = `${storagePrefix}savedDecksOpen`;
 
   const setSavedDecksOpen = (open, persist = true) => {
@@ -1802,7 +1803,7 @@ if (root) {
     updateReadinessSummary(deck);
     updateLeftOutNotice(deck.projects || []);
     renderSelectedProjects(deck.projects || []);
-    announceDeckChange({ hasProjects: (deck.projects || []).some((project) => !project.isDeletedOrArchived) });
+    announceDeckChange({ hasProjects: (deck.projects || []).some((project) => !project.isDeletedOrArchived), deck });
     if (scrollTop !== null) {
       window.requestAnimationFrame(() => window.scrollTo({ top: scrollTop, behavior: 'auto' }));
     }

@@ -91,8 +91,8 @@ test('inline membership changes preserve the current page position', () => {
   assert.match(source, /window\.scrollTo\(\{ top: scrollTop, behavior: 'auto' \}\)/);
 });
 
-test('briefing deck shell collapses the secondary saved-deck rail at laptop widths', () => {
-  assert.match(source, /matchMedia\('\(max-width: 1499px\)'\)/);
+test('briefing deck shell folds the shared-deck list at every width to make room for the Studio', () => {
+  assert.match(source, /matchMedia\('\(min-width: 0px\)'\)/);
   assert.match(source, /is-decks-collapsed/);
   assert.match(source, /savedDecksOpen/);
   assert.match(source, /aria-expanded/);
@@ -288,34 +288,45 @@ test('stage distribution table remains an explicit dependent option', () => {
   assert.match(source, /stageTableToggle\.disabled = !enabled/);
 });
 
-test('slide preview inserts only server-rendered slide HTML and writes titles as text', () => {
-  const previewSource = fs.readFileSync(
-    path.resolve(__dirname, '..', 'pages', 'project-briefing-preview.js'),
-    'utf8');
-  const innerHtmlUses = previewSource.match(/\.innerHTML\s*=/g) || [];
+const studioSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'pages', 'project-briefing-studio.js'),
+  'utf8');
+
+test('studio inserts only server-rendered slide HTML and writes every other text as text', () => {
+  const innerHtmlUses = studioSource.match(/\.innerHTML\s*=/g) || [];
   assert.equal(innerHtmlUses.length, 1);
-  assert.match(previewSource, /frame\.innerHTML = slide\.html;/);
-  assert.match(previewSource, /title\.textContent = slide\.title;/);
-  assert.match(previewSource, /credentials: 'same-origin'/);
-  assert.match(viewSource, /data-pbd-preview\b/);
-  assert.match(viewSource, /project-briefing-preview\.js/);
+  assert.match(studioSource, /frame\.innerHTML = slide\.html;/);
+  assert.match(studioSource, /node\.textContent = text;/);
+  assert.match(studioSource, /credentials: 'same-origin'/);
+  assert.match(viewSource, /data-pbd-studio\s/);
+  assert.match(viewSource, /project-briefing-studio\.js/);
+  assert.doesNotMatch(viewSource, /project-briefing-preview\.js/);
 });
 
-test('in-place deck edits ask the slide preview to rebuild', () => {
+test('in-place deck edits ask the studio to rebuild with the refreshed deck', () => {
   assert.match(source, /new CustomEvent\('pbd:deck-changed'/);
   const announcements = source.match(/announceDeckChange\(/g) || [];
   assert.ok(announcements.length >= 3, 'membership, order and overview saves');
+  assert.match(source, /announceDeckChange\(\{ hasProjects: .*, deck \}\)/);
+  assert.match(studioSource, /readStudioData\(\{ projects: event\.detail\.deck\.projects, contentGaps: event\.detail\.deck\.contentGaps \}\)/);
 });
 
-test('slide preview drops superseded responses and rebuilds an open viewer strip', () => {
-  const previewSource = fs.readFileSync(
-    path.resolve(__dirname, '..', 'pages', 'project-briefing-preview.js'),
-    'utf8');
-  const load = previewSource.slice(previewSource.indexOf('const loadPreview'), previewSource.indexOf('// Viewer:'));
+test('studio drops superseded responses and rebuilds an open viewer strip', () => {
+  const load = studioSource.slice(studioSource.indexOf('const loadPreview'), studioSource.indexOf('// Present:'));
   // Any running request is cancelled before the empty-deck path returns.
   assert.ok(load.indexOf('controller?.abort();') < load.indexOf('if (!hasProjects)'));
   assert.match(load, /if \(request\.signal\.aborted\) return;/);
   assert.match(load, /if \(controller === request\)/);
   // An open viewer gets a strip built from the new slide list.
-  assert.match(load, /buildStrip\(\);\s*showSlide\(Math\.min\(current, slides\.length - 1\)\);/);
+  assert.match(load, /buildStrip\(\);\s*showViewerSlide\(Math\.min\(viewerIndex, slides\.length - 1\)\);/);
+});
+
+test('studio reuses the builder save paths instead of its own', () => {
+  // Removing a project and editing the deck-specific overview go through the delegated handlers
+  // in project-briefing-decks.js, so concurrency and audit stay in one place.
+  assert.match(studioSource, /remove\.dataset\.pbdRemoveProject = '';/);
+  assert.match(studioSource, /button\.dataset\.pbdEditDescription = '';/);
+  assert.doesNotMatch(studioSource, /method: 'POST'/);
+  assert.match(source, /event\.target\.closest\('\[data-pbd-remove-project\]'\)/);
+  assert.match(source, /event\.target\.closest\('\[data-pbd-edit-description\]'\)/);
 });

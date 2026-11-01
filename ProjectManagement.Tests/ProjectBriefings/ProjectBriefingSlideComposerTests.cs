@@ -91,6 +91,38 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void ComposeWithOutline_DescribesEverySlideInDeckOrder()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = BuildData();
+
+        var composition = composer.ComposeWithOutline(data);
+        var (_, slideCount) = composer.Compose(data);
+
+        Assert.Equal(slideCount, composition.SlideCount);
+        Assert.Equal(Enumerable.Range(1, slideCount), composition.Outline.Select(item => item.Number));
+        Assert.Equal(ProjectBriefingSlideRole.Cover, composition.Outline[0].Role);
+        Assert.Equal(ProjectBriefingSlideRole.Closing, composition.Outline[^1].Role);
+        Assert.Contains(composition.Outline, item => item.Role == ProjectBriefingSlideRole.StatusTable);
+
+        // Every project slide names its project; no other slide does.
+        var projectRoles = new[]
+        {
+            ProjectBriefingSlideRole.ProjectCapability,
+            ProjectBriefingSlideRole.ProjectCapabilityContinuation,
+            ProjectBriefingSlideRole.ProjectBrief,
+            ProjectBriefingSlideRole.ProjectUpdateSheet,
+            ProjectBriefingSlideRole.ProjectUpdateSheetContinuation
+        };
+        Assert.All(composition.Outline, item =>
+            Assert.Equal(projectRoles.Contains(item.Role), item.ProjectId.HasValue));
+        Assert.Equal(
+            data.Projects.Select(project => project.ProjectId).OrderBy(id => id),
+            composition.Outline.Where(item => item.ProjectId.HasValue).Select(item => item.ProjectId!.Value).Distinct().OrderBy(id => id));
+    }
+
+    [Fact]
     public void PreviewRenderer_EncodesSlideTextSoItCannotBecomeMarkup()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");

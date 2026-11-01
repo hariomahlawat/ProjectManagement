@@ -812,7 +812,13 @@ public sealed class IndexModel : PageModel
                 preview.SlideCount,
                 generatedAt = IstClock.ToIst(preview.GeneratedAtUtc).ToString("dd MMM yyyy, HH:mm"),
                 slides = preview.Slides,
-                images = preview.Images
+                images = preview.Images,
+                outline = composed.Outline.Select(item => new
+                {
+                    item.Number,
+                    role = item.Role.ToString(),
+                    item.ProjectId
+                })
             });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

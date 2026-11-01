@@ -12,29 +12,51 @@ agreed plan to turn the builder into a **Briefing Studio**.
 | Deck persistence | `Services/ProjectBriefings/ProjectBriefingDeckService.cs`; options in `SelectionRulesJson` via `ProjectBriefingDeckConfigurationCodec` |
 | Page data, readiness, slide estimate | `Services/ProjectBriefings/ProjectBriefingDataService.cs` |
 | Slide generation | `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer*.cs`, `ProjectBriefingPowerPointExportService.cs` (`ComposeAsync` builds the deck; `GenerateAsync` also records the generation), `ProjectBriefingPresentationIntegrityValidator.cs` |
-| Slide preview | `ProjectBriefingSlidePreviewRenderer.cs` (composed PowerPoint → positioned HTML); page handler `OnGetPreviewAsync`; `wwwroot/js/pages/project-briefing-preview.js` |
-| Scripts and styles | `wwwroot/js/pages/project-briefing-decks.js`, `project-briefing-additional-slides.js`, `project-briefing-preview.js`; `wwwroot/css/pages/project-briefing-decks.css` |
+| Studio | `ProjectBriefingSlidePreviewRenderer.cs` (composed PowerPoint → positioned HTML); slide roles from `ProjectBriefingSlideComposer.ComposeWithOutline`; content gaps from `ProjectBriefingContentGaps`; page handler `OnGetPreviewAsync`; `wwwroot/js/pages/project-briefing-studio.js` |
+| Scripts and styles | `wwwroot/js/pages/project-briefing-decks.js`, `project-briefing-additional-slides.js`, `project-briefing-studio.js`; `wwwroot/css/pages/project-briefing-decks.css` |
 | Access | `Policies.ProjectBriefingDecks.Manage` (Comdt, HoD); every deck is shared |
 | Tests | `ProjectManagement.Tests/ProjectBriefings/*`, `wwwroot/js/projects/project-briefing-decks.test.js` |
 
-## Slide preview
+## Studio
 
-The builder shows the deck's slides under the settings bar. The server composes the same
-PowerPoint that **Generate PowerPoint** downloads (without recording a generation) and reads it
-back into positioned HTML: shapes, text, lines, pictures, tables and groups, in the composer's
-own colours. So the preview and its slide count are exact, not estimated. Pictures are shrunk
-to 960px and sent once each, however many slides use them. Every text value is encoded on the
-server; the script inserts only that slide HTML and writes titles as text.
+The top of the builder is the Studio: the slide outline, the selected slide and an inspector.
+The server composes the same PowerPoint that **Generate PowerPoint** downloads (without
+recording a generation) and reads it back into positioned HTML: shapes, text, lines, pictures,
+tables and groups, in the composer's own colours. So the slides and their count are exact, not
+estimated. The composer also reports what each slide is (`ProjectBriefingSlideRole`, plus the
+project for project slides), which the outline uses instead of reading slide text. Pictures are
+shrunk to 960px and sent once each, however many slides use them. Every text value is encoded on
+the server; the script inserts only slide HTML and writes all other text as text.
 
-- Thumbnails fill the width: more columns on wider screens. Two rows show by default, with
-  **Show all slides** for the rest.
-- **Open viewer** (or any thumbnail) shows one slide as large as the window allows, with a strip
-  of every slide: beside the slide from 1400px, below it on narrower screens. Arrow keys,
-  Page Up/Down, Home and End move between slides; Escape closes.
-- Adding, removing or reordering projects and saving a capability overview rebuild the
-  preview about a second later. Settings saves reload the page, which rebuilds it too.
+- **Outline** (left): Opening, Portfolio, one group per present stage (in the deck's maturity
+  order), then Closing. A project's slides share one row; runs of status-table, category and FFC
+  breakdown pages fold into one row. Project rows carry an amber count of missing content.
+  Search filters by title, stage and category. **Projects** opens Add projects; **Slide** opens
+  the additional-slide library.
+- **Slide** (centre): the selected slide as large as the pane allows, or **All slides** as a grid
+  that adds columns on wider screens. Arrow keys and the arrow buttons move between slides;
+  **Present** opens the full-window viewer (strip beside the slide from 1400px, below it on
+  narrower screens; Page Up/Down, Home, End, Escape) and returns to the slide it ended on. Under
+  a project slide, each missing item has its fix: write the capability overview for this deck,
+  or open the project, its Photos page or its brief.
+- **Inspector** (right): **This slide** shows a project's costs, status remark, capability
+  source and slide numbers, with Open project, Remove from deck and the deck-specific capability
+  overview (saved through the existing editor). Other slides explain what they show and offer
+  Deck settings or, for the SDD profile, Role & Charter and FFC slides, Edit slide content.
+  **Deck** lists the current settings and opens the settings drawer. **Checks** counts, per
+  item, how many projects lack it, and **Show** narrows the outline to them.
+- "Missing" has one rule, `ProjectBriefingContentGaps`, applied on the server to the deck's own
+  settings (template, format, costs, narrative, update-sheet rows); deleted and archived projects
+  are left out.
+- Adding, removing or reordering projects and saving a capability overview rebuild the slides
+  about a second later and keep the same project selected. Settings saves reload the page.
+- Widths: three panes from 1400px (outline about 18rem, inspector about 23rem; 20rem and 26rem
+  from 2200px); below 1400px the inspector moves under the slide; below 900px one column. The
+  shared-deck list folds into a strip above the Studio at every width.
 - Fonts follow the PowerPoint (Aptos, then Segoe UI), so line breaks can differ slightly where
   Aptos is not installed.
+- The older sections (checks, additional slides, projects table, Add projects) remain below under
+  **Manage this deck** until step 5 of the plan retires them.
 
 ## Review findings (1 Nov 2026)
 
@@ -63,21 +85,40 @@ Role & Charter) re-entered per deck; generation runs in the request with photos 
 
 ## Plan: Briefing Studio
 
-1. **Fixes** — done (#2836): bugs 1–3 and the empty-deck copy.
-2. **Slide preview** — done: the preview is read back from the composed PowerPoint, so the
-   slides and their count are exact. The pre-preview estimate in the checks panel is replaced
-   by the exact count once the preview loads; removing the estimate code waits for the Studio.
-3. **Status date on slides** — show the external-status date on the table, detail slides and
-   update sheets, with the date counted in table pagination on both sides.
-4. **Studio layout** — slide outline, live preview, inspector; every change saves in place with
-   one conflict banner; ordering rules match the generator (fixes 4).
-5. **Library and presets** — deck cards (purpose, owner, last generated and presented, search,
-   pin, archive) and a three-step guide: purpose preset, projects (live rules or hand-picked),
-   review and generate.
-6. **Lifecycle** — Draft, Finalised (locked, PPTX stored on the LAN store), Presented; generation
-   history; a "What changed since the last briefing" slide reusing the PO desk's What-moved facts.
-7. **Per-project control and content** — per-briefing status and brief overrides, photo choice,
-   speaker notes, continuation slides for long text (fixes 5), organisation content library.
+The Studio layout was approved from a clickable mock-up on 1 Nov 2026 (three panes: slide
+outline, the selected slide, and an inspector with This slide, Deck and Checks tabs). Owner
+decisions: no status dates on slides (the remark text alone is enough); presets with the
+detailed settings under Advanced; Finalise comes with the lifecycle step.
+
+1. **Fixes**: done (#2836). Bugs 1–3 and the empty-deck copy.
+2. **Slide preview**: done (#2837). The preview is read back from the composed PowerPoint, so the
+   slides and their count are exact; the page uses the full-width `studio` shell.
+3. **Studio frame**: done (this change). The three panes replace the preview section.
+   - Outline built from the composer's own slide roles (Opening, Portfolio, one group per present
+     stage, Closing), with a gap count on each project row and a search box.
+   - The selected slide large, or all slides as a grid; arrow keys move; Present opens the
+     full-window viewer.
+   - Inspector, This slide: for a project, its facts, status remark, the content it is missing
+     with a way to fix each item, the deck-specific capability overview edited in place, Open
+     project and Remove from deck. For other slides, what the slide shows and where to change it.
+   - Inspector, Deck: the current settings at a glance, opening the existing settings drawer.
+   - Inspector, Checks: deck-wide counts from one rule for "missing" (`ProjectBriefingContentGaps`),
+     each narrowing the outline to the projects that need it.
+   - The older sections (checks, additional slides, projects table, Add projects) stay below
+     under Manage until step 5 retires them.
+4. **Deck settings in the inspector**: purpose presets (Monthly command review, Visit or external
+   audience, Project update sheets) with the detailed options under Advanced, saved in place with
+   one conflict banner; the settings drawer is retired.
+5. **Projects and slides in the Studio**: Add projects and Add slide as dialogs, reorder and
+   remove from the outline (ordering rules match the generator, fixing bug 4); the projects
+   table, the checks section and the long page below the Studio are retired.
+6. **Per-project control**: stored per deck item: photo choice, table row only, leave out of the
+   deck, show stage/status per project, and speaker notes written into the PowerPoint's notes;
+   continuation slides for long briefs and Role & Charter (fixes 5).
+7. **Library and lifecycle**: deck cards (purpose, owner, last generated and presented, search,
+   pin, archive); Draft, Finalised (locked, PowerPoint kept on the LAN store), Presented; a
+   "What changed since the last briefing" slide reusing the PO desk's What-moved facts;
+   organisation content (SDD profile, Role & Charter) kept once instead of per deck.
 
 ### Wide screens
 
