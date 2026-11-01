@@ -448,3 +448,10 @@ test('speaker notes are edited in the inspector and saved through the deck queue
   assert.match(source, /document\.addEventListener\('pbd:set-project-notes'[\s\S]*?runDeckMutation\(async \(\) => \{[\s\S]*?root\.dataset\.speakerNotesUrl/);
   assert.match(viewSource, /data-speaker-notes-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateSpeakerNotes"\)"/);
 });
+
+test('generating waits for in-place saves and refuses unsaved speaker notes', () => {
+  const generate = source.slice(source.indexOf("generateForm?.addEventListener('submit'"));
+  assert.match(generate, /await deckMutationTail;\s*if \(document\.querySelector\('\[data-pbd-studio\]\[data-unsaved-notes="true"\]'\)\) \{\s*setState\(generateStatus, 'Save the speaker notes before generating the PowerPoint\.', 'error'\);/);
+  assert.match(studioSource, /root\.dataset\.unsavedNotes = String\(unsaved\);/);
+  assert.match(studioSource, /notesDraft = \{ projectId: project\.projectId, text: field\.value, saving: false, error: '' \};\s*markUnsavedNotes\(\);/);
+});

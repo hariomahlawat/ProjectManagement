@@ -1721,6 +1721,13 @@ if (root) {
       setState(generateStatus, 'Save the deck settings before generating the PowerPoint.', 'error');
       return;
     }
+    // In-place changes still saving (speaker notes saved on leaving the box, a photo, how a
+    // project appears) finish first, so the PowerPoint reads them.
+    await deckMutationTail;
+    if (document.querySelector('[data-pbd-studio][data-unsaved-notes="true"]')) {
+      setState(generateStatus, 'Save the speaker notes before generating the PowerPoint.', 'error');
+      return;
+    }
     if (!generateButton || generateButton.disabled) return;
     generateButton.disabled = true;
     generateLabel?.classList.add('d-none');

@@ -353,6 +353,12 @@ if (root) {
     && (project.presentation || 'Slides') === 'Slides'
     && (deckShape.layout === 'ProjectUpdateSheet' || deckShape.mode !== 'ExecutiveTable');
   const notesText = (project) => (notesDraft.projectId === project.projectId ? notesDraft.text : project.speakerNotes || '');
+  // Tells the builder (Generate) whether a notes draft differs from the saved notes.
+  const markUnsavedNotes = () => {
+    const project = notesDraft.projectId ? projects.get(notesDraft.projectId) : null;
+    const unsaved = Boolean(project) && notesDraft.text.trim() !== (project.speakerNotes || '').trim();
+    root.dataset.unsavedNotes = String(unsaved);
+  };
 
   const saveNotes = (project) => {
     const text = notesText(project).trim();
@@ -393,6 +399,7 @@ if (root) {
     };
     field.addEventListener('input', () => {
       notesDraft = { projectId: project.projectId, text: field.value, saving: false, error: '' };
+      markUnsavedNotes();
       refresh();
     });
     field.addEventListener('blur', () => saveNotes(project));
@@ -1080,6 +1087,7 @@ if (root) {
   document.addEventListener('pbd:project-notes-failed', (event) => {
     if (notesDraft.projectId !== Number(event.detail?.projectId)) return;
     notesDraft = { ...notesDraft, saving: false, error: event.detail?.message || 'The speaker notes could not be saved.' };
+    markUnsavedNotes();
     refreshInspector();
   });
 
@@ -1117,6 +1125,7 @@ if (root) {
       if (event.detail.deck.layout) deckShape.layout = event.detail.deck.layout;
       if (event.detail.deck.presentationMode) deckShape.mode = event.detail.deck.presentationMode;
       readStudioData({ projects: event.detail.deck.projects, contentGaps: event.detail.deck.contentGaps });
+      markUnsavedNotes();
       renderOutline();
       renderStage();
       renderChecksPanel();
