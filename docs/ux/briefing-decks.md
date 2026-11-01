@@ -46,8 +46,14 @@ the server; the script inserts only slide HTML and writes all other text as text
   source and slide numbers, with Open project, Remove from deck and the deck-specific capability
   overview (saved through the existing editor). Other slides explain what they show and offer
   Deck settings or, for the SDD profile, Role & Charter and FFC slides, Edit slide content.
-  **Deck** lists the current settings, opens the settings drawer, and holds the additional-slide
-  cards (enable, edit, reorder, remove; these still save with a page reload). **Checks** counts,
+  **Deck** starts with the purpose presets, then the additional-slide cards (enable, edit,
+  reorder, remove; these still save with a page reload) and every option under **All settings**.
+  A preset applies its settings on the server and the page reloads once; the Deck tab then says
+  "Set from <preset>", with ", adjusted" once any setting the preset decides has changed. Each
+  other change saves itself in place a moment later, one save at a time; leaving the page,
+  posting another form or generating waits for a pending save. The deck name and description
+  are edited in the header (the pencil beside the name) and saved with the settings. A save that
+  collides with someone else's change shows one banner with Reload. **Checks** counts,
   per item, how many projects lack it, and **Show** narrows the outline to them. Remove from deck
   asks for confirmation first.
 - **Add projects** is a dialog with the earlier selection methods (quick add, recently completed,
@@ -59,7 +65,8 @@ the server; the script inserts only slide HTML and writes all other text as text
   settings (template, format, costs, narrative, update-sheet rows); deleted and archived projects
   are left out.
 - Adding, removing or reordering projects and saving a capability overview rebuild the slides
-  about a second later and keep the same project selected. Settings saves reload the page.
+  about a second later and keep the same project selected. Settings saves update the slides the
+  same way; applying a preset reloads the page.
 - Widths: three panes from 1400px (outline about 18rem, inspector about 23rem; 20rem and 26rem
   from 2200px); below 1400px the inspector moves under the slide; below 900px one column. The
   shared-deck list folds into a strip above the Studio at every width.
@@ -112,19 +119,22 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
    - Inspector, Deck: the current settings at a glance, opening the existing settings drawer.
    - Inspector, Checks: deck-wide counts from one rule for "missing" (`ProjectBriefingContentGaps`),
      each narrowing the outline to the projects that need it.
-4. **Projects and slides in the Studio**: done (this change). Add projects as a dialog that saves in place; the
+4. **Projects and slides in the Studio**: done (#2841). Add projects as a dialog that saves in place; the
    additional slides (SDD profile, Role & Charter, FFC footprint) managed from the Deck tab;
    drag to reorder projects within a stage in the outline (the generator's stage grouping,
    fixing bug 4); the checks section, additional-slides section, projects table and Add
    projects panel below the Studio are retired. Done before the settings step (owner, 1 Nov
    2026) so in-place settings never leave older sections stale.
-5. **Deck settings in the inspector**: purpose presets at the top of the Deck tab (Monthly
+5. **Deck settings in the inspector**: done (this change). Purpose presets at the top of the Deck tab (Monthly
    command review: standard, combined, capability overview, both costs, stage summary,
    Editorial Light, Jai Hind; Visit or external audience: detailed slides with photos, no
    costs, SDD profile, Thank You; Project update sheets: one sheet per project with the
    recommended rows), the chosen preset remembered ("adjusted" after changes), every option
    under Advanced, each change saved in place with one conflict banner, the deck name and
-   description edited in the header; the settings drawer and summary bar are retired.
+   description edited in the header; the settings drawer and summary bar are retired, with
+   their CSS. The preset is stored as an additive `preset` key in the deck configuration, which
+   older builds ignore; one server-side definition (`ProjectBriefingDeckPresets`) both applies a
+   preset and decides "adjusted".
 6. **Per-project control**: stored per deck item: photo choice, table row only, leave out of the
    deck, show stage/status per project, and speaker notes written into the PowerPoint's notes;
    continuation slides for long briefs and Role & Charter (fixes 5).

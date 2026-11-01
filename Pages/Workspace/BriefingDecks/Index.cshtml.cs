@@ -157,10 +157,23 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
+        // The Studio's Deck tab saves each change in place and refreshes from the returned deck;
+        // a plain form post keeps the redirect with a status message.
+        var isAjax = IsAjaxRequest();
+        IActionResult Fail(string message, int statusCode = StatusCodes.Status400BadRequest)
+        {
+            if (isAjax)
+            {
+                return new JsonResult(new { message }) { StatusCode = statusCode };
+            }
+
+            ErrorMessage = message;
+            return RedirectToPage(new { deckId = input.DeckId });
+        }
+
         if (!ModelState.IsValid)
         {
-            ErrorMessage = FirstModelError("Review the deck settings and try again.");
-            return RedirectToPage(new { deckId = input.DeckId });
+            return Fail(FirstModelError("Review the deck settings and try again."));
         }
 
         try
@@ -207,23 +220,69 @@ public sealed class IndexModel : PageModel
                     RowVersion = input.RowVersion
                 },
                 cancellationToken);
-            StatusMessage = "Deck settings saved.";
         }
         catch (DbUpdateConcurrencyException)
         {
-            ErrorMessage = "This deck was updated by another user. Reload the page before saving.";
+            return Fail("This deck was updated by another user. Reload the page before saving.", StatusCodes.Status409Conflict);
         }
         catch (DbUpdateException)
         {
-            ErrorMessage = "The deck settings could not be saved. A deck with the same name may already exist.";
+            return Fail("The deck settings could not be saved. A deck with the same name may already exist.");
         }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
-            ErrorMessage = exception.Message;
+            return Fail(exception.Message);
         }
 
+        if (isAjax)
+        {
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
+            return new JsonResult(new { saved = true, deck });
+        }
+
+        StatusMessage = "Deck settings saved.";
         return RedirectToPage(new { deckId = input.DeckId });
     }
+
+    public async Task<IActionResult> OnPostApplyPresetAsync(
+        [FromBody] ApplyPresetInput? input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (input is null || input.DeckId <= 0 || string.IsNullOrWhiteSpace(input.RowVersion)
+            || !Enum.IsDefined(input.Preset))
+        {
+            return BadRequest(new { message = "The preset request is invalid." });
+        }
+
+        try
+        {
+            var additionalSlidesChanged = await _deckService.ApplyPresetAsync(
+                input.DeckId,
+                userId,
+                input.Preset,
+                input.RowVersion,
+                cancellationToken);
+            return new JsonResult(new { saved = true, additionalSlidesChanged });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new JsonResult(new
+            {
+                message = "This deck was updated by another user. Reload to see their changes before choosing a preset."
+            })
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            };
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+    }
+
+    private bool IsAjaxRequest()
+        => string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
 
     public async Task<IActionResult> OnPostSaveInstitutionalProfileAsync(
         [FromForm] SaveInstitutionalProfileInput input,
@@ -1339,6 +1398,14 @@ public sealed class IndexModel : PageModel
     {
         public long DeckId { get; set; }
         public List<int> ProjectIds { get; set; } = new();
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed class ApplyPresetInput
+    {
+        public long DeckId { get; set; }
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
+        public ProjectBriefingDeckPreset Preset { get; set; }
         public string RowVersion { get; set; } = string.Empty;
     }
 

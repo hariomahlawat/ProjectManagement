@@ -31,7 +31,11 @@ if (root) {
         tone: 'danger',
         returnFocus: form.querySelector('button[type="submit"]')
       });
-      if (confirmed) HTMLFormElement.prototype.submit.call(form);
+      if (!confirmed) return;
+      // The page's submit guard skips this form so the two questions never overlap; wait for a
+      // pending settings save here instead.
+      if (typeof root.pbdSettleSettings === 'function' && !(await root.pbdSettleSettings())) return;
+      HTMLFormElement.prototype.submit.call(form);
     });
   });
 
@@ -60,7 +64,8 @@ if (root) {
           .map((card) => card.dataset.slideType || '')
           .filter(Boolean);
         additionalSlideOrderInput.value = order.join(',');
-        additionalSlideOrderForm.submit();
+        // requestSubmit, so the page's submit guard waits for a pending settings save first.
+        additionalSlideOrderForm.requestSubmit();
       }
     });
   }

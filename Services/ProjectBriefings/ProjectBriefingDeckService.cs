@@ -34,6 +34,15 @@ public interface IProjectBriefingDeckService
         ProjectBriefingDeckSettingsCommand command,
         CancellationToken cancellationToken = default);
 
+    // Sets the deck's template, format, content, costs, look and closing from a purpose preset and
+    // remembers the preset. Returns true when it also switched on an additional slide.
+    Task<bool> ApplyPresetAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingDeckPreset preset,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task UpdateInstitutionalProfileAsync(
         long deckId,
         string requestingUserId,
@@ -389,6 +398,88 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync("ProjectBriefing.DeckUpdated", userId, deck, "Project briefing deck settings updated.");
+    }
+
+    public async Task<bool> ApplyPresetAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingDeckPreset preset,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ProjectBriefingDeckPresets.IsDefined(preset))
+        {
+            throw new InvalidOperationException("The selected preset is not available.");
+        }
+
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
+
+        var target = ProjectBriefingDeckPresets.Get(preset).State;
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+
+        deck.Layout = target.Layout;
+        deck.PresentationMode = target.PresentationMode;
+        deck.NarrativeMode = target.NarrativeMode;
+        deck.CostMode = target.CostMode;
+        deck.PresentationTheme = target.PresentationTheme;
+        deck.IncludeStageSummary = target.IncludeStageSummary;
+        deck.IncludeCoverSlide = target.Layout == ProjectBriefingLayout.StandardBriefing || target.IncludeCoverSlide;
+        deck.IncludePortfolioSummarySlide = target.Layout == ProjectBriefingLayout.StandardBriefing
+            || target.IncludePortfolioSummarySlide;
+
+        var standard = ProjectBriefingStandardSlideOptions.Normalize(
+            configuration.StandardSlideOptions.ProjectBriefLayout,
+            target.ShowPresentStage,
+            target.ShowPresentStatus,
+            configuration.StandardSlideOptions.IncludeStageDistributionTable);
+        var updateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
+            target.UpdateSheetRows,
+            target.HideEmptyUpdateSheetValues);
+
+        // A preset that shows the SDD profile switches it on (and adds it if the deck never had it);
+        // one that does not leaves the profile exactly as the deck had it.
+        var profile = configuration.InstitutionalProfileOptions;
+        var order = configuration.AdditionalSlideOrder.ToList();
+        var additionalSlidesChanged = false;
+        if (target.IncludesInstitutionalProfile)
+        {
+            if (!profile.IncludeSlide)
+            {
+                profile = profile with { IncludeSlide = true };
+                additionalSlidesChanged = true;
+            }
+
+            if (!order.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile))
+            {
+                order.Insert(0, ProjectBriefingAdditionalSlideType.InstitutionalProfile);
+                additionalSlidesChanged = true;
+            }
+        }
+
+        var json = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+            deck.SelectionRulesJson,
+            updateSheet,
+            standard,
+            target.ClosingSlideType,
+            profile);
+        if (additionalSlidesChanged)
+        {
+            json = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlideOrder(json, order);
+        }
+
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPreset(json, preset);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.PresetApplied",
+            userId,
+            deck,
+            $"Project briefing deck set from the {ProjectBriefingDeckPresets.Get(preset).Title} preset.");
+        return additionalSlidesChanged;
     }
 
     private static void ValidateInstitutionalProfile(ProjectBriefingInstitutionalProfileOptions options)

@@ -93,6 +93,10 @@ public sealed class ProjectBriefingDeckVm
     public string LastModifiedByDisplay { get; init; } = string.Empty;
     public IReadOnlyList<ProjectBriefingProjectVm> Projects { get; init; } = Array.Empty<ProjectBriefingProjectVm>();
     public ProjectBriefingReadinessVm Readiness { get; init; } = new();
+    // The purpose preset the deck was set from (null when set up by hand), and whether its
+    // settings have since moved away from that preset.
+    public ProjectBriefingDeckPreset? Preset { get; init; }
+    public bool PresetAdjusted { get; init; }
     // Per project id, the content keys from ProjectBriefingContentGaps the deck will show but the project lacks.
     public IReadOnlyDictionary<int, IReadOnlyList<string>> ContentGaps { get; init; }
         = new Dictionary<int, IReadOnlyList<string>>();

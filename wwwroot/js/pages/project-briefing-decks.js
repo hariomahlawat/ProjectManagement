@@ -52,19 +52,21 @@ if (root) {
     rowVersionInputs.forEach((input) => { input.value = value; });
   };
 
-  // Dedicated settings drawer with canonical dirty-state tracking.
-  const settingsLauncher = root.querySelector('[data-pbd-settings-open]');
-  const settingsDrawer = root.querySelector('[data-pbd-settings-drawer]');
-  const settingsBackdrop = root.querySelector('[data-pbd-settings-backdrop]');
+  // Every in-place change to the deck sends its row version, so they run one at a time: each
+  // starts after the previous one has finished and picked up the version the server returned.
+  let deckMutationTail = Promise.resolve();
+  const runDeckMutation = (mutate) => {
+    const run = deckMutationTail.then(() => mutate());
+    deckMutationTail = run.catch(() => {});
+    return run;
+  };
+
+  // Deck settings: the form in the Studio's Deck tab, saved in place as it changes.
   const settingsForm = root.querySelector('[data-pbd-settings-form]');
-  const settingsSave = root.querySelector('[data-pbd-settings-save]');
-  const settingsDirtyBadge = root.querySelector('[data-pbd-settings-dirty]');
   const settingsStatus = root.querySelector('[data-pbd-settings-status]');
-  let settingsInitialState = '';
-  let settingsDirty = false;
-  let settingsReturnFocus = null;
-  const settingsCollapsibleSections = settingsDrawer
-    ? [...settingsDrawer.querySelectorAll('[data-pbd-settings-collapsible]')]
+  const settingsSummaryText = root.querySelector('[data-pbd-settings-summary-text]');
+  const settingsCollapsibleSections = settingsForm
+    ? [...settingsForm.querySelectorAll('[data-pbd-settings-collapsible]')]
     : [];
   let restoringSettingsSections = false;
   const currentSettingsLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
@@ -115,7 +117,6 @@ if (root) {
 
   const applySettingsValidity = () => {
     settingsValid = updateRowsValid;
-    if (settingsSave) settingsSave.disabled = !settingsDirty || !settingsValid;
   };
 
   const updateRowElements = () => updateRowList
@@ -670,17 +671,9 @@ if (root) {
 
   const openProfileDrawer = (launcher) => {
     if (!profileDrawer || !profileBackdrop) return;
-    if (settingsDirty) {
-      openSettingsDrawer();
-      if (settingsStatus) {
-        settingsStatus.textContent = 'Save or discard deck settings before editing the SDD Institutional Profile.';
-        settingsStatus.classList.add('is-dirty');
-      }
-      return;
-    }
-    const launchedFromSettings = Boolean(launcher && settingsDrawer?.contains(launcher));
-    if (settingsDrawer?.classList.contains('is-open')) closeSettingsDrawer({ discard: false, force: true });
-    profileReturnFocus = launchedFromSettings ? settingsLauncher : (launcher || document.activeElement);
+    // The profile editor saves with a page reload; let a pending settings save finish first.
+    if (settingsPending()) saveSettingsNow();
+    profileReturnFocus = launcher || document.activeElement;
     profileDrawer.classList.add('is-open');
     profileDrawer.setAttribute('aria-hidden', 'false');
     root.querySelectorAll('[data-pbd-profile-open]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
@@ -747,7 +740,7 @@ if (root) {
   });
   profileForm?.addEventListener('input', refreshProfileDirtyState);
   profileForm?.addEventListener('change', refreshProfileDirtyState);
-  profileForm?.addEventListener('submit', (event) => {
+  profileForm?.addEventListener('submit', async (event) => {
     syncInstitutionalHistoryEditor();
     syncInstitutionalPartnershipEditor();
     syncInstitutionalModuleOrder();
@@ -769,6 +762,23 @@ if (root) {
       profileStatus.classList.remove('is-dirty');
       profileStatus.classList.add('is-saving');
     }
+    // Both saves change the deck's row version, so the profile posts only after a pending
+    // settings save has finished (it then carries the new row version).
+    if (settingsPending()) {
+      event.preventDefault();
+      if (!(await saveSettingsNow())) {
+        if (profileSave) profileSave.disabled = false;
+        if (profileStatus) {
+          profileStatus.textContent = 'The deck settings could not be saved, so the profile was not saved either.';
+          profileStatus.classList.remove('is-saving');
+          profileStatus.classList.add('is-dirty');
+        }
+        return;
+      }
+      profileDirty = false;
+      HTMLFormElement.prototype.submit.call(profileForm);
+      return;
+    }
     profileDirty = false;
   });
 
@@ -781,7 +791,8 @@ if (root) {
       const form = toggle.closest('[data-pbd-additional-slide-toggle-form]');
       const enabledInput = form?.querySelector('[data-pbd-additional-slide-enabled]');
       if (enabledInput instanceof HTMLInputElement) enabledInput.value = String(toggle.checked);
-      if (form instanceof HTMLFormElement) form.submit();
+      // requestSubmit, so the page's submit guard waits for a pending settings save first.
+      if (form instanceof HTMLFormElement) form.requestSubmit();
     });
   });
 
@@ -800,125 +811,252 @@ if (root) {
 
   const serializeSettings = () => serializeForm(settingsForm);
 
-  const setSettingsDirty = (dirty) => {
-    settingsDirty = dirty;
-    settingsDirtyBadge?.toggleAttribute('hidden', !dirty);
-    if (settingsSave) settingsSave.disabled = !dirty || !settingsValid;
-    if (settingsStatus) {
-      settingsStatus.textContent = dirty ? 'Unsaved settings' : 'No unsaved changes';
-      settingsStatus.classList.toggle('is-dirty', dirty);
-      settingsStatus.classList.remove('is-saving');
+  // Deck settings live in the Studio's Deck tab and save themselves: a change is posted in place
+  // a moment after the last edit, saves never overlap, and the Studio rebuilds from the saved deck.
+  const conflictBanner = root.querySelector('[data-pbd-conflict]');
+  const conflictText = root.querySelector('[data-pbd-conflict-text]');
+  let settingsSavedState = '';
+  let settingsTimer = 0;
+  let settingsDrain = null;
+  let settingsQueued = false;
+  let settingsDiscarded = false;
+
+  // Unsaved means the form differs from what the server last accepted, so a failed save (invalid,
+  // offline, conflict) still counts until a later save succeeds or the person discards it.
+  const settingsPending = () => !settingsDiscarded && (Boolean(settingsTimer) || Boolean(settingsDrain)
+    || (settingsForm instanceof HTMLFormElement && serializeSettings() !== settingsSavedState));
+
+  const showConflict = (message) => {
+    if (conflictText && message) conflictText.textContent = `${message} Your last change was not saved.`;
+    if (conflictBanner) conflictBanner.hidden = false;
+  };
+  root.querySelector('[data-pbd-conflict-reload]')?.addEventListener('click', () => {
+    settingsDiscarded = true;
+    window.location.reload();
+  });
+
+  const settingsValueLabel = (name) => {
+    const input = settingsForm?.querySelector(`input[name="${name}"]:checked`);
+    return input?.closest('label')?.querySelector('strong')?.textContent?.trim() || '';
+  };
+  const refreshSettingsSummary = () => {
+    if (!settingsSummaryText) return;
+    const parts = isUpdateSheet()
+      ? [settingsValueLabel('Layout'), settingsValueLabel('PresentationTheme'), settingsValueLabel('ClosingSlideType')]
+      : [settingsValueLabel('PresentationMode'), settingsValueLabel('NarrativeMode'), settingsValueLabel('CostMode'), settingsValueLabel('PresentationTheme'), settingsValueLabel('ClosingSlideType')];
+    settingsSummaryText.textContent = parts.filter(Boolean).join(' · ');
+  };
+
+  // The deck's identity and preset line follow every save.
+  const presetStatus = root.querySelector('[data-pbd-preset-status]');
+  const presetTitles = Object.fromEntries([...root.querySelectorAll('[data-pbd-preset]')]
+    .map((button) => [button.dataset.pbdPreset, button.querySelector('strong')?.textContent?.trim() || '']));
+  const applySettingsDeck = (deck) => {
+    if (!deck) return;
+    const name = root.querySelector('[data-pbd-deck-name]');
+    if (name) name.textContent = deck.name || '';
+    const description = root.querySelector('[data-pbd-deck-description]');
+    if (description) {
+      description.textContent = deck.description || '';
+      description.hidden = !deck.description;
+    }
+    const savedCardName = root.querySelector('.pbd-saved-card.is-active strong');
+    if (savedCardName) savedCardName.textContent = deck.name || '';
+    root.querySelectorAll('[data-pbd-preset]').forEach((button) => {
+      const current = button.dataset.pbdPreset === deck.preset;
+      button.classList.toggle('is-current', current);
+      button.setAttribute('aria-pressed', String(current));
+    });
+    if (presetStatus) {
+      presetStatus.textContent = deck.preset && presetTitles[deck.preset]
+        ? `Set from ${presetTitles[deck.preset]}${deck.presetAdjusted ? ', adjusted' : ''}.`
+        : 'Set up by hand. Choosing a purpose applies its settings; you can still change any of them.';
     }
   };
 
-  const refreshSettingsDirtyState = () => setSettingsDirty(serializeSettings() !== settingsInitialState);
+  const saveSettingsOnce = async () => {
+    if (!validateUpdateSheetRows({ focus: false })) {
+      setState(settingsStatus, 'Select at least one Project Update Sheet row; nothing was saved.', 'error');
+      return false;
+    }
+    if (!(settingsForm.querySelector('[data-pbd-settings-name]')?.value || '').trim()) {
+      setState(settingsStatus, 'The deck needs a name; nothing was saved.', 'error');
+      return false;
+    }
+    const state = serializeSettings();
+    if (state === settingsSavedState) {
+      setState(settingsStatus, 'All changes saved.', 'saved');
+      return true;
+    }
 
-  const focusableSettingsElements = () => settingsDrawer
-    ? [...settingsDrawer.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')]
-        .filter((element) => !element.hidden && element.getClientRects().length > 0)
-    : [];
-
-  const openSettingsDrawer = () => {
-    if (!settingsDrawer || !settingsBackdrop || !settingsLauncher) return;
-    settingsReturnFocus = document.activeElement;
-    settingsDrawer.classList.add('is-open');
-    settingsDrawer.setAttribute('aria-hidden', 'false');
-    settingsBackdrop.hidden = false;
-    settingsLauncher.setAttribute('aria-expanded', 'true');
-    document.body.classList.add('pbd-settings-drawer-open');
-    restoreSettingsSectionState();
-    window.requestAnimationFrame(() => focusableSettingsElements()[0]?.focus());
+    setState(settingsStatus, 'Saving…', 'saving');
+    try {
+      const { response, payload } = await runDeckMutation(async () => {
+        const body = new FormData(settingsForm);
+        body.set('RowVersion', currentRowVersion());
+        const reply = await fetch(settingsForm.action, {
+          method: 'POST',
+          credentials: 'same-origin',
+          body,
+          headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const replyPayload = await reply.json().catch(() => null);
+        if (reply.ok) updateRowVersion(replyPayload?.deck?.rowVersion);
+        return { response: reply, payload: replyPayload };
+      });
+      if (response.status === 409) {
+        showConflict(payload?.message);
+        throw new Error('Not saved: someone else changed this deck.');
+      }
+      if (!response.ok) throw new Error(payload?.message || `The settings could not be saved (${response.status}).`);
+      settingsSavedState = state;
+      applyEditorState(payload?.deck);
+      applySettingsDeck(payload?.deck);
+      refreshSettingsSummary();
+      setState(settingsStatus, 'All changes saved.', 'saved');
+      return true;
+    } catch (error) {
+      setState(settingsStatus, error.message || 'The settings could not be saved.', 'error');
+      return false;
+    }
   };
 
-  const confirmSettingsDiscard = async (message = 'Your deck-setting changes have not been saved.') => {
-    if (!settingsDirty) return true;
-    return prismConfirm({
-      title: 'Discard unsaved changes?',
-      message,
-      confirmText: 'Discard changes',
-      cancelText: 'Keep editing',
+  // One shared save: a call while a save is running joins it, and it resolves only once every
+  // change queued meanwhile has been saved too (true) or a save has failed (false).
+  const saveSettingsNow = () => {
+    window.clearTimeout(settingsTimer);
+    settingsTimer = 0;
+    if (!(settingsForm instanceof HTMLFormElement)) return Promise.resolve(true);
+    if (settingsDrain) {
+      settingsQueued = true;
+      return settingsDrain;
+    }
+    settingsDrain = (async () => {
+      let saved;
+      do {
+        settingsQueued = false;
+        saved = await saveSettingsOnce();
+      } while (settingsQueued);
+      return saved && serializeSettings() === settingsSavedState;
+    })().finally(() => {
+      settingsDrain = null;
+    });
+    return settingsDrain;
+  };
+
+  // Navigation and full-page posts go ahead only once the settings are saved, or when the
+  // person chooses to leave them unsaved. Forms that ask their own question first (remove an
+  // additional slide) call it through the root after that question.
+  const settleSettingsBeforeLeaving = async () => {
+    if (!settingsPending() || await saveSettingsNow()) return true;
+    const discard = await prismConfirm({
+      title: 'Leave without saving the settings?',
+      message: 'Your latest deck settings change could not be saved and will be lost if you continue.',
+      confirmText: 'Leave anyway',
+      cancelText: 'Stay here',
       tone: 'danger',
       returnFocus: document.activeElement
     });
+    if (discard) settingsDiscarded = true;
+    return discard;
+  };
+  root.pbdSettleSettings = settleSettingsBeforeLeaving;
+
+  // Kept under its earlier name: the row, profile-module and stage-summary editors call it.
+  const refreshSettingsDirtyState = (delay = 700) => {
+    window.clearTimeout(settingsTimer);
+    settingsTimer = window.setTimeout(() => {
+      settingsTimer = 0;
+      saveSettingsNow();
+    }, delay);
   };
 
-  const closeSettingsDrawer = async ({ discard = true, force = false } = {}) => {
-    if (!settingsDrawer || !settingsBackdrop || !settingsLauncher) return false;
-    if (settingsDirty && !force && !(await confirmSettingsDiscard())) return false;
-    if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
-      settingsForm.reset();
-      restoreUpdateRowOrder(updateRowInitialOrder);
-      syncStageSummaryOptions();
-      syncTemplateSettings();
-      validateUpdateSheetRows();
-      setSettingsDirty(false);
-    }
-    settingsDrawer.classList.remove('is-open');
-    settingsDrawer.setAttribute('aria-hidden', 'true');
-    settingsBackdrop.hidden = true;
-    settingsLauncher.setAttribute('aria-expanded', 'false');
-    document.body.classList.remove('pbd-settings-drawer-open');
-    if (settingsReturnFocus instanceof HTMLElement) settingsReturnFocus.focus();
-    return true;
-  };
-
-  settingsLauncher?.addEventListener('click', openSettingsDrawer);
-  root.querySelectorAll('[data-pbd-settings-close]').forEach((button) => button.addEventListener('click', async () => { await closeSettingsDrawer(); }));
-  settingsBackdrop?.addEventListener('click', async () => { await closeSettingsDrawer(); });
-  settingsDrawer?.addEventListener('keydown', async (event) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      await closeSettingsDrawer();
-      return;
-    }
-    if (event.key !== 'Tab') return;
-    const focusable = focusableSettingsElements();
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
+  settingsForm?.addEventListener('change', () => refreshSettingsDirtyState(400));
+  settingsForm?.addEventListener('input', (event) => {
+    if (event.target instanceof HTMLInputElement && event.target.type === 'text') refreshSettingsDirtyState(1200);
   });
-  settingsForm?.addEventListener('input', refreshSettingsDirtyState);
-  settingsForm?.addEventListener('change', refreshSettingsDirtyState);
   settingsForm?.addEventListener('submit', (event) => {
-    if (!validateUpdateSheetRows({ focus: true })) {
-      event.preventDefault();
-      if (settingsStatus) {
-        settingsStatus.textContent = 'Select at least one Project Update Sheet information row.';
-        settingsStatus.classList.add('is-dirty');
-      }
-      return;
-    }
-    if (!settingsDirty) {
-      event.preventDefault();
-      return;
-    }
-    if (settingsSave) settingsSave.disabled = true;
-    if (settingsStatus) {
-      settingsStatus.textContent = 'Saving settings…';
-      settingsStatus.classList.remove('is-dirty');
-      settingsStatus.classList.add('is-saving');
-    }
-    settingsDirty = false;
+    event.preventDefault();
+    saveSettingsNow();
   });
   window.addEventListener('beforeunload', (event) => {
-    if (!settingsDirty && !profileDirty) return;
+    if (!settingsPending() && !profileDirty) return;
     event.preventDefault();
     event.returnValue = '';
   });
 
-  const confirmSettingsNavigation = async () => {
-    if (!settingsDirty) return true;
-    const confirmed = await confirmSettingsDiscard('Your unsaved deck settings will be lost if you continue.');
-    if (confirmed) setSettingsDirty(false);
-    return confirmed;
+  // Presets: applied on the server from one definition, then the page reloads to show every
+  // setting (the Studio returns to the same slide and tab).
+  root.querySelectorAll('[data-pbd-preset]').forEach((button) => button.addEventListener('click', async () => {
+    if (settingsPending() && !(await saveSettingsNow())) return;
+    root.querySelectorAll('[data-pbd-preset]').forEach((other) => { other.disabled = true; });
+    setState(settingsStatus, 'Applying the preset…', 'saving');
+    try {
+      await runDeckMutation(() => requestJson(root.dataset.presetUrl, {
+        method: 'POST',
+        body: JSON.stringify({ deckId, preset: button.dataset.pbdPreset, rowVersion: currentRowVersion() })
+      }));
+      window.location.reload();
+    } catch (error) {
+      if (error instanceof RequestError && error.status === 409) showConflict(error.message);
+      setState(settingsStatus, error.message || 'The preset could not be applied.', 'error');
+      root.querySelectorAll('[data-pbd-preset]').forEach((other) => { other.disabled = false; });
+    }
+  }));
+
+  // Rename and describe the deck where its name is shown.
+  const titleView = root.querySelector('[data-pbd-deck-title-view]');
+  const renameForm = root.querySelector('[data-pbd-rename-form]');
+  const renameName = root.querySelector('[data-pbd-rename-name]');
+  const renameDescription = root.querySelector('[data-pbd-rename-description]');
+  const settingsName = settingsForm?.querySelector('[data-pbd-settings-name]');
+  const settingsDescription = settingsForm?.querySelector('[data-pbd-settings-description]');
+  const deckDescriptionText = root.querySelector('[data-pbd-deck-description]');
+  const setRenaming = (renaming) => {
+    if (renameForm) renameForm.hidden = !renaming;
+    if (titleView) titleView.hidden = renaming;
+    if (deckDescriptionText) deckDescriptionText.hidden = renaming || !(settingsDescription?.value || '').trim();
   };
+  root.querySelector('[data-pbd-rename]')?.addEventListener('click', () => {
+    if (renameName) renameName.value = settingsName?.value || '';
+    if (renameDescription) renameDescription.value = settingsDescription?.value || '';
+    setRenaming(true);
+    renameName?.focus();
+    renameName?.select();
+  });
+  root.querySelector('[data-pbd-rename-cancel]')?.addEventListener('click', () => {
+    setRenaming(false);
+    root.querySelector('[data-pbd-rename]')?.focus();
+  });
+  renameForm?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    setRenaming(false);
+    root.querySelector('[data-pbd-rename]')?.focus();
+  });
+  renameForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const name = (renameName?.value || '').trim();
+    if (!name) {
+      renameName?.focus();
+      return;
+    }
+    const previousName = settingsName?.value || '';
+    const previousDescription = settingsDescription?.value || '';
+    if (settingsName) settingsName.value = name;
+    if (settingsDescription) settingsDescription.value = (renameDescription?.value || '').trim();
+    setRenaming(false);
+    if (await saveSettingsNow()) {
+      root.querySelector('[data-pbd-rename]')?.focus();
+      return;
+    }
+    // A refused name (already taken, say) must not ride along with every later settings save:
+    // restore the saved name and reopen the editor with what was typed.
+    if (settingsName) settingsName.value = previousName;
+    if (settingsDescription) settingsDescription.value = previousDescription;
+    setRenaming(true);
+    renameName?.focus();
+  });
 
   const confirmProfileNavigation = async () => {
     if (!profileDirty) return true;
@@ -928,33 +1066,33 @@ if (root) {
   };
 
   document.addEventListener('click', async (event) => {
-    if ((!settingsDirty && !profileDirty) || event.defaultPrevented || event.button !== 0
+    if ((!settingsPending() && !profileDirty) || event.defaultPrevented || event.button !== 0
         || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const link = event.target.closest('a[href]');
-    if (!(link instanceof HTMLAnchorElement)
-        || settingsDrawer?.contains(link)
-        || profileDrawer?.contains(link)) return;
+    if (!(link instanceof HTMLAnchorElement) || profileDrawer?.contains(link)) return;
     const href = link.getAttribute('href') || '';
     if (!href || href.startsWith('#') || href.startsWith('javascript:')
-        || link.target === '_blank' || link.hasAttribute('download')) return;
+        || link.target === '_blank' || link.target.startsWith('prism-project-') || link.hasAttribute('download')) return;
 
     event.preventDefault();
-    if (settingsDirty && !(await confirmSettingsNavigation())) return;
+    if (!(await settleSettingsBeforeLeaving())) return;
     if (profileDirty && !(await confirmProfileNavigation())) return;
     window.location.assign(link.href);
   }, true);
 
+  // Full-page posts (additional slides, duplicate, delete) wait for a pending settings save.
   document.addEventListener('submit', async (event) => {
     if (event.defaultPrevented) return;
     const submittedForm = event.target;
     if (!(submittedForm instanceof HTMLFormElement)
         || submittedForm === settingsForm
         || submittedForm === profileForm
-        || submittedForm.matches('[data-pbd-generate-form]')) return;
-    if (!settingsDirty && !profileDirty) return;
+        || submittedForm === renameForm
+        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form], [data-pbd-remove-additional-slide-form]')) return;
+    if (!settingsPending() && !profileDirty) return;
 
     event.preventDefault();
-    if (settingsDirty && !(await confirmSettingsNavigation())) return;
+    if (!(await settleSettingsBeforeLeaving())) return;
     if (profileDirty && !(await confirmProfileNavigation())) return;
     HTMLFormElement.prototype.submit.call(submittedForm);
   }, true);
@@ -1102,11 +1240,8 @@ if (root) {
   });
   syncStageSummaryOptions();
   syncTemplateSettings();
-  settingsInitialState = serializeSettings();
-  setSettingsDirty(false);
-  if (root.querySelector('[data-pbd-open-settings="true"]')) {
-    window.setTimeout(openSettingsDrawer, 0);
-  }
+  settingsSavedState = serializeSettings();
+  refreshSettingsSummary();
 
   // The Studio listens for this and rebuilds after any in-place change.
   const announceDeckChange = (detail = {}) => {
@@ -1150,9 +1285,13 @@ if (root) {
     if (deckId <= 0 || (addProjectIds.length === 0 && removeProjectIds.length === 0)) return null;
     setState(statusElement, 'Saving deck membership…', 'saving');
     try {
-      const payload = await requestJson(root.dataset.membershipUrl, {
-        method: 'POST',
-        body: JSON.stringify({ deckId, addProjectIds, removeProjectIds, rowVersion: currentRowVersion() })
+      const payload = await runDeckMutation(async () => {
+        const reply = await requestJson(root.dataset.membershipUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, addProjectIds, removeProjectIds, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(reply?.deck?.rowVersion);
+        return reply;
       });
       applyEditorState(payload?.deck);
       const changes = [];
@@ -1217,16 +1356,20 @@ if (root) {
     button?.setAttribute('disabled', 'disabled');
     setState(addProjectsStatus, 'Adding projects…', 'saving');
     try {
-      const body = new FormData(form);
-      body.set('RowVersion', currentRowVersion());
-      const response = await fetch(form.action, {
-        method: 'POST',
-        credentials: 'same-origin',
-        body,
-        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+      const payload = await runDeckMutation(async () => {
+        const body = new FormData(form);
+        body.set('RowVersion', currentRowVersion());
+        const response = await fetch(form.action, {
+          method: 'POST',
+          credentials: 'same-origin',
+          body,
+          headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const reply = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(reply?.message || `Projects could not be added (${response.status}).`);
+        updateRowVersion(reply?.deck?.rowVersion);
+        return reply;
       });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.message || `Projects could not be added (${response.status}).`);
       applyEditorState(payload?.deck);
       setState(addProjectsStatus, payload?.message || 'Deck updated.', 'saved');
       setState(membershipStatus, payload?.message || 'Deck updated.', 'saved');
@@ -1243,11 +1386,13 @@ if (root) {
     if (deckId <= 0 || projectIds.length === 0) return;
     setState(membershipStatus, 'Saving slide order…', 'saving');
     try {
-      const payload = await requestJson(root.dataset.reorderUrl, {
-        method: 'POST',
-        body: JSON.stringify({ deckId, projectIds, rowVersion: currentRowVersion() })
+      await runDeckMutation(async () => {
+        const payload = await requestJson(root.dataset.reorderUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, projectIds, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(payload?.rowVersion);
       });
-      updateRowVersion(payload?.rowVersion);
       setState(membershipStatus, 'Slide order saved.', 'saved');
     } catch (error) {
       setState(membershipStatus, error.message || 'Slide order could not be saved.', 'error');
@@ -1455,11 +1600,14 @@ if (root) {
     submit?.setAttribute('disabled', 'disabled');
     setState(descriptionStatus, 'Saving…');
     try {
-      const payload = await requestJson(root.dataset.descriptionUrl, {
-        method: 'POST',
-        body: JSON.stringify({ deckId, projectId, value: descriptionValue?.value || null, rowVersion: currentRowVersion() })
+      const payload = await runDeckMutation(async () => {
+        const reply = await requestJson(root.dataset.descriptionUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, projectId, value: descriptionValue?.value || null, rowVersion: currentRowVersion() })
+        });
+        updateRowVersion(reply?.rowVersion);
+        return reply;
       });
-      updateRowVersion(payload?.rowVersion);
       // The table row and the Studio inspector both carry an editor button for the project.
       root.querySelectorAll(`[data-pbd-edit-description][data-project-id="${projectId}"]`).forEach((editorButton) => {
         editorButton.dataset.description = descriptionValue?.value || '';
@@ -1488,20 +1636,9 @@ if (root) {
 
   generateForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (settingsDirty) {
-      openSettingsDrawer();
-      if (settingsStatus) {
-        settingsStatus.textContent = 'Save or discard settings before generating the PowerPoint.';
-        settingsStatus.classList.add('is-dirty');
-      }
-      return;
-    }
-    if (profileDirty) {
-      openProfileDrawer();
-      if (profileStatus) {
-        profileStatus.textContent = 'Save or discard profile changes before generating the PowerPoint.';
-        profileStatus.classList.add('is-dirty');
-      }
+    // Generate from saved settings: finish a pending save first.
+    if (settingsPending() && !(await saveSettingsNow())) {
+      setState(generateStatus, 'Save the deck settings before generating the PowerPoint.', 'error');
       return;
     }
     if (!generateButton || generateButton.disabled) return;

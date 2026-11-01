@@ -125,6 +125,9 @@
     var additionalSlidesSummary = enabledAdditionalSlideCount > 0
         ? $" · {enabledAdditionalSlideCount} additional slide{(enabledAdditionalSlideCount == 1 ? string.Empty : "s")}"
         : string.Empty;
+    var presetStatus = deck?.Preset is { } currentPreset
+        ? $"Set from {ProjectBriefingDeckPresets.Get(currentPreset).Title}{(deck.PresetAdjusted ? ", adjusted" : string.Empty)}."
+        : "Set up by hand. Choosing a purpose applies its settings; you can still change any of them.";
     var settingsSummaryLabel = isUpdateSheet
         ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows{additionalSlidesSummary} · {themeLabel} · R&D cost · {closingSlideLabel}"
         : $"{layoutLabel} · {presentationModeLabel} · {narrativeModeLabel}"
@@ -152,7 +155,8 @@
           data-search-url="@Url.Page("/Workspace/BriefingDecks/Index", "SearchProjects")"
           data-reorder-url="@Url.Page("/Workspace/BriefingDecks/Index", "Reorder")"
           data-membership-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateMembership")"
-          data-description-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateDescription")">
+          data-description-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateDescription")"
+          data-preset-url="@Url.Page("/Workspace/BriefingDecks/Index", "ApplyPreset")">
         <form method="post" class="pbd-antiforgery" aria-hidden="true">
             @Html.AntiForgeryToken()
         </form>
@@ -252,11 +256,23 @@
                                 <span class="pbd-deck-header__mark" aria-hidden="true"><i class="bi bi-easel2"></i></span>
                                 <div>
                                     <span class="pbd-eyebrow">Saved briefing deck</span>
-                                    <h2 id="pbd-deck-title">@deck.Name</h2>
-                                    @if (!string.IsNullOrWhiteSpace(deck.Description))
-                                    {
-                                        <p>@deck.Description</p>
-                                    }
+                                    <div class="pbd-deck-title" data-pbd-deck-title-view>
+                                        <h2 id="pbd-deck-title" data-pbd-deck-name>@deck.Name</h2>
+                                        <button type="button" class="btn btn-sm btn-link pbd-deck-title__edit" data-pbd-rename aria-label="Rename the deck or edit its description" title="Rename or edit description">
+                                            <i class="bi bi-pencil" aria-hidden="true"></i>
+                                        </button>
+                                    </div>
+                                    <p data-pbd-deck-description @(string.IsNullOrWhiteSpace(deck.Description) ? "hidden" : null)>@deck.Description</p>
+                                    <form class="pbd-deck-rename" data-pbd-rename-form hidden>
+                                        <label class="visually-hidden" for="pbd-rename-name">Deck name</label>
+                                        <input id="pbd-rename-name" class="form-control" maxlength="160" required data-pbd-rename-name />
+                                        <label class="visually-hidden" for="pbd-rename-description">Description</label>
+                                        <input id="pbd-rename-description" class="form-control form-control-sm" maxlength="600" placeholder="Description (optional): purpose, audience or occasion" data-pbd-rename-description />
+                                        <div class="pbd-deck-rename__actions">
+                                            <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-rename-cancel>Cancel</button>
+                                        </div>
+                                    </form>
                                     <small class="pbd-deck-header__meta">Updated @IstClock.ToIst(deck.UpdatedAtUtc).ToString("dd MMM yyyy, HH:mm") by @deck.LastModifiedByDisplay</small>
                                 </div>
                             </div>
@@ -293,6 +309,12 @@
                             </div>
                         </header>
                         <div class="pbd-generate-status" data-pbd-generate-status aria-live="polite"></div>
+
+                        <div class="alert alert-warning pbd-conflict" role="alert" data-pbd-conflict hidden>
+                            <i class="bi bi-people" aria-hidden="true"></i>
+                            <span data-pbd-conflict-text>Someone else changed this deck. Reload to see their changes; your last change was not saved.</span>
+                            <button type="button" class="btn btn-sm btn-warning" data-pbd-conflict-reload>Reload</button>
+                        </div>
 
                         <section class="pbd-studio" aria-label="Briefing studio" data-pbd-studio
                                  data-preview-url="@Url.Page("/Workspace/BriefingDecks/Index", "Preview", new { deckId = deck.Id })"
@@ -374,266 +396,29 @@
                                 </div>
 
                                 <div id="pbd-inspector-deck" role="tabpanel" aria-labelledby="pbd-inspector-tab-deck" class="pbd-inspector__panel" data-pbd-inspector-panel="deck" hidden>
-                                    <dl class="pbd-inspector__facts">
-                                        <div><dt>Template</dt><dd>@layoutLabel</dd></div>
-                                        @if (isUpdateSheet)
+                                    <h4 class="pbd-inspector__heading pbd-inspector__heading--first">Purpose</h4>
+                                    <p class="pbd-inspector__note" data-pbd-preset-status>@presetStatus</p>
+                                    <div class="pbd-presets" role="group" aria-label="Purpose presets">
+                                        @foreach (var preset in ProjectBriefingDeckPresets.All)
                                         {
-                                            <div><dt>Sheet rows</dt><dd>@selectedUpdateSheetRows.Count of @ProjectBriefingUpdateSheetOptions.AllRows.Count</dd></div>
+                                            var isCurrent = deck.Preset == preset.Preset;
+                                            <button type="button" class="pbd-preset @(isCurrent ? "is-current" : null)" data-pbd-preset="@preset.Preset" aria-pressed="@(isCurrent ? "true" : "false")">
+                                                <strong>@preset.Title</strong>
+                                                <small>@preset.Summary</small>
+                                            </button>
                                         }
-                                        else
-                                        {
-                                            <div><dt>Format</dt><dd>@presentationModeLabel</dd></div>
-                                            <div><dt>Project content</dt><dd>@narrativeModeLabel</dd></div>
-                                            <div><dt>Costs</dt><dd>@costModeLabel</dd></div>
-                                        }
-                                        <div><dt>Look</dt><dd>@themeLabel</dd></div>
-                                        <div><dt>Closing</dt><dd>@closingSlideLabel</dd></div>
-                                        <div><dt>Marking</dt><dd>@(string.IsNullOrWhiteSpace(deck.HandlingMarking) ? "None" : deck.HandlingMarking)</dd></div>
-                                    </dl>
-                                    <button type="button"
-                                            class="btn btn-outline-primary w-100 pbd-inspector__settings"
-                                            data-pbd-settings-open
-                                            aria-controls="pbd-settings-drawer"
-                                            aria-expanded="false">
-                                        <i class="bi bi-sliders" aria-hidden="true"></i> Edit deck settings
-                                        <span class="pbd-settings-summary__dirty" data-pbd-settings-dirty hidden>Unsaved settings</span>
-                                    </button>
-                                    <small class="visually-hidden" data-pbd-settings-summary-text>@settingsSummaryLabel</small>
-
-                        <section class="pbd-additional-slides" id="pbd-additional-slides" aria-labelledby="pbd-additional-slides-title" data-pbd-additional-slides>
-                            <header class="pbd-section-header pbd-section-header--additional-slides">
-                                <div>
-                                    <h3 id="pbd-additional-slides-title">Additional slides</h3>
-                                    <p>Approved slides shown after the cover or before the closing slide.</p>
-                                </div>
-                                @if (missingAdditionalSlideTypes.Length > 0)
-                                {
-                                    <button type="button"
-                                            class="btn btn-sm btn-outline-primary"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#pbd-additional-slide-library-modal"
-                                            title="Add an approved slide type">
-                                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
-                                    </button>
-                                }
-                                else
-                                {
-                                    <span class="pbd-disabled-control"
-                                          tabindex="0"
-                                          data-pbd-add-slide-disabled-tip
-                                          data-bs-title="All available slide types have been added."
-                                          aria-describedby="pbd-add-slide-disabled-help">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
-                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
-                                        </button>
-                                    </span>
-                                    <span id="pbd-add-slide-disabled-help" class="visually-hidden">All available slide types have been added.</span>
-                                }
-                            </header>
-
-                            @if (additionalSlideOrder.Count == 0)
-                            {
-                                <div class="pbd-additional-slides__empty">
-                                    <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
-                                    <div>
-                                        <strong>No additional slides configured</strong>
-                                        <span>Add an approved slide when the presentation requires institutional or contextual content.</span>
                                     </div>
-                                </div>
-                            }
-                            else
-                            {
-                                <form method="post" asp-page-handler="ReorderAdditionalSlides" class="pbd-additional-slide-order-form" data-pbd-additional-slide-order-form>
-                                    <input type="hidden" name="deckId" value="@deck.Id" />
-                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                    <input type="hidden" name="order" value="@string.Join(",", additionalSlideOrder)" data-pbd-additional-slide-order />
-                                </form>
-                                <div class="pbd-additional-slide-list" data-pbd-additional-slide-list>
-                                    @{
-                                        var openingSlideNumber = 0;
-                                        var openingZoneRendered = false;
-                                        var concludingZoneRendered = false;
-                                    }
-                                    @for (var slideIndex = 0; slideIndex < additionalSlideOrder.Count; slideIndex++)
-                                    {
-                                        var slideType = additionalSlideOrder[slideIndex];
-                                        var enabled = AdditionalSlideIsEnabled(slideType);
-                                        var detail = slideType switch
-                                        {
-                                            ProjectBriefingAdditionalSlideType.InstitutionalProfile => $"{institutionalProfile.HistoryMilestones.Count} milestones · {institutionalProfile.Modules.Count} modules",
-                                            ProjectBriefingAdditionalSlideType.RoleAndCharter => $"{roleCharter.RoleStatements.Count} role statements · {roleCharter.CharterItems.Count} charter items · {deck.SlideEstimate.RoleCharterSlides} slide{(deck.SlideEstimate.RoleCharterSlides == 1 ? string.Empty : "s")}",
-                                            ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => enabled
-                                                ? $"Live ERP data · {(ffcGlobalFootprint.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant ? "Map dominant" : "Map + breakdown")} · {deck.SlideEstimate.FfcGlobalFootprintSlides} slide{(deck.SlideEstimate.FfcGlobalFootprintSlides == 1 ? string.Empty : "s")}"
-                                                : "Live ERP data · configured",
-                                            _ => string.Empty
-                                        };
-                                        var definition = AdditionalSlideDefinition(slideType);
-                                        var canReorder = definition.CanReorder;
-                                        if (definition.Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover && !openingZoneRendered)
-                                        {
-                                            openingZoneRendered = true;
-                                            <div class="pbd-additional-slide-zone-heading" data-pbd-additional-slide-zone="opening">
-                                                <span>Opening slides</span>
-                                                <small>Shown after the cover and before portfolio content</small>
-                                            </div>
-                                        }
-                                        else if (definition.Placement == ProjectBriefingAdditionalSlidePlacement.BeforeClosing && !concludingZoneRendered)
-                                        {
-                                            concludingZoneRendered = true;
-                                            <div class="pbd-additional-slide-zone-heading pbd-additional-slide-zone-heading--concluding" data-pbd-additional-slide-zone="before-closing">
-                                                <span>Before closing</span>
-                                                <small>Final substantive content immediately before Jai Hind</small>
-                                            </div>
-                                        }
-                                        var previousEnabledSlide = additionalSlideOrder
-                                            .Take(slideIndex)
-                                            .Where(type => AdditionalSlideDefinition(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
-                                            .LastOrDefault(AdditionalSlideIsEnabled);
-                                        var hasPreviousEnabledSlide = additionalSlideOrder
-                                            .Take(slideIndex)
-                                            .Where(type => AdditionalSlideDefinition(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
-                                            .Any(AdditionalSlideIsEnabled);
-                                        var positionLabel = definition.Placement == ProjectBriefingAdditionalSlidePlacement.BeforeClosing
-                                            ? "Before closing"
-                                            : hasPreviousEnabledSlide
-                                                ? $"After {AdditionalSlideDisplayName(previousEnabledSlide)}"
-                                                : "After cover";
-                                        <article class="pbd-additional-slide-card @(enabled ? "is-enabled" : "is-disabled") @(!canReorder ? "is-fixed-placement" : string.Empty)"
-                                                 data-pbd-additional-slide-card
-                                                 data-can-reorder="@canReorder.ToString().ToLowerInvariant()"
-                                                 data-slide-type="@slideType">
-                                            @if (canReorder)
-                                            {
-                                                openingSlideNumber++;
-                                                <button type="button" class="pbd-additional-slide-card__handle" data-pbd-additional-slide-handle aria-label="Drag @AdditionalSlideDisplayName(slideType) to reorder">
-                                                    <i class="bi bi-grip-vertical" aria-hidden="true"></i>
-                                                </button>
-                                                <span class="pbd-additional-slide-card__position" aria-label="Opening-slide order">@openingSlideNumber</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="pbd-additional-slide-card__placement" title="Fixed immediately before the closing slide" aria-label="Fixed before closing">
-                                                    <i class="bi bi-pin-angle-fill" aria-hidden="true"></i>
-                                                    Before closing
-                                                </span>
-                                            }
-                                            <span class="pbd-additional-slide-card__icon" aria-hidden="true"><i class="bi @AdditionalSlideIcon(slideType)"></i></span>
-                                            <div class="pbd-additional-slide-card__body">
-                                                <div class="pbd-additional-slide-card__title-row">
-                                                    <h4>@AdditionalSlideDisplayName(slideType)</h4>
-                                                    <span class="pbd-additional-slide-card__status">@(enabled ? "Enabled" : "Disabled")</span>
-                                                </div>
-                                                <p>@AdditionalSlideDescription(slideType)</p>
-                                                <small>@positionLabel · @detail</small>
-                                            </div>
-                                            <div class="pbd-additional-slide-card__actions">
-                                                <form method="post" asp-page-handler="ToggleAdditionalSlide" data-pbd-additional-slide-toggle-form>
-                                                    <input type="hidden" name="deckId" value="@deck.Id" />
-                                                    <input type="hidden" name="slideType" value="@slideType" />
-                                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                                    <input type="hidden" name="ensureAdded" value="false" />
-                                                    <input type="hidden" name="enabled" value="@enabled.ToString().ToLowerInvariant()" data-pbd-additional-slide-enabled />
-                                                    <label class="form-check form-switch" title="Enable or disable this slide">
-                                                        <input class="form-check-input" type="checkbox" checked="@enabled" data-pbd-additional-slide-toggle />
-                                                        <span class="visually-hidden">Enable @AdditionalSlideDisplayName(slideType)</span>
-                                                    </label>
-                                                </form>
-                                                @if (slideType == ProjectBriefingAdditionalSlideType.InstitutionalProfile)
-                                                {
-                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false">
-                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
-                                                    </button>
-                                                }
-                                                else if (slideType == ProjectBriefingAdditionalSlideType.RoleAndCharter)
-                                                {
-                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-role-charter-open aria-controls="pbd-role-charter-drawer" aria-expanded="false">
-                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
-                                                    </button>
-                                                }
-                                                else if (slideType == ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
-                                                {
-                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-ffc-footprint-open aria-controls="pbd-ffc-footprint-drawer" aria-expanded="false">
-                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
-                                                    </button>
-                                                }
-                                                <form method="post" asp-page-handler="RemoveAdditionalSlide" data-pbd-remove-additional-slide-form data-slide-name="@AdditionalSlideDisplayName(slideType)">
-                                                    <input type="hidden" name="deckId" value="@deck.Id" />
-                                                    <input type="hidden" name="slideType" value="@slideType" />
-                                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                                    <button type="submit" class="btn btn-sm btn-light text-danger" title="Remove from presentation structure" aria-label="Remove @AdditionalSlideDisplayName(slideType)">
-                                                        <i class="bi bi-trash" aria-hidden="true"></i>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </article>
-                                    }
-                                </div>
-                            }
-                        </section>
-                                </div>
-
-                                <div id="pbd-inspector-checks" role="tabpanel" aria-labelledby="pbd-inspector-tab-checks" class="pbd-inspector__panel" data-pbd-inspector-panel="checks" hidden>
-                                    <p class="pbd-inspector__empty">Checking the deck…</p>
-                                </div>
-                            </aside>
-                        </section>
-
-                        <dialog class="pbd-viewer" data-pbd-viewer aria-labelledby="pbd-viewer-title">
-                            <div class="pbd-viewer__surface">
-                                <header class="pbd-viewer__header">
-                                    <div>
-                                        <span class="pbd-eyebrow">@deck.Name</span>
-                                        <h2 id="pbd-viewer-title" data-pbd-viewer-title>Slide</h2>
-                                    </div>
-                                    <span class="pbd-viewer__counter" data-pbd-viewer-counter aria-live="polite"></span>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-viewer-close aria-label="Close viewer">
-                                        <i class="bi bi-x-lg" aria-hidden="true"></i>
-                                    </button>
-                                </header>
-                                <div class="pbd-viewer__body">
-                                    <button type="button" class="pbd-viewer__nav" data-pbd-viewer-prev aria-label="Previous slide"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
-                                    <div class="pbd-viewer__stage" data-pbd-viewer-stage></div>
-                                    <button type="button" class="pbd-viewer__nav" data-pbd-viewer-next aria-label="Next slide"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
-                                    <ol class="pbd-viewer__strip" data-pbd-viewer-strip aria-label="All slides"></ol>
-                                </div>
-                            </div>
-                        </dialog>
-
-                        <div class="pbd-settings-backdrop" data-pbd-settings-backdrop hidden></div>
-                        <aside id="pbd-settings-drawer"
-                               class="pbd-settings-drawer"
-                               data-pbd-settings-drawer
-                               aria-labelledby="pbd-settings-drawer-title"
-                               aria-hidden="true">
-                            <form method="post" asp-page-handler="SaveSettings" id="pbd-settings-form" class="pbd-settings__form" data-pbd-settings-form>
-                                <input type="hidden" name="DeckId" value="@deck.Id" />
-                                <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-
-                                <header class="pbd-settings-drawer__header">
-                                    <div>
-                                        <span class="pbd-eyebrow">Deck configuration</span>
-                                        <h3 id="pbd-settings-drawer-title">Deck settings</h3>
-                                        <p>Configure presentation structure, content and appearance without losing the project-list context.</p>
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-settings-close aria-label="Close deck settings">
-                                        <i class="bi bi-x-lg" aria-hidden="true"></i>
-                                    </button>
-                                </header>
-
-                                <div class="pbd-settings-drawer__body">
+                                    <p class="pbd-settings-save-status" data-pbd-settings-status aria-live="polite">Changes save as you make them.</p>
+                                    <details class="pbd-deck-advanced" data-pbd-deck-advanced>
+                                        <summary>All settings <small data-pbd-settings-summary-text>@settingsSummaryLabel</small></summary>
+                                    <form method="post" asp-page-handler="SaveSettings" id="pbd-settings-form" class="pbd-settings__form pbd-deck-settings" data-pbd-settings-form>
+                                        <input type="hidden" name="DeckId" value="@deck.Id" />
+                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
                                     <section class="pbd-settings-section" aria-labelledby="pbd-settings-general-title">
-                                        <h4 id="pbd-settings-general-title">General</h4>
+                                        <h4 id="pbd-settings-general-title">Template</h4>
 
-                                <div class="pbd-form-grid pbd-form-grid--identity">
-                                    <label class="form-label">
-                                        <span>Deck name</span>
-                                        <input class="form-control" name="Name" value="@deck.Name" maxlength="160" required />
-                                    </label>
-                                    <label class="form-label">
-                                        <span>Description <small>optional</small></span>
-                                        <input class="form-control" name="Description" value="@deck.Description" maxlength="600" />
-                                    </label>
-                                </div>
+                                <input type="hidden" name="Name" value="@deck.Name" data-pbd-settings-name />
+                                <input type="hidden" name="Description" value="@deck.Description" data-pbd-settings-description />
 
                                 <fieldset class="pbd-choice-group">
                                     <legend>Presentation template</legend>
@@ -946,17 +731,207 @@
                                 </div>
                                         </div>
                                     </details>
+                                    </form>
+                                    </details>
+
+                        <section class="pbd-additional-slides" id="pbd-additional-slides" aria-labelledby="pbd-additional-slides-title" data-pbd-additional-slides>
+                            <header class="pbd-section-header pbd-section-header--additional-slides">
+                                <div>
+                                    <h3 id="pbd-additional-slides-title">Additional slides</h3>
+                                    <p>Approved slides shown after the cover or before the closing slide.</p>
+                                </div>
+                                @if (missingAdditionalSlideTypes.Length > 0)
+                                {
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#pbd-additional-slide-library-modal"
+                                            title="Add an approved slide type">
+                                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="pbd-disabled-control"
+                                          tabindex="0"
+                                          data-pbd-add-slide-disabled-tip
+                                          data-bs-title="All available slide types have been added."
+                                          aria-describedby="pbd-add-slide-disabled-help">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
+                                        </button>
+                                    </span>
+                                    <span id="pbd-add-slide-disabled-help" class="visually-hidden">All available slide types have been added.</span>
+                                }
+                            </header>
+
+                            @if (additionalSlideOrder.Count == 0)
+                            {
+                                <div class="pbd-additional-slides__empty">
+                                    <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
+                                    <div>
+                                        <strong>No additional slides configured</strong>
+                                        <span>Add an approved slide when the presentation requires institutional or contextual content.</span>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <form method="post" asp-page-handler="ReorderAdditionalSlides" class="pbd-additional-slide-order-form" data-pbd-additional-slide-order-form>
+                                    <input type="hidden" name="deckId" value="@deck.Id" />
+                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                    <input type="hidden" name="order" value="@string.Join(",", additionalSlideOrder)" data-pbd-additional-slide-order />
+                                </form>
+                                <div class="pbd-additional-slide-list" data-pbd-additional-slide-list>
+                                    @{
+                                        var openingSlideNumber = 0;
+                                        var openingZoneRendered = false;
+                                        var concludingZoneRendered = false;
+                                    }
+                                    @for (var slideIndex = 0; slideIndex < additionalSlideOrder.Count; slideIndex++)
+                                    {
+                                        var slideType = additionalSlideOrder[slideIndex];
+                                        var enabled = AdditionalSlideIsEnabled(slideType);
+                                        var detail = slideType switch
+                                        {
+                                            ProjectBriefingAdditionalSlideType.InstitutionalProfile => $"{institutionalProfile.HistoryMilestones.Count} milestones · {institutionalProfile.Modules.Count} modules",
+                                            ProjectBriefingAdditionalSlideType.RoleAndCharter => $"{roleCharter.RoleStatements.Count} role statements · {roleCharter.CharterItems.Count} charter items · {deck.SlideEstimate.RoleCharterSlides} slide{(deck.SlideEstimate.RoleCharterSlides == 1 ? string.Empty : "s")}",
+                                            ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => enabled
+                                                ? $"Live ERP data · {(ffcGlobalFootprint.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant ? "Map dominant" : "Map + breakdown")} · {deck.SlideEstimate.FfcGlobalFootprintSlides} slide{(deck.SlideEstimate.FfcGlobalFootprintSlides == 1 ? string.Empty : "s")}"
+                                                : "Live ERP data · configured",
+                                            _ => string.Empty
+                                        };
+                                        var definition = AdditionalSlideDefinition(slideType);
+                                        var canReorder = definition.CanReorder;
+                                        if (definition.Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover && !openingZoneRendered)
+                                        {
+                                            openingZoneRendered = true;
+                                            <div class="pbd-additional-slide-zone-heading" data-pbd-additional-slide-zone="opening">
+                                                <span>Opening slides</span>
+                                                <small>Shown after the cover and before portfolio content</small>
+                                            </div>
+                                        }
+                                        else if (definition.Placement == ProjectBriefingAdditionalSlidePlacement.BeforeClosing && !concludingZoneRendered)
+                                        {
+                                            concludingZoneRendered = true;
+                                            <div class="pbd-additional-slide-zone-heading pbd-additional-slide-zone-heading--concluding" data-pbd-additional-slide-zone="before-closing">
+                                                <span>Before closing</span>
+                                                <small>Final substantive content immediately before Jai Hind</small>
+                                            </div>
+                                        }
+                                        var previousEnabledSlide = additionalSlideOrder
+                                            .Take(slideIndex)
+                                            .Where(type => AdditionalSlideDefinition(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
+                                            .LastOrDefault(AdditionalSlideIsEnabled);
+                                        var hasPreviousEnabledSlide = additionalSlideOrder
+                                            .Take(slideIndex)
+                                            .Where(type => AdditionalSlideDefinition(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
+                                            .Any(AdditionalSlideIsEnabled);
+                                        var positionLabel = definition.Placement == ProjectBriefingAdditionalSlidePlacement.BeforeClosing
+                                            ? "Before closing"
+                                            : hasPreviousEnabledSlide
+                                                ? $"After {AdditionalSlideDisplayName(previousEnabledSlide)}"
+                                                : "After cover";
+                                        <article class="pbd-additional-slide-card @(enabled ? "is-enabled" : "is-disabled") @(!canReorder ? "is-fixed-placement" : string.Empty)"
+                                                 data-pbd-additional-slide-card
+                                                 data-can-reorder="@canReorder.ToString().ToLowerInvariant()"
+                                                 data-slide-type="@slideType">
+                                            @if (canReorder)
+                                            {
+                                                openingSlideNumber++;
+                                                <button type="button" class="pbd-additional-slide-card__handle" data-pbd-additional-slide-handle aria-label="Drag @AdditionalSlideDisplayName(slideType) to reorder">
+                                                    <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                                                </button>
+                                                <span class="pbd-additional-slide-card__position" aria-label="Opening-slide order">@openingSlideNumber</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="pbd-additional-slide-card__placement" title="Fixed immediately before the closing slide" aria-label="Fixed before closing">
+                                                    <i class="bi bi-pin-angle-fill" aria-hidden="true"></i>
+                                                    Before closing
+                                                </span>
+                                            }
+                                            <span class="pbd-additional-slide-card__icon" aria-hidden="true"><i class="bi @AdditionalSlideIcon(slideType)"></i></span>
+                                            <div class="pbd-additional-slide-card__body">
+                                                <div class="pbd-additional-slide-card__title-row">
+                                                    <h4>@AdditionalSlideDisplayName(slideType)</h4>
+                                                    <span class="pbd-additional-slide-card__status">@(enabled ? "Enabled" : "Disabled")</span>
+                                                </div>
+                                                <p>@AdditionalSlideDescription(slideType)</p>
+                                                <small>@positionLabel · @detail</small>
+                                            </div>
+                                            <div class="pbd-additional-slide-card__actions">
+                                                <form method="post" asp-page-handler="ToggleAdditionalSlide" data-pbd-additional-slide-toggle-form>
+                                                    <input type="hidden" name="deckId" value="@deck.Id" />
+                                                    <input type="hidden" name="slideType" value="@slideType" />
+                                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                                    <input type="hidden" name="ensureAdded" value="false" />
+                                                    <input type="hidden" name="enabled" value="@enabled.ToString().ToLowerInvariant()" data-pbd-additional-slide-enabled />
+                                                    <label class="form-check form-switch" title="Enable or disable this slide">
+                                                        <input class="form-check-input" type="checkbox" checked="@enabled" data-pbd-additional-slide-toggle />
+                                                        <span class="visually-hidden">Enable @AdditionalSlideDisplayName(slideType)</span>
+                                                    </label>
+                                                </form>
+                                                @if (slideType == ProjectBriefingAdditionalSlideType.InstitutionalProfile)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false">
+                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
+                                                    </button>
+                                                }
+                                                else if (slideType == ProjectBriefingAdditionalSlideType.RoleAndCharter)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-role-charter-open aria-controls="pbd-role-charter-drawer" aria-expanded="false">
+                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
+                                                    </button>
+                                                }
+                                                else if (slideType == ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-ffc-footprint-open aria-controls="pbd-ffc-footprint-drawer" aria-expanded="false">
+                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
+                                                    </button>
+                                                }
+                                                <form method="post" asp-page-handler="RemoveAdditionalSlide" data-pbd-remove-additional-slide-form data-slide-name="@AdditionalSlideDisplayName(slideType)">
+                                                    <input type="hidden" name="deckId" value="@deck.Id" />
+                                                    <input type="hidden" name="slideType" value="@slideType" />
+                                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                                    <button type="submit" class="btn btn-sm btn-light text-danger" title="Remove from presentation structure" aria-label="Remove @AdditionalSlideDisplayName(slideType)">
+                                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            }
+                        </section>
                                 </div>
 
-                                <footer class="pbd-settings-drawer__footer">
-                                    <span class="pbd-settings-drawer__status" data-pbd-settings-status aria-live="polite">No unsaved changes</span>
+                                <div id="pbd-inspector-checks" role="tabpanel" aria-labelledby="pbd-inspector-tab-checks" class="pbd-inspector__panel" data-pbd-inspector-panel="checks" hidden>
+                                    <p class="pbd-inspector__empty">Checking the deck…</p>
+                                </div>
+                            </aside>
+                        </section>
+
+                        <dialog class="pbd-viewer" data-pbd-viewer aria-labelledby="pbd-viewer-title">
+                            <div class="pbd-viewer__surface">
+                                <header class="pbd-viewer__header">
                                     <div>
-                                        <button type="button" class="btn btn-outline-secondary" data-pbd-settings-close>Cancel</button>
-                                        <button type="submit" class="btn btn-primary" data-pbd-settings-save disabled>Save settings</button>
+                                        <span class="pbd-eyebrow">@deck.Name</span>
+                                        <h2 id="pbd-viewer-title" data-pbd-viewer-title>Slide</h2>
                                     </div>
-                                </footer>
-                            </form>
-                        </aside>
+                                    <span class="pbd-viewer__counter" data-pbd-viewer-counter aria-live="polite"></span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-viewer-close aria-label="Close viewer">
+                                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                                    </button>
+                                </header>
+                                <div class="pbd-viewer__body">
+                                    <button type="button" class="pbd-viewer__nav" data-pbd-viewer-prev aria-label="Previous slide"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                                    <div class="pbd-viewer__stage" data-pbd-viewer-stage></div>
+                                    <button type="button" class="pbd-viewer__nav" data-pbd-viewer-next aria-label="Next slide"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                                    <ol class="pbd-viewer__strip" data-pbd-viewer-strip aria-label="All slides"></ol>
+                                </div>
+                            </div>
+                        </dialog>
 
                         @await Html.PartialAsync("_InstitutionalProfileEditor", Model)
                         @await Html.PartialAsync("_RoleCharterEditor", Model)
