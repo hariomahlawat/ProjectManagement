@@ -50,19 +50,24 @@ correction is not listed under **Sent for approval**.
 **Project steps** (changed 2026-11-01). A project card lists its steps in the order the PO
 works through them:
 
-1. **Remark.** Green under 7 days, amber ("Due soon", the box open) from 7, red from 10, when the
-   project stops being ready for conference (`UpdateWindowDays`, `UpdateDueSoonDays`).
-2. **Stage.** The remark box carries a tick, on by default: "Stage is still DEVP · Development".
-   Ticked, the remark is saved with the stage (`Remark.StageRef`, `StageNameSnapshot`); that is
-   the PO's confirmation. The server checks the posted code against the project's current stage
-   and refuses the post if the stage has moved since the page loaded. Any PO remark tagged with
-   the current stage within 10 days counts, wherever it was posted
+1. **Remark and stage, one step.** The remark box carries a tick, on by default: "Stage is still
+   DEVP · Development". Ticked, the remark is saved with the stage (`Remark.StageRef`,
+   `StageNameSnapshot`); that is the PO's confirmation. One post does both, so they are one step
+   (`update`), not two. It is done while a PO remark is under 10 days old and the current stage
+   was confirmed on one in the same 10 days (`UpdateWindowDays`); amber ("Due soon", the box
+   open) from 7 days (`UpdateDueSoonDays`), counted from the older of the remark and the
+   confirmation; red and not ready from 10. With a fresh remark but no confirmation the step
+   reads "Confirm stage DEVP". The server checks the posted code against the project's current
+   stage and refuses the post if the stage has moved since the page loaded. Any PO remark tagged
+   with the current stage within 10 days counts, wherever it was posted
    (`ProjectOfficerWorkspaceService.LoadStageConfirmationsAsync`). Unticked, the remark posts
-   normally and the stage step stays open. "Wrong stage? Change it" opens the project page in
-   the project's own tab (`ProjectTab.Name`), where the stage is changed. A current stage that the
-   workflow supplies without a saved stage row cannot tag a remark (`RemarkService` accepts only
-   saved stages once a project has any), so the box offers no tick and the step asks the PO to
-   update the stage on the project page; a stale tick for such a stage posts the remark untagged.
+   normally and the step stays open. "Wrong stage? Change it" opens the project page in the
+   project's own tab (`ProjectTab.Name`), where the stage is changed.
+2. **Stage on the project page** (only when a remark cannot confirm it). A project with no
+   current stage, or a current stage that the workflow supplies without a saved stage row
+   (`RemarkService` accepts only saved stages once a project has any), gets a separate `stage`
+   step ("Set the current stage", "Record stage DEVP") that links to the project page; the box
+   offers no tick, and a stale tick for such a stage posts the remark untagged.
 3. **PDC.** A missing current-stage PDC is a step. Its side panel first asks "Is DEVP ·
    Development the project's current stage?": **Yes** shows the PDC form (submitted to the HoD,
    as before); **No** opens the project page in the project's tab. A PDC that has passed is a
@@ -71,15 +76,21 @@ works through them:
    which: an AoN cost once AoN is done, and so on) are a required step, edited in the procurement
    side panel on the desk.
 
+**Next line.** A folded card's "Next:" line names the open steps. One reads in full ("Set DEVP
+PDC"); several are named briefly, in order ("Remark · Set DEVP PDC · Procurement",
+`BriefingDeskCheckVm.NextText`).
+
 **Gaps that never block** (changed 2026-11-01). Completion dates of earlier stages (the
 `<STAGE>_ACTUAL_COMPLETION` gaps) are listed first under **Improve the record**, with their date
 correction state ("Sent to HoD on …", "Review your date correction"), followed by the other
-record-health gaps. When a published ARPP record supplies the IPA completion date
+record-health gaps. Record health words each gap as a requirement of the record ("… are
+required"); on the desk the same reason is put as a recommendation (`BriefingDeskBuilder.AsSuggestion`),
+since the section is optional. When a published ARPP record supplies the IPA completion date
 (`IArppIpaStageAuthorityService`), the date editor locks it, so a missing stored IPA date is
 never listed. Actual start dates are optional and are not asked for on the desk.
 
 **Rollout.** Remarks written before this change carry no stage, so on the first day every
-project shows its stage step open until its PO posts a remark with the tick. This was accepted
+project asks to confirm its stage until its PO posts a remark with the tick. This was accepted
 as a one-time confirmation of every project's stage.
 
 **Wording.** On screen, "brief-ready" is **Ready for conference** (pill: "Ready"). The code
@@ -254,7 +265,8 @@ page. ERP activity stays under **My ERP activity**.
 
 ## Phones
 
-Below 576 px the meters sit in one compact row and the line under the headline is hidden, so
+Below 576 px a step keeps its mark beside its text, with the action under the text (a
+two-column grid). The meters sit in one compact row and the line under the headline is hidden, so
 the first card is on the first screen. The workspace rail's glass layers are contained in its folded icon row
 (`position: relative`); when it was static they covered the first screen with a blur and made
 the page wider than the phone. Unread circulars are counted in the

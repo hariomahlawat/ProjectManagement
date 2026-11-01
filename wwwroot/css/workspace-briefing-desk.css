@@ -1175,9 +1175,9 @@
     color: var(--pm-warning-soft-text);
 }
 
-/* With the remark box open, the "wrong stage" link sits beside the tick, so the stage step
+/* With the remark box open, the "wrong stage" link sits beside the tick, so the remark step
    does not repeat it. */
-.bd-card--stage-in-box .bd-check[data-check="stage"] .bd-check__secondary {
+.bd-card--stage-in-box .bd-check[data-check="update"] .bd-check__secondary {
     display: none;
 }
 
@@ -1268,15 +1268,24 @@
         padding-inline: 1rem;
     }
 
+    /* The mark stays beside the text; the action goes under the text. A wrapping flex row put
+       the text on a line of its own under the mark. */
     .bd-check {
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: start;
+        column-gap: 0.75rem;
+        row-gap: 0.5rem;
+    }
+
+    .bd-check__mark {
+        margin-top: 0.1rem;
     }
 
     .bd-check__action {
-        flex-basis: 100%;
+        grid-column: 2;
         align-items: flex-start;
         text-align: left;
-        padding-left: 2rem;
     }
 
     /* The three meters in one compact row, so the first card is on the first screen. */
