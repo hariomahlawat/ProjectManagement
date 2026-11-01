@@ -9,11 +9,11 @@
     var previewId = $"{anchor}-preview";
     var inputId = $"{anchor}-say";
     var kindKey = BriefingDeskLabels.KindKey(item.Kind);
-    var (handler, postLabel, postHint, placeholder, sayTitle, addAnother) = item.Kind switch
+    var (handler, postLabel, placeholder, sayTitle, addAnother) = item.Kind switch
     {
-        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post remark", "Saved as a project remark.", "One or two lines: what moved, what is blocked, what is next.", "Your remark", "Add another remark"),
-        ConferenceItemKind.ProjectIdea => ("DeskIdeaNote", "Post note", "Saved as a note on the idea.", "What you explored or learned since the last note.", "Note on progress", "Add another note"),
-        _ => ("DeskTaskProgress", "Post progress", "Saved as a progress update on the task.", "What is done, what remains, any blocker.", "Progress on this task", "Add more progress")
+        ConferenceItemKind.Project => ("DeskProjectUpdate", "Post remark", "One or two lines: what moved, what is blocked, what is next.", "Your remark", "Add another remark"),
+        ConferenceItemKind.ProjectIdea => ("DeskIdeaNote", "Post note", "What you explored or learned since the last note.", "Note on progress", "Add another note"),
+        _ => ("DeskTaskProgress", "Post progress", "What is done, what remains, any blocker.", "Progress on this task", "Add more progress")
     };
     // When nothing is due the box folds away behind a quiet link: the PO sees that no update
     // is needed but can still add one. A draft kept after a failed post reopens it.
@@ -81,14 +81,11 @@
         {
             <span class="bd-pill bd-pill--ready"><i class="bi bi-check2" aria-hidden="true"></i>Ready</span>
         }
-        else
-        {
-            <span class="bd-pill bd-pill--open">@item.OpenCount to do</span>
-        }
         <i class="bi bi-chevron-down bd-card__chevron" aria-hidden="true"></i>
     </div>
 
-    @if (item.Strip.Any())
+    @* A project's stage is in its header tag, so the stage strip is left to the project page. *@
+    @if (item.Strip.Any() && item.Kind != ConferenceItemKind.Project)
     {
         <ol class="bd-strip" aria-label="@(item.Kind == ConferenceItemKind.Project ? "Project stages" : "Task status")">
             @foreach (var step in item.Strip)
@@ -141,10 +138,6 @@
                           asp-route-mode="project-officer">
                         <input type="hidden" name="itemId" value="@item.ItemId" />
                         <label class="bd-say__label" for="@inputId">@sayTitle</label>
-                        @if (sayOpen)
-                        {
-                            <p class="bd-say__last">@item.LastUpdateText</p>
-                        }
                         <textarea class="bd-say__input"
                                   id="@inputId"
                                   name="body"
@@ -166,7 +159,6 @@
                         }
                         <div class="bd-say__actions">
                             <button type="submit" class="bd-btn bd-btn--primary">@postLabel</button>
-                            <span class="bd-say__hint">@postHint</span>
                         </div>
                     </form>
                 }

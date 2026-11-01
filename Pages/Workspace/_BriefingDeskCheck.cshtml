@@ -17,7 +17,9 @@
         _ => check.IsRequired ? "To do" : "Optional"
     };
     // What is needed before the brief stands out; optional record improvements stay quiet. The
-    // small line under the button says who completes it (here, or with the HoD).
+    // small line under the button appears only when someone else decides (the HoD); work the PO
+    // completes alone needs no note.
+    var routeNote = check.RouteHint ?? (check.Route == BriefingDeskRoute.Approval ? "Needs HoD approval" : null);
     var buttonClass = check.IsRequired ? "bd-btn--required" : "bd-btn--optional";
     var icon = check.State switch
     {
@@ -47,7 +49,7 @@
                 <span class="bd-check__state bd-check__state--soon">Due soon</span>
                 break;
             case BriefingDeskCheckState.Done:
-                <span class="bd-check__state bd-check__state--done">Done</span>
+                @* The green tick says it; the state is read out from the copy. *@
                 break;
             default:
                 if (!string.IsNullOrWhiteSpace(check.PanelId) && !string.IsNullOrWhiteSpace(check.ActionText))
@@ -57,22 +59,20 @@
                             data-bs-toggle="offcanvas"
                             data-bs-target="#@check.PanelId"
                             aria-controls="@check.PanelId">@check.ActionText<span class="visually-hidden">: @check.Label</span></button>
-                    <small class="bd-check__route">@(check.RouteHint ?? (check.Route == BriefingDeskRoute.Direct ? "You complete it here" : "Needs HoD approval"))</small>
+                    if (routeNote is not null)
+                    {
+                        <small class="bd-check__route">@routeNote</small>
+                    }
                 }
                 else if (!string.IsNullOrWhiteSpace(check.ActionUrl) && !string.IsNullOrWhiteSpace(check.ActionText))
                 {
                     <a class="bd-btn @buttonClass" href="@check.ActionUrl">@check.ActionText<span class="visually-hidden">: @check.Label</span></a>
-                    <small class="bd-check__route">@(check.RouteHint ?? (check.Route == BriefingDeskRoute.Direct ? "You complete it" : "Needs HoD approval"))</small>
+                    if (routeNote is not null)
+                    {
+                        <small class="bd-check__route">@routeNote</small>
+                    }
                 }
-                else if (check.Route == BriefingDeskRoute.Update)
-                {
-                    <small class="bd-check__route">Write it in the box</small>
-                }
-                else if (!string.IsNullOrWhiteSpace(check.SecondaryUrl))
-                {
-                    <small class="bd-check__route">On the project page</small>
-                }
-                else
+                else if (check.Route != BriefingDeskRoute.Update && string.IsNullOrWhiteSpace(check.SecondaryUrl))
                 {
                     <small class="bd-check__route">Use the buttons below</small>
                 }
