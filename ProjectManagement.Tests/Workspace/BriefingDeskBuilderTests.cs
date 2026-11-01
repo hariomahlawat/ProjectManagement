@@ -36,7 +36,7 @@ public sealed class BriefingDeskBuilderTests
     }
 
     [Theory]
-    [InlineData(6, true, false, BriefingDeskTone.Good)]
+    [InlineData(6, true, false, BriefingDeskTone.Neutral)]
     [InlineData(7, true, true, BriefingDeskTone.Warning)]
     [InlineData(9, true, true, BriefingDeskTone.Warning)]
     [InlineData(10, false, false, BriefingDeskTone.Danger)]
@@ -50,6 +50,18 @@ public sealed class BriefingDeskBuilderTests
         Assert.Equal(tone, item.Facts.Single(fact => fact.Text.StartsWith("Remark", StringComparison.Ordinal)).Tone);
         // The box is open from amber, so the PO posts before it turns red.
         Assert.Equal(days >= BriefingDeskBuilder.UpdateDueSoonDays, item.IsUpdateDue);
+    }
+
+    [Fact]
+    public void Project_Tags_UseOneMeaningPerColour()
+    {
+        // Red blocks readiness (a missing PDC), a plain fact is neutral (a set PDC, a recent remark).
+        var missing = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 2, pdcInDays: null) }));
+        var set = SingleItem(Build(projects: new[] { Project(daysSinceUpdate: 0, pdcInDays: 30) }));
+
+        Assert.Equal(BriefingDeskTone.Danger, missing.Facts.Single(fact => fact.Key == BriefingDeskFactKeys.Pdc).Tone);
+        Assert.Equal(BriefingDeskTone.Neutral, set.Facts.Single(fact => fact.Key == BriefingDeskFactKeys.Pdc).Tone);
+        Assert.Equal(BriefingDeskTone.Neutral, set.Facts.Single(fact => fact.Key == BriefingDeskFactKeys.Remark).Tone);
     }
 
     [Fact]

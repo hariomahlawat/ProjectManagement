@@ -209,21 +209,28 @@
     box-shadow: var(--pm-shadow);
 }
 
+/* The title shares the first row with the pill and chevron, top-aligned, so cards side by
+   side keep them level however many lines their tags wrap to. The tags have the row below. */
 .bd-card__head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.6rem 1rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "title pill chevron"
+        "facts facts facts";
+    align-items: start;
+    gap: 0.6rem 0.75rem;
     padding: 1rem 1.25rem 0.75rem;
     cursor: pointer;
 }
 
-/* The title has the first row to itself; tags, pill and chevron share the row below, so a
-   card with few tags does not pull them up beside the title and push the chevron down. */
 .bd-card__heading {
-    flex: 1 1 100%;
+    grid-area: title;
     min-width: 0;
     margin: 0;
+}
+
+.bd-card__head > .bd-pill {
+    grid-area: pill;
 }
 
 .bd-card__toggle {
@@ -266,10 +273,8 @@
     color: var(--pm-text-strong);
 }
 
-/* The tags take the row's free space and wrap inside it, so the pill and chevron stay on the
-   tag row on a phone instead of dropping to a line of their own. */
 .bd-card__facts {
-    flex: 1 1 10rem;
+    grid-area: facts;
     min-width: 0;
     display: flex;
     flex-wrap: wrap;
@@ -280,6 +285,9 @@
 }
 
 .bd-card__chevron {
+    grid-area: chevron;
+    line-height: 1.35;
+    font-size: 1.0625rem;
     color: var(--pm-text-secondary);
     transition: transform 0.15s ease;
 }
@@ -488,12 +496,6 @@
     color: var(--pm-text-slate);
 }
 
-.bd-say__last {
-    margin: 0;
-    font-size: 0.8125rem;
-    color: var(--pm-text-secondary);
-}
-
 .bd-say__input {
     width: 100%;
     min-height: 6.5rem;
@@ -519,11 +521,6 @@
     flex-wrap: wrap;
     gap: 0.6rem;
     align-items: center;
-}
-
-.bd-say__hint {
-    font-size: 0.75rem;
-    color: var(--pm-text-secondary);
 }
 
 /* Update box when nothing is due: a settled line and a quiet way to add another. */
@@ -713,8 +710,26 @@
     color: var(--pm-success-contrast);
 }
 
+/* Optional rows are a plain list under a rule, not boxes, so they read as secondary to the
+   required steps above. */
+.bd-checklist--improve {
+    gap: 0;
+}
+
 .bd-checklist--improve .bd-check {
-    background: var(--pm-surface-subtle);
+    padding-inline: 0;
+    border: 0;
+    border-bottom: 1px solid var(--pm-border-subtle);
+    border-radius: 0;
+    background: transparent;
+}
+
+.bd-checklist--improve .bd-check:last-child {
+    border-bottom: 0;
+}
+
+.bd-checklist--improve .bd-check__mark {
+    border-width: 1.5px;
 }
 
 /* Task actions */

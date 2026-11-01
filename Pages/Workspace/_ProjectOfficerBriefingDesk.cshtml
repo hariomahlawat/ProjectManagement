@@ -59,10 +59,6 @@
         {
             sublineParts.Add($"{completedNeedsYou} recently completed project{(completedNeedsYou == 1 ? " has" : "s have")} a direction to answer.");
         }
-        if (needsYouCount > 0)
-        {
-            sublineParts.Add("Most of it can be finished on this page.");
-        }
     }
     var subline = string.Join(" ", sublineParts);
 
@@ -80,7 +76,7 @@
 <div class="bd" data-briefing-desk>
     <header class="bd-header">
         <div class="bd-header__copy">
-            <p class="bd-header__meta">@todayLabel · @vm.UserDisplayName</p>
+            <p class="bd-header__meta">@todayLabel</p>
             <h1 class="bd-header__title">@headline</h1>
             <p class="bd-header__sub">@subline</p>
         </div>
@@ -130,7 +126,11 @@
                 <section class="bd-section" aria-labelledby="bd-section-@kindKey">
                     <div class="bd-section__head">
                         <h2 id="bd-section-@kindKey">@deskSection.Title</h2>
-                        <span>@(needsYou.Count == 0 ? $"All {ready.Count} ready" : $"{needsYou.Count} need{(needsYou.Count == 1 ? "s" : string.Empty)} you · {ready.Count} ready")</span>
+                        @* With one section the headline already gives these counts. *@
+                        @if (desk.Sections.Count > 1)
+                        {
+                            <span>@(needsYou.Count == 0 ? $"All {ready.Count} ready" : $"{needsYou.Count} need{(needsYou.Count == 1 ? "s" : string.Empty)} you · {ready.Count} ready")</span>
+                        }
                         @if (deskSection.Kind == ConferenceItemKind.ActionTask)
                         {
                             <a class="bd-link bd-link--small" href="@WorkspaceRouteHelper.ActionTasksMyWork()">Open task register<i class="bi bi-arrow-right" aria-hidden="true"></i></a>

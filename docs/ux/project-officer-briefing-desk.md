@@ -103,9 +103,11 @@ one that would overflow the stored 4000 characters is refused with a reason rath
 the save. "Flag blocked" on a task that is already blocked is refused ("Post the new reason as
 progress instead"), because the task service would save nothing.
 
-**Layout** (changed 2026-10-29).
-- The headline leads with what needs the PO ("3 items need you before the next conference");
-  the line under it gives the ready count. A recently completed project with a direction to
+**Layout** (changed 2026-10-29; clean-up 2026-11-01).
+- Each fact is said once. The line above the headline is the date only. The headline leads with
+  what needs the PO ("3 items need you before the next conference"); the line under it gives
+  the ready count, with no closing remark. The section heading shows its own counts ("2 need you
+  · 1 ready") only when the desk has more than one section. A recently completed project with a direction to
   answer counts as needing the PO here (and the line says so), though it never counts towards
   ready for conference; the empty state shows only when there is nothing at all.
 - In each section, items that need the PO are full cards, first one open. Ready items sit in a
@@ -114,10 +116,17 @@ progress instead"), because the task service would save nothing.
   `focus` or a URL hash points at one of its cards, and the PO can still open a ready card to
   add a remark.
 - The per-section meters appear only when the desk has more than one section.
-- A folded card shows its tags, its pill and the next step. An open card shows the stage strip
-  (the current stage with its name) and its steps, and hides the tags its steps repeat
-  (`CoveredByStep`: the update tag, and the PDC tag when there is a PDC step) and the next-step
-  line. A passed PDC has no step, so its red note stays.
+- A folded card shows its title, its tags and one status: the "Next:" line naming the open
+  steps. There is no "N to do" pill; a ready card carries a "Ready" pill. The title, pill and
+  chevron share the top row, top-aligned, so cards side by side stay level; the tags have the
+  row below. An open card shows its steps and hides the tags its steps repeat
+  (`CoveredByStep`: the remark tag, and the PDC tag when there is a PDC step) and the Next line.
+- A project card has no stage strip: the stage is in its header tag, and the full strip is on
+  the project page. A task keeps its short status strip.
+- Tag colours have one meaning each: red blocks readiness ("No remark yet", a remark 10 days
+  old, "PDC not set", "No current stage"); amber is due soon (a remark from 7 days, a task due
+  within 3 days); anything else is a neutral fact (a recent remark, a set PDC, priority, idea
+  status). An overdue task is red.
 - The stage tag names the stage from the workflow definition ("TEC · Technical Evaluation ·
   28 days"), since there is no hover title on a phone. A stage whose name is its code (PNC)
   shows the code once.
@@ -136,16 +145,19 @@ missing or passed PDC, the PDC tag reads "PDC sent to HoD on …" or "Revised PD
 Inside a section the "Project" / "Idea" / "Task" kind label is kept for screen readers only,
 since the section heading says it.
 
-**Update box.** When a remark is due (amber or red) or a direction waits, the box is open on the card. When
+**Update box.** When a remark is due (amber or red) or a direction waits, the box is open on the
+card, with no line about the last remark above it (the remark step says it). When
 nothing is due, the card says "Not needed now" with the date of the last update, and the box
 folds behind "Add another remark" (or note, or progress), so the PO can still post.
 
 **Required and optional.** In "Before you brief", required steps carry the strong button
-(`bd-btn--required`), whether the PO completes them on the desk or they go to the HoD; the line
-under the button says which. **Improve the record** lists the optional record-health gaps,
+(`bd-btn--required`), whether the PO completes them on the desk or they go to the HoD. Only
+work that goes to the HoD carries a line under the button ("Needs HoD approval"); work the PO
+completes alone carries none, and the remark box has no "Saved as …" hint. A done step shows
+its green tick only (no "Done" word); a due-soon step says "Due soon". **Improve the record** lists the optional record-health gaps,
 missing stage completion dates first; it is
-folded to one line ("Record 38% complete · optional") until opened, and its buttons are quiet
-(`bd-btn--optional`). Neither points nor a gap count are shown on the desk, so it cannot
+folded to one line ("Record 38% complete · optional") until opened. Its rows are a plain list
+under a rule, not boxes, and its buttons are quiet (`bd-btn--optional`). Neither points nor a gap count are shown on the desk, so it cannot
 disagree with the gap count in the Comdt preview.
 
 ## What the PO can finish on the desk

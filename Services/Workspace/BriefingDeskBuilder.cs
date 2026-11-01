@@ -741,11 +741,11 @@ public static class BriefingDeskBuilder
         var stage = StageLabel(row.CurrentStageCode, row.CurrentStageName);
         if (!hasStage)
         {
-            facts.Add(new BriefingDeskFactVm("No current stage", BriefingDeskTone.Warning, Key: BriefingDeskFactKeys.Stage));
+            facts.Add(new BriefingDeskFactVm("No current stage", BriefingDeskTone.Danger, Key: BriefingDeskFactKeys.Stage));
         }
         else if (row.IsCurrentStageNotStarted)
         {
-            facts.Add(new BriefingDeskFactVm($"{stage} · not started", BriefingDeskTone.Warning, Key: BriefingDeskFactKeys.Stage));
+            facts.Add(new BriefingDeskFactVm($"{stage} · not started", BriefingDeskTone.Neutral, Key: BriefingDeskFactKeys.Stage));
         }
         else if (row.DaysInCurrentStage is int days)
         {
@@ -778,16 +778,17 @@ public static class BriefingDeskBuilder
             }
             else
             {
-                facts.Add(new BriefingDeskFactVm("PDC not set", BriefingDeskTone.Warning, CoveredByStep: pdcCovered, Key: BriefingDeskFactKeys.Pdc));
+                facts.Add(new BriefingDeskFactVm("PDC not set", BriefingDeskTone.Danger, CoveredByStep: pdcCovered, Key: BriefingDeskFactKeys.Pdc));
             }
         }
 
-        // Green under 7 days, amber from 7, red from 10 (not ready for conference).
+        // One meaning per colour across the desk: red blocks readiness, amber is due soon, and a
+        // plain fact is neutral. So a remark is neutral under 7 days, amber from 7, red from 10.
         facts.Add(row.DaysSinceLastPoRemark switch
         {
             null => new BriefingDeskFactVm("No remark yet", BriefingDeskTone.Danger),
-            0 => new BriefingDeskFactVm("Remark today", BriefingDeskTone.Good),
-            var value when value < UpdateDueSoonDays => new BriefingDeskFactVm($"Remark {value} day{Plural(value!.Value)} ago", BriefingDeskTone.Good),
+            0 => new BriefingDeskFactVm("Remark today", BriefingDeskTone.Neutral),
+            var value when value < UpdateDueSoonDays => new BriefingDeskFactVm($"Remark {value} day{Plural(value!.Value)} ago", BriefingDeskTone.Neutral),
             var value when value < UpdateWindowDays => new BriefingDeskFactVm($"Remark {value} days ago", BriefingDeskTone.Warning),
             var value => new BriefingDeskFactVm($"Remark {value} days ago", BriefingDeskTone.Danger)
         } with { CoveredByStep = true, Key = BriefingDeskFactKeys.Remark }); // the update step and the box repeat it
@@ -899,7 +900,7 @@ public static class BriefingDeskBuilder
             OpenUrl = idea.OpenUrl,
             Facts = new[]
             {
-                new BriefingDeskFactVm(idea.Status, idea.Status == "On Hold" ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral),
+                new BriefingDeskFactVm(idea.Status, BriefingDeskTone.Neutral),
                 new BriefingDeskFactVm($"Last activity {activityText}", BriefingDeskTone.Neutral, CoveredByStep: true),
                 // "0 documents" says nothing, so the count shows only when there are some.
                 idea.DocumentCount > 0 ? new BriefingDeskFactVm($"{idea.DocumentCount} document{Plural(idea.DocumentCount)}", BriefingDeskTone.Neutral) : null
@@ -999,9 +1000,6 @@ public static class BriefingDeskBuilder
             : dueDays is >= 0 and <= 3 && !isSubmitted
                 ? new BriefingDeskFactVm(dueDays == 0 ? $"Due today" : $"Due {FormatDay(task.DueDate)} · in {dueDays} day{Plural(dueDays)}", BriefingDeskTone.Warning)
                 : new BriefingDeskFactVm($"Due {FormatDay(task.DueDate)}", BriefingDeskTone.Neutral);
-        var isHighPriority = task.Priority.Equals("High", StringComparison.OrdinalIgnoreCase)
-            || task.Priority.Equals("Urgent", StringComparison.OrdinalIgnoreCase)
-            || task.Priority.Equals("Critical", StringComparison.OrdinalIgnoreCase);
 
         return new BriefingDeskItemVm
         {
@@ -1012,7 +1010,7 @@ public static class BriefingDeskBuilder
             Facts = new[]
             {
                 dueFact,
-                new BriefingDeskFactVm($"{task.Priority} priority", isHighPriority ? BriefingDeskTone.Warning : BriefingDeskTone.Neutral)
+                new BriefingDeskFactVm($"{task.Priority} priority", BriefingDeskTone.Neutral)
             },
             Strip = TaskStrip(status),
             Direction = conference?.LatestDirection,
