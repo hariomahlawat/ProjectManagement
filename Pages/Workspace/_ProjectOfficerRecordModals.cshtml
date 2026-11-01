@@ -1,4 +1,3 @@
-@using ProjectManagement.Services.Workspace
 @using ProjectManagement.ViewModels.Workspace
 @model ProjectOfficerWorkspaceVm
 @{
@@ -47,7 +46,7 @@
                                         <h3 id="recordOverviewProject-@health.ProjectId">@health.ProjectName</h3>
                                         <span>@health.HealthPercent% health · @health.RecordGapCount gap@(health.RecordGapCount == 1 ? "" : "s")</span>
                                     </div>
-                                    <a href="@health.OpenUrl" target="@WorkspaceRouteHelper.ProjectTabName(health.ProjectId)">Open project<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (opens in a new tab)</span></a>
+                                    <a href="@health.OpenUrl" target="@ProjectTab.Name(health.ProjectId)">Open project<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (opens in a new tab)</span></a>
                                 </header>
                                 <progress class="po-record-overview-project__bar" value="@health.HealthPercent" max="100" aria-label="@health.ProjectName overall record health: @health.HealthPercent percent">@health.HealthPercent%</progress>
                                 <div class="po-record-overview-project__gaps">
@@ -179,7 +178,7 @@
                 </div>
                 <div class="modal-footer po-record-modal__footer">
                     <span><i class="bi bi-shield-check"></i>Not-applicable and not-yet-applicable fields do not reduce the score.</span>
-                    <a class="po-btn po-btn--secondary" href="@health.OpenUrl" target="@WorkspaceRouteHelper.ProjectTabName(health.ProjectId)">Open project overview<span class="visually-hidden"> (opens in a new tab)</span></a>
+                    <a class="po-btn po-btn--secondary" href="@health.OpenUrl" target="@ProjectTab.Name(health.ProjectId)">Open project overview<span class="visually-hidden"> (opens in a new tab)</span></a>
                     <button type="button" class="po-btn po-btn--primary" data-bs-dismiss="modal">Done</button>
                 </div>
             </div>

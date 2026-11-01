@@ -1302,7 +1302,7 @@
                                                 <td class="pbd-select-column"><input type="checkbox" data-pbd-row-select aria-label="Select @project.ProjectName" /></td>
                                                 <td class="pbd-drag-column"><button type="button" class="pbd-drag" aria-label="Reorder @project.ProjectName within @project.PresentStage. Use the up or down arrow key." aria-keyshortcuts="ArrowUp ArrowDown" title="Reorder within @project.PresentStage"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button></td>
                                                 <td class="pbd-project-name">
-                                                    <a href="@project.OpenUrl" target="_blank" rel="noopener" title="@project.ProjectName">@project.ProjectName</a>
+                                                    <a href="@project.OpenUrl" target="@ProjectTab.Name(project.ProjectId)" rel="noopener" title="@project.ProjectName">@project.ProjectName</a>
                                                     <small>@project.LifecycleDisplay · @(project.ProjectCategory ?? "Not categorised") · @(project.TechnicalCategory ?? "No technical category")</small>
                                                 </td>
                                                 <td><span class="pbd-stage">@project.PresentStage</span></td>
@@ -1379,7 +1379,7 @@
                                                     {
                                                         <a class="btn btn-sm btn-link"
                                                            href="@(project.OpenUrl + "?content=brief#content-brief")"
-                                                           target="_blank"
+                                                           target="@ProjectTab.Name(project.ProjectId)"
                                                            rel="noopener"
                                                            aria-label="Open project brief for @project.ProjectName in a new tab"
                                                            title="Open project brief"><i class="bi bi-box-arrow-up-right"></i></a>

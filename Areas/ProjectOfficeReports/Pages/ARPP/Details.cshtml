@@ -215,12 +215,12 @@
                                     <td data-label="Project" class="arpp-v2-project-cell">
                                         @if (sameProjectName)
                                         {
-                                            <div class="arpp-v2-project-cell__title"><a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId" target="_blank" rel="noopener">@issuedName<span class="bi bi-box-arrow-up-right arpp-v2-external-link" aria-hidden="true"></span></a></div>
+                                            <div class="arpp-v2-project-cell__title"><a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId" target="@ProjectTab.Name(entry.ProjectId)" rel="noopener">@issuedName<span class="bi bi-box-arrow-up-right arpp-v2-external-link" aria-hidden="true"></span></a></div>
                                         }
                                         else if (entry.ProjectId.HasValue)
                                         {
                                             <div class="arpp-v2-project-cell__issued"><strong>Issued</strong> @issuedName</div>
-                                            <div class="arpp-v2-project-cell__linked"><strong>Linked</strong> <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId" target="_blank" rel="noopener">@linkedName<span class="bi bi-box-arrow-up-right arpp-v2-external-link" aria-hidden="true"></span></a></div>
+                                            <div class="arpp-v2-project-cell__linked"><strong>Linked</strong> <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId" target="@ProjectTab.Name(entry.ProjectId)" rel="noopener">@linkedName<span class="bi bi-box-arrow-up-right arpp-v2-external-link" aria-hidden="true"></span></a></div>
                                         }
                                         else
                                         {

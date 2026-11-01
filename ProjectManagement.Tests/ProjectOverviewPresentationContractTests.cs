@@ -125,8 +125,37 @@ public sealed class ProjectOverviewPresentationContractTests
 
         // The project name opens the project overview, not the briefing desk card.
         // One named tab per project, so a repeat click lands in the tab already open.
-        Assert.Contains("<a class=\"po-project-name\" href=\"@item.OpenUrl\" target=\"@WorkspaceRouteHelper.ProjectTabName(item.ItemId)\"", workspaceTable, StringComparison.Ordinal);
+        Assert.Contains("<a class=\"po-project-name\" href=\"@item.OpenUrl\" target=\"@ProjectTab.Name(item.ItemId)\"", workspaceTable, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"po-project-name\" href=\"@WorkspaceRouteHelper.BriefingDeskItem", workspaceTable, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectPageLinks_ShareOneNamedTabPerProject()
+    {
+        Assert.Equal("prism-project-42", ProjectManagement.Infrastructure.ProjectTab.Name(42));
+
+        // Links that open a project page in another tab reuse that project's named tab.
+        string[][] razorViews =
+        {
+            new[] { "Pages", "Workspace", "_ProjectOfficerRecordModals.cshtml" },
+            new[] { "Pages", "Workspace", "_ConferenceItemRow.cshtml" },
+            new[] { "Pages", "Workspace", "BriefingDecks", "Index.cshtml" },
+            new[] { "Pages", "Projects", "Reports", "ArppFyUpdate.cshtml" },
+            new[] { "Pages", "Projects", "Reports", "FfcProjectsUpdate.cshtml" },
+            new[] { "Pages", "Projects", "Arpp", "_CurrentPositionTable.cshtml" },
+            new[] { "Pages", "Projects", "Arpp", "_DocumentTable.cshtml" },
+            new[] { "Areas", "ProjectOfficeReports", "Pages", "ARPP", "Details.cshtml" },
+        };
+        foreach (var path in razorViews)
+        {
+            Assert.Contains("target=\"@ProjectTab.Name(", ReadRepoFile(path), StringComparison.Ordinal);
+        }
+
+        // Script-built links use the same name format as the server helper.
+        Assert.Contains("prism-project-${project.projectId}", ReadRepoFile("wwwroot", "js", "pages", "project-briefing-decks.js"), StringComparison.Ordinal);
+        var compendium = ReadRepoFile("wwwroot", "js", "pages", "projects-compendium.js");
+        Assert.Contains("reviewOpen.target = `prism-project-${review.projectId}`", compendium, StringComparison.Ordinal);
+        Assert.Contains("prism-project-${projectId}", compendium, StringComparison.Ordinal);
     }
 
     [Fact]
