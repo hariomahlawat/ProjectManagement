@@ -15,16 +15,16 @@ namespace ProjectManagement.Services.Documents;
 
 public sealed class DocumentNotificationService : IDocumentNotificationService
 {
-    private readonly INotificationPublisher _publisher;
+    private readonly INotificationOutboxWriter _outbox;
     private readonly INotificationPreferenceService _preferences;
     private readonly ILogger<DocumentNotificationService> _logger;
 
     public DocumentNotificationService(
-        INotificationPublisher publisher,
+        INotificationOutboxWriter outbox,
         INotificationPreferenceService preferences,
         ILogger<DocumentNotificationService> logger)
     {
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+        _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -123,79 +123,68 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
             throw new ArgumentException("Actor user id is required.", nameof(actorUserId));
         }
 
-        try
+        var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        AddRecipient(recipients, project.LeadPoUserId);
+        AddRecipient(recipients, project.HodUserId);
+        recipients.Remove(actorUserId.Trim());
+
+        if (recipients.Count == 0)
         {
-            var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            AddRecipient(recipients, project.LeadPoUserId);
-            AddRecipient(recipients, project.HodUserId);
-            recipients.Remove(actorUserId.Trim());
-
-            if (recipients.Count == 0)
-            {
-                _logger.LogInformation(
-                    "No recipients other than the actor resolved for document notification {Kind} on document {DocumentId}.",
-                    kind,
-                    document.Id);
-                return;
-            }
-
-            var allowed = await FilterRecipientsAsync(kind, recipients, project.Id, cancellationToken);
-            if (allowed.Count == 0)
-            {
-                _logger.LogInformation(
-                    "All recipients opted out for document notification {Kind} on document {DocumentId}.",
-                    kind,
-                    document.Id);
-                return;
-            }
-
-            var projectName = GetProjectName(project);
-            var route = BuildRoute(project.Id);
-            var title = string.Format(
-                CultureInfo.InvariantCulture,
-                "Document {0}",
-                actionVerb);
-
-            var summary = GetDocumentLabel(document);
-
-            var payload = new DocumentNotificationPayload(
-                document.Id,
-                document.ProjectId,
-                projectName,
-                document.StageId,
-                document.Title,
-                document.Status.ToString(),
-                document.FileStamp,
-                document.UploadedByUserId,
-                FormatTimestamp(document.UploadedAtUtc));
-
-            await _publisher.PublishAsync(
+            _logger.LogInformation(
+                "No recipients other than the actor resolved for document notification {Kind} on document {DocumentId}.",
                 kind,
-                allowed,
-                payload,
-                module: "Documents",
-                eventType: eventType,
-                scopeType: "Document",
-                scopeId: document.Id.ToString(CultureInfo.InvariantCulture),
-                projectId: document.ProjectId,
-                actorUserId: actorUserId,
-                route: route,
-                title: title,
-                summary: summary,
-                // A document can legitimately move through the same lifecycle state more than
-                // once (for example archive -> restore -> archive). The outbox row itself is the
-                // event identity, so a state-derived fingerprint would suppress a later valid event.
-                fingerprint: null,
-                cancellationToken: cancellationToken);
+                document.Id);
+            return;
         }
-        catch (OperationCanceledException)
+
+        var allowed = await FilterRecipientsAsync(kind, recipients, project.Id, cancellationToken);
+        if (allowed.Count == 0)
         {
-            throw;
+            _logger.LogInformation(
+                "All recipients opted out for document notification {Kind} on document {DocumentId}.",
+                kind,
+                document.Id);
+            return;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish document notification {Kind} for document {DocumentId}.", kind, document.Id);
-        }
+
+        var projectName = GetProjectName(project);
+        var route = BuildRoute(project.Id);
+        var title = string.Format(
+            CultureInfo.InvariantCulture,
+            "Document {0}",
+            actionVerb);
+
+        var summary = GetDocumentLabel(document);
+
+        var payload = new DocumentNotificationPayload(
+            document.Id,
+            document.ProjectId,
+            projectName,
+            document.StageId,
+            document.Title,
+            document.Status.ToString(),
+            document.FileStamp,
+            document.UploadedByUserId,
+            FormatTimestamp(document.UploadedAtUtc));
+
+        await _outbox.QueueAsync(
+            kind,
+            allowed,
+            payload,
+            module: "Documents",
+            eventType: eventType,
+            scopeType: "Document",
+            scopeId: document.Id.ToString(CultureInfo.InvariantCulture),
+            projectId: document.ProjectId,
+            actorUserId: actorUserId,
+            route: route,
+            title: title,
+            summary: summary,
+            // A document can legitimately move through the same lifecycle state more than
+            // once (for example archive -> restore -> archive). The outbox row itself is the
+            // event identity, so a state-derived fingerprint would suppress a later valid event.
+            fingerprint: null,
+            cancellationToken: cancellationToken);
     }
 
     private static void AddRecipient(ISet<string> recipients, string? userId)
