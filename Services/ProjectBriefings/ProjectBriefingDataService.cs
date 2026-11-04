@@ -18,7 +18,8 @@ public interface IProjectBriefingDataService
     Task<ProjectBriefingDeckVm?> GetDeckAsync(
         long deckId,
         string requestingUserId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool includeFfcFootprintSummary = false);
 
     Task<ProjectBriefingPresentationData> BuildPresentationDataAsync(
         long deckId,
@@ -73,7 +74,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     public async Task<ProjectBriefingDeckVm?> GetDeckAsync(
         long deckId,
         string requestingUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool includeFfcFootprintSummary = false)
     {
         var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken);
         if (snapshot is null)
@@ -83,7 +85,11 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
         var presentedProjects = projects.Where(project => project.IsPresented).ToArray();
-        var ffcPreview = await LoadFfcFootprintPreviewAsync(snapshot.Id, cancellationToken);
+        // The global FFC footprint is only shown in the page's FFC slide editor; in-place saves and
+        // preview rebuilds do not need it.
+        var ffcPreview = includeFfcFootprintSummary
+            ? await LoadFfcFootprintPreviewAsync(snapshot.Id, cancellationToken)
+            : new FfcFootprintSummary(0, 0, 0, 0, 0, 0);
         return new ProjectBriefingDeckVm
         {
             Id = snapshot.Id,

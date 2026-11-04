@@ -251,9 +251,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         IQueryable<ProjectBriefingDeck> query = _db.Set<ProjectBriefingDeck>().Live();
         if (includeItems)
         {
-            query = query
-                .Include(deck => deck.Items)
-                .ThenInclude(item => item.Project);
+            // Items only: nothing here reads the project rows, and loading them for up to 120
+            // projects (descriptions, briefs) made every single-item edit heavy.
+            query = query.Include(deck => deck.Items);
         }
 
         return query.FirstOrDefaultAsync(

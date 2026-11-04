@@ -91,6 +91,24 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void PreviewRenderer_DoesNotResendImagesTheBrowserAlreadyHolds()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = BuildData();
+        var (content, _) = composer.Compose(data);
+        var first = ProjectBriefingSlidePreviewRenderer.Render(content, data.GeneratedAtUtc);
+
+        var rebuilt = ProjectBriefingSlidePreviewRenderer.Render(
+            content,
+            data.GeneratedAtUtc,
+            first.Images.Keys.ToHashSet(StringComparer.Ordinal));
+
+        Assert.Empty(rebuilt.Images);
+        Assert.Equal(first.Slides.Select(slide => slide.Html), rebuilt.Slides.Select(slide => slide.Html));
+    }
+
+    [Fact]
     public void ComposeWithOutline_DescribesEverySlideInDeckOrder()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
