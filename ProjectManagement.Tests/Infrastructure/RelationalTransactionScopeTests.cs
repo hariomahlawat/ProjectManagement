@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Infrastructure;
@@ -143,6 +144,117 @@ public sealed class RelationalTransactionScopeTests
         Assert.True(transaction.IsCommitted);
         Assert.Single(transaction.PostCommitErrors);
         Assert.Single(await scope.Db.Rows.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task RollbackCallback_RunsWhenTheRootRollsBack_NewestFirst()
+    {
+        await using var scope = await TestDbScope.CreateAsync();
+        var calls = new List<string>();
+
+        await using (var root = await RelationalTransactionScope.CreateAsync(scope.Db.Database))
+        {
+            root.RegisterAfterRollback(_ => { calls.Add("first"); return Task.CompletedTask; });
+            root.RegisterAfterRollback(_ => { calls.Add("second"); return Task.CompletedTask; });
+            await root.RollbackAsync();
+        }
+
+        Assert.Equal(new[] { "second", "first" }, calls);
+    }
+
+    [Fact]
+    public async Task RollbackCallback_RunsWhenTheScopeIsDisposedWithoutCommit()
+    {
+        await using var scope = await TestDbScope.CreateAsync();
+        var calls = 0;
+
+        await using (var root = await RelationalTransactionScope.CreateAsync(scope.Db.Database))
+        {
+            root.RegisterAfterRollback(_ => { calls++; return Task.CompletedTask; });
+        }
+
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task RollbackCallback_IsDiscardedWhenTheRootCommits()
+    {
+        await using var scope = await TestDbScope.CreateAsync();
+        var calls = 0;
+
+        await using (var root = await RelationalTransactionScope.CreateAsync(scope.Db.Database))
+        {
+            await using (var nested = await RelationalTransactionScope.CreateAsync(scope.Db.Database))
+            {
+                nested.RegisterAfterRollback(_ => { calls++; return Task.CompletedTask; });
+                await nested.CommitAsync();
+            }
+
+            await root.CommitAsync();
+        }
+
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task NestedRollbackCallback_RunsWhenOnlyTheOuterTransactionRollsBack()
+    {
+        // A savepoint that committed is still undone by its outer transaction, so its
+        // compensation must run then.
+        await using var scope = await TestDbScope.CreateAsync();
+        var calls = 0;
+
+        await using (var root = await RelationalTransactionScope.CreateAsync(scope.Db.Database))
+        {
+            await using (var nested = await RelationalTransactionScope.CreateAsync(scope.Db.Database))
+            {
+                nested.RegisterAfterRollback(_ => { calls++; return Task.CompletedTask; });
+                await nested.CommitAsync();
+            }
+
+            Assert.Equal(0, calls);
+            await root.RollbackAsync();
+        }
+
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task NestedRollback_RunsOnlyItsOwnRollbackCallbacks()
+    {
+        await using var scope = await TestDbScope.CreateAsync();
+        var calls = new List<string>();
+
+        await using (var root = await RelationalTransactionScope.CreateAsync(scope.Db.Database))
+        {
+            root.RegisterAfterRollback(_ => { calls.Add("outer"); return Task.CompletedTask; });
+            await using (var nested = await RelationalTransactionScope.CreateAsync(scope.Db.Database))
+            {
+                nested.RegisterAfterRollback(_ => { calls.Add("nested"); return Task.CompletedTask; });
+                await nested.RollbackAsync();
+            }
+
+            Assert.Equal(new[] { "nested" }, calls);
+            await root.CommitAsync();
+        }
+
+        Assert.Equal(new[] { "nested" }, calls);
+    }
+
+    [Fact]
+    public async Task RollbackCallbackFailure_DoesNotFailTheRollbackOrSkipOtherCallbacks()
+    {
+        await using var scope = await TestDbScope.CreateAsync();
+        var calls = 0;
+
+        await using var root = await RelationalTransactionScope.CreateAsync(scope.Db.Database);
+        root.RegisterAfterRollback(_ => { calls++; return Task.CompletedTask; });
+        root.RegisterAfterRollback(_ => throw new InvalidOperationException("compensation failed"));
+
+        await root.RollbackAsync();
+
+        Assert.Equal(1, calls);
+        Assert.Single(root.RollbackCallbackErrors);
     }
 
     private sealed class TransactionTestDbContext(DbContextOptions<TransactionTestDbContext> options)

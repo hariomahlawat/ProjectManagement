@@ -266,26 +266,25 @@ public sealed class DocumentService : IDocumentService
             throw;
         }
 
-        try
+        // If this change, or a transaction it runs inside, does not commit, the file goes back
+        // to its staging path so the request can be approved again.
+        transaction.RegisterAfterRollback(_ =>
         {
-            document.StorageKey = storageKey;
-            await _notificationQueue.QueueAfterSaveAsync(
-                "document publish",
-                ct => _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, ct),
-                cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            // Nothing was committed: return the file to its staging path so the request can be
-            // approved again.
-            await transaction.RollbackAsync(CancellationToken.None);
             ReturnToStaging(destinationPath, tempPath);
-            throw;
-        }
+            return Task.CompletedTask;
+        });
 
-        await Audit.Events.ProjectDocumentPublished(projectId, document.Id, performedByUserId, document.FileStamp)
-            .WriteAsync(_audit);
+        document.StorageKey = storageKey;
+        await _notificationQueue.QueueAfterSaveAsync(
+            "document publish",
+            ct => _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, ct),
+            cancellationToken);
+        await CommitThenAuditAsync(
+            transaction,
+            "document publish",
+            () => Audit.Events.ProjectDocumentPublished(projectId, document.Id, performedByUserId, document.FileStamp)
+                .WriteAsync(_audit),
+            cancellationToken);
 
         document.Project = project;
 
@@ -359,47 +358,48 @@ public sealed class DocumentService : IDocumentService
             throw;
         }
 
-        try
+        // If this change, or a transaction it runs inside, does not commit, the new file goes
+        // back to its staging path so the request can be approved again, and the current file
+        // is put back. The current file is removed only once the outermost transaction commits.
+        transaction.RegisterAfterRollback(_ =>
         {
-            await SaveReplacementAsync(
-                document,
-                project,
-                sanitizedName,
-                normalizedContentType,
-                fileSize,
-                uploadedByUserId,
-                performedByUserId,
-                transaction,
-                cancellationToken);
-        }
-        catch
-        {
-            // Nothing was committed: return the new file to its staging path so the request can
-            // be approved again, and put the current file back.
-            await transaction.RollbackAsync(CancellationToken.None);
             ReturnToStaging(destinationPath, tempPath);
             RestorePreviousFile(previousFile, documentId);
-            throw;
-        }
+            return Task.CompletedTask;
+        });
 
-        if (previousFile is not null)
+        var finalizeAfterCommit = previousFile is not null && transaction.CanRegisterAfterCommit;
+        if (finalizeAfterCommit)
         {
-            try
+            transaction.RegisterAfterCommit(_ =>
             {
-                FileSystemQuarantine.FinalizeDeletion(previousFile);
-            }
-            catch (Exception cleanupError)
-            {
-                _logger?.LogWarning(
-                    cleanupError,
-                    "Document {DocumentId} was replaced, but its previous file could not be removed. Quarantine reference: {Reference}",
-                    documentId,
-                    FileSystemQuarantine.GetSafeReference(previousFile));
-            }
+                FinalizePreviousFile(previousFile!, documentId);
+                return Task.CompletedTask;
+            });
         }
 
-        await Audit.Events.ProjectDocumentReplaced(document.ProjectId, document.Id, performedByUserId, document.FileStamp)
-            .WriteAsync(_audit);
+        await SaveReplacementAsync(
+            document,
+            project,
+            sanitizedName,
+            normalizedContentType,
+            fileSize,
+            uploadedByUserId,
+            performedByUserId,
+            cancellationToken);
+        await CommitThenAuditAsync(
+            transaction,
+            "document replace",
+            () => Audit.Events.ProjectDocumentReplaced(document.ProjectId, document.Id, performedByUserId, document.FileStamp)
+                .WriteAsync(_audit),
+            cancellationToken);
+
+        if (previousFile is not null && !finalizeAfterCommit)
+        {
+            // Inside a transaction this service did not create, the outer commit cannot be
+            // observed; the previous file is removed once this change's savepoint is released.
+            FinalizePreviousFile(previousFile, documentId);
+        }
 
         document.Project = project;
 
@@ -414,7 +414,6 @@ public sealed class DocumentService : IDocumentService
         long fileSize,
         string uploadedByUserId,
         string performedByUserId,
-        RelationalTransactionScope transaction,
         CancellationToken cancellationToken)
     {
         document.OriginalFileName = sanitizedName;
@@ -445,7 +444,54 @@ public sealed class DocumentService : IDocumentService
             "document replace",
             ct => _notifications.NotifyDocumentReplacedAsync(document, project, performedByUserId, ct),
             cancellationToken);
+    }
+
+    private void FinalizePreviousFile(FileQuarantineHandle previousFile, int documentId)
+    {
+        try
+        {
+            FileSystemQuarantine.FinalizeDeletion(previousFile);
+        }
+        catch (Exception cleanupError)
+        {
+            _logger?.LogWarning(
+                cleanupError,
+                "Document {DocumentId} was replaced, but its previous file could not be removed. Quarantine reference: {Reference}",
+                documentId,
+                FileSystemQuarantine.GetSafeReference(previousFile));
+        }
+    }
+
+    /// <summary>
+    /// Commits <paramref name="transaction"/> and records the audit entry once the change is
+    /// durable. When this service runs inside another transaction (a document approval), the
+    /// change is durable only when that transaction commits, so the audit entry waits for it.
+    /// </summary>
+    private async Task CommitThenAuditAsync(
+        RelationalTransactionScope transaction,
+        string operation,
+        Func<Task> audit,
+        CancellationToken cancellationToken)
+    {
+        if (transaction.IsNested && transaction.CanRegisterAfterCommit)
+        {
+            transaction.RegisterAfterCommit(async _ =>
+            {
+                try
+                {
+                    await audit();
+                }
+                catch (Exception error)
+                {
+                    _logger?.LogError(error, "The audit entry for {Operation} could not be written after commit.", operation);
+                }
+            });
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
         await transaction.CommitAsync(cancellationToken);
+        await audit();
     }
 
     // Moves a file that was placed for an uncommitted change back to its staging path.
@@ -518,13 +564,17 @@ public sealed class DocumentService : IDocumentService
         document.ArchivedAtUtc = _clock.UtcNow;
         document.ArchivedByUserId = performedByUserId;
 
-        await _notificationQueue.SaveAndQueueAsync(
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        await _notificationQueue.QueueAfterSaveAsync(
             "document archive",
             ct => _notifications.NotifyDocumentArchivedAsync(document, project, performedByUserId, ct),
             cancellationToken);
-
-        await Audit.Events.ProjectDocumentRemoved(document.ProjectId, document.Id, performedByUserId)
-            .WriteAsync(_audit);
+        await CommitThenAuditAsync(
+            transaction,
+            "document archive",
+            () => Audit.Events.ProjectDocumentRemoved(document.ProjectId, document.Id, performedByUserId)
+                .WriteAsync(_audit),
+            cancellationToken);
 
         document.Project = project;
 

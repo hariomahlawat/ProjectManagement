@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
@@ -255,6 +256,136 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
         Assert.True(File.Exists(StoredPath(document.StorageKey)));
         Assert.Equal(ProjectDocumentRequestStatus.Approved, (await final.ProjectDocumentRequests.SingleAsync()).Status);
         Assert.Equal(1, await final.NotificationDispatches.CountAsync());
+    }
+
+    [Fact]
+    public async Task ApprovedUpload_WhenTheDecisionCannotBeSaved_PublishesNothingAndCanBeApprovedAgain()
+    {
+        // The document used to commit on its own before the request's decision was saved. If
+        // that save failed (another reviewer decided first), the document stayed published while
+        // its request still read "Submitted", and approving again published a duplicate.
+        var requestId = await SubmitUploadRequestAsync();
+        await using (var db = new ApplicationDbContext(FailingDecisionOptions(ProjectDocumentRequestStatus.Approved)))
+        {
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => CreateDecisionService(db, new QueueingNotifier(db, NotifierMode.Queue))
+                .ApproveAsync(requestId, "approver", isAdmin: true, isHoD: false, note: null, CancellationToken.None));
+        }
+
+        await using (var verify = new ApplicationDbContext(_options))
+        {
+            Assert.Equal(0, await verify.ProjectDocuments.CountAsync());
+            Assert.Equal(0, await verify.NotificationDispatches.CountAsync());
+            var request = await verify.ProjectDocumentRequests.SingleAsync();
+            Assert.Equal(ProjectDocumentRequestStatus.Submitted, request.Status);
+            Assert.True(File.Exists(StoredPath(request.TempStorageKey!)), "The upload should be back in staging.");
+        }
+
+        await using (var retry = new ApplicationDbContext(_options))
+        {
+            await CreateDecisionService(retry, new QueueingNotifier(retry, NotifierMode.Queue))
+                .ApproveAsync(requestId, "approver", isAdmin: true, isHoD: false, note: null, CancellationToken.None);
+        }
+
+        await using var final = new ApplicationDbContext(_options);
+        var document = await final.ProjectDocuments.SingleAsync();
+        Assert.True(File.Exists(StoredPath(document.StorageKey)));
+        Assert.Equal(ProjectDocumentRequestStatus.Approved, (await final.ProjectDocumentRequests.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task ApprovedReplacement_WhenTheDecisionCannotBeSaved_KeepsTheOriginalFileAndRecord()
+    {
+        var documentId = await PublishDocumentAsync();
+        var storageKey = await StorageKeyAsync();
+        var originalBytes = await File.ReadAllBytesAsync(StoredPath(storageKey));
+        var requestId = await SubmitReplaceRequestAsync(documentId, "%PDF-1.4\nReplacement content");
+
+        await using (var db = new ApplicationDbContext(FailingDecisionOptions(ProjectDocumentRequestStatus.Approved)))
+        {
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => CreateDecisionService(db, new QueueingNotifier(db, NotifierMode.Queue))
+                .ApproveAsync(requestId, "approver", isAdmin: true, isHoD: false, note: null, CancellationToken.None));
+        }
+
+        await using var verify = new ApplicationDbContext(_options);
+        Assert.Equal(1, (await verify.ProjectDocuments.SingleAsync()).FileStamp);
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(StoredPath(storageKey)));
+        var request = await verify.ProjectDocumentRequests.SingleAsync(r => r.Id == requestId);
+        Assert.Equal(ProjectDocumentRequestStatus.Submitted, request.Status);
+        Assert.True(File.Exists(StoredPath(request.TempStorageKey!)), "The replacement should be back in staging.");
+        Assert.Equal(0, await verify.NotificationDispatches.CountAsync());
+    }
+
+    [Fact]
+    public async Task ApprovedReplacement_CommitsTheNewFile_AndRemovesTheOldOneOnlyAfterTheDecisionCommits()
+    {
+        var documentId = await PublishDocumentAsync();
+        var storageKey = await StorageKeyAsync();
+        var requestId = await SubmitReplaceRequestAsync(documentId, "%PDF-1.4\nReplacement content");
+
+        await using (var db = new ApplicationDbContext(_options))
+        {
+            await CreateDecisionService(db, new QueueingNotifier(db, NotifierMode.Queue))
+                .ApproveAsync(requestId, "approver", isAdmin: true, isHoD: false, note: null, CancellationToken.None);
+        }
+
+        await using var verify = new ApplicationDbContext(_options);
+        Assert.Equal(2, (await verify.ProjectDocuments.SingleAsync()).FileStamp);
+        Assert.Equal("%PDF-1.4\nReplacement content", await File.ReadAllTextAsync(StoredPath(storageKey)));
+        Assert.Equal(ProjectDocumentRequestStatus.Approved, (await verify.ProjectDocumentRequests.SingleAsync(r => r.Id == requestId)).Status);
+        var quarantine = Path.Combine(_root, ".purge-quarantine");
+        Assert.True(!Directory.Exists(quarantine) || !Directory.EnumerateFiles(quarantine, "*", SearchOption.AllDirectories).Any());
+    }
+
+    [Fact]
+    public async Task Rejection_WhenTheDecisionCannotBeSaved_KeepsTheStagedFile()
+    {
+        // The staged file used to be deleted before the rejection was saved, so a failed save
+        // left a submitted request whose file was gone.
+        var requestId = await SubmitUploadRequestAsync();
+        await using (var db = new ApplicationDbContext(FailingDecisionOptions(ProjectDocumentRequestStatus.Rejected)))
+        {
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => CreateDecisionService(db, new QueueingNotifier(db, NotifierMode.None))
+                .RejectAsync(requestId, "approver", isAdmin: true, isHoD: false, note: "Wrong file", CancellationToken.None));
+        }
+
+        await using var verify = new ApplicationDbContext(_options);
+        var request = await verify.ProjectDocumentRequests.SingleAsync();
+        Assert.Equal(ProjectDocumentRequestStatus.Submitted, request.Status);
+        Assert.True(File.Exists(StoredPath(request.TempStorageKey!)));
+    }
+
+    private async Task<int> SubmitReplaceRequestAsync(int documentId, string content)
+    {
+        await using var db = new ApplicationDbContext(_options);
+        var documentService = CreateDocumentService(db, new QueueingNotifier(db, NotifierMode.None));
+        var temp = await SaveTempAsync(documentService, content);
+        var request = await new DocumentRequestService(db, Clock(), new RecordingAudit())
+            .CreateReplaceRequestAsync(documentId, null, temp, "requestor", CancellationToken.None);
+        return request.Id;
+    }
+
+    private DbContextOptions<ApplicationDbContext> FailingDecisionOptions(ProjectDocumentRequestStatus status)
+        => new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(_connection)
+            .AddInterceptors(new FailDecisionInterceptor(status))
+            .Options;
+
+    /// <summary>Fails the save that records a request's decision, as a concurrent decision would.</summary>
+    private sealed class FailDecisionInterceptor(ProjectDocumentRequestStatus status) : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context!.ChangeTracker.Entries<ProjectDocumentRequest>()
+                .Any(entry => entry.State == EntityState.Modified && entry.Entity.Status == status))
+            {
+                throw new DbUpdateConcurrencyException("Another reviewer decided this request first.");
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
     }
 
     private static async Task<DocumentFileDescriptor> SaveTempAsync(DocumentService documentService, string content)

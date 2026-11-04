@@ -833,8 +833,6 @@ builder.Services.AddScoped<IDocumentNotificationService, DocumentNotificationSer
 builder.Services.AddScoped<IRoleNotificationService, RoleNotificationService>();
 builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
 builder.Services.AddScoped<NotificationPublisher>();
-builder.Services.AddScoped<INotificationPublisher>(serviceProvider =>
-    serviceProvider.GetRequiredService<NotificationPublisher>());
 builder.Services.AddScoped<INotificationOutboxWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<NotificationPublisher>());
 builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
