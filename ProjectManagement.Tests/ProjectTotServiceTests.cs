@@ -845,6 +845,92 @@ public sealed class ProjectTotServiceTests
         Assert.Equal(ProjectTotStatus.NotRequired, tot.Status);
     }
 
+    [Fact]
+    public async Task SaveFromProjectAsync_Approver_AppliesDirectly()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(CompletedProject(30, "Theta"));
+        await db.SaveChangesAsync();
+
+        var service = new ProjectTotService(db, new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero)));
+
+        var result = await service.SaveFromProjectAsync(
+            30,
+            CreateRequest(ProjectTotStatus.InProgress, startedOn: new DateOnly(2024, 4, 1), startPrecision: PartialDatePrecision.Month),
+            "hod",
+            actorCanApprove: true);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.SubmittedForApproval);
+        var tot = await db.ProjectTots.AsNoTracking().SingleAsync(t => t.ProjectId == 30);
+        Assert.Equal(ProjectTotStatus.InProgress, tot.Status);
+        Assert.Equal("hod", tot.LastApprovedByUserId);
+        Assert.False(await db.ProjectTotRequests.AnyAsync());
+    }
+
+    [Fact]
+    public async Task SaveFromProjectAsync_ProjectOfficer_SubmitsForApprovalAndLeavesTotUnchanged()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(CompletedProject(31, "Iota"));
+        db.ProjectTots.Add(new ProjectTot { ProjectId = 31, Status = ProjectTotStatus.NotStarted });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectTotService(db, new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero)));
+
+        var result = await service.SaveFromProjectAsync(
+            31,
+            CreateRequest(ProjectTotStatus.InProgress, startedOn: new DateOnly(2024, 4, 1), startPrecision: PartialDatePrecision.Month),
+            "po",
+            actorCanApprove: false);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.SubmittedForApproval);
+
+        var tot = await db.ProjectTots.AsNoTracking().SingleAsync(t => t.ProjectId == 31);
+        Assert.Equal(ProjectTotStatus.NotStarted, tot.Status);
+
+        var request = await db.ProjectTotRequests.AsNoTracking().SingleAsync(r => r.ProjectId == 31);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, request.DecisionState);
+        Assert.Equal(ProjectTotStatus.InProgress, request.ProposedStatus);
+        Assert.Equal(PartialDatePrecision.Month, request.ProposedStartDatePrecision);
+        Assert.Equal("po", request.SubmittedByUserId);
+    }
+
+    [Fact]
+    public async Task SaveFromProjectAsync_ProjectOfficerWithPendingRequest_ReturnsConflict()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(CompletedProject(32, "Kappa"));
+        db.ProjectTotRequests.Add(new ProjectTotRequest
+        {
+            ProjectId = 32,
+            ProposedStatus = ProjectTotStatus.NotRequired,
+            DecisionState = ProjectTotRequestDecisionState.Pending,
+            SubmittedByUserId = "office",
+            SubmittedOnUtc = new DateTime(2024, 9, 1, 6, 0, 0, DateTimeKind.Utc),
+            RowVersion = Guid.NewGuid().ToByteArray()
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectTotService(db, new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero)));
+
+        var result = await service.SaveFromProjectAsync(32, CreateRequest(ProjectTotStatus.NotStarted), "po", actorCanApprove: false);
+
+        Assert.Equal(ProjectTotUpdateStatus.Conflict, result.Status);
+        Assert.False(result.SubmittedForApproval);
+        Assert.Equal(ProjectTotService.PendingRequestMessage, result.ErrorMessage);
+    }
+
+    private static Project CompletedProject(int id, string name) => new()
+    {
+        Id = id,
+        Name = name,
+        CreatedAt = new DateTime(2024, 1, 1),
+        CreatedByUserId = "creator",
+        LifecycleStatus = ProjectLifecycleStatus.Completed
+    };
+
     private static ProjectTotUpdateRequest CreateRequest(
         ProjectTotStatus status,
         DateOnly? startedOn = null,

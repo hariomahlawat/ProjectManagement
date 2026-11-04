@@ -77,6 +77,37 @@ public sealed class ProjectTotService
         return ProjectTotUpdateResult.Success();
     }
 
+    /// <summary>
+    /// Saves ToT details entered on the project page. HoD and Admin can approve ToT changes,
+    /// so their save is applied straight away; anyone else (the project's assigned PO) submits
+    /// the same values as a request that waits for HoD or Admin approval.
+    /// </summary>
+    public async Task<ProjectTotSaveResult> SaveFromProjectAsync(
+        int projectId,
+        ProjectTotUpdateRequest request,
+        string actorUserId,
+        bool actorCanApprove,
+        CancellationToken cancellationToken = default)
+    {
+        if (actorCanApprove)
+        {
+            var update = await UpdateAsync(projectId, request, actorUserId, cancellationToken);
+            return new ProjectTotSaveResult(update.Status, SubmittedForApproval: false, update.ErrorMessage);
+        }
+
+        var submit = await SubmitRequestAsync(projectId, request, actorUserId, cancellationToken);
+        var status = submit.Status switch
+        {
+            ProjectTotRequestActionStatus.Success => ProjectTotUpdateStatus.Success,
+            ProjectTotRequestActionStatus.NotFound => ProjectTotUpdateStatus.NotFound,
+            ProjectTotRequestActionStatus.Conflict => ProjectTotUpdateStatus.Conflict,
+            _ => ProjectTotUpdateStatus.ValidationFailed
+        };
+
+        var message = status == ProjectTotUpdateStatus.Conflict ? PendingRequestMessage : submit.ErrorMessage;
+        return new ProjectTotSaveResult(status, SubmittedForApproval: status == ProjectTotUpdateStatus.Success, message);
+    }
+
     public async Task<ProjectTotRequestActionResult> SubmitRequestAsync(
         int projectId,
         ProjectTotUpdateRequest request,

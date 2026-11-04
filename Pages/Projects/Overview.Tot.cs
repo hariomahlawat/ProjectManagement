@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Services.Authorization;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.PartialDates;
@@ -218,7 +219,12 @@ public partial class OverviewModel
         }
 
         var service = new ProjectTotService(_db, _clock);
-        var result = await service.UpdateAsync(id, request!, actorUserId, ct);
+        var result = await service.SaveFromProjectAsync(
+            id,
+            request!,
+            actorUserId,
+            ApprovalAuthorization.CanApproveProjectChanges(User),
+            ct);
         if (result.Status == ProjectTotUpdateStatus.NotFound)
         {
             return new JsonResult(new { error = "Project not found." })
@@ -244,7 +250,8 @@ public partial class OverviewModel
         }
 
         _logger.LogInformation(
-            "Project ToT updated from overview. ProjectId={ProjectId}, UserId={UserId}, Status={Status}",
+            "Project ToT {Action} from overview. ProjectId={ProjectId}, UserId={UserId}, Status={Status}",
+            result.SubmittedForApproval ? "submitted for approval" : "updated",
             id,
             actorUserId,
             input.Status);
@@ -252,8 +259,12 @@ public partial class OverviewModel
         return new JsonResult(new
         {
             success = true,
-            message = "Transfer of Technology details updated.",
-            card = BuildTotCard(input.Status, true, null,
+            submittedForApproval = result.SubmittedForApproval,
+            message = result.SubmittedForApproval
+                ? "Transfer of Technology update sent to HoD for approval."
+                : "Transfer of Technology details updated.",
+            card = BuildTotCard(input.Status, true,
+                result.SubmittedForApproval ? input.Status : null,
                 request!.StartedOn, request.StartDatePrecision,
                 request.CompletedOn, request.CompletionDatePrecision)
         });

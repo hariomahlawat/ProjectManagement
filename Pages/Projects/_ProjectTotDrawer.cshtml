@@ -3,6 +3,7 @@
 @{
     var tot = Model.TotSummary;
     var pending = tot.PendingRequest is { State: ProjectTotRequestDecisionState.Pending };
+    var saveLabel = Model.TotSaveNeedsApproval ? "Submit for approval" : "Save details";
 }
 <div class="project-tot-drawer" data-tot-root>
     <div class="project-tot-drawer__loading" data-tot-loading>
@@ -88,6 +89,11 @@
 
                     <div class="alert alert-danger d-none" role="alert" data-tot-errors></div>
 
+                    @if (Model.TotSaveNeedsApproval)
+                    {
+                        <p class="form-text mt-0 mb-3">Your changes go to the HoD for approval. The current position stays as it is until they are approved.</p>
+                    }
+
                     <div class="mb-3">
                         <label class="form-label" for="tot-status">ToT status</label>
                         <select class="form-select" id="tot-status" name="Status" data-tot-status>
@@ -172,7 +178,7 @@
             <div class="project-tot-footer-group d-none" data-tot-edit-footer>
                 <button type="button" class="btn btn-outline-secondary" data-tot-cancel-button>Cancel</button>
                 <button type="button" class="btn btn-primary" data-tot-save-button>
-                    <span data-tot-save-label>Save details</span>
+                    <span data-tot-save-label data-idle-label="@saveLabel">@saveLabel</span>
                     <span class="spinner-border spinner-border-sm ms-1 d-none" data-tot-save-spinner aria-hidden="true"></span>
                 </button>
             </div>

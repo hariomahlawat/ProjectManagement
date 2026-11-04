@@ -23,6 +23,14 @@ public sealed record ProjectTotUpdateRequest(
     bool? FirstProductionModelManufactured,
     DateOnly? FirstProductionModelManufacturedOn);
 
+public sealed record ProjectTotSaveResult(
+    ProjectTotUpdateStatus Status,
+    bool SubmittedForApproval,
+    string? ErrorMessage = null)
+{
+    public bool IsSuccess => Status == ProjectTotUpdateStatus.Success;
+}
+
 public sealed record ProjectTotUpdateResult(ProjectTotUpdateStatus Status, string? ErrorMessage = null)
 {
     public bool IsSuccess => Status == ProjectTotUpdateStatus.Success;

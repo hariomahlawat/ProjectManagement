@@ -56,7 +56,7 @@
     function setBusy(value) {
         if (saveButton instanceof HTMLButtonElement) saveButton.disabled = value;
         toggle(saveSpinner, !value);
-        if (saveLabel) saveLabel.textContent = value ? 'Saving…' : 'Save details';
+        if (saveLabel) saveLabel.textContent = value ? 'Saving…' : (saveLabel.dataset.idleLabel || 'Save details');
     }
     function setEditMode(value) {
         editing = value;

@@ -49,6 +49,7 @@ public class EditModel : PageModel
     public Project? Project { get; private set; }
     public ProjectRolesViewModel Roles { get; private set; } = ProjectRolesViewModel.Empty;
     public bool CanManageTot { get; private set; }
+    public bool SaveNeedsApproval { get; private set; }
     public IReadOnlyList<SelectListItem> StatusOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     [BindProperty]
@@ -218,7 +219,12 @@ public class EditModel : PageModel
             Input.MetCompletedOn,
             Input.FirstProductionModelManufactured,
             Input.FirstProductionModelManufacturedOn);
-        var result = await _totService.UpdateAsync(id, request, actorUserId, cancellationToken);
+        var result = await _totService.SaveFromProjectAsync(
+            id,
+            request,
+            actorUserId,
+            actorCanApprove: !SaveNeedsApproval,
+            cancellationToken);
 
         if (result.Status == ProjectTotUpdateStatus.NotFound)
         {
@@ -237,8 +243,15 @@ public class EditModel : PageModel
             return Page();
         }
 
-        _logger.LogInformation("Project ToT updated. ProjectId={ProjectId}, UserId={UserId}, Status={Status}", id, actorUserId, Input.Status);
-        TempData["Flash"] = "Transfer of Technology details updated.";
+        _logger.LogInformation(
+            "Project ToT {Action}. ProjectId={ProjectId}, UserId={UserId}, Status={Status}",
+            result.SubmittedForApproval ? "submitted for approval" : "updated",
+            id,
+            actorUserId,
+            Input.Status);
+        TempData["Flash"] = result.SubmittedForApproval
+            ? "Transfer of Technology update sent to HoD for approval."
+            : "Transfer of Technology details updated.";
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
@@ -368,6 +381,8 @@ public class EditModel : PageModel
         };
 
         CanManageTot = isAdmin || isHoD || isAssignedPo;
+        // HoD and Admin save directly; the assigned PO's save goes for approval.
+        SaveNeedsApproval = CanManageTot && !(isAdmin || isHoD);
 
         return project;
     }
