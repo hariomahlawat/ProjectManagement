@@ -417,6 +417,7 @@ public sealed class ApprovalDecisionService
             isAdmin,
             isHoD,
             rowVersion,
+            request.Remarks,
             cancellationToken);
 
         return result.Status switch

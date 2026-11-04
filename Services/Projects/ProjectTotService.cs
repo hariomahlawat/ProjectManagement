@@ -72,6 +72,7 @@ public sealed class ProjectTotService
         }
 
         ApplyTotUpdate(project, normalizedRequest, actorUserId);
+        WriteAudit(project.Id, ProjectTotAuditActions.Updated, actorUserId, reason: null, normalizedRequest);
         await _db.SaveChangesAsync(cancellationToken);
 
         return ProjectTotUpdateResult.Success();
@@ -178,11 +179,18 @@ public sealed class ProjectTotService
         totRequest.DecidedOnUtc = null;
         totRequest.DecidedByUser = null;
         totRequest.RowVersion = Guid.NewGuid().ToByteArray();
+        WriteAudit(project.Id, ProjectTotAuditActions.Submitted, submittedByUserId, reason: null, normalizedRequest);
 
         await _db.SaveChangesAsync(cancellationToken);
 
         return ProjectTotRequestActionResult.Success();
     }
+
+    public const string RejectionReasonRequiredMessage =
+        "Give a reason for rejecting this Transfer of Technology update.";
+
+    public const string StaleRequestMessage =
+        "The Transfer of Technology request was modified by another user. Refresh the page to continue.";
 
     public async Task<ProjectTotRequestActionResult> DecideRequestAsync(
         int projectId,
@@ -191,8 +199,10 @@ public sealed class ProjectTotService
         bool isAdmin,
         bool isHoD,
         byte[]? expectedRowVersion,
+        string? reason = null,
         CancellationToken cancellationToken = default)
     {
+        var normalizedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         if (string.IsNullOrWhiteSpace(decisionUserId))
         {
             throw new ArgumentException("A valid user is required to decide on a Transfer of Technology request.", nameof(decisionUserId));
@@ -221,10 +231,20 @@ public sealed class ProjectTotService
             return ProjectTotRequestActionResult.Conflict("The pending Transfer of Technology request has already been decided.");
         }
 
-        if (expectedRowVersion is not null && !request.RowVersion.SequenceEqual(expectedRowVersion))
+        // The decider must present the version they reviewed. A missing token counts as empty, which
+        // only matches legacy rows stored without a version, so those can still be decided.
+        var presented = expectedRowVersion ?? Array.Empty<byte>();
+        if (!(request.RowVersion ?? Array.Empty<byte>()).SequenceEqual(presented))
         {
-            return ProjectTotRequestActionResult.Conflict("The Transfer of Technology request was modified by another user. Refresh the page to continue.");
+            return ProjectTotRequestActionResult.Conflict(StaleRequestMessage);
         }
+
+        if (!approve && normalizedReason is null)
+        {
+            return ProjectTotRequestActionResult.ValidationFailed(RejectionReasonRequiredMessage);
+        }
+
+        ProjectTotUpdateRequest decidedValues;
 
         if (approve)
         {
@@ -233,16 +253,7 @@ public sealed class ProjectTotService
                 return ProjectTotRequestActionResult.ValidationFailed(eligibilityError);
             }
 
-            var updateRequest = new ProjectTotUpdateRequest(
-                request.ProposedStatus,
-                request.ProposedStartedOn,
-                request.ProposedStartDatePrecision,
-                request.ProposedCompletedOn,
-                request.ProposedCompletionDatePrecision,
-                request.ProposedMetDetails,
-                request.ProposedMetCompletedOn,
-                request.ProposedFirstProductionModelManufactured,
-                request.ProposedFirstProductionModelManufacturedOn);
+            var updateRequest = ToUpdateRequest(request);
 
             var todayLocal = GetTodayInIst();
             var validation = ValidateRequest(updateRequest, todayLocal, out var normalizedRequest);
@@ -253,10 +264,12 @@ public sealed class ProjectTotService
 
             ApplyTotUpdate(project, normalizedRequest, decisionUserId);
             request.DecisionState = ProjectTotRequestDecisionState.Approved;
+            decidedValues = normalizedRequest;
         }
         else
         {
             request.DecisionState = ProjectTotRequestDecisionState.Rejected;
+            decidedValues = ToUpdateRequest(request);
         }
 
         request.DecidedByUserId = decisionUserId;
@@ -264,10 +277,53 @@ public sealed class ProjectTotService
         request.DecidedByUser = null;
         request.RowVersion = Guid.NewGuid().ToByteArray();
 
+        WriteAudit(
+            project.Id,
+            approve ? ProjectTotAuditActions.Approved : ProjectTotAuditActions.Rejected,
+            decisionUserId,
+            normalizedReason,
+            decidedValues,
+            request.SubmittedByUserId);
+
         await _db.SaveChangesAsync(cancellationToken);
 
         return ProjectTotRequestActionResult.Success();
     }
+
+    private static ProjectTotUpdateRequest ToUpdateRequest(ProjectTotRequest request) => new(
+        request.ProposedStatus,
+        request.ProposedStartedOn,
+        request.ProposedStartDatePrecision,
+        request.ProposedCompletedOn,
+        request.ProposedCompletionDatePrecision,
+        request.ProposedMetDetails,
+        request.ProposedMetCompletedOn,
+        request.ProposedFirstProductionModelManufactured,
+        request.ProposedFirstProductionModelManufacturedOn);
+
+    // ToT history: one ProjectAudit row per submit, decision and direct edit, added to the same
+    // SaveChanges as the state change so the record and the history cannot drift apart.
+    private void WriteAudit(
+        int projectId,
+        string action,
+        string actorUserId,
+        string? reason,
+        ProjectTotUpdateRequest values,
+        string? submittedByUserId = null)
+    {
+        _db.ProjectAudits.Add(new ProjectAudit
+        {
+            ProjectId = projectId,
+            Action = action,
+            PerformedByUserId = actorUserId,
+            PerformedAt = _clock.UtcNow,
+            Reason = Truncate(reason, ProjectTotAuditActions.MaxReasonLength),
+            MetadataJson = ProjectTotAuditActions.SerializeValues(values, submittedByUserId)
+        });
+    }
+
+    private static string? Truncate(string? value, int maxLength)
+        => value is null || value.Length <= maxLength ? value : value[..(maxLength - 1)] + "…";
 
     private DateOnly GetTodayInIst() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
         _clock.UtcNow.UtcDateTime,

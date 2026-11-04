@@ -83,6 +83,33 @@ public static class ProjectOfficeReportsPolicies
 
     public static readonly string[] TotTrackerApproverRoles = { RoleNames.Admin, RoleNames.HoD };
 
+    // Roles that submit ToT updates for any project. A Project Officer without one of these
+    // submits only for projects they lead.
+    private static readonly string[] TotTrackerPortfolioSubmitterRoles =
+    {
+        RoleNames.Admin,
+        RoleNames.HoD,
+        RoleNames.ProjectOfficeAlternate,
+        RoleNames.ProjectOffice
+    };
+
+    public static bool CanSubmitTotFor(ClaimsPrincipal? principal, string? userId, string? leadPoUserId)
+    {
+        if (principal?.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(userId))
+        {
+            return false;
+        }
+
+        if (TotTrackerPortfolioSubmitterRoles.Any(principal.IsInRole))
+        {
+            return true;
+        }
+
+        return principal.IsInRole(RoleNames.ProjectOfficer)
+            && !string.IsNullOrWhiteSpace(leadPoUserId)
+            && string.Equals(leadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
+    }
+
     // Proliferation counting rules decide how annual and detailed figures combine in every
     // total, so only Admin and HoD see the counting-rules workspace and change a rule.
     public static readonly string[] ProliferationCountingRuleRoles = { RoleNames.Admin, RoleNames.HoD };

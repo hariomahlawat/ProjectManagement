@@ -36,6 +36,43 @@ public class ProjectTotTrackerReadService
         return await BuildRowsAsync(snapshots, cancellationToken);
     }
 
+    /// <summary>Submit, decision and direct-edit history for one project, newest first.</summary>
+    public async Task<IReadOnlyList<ProjectTotHistoryEntry>> GetHistoryAsync(
+        int projectId,
+        int take = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var actions = ProjectTotAuditActions.All.ToArray();
+        var rows = await (
+                from audit in _db.ProjectAudits.AsNoTracking()
+                where audit.ProjectId == projectId && actions.Contains(audit.Action)
+                join user in _db.Users.AsNoTracking() on audit.PerformedByUserId equals user.Id into users
+                from user in users.DefaultIfEmpty()
+                orderby audit.PerformedAt descending, audit.Id descending
+                select new
+                {
+                    audit.Action,
+                    audit.PerformedAt,
+                    audit.Reason,
+                    audit.MetadataJson,
+                    FullName = user != null ? user.FullName : null,
+                    UserName = user != null ? user.UserName : null,
+                    Email = user != null ? user.Email : null
+                })
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new ProjectTotHistoryEntry(
+                ProjectTotAuditActions.Label(row.Action),
+                row.Action,
+                row.PerformedAt,
+                FormatUser(row.FullName, row.UserName, row.Email) ?? "Unknown user",
+                row.Reason,
+                ProjectTotAuditActions.DeserializeValues(row.MetadataJson)))
+            .ToList();
+    }
+
     private async Task<List<ProjectSnapshot>?> TryLoadSnapshotsAsync(
         ProjectTotTrackerFilter filter,
         bool includeTotDetailColumns,
@@ -292,7 +329,8 @@ public class ProjectTotTrackerReadService
                 snapshot.RequestMetadataAvailable,
                 remarks?.External,
                 remarks?.Internal,
-                leadProjectOfficer));
+                leadProjectOfficer,
+                snapshot.LeadPoUserId));
         }
 
         return rows;
@@ -447,6 +485,14 @@ public sealed record ProjectTotTrackerFilter
     public DateOnly? CompletedTo { get; init; }
 }
 
+public sealed record ProjectTotHistoryEntry(
+    string ActionLabel,
+    string Action,
+    DateTimeOffset PerformedAt,
+    string PerformedBy,
+    string? Reason,
+    ProjectTotAuditValues? Values);
+
 public sealed record ProjectTotRemarkSummary(
     int ProjectId,
     string Body,
@@ -492,5 +538,6 @@ public sealed record ProjectTotTrackerRow(
     bool RequestMetadataAvailable,
     ProjectTotRemarkSummary? LatestExternalRemark,
     ProjectTotRemarkSummary? LatestInternalRemark,
-    string? LeadProjectOfficer);
+    string? LeadProjectOfficer,
+    string? LeadPoUserId = null);
 
