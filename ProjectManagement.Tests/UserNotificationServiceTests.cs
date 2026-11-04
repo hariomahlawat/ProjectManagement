@@ -738,6 +738,35 @@ public sealed class UserNotificationServiceTests
         Assert.Null(byId[3].GroupKey);
     }
 
+    [Theory]
+    [InlineData("Comdt", true)]
+    [InlineData("HoD", true)]
+    [InlineData("Project Officer", false)]
+    public async Task ListPageAsync_CombinesRemarksAcrossProjectsForSeniorRoles(string role, bool combined)
+    {
+        var (context, service, clock) = CreateService();
+        await using var _ = context;
+        const string userId = "user-1";
+        var now = clock.UtcNow.UtcDateTime;
+
+        context.Projects.AddRange(
+            new Project { Id = 7, Name = "Orion", CreatedByUserId = "creator" },
+            new Project { Id = 8, Name = "Vega", CreatedByUserId = "creator" });
+        context.Notifications.AddRange(
+            new Notification { Id = 1, RecipientUserId = userId, ProjectId = 7, Kind = NotificationKind.RemarkCreated, CreatedUtc = now },
+            new Notification { Id = 2, RecipientUserId = userId, ProjectId = 8, Kind = NotificationKind.RemarkCreated, CreatedUtc = now.AddMinutes(-5) });
+        await context.SaveChangesAsync();
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, userId), new Claim(ClaimTypes.Role, role) },
+            "Tests"));
+        var page = await service.ListPageAsync(principal, userId, new NotificationListOptions { IncludeFilterOptions = false });
+
+        var keys = page.Items.Select(item => item.GroupKey).ToArray();
+        Assert.All(keys, Assert.NotNull);
+        Assert.Equal(combined, keys[0] == keys[1]);
+    }
+
     private static (ApplicationDbContext Context, UserNotificationService Service, TestClock Clock) CreateService()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
