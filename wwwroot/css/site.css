@@ -9278,6 +9278,63 @@ main[role="main"].analytics-main > .pm-page-shell {
     opacity: .72;
 }
 
+/* Grouped routine updates: a header row that expands the group's notifications in place. */
+.notification-inbox-group {
+    border-bottom: 1px solid var(--notification-inbox-border);
+}
+
+.notification-inbox-group:last-child {
+    border-bottom: 0;
+}
+
+.notification-inbox-group .notification-inbox-group__header {
+    border-bottom: 0;
+    cursor: default;
+}
+
+.notification-inbox-group__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: start;
+    cursor: pointer;
+}
+
+.notification-inbox-group__toggle:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+    border-radius: .3rem;
+}
+
+.notification-inbox-group__chevron {
+    font-size: .7rem;
+    transition: transform .14s ease;
+}
+
+.notification-inbox-group.is-expanded .notification-inbox-group__chevron {
+    transform: rotate(180deg);
+}
+
+.notification-inbox-group__items {
+    padding-inline-start: 2.2rem;
+    border-top: 1px dashed var(--notification-inbox-border);
+}
+
+.notification-inbox__toolbar-button.is-active {
+    color: var(--bs-primary);
+    border-color: color-mix(in srgb, var(--bs-primary) 13%, transparent);
+    background: color-mix(in srgb, var(--bs-primary) 7%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notification-inbox-group__chevron {
+        transition: none;
+    }
+}
+
 .notification-inbox-row__select {
     display: inline-grid;
     place-items: center;
