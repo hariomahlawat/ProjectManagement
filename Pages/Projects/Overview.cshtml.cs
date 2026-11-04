@@ -172,6 +172,8 @@ namespace ProjectManagement.Pages.Projects
         public bool CanManageJdp { get; private set; }
         public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
         public bool CanManageTot { get; private set; }
+
+        public bool TotSaveNeedsApproval { get; private set; }
         public bool CanManageIndustryPartners { get; private set; }
         public bool CanUploadDocuments { get; private set; }
         public bool CanViewDocumentRecycleBin { get; private set; }
@@ -519,6 +521,8 @@ namespace ProjectManagement.Pages.Projects
             };
 
             CanManageTot = ProjectTotApplicabilityPolicy.IsApplicable(project) && (isAdmin || isHoD || isThisProjectsPo);
+            // HoD and Admin save ToT changes directly; the assigned PO's save goes for approval.
+            TotSaveNeedsApproval = CanManageTot && !(isAdmin || isHoD);
             CanManageProliferation = isAdmin || isHoD || isThisProjectsPo;
             CanManageJdp = isAdmin || isHoD || isThisProjectsPo || User.IsInRole(RoleNames.Comdt);
             CanManageIndustryPartners = CanManageJdp;

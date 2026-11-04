@@ -36,6 +36,10 @@
                         @Html.AntiForgeryToken()
                         <input asp-for="Input.ProjectId" type="hidden" />
                         <div asp-validation-summary="All" class="text-danger"></div>
+                        @if (Model.SaveNeedsApproval)
+                        {
+                            <p class="text-muted small mb-0">Your changes go to the HoD for approval. The current position stays as it is until they are approved.</p>
+                        }
 
                         @{
                             var totFormViewData = new ViewDataDictionary(ViewData)
@@ -49,7 +53,7 @@
                         <partial name="~/Pages/Shared/Tot/_TotFormFields.cshtml" model="Model.Input" view-data="totFormViewData" />
 
                         <div class="d-flex flex-wrap gap-2">
-                            <button type="submit" class="btn btn-primary">Save changes</button>
+                            <button type="submit" class="btn btn-primary">@(Model.SaveNeedsApproval ? "Submit for approval" : "Save changes")</button>
                             <a class="btn btn-outline-secondary" asp-page="/Projects/Overview" asp-route-id="@Model.Project?.Id">Cancel</a>
                         </div>
                         <p class="text-muted small mb-0">Need to add context? Share it as a ToT remark below so the whole team can follow along.</p>
