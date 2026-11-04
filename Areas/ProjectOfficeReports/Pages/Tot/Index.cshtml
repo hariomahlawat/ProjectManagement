@@ -354,7 +354,7 @@
 
                 <div class="tot-actions-inline">
                     @* IMPORTANT: HoD / approver should not see the submit modal, they should see the approval block below *@
-                    @if (!Model.CanApprove && Model.CanSubmit)
+                    @if (!Model.CanApprove && Model.CanSubmitSelected)
                     {
                         <button type="button"
                                 class="btn btn-primary"
@@ -401,7 +401,7 @@
                             <input type="hidden" name="CompletedTo" value="@completedToValue" />
 
                             <div class="mb-2">
-                                <label asp-for="DecideContextBody" class="form-label small mb-1">Decision context (optional)</label>
+                                <label asp-for="DecideContextBody" class="form-label small mb-1">Reason <span class="text-muted fw-normal">(required to reject)</span></label>
                                 <textarea asp-for="DecideContextBody" rows="2" class="form-control form-control-sm"></textarea>
                                 <span asp-validation-for="DecideContextBody" class="text-danger small"></span>
                             </div>
@@ -422,6 +422,35 @@
                             </div>
                         </form>
                     </div>
+                }
+
+                @if (Model.SelectedHistory.Count > 0)
+                {
+                    <section class="tot-history" aria-labelledby="tot-history-heading">
+                        <h3 id="tot-history-heading">History</h3>
+                        <ol class="tot-history-list">
+                            @foreach (var entry in Model.SelectedHistory)
+                            {
+                                var performedIst = TimeZoneInfo.ConvertTime(entry.PerformedAt, ProjectManagement.Utilities.TimeZoneHelper.GetIst());
+                                <li class="tot-history-item">
+                                    <div class="tot-history-head">
+                                        <strong>@entry.ActionLabel</strong>
+                                        <span class="text-muted">@entry.PerformedBy · @performedIst.ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture)</span>
+                                    </div>
+                                    @if (entry.Values is { } values)
+                                    {
+                                        <div class="tot-history-values">
+                                            @values.StatusLabel@(values.Started is { } started ? $" · started {started}" : null)@(values.Completed is { } completed ? $" · completed {completed}" : null)
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(entry.Reason))
+                                    {
+                                        <div class="tot-history-reason">Reason: @entry.Reason</div>
+                                    }
+                                </li>
+                            }
+                        </ol>
+                    </section>
                 }
             }
         </div>
@@ -474,7 +503,7 @@
 }
 
 <!-- submit modal -->
-@if (Model.CanSubmit)
+@if (Model.CanSubmitSelected)
 {
     <div class="modal fade" id="tot-submit-modal" tabindex="-1" aria-labelledby="tot-submit-modal-label" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">

@@ -104,6 +104,12 @@ public sealed class IndexModel : PageModel
 
     public bool CanApprove { get; private set; }
 
+    // Whether the signed-in user may submit for the selected project: Project Office, HoD and
+    // Admin for any project, a Project Officer only for a project they lead.
+    public bool CanSubmitSelected { get; private set; }
+
+    public IReadOnlyList<ProjectTotHistoryEntry> SelectedHistory { get; private set; } = Array.Empty<ProjectTotHistoryEntry>();
+
     public bool ShowSubmitModal { get; private set; }
 
     public bool HighlightDecisionCard { get; private set; }
@@ -300,6 +306,34 @@ public sealed class IndexModel : PageModel
         }
 
         SelectedProjectId = SubmitInput.ProjectId;
+
+        var submitter = await LoadProjectAssignmentsAsync(SubmitInput.ProjectId, cancellationToken);
+        if (submitter is null)
+        {
+            return NotFound();
+        }
+
+        if (!ProjectOfficeReportsPolicies.CanSubmitTotFor(User, CurrentUserId(), submitter.LeadProjectOfficerUserId))
+        {
+            _logger.LogWarning(
+                "Blocked ToT submit for project {ProjectId}: user {UserId} is not its lead Project Officer.",
+                SubmitInput.ProjectId,
+                CurrentUserId());
+            TempData["ToastError"] = "You can submit Transfer of Technology updates only for projects you lead.";
+            return RedirectToPage(new
+            {
+                TotStatusFilter,
+                RequestStateFilter,
+                SearchTerm,
+                OnlyPending,
+                RequiresTotOnly,
+                MetCompletedOnly,
+                CompletedFrom = DayValue(CompletedFrom),
+                CompletedTo = DayValue(CompletedTo),
+                SelectedProjectId = SubmitInput.ProjectId,
+                ViewMode
+            });
+        }
 
         var submitContext = NormalizeRemarkBody(SubmitContextBody);
         if (!ValidateRemarkBody(submitContext, nameof(SubmitContextBody)))
@@ -570,6 +604,7 @@ public sealed class IndexModel : PageModel
             isAdmin,
             isHoD,
             rowVersion,
+            decisionContext,
             cancellationToken);
 
         if (result.Status == ProjectTotRequestActionStatus.NotFound)
@@ -657,8 +692,14 @@ public sealed class IndexModel : PageModel
             ? Projects.FirstOrDefault(p => p.ProjectId == SelectedProjectId.Value)
             : null;
 
+        CanSubmitSelected = false;
+        SelectedHistory = Array.Empty<ProjectTotHistoryEntry>();
+
         if (SelectedProject is { } selected)
         {
+            CanSubmitSelected = CanSubmit
+                && ProjectOfficeReportsPolicies.CanSubmitTotFor(User, CurrentUserId(), selected.LeadPoUserId);
+            SelectedHistory = await _trackerService.GetHistoryAsync(selected.ProjectId, cancellationToken: cancellationToken);
             SubmitInput = BuildSubmitInput(selected);
 
             DecideInput = new DecideRequestInput
@@ -870,6 +911,9 @@ public sealed class IndexModel : PageModel
         var remarkType = ResolveRemarkType(primaryRole);
         return (actor, remarkType, null);
     }
+
+    private string? CurrentUserId()
+        => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? _userManager.GetUserId(User);
 
     private async Task<ProjectAssignmentInfo?> LoadProjectAssignmentsAsync(int projectId, CancellationToken cancellationToken)
         => await _db.Projects

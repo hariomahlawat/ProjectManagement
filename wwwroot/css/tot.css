@@ -798,6 +798,43 @@ body .modal-backdrop {
                 color: var(--pm-text-secondary);
             }
 
+        /* request and decision history */
+        .tot-history h3 {
+            font-size: .7rem;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+            margin-bottom: .4rem;
+            color: var(--pm-text-secondary);
+        }
+
+        .tot-history-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: .4rem;
+        }
+
+        .tot-history-item {
+            border-left: 2px solid var(--pm-border);
+            padding: .15rem 0 .15rem .6rem;
+            font-size: .82rem;
+        }
+
+        .tot-history-head {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .25rem .5rem;
+            align-items: baseline;
+        }
+
+        .tot-history-values,
+        .tot-history-reason {
+            color: var(--pm-text-secondary);
+            overflow-wrap: anywhere;
+        }
+
         @media (max-width: 700px) {
             .tot-list-head,
             .tot-row {

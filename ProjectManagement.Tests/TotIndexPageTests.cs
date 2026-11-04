@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,15 +36,127 @@ namespace ProjectManagement.Tests;
 public sealed class TotIndexPageTests
 {
     [Fact]
-    public async Task OnPostDecideAsync_AllowsApprovalWhenRowVersionEmpty()
+    public async Task OnPostDecideAsync_WithReviewedVersion_ApprovesAndRecordsHistory()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
+        await using var db = CreateContext();
+        var version = await SeedPendingRequestAsync(db);
 
-        await using var db = new ApplicationDbContext(options);
+        var (_, result) = await DecideAsync(db, approve: true, Convert.ToBase64String(version), reason: null);
 
-        var project = new Project
+        Assert.IsType<RedirectToPageResult>(result);
+        var request = await db.ProjectTotRequests.AsNoTracking().SingleAsync(r => r.ProjectId == 501);
+        Assert.Equal(ProjectTotRequestDecisionState.Approved, request.DecisionState);
+        Assert.NotEqual(version, request.RowVersion);
+
+        var tot = await db.ProjectTots.AsNoTracking().SingleAsync(t => t.ProjectId == 501);
+        Assert.Equal(ProjectTotStatus.Completed, tot.Status);
+        Assert.Equal(new DateOnly(2024, 5, 15), tot.CompletedOn);
+
+        var audit = await db.ProjectAudits.AsNoTracking().SingleAsync(a => a.ProjectId == 501);
+        Assert.Equal(ProjectTotAuditActions.Approved, audit.Action);
+        Assert.Equal("approver", audit.PerformedByUserId);
+    }
+
+    [Fact]
+    public async Task OnPostDecideAsync_WithoutVersionToken_IsRefused()
+    {
+        await using var db = CreateContext();
+        await SeedPendingRequestAsync(db);
+
+        var (page, result) = await DecideAsync(db, approve: true, rowVersion: string.Empty, reason: null);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(ProjectTotService.StaleRequestMessage, page.DecisionAlertMessage);
+        var request = await db.ProjectTotRequests.AsNoTracking().SingleAsync(r => r.ProjectId == 501);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, request.DecisionState);
+    }
+
+    [Fact]
+    public async Task OnPostDecideAsync_RejectWithoutReason_IsRefused()
+    {
+        await using var db = CreateContext();
+        var version = await SeedPendingRequestAsync(db);
+
+        var (page, result) = await DecideAsync(db, approve: false, Convert.ToBase64String(version), reason: null);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(ProjectTotService.RejectionReasonRequiredMessage, page.DecisionAlertMessage);
+        var request = await db.ProjectTotRequests.AsNoTracking().SingleAsync(r => r.ProjectId == 501);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, request.DecisionState);
+        Assert.False(await db.ProjectAudits.AnyAsync());
+    }
+
+    [Fact]
+    public async Task OnPostDecideAsync_RejectWithReason_KeepsReasonInHistory()
+    {
+        await using var db = CreateContext();
+        var version = await SeedPendingRequestAsync(db);
+
+        var (_, result) = await DecideAsync(db, approve: false, Convert.ToBase64String(version), reason: "MET dates do not match the trial report.");
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var history = await new ProjectTotTrackerReadService(db).GetHistoryAsync(501);
+        var entry = Assert.Single(history);
+        Assert.Equal(ProjectTotAuditActions.Rejected, entry.Action);
+        Assert.Equal("MET dates do not match the trial report.", entry.Reason);
+        Assert.Equal("Completed", entry.Values!.StatusLabel);
+        Assert.Equal("15 May 2024", entry.Values.Completed);
+    }
+
+    [Fact]
+    public async Task OnPostSubmitAsync_ProjectOfficerForAnotherProject_IsRefused()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 630,
+            Name = "Another officer project",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            LeadPoUserId = "other-po"
+        });
+        await db.SaveChangesAsync();
+
+        var page = CreatePage(db, FakeClock.AtUtc(new DateTimeOffset(2025, 10, 1, 6, 0, 0, TimeSpan.Zero)), out var userManager);
+        using var disposeUsers = userManager;
+        ConfigurePageContext(page, CreatePrincipal("po-1", "Project Officer"));
+        page.SubmitInput = new IndexModel.SubmitRequestInput { ProjectId = 630, Status = ProjectTotStatus.NotRequired };
+
+        var result = await page.OnPostSubmitAsync(CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.False(await db.ProjectTotRequests.AnyAsync());
+    }
+
+    [Fact]
+    public async Task OnPostSubmitAsync_ProjectOfficerForOwnProject_Submits()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 631,
+            Name = "Own project",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            LeadPoUserId = "po-1"
+        });
+        await db.SaveChangesAsync();
+
+        var page = CreatePage(db, FakeClock.AtUtc(new DateTimeOffset(2025, 10, 1, 6, 0, 0, TimeSpan.Zero)), out var userManager);
+        using var disposeUsers = userManager;
+        ConfigurePageContext(page, CreatePrincipal("po-1", "Project Officer"));
+        page.SubmitInput = new IndexModel.SubmitRequestInput { ProjectId = 631, Status = ProjectTotStatus.NotRequired };
+
+        var result = await page.OnPostSubmitAsync(CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var request = await db.ProjectTotRequests.AsNoTracking().SingleAsync(r => r.ProjectId == 631);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, request.DecisionState);
+        var audit = await db.ProjectAudits.AsNoTracking().SingleAsync(a => a.ProjectId == 631);
+        Assert.Equal(ProjectTotAuditActions.Submitted, audit.Action);
+    }
+
+    private static async Task<byte[]> SeedPendingRequestAsync(ApplicationDbContext db)
+    {
+        db.Projects.Add(new Project
         {
             Id = 501,
             Name = "Project Apex",
@@ -67,65 +180,59 @@ public sealed class TotIndexPageTests
                 ProposedMetCompletedOn = new DateOnly(2024, 5, 10),
                 ProposedFirstProductionModelManufactured = true,
                 ProposedFirstProductionModelManufacturedOn = new DateOnly(2024, 5, 12),
-                RowVersion = Array.Empty<byte>()
+                SubmittedByUserId = "office"
             }
-        };
-
-        db.Projects.Add(project);
+        });
         await db.SaveChangesAsync();
 
-        var trackerService = new ProjectTotTrackerReadService(db);
-        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 6, 0, 0, TimeSpan.Zero));
-        var totService = new ProjectTotService(db, clock);
-        var exportService = new StubProjectTotExportService();
-        var authorizationService = new AllowAllAuthorizationService();
-        using var userManager = CreateUserManager(db);
-        var remarkService = new StubRemarkService();
-        var page = new IndexModel(
-            db,
-            trackerService,
-            totService,
-            exportService,
-            authorizationService,
-            userManager,
-            remarkService,
-            NullLogger<IndexModel>.Instance);
+        // The context assigns the version on save; return what an approver's page would carry.
+        return (await db.ProjectTotRequests.AsNoTracking().SingleAsync(r => r.ProjectId == 501)).RowVersion;
+    }
 
+    private static async Task<(IndexModel Page, IActionResult Result)> DecideAsync(
+        ApplicationDbContext db,
+        bool approve,
+        string rowVersion,
+        string? reason)
+    {
+        var page = CreatePage(db, FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 6, 0, 0, TimeSpan.Zero)), out var userManager);
+        using var disposeUsers = userManager;
         ConfigurePageContext(page, CreatePrincipal("approver", "HoD"));
 
         page.DecideInput = new IndexModel.DecideRequestInput
         {
             ProjectId = 501,
-            Approve = true,
-            RowVersion = string.Empty
+            Approve = approve,
+            RowVersion = rowVersion
         };
-
-        page.DecideContextBody = null;
-
-        var formValues = new Dictionary<string, StringValues>
-        {
-            ["DecideInput.ProjectId"] = "501",
-            ["DecideInput.Approve"] = "true",
-            ["DecideInput.RowVersion"] = string.Empty
-        };
+        page.DecideContextBody = reason;
 
         page.Request.ContentType = "application/x-www-form-urlencoded";
-        page.Request.Form = new FormCollection(formValues);
+        page.Request.Form = new FormCollection(new Dictionary<string, StringValues>
+        {
+            ["DecideInput.ProjectId"] = "501",
+            ["DecideInput.Approve"] = approve ? "true" : "false",
+            ["DecideInput.RowVersion"] = rowVersion
+        });
 
         var result = await page.OnPostDecideAsync(CancellationToken.None);
-
-        Assert.IsType<RedirectToPageResult>(result);
-
-        var request = await db.ProjectTotRequests.AsNoTracking().SingleAsync(r => r.ProjectId == 501);
-        Assert.Equal(ProjectTotRequestDecisionState.Approved, request.DecisionState);
-        Assert.NotNull(request.RowVersion);
-        Assert.NotEmpty(request.RowVersion);
-
-        var tot = await db.ProjectTots.AsNoTracking().SingleAsync(t => t.ProjectId == 501);
-        Assert.Equal(ProjectTotStatus.Completed, tot.Status);
-        Assert.Equal(new DateOnly(2024, 4, 1), tot.StartedOn);
-        Assert.Equal(new DateOnly(2024, 5, 15), tot.CompletedOn);
+        return (page, result);
     }
+
+    private static IndexModel CreatePage(ApplicationDbContext db, FakeClock clock, out UserManager<ApplicationUser> userManager)
+    {
+        userManager = CreateUserManager(db);
+        return new IndexModel(
+            db,
+            new ProjectTotTrackerReadService(db),
+            new ProjectTotService(db, clock),
+            new StubProjectTotExportService(),
+            new AllowAllAuthorizationService(),
+            userManager,
+            new StubRemarkService(),
+            NullLogger<IndexModel>.Instance);
+    }
+
 
     [Fact]
     public async Task BuildSubmitInput_KeepsStoredPrecision_AndIgnoresRejectedProposal()
