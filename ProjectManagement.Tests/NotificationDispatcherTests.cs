@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Security.Claims;
 using System.Threading;
@@ -35,21 +36,8 @@ public sealed class NotificationDispatcherTests
 
         var hub = new RecordingHubContext();
         var clock = new FixedClock(new DateTimeOffset(2024, 10, 1, 12, 0, 0, TimeSpan.Zero));
-        var services = new ServiceCollection();
-        services.AddSingleton<IClock>(clock);
-        services.AddSingleton<IOptions<IdentityOptions>>(Options.Create(new IdentityOptions()));
-        services.AddSingleton<ILogger<UserManager<ApplicationUser>>>(NullLogger<UserManager<ApplicationUser>>.Instance);
-        services.AddLogging();
-        services.AddScoped(_ => new ApplicationDbContext(options));
-        services.AddScoped<IUserStore<ApplicationUser>>(sp => new UserStore<ApplicationUser>(sp.GetRequiredService<ApplicationDbContext>()));
-        services.AddScoped(sp => CreateUserManager(sp));
-        services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, TestUserClaimsPrincipalFactory>();
-        services.AddScoped<INotificationPreferenceService>(_ => new TestPreferenceService());
-        services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
-        services.AddScoped<UserNotificationService>();
-        services.AddSingleton<IHubContext<NotificationsHub, INotificationsClient>>(hub);
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = CreateProvider(options, clock, hub);
 
         using (var scope = provider.CreateScope())
         {
@@ -81,14 +69,7 @@ public sealed class NotificationDispatcherTests
             await db.SaveChangesAsync();
         }
 
-        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
-        var dispatcher = new NotificationDispatcher(scopeFactory, clock, NullLogger<NotificationDispatcher>.Instance);
-
-        var processBatch = typeof(NotificationDispatcher)
-            .GetMethod("ProcessBatchAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
-
-        var resultTask = (Task<bool>)processBatch.Invoke(dispatcher, new object[] { CancellationToken.None })!;
-        var processed = await resultTask;
+        var processed = await RunBatchAsync(provider, clock);
 
         Assert.True(processed);
 
@@ -116,6 +97,132 @@ public sealed class NotificationDispatcherTests
         }
     }
 
+    [Fact]
+    public async Task ProcessBatchAsync_FailedNotificationInsertLeavesDispatchPendingForRetry()
+    {
+        // Simulates a transient database failure on the notification insert, e.g. a dropped connection.
+        var failingInsert = new FailNotificationInsertInterceptor { RemainingFailures = 1 };
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"notifications-{Guid.NewGuid()}")
+            .AddInterceptors(failingInsert)
+            .Options;
+        var hub = new RecordingHubContext();
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 1, 12, 0, 0, TimeSpan.Zero));
+        await using var provider = CreateProvider(options, clock, hub);
+        await SeedRecipientAndDispatchAsync(provider);
+
+        Assert.True(await RunBatchAsync(provider, clock));
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var dispatch = await db.NotificationDispatches.AsNoTracking().SingleAsync();
+
+            // Before the fix the completion stamp was saved with the error, so the dispatch was
+            // never claimed again and the notification was silently lost.
+            Assert.Null(dispatch.DispatchedUtc);
+            Assert.Null(dispatch.DeadLetteredUtc);
+            Assert.Equal(1, dispatch.AttemptCount);
+            Assert.Contains("Simulated", dispatch.Error);
+            Assert.Equal(new DateTime(2024, 10, 1, 12, 0, 5, DateTimeKind.Utc), dispatch.LockedUntilUtc);
+            Assert.False(await db.Notifications.AnyAsync());
+        }
+
+        // After the retry delay the dispatch is claimed again and delivered exactly once.
+        clock.UtcNow = clock.UtcNow.AddSeconds(6);
+        Assert.True(await RunBatchAsync(provider, clock));
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var dispatch = await db.NotificationDispatches.AsNoTracking().SingleAsync();
+            var notification = await db.Notifications.AsNoTracking().SingleAsync();
+
+            Assert.NotNull(dispatch.DispatchedUtc);
+            Assert.Null(dispatch.Error);
+            Assert.Equal(2, dispatch.AttemptCount);
+            Assert.Equal(dispatch.Id, notification.SourceDispatchId);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_DeadLettersDispatchClaimedTooOftenWithoutCompleting()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"notifications-{Guid.NewGuid()}")
+            .Options;
+        var hub = new RecordingHubContext();
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 1, 12, 0, 0, TimeSpan.Zero));
+        await using var provider = CreateProvider(options, clock, hub);
+        // Eight earlier claims ended without completion or a recorded failure (e.g. the process stopped).
+        await SeedRecipientAndDispatchAsync(provider, attemptCount: 8);
+
+        Assert.True(await RunBatchAsync(provider, clock));
+
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var dispatch = await db.NotificationDispatches.AsNoTracking().SingleAsync();
+
+        Assert.NotNull(dispatch.DeadLetteredUtc);
+        Assert.Null(dispatch.DispatchedUtc);
+        Assert.Null(dispatch.LockToken);
+        Assert.Equal(9, dispatch.AttemptCount);
+        Assert.False(await db.Notifications.AnyAsync());
+    }
+
+    internal static async Task SeedRecipientAndDispatchAsync(IServiceProvider provider, int attemptCount = 0)
+    {
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        await userManager.CreateAsync(new ApplicationUser { Id = "recipient-1", UserName = "recipient@example.com" });
+        db.NotificationDispatches.Add(new NotificationDispatch
+        {
+            RecipientUserId = "recipient-1",
+            Kind = NotificationKind.RemarkCreated,
+            PayloadJson = "{}",
+            CreatedUtc = new DateTime(2024, 10, 1, 11, 0, 0, DateTimeKind.Utc),
+            Title = "New Remark",
+            AttemptCount = attemptCount,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    internal static ServiceProvider CreateProvider(
+        DbContextOptions<ApplicationDbContext> options,
+        IClock clock,
+        RecordingHubContext hub)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(clock);
+        services.AddSingleton<IOptions<IdentityOptions>>(Options.Create(new IdentityOptions()));
+        services.AddSingleton<ILogger<UserManager<ApplicationUser>>>(NullLogger<UserManager<ApplicationUser>>.Instance);
+        services.AddLogging();
+        services.AddScoped(_ => new ApplicationDbContext(options));
+        services.AddScoped<IUserStore<ApplicationUser>>(sp => new UserStore<ApplicationUser>(sp.GetRequiredService<ApplicationDbContext>()));
+        services.AddScoped(sp => CreateUserManager(sp));
+        services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, TestUserClaimsPrincipalFactory>();
+        services.AddScoped<INotificationPreferenceService>(_ => new TestPreferenceService());
+        services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
+        services.AddScoped<UserNotificationService>();
+        services.AddSingleton<IHubContext<NotificationsHub, INotificationsClient>>(hub);
+        return services.BuildServiceProvider();
+    }
+
+    internal static Task<bool> RunBatchAsync(IServiceProvider provider, IClock clock)
+    {
+        var dispatcher = new NotificationDispatcher(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            clock,
+            NullLogger<NotificationDispatcher>.Instance);
+
+        var processBatch = typeof(NotificationDispatcher)
+            .GetMethod("ProcessBatchAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        return (Task<bool>)processBatch.Invoke(dispatcher, new object[] { CancellationToken.None })!;
+    }
+
     private static UserManager<ApplicationUser> CreateUserManager(IServiceProvider services)
     {
         return new UserManager<ApplicationUser>(
@@ -130,14 +237,37 @@ public sealed class NotificationDispatcherTests
             services.GetRequiredService<ILogger<UserManager<ApplicationUser>>>());
     }
 
-    private sealed class FixedClock : IClock
+    private sealed class FailNotificationInsertInterceptor : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public int RemainingFailures { get; set; }
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            var insertsNotification = eventData.Context!.ChangeTracker
+                .Entries<Notification>()
+                .Any(entry => entry.State == EntityState.Added);
+
+            if (insertsNotification && RemainingFailures > 0)
+            {
+                RemainingFailures--;
+                throw new DbUpdateException("Simulated transient failure while saving the notification.");
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
+    internal sealed class FixedClock : IClock
     {
         public FixedClock(DateTimeOffset now)
         {
             UtcNow = now;
         }
 
-        public DateTimeOffset UtcNow { get; }
+        public DateTimeOffset UtcNow { get; set; }
     }
 
     private sealed class TestUserClaimsPrincipalFactory : IUserClaimsPrincipalFactory<ApplicationUser>
@@ -161,7 +291,7 @@ public sealed class NotificationDispatcherTests
         }
     }
 
-    private sealed class RecordingHubContext : IHubContext<NotificationsHub, INotificationsClient>
+    internal sealed class RecordingHubContext : IHubContext<NotificationsHub, INotificationsClient>
     {
         private readonly RecordingHubClients _clients = new();
 
@@ -175,7 +305,7 @@ public sealed class NotificationDispatcherTests
         }
     }
 
-    private sealed class RecordingHubClients : IHubClients<INotificationsClient>
+    internal sealed class RecordingHubClients : IHubClients<INotificationsClient>
     {
         private readonly ConcurrentDictionary<string, RecordingNotificationsClient> _userClients = new(StringComparer.Ordinal);
 
@@ -211,7 +341,7 @@ public sealed class NotificationDispatcherTests
         }
     }
 
-    private sealed class RecordingNotificationsClient : INotificationsClient
+    internal sealed class RecordingNotificationsClient : INotificationsClient
     {
         public List<NotificationListItem> Notifications { get; } = new();
 
