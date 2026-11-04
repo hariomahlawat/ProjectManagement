@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -12,6 +13,8 @@ namespace ProjectManagement.Pages.IndustryPartners;
 public sealed class IndexModel : PageModel
 {
     private const int PageSize = 25;
+    private const string CreateDraftKey = "IndustryPartners.CreateDraft";
+    private const string EditDraftKey = "IndustryPartners.EditDraft";
     private readonly IIndustryPartnerService _service;
     private readonly IIndustryPartnerAttachmentManager _attachmentManager;
     private readonly IAuthorizationService _authorizationService;
@@ -69,6 +72,20 @@ public sealed class IndexModel : PageModel
 
     public bool CanChangeProjectLink(int projectId) => JdpManageableProjectIds.Contains(projectId);
 
+    // What the user typed when a create or edit was refused, so the form can be shown again
+    // with their input instead of empty or reverted fields.
+    public OrganisationDraft? CreateDraft { get; private set; }
+    public OrganisationDraft? EditDraft { get; private set; }
+
+    public sealed record OrganisationDraft(
+        int? PartnerId,
+        string? Name,
+        string? Location,
+        string? Remarks,
+        string? ContactName = null,
+        string? ContactPhone = null,
+        string? ContactEmail = null);
+
     public string ActiveTab => NormalizeTab(Tab, ProjectContext is not null);
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -80,6 +97,8 @@ public sealed class IndexModel : PageModel
         CurrentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         SelectedFilter = ParseFilter(Filter);
         Filter = ToFilterKey(SelectedFilter);
+        CreateDraft = ReadDraft(CreateDraftKey);
+        EditDraft = ReadDraft(EditDraftKey);
         PageNumber = Math.Max(1, PageNumber);
 
         SearchResult = await _service.SearchAsync(Q, SelectedFilter, PageNumber, PageSize, cancellationToken);
@@ -112,6 +131,11 @@ public sealed class IndexModel : PageModel
                 {
                     Edit = false;
                 }
+
+                if (EditDraft?.PartnerId != SelectedPartner.Id)
+                {
+                    EditDraft = null;
+                }
             }
         }
 
@@ -135,6 +159,7 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostCreatePartnerAsync(
         [FromForm] string name,
         [FromForm] string? location,
+        [FromForm] string? remarks,
         [FromForm] string? contactName,
         [FromForm] string? contactPhone,
         [FromForm] string? contactEmail,
@@ -151,6 +176,7 @@ public sealed class IndexModel : PageModel
                 new CreateIndustryPartnerRequest(
                     Name: name,
                     Location: location,
+                    Remarks: remarks,
                     ContactName: contactName,
                     ContactPhone: contactPhone,
                     ContactEmail: contactEmail,
@@ -166,6 +192,7 @@ public sealed class IndexModel : PageModel
         catch (IndustryPartnerValidationException exception)
         {
             SetError(exception);
+            WriteDraft(CreateDraftKey, new OrganisationDraft(null, name, location, remarks, contactName, contactPhone, contactEmail));
             return RedirectToDirectory(null, null);
         }
         catch (ForbiddenException exception)
@@ -202,6 +229,14 @@ public sealed class IndexModel : PageModel
         catch (IndustryPartnerValidationException exception)
         {
             SetError(exception);
+
+            // After a conflict the form must show the other user's saved values, so the
+            // user reapplies their change knowingly; other errors keep what they typed.
+            if (!exception.Errors.ContainsKey("concurrency"))
+            {
+                WriteDraft(EditDraftKey, new OrganisationDraft(partnerId, name, location, remarks));
+            }
+
             return RedirectToDirectory(partnerId, "overview", edit: true);
         }
         catch (KeyNotFoundException exception)
@@ -529,6 +564,28 @@ public sealed class IndexModel : PageModel
 
     private async Task<bool> CanAddContactAsync() =>
         (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.AddContact)).Succeeded;
+
+    private void WriteDraft(string key, OrganisationDraft draft)
+    {
+        TempData[key] = JsonSerializer.Serialize(draft);
+    }
+
+    private OrganisationDraft? ReadDraft(string key)
+    {
+        if (TempData[key] is not string json)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<OrganisationDraft>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private void SetError(IndustryPartnerValidationException exception)
     {

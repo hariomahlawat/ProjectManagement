@@ -107,7 +107,7 @@
 
     @if (Model.CanCreateOrganisation)
     {
-        <div class="modal fade" id="addOrganisationModal" tabindex="-1" aria-labelledby="addOrganisationModalLabel" aria-hidden="true">
+        <div class="modal fade" id="addOrganisationModal" tabindex="-1" aria-labelledby="addOrganisationModalLabel" aria-hidden="true" @(Model.CreateDraft is not null ? "data-open-on-load" : null)>
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content ip-modal-content">
                     <div class="modal-header">
@@ -129,7 +129,7 @@
                         <div class="modal-body">
                             <div class="mb-3">
                                 <label class="form-label" for="newOrganisationName">Organisation name <span aria-hidden="true">*</span></label>
-                                <input id="newOrganisationName" name="name" class="form-control" maxlength="200" required autocomplete="organization" data-duplicate-name-input />
+                                <input id="newOrganisationName" name="name" class="form-control" maxlength="200" required autocomplete="organization" data-duplicate-name-input value="@Model.CreateDraft?.Name" />
                                 <div class="form-text">Use the recognised company or organisation name.</div>
                             </div>
 
@@ -137,7 +137,13 @@
 
                             <div class="mb-3">
                                 <label class="form-label" for="newOrganisationLocation">City / location</label>
-                                <input id="newOrganisationLocation" name="location" class="form-control" maxlength="2000" autocomplete="address-level2" />
+                                <input id="newOrganisationLocation" name="location" class="form-control" maxlength="2000" autocomplete="address-level2" value="@Model.CreateDraft?.Location" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="newOrganisationRemarks">Notes</label>
+                                <textarea id="newOrganisationRemarks" name="remarks" class="form-control" rows="2" maxlength="4000">@Model.CreateDraft?.Remarks</textarea>
+                                <div class="form-text">Optional. Durable information that helps future engagement with the organisation.</div>
                             </div>
 
                             <div class="ip-modal-section">
@@ -148,15 +154,15 @@
                                 <div class="row g-3">
                                     <div class="col-12">
                                         <label class="form-label" for="newOrganisationContactName">Contact person or office</label>
-                                        <input id="newOrganisationContactName" name="contactName" class="form-control" maxlength="200" autocomplete="name" placeholder="e.g. Mr Arun Sharma or Business Development Office" />
+                                        <input id="newOrganisationContactName" name="contactName" class="form-control" maxlength="200" autocomplete="name" placeholder="e.g. Mr Arun Sharma or Business Development Office" value="@Model.CreateDraft?.ContactName" />
                                     </div>
                                     <div class="col-sm-6">
                                         <label class="form-label" for="newOrganisationContactPhone">Phone</label>
-                                        <input id="newOrganisationContactPhone" name="contactPhone" class="form-control" maxlength="64" autocomplete="tel" data-contact-phone />
+                                        <input id="newOrganisationContactPhone" name="contactPhone" class="form-control" maxlength="64" autocomplete="tel" data-contact-phone value="@Model.CreateDraft?.ContactPhone" />
                                     </div>
                                     <div class="col-sm-6">
                                         <label class="form-label" for="newOrganisationContactEmail">Email</label>
-                                        <input id="newOrganisationContactEmail" name="contactEmail" type="email" class="form-control" maxlength="256" autocomplete="email" data-contact-email />
+                                        <input id="newOrganisationContactEmail" name="contactEmail" type="email" class="form-control" maxlength="256" autocomplete="email" data-contact-email value="@Model.CreateDraft?.ContactEmail" />
                                     </div>
                                 </div>
                                 <div class="invalid-feedback d-none" data-contact-error>Add a phone number or email when adding a first contact.</div>

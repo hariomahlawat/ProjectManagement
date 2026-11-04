@@ -495,6 +495,11 @@
     modal?.addEventListener('shown.bs.modal', () => {
       modal.querySelector('[data-duplicate-name-input]')?.focus();
     });
+
+    // A refused create comes back with the user's input; reopen the form so it can be corrected.
+    if (modal?.hasAttribute('data-open-on-load') && window.bootstrap?.Modal) {
+      window.bootstrap.Modal.getOrCreateInstance(modal).show();
+    }
   }
 
   initDrawer();

@@ -124,13 +124,13 @@ else
         {
             <article class="ip-project-history-card">
                 <div class="ip-project-link-read">
-                    <div class="ip-project-status-icon ip-project-status-@(link.ProjectStatusLabel == "Ongoing" ? "ongoing" : "past")">
+                    <div class="ip-project-status-icon ip-project-status-@(link.IsCurrent ? "ongoing" : "past")">
                         <i class="bi bi-folder2-open" aria-hidden="true"></i>
                     </div>
                     <div class="min-w-0 flex-grow-1">
                         <div class="ip-contact-title-row">
                             <a asp-page="/Projects/Overview" asp-route-id="@link.ProjectId" class="ip-project-name">@link.ProjectName</a>
-                            <span class="ip-status-badge ip-status-@(link.ProjectStatusLabel == "Ongoing" ? "current" : "past")">@link.ProjectStatusLabel</span>
+                            <span class="ip-status-badge ip-status-@(link.IsCurrent ? "current" : "past")">@link.ProjectStatusLabel</span>
                         </div>
                         @if (!string.IsNullOrWhiteSpace(link.CaseFileNumber))
                         {

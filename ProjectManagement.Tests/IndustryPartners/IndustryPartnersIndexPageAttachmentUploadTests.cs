@@ -124,11 +124,6 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
         public Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(int projectId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<ProjectJdpProfileDto> GetProjectJdpProfileAsync(
-            int projectId,
-            CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
         public Task<ProjectMultiJdpProfileDto> GetProjectMultiJdpProfileAsync(
             int projectId,
             CancellationToken cancellationToken = default)

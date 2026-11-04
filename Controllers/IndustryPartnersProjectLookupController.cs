@@ -40,32 +40,45 @@ public sealed class IndustryPartnersProjectLookupController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(trimmedQuery))
         {
-            var pattern = $"%{trimmedQuery}%";
+            // "%" and "_" typed by the user are matched literally, not as wildcards.
+            var pattern = $"%{EscapeLikePattern(trimmedQuery)}%";
             projects = projects.Where(project =>
-                EF.Functions.ILike(project.Name, pattern) ||
-                (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern)));
+                EF.Functions.ILike(project.Name, pattern, LikeEscapeCharacter) ||
+                (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern, LikeEscapeCharacter)));
         }
 
-        var items = await projects
+        var rows = await projects
             .OrderBy(project => project.Name)
             .ThenBy(project => project.Id)
             .Take(normalizedTake)
             .Select(project => new
             {
-                id = project.Id,
-                name = project.Name,
-                caseFileNumber = project.CaseFileNumber,
-                statusLabel = project.IsArchived
-                    ? "Archived"
-                    : project.LifecycleStatus == ProjectLifecycleStatus.Completed
-                        ? "Completed"
-                        : project.LifecycleStatus == ProjectLifecycleStatus.Cancelled
-                            ? "Cancelled"
-                            : "Ongoing",
-                isArchived = project.IsArchived
+                project.Id,
+                project.Name,
+                project.CaseFileNumber,
+                project.LifecycleStatus,
+                project.IsArchived
             })
             .ToListAsync(cancellationToken);
 
+        var items = rows.Select(project => new
+        {
+            id = project.Id,
+            name = project.Name,
+            caseFileNumber = project.CaseFileNumber,
+            statusLabel = JdpStatusRules.Label(
+                JdpStatusRules.ForProject(project.LifecycleStatus, project.IsArchived, isDeleted: false)),
+            isArchived = project.IsArchived
+        });
+
         return Ok(new { items });
     }
+
+    private const string LikeEscapeCharacter = "\\";
+
+    public static string EscapeLikePattern(string value) =>
+        value
+            .Replace(LikeEscapeCharacter, LikeEscapeCharacter + LikeEscapeCharacter, StringComparison.Ordinal)
+            .Replace("%", LikeEscapeCharacter + "%", StringComparison.Ordinal)
+            .Replace("_", LikeEscapeCharacter + "_", StringComparison.Ordinal);
 }

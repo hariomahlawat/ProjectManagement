@@ -168,7 +168,6 @@ namespace ProjectManagement.Pages.Projects
         public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
         public ProjectProliferationProfileVm ProliferationProfile { get; private set; } = ProjectProliferationProfileVm.Empty(0);
         public bool CanManageProliferation { get; private set; }
-        public ProjectJdpProfileDto JdpProfile { get; private set; } = ProjectJdpProfileDto.Empty(0);
         public ProjectMultiJdpProfileDto MultiJdpProfile { get; private set; } = ProjectMultiJdpProfileDto.Empty(0);
         public bool CanManageJdp { get; private set; }
         public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
@@ -210,9 +209,6 @@ namespace ProjectManagement.Pages.Projects
 
         [BindProperty]
         public ProjectProliferationUpdateInput ProliferationInput { get; set; } = new();
-
-        [BindProperty]
-        public ProjectJdpUpdateInput JdpInput { get; set; } = new();
 
         public sealed class CompleteLifecycleInput
         {
@@ -281,13 +277,6 @@ namespace ProjectManagement.Pages.Projects
             public string? Reason { get; set; }
         }
 
-
-        public sealed class ProjectJdpUpdateInput
-        {
-            public int ProjectId { get; set; }
-
-            public int? PartnerId { get; set; }
-        }
 
         // SECTION: Project Overview - Joint Development Partner panel view model
         public sealed record JdpPartnerLinkVm(int Id, string Name, string? Location);
@@ -510,16 +499,6 @@ namespace ProjectManagement.Pages.Projects
                 .Select(partner => new JdpPartnerLinkVm(partner.Id, partner.Name, partner.Location))
                 .ToList();
 
-            // Retain the legacy single profile only for older partials and handlers that
-            // may still be referenced elsewhere. The command header and drawer use the
-            // authoritative multi-JDP profile.
-            JdpProfile = await _industryPartners.GetProjectJdpProfileAsync(project.Id, ct);
-            JdpInput = new ProjectJdpUpdateInput
-            {
-                ProjectId = project.Id,
-                PartnerId = MultiJdpProfile.Partners.FirstOrDefault()?.Id
-            };
-
             var isAdmin = User.IsInRole("Admin");
             var isHoD = User.IsInRole("HoD");
             var isProjectOfficer = User.IsInRole("Project Officer");
@@ -735,8 +714,7 @@ namespace ProjectManagement.Pages.Projects
                     id = option.Id,
                     name = option.Name,
                     location = option.Location,
-                    usageSummary = option.UsageSummary,
-                    isLinkedToProject = option.IsLinkedToProject
+                    usageSummary = option.UsageSummary
                 })
             });
         }

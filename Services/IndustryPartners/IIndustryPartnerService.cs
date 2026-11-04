@@ -24,7 +24,6 @@ public interface IIndustryPartnerService
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default);
     Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(int projectId, CancellationToken cancellationToken = default);
-    Task<ProjectJdpProfileDto> GetProjectJdpProfileAsync(int projectId, CancellationToken cancellationToken = default);
     Task<ProjectMultiJdpProfileDto> GetProjectMultiJdpProfileAsync(int projectId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProjectJdpOptionDto>> SearchProjectJdpOptionsAsync(
         int projectId,
@@ -74,6 +73,7 @@ public sealed record IndustryPartnerSearchResult(
     public bool HasNext => Page < TotalPages;
 }
 
+// ProjectCount and ActiveProjectCount count links to live (not deleted) projects only.
 public sealed record IndustryPartnerListItem(
     int Id,
     string Name,
@@ -87,18 +87,9 @@ public sealed record IndustryPartnerListItem(
     int ActiveProjectCount,
     DateTimeOffset LastUpdatedUtc)
 {
-    public string StatusKey => ProjectCount == 0
-        ? "contact"
-        : ActiveProjectCount > 0
-            ? "current"
-            : "past";
+    public string StatusKey => JdpStatusRules.PartnerStatusKey(ProjectCount, ActiveProjectCount);
 
-    public string StatusLabel => StatusKey switch
-    {
-        "current" => "Current JDP",
-        "past" => "Past JDP",
-        _ => "Contact only"
-    };
+    public string StatusLabel => JdpStatusRules.PartnerStatusLabel(StatusKey);
 }
 
 public sealed record IndustryPartnerDuplicateSuggestion(
@@ -136,16 +127,11 @@ public sealed record IndustryPartnerProjectDto(
     bool IsDeleted,
     DateTimeOffset LinkedUtc)
 {
-    public string ProjectStatusLabel => IsDeleted
-        ? "Deleted project"
-        : IsArchived
-            ? "Archived"
-            : LifecycleStatus switch
-            {
-                ProjectLifecycleStatus.Completed => "Completed",
-                ProjectLifecycleStatus.Cancelled => "Cancelled",
-                _ => "Ongoing"
-            };
+    public JdpProjectStatus Status => JdpStatusRules.ForProject(LifecycleStatus, IsArchived, IsDeleted);
+
+    public bool IsCurrent => Status == JdpProjectStatus.Ongoing;
+
+    public string ProjectStatusLabel => JdpStatusRules.Label(Status);
 }
 
 public sealed record IndustryPartnerDto(
@@ -162,16 +148,14 @@ public sealed record IndustryPartnerDto(
 {
     public IndustryPartnerContactDto? PrimaryContact => Contacts.FirstOrDefault();
 
-    public int ActiveProjectCount => LinkedProjects.Count(project =>
-        !project.IsDeleted &&
-        !project.IsArchived &&
-        project.LifecycleStatus == ProjectLifecycleStatus.Active);
+    /// <summary>Links to projects that are not deleted; LinkedProjects also lists deleted ones so they can be removed.</summary>
+    public int LiveProjectCount => LinkedProjects.Count(project => project.Status != JdpProjectStatus.Deleted);
 
-    public string StatusLabel => LinkedProjects.Count == 0
-        ? "Contact only"
-        : ActiveProjectCount > 0
-            ? "Current JDP"
-            : "Past JDP";
+    public int ActiveProjectCount => LinkedProjects.Count(project => project.IsCurrent);
+
+    public string StatusKey => JdpStatusRules.PartnerStatusKey(LiveProjectCount, ActiveProjectCount);
+
+    public string StatusLabel => JdpStatusRules.PartnerStatusLabel(StatusKey);
 }
 
 public sealed record IndustryPartnerProjectContextDto(
@@ -202,7 +186,6 @@ public sealed record ContactRequest(
     string? Email,
     string? RowVersion = null);
 
-
 public sealed record ProjectJdpLinkedProjectDto(
     int ProjectId,
     string ProjectName,
@@ -211,93 +194,11 @@ public sealed record ProjectJdpLinkedProjectDto(
     bool IsArchived,
     bool IsDeleted)
 {
-    public string StatusLabel => IsDeleted
-        ? "Deleted"
-        : IsArchived
-            ? "Archived"
-            : LifecycleStatus switch
-            {
-                ProjectLifecycleStatus.Completed => "Completed",
-                ProjectLifecycleStatus.Cancelled => "Cancelled",
-                _ => "Ongoing"
-            };
+    public JdpProjectStatus Status => JdpStatusRules.ForProject(LifecycleStatus, IsArchived, IsDeleted);
 
-    public int StatusOrder => StatusLabel switch
-    {
-        "Ongoing" => 0,
-        "Completed" => 1,
-        "Cancelled" => 2,
-        "Archived" => 3,
-        _ => 4
-    };
-}
+    public string StatusLabel => JdpStatusRules.Label(Status);
 
-public sealed record ProjectJdpProfileDto(
-    int ProjectId,
-    int? PartnerId,
-    string? PartnerName,
-    string? PartnerLocation,
-    IReadOnlyList<ProjectJdpLinkedProjectDto> OtherProjects,
-    bool HasMultipleProjectLinks)
-{
-    public bool HasJdp => PartnerId.HasValue;
-
-    public int OtherProjectCount => OtherProjects.Count;
-
-    public int OtherOngoingProjectCount => OtherProjects.Count(project => project.StatusLabel == "Ongoing");
-
-    public int OtherCompletedProjectCount => OtherProjects.Count(project => project.StatusLabel == "Completed");
-
-    public int OtherProjectStatusCount => Math.Max(
-        0,
-        OtherProjectCount - OtherOngoingProjectCount - OtherCompletedProjectCount);
-
-    public string CardTitle => HasJdp
-        ? PartnerName ?? "JDP linked"
-        : "No JDP linked";
-
-    public string CardSummary
-    {
-        get
-        {
-            if (HasMultipleProjectLinks)
-            {
-                return "Multiple JDP links recorded · correction required";
-            }
-
-            if (!HasJdp)
-            {
-                return "Link an industry partner";
-            }
-
-            if (OtherProjectCount == 0)
-            {
-                return "Not linked to any other project";
-            }
-
-            var parts = new List<string>();
-            if (OtherOngoingProjectCount > 0)
-            {
-                parts.Add($"{OtherOngoingProjectCount} ongoing");
-            }
-
-            if (OtherCompletedProjectCount > 0)
-            {
-                parts.Add($"{OtherCompletedProjectCount} completed");
-            }
-
-            if (OtherProjectStatusCount > 0)
-            {
-                parts.Add($"{OtherProjectStatusCount} other");
-            }
-
-            return $"Also linked to {OtherProjectCount} other {(OtherProjectCount == 1 ? "project" : "projects")}" +
-                   (parts.Count == 0 ? string.Empty : $" · {string.Join(" · ", parts)}");
-        }
-    }
-
-    public static ProjectJdpProfileDto Empty(int projectId) =>
-        new(projectId, null, null, null, Array.Empty<ProjectJdpLinkedProjectDto>(), false);
+    public int StatusOrder => (int)Status;
 }
 
 public sealed record ProjectJdpOptionDto(
@@ -306,37 +207,10 @@ public sealed record ProjectJdpOptionDto(
     string? Location,
     int OtherProjectCount,
     int OtherOngoingProjectCount,
-    int OtherCompletedProjectCount,
-    bool IsLinkedToProject)
+    int OtherCompletedProjectCount)
 {
-    public string UsageSummary
-    {
-        get
-        {
-            if (OtherProjectCount == 0)
-            {
-                return "Not linked to any other project";
-            }
-
-            var parts = new List<string>();
-            if (OtherOngoingProjectCount > 0)
-            {
-                parts.Add($"{OtherOngoingProjectCount} ongoing");
-            }
-
-            if (OtherCompletedProjectCount > 0)
-            {
-                parts.Add($"{OtherCompletedProjectCount} completed");
-            }
-
-            var otherCount = Math.Max(0, OtherProjectCount - OtherOngoingProjectCount - OtherCompletedProjectCount);
-            if (otherCount > 0)
-            {
-                parts.Add($"{otherCount} other");
-            }
-
-            return $"{OtherProjectCount} other {(OtherProjectCount == 1 ? "project" : "projects")}" +
-                   (parts.Count == 0 ? string.Empty : $" · {string.Join(" · ", parts)}");
-        }
-    }
+    public string UsageSummary => JdpStatusRules.UsageSummary(
+        OtherProjectCount,
+        OtherOngoingProjectCount,
+        OtherCompletedProjectCount);
 }
