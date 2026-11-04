@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.IndustryPartners;
@@ -58,7 +59,7 @@ public sealed class ProjectJdpServiceTests
         await using var fixture = await JdpFixture.CreateAsync();
         await fixture.SeedAsync();
 
-        await fixture.Service.LinkProjectAsync(20, 1, User("editor-1"));
+        await fixture.Service.LinkProjectAsync(20, 1, Admin("editor-1"));
 
         Assert.Equal(2, await fixture.Context.IndustryPartnerProjects.CountAsync(link => link.ProjectId == 1));
         Assert.True(await fixture.Context.IndustryPartnerProjects.AnyAsync(link =>
@@ -74,7 +75,7 @@ public sealed class ProjectJdpServiceTests
         await fixture.SeedAsync();
 
         var exception = await Assert.ThrowsAsync<IndustryPartnerValidationException>(() =>
-            fixture.Service.LinkProjectAsync(10, 1, User("editor-1")));
+            fixture.Service.LinkProjectAsync(10, 1, Admin("editor-1")));
 
         Assert.Contains(
             exception.Errors.SelectMany(entry => entry.Value),
@@ -86,7 +87,7 @@ public sealed class ProjectJdpServiceTests
     {
         await using var fixture = await JdpFixture.CreateAsync();
         await fixture.SeedAsync();
-        await fixture.Service.AddProjectJdpAsync(1, 20, User("editor-1"));
+        await fixture.Service.AddProjectJdpAsync(1, 20, Admin("editor-1"));
 
         var profile = await fixture.Service.GetProjectMultiJdpProfileAsync(1);
 
@@ -102,9 +103,9 @@ public sealed class ProjectJdpServiceTests
     {
         await using var fixture = await JdpFixture.CreateAsync();
         await fixture.SeedAsync();
-        await fixture.Service.AddProjectJdpAsync(1, 20, User("editor-1"));
+        await fixture.Service.AddProjectJdpAsync(1, 20, Admin("editor-1"));
 
-        var profile = await fixture.Service.RemoveProjectJdpAsync(1, 10, User("editor-1"));
+        var profile = await fixture.Service.RemoveProjectJdpAsync(1, 10, Admin("editor-1"));
 
         Assert.Single(profile.Partners);
         Assert.Equal(20, profile.Partners[0].Id);
@@ -129,13 +130,15 @@ public sealed class ProjectJdpServiceTests
         Assert.Equal(0, option.OtherProjectCount);
     }
 
-    private static ClaimsPrincipal User(string userId) => new(
+    private static ClaimsPrincipal Admin(string userId) => User(userId, RoleNames.Admin);
+
+    private static ClaimsPrincipal User(string userId, params string[] roles) => new(
         new ClaimsIdentity(
             new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, userId),
                 new Claim(ClaimTypes.Name, userId)
-            },
+            }.Concat(roles.Select(role => new Claim(ClaimTypes.Role, role))),
             "Test"));
 
     private sealed class JdpFixture : IAsyncDisposable

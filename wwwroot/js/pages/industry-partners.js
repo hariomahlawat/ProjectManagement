@@ -340,7 +340,7 @@
       items = data;
       activeIndex = -1;
       if (!data.length) {
-        results.innerHTML = '<div class="ip-typeahead-item" aria-disabled="true"><span class="ip-typeahead-name">No projects found</span><span class="ip-typeahead-meta">Completed and archived projects are included in the search.</span></div>';
+        results.innerHTML = '<div class="ip-typeahead-item" aria-disabled="true"><span class="ip-typeahead-name">No projects found</span><span class="ip-typeahead-meta">Only projects whose JDPs you can change are listed. Completed and archived projects are included.</span></div>';
       } else {
         results.innerHTML = data.map((item, index) => `
           <button type="button" class="ip-typeahead-item" data-project-option="${index}" role="option">

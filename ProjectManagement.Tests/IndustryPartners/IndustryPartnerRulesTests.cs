@@ -63,7 +63,7 @@ public sealed class IndustryPartnerRulesTests
         await db.SaveChangesAsync();
 
         var service = new IndustryPartnerService(db);
-        var user = User();
+        var user = User("u1", RoleNames.Admin);
         var id = await service.CreateAsync(new CreateIndustryPartnerRequest("Acme", null, null), user);
         await service.LinkProjectAsync(id, db.Projects.First().Id, user);
 
@@ -91,7 +91,7 @@ public sealed class IndustryPartnerRulesTests
         await db.SaveChangesAsync();
 
         var service = new IndustryPartnerService(db);
-        var user = User();
+        var user = User("u1", RoleNames.Admin);
         var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Beta", null, null), user);
 
         await service.LinkProjectAsync(partnerId, project.Id, user);
@@ -119,7 +119,7 @@ public sealed class IndustryPartnerRulesTests
         await db.SaveChangesAsync();
 
         var service = new IndustryPartnerService(db);
-        var user = User();
+        var user = User("u1", RoleNames.Admin);
         var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Gamma", null, null), user);
 
         await service.LinkProjectAsync(partnerId, project.Id, user);
@@ -152,7 +152,7 @@ public sealed class IndustryPartnerRulesTests
         await db.SaveChangesAsync();
 
         var service = new IndustryPartnerService(db);
-        var user = User();
+        var user = User("u1", RoleNames.Admin);
         var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Mixed History Partner", null), user);
         await service.LinkProjectAsync(partnerId, currentProject.Id, user);
         await service.LinkProjectAsync(partnerId, completedProject.Id, user);

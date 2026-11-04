@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using ProjectManagement.Application.Security;
 using ProjectManagement.Services.Storage;
@@ -30,8 +31,27 @@ public sealed class FileSystemIndustryPartnerAttachmentStorage : IIndustryPartne
         Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
 
         if (content.CanSeek) content.Seek(0, SeekOrigin.Begin);
-        await using var destination = new FileStream(absolutePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-        await content.CopyToAsync(destination, cancellationToken);
+        try
+        {
+            await using (var destination = new FileStream(absolutePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+            {
+                await content.CopyToAsync(destination, cancellationToken);
+            }
+
+            // Runs the configured scanner, as the other PRISM upload stores do.
+            if (!await _validator.IsSafeAsync(absolutePath, contentType: string.Empty, cancellationToken))
+            {
+                throw new IndustryPartnerValidationException(new Dictionary<string, List<string>>
+                {
+                    ["File"] = new() { "The file failed the configured security checks." }
+                });
+            }
+        }
+        catch
+        {
+            if (File.Exists(absolutePath)) File.Delete(absolutePath);
+            throw;
+        }
 
         return relativeKey;
     }

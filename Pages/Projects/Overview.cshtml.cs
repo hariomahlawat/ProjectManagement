@@ -751,27 +751,10 @@ namespace ProjectManagement.Pages.Projects
                 return false;
             }
 
-            if (User.IsInRole(RoleNames.Admin) ||
-                User.IsInRole(RoleNames.HoD) ||
-                User.IsInRole(RoleNames.Comdt))
-            {
-                return await _db.Projects
-                    .AsNoTracking()
-                    .AnyAsync(project => project.Id == projectId && !project.IsDeleted, ct);
-            }
-
-            if (!User.IsInRole(RoleNames.ProjectOfficer))
-            {
-                return false;
-            }
-
-            return await _db.Projects
-                .AsNoTracking()
-                .AnyAsync(project =>
-                    project.Id == projectId &&
-                    !project.IsDeleted &&
-                    project.LeadPoUserId == currentUserId,
-                    ct);
+            // Same rule the Industry Partners service enforces on every JDP link change.
+            return await ProjectJdpAccess
+                .WhereUserCanManage(_db.Projects.AsNoTracking(), User)
+                .AnyAsync(project => project.Id == projectId && !project.IsDeleted, ct);
         }
 
         public async Task<IActionResult> OnPostProliferationAsync(int id, CancellationToken ct)
