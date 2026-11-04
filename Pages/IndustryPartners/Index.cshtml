@@ -122,7 +122,7 @@
                         <input type="hidden" name="q" value="@Model.Q" />
                         <input type="hidden" name="filter" value="@Model.Filter" />
                         <input type="hidden" name="p" value="@Model.PageNumber" />
-                        @if (Model.ContextProjectId.HasValue)
+                        @if (Model.CanLinkContextProject)
                         {
                             <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
                         }
@@ -162,7 +162,7 @@
                                 <div class="invalid-feedback d-none" data-contact-error>Add a phone number or email when adding a first contact.</div>
                             </div>
 
-                            @if (Model.ProjectContext is not null)
+                            @if (Model.ProjectContext is not null && Model.CanLinkContextProject)
                             {
                                 <div class="ip-modal-context-association">
                                     <div class="ip-modal-context-heading">

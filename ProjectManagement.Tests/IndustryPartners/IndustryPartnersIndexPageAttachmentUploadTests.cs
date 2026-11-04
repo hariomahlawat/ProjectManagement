@@ -118,6 +118,9 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
         public Task<bool> IsOwnerAsync(int id, string userId, CancellationToken cancellationToken = default)
             => Task.FromResult(true);
 
+        public Task<IReadOnlySet<int>> GetJdpManageableProjectIdsAsync(IEnumerable<int> projectIds, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
+
         public Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(int projectId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 

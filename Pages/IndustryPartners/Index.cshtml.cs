@@ -60,6 +60,15 @@ public sealed class IndexModel : PageModel
     public bool CanManageAnyContact { get; private set; }
     public string? CurrentUserId { get; private set; }
 
+    // Projects (among the selected organisation's links and the context project) whose
+    // JDPs the current user may change. Mirrors the server-side rule in ProjectJdpAccess.
+    public IReadOnlySet<int> JdpManageableProjectIds { get; private set; } = new HashSet<int>();
+
+    public bool CanLinkContextProject =>
+        ProjectContext is not null && JdpManageableProjectIds.Contains(ProjectContext.Id);
+
+    public bool CanChangeProjectLink(int projectId) => JdpManageableProjectIds.Contains(projectId);
+
     public string ActiveTab => NormalizeTab(Tab, ProjectContext is not null);
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -104,6 +113,14 @@ public sealed class IndexModel : PageModel
                     Edit = false;
                 }
             }
+        }
+
+        var projectIds = (SelectedPartner?.LinkedProjects.Select(link => link.ProjectId) ?? Enumerable.Empty<int>())
+            .Concat(ProjectContext is null ? Enumerable.Empty<int>() : new[] { ProjectContext.Id })
+            .ToArray();
+        if (projectIds.Length > 0)
+        {
+            JdpManageableProjectIds = await _service.GetJdpManageableProjectIdsAsync(projectIds, User, cancellationToken);
         }
     }
 
@@ -151,6 +168,11 @@ public sealed class IndexModel : PageModel
             SetError(exception);
             return RedirectToDirectory(null, null);
         }
+        catch (ForbiddenException exception)
+        {
+            TempData["Error"] = exception.Message;
+            return RedirectToDirectory(null, null);
+        }
     }
 
     public async Task<IActionResult> OnPostUpdatePartnerAsync(
@@ -182,6 +204,11 @@ public sealed class IndexModel : PageModel
             SetError(exception);
             return RedirectToDirectory(partnerId, "overview", edit: true);
         }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
+            return RedirectToDirectory(null, null);
+        }
     }
 
     public async Task<IActionResult> OnPostAddContactAsync(
@@ -208,6 +235,10 @@ public sealed class IndexModel : PageModel
         catch (IndustryPartnerValidationException exception)
         {
             SetError(exception);
+        }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
         }
 
         return RedirectToDirectory(partnerId, "contacts");
@@ -240,6 +271,10 @@ public sealed class IndexModel : PageModel
         {
             SetError(exception);
         }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
+        }
 
         return RedirectToDirectory(partnerId, "contacts");
     }
@@ -261,6 +296,10 @@ public sealed class IndexModel : PageModel
         catch (IndustryPartnerValidationException exception)
         {
             SetError(exception);
+        }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
         }
 
         return RedirectToDirectory(partnerId, "contacts");
@@ -291,6 +330,10 @@ public sealed class IndexModel : PageModel
         {
             SetError(exception);
         }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
+        }
 
         return RedirectToDirectory(partnerId, "files");
     }
@@ -314,6 +357,10 @@ public sealed class IndexModel : PageModel
         {
             SetError(exception);
         }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
+        }
 
         return RedirectToDirectory(partnerId, "files");
     }
@@ -323,8 +370,15 @@ public sealed class IndexModel : PageModel
         Guid attachmentId,
         CancellationToken cancellationToken)
     {
-        var file = await _attachmentManager.DownloadAsync(partnerId, attachmentId, cancellationToken);
-        return File(file.Stream, file.ContentType, file.FileName);
+        try
+        {
+            var file = await _attachmentManager.DownloadAsync(partnerId, attachmentId, cancellationToken);
+            return File(file.Stream, file.ContentType, file.FileName);
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or FileNotFoundException or DirectoryNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     public async Task<IActionResult> OnPostLinkProjectAsync(
@@ -345,6 +399,14 @@ public sealed class IndexModel : PageModel
         catch (IndustryPartnerValidationException exception)
         {
             SetError(exception);
+        }
+        catch (ForbiddenException exception)
+        {
+            TempData["Error"] = exception.Message;
+        }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
         }
 
         return RedirectToDirectory(partnerId, "projects");
@@ -369,6 +431,14 @@ public sealed class IndexModel : PageModel
         {
             SetError(exception);
         }
+        catch (ForbiddenException exception)
+        {
+            TempData["Error"] = exception.Message;
+        }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
+        }
 
         return RedirectToDirectory(partnerId, "projects");
     }
@@ -392,6 +462,11 @@ public sealed class IndexModel : PageModel
         {
             SetError(exception);
             return RedirectToDirectory(partnerId, "overview");
+        }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
+            return RedirectToDirectory(null, null);
         }
     }
 

@@ -3,6 +3,8 @@ using System.Data;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
@@ -21,15 +23,24 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         "incorporated", "inc", "corporation", "corp", "company", "co"
     };
 
+    private const int TouchSaveAttempts = 3;
+    private const string ProjectJdpForbiddenMessage =
+        "You are not authorised to change the JDPs for this project.";
+    private const string DuplicateOrganisationMessage =
+        "An organisation with the same name and location already exists.";
+
     private readonly ApplicationDbContext _db;
     private readonly IIndustryPartnerAttachmentStorage? _attachmentStorage;
+    private readonly ILogger<IndustryPartnerService> _logger;
 
     public IndustryPartnerService(
         ApplicationDbContext db,
-        IIndustryPartnerAttachmentStorage? attachmentStorage = null)
+        IIndustryPartnerAttachmentStorage? attachmentStorage = null,
+        ILogger<IndustryPartnerService>? logger = null)
     {
         _db = db;
         _attachmentStorage = attachmentStorage;
+        _logger = logger ?? NullLogger<IndustryPartnerService>.Instance;
     }
 
     public async Task<IndustryPartnerSearchResult> SearchAsync(
@@ -265,6 +276,26 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                 cancellationToken);
     }
 
+    public async Task<IReadOnlySet<int>> GetJdpManageableProjectIdsAsync(
+        IEnumerable<int> projectIds,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = projectIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new HashSet<int>();
+        }
+
+        var manageable = await ProjectJdpAccess
+            .WhereUserCanManage(_db.Projects.AsNoTracking(), user)
+            .Where(project => ids.Contains(project.Id))
+            .Select(project => project.Id)
+            .ToListAsync(cancellationToken);
+
+        return manageable.ToHashSet();
+    }
+
     public async Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(
         int projectId,
         CancellationToken cancellationToken = default)
@@ -486,7 +517,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         await EnsureUniqueAsync(0, name, location, cancellationToken);
         if (request.ProjectId.HasValue)
         {
-            await EnsureProjectCanBeLinkedAsync(request.ProjectId.Value, cancellationToken);
+            await EnsureProjectCanBeLinkedAsync(request.ProjectId.Value, user, cancellationToken);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -527,7 +558,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         }
 
         _db.IndustryPartners.Add(partner);
-        await SaveWithValidationAsync(cancellationToken);
+        await SaveWithValidationAsync(0, name, location, cancellationToken);
         return partner.Id;
     }
 
@@ -556,7 +587,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         partner.Remarks = remarks;
         Touch(partner, user);
 
-        await SaveWithConcurrencyAsync(cancellationToken);
+        await SaveWithConcurrencyAsync(id, name, location, cancellationToken);
     }
 
     public async Task<int> AddContactAsync(
@@ -582,7 +613,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
 
         _db.IndustryPartnerContacts.Add(contact);
         Touch(partner, user);
-        await _db.SaveChangesAsync(cancellationToken);
+        await SaveTouchingPartnerAsync(partner, user, cancellationToken);
         return contact.Id;
     }
 
@@ -610,7 +641,14 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         contact.Email = contactValue.Email;
         Touch(partner, user);
 
-        await SaveWithConcurrencyAsync(cancellationToken);
+        try
+        {
+            await SaveTouchingPartnerAsync(partner, user, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw ConcurrencyError(exception);
+        }
     }
 
     public async Task DeleteContactAsync(
@@ -630,7 +668,14 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         EnsureCanModifyContact(contact, user);
         _db.IndustryPartnerContacts.Remove(contact);
         Touch(partner, user);
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await SaveTouchingPartnerAsync(partner, user, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw ConcurrencyError(exception);
+        }
     }
 
     public async Task LinkProjectAsync(
@@ -643,7 +688,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
             ?? throw new KeyNotFoundException("Industry organisation not found.");
 
-        await EnsureProjectCanBeLinkedAsync(projectId, cancellationToken);
+        await EnsureProjectCanBeLinkedAsync(projectId, user, cancellationToken);
 
         var existingLink = await _db.IndustryPartnerProjects
             .AsNoTracking()
@@ -663,7 +708,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         });
 
         Touch(partner, user);
-        await _db.SaveChangesAsync(cancellationToken);
+        await SaveProjectLinkAsync(partner, user, partnerId, projectId, cancellationToken);
     }
 
     public async Task UnlinkProjectAsync(
@@ -684,9 +729,13 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             return;
         }
 
+        // Links to soft-deleted projects stay removable, so an organisation can be
+        // cleaned up before deletion; the project-level permission still applies.
+        await EnsureCanChangeProjectJdpAsync(projectId, user, includeDeletedProject: true, cancellationToken);
+
         _db.IndustryPartnerProjects.Remove(link);
         Touch(partner, user);
-        await _db.SaveChangesAsync(cancellationToken);
+        await SaveTouchingPartnerAsync(partner, user, cancellationToken);
     }
 
 
@@ -696,7 +745,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default)
     {
-        await EnsureProjectCanBeLinkedAsync(projectId, cancellationToken);
+        await EnsureProjectCanBeLinkedAsync(projectId, user, cancellationToken);
 
         var partner = await _db.IndustryPartners
             .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
@@ -719,27 +768,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         });
 
         Touch(partner, user);
-        try
-        {
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException exception)
-        {
-            var duplicate = await _db.IndustryPartnerProjects
-                .AsNoTracking()
-                .AnyAsync(link => link.ProjectId == projectId && link.IndustryPartnerId == partnerId, cancellationToken);
-            if (duplicate)
-            {
-                throw Error("project", "This organisation is already linked to the project as a JDP.");
-            }
-
-            throw new IndustryPartnerValidationException(
-                new Dictionary<string, List<string>>
-                {
-                    ["project"] = new() { "Unable to add the JDP. The record may have changed; refresh and try again." }
-                },
-                exception);
-        }
+        await SaveProjectLinkAsync(partner, user, partnerId, projectId, cancellationToken);
 
         return await GetProjectMultiJdpProfileAsync(projectId, cancellationToken);
     }
@@ -750,7 +779,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default)
     {
-        await EnsureProjectCanBeLinkedAsync(projectId, cancellationToken);
+        await EnsureProjectCanBeLinkedAsync(projectId, user, cancellationToken);
 
         var link = await _db.IndustryPartnerProjects
             .FirstOrDefaultAsync(item =>
@@ -768,9 +797,13 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         if (partner is not null)
         {
             Touch(partner, user);
+            await SaveTouchingPartnerAsync(partner, user, cancellationToken);
+        }
+        else
+        {
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
         return await GetProjectMultiJdpProfileAsync(projectId, cancellationToken);
     }
 
@@ -801,9 +834,22 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             return;
         }
 
+        // The organisation is already gone; a file that cannot be removed now must not
+        // turn a completed delete into an error for the user.
         foreach (var storageKey in storageKeys)
         {
-            await _attachmentStorage.DeleteAsync(storageKey, cancellationToken);
+            try
+            {
+                await _attachmentStorage.DeleteAsync(storageKey, CancellationToken.None);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Industry partner {PartnerId} was deleted but attachment file {StorageKey} could not be removed.",
+                    partnerId,
+                    storageKey);
+            }
         }
     }
 
@@ -821,7 +867,10 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         }
     }
 
-    private async Task EnsureProjectCanBeLinkedAsync(int projectId, CancellationToken cancellationToken)
+    private async Task EnsureProjectCanBeLinkedAsync(
+        int projectId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken)
     {
         var exists = await _db.Projects
             .AsNoTracking()
@@ -831,6 +880,93 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         {
             throw Error("project", "Selected project was not found.");
         }
+
+        await EnsureCanChangeProjectJdpAsync(projectId, user, includeDeletedProject: false, cancellationToken);
+    }
+
+    private async Task EnsureCanChangeProjectJdpAsync(
+        int projectId,
+        ClaimsPrincipal user,
+        bool includeDeletedProject,
+        CancellationToken cancellationToken)
+    {
+        var projects = _db.Projects.AsNoTracking().Where(project => project.Id == projectId);
+        if (!includeDeletedProject)
+        {
+            projects = projects.Where(project => !project.IsDeleted);
+        }
+
+        var allowed = await ProjectJdpAccess
+            .WhereUserCanManage(projects, user)
+            .AnyAsync(cancellationToken);
+
+        if (!allowed)
+        {
+            throw new ForbiddenException(ProjectJdpForbiddenMessage);
+        }
+    }
+
+    // Adding or removing a contact or project link also stamps the organisation's
+    // "last updated" fields, which changes its row version. Another user's unrelated
+    // change to the same organisation must not fail this save, so a conflict that is
+    // only on the organisation row is resolved by reloading it and stamping it again.
+    private async Task SaveTouchingPartnerAsync(
+        IndustryPartner partner,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (DbUpdateConcurrencyException exception)
+                when (attempt < TouchSaveAttempts &&
+                      exception.Entries.Count > 0 &&
+                      exception.Entries.All(entry => ReferenceEquals(entry.Entity, partner)))
+            {
+                var entry = _db.Entry(partner);
+                await entry.ReloadAsync(cancellationToken);
+                if (entry.State == EntityState.Detached)
+                {
+                    throw new KeyNotFoundException("Industry organisation not found.");
+                }
+
+                Touch(partner, user);
+            }
+        }
+    }
+
+    private async Task SaveProjectLinkAsync(
+        IndustryPartner partner,
+        ClaimsPrincipal user,
+        int partnerId,
+        int projectId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SaveTouchingPartnerAsync(partner, user, cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            var duplicate = await _db.IndustryPartnerProjects
+                .AsNoTracking()
+                .AnyAsync(link => link.ProjectId == projectId && link.IndustryPartnerId == partnerId, cancellationToken);
+            if (duplicate)
+            {
+                throw Error("project", "This organisation is already linked to the project as a JDP.");
+            }
+
+            throw new IndustryPartnerValidationException(
+                new Dictionary<string, List<string>>
+                {
+                    ["project"] = new() { "Unable to add the JDP. The record may have changed; refresh and try again." }
+                },
+                exception);
+        }
     }
 
     private async Task EnsureUniqueAsync(
@@ -839,38 +975,48 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         string? location,
         CancellationToken cancellationToken)
     {
+        if (await DuplicateExistsAsync(id, name, location, cancellationToken))
+        {
+            throw Error("name", DuplicateOrganisationMessage);
+        }
+    }
+
+    private Task<bool> DuplicateExistsAsync(
+        int id,
+        string name,
+        string? location,
+        CancellationToken cancellationToken)
+    {
         var normalizedName = Normalize(name)!;
         var normalizedLocation = Normalize(location);
-        var exists = await _db.IndustryPartners.AnyAsync(partner =>
+        return _db.IndustryPartners.AsNoTracking().AnyAsync(partner =>
             partner.Id != id &&
             partner.NormalizedName == normalizedName &&
             partner.NormalizedLocation == normalizedLocation,
             cancellationToken);
-
-        if (exists)
-        {
-            throw Error("name", "An organisation with the same name and location already exists.");
-        }
     }
 
-    private async Task SaveWithValidationAsync(CancellationToken cancellationToken)
+    private async Task SaveWithValidationAsync(
+        int id,
+        string name,
+        string? location,
+        CancellationToken cancellationToken)
     {
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException exception)
+        catch (DbUpdateException exception) when (exception is not DbUpdateConcurrencyException)
         {
-            throw new IndustryPartnerValidationException(
-                new Dictionary<string, List<string>>
-                {
-                    ["name"] = new() { "An organisation with the same name and location already exists." }
-                },
-                exception);
+            throw await TranslateSaveFailureAsync(exception, id, name, location, cancellationToken);
         }
     }
 
-    private async Task SaveWithConcurrencyAsync(CancellationToken cancellationToken)
+    private async Task SaveWithConcurrencyAsync(
+        int id,
+        string name,
+        string? location,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -878,23 +1024,47 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         }
         catch (DbUpdateConcurrencyException exception)
         {
-            throw new IndustryPartnerValidationException(
-                new Dictionary<string, List<string>>
-                {
-                    ["concurrency"] = new() { "This record was changed by another user. Reload it and apply your changes again." }
-                },
-                exception);
+            throw ConcurrencyError(exception);
         }
         catch (DbUpdateException exception)
         {
-            throw new IndustryPartnerValidationException(
-                new Dictionary<string, List<string>>
-                {
-                    ["name"] = new() { "An organisation with the same name and location already exists." }
-                },
-                exception);
+            throw await TranslateSaveFailureAsync(exception, id, name, location, cancellationToken);
         }
     }
+
+    // Only report a duplicate when one really exists (for example, another user saved
+    // the same name and location a moment earlier). Any other database failure, such
+    // as a project deleted mid-request, gets a neutral message.
+    private async Task<IndustryPartnerValidationException> TranslateSaveFailureAsync(
+        DbUpdateException exception,
+        int id,
+        string name,
+        string? location,
+        CancellationToken cancellationToken)
+    {
+        if (await DuplicateExistsAsync(id, name, location, cancellationToken))
+        {
+            return new IndustryPartnerValidationException(
+                new Dictionary<string, List<string>> { ["name"] = new() { DuplicateOrganisationMessage } },
+                exception);
+        }
+
+        _logger.LogWarning(exception, "Saving industry partner {PartnerId} failed.", id);
+        return new IndustryPartnerValidationException(
+            new Dictionary<string, List<string>>
+            {
+                ["save"] = new() { "The organisation could not be saved. Refresh the page and try again." }
+            },
+            exception);
+    }
+
+    private static IndustryPartnerValidationException ConcurrencyError(DbUpdateConcurrencyException exception) =>
+        new(
+            new Dictionary<string, List<string>>
+            {
+                ["concurrency"] = new() { "This record was changed by another user. Reload it and apply your changes again." }
+            },
+            exception);
 
     private void ApplyConcurrencyToken<TEntity>(TEntity entity, string? token)
         where TEntity : class

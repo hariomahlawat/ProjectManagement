@@ -42,7 +42,7 @@ The current EF model and service registrations show these broad domains:
 - IPR
 - Project Office visits, social-media events and training
 - Activities
-- Industry partners
+- Industry partners (see [industry-partners.md](industry-partners.md))
 - Project ideas
 - Documents, document repository, OCR/text and attachments
 - Project photos/videos and the enterprise Media Library

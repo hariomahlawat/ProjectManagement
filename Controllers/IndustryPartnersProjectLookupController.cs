@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.IndustryPartners;
 
 namespace ProjectManagement.Controllers;
 
@@ -29,10 +30,13 @@ public sealed class IndustryPartnersProjectLookupController : ControllerBase
         var normalizedTake = Math.Clamp(take, 1, 50);
 
         // Historical association is a first-class use case. Archived and completed
-        // projects are searchable; only soft-deleted projects are excluded.
-        var projects = _dbContext.Projects
-            .AsNoTracking()
-            .Where(project => !project.IsDeleted);
+        // projects are searchable; only soft-deleted projects are excluded. The picker
+        // links projects as JDP, so it lists only projects whose JDPs the user may change.
+        var projects = ProjectJdpAccess.WhereUserCanManage(
+            _dbContext.Projects
+                .AsNoTracking()
+                .Where(project => !project.IsDeleted),
+            User);
 
         if (!string.IsNullOrWhiteSpace(trimmedQuery))
         {
