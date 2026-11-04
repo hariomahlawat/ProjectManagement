@@ -217,3 +217,22 @@ test('an older preview response that arrives last does not replace newer slides'
 
   assert.match(document.querySelector('[data-pbd-stage-slide]').textContent, /Newer cover/);
 });
+
+test('a rebuild tells the server which images it already holds and keeps them', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload({ images: { aaaaaaaaaaaaaaaa: 'data:image/png;base64,AAAA' } }));
+  await settle(window);
+  assert.equal(requests[0].headers['X-Pbd-Known-Images'], '');
+
+  document.querySelector('[data-pbd-preview-refresh]').click();
+  assert.equal(requests[1].headers['X-Pbd-Known-Images'], 'aaaaaaaaaaaaaaaa');
+  // The server leaves known images out; the slide still shows the one already held.
+  const withPicture = slide(1, 'Cover');
+  withPicture.html = '<div class="pbd-slide-stage" style="width:1280px;height:720px;"><img data-pbd-preview-image="aaaaaaaaaaaaaaaa" alt=""></div>';
+  requests[1].answer(payload({ slides: [withPicture], outline: [{ number: 1, role: 'Cover', projectId: null, listedProjectIds: [] }], images: {} }));
+  await settle(window);
+
+  assert.equal(
+    document.querySelector('[data-pbd-stage-slide] [data-pbd-preview-image]').getAttribute('src'),
+    'data:image/png;base64,AAAA');
+});
