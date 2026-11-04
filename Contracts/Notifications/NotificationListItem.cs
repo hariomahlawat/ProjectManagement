@@ -27,4 +27,6 @@ public sealed record NotificationListItem(
     string Priority = "Normal",
     bool IsActionRequired = false,
     DateTime? DeliveredUtc = null,
-    string? SummaryTooltip = null);
+    string? SummaryTooltip = null,
+    // Rows with the same non-null key may be shown as one group; null means never grouped.
+    string? GroupKey = null);

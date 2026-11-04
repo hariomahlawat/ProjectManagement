@@ -114,7 +114,8 @@
       category: raw?.category ?? raw?.Category ?? 'General',
       iconCssClass: raw?.iconCssClass ?? raw?.IconCssClass ?? 'bi bi-bell',
       priority: raw?.priority ?? raw?.Priority ?? 'Normal',
-      isActionRequired: Boolean(raw?.isActionRequired ?? raw?.IsActionRequired)
+      isActionRequired: Boolean(raw?.isActionRequired ?? raw?.IsActionRequired),
+      groupKey: raw?.groupKey ?? raw?.GroupKey ?? null
     };
   }
 
@@ -139,6 +140,37 @@
 
     const timeDelta = new Date(b.createdUtc) - new Date(a.createdUtc);
     return timeDelta !== 0 ? timeDelta : b.id - a.id;
+  }
+
+  // Collapses rows that share a server-assigned group key into one entry, keeping the order of
+  // the first (newest) row in each group. Unread action-required rows are never grouped. A
+  // group of one is shown as a plain row. Returns at most `limit` entries.
+  function buildBellEntries(items, limit) {
+    const entries = [];
+    const groups = new Map();
+
+    items.forEach(item => {
+      if (!item.groupKey || isPriorityItem(item)) {
+        entries.push({ type: 'item', item });
+        return;
+      }
+
+      const existing = groups.get(item.groupKey);
+      if (existing) {
+        existing.items.push(item);
+        return;
+      }
+
+      const group = { type: 'group', key: item.groupKey, items: [item] };
+      groups.set(item.groupKey, group);
+      entries.push(group);
+    });
+
+    return entries
+      .map(entry => (entry.type === 'group' && entry.items.length === 1
+        ? { type: 'item', item: entry.items[0] }
+        : entry))
+      .slice(0, limit);
   }
 
   function normalizePage(raw) {
@@ -774,6 +806,11 @@
       this.runtime = runtime;
       this.apiBase = root.dataset.apiBase;
       this.limit = Math.max(1, asInteger(root.dataset.notificationLimit, 10));
+      // Rows loaded to build groups from; the bell still shows `limit` entries.
+      this.fetchLimit = Math.max(this.limit, asInteger(root.dataset.notificationFetchLimit, this.limit));
+      this.groupTemplate = root.querySelector('template[data-notification-group-template]');
+      this.expandedGroups = new Set();
+      this.renderedGroups = new Map();
       this.centerUrl = root.dataset.notificationCenterUrl || '/Notifications';
       this.authenticated = root.dataset.isAuthenticated === 'true';
       this.items = asArray(parseJsonScript(root)).map(normalizeNotification);
@@ -811,6 +848,13 @@
             event.preventDefault();
             event.stopPropagation();
             this.toggleRead(actionButton);
+          } else if (action === 'toggle-group') {
+            event.preventDefault();
+            this.toggleGroup(actionButton);
+          } else if (action === 'toggle-group-read') {
+            event.preventDefault();
+            event.stopPropagation();
+            this.toggleGroupRead(actionButton);
           }
           return;
         }
@@ -846,7 +890,7 @@
 
       try {
         const page = await this.runtime.fetchPage({
-          limit: this.limit,
+          limit: this.fetchLimit,
           includeMuted: false,
           includeFilterOptions: false,
           order: 'priority'
@@ -967,7 +1011,7 @@
       this.latestNotificationId = Math.max(this.latestNotificationId, notification.id);
       this.items = [notification, ...this.items.filter(item => item.id !== notification.id)]
         .sort(comparePriorityThenNewest)
-        .slice(0, this.limit);
+        .slice(0, this.fetchLimit);
       this.render();
     }
 
@@ -975,7 +1019,7 @@
       this.items = notifications
         .filter(item => !item.isProjectMuted)
         .sort(comparePriorityThenNewest)
-        .slice(0, this.limit);
+        .slice(0, this.fetchLimit);
       this.render();
     }
 
@@ -1056,28 +1100,146 @@
         return;
       }
 
-      const visible = this.items
+      const sorted = this.items
         .filter(item => !item.isProjectMuted)
-        .sort(comparePriorityThenNewest)
-        .slice(0, this.limit);
+        .sort(comparePriorityThenNewest);
+      // Without the group template (an older cached layout) every row renders on its own.
+      const entries = this.groupTemplate
+        ? buildBellEntries(sorted, this.limit)
+        : sorted.slice(0, this.limit).map(item => ({ type: 'item', item }));
 
       this.list.innerHTML = '';
-      let currentGroup = null;
-      visible.forEach(notification => {
-        const group = isPriorityItem(notification)
+      this.renderedGroups = new Map();
+      let currentHeading = null;
+      entries.forEach(entry => {
+        const lead = entry.type === 'group' ? entry.items[0] : entry.item;
+        const heading = isPriorityItem(lead)
           ? { key: 'needs-action', label: 'Needs action' }
-          : notificationDateGroup(notification.createdUtc);
-        if (group.key !== currentGroup) {
-          appendDateGroup(this.list, group, 'notification-menu__date-group', 'li');
-          currentGroup = group.key;
+          : notificationDateGroup(lead.createdUtc);
+        if (heading.key !== currentHeading) {
+          appendDateGroup(this.list, heading, 'notification-menu__date-group', 'li');
+          currentHeading = heading.key;
+        }
+
+        if (entry.type === 'group') {
+          this.list.appendChild(this.renderGroup(entry));
+          return;
         }
 
         const row = this.template.content.firstElementChild.cloneNode(true);
-        this.populateRow(row, notification);
+        this.populateRow(row, entry.item);
         this.list.appendChild(row);
       });
 
-      setHidden(this.empty, visible.length !== 0);
+      // Forget expansion state for groups that are no longer shown.
+      this.expandedGroups.forEach(key => {
+        if (!this.renderedGroups.has(key)) {
+          this.expandedGroups.delete(key);
+        }
+      });
+
+      setHidden(this.empty, entries.length !== 0);
+    }
+
+    renderGroup(group) {
+      const row = this.groupTemplate.content.firstElementChild.cloneNode(true);
+      const lead = group.items[0];
+      const unread = group.items.filter(item => !item.isRead);
+      const expanded = this.expandedGroups.has(group.key);
+      this.renderedGroups.set(group.key, group);
+
+      row.dataset.groupKey = group.key;
+      row.dataset.read = String(unread.length === 0);
+      row.classList.toggle('is-read', unread.length === 0);
+      row.classList.toggle('is-unread', unread.length > 0);
+
+      setIcon(row.querySelector('[data-notification-icon]'), lead.iconCssClass);
+      const eyebrow = lead.projectName ? `${lead.projectName} · ${lead.category}` : lead.category;
+      setText(row.querySelector('[data-notification-project]'), eyebrow);
+      setText(
+        row.querySelector('[data-notification-group-title]'),
+        unread.length > 0
+          ? `${group.items.length} updates · ${unread.length} unread`
+          : `${group.items.length} updates`);
+      setText(row.querySelector('[data-notification-summary]'), `Latest: ${lead.title || 'Notification'}`);
+      setTimeElement(row.querySelector('[data-notification-created]'), lead);
+
+      const toggle = row.querySelector('[data-notification-action="toggle-group"]');
+      if (toggle) {
+        toggle.dataset.groupKey = group.key;
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.setAttribute(
+          'aria-label',
+          `${expanded ? 'Collapse' : 'Expand'} ${group.items.length} ${lead.category} updates${lead.projectName ? ` for ${lead.projectName}` : ''}`);
+      }
+      row.classList.toggle('is-expanded', expanded);
+
+      const readButton = row.querySelector('[data-notification-action="toggle-group-read"]');
+      if (readButton) {
+        readButton.dataset.groupKey = group.key;
+        const label = unread.length > 0
+          ? `Mark all ${group.items.length} as read`
+          : `Mark all ${group.items.length} as unread`;
+        readButton.title = label;
+        readButton.setAttribute('aria-label', label);
+        setIcon(readButton.querySelector('.bi'), unread.length > 0 ? 'bi bi-envelope-check' : 'bi bi-envelope-open');
+      }
+
+      setHidden(row.querySelector('[data-notification-unread-dot]'), unread.length === 0);
+
+      const children = row.querySelector('[data-notification-group-items]');
+      if (children) {
+        group.items.forEach(item => {
+          const child = this.template.content.firstElementChild.cloneNode(true);
+          this.populateRow(child, item);
+          children.appendChild(child);
+        });
+        setHidden(children, !expanded);
+      }
+
+      return row;
+    }
+
+    toggleGroup(button) {
+      const key = button.dataset.groupKey;
+      if (!key) {
+        return;
+      }
+
+      if (this.expandedGroups.has(key)) {
+        this.expandedGroups.delete(key);
+      } else {
+        this.expandedGroups.add(key);
+      }
+
+      this.render();
+      // Re-rendering replaces the button; keep keyboard focus on the same group.
+      Array.from(this.list.querySelectorAll('[data-notification-action="toggle-group"]'))
+        .find(candidate => candidate.dataset.groupKey === key)
+        ?.focus();
+    }
+
+    async toggleGroupRead(button) {
+      const group = this.renderedGroups.get(button.dataset.groupKey);
+      if (!group) {
+        return;
+      }
+
+      const unreadIds = group.items.filter(item => !item.isRead).map(item => item.id);
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      try {
+        if (unreadIds.length > 0) {
+          await this.runtime.markRead(unreadIds);
+        } else {
+          await this.runtime.markUnread(group.items.map(item => item.id));
+        }
+      } catch (error) {
+        this.setStatus(error.message || 'Unable to update notifications.', 'danger');
+      } finally {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+      }
     }
 
     populateRow(row, notification) {

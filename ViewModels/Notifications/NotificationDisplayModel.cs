@@ -30,6 +30,7 @@ public sealed record NotificationDisplayModel
     public string IconCssClass { get; init; } = "bi bi-bell";
     public string Priority { get; init; } = "Normal";
     public bool IsActionRequired { get; init; }
+    public string? GroupKey { get; init; }
     public bool IsRead => ReadUtc.HasValue;
     public bool IsSeen => SeenUtc.HasValue;
 
@@ -62,5 +63,6 @@ public sealed record NotificationDisplayModel
             IconCssClass = notification.IconCssClass,
             Priority = notification.Priority,
             IsActionRequired = notification.IsActionRequired,
+            GroupKey = notification.GroupKey,
         };
 }

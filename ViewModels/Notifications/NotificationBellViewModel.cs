@@ -25,4 +25,9 @@ public sealed record NotificationBellViewModel
     public string HubUrl { get; init; } = string.Empty;
 
     public int RecentLimit { get; init; } = 10;
+
+    /// <summary>Rows the bell loads to build groups from; it still shows RecentLimit entries.</summary>
+    public const int GroupingWindow = 50;
+
+    public int FetchLimit => GroupingWindow;
 }
