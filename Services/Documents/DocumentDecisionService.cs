@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -59,6 +60,11 @@ public sealed class DocumentDecisionService : IDocumentDecisionService
             throw new InvalidOperationException("Only submitted requests can be approved.");
         }
 
+        // The document change and the request's decision commit together. If the decision
+        // cannot be saved (for example, another reviewer decided first), the document change
+        // rolls back with it and its files are put back where they were.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+
         switch (request.RequestType)
         {
             case ProjectDocumentRequestType.Upload:
@@ -80,6 +86,7 @@ public sealed class DocumentDecisionService : IDocumentDecisionService
         request.ReviewerNote = note;
 
         await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         await Audit.Events.ProjectDocumentApproved(request.ProjectId, request.Id, decidedByUserId, request.RequestType, request.DocumentId)
             .WriteAsync(_audit);
@@ -114,18 +121,21 @@ public sealed class DocumentDecisionService : IDocumentDecisionService
             throw new InvalidOperationException("Only submitted requests can be rejected.");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.TempStorageKey))
-        {
-            await _documentService.DeleteTempAsync(request.TempStorageKey, cancellationToken);
-            request.TempStorageKey = null;
-        }
-
+        // The staged file is removed only after the rejection is saved, so a failed save (for
+        // example, another reviewer decided first) leaves the request and its file intact.
+        var stagedFile = request.TempStorageKey;
+        request.TempStorageKey = null;
         request.Status = ProjectDocumentRequestStatus.Rejected;
         request.ReviewedByUserId = decidedByUserId;
         request.ReviewedAtUtc = _clock.UtcNow;
         request.ReviewerNote = note;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(stagedFile))
+        {
+            await _documentService.DeleteTempAsync(stagedFile, CancellationToken.None);
+        }
 
         await Audit.Events.ProjectDocumentRejected(request.ProjectId, request.Id, decidedByUserId, request.RequestType, request.DocumentId)
             .WriteAsync(_audit);

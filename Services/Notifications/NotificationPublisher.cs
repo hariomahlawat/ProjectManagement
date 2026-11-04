@@ -14,7 +14,7 @@ using ProjectManagement.Models.Notifications;
 
 namespace ProjectManagement.Services.Notifications;
 
-public sealed class NotificationPublisher : INotificationPublisher, INotificationOutboxWriter
+public sealed class NotificationPublisher : INotificationOutboxWriter
 {
     private const int ModuleMaxLength = 64;
     private const int EventTypeMaxLength = 128;
@@ -43,71 +43,6 @@ public sealed class NotificationPublisher : INotificationPublisher, INotificatio
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
-    public Task PublishAsync(
-        NotificationKind kind,
-        IReadOnlyCollection<string> recipientUserIds,
-        object payload,
-        CancellationToken cancellationToken = default)
-        => PublishAsync(
-            kind,
-            recipientUserIds,
-            payload,
-            module: null,
-            eventType: null,
-            scopeType: null,
-            scopeId: null,
-            projectId: null,
-            actorUserId: null,
-            route: null,
-            title: null,
-            summary: null,
-            fingerprint: null,
-            cancellationToken);
-
-    public async Task PublishAsync(
-        NotificationKind kind,
-        IReadOnlyCollection<string> recipientUserIds,
-        object payload,
-        string? module,
-        string? eventType,
-        string? scopeType,
-        string? scopeId,
-        int? projectId,
-        string? actorUserId,
-        string? route,
-        string? title,
-        string? summary,
-        string? fingerprint,
-        CancellationToken cancellationToken = default)
-    {
-        var queued = await QueueAsync(
-            kind,
-            recipientUserIds,
-            payload,
-            module,
-            eventType,
-            scopeType,
-            scopeId,
-            projectId,
-            actorUserId,
-            route,
-            title,
-            summary,
-            fingerprint,
-            cancellationToken);
-
-        if (queued == 0)
-        {
-            return;
-        }
-
-        await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation(
-            "Queued notification {Kind} for {RecipientCount} recipients.",
-            kind,
-            queued);
     }
 
     public async Task<int> QueueAsync(

@@ -38,7 +38,9 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
     private readonly ScopeKind _kind;
     private readonly string? _savepointName;
     private readonly int _callbackCheckpoint;
+    private readonly int _rollbackCallbackCheckpoint;
     private readonly List<Exception> _postCommitErrors = new();
+    private readonly List<Exception> _rollbackCallbackErrors = new();
 
     private CompletionState _completionState;
     private bool _transactionDisposed;
@@ -49,13 +51,15 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
         TransactionState state,
         ScopeKind kind,
         string? savepointName = null,
-        int callbackCheckpoint = 0)
+        int callbackCheckpoint = 0,
+        int rollbackCallbackCheckpoint = 0)
     {
         _transaction = transaction;
         _state = state;
         _kind = kind;
         _savepointName = savepointName;
         _callbackCheckpoint = callbackCheckpoint;
+        _rollbackCallbackCheckpoint = rollbackCallbackCheckpoint;
     }
 
     public bool OwnsTransaction => _kind == ScopeKind.Owner;
@@ -77,6 +81,13 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
     /// as failed merely because a secondary post-commit action failed.
     /// </summary>
     public IReadOnlyList<Exception> PostCommitErrors => _postCommitErrors;
+
+    /// <summary>
+    /// Failures of callbacks registered with <see cref="RegisterAfterRollback"/>. A rollback is
+    /// never reported as failed because a compensation failed; the callback should log its own
+    /// errors.
+    /// </summary>
+    public IReadOnlyList<Exception> RollbackCallbackErrors => _rollbackCallbackErrors;
 
     public static Task<RelationalTransactionScope> CreateAsync(
         DatabaseFacade database,
@@ -119,6 +130,7 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
                 static _ => new TransactionState(hasManagedOwner: false));
 
             var callbackCheckpoint = state.CallbackCount;
+            var rollbackCallbackCheckpoint = state.RollbackCallbackCount;
             var savepointName = state.CreateSavepointName();
             await currentTransaction.CreateSavepointAsync(savepointName, cancellationToken);
 
@@ -127,7 +139,8 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
                 state,
                 ScopeKind.Savepoint,
                 savepointName,
-                callbackCheckpoint);
+                callbackCheckpoint,
+                rollbackCallbackCheckpoint);
         }
 
         var transaction = isolationLevel.HasValue
@@ -170,6 +183,32 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
         _state.AddCallback(callback);
     }
 
+    /// <summary>
+    /// Registers a compensating action for work outside the database, such as a file move,
+    /// that must be undone if the change does not commit. The callback runs if this scope, or
+    /// any scope that encloses it, rolls back (including disposal without a commit), and is
+    /// discarded once the root transaction commits. Callbacks run newest first, after the
+    /// database rollback, with no cancellation token. They should be idempotent and log their
+    /// own errors.
+    /// </summary>
+    /// <remarks>
+    /// Inside an outer transaction that was not created by <see cref="RelationalTransactionScope"/>,
+    /// the callback still runs if this scope rolls back, but not if only the outer transaction does.
+    /// </remarks>
+    public void RegisterAfterRollback(Func<CancellationToken, Task> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        ThrowIfDisposed();
+
+        if (_completionState != CompletionState.Active)
+        {
+            throw new InvalidOperationException(
+                "Rollback callbacks must be registered before the transaction scope is completed.");
+        }
+
+        _state.AddRollbackCallback(callback);
+    }
+
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -183,6 +222,7 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
         {
             case ScopeKind.NoTransaction:
                 _completionState = CompletionState.Committed;
+                _state.TruncateRollbackCallbacks(0);
                 await ExecutePostCommitCallbacksAsync(cancellationToken);
                 return;
 
@@ -194,6 +234,7 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
             case ScopeKind.Owner:
                 await _transaction!.CommitAsync(cancellationToken);
                 _completionState = CompletionState.Committed;
+                _state.TruncateRollbackCallbacks(0);
                 TransactionStates.Remove(_transaction);
                 await DisposeOwnedTransactionAsync();
                 await ExecutePostCommitCallbacksAsync(cancellationToken);
@@ -218,19 +259,31 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
             case ScopeKind.NoTransaction:
                 _state.TruncateCallbacks(0);
                 _completionState = CompletionState.RolledBack;
+                await ExecuteRollbackCallbacksAsync(0);
                 return;
 
             case ScopeKind.Savepoint:
                 await RollbackSavepointAsync(cancellationToken);
                 _state.TruncateCallbacks(_callbackCheckpoint);
                 _completionState = CompletionState.RolledBack;
+                await ExecuteRollbackCallbacksAsync(_rollbackCallbackCheckpoint);
                 return;
 
             case ScopeKind.Owner:
-                await _transaction!.RollbackAsync(cancellationToken);
-                _state.TruncateCallbacks(0);
-                _completionState = CompletionState.RolledBack;
-                TransactionStates.Remove(_transaction);
+                try
+                {
+                    await _transaction!.RollbackAsync(cancellationToken);
+                }
+                finally
+                {
+                    // Compensations run even if the rollback call itself fails: the database
+                    // discards an uncommitted transaction either way.
+                    _state.TruncateCallbacks(0);
+                    _completionState = CompletionState.RolledBack;
+                    TransactionStates.Remove(_transaction!);
+                    await ExecuteRollbackCallbacksAsync(0);
+                }
+
                 await DisposeOwnedTransactionAsync();
                 return;
 
@@ -304,6 +357,22 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
         }
     }
 
+    private async Task ExecuteRollbackCallbacksAsync(int checkpoint)
+    {
+        var callbacks = _state.DrainRollbackCallbacks(checkpoint);
+        for (var index = callbacks.Count - 1; index >= 0; index--)
+        {
+            try
+            {
+                await callbacks[index](CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                _rollbackCallbackErrors.Add(exception);
+            }
+        }
+    }
+
     private void ThrowIfDisposed()
     {
         if (_disposed)
@@ -316,6 +385,7 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
     {
         private readonly object _gate = new();
         private readonly List<Func<CancellationToken, Task>> _callbacks = new();
+        private readonly List<Func<CancellationToken, Task>> _rollbackCallbacks = new();
         private long _savepointSequence;
 
         public TransactionState(bool hasManagedOwner)
@@ -333,6 +403,54 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
                 {
                     return _callbacks.Count;
                 }
+            }
+        }
+
+        public int RollbackCallbackCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _rollbackCallbacks.Count;
+                }
+            }
+        }
+
+        public void AddRollbackCallback(Func<CancellationToken, Task> callback)
+        {
+            lock (_gate)
+            {
+                _rollbackCallbacks.Add(callback);
+            }
+        }
+
+        public void TruncateRollbackCallbacks(int count)
+        {
+            lock (_gate)
+            {
+                var safeCount = Math.Clamp(count, 0, _rollbackCallbacks.Count);
+                if (safeCount < _rollbackCallbacks.Count)
+                {
+                    _rollbackCallbacks.RemoveRange(safeCount, _rollbackCallbacks.Count - safeCount);
+                }
+            }
+        }
+
+        /// <summary>Removes and returns the rollback callbacks registered after <paramref name="checkpoint"/>, oldest first.</summary>
+        public IReadOnlyList<Func<CancellationToken, Task>> DrainRollbackCallbacks(int checkpoint)
+        {
+            lock (_gate)
+            {
+                var start = Math.Clamp(checkpoint, 0, _rollbackCallbacks.Count);
+                if (start == _rollbackCallbacks.Count)
+                {
+                    return Array.Empty<Func<CancellationToken, Task>>();
+                }
+
+                var callbacks = _rollbackCallbacks.GetRange(start, _rollbackCallbacks.Count - start);
+                _rollbackCallbacks.RemoveRange(start, _rollbackCallbacks.Count - start);
+                return callbacks;
             }
         }
 

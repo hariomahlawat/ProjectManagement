@@ -14,7 +14,7 @@ namespace ProjectManagement.Tests;
 public sealed class NotificationPublisherTests
 {
     [Fact]
-    public async Task PublishAsync_WithMetadata_PersistsDispatchWithEnvelope()
+    public async Task QueueAsync_WithMetadata_PersistsDispatchWithEnvelope()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
@@ -26,7 +26,7 @@ public sealed class NotificationPublisherTests
 
         var payload = new { Foo = "bar" };
 
-        await publisher.PublishAsync(
+        await publisher.QueueAsync(
             NotificationKind.RemarkCreated,
             new[] { "user-1" },
             payload,
@@ -40,6 +40,7 @@ public sealed class NotificationPublisherTests
             title: " Remark created ",
             summary: " A remark was created. ",
             fingerprint: " remark-123 ");
+        await context.SaveChangesAsync();
 
         var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
 
@@ -114,7 +115,7 @@ public sealed class NotificationPublisherTests
     }
 
     [Fact]
-    public async Task PublishAsync_NormalizesProjectRouteSegments()
+    public async Task QueueAsync_NormalizesProjectRouteSegments()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
@@ -124,7 +125,7 @@ public sealed class NotificationPublisherTests
         var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 9, 15, 0, TimeSpan.Zero));
         var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
 
-        await publisher.PublishAsync(
+        await publisher.QueueAsync(
             NotificationKind.StageAssigned,
             new[] { "user-1" },
             new { },
@@ -138,6 +139,7 @@ public sealed class NotificationPublisherTests
             title: "Stage assigned",
             summary: "A stage was assigned.",
             fingerprint: "stage-54");
+        await context.SaveChangesAsync();
 
         var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
         Assert.Equal("/projects/2/kanbans/54", dispatch.Route);
@@ -147,7 +149,7 @@ public sealed class NotificationPublisherTests
     [InlineData("/projects/42/overview", "/projects/overview/42")]
     [InlineData("/projects/42/overview#timeline", "/projects/overview/42#timeline")]
     [InlineData("/projects/42/overview?timeline-stage=IPA#timeline", "/projects/overview/42?timeline-stage=IPA#timeline")]
-    public async Task PublishAsync_ReordersProjectOverviewRoutes(string inputRoute, string expectedRoute)
+    public async Task QueueAsync_ReordersProjectOverviewRoutes(string inputRoute, string expectedRoute)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
@@ -157,7 +159,7 @@ public sealed class NotificationPublisherTests
         var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 9, 20, 0, TimeSpan.Zero));
         var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
 
-        await publisher.PublishAsync(
+        await publisher.QueueAsync(
             NotificationKind.StageStatusChanged,
             new[] { "user-2" },
             new { },
@@ -171,13 +173,14 @@ public sealed class NotificationPublisherTests
             title: "Stage status changed",
             summary: "A stage status changed.",
             fingerprint: "stage-101");
+        await context.SaveChangesAsync();
 
         var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
         Assert.Equal(expectedRoute, dispatch.Route);
     }
 
     [Fact]
-    public async Task PublishAsync_WithLargeMetadata_PersistsLongPayload()
+    public async Task QueueAsync_WithLargeMetadata_PersistsLongPayload()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
@@ -190,7 +193,7 @@ public sealed class NotificationPublisherTests
         var longRoute = "/" + new string('r', 2047);
         var longSummary = new string('s', 2000);
 
-        await publisher.PublishAsync(
+        await publisher.QueueAsync(
             NotificationKind.RemarkCreated,
             new[] { "user-1" },
             new { info = "payload" },
@@ -204,6 +207,7 @@ public sealed class NotificationPublisherTests
             title: "Remark created",
             summary: longSummary,
             fingerprint: "remark-123");
+        await context.SaveChangesAsync();
 
         var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
 
@@ -220,7 +224,7 @@ public sealed class NotificationPublisherTests
 
 
     [Fact]
-    public async Task PublishAsync_TruncatesOversizedDisplayTextAndHashesLongFingerprint()
+    public async Task QueueAsync_TruncatesOversizedDisplayTextAndHashesLongFingerprint()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
@@ -230,7 +234,7 @@ public sealed class NotificationPublisherTests
         var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 9, 45, 0, TimeSpan.Zero));
         var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
 
-        await publisher.PublishAsync(
+        await publisher.QueueAsync(
             NotificationKind.DocumentPublished,
             new[] { "user-1" },
             new { },
@@ -244,6 +248,7 @@ public sealed class NotificationPublisherTests
             title: new string('t', 260),
             summary: new string('s', 2100),
             fingerprint: new string('f', 300));
+        await context.SaveChangesAsync();
 
         var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
         Assert.Equal(200, dispatch.Title!.Length);
@@ -256,7 +261,7 @@ public sealed class NotificationPublisherTests
     }
 
     [Fact]
-    public async Task PublishAsync_LegacyOverload_DelegatesToEnrichedVersion()
+    public async Task QueueAsync_WithoutMetadata_LeavesTheEnvelopeFieldsEmpty()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
@@ -268,10 +273,21 @@ public sealed class NotificationPublisherTests
 
         var payload = new { Foo = "legacy" };
 
-        await publisher.PublishAsync(
+        await publisher.QueueAsync(
             NotificationKind.RemarkCreated,
             new[] { "legacy-user" },
-            payload);
+            payload,
+            module: null,
+            eventType: null,
+            scopeType: null,
+            scopeId: null,
+            projectId: null,
+            actorUserId: null,
+            route: null,
+            title: null,
+            summary: null,
+            fingerprint: null);
+        await context.SaveChangesAsync();
 
         var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
 
@@ -296,7 +312,7 @@ public sealed class NotificationPublisherTests
     }
 
     [Fact]
-    public async Task PublishAsync_WithNonPositiveProjectId_Throws()
+    public async Task QueueAsync_WithNonPositiveProjectId_Throws()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
@@ -306,7 +322,7 @@ public sealed class NotificationPublisherTests
         var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 11, 0, 0, TimeSpan.Zero));
         var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => publisher.PublishAsync(
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => publisher.QueueAsync(
             NotificationKind.RemarkCreated,
             new[] { "user" },
             new { Foo = "invalid" },

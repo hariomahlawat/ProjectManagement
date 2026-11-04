@@ -363,7 +363,7 @@ public class RemarkNotificationServiceTests
         string? Summary,
         string? Fingerprint);
 
-    private sealed class TestNotificationPublisher : INotificationPublisher, INotificationOutboxWriter
+    private sealed class TestNotificationPublisher : INotificationOutboxWriter
     {
         public async Task<int> QueueAsync(
             NotificationKind kind,
