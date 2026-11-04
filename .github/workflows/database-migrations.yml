@@ -100,6 +100,16 @@ jobs:
           --no-build
           --filter FullyQualifiedName~NotificationQueryCostPostgresIntegrationTests
 
+      - name: Run transactional notification outbox PostgreSQL test
+        # Notifications commit with the change, roll back with it, and a failed notification
+        # statement never aborts the business transaction. Creates, migrates and drops its own
+        # prism_test_outbox_* database on this server.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~TransactionalNotificationQueuePostgresIntegrationTests
+
       - name: Run Document Repository PostgreSQL tests
         # OCR queue claims, delete-approval decisions and search snippets. Creates, migrates and
         # drops its own prism_test_docrepo_* databases on this server.

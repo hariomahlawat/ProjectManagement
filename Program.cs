@@ -838,6 +838,7 @@ builder.Services.AddScoped<INotificationPublisher>(serviceProvider =>
 builder.Services.AddScoped<INotificationOutboxWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<NotificationPublisher>());
 builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
+builder.Services.AddScoped<TransactionalNotificationQueue>();
 builder.Services.AddHostedService<NotificationDispatcher>();
 builder.Services.AddOptions<NotificationRetentionOptions>()
     .Bind(builder.Configuration.GetSection("Notifications:Retention"));

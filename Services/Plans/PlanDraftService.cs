@@ -14,6 +14,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using ProjectManagement.Services.Notifications;
+
 namespace ProjectManagement.Services.Plans;
 
 public class PlanDraftService
@@ -25,6 +27,7 @@ public class PlanDraftService
     private readonly IUserContext _userContext;
     private readonly IOfficeCalendarService? _officeCalendar;
     private readonly IPlanNotificationService? _notifications;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public PlanDraftService(
         ApplicationDbContext db,
@@ -44,7 +47,8 @@ public class PlanDraftService
         IAuditService audit,
         IUserContext userContext,
         IOfficeCalendarService? officeCalendar,
-        IPlanNotificationService? notifications)
+        IPlanNotificationService? notifications,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _db = db;
         _clock = clock;
@@ -53,6 +57,7 @@ public class PlanDraftService
         _userContext = userContext;
         _officeCalendar = officeCalendar;
         _notifications = notifications;
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
     }
 
     public async Task<PlanVersion> CreateOrGetDraftAsync(int projectId, CancellationToken cancellationToken = default)
@@ -118,8 +123,14 @@ public class PlanDraftService
                 .OrderByDescending(p => p.VersionNo)
                 .FirstOrDefaultAsync(cancellationToken);
             if (previous?.Project is not null)
-                transaction.RegisterAfterCommit(ct =>
-                    _notifications.NotifyPlanSupersededAsync(previous, previous.Project, actorId, ct));
+            {
+                // Written inside the transaction: commits only with the page's outer transaction.
+                var project = previous.Project;
+                await _notificationQueue.QueueAfterSaveAsync(
+                    "plan superseded",
+                    ct => _notifications.NotifyPlanSupersededAsync(previous, project, actorId, ct),
+                    cancellationToken);
+            }
         }
         await transaction.CommitAsync(cancellationToken);
         return superseded;

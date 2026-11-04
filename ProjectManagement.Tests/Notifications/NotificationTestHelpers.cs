@@ -8,8 +8,31 @@ using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Tests;
 
-internal sealed class RecordingNotificationPublisher : INotificationPublisher
+// Records both post-commit publishing and transactional queueing, so producer tests work
+// whichever path a producer uses.
+internal sealed class RecordingNotificationPublisher : INotificationPublisher, INotificationOutboxWriter
 {
+    public async Task<int> QueueAsync(
+        NotificationKind kind,
+        IReadOnlyCollection<string> recipientUserIds,
+        object payload,
+        string? module,
+        string? eventType,
+        string? scopeType,
+        string? scopeId,
+        int? projectId,
+        string? actorUserId,
+        string? route,
+        string? title,
+        string? summary,
+        string? fingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        await PublishAsync(kind, recipientUserIds, payload, module, eventType, scopeType, scopeId,
+            projectId, actorUserId, route, title, summary, fingerprint, cancellationToken);
+        return recipientUserIds.Count;
+    }
+
     public List<NotificationCall> Events { get; } = new();
 
     public Task PublishAsync(

@@ -18,6 +18,7 @@ using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Tests.Fakes;
+using ProjectManagement.Models.Notifications;
 using Xunit;
 
 namespace ProjectManagement.Tests.Stages;
@@ -38,7 +39,7 @@ public sealed class StageDecisionTransactionTests
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    public async Task Approve_PublishesDecisionStageAndHistoryTogether_ThenNotifiesAfterCommit(bool isAdmin, bool isHoD)
+    public async Task Approve_CommitsDecisionStageHistoryAndNotificationTogether_ThenAuditsAfterCommit(bool isAdmin, bool isHoD)
     {
         await using var fixture = await Fixture.CreateAsync(
             Stage(StageCodes.FS, 1, StageStatus.Completed, Jan(1), Jan(10)),
@@ -63,8 +64,11 @@ public sealed class StageDecisionTransactionTests
         Assert.Equal(new[] { "Approved", "Applied" }, await LogActionsAsync(verify));
 
         Assert.Equal(1, sideEffects.Notifications);
+        // The notification outbox row commits with the decision; the audit entry follows the commit.
+        Assert.Equal(1, await verify.NotificationDispatches.CountAsync());
+        Assert.True(sideEffects.NotificationRanInsideTransaction);
         Assert.Contains(sideEffects.Audit.Entries, entry => entry.Action == "Stages.StageStatusChanged");
-        Assert.True(sideEffects.AllRanOutsideTransaction);
+        Assert.True(sideEffects.AuditRanOutsideTransaction);
     }
 
     [Fact]
@@ -212,7 +216,11 @@ public sealed class StageDecisionTransactionTests
             .DecideAsync(new StageDecisionInput(requestId, action, null), "hod", false, true));
 
         await AssertNothingPublishedAsync(fixture, "Pending");
-        Assert.Equal(0, sideEffects.Notifications);
+        // A notification queued inside the failed transaction is rolled back with it.
+        await using (var verify = fixture.NewContext())
+        {
+            Assert.Equal(0, await verify.NotificationDispatches.CountAsync());
+        }
         Assert.Empty(sideEffects.Audit.Entries);
     }
 
@@ -242,7 +250,7 @@ public sealed class StageDecisionTransactionTests
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public async Task PostCommitSideEffectFailure_DoesNotUndoOrFailTheCommittedDecision(bool failNotification, bool failAudit)
+    public async Task SideEffectFailure_DoesNotUndoOrFailTheCommittedDecision(bool failNotification, bool failAudit)
     {
         await using var fixture = await Fixture.CreateAsync(
             Stage(StageCodes.FS, 1, StageStatus.Completed, Jan(1), Jan(10)),
@@ -259,13 +267,15 @@ public sealed class StageDecisionTransactionTests
         Assert.Equal("Approved", (await verify.StageChangeRequests.SingleAsync()).DecisionStatus);
         Assert.Equal(StageStatus.InProgress, (await verify.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA)).Status);
         Assert.Equal(new[] { "Approved", "Applied" }, await LogActionsAsync(verify));
-        // The other side effect still runs: one failure does not cancel the rest.
+        // The other side effect still runs: one failure does not cancel the rest. A failed
+        // notification is contained by its savepoint: the decision commits without it.
         Assert.Equal(1, sideEffects.NotificationAttempts);
         Assert.Equal(1, sideEffects.AuditAttempts);
+        Assert.Equal(failNotification ? 0 : 1, await verify.NotificationDispatches.CountAsync());
     }
 
     [Fact]
-    public async Task ApprovedCompletion_PublishesCompletionAndHistory_ThenAuditsAfterCommit()
+    public async Task ApprovedCompletion_CommitsCompletionHistoryAndNotification_ThenAuditsAfterCommit()
     {
         await using var fixture = await Fixture.CreateAsync(
             Stage(StageCodes.FS, 1, StageStatus.InProgress, Jan(1)));
@@ -284,7 +294,9 @@ public sealed class StageDecisionTransactionTests
         Assert.Equal(Jan(10), fs.CompletedOn);
         Assert.Equal(new[] { "Approved", "Applied" }, await LogActionsAsync(verify));
         Assert.Equal(1, sideEffects.Notifications);
-        Assert.True(sideEffects.AllRanOutsideTransaction);
+        Assert.Equal(1, await verify.NotificationDispatches.CountAsync());
+        Assert.True(sideEffects.NotificationRanInsideTransaction);
+        Assert.True(sideEffects.AuditRanOutsideTransaction);
     }
 
     // SECTION: Helpers
@@ -398,7 +410,11 @@ public sealed class StageDecisionTransactionTests
         public async ValueTask DisposeAsync() => await _connection.DisposeAsync();
     }
 
-    /// <summary>Records secondary side effects and whether a transaction was still open when they ran.</summary>
+    /// <summary>
+    /// Records secondary side effects and whether a transaction was open when they ran. Like the
+    /// real producer, the notifier queues an outbox row into the caller's context; the tests
+    /// assert on rows that survive, not on calls.
+    /// </summary>
     private sealed class SideEffects(ApplicationDbContext db, bool failNotification = false, bool failAudit = false)
         : IStageNotificationService, IAuditService
     {
@@ -406,20 +422,29 @@ public sealed class StageDecisionTransactionTests
         public int Notifications { get; private set; }
         public int NotificationAttempts { get; private set; }
         public int AuditAttempts { get; private set; }
-        public bool AllRanOutsideTransaction { get; private set; } = true;
+        public bool NotificationRanInsideTransaction { get; private set; } = true;
+        public bool AuditRanOutsideTransaction { get; private set; } = true;
 
         public Task NotifyStageStatusChangedAsync(
             ProjectStage stage, Project project, StageStatus previousStatus, string actorUserId,
             CancellationToken cancellationToken = default)
         {
             NotificationAttempts++;
-            AllRanOutsideTransaction &= db.Database.CurrentTransaction is null;
+            NotificationRanInsideTransaction &= db.Database.CurrentTransaction is not null;
             if (failNotification)
             {
                 throw new InvalidOperationException("Injected notification failure.");
             }
 
             Notifications++;
+            db.NotificationDispatches.Add(new NotificationDispatch
+            {
+                RecipientUserId = "po",
+                Kind = NotificationKind.StageStatusChanged,
+                PayloadJson = "{}",
+                ProjectId = project.Id,
+                CreatedUtc = DateTime.UtcNow,
+            });
             return Task.CompletedTask;
         }
 
@@ -428,7 +453,7 @@ public sealed class StageDecisionTransactionTests
             string? userName = null, IDictionary<string, string?>? data = null, HttpContext? http = null)
         {
             AuditAttempts++;
-            AllRanOutsideTransaction &= db.Database.CurrentTransaction is null;
+            AuditRanOutsideTransaction &= db.Database.CurrentTransaction is null;
             if (failAudit)
             {
                 throw new InvalidOperationException("Injected audit failure.");

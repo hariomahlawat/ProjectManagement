@@ -17,6 +17,8 @@ using ProjectManagement.Services.Stages;
 
 using ProjectManagement.Services.Scheduling;
 
+using ProjectManagement.Services.Notifications;
+
 namespace ProjectManagement.Services;
 
 public class StageProgressService
@@ -27,6 +29,7 @@ public class StageProgressService
     private readonly IStageNotificationService _stageNotifications;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public StageProgressService(
         ApplicationDbContext db,
@@ -38,7 +41,8 @@ public class StageProgressService
         IStageNotificationService stageNotifications,
         IProjectStageWorkflowPolicy workflowPolicy,
         IOfficeCalendarService? officeCalendar = null,
-        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -46,6 +50,7 @@ public class StageProgressService
         _stageNotifications = stageNotifications ?? throw new ArgumentNullException(nameof(stageNotifications));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
     }
 
     public Task UpdateStageStatusAsync(
@@ -166,8 +171,9 @@ public class StageProgressService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        // Secondary audit and notification run only after the root transaction
-        // (for a decision, the decision's own) commits; a rollback discards them.
+        // The audit entry runs only after the root transaction (for a decision, the decision's
+        // own) commits; a rollback discards it. The notification is written inside the
+        // transaction, so it commits exactly when the change does, and its failure is contained.
         var auditData = new Dictionary<string, string?>
         {
             ["ProjectId"] = projectId.ToString(),
@@ -179,8 +185,10 @@ public class StageProgressService
         if (stage.Project is not null)
         {
             var project = stage.Project;
-            transaction.RegisterAfterCommit(ct =>
-                _stageNotifications.NotifyStageStatusChangedAsync(stage, project, previousStatus, userId, ct));
+            await _notificationQueue.QueueAfterSaveAsync(
+                "stage status change",
+                ct => _stageNotifications.NotifyStageStatusChangedAsync(stage, project, previousStatus, userId, ct),
+                cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -265,15 +273,17 @@ public class StageProgressService
             stage.Project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == projectId, ct);
         }
 
-        // Secondary audit and notification run only after the root transaction
-        // commits; a rollback discards them.
+        // The audit entry runs only after the root transaction commits; a rollback discards it.
+        // The notification is written inside the transaction (see UpdateStageStatusAsync).
         transaction.RegisterAfterCommit(_ => _audit.LogAsync("Stages.StageStatusChanged", userId: userId, data: data));
 
         if (stage.Project is not null)
         {
             var project = stage.Project;
-            transaction.RegisterAfterCommit(callbackCt =>
-                _stageNotifications.NotifyStageStatusChangedAsync(stage, project, previousStatus, userId, callbackCt));
+            await _notificationQueue.QueueAfterSaveAsync(
+                "stage completion",
+                queueCt => _stageNotifications.NotifyStageStatusChangedAsync(stage, project, previousStatus, userId, queueCt),
+                ct);
         }
 
         foreach (var auto in autoCompleted)
