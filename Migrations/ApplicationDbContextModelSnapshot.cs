@@ -3929,6 +3929,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int?>("PrimaryContactId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Remarks")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
@@ -3956,6 +3959,8 @@ namespace ProjectManagement.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_IndustryPartners_NormalizedName_NormalizedLocation")
                         .HasFilter("\"NormalizedLocation\" IS NOT NULL");
+
+                    b.HasIndex("PrimaryContactId");
 
                     b.ToTable("IndustryPartners", (string)null);
                 });
@@ -9311,6 +9316,14 @@ namespace ProjectManagement.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.IndustryPartners.IndustryPartner", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.IndustryPartners.IndustryPartnerContact", null)
+                        .WithMany()
+                        .HasForeignKey("PrimaryContactId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.IndustryPartners.IndustryPartnerAttachment", b =>

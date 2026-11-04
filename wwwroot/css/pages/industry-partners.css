@@ -1454,7 +1454,7 @@ button.ip-primary-contact-card {
   }
 
   /* The cards sit straight on the page; the list's own frame steps back. */
-  .ip-directory-card {
+  .ip-directory:not(.ip-organisation-page) .ip-directory-card {
     overflow: visible;
     border: 0;
     background: transparent;
@@ -2220,5 +2220,288 @@ button.ip-primary-contact-card {
 @media (prefers-reduced-motion: reduce) {
   .ip-copy {
     transition: none;
+  }
+}
+
+/* ============================================================
+   Organisation page (/IndustryPartners/{id}) — Industry Directory redesign, PR 2
+   Built from the page tokens only; dark mode follows the token overrides.
+   ============================================================ */
+.ip-organisation-page {
+  max-width: 1360px;
+  margin: 0 auto;
+}
+
+.ip-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--ip-muted);
+  font-size: 0.8rem;
+}
+
+.ip-crumbs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ip-primary);
+  text-decoration: none;
+  font-weight: 650;
+}
+
+.ip-crumbs [aria-current] {
+  overflow: hidden;
+  max-width: 60ch;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ip-org-hero,
+.ip-org-section {
+  overflow: visible;
+  width: 100%;
+  max-width: none;
+  /* Auto side margins would make a grid item shrink to its content. */
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.ip-org-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 22px;
+}
+
+.ip-org-avatar-lg {
+  width: 60px;
+  height: 60px;
+  border-radius: 15px;
+  font-size: 1.25rem;
+}
+
+.ip-org-hero-text {
+  flex: 1 1 auto;
+}
+
+.ip-org-hero h1 {
+  margin: 0 0 6px;
+  font-size: 1.55rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.ip-org-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  color: var(--ip-muted);
+  font-size: 0.82rem;
+}
+
+.ip-org-hero-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ip-org-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.ip-org-main,
+.ip-org-side {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.ip-organisation-page > .ip-org-section {
+  margin-top: 18px;
+}
+
+.ip-org-section {
+  padding: 18px 20px;
+}
+
+.ip-org-section .ip-section-heading {
+  margin-bottom: 10px;
+}
+
+.ip-org-notes {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.ip-org-muted {
+  margin: 0;
+  color: var(--ip-muted);
+}
+
+.ip-org-record {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px 12px;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.ip-org-record dt {
+  color: var(--ip-muted);
+  font-weight: 600;
+}
+
+.ip-org-record dd {
+  margin: 0;
+}
+
+/* On the full page there is room to show names in full rather than cutting them off. */
+.ip-organisation-page .ip-contact-title-row {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.ip-organisation-page .ip-contact-title-row h4 {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ip-primary-badge {
+  white-space: nowrap;
+}
+
+.ip-organisation-page .ip-contact-links {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ip-organisation-page .ip-contact-links .ip-copy-line {
+  min-width: 0;
+}
+
+.ip-organisation-page .ip-section-heading .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* People on the organisation page sit in two columns when there is room. */
+.ip-organisation-page .ip-contact-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.ip-contact-card:hover .ip-copy,
+.ip-contact-card:focus-within .ip-copy {
+  opacity: 1;
+}
+
+.ip-contact-links .ip-copy-line .ip-contact-value {
+  display: block;
+  min-width: 0;
+  color: var(--ip-text);
+  font-size: 0.82rem;
+}
+
+.ip-contact-icon {
+  flex: 0 0 auto;
+  color: var(--ip-muted);
+  font-size: 0.8rem;
+}
+
+.ip-section-heading-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ip-primary);
+  white-space: nowrap;
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.ip-section-heading-action:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 980px) {
+  .ip-org-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .ip-org-hero {
+    flex-wrap: wrap;
+    padding: 16px;
+  }
+
+  .ip-org-hero-text {
+    flex-basis: calc(100% - 80px);
+  }
+
+  .ip-org-hero h1 {
+    font-size: 1.25rem;
+  }
+
+  .ip-org-hero-actions {
+    width: 100%;
+  }
+
+  .ip-org-hero-actions .btn {
+    min-height: 44px;
+  }
+
+  .ip-org-section {
+    padding: 16px;
+  }
+
+  .ip-organisation-page .ip-contact-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ip-organisation-page .ip-copy {
+    width: 40px;
+    height: 40px;
+    opacity: 1;
+  }
+}
+
+@media print {
+  .ip-organisation-page [data-print-hide],
+  .ip-organisation-page .dropdown,
+  .ip-organisation-page .ip-copy,
+  .ip-organisation-page form,
+  .ip-organisation-page .ip-inline-create,
+  .ip-organisation-page .ip-crumbs,
+  .ip-organisation-page .ip-section-heading-action,
+  .ip-organisation-page .ip-alert {
+    display: none !important;
+  }
+
+  .ip-organisation-page {
+    max-width: none;
+    padding: 0;
+    background: #fff;
+  }
+
+  .ip-org-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ip-directory-card {
+    border-color: #ccc;
+    box-shadow: none;
+    break-inside: avoid;
   }
 }

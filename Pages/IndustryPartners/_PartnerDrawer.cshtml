@@ -47,6 +47,9 @@
     </div>
 
     <div class="ip-drawer-actions">
+        <a href="@Model.BuildOrganisationPageUrl(partner.Id)" class="btn btn-sm btn-outline-primary" title="Open the full organisation page">
+            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open page
+        </a>
         @if (Model.CanEditOrganisation && !Model.Edit)
         {
             <a href="@Model.BuildDirectoryUrl(partner.Id, "overview", edit: true)" class="btn btn-sm btn-outline-secondary">

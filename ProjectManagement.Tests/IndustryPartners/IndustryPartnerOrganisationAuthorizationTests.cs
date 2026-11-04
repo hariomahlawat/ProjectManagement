@@ -210,6 +210,8 @@ public sealed class IndustryPartnerOrganisationAuthorizationTests
         public Task<int> CreateAsync(CreateIndustryPartnerRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<int> AddContactAsync(int partnerId, ContactRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task UpdateContactAsync(int partnerId, int contactId, ContactRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetPrimaryContactAsync(int partnerId, int contactId, ClaimsPrincipal user, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task DeleteContactAsync(int partnerId, int contactId, ClaimsPrincipal user, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task LinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task UnlinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default) => throw new NotSupportedException();

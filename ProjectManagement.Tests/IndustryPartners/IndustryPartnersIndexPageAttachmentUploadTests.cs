@@ -156,6 +156,9 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
         public Task UpdateContactAsync(int partnerId, int contactId, ContactRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
+        public Task SetPrimaryContactAsync(int partnerId, int contactId, ClaimsPrincipal user, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+
         public Task DeleteContactAsync(int partnerId, int contactId, ClaimsPrincipal user, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 

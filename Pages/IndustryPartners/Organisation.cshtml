@@ -1,0 +1,181 @@
+@page "/IndustryPartners/{id:int}"
+@model ProjectManagement.Pages.IndustryPartners.OrganisationModel
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.Pages.IndustryPartners
+@{
+    var partner = Model.SelectedPartner;
+    ViewData["Title"] = partner is null ? "Organisation not found" : partner.Name;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/industry-partners.css" asp-append-version="true" />
+}
+
+<div class="container-fluid ip-directory ip-organisation-page"
+     data-industry-partners-root
+     data-organisation-page
+     data-active-tab="@Model.ActiveTab">
+
+    <nav class="ip-crumbs" aria-label="Breadcrumb">
+        <a href="@Model.BuildListUrl()"><i class="bi bi-arrow-left" aria-hidden="true"></i> Industry Directory</a>
+        @if (partner is not null)
+        {
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">@partner.Name</span>
+        }
+    </nav>
+
+    @if (TempData["Error"] is string error)
+    {
+        <div class="alert alert-danger ip-alert" role="alert">
+            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+            <span>@error</span>
+        </div>
+    }
+    @if (TempData["Message"] is string message)
+    {
+        <div class="alert alert-success ip-alert" role="status">
+            <i class="bi bi-check-circle" aria-hidden="true"></i>
+            <span>@message</span>
+        </div>
+    }
+
+    @if (partner is null)
+    {
+        <section class="ip-directory-card ip-directory-empty">
+            <div class="ip-empty-icon"><i class="bi bi-building-x" aria-hidden="true"></i></div>
+            <h1 class="h4">Organisation not found</h1>
+            <p>It may have been deleted, or the link may be incomplete.</p>
+            <a href="@Model.BuildListUrl()" class="btn btn-outline-secondary btn-sm">Back to the directory</a>
+        </section>
+    }
+    else
+    {
+        <header class="ip-directory-card ip-org-hero">
+            <div class="ip-org-avatar ip-org-avatar-lg @IndustryPartnerAvatar.ToneClass(partner.Name)" aria-hidden="true">@IndustryPartnerAvatar.Initials(partner.Name)</div>
+            <div class="ip-org-hero-text">
+                <h1>@partner.Name</h1>
+                <div class="ip-org-hero-meta">
+                    <span><i class="bi bi-geo-alt" aria-hidden="true"></i> @(string.IsNullOrWhiteSpace(partner.Location) ? "Location not added" : partner.Location)</span>
+                    <span class="ip-status-badge ip-status-@partner.StatusKey">
+                        @partner.StatusLabel@(partner.LiveProjectCount > 0 ? $" · {partner.LiveProjectCount} {(partner.LiveProjectCount == 1 ? "project" : "projects")}" : null)
+                    </span>
+                    <span>Updated @IstClock.ToIst(partner.LastUpdatedUtc).ToString("dd MMM yyyy")</span>
+                </div>
+            </div>
+            <div class="ip-org-hero-actions" data-print-hide>
+                @if (Model.CanEditOrganisation && !Model.Edit)
+                {
+                    <a href="@Model.BuildDirectoryUrl(partner.Id, edit: true)" class="btn btn-outline-secondary">
+                        <i class="bi bi-pencil" aria-hidden="true"></i> Edit
+                    </a>
+                }
+                @if (Model.CanAddContact)
+                {
+                    <button type="button" class="btn btn-primary" data-toggle-panel="contact-add-panel" aria-expanded="false">
+                        <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
+                    </button>
+                }
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for @partner.Name">
+                        <i class="bi bi-three-dots" aria-hidden="true"></i> More
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        @if (Model.CanEditOrganisation)
+                        {
+                            <li>
+                                <button type="button" class="dropdown-item" data-toggle-panel="project-add-panel">
+                                    <i class="bi bi-link-45deg" aria-hidden="true"></i> Link to project
+                                </button>
+                            </li>
+                        }
+                        @if (partner.Contacts.Count > 0)
+                        {
+                            <li>
+                                <a class="dropdown-item" href="@Model.BuildContactCardUrl(partner.Id)">
+                                    <i class="bi bi-person-vcard" aria-hidden="true"></i> Download all contacts
+                                </a>
+                            </li>
+                        }
+                        <li>
+                            <button type="button" class="dropdown-item" data-print-page>
+                                <i class="bi bi-printer" aria-hidden="true"></i> Print
+                            </button>
+                        </li>
+                        @if (Model.CanDeleteOrganisation && partner.LinkedProjects.Count == 0)
+                        {
+                            <li><hr class="dropdown-divider" /></li>
+                            <li>
+                                <form method="post" asp-page-handler="DeletePartner" data-confirm-form="Permanently delete this organisation and all of its contacts and files? This cannot be undone.">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="partnerId" value="@partner.Id" />
+                                    <input type="hidden" name="q" value="@Model.Q" />
+                                    <input type="hidden" name="filter" value="@Model.Filter" />
+                                    <input type="hidden" name="sort" value="@Model.Sort" />
+                                    <input type="hidden" name="p" value="@Model.PageNumber" />
+                                    <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                                    <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete organisation</button>
+                                </form>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </header>
+
+        @if (Model.Edit && Model.CanEditOrganisation)
+        {
+            <section class="ip-directory-card ip-org-section" data-page-section="overview" aria-label="Edit organisation">
+                <partial name="_PartnerOverview" model="Model" />
+            </section>
+        }
+
+        <div class="ip-org-grid">
+            <div class="ip-org-main">
+                <section class="ip-directory-card ip-org-section" data-page-section="contacts" aria-label="People">
+                    <partial name="_Contacts" model="Model" />
+                </section>
+
+                <section class="ip-directory-card ip-org-section" aria-labelledby="org-notes-heading">
+                    <div class="ip-section-heading">
+                        <div><h3 id="org-notes-heading">Notes</h3></div>
+                    </div>
+                    @if (string.IsNullOrWhiteSpace(partner.Remarks))
+                    {
+                        <p class="ip-org-muted">No notes added.</p>
+                    }
+                    else
+                    {
+                        <p class="ip-preserve-lines ip-org-notes">@partner.Remarks</p>
+                    }
+                </section>
+            </div>
+
+            <div class="ip-org-side">
+                <section class="ip-directory-card ip-org-section" data-page-section="projects" aria-label="JDP projects">
+                    <partial name="_LinkedProjects" model="Model" />
+                </section>
+
+                <section class="ip-directory-card ip-org-section" data-page-section="files" aria-label="Files">
+                    <partial name="_Attachments" model="Model" />
+                </section>
+
+                <section class="ip-directory-card ip-org-section" aria-labelledby="org-record-heading">
+                    <div class="ip-section-heading">
+                        <div><h3 id="org-record-heading">Record</h3></div>
+                    </div>
+                    <dl class="ip-org-record">
+                        <dt>Added</dt>
+                        <dd>@IstClock.ToIst(partner.CreatedUtc).ToString("dd MMM yyyy")</dd>
+                        <dt>Last updated</dt>
+                        <dd>@IstClock.ToIst(partner.LastUpdatedUtc).ToString("dd MMM yyyy, HH:mm")</dd>
+                    </dl>
+                </section>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/industry-partners.js" asp-append-version="true"></script>
+}

@@ -10,7 +10,7 @@ using ProjectManagement.Services.IndustryPartners;
 namespace ProjectManagement.Pages.IndustryPartners;
 
 [Authorize(Policy = Policies.IndustryPartners.View)]
-public sealed class IndexModel : PageModel
+public class IndexModel : PageModel
 {
     private const int PageSize = 25;
     private const string CreateDraftKey = "IndustryPartners.CreateDraft";
@@ -93,7 +93,13 @@ public sealed class IndexModel : PageModel
 
     public string ActiveTab => NormalizeTab(Tab, ProjectContext is not null);
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    // The organisation page (OrganisationModel) shows one organisation, not the list.
+    protected virtual bool LoadsDirectoryList => true;
+
+    // Where links and redirects for one organisation go: the drawer here, the page there.
+    protected virtual string OrganisationViewPage => "./Index";
+
+    public virtual async Task OnGetAsync(CancellationToken cancellationToken)
     {
         CanCreateOrganisation = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Create)).Succeeded;
         CanDeleteOrganisation = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Delete)).Succeeded;
@@ -108,11 +114,14 @@ public sealed class IndexModel : PageModel
         EditDraft = ReadDraft(EditDraftKey);
         PageNumber = Math.Max(1, PageNumber);
 
-        SearchResult = await _service.SearchAsync(Q, SelectedFilter, PageNumber, PageSize, SelectedSort, cancellationToken);
-        if (PageNumber > SearchResult.TotalPages && SearchResult.Total > 0)
+        if (LoadsDirectoryList)
         {
-            PageNumber = SearchResult.TotalPages;
             SearchResult = await _service.SearchAsync(Q, SelectedFilter, PageNumber, PageSize, SelectedSort, cancellationToken);
+            if (PageNumber > SearchResult.TotalPages && SearchResult.Total > 0)
+            {
+                PageNumber = SearchResult.TotalPages;
+                SearchResult = await _service.SearchAsync(Q, SelectedFilter, PageNumber, PageSize, SelectedSort, cancellationToken);
+            }
         }
 
         if (ContextProjectId.HasValue)
@@ -407,6 +416,57 @@ public sealed class IndexModel : PageModel
         return RedirectToDirectory(partnerId, "contacts");
     }
 
+    // Choosing the primary contact is a change to the organisation record, so it follows the
+    // organisation edit rule (its creator, or Admin / HoD / Comdt).
+    public async Task<IActionResult> OnPostMakePrimaryContactAsync(
+        [FromForm] int partnerId,
+        [FromForm] int contactId,
+        CancellationToken cancellationToken)
+    {
+        if (!await CanEditOrganisationAsync(partnerId, cancellationToken))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await _service.SetPrimaryContactAsync(partnerId, contactId, User, cancellationToken);
+            TempData["Message"] = "Primary contact updated.";
+        }
+        catch (KeyNotFoundException exception)
+        {
+            TempData["Error"] = exception.Message;
+        }
+
+        return RedirectToDirectory(partnerId, "contacts");
+    }
+
+    // One contact, or every contact of the organisation (contactId omitted), as a vCard file.
+    // Anyone who can view the directory can see these details already.
+    public async Task<IActionResult> OnGetContactCardAsync(
+        int partnerId,
+        int? contactId,
+        CancellationToken cancellationToken)
+    {
+        var partner = await _service.GetAsync(partnerId, cancellationToken);
+        if (partner is null)
+        {
+            return NotFound();
+        }
+
+        var contacts = contactId.HasValue
+            ? partner.Contacts.Where(contact => contact.Id == contactId.Value).ToList()
+            : partner.Contacts.ToList();
+        if (contacts.Count == 0)
+        {
+            return NotFound();
+        }
+
+        var card = IndustryPartnerVCard.Build(partner.Name, contacts);
+        var fileName = IndustryPartnerVCard.FileName(partner.Name, contactId.HasValue ? contacts[0].Name : null);
+        return File(System.Text.Encoding.UTF8.GetBytes(card), IndustryPartnerVCard.ContentType, fileName);
+    }
+
     public async Task<IActionResult> OnPostUploadAttachmentAsync(
         [FromForm] int partnerId,
         CancellationToken cancellationToken)
@@ -572,9 +632,31 @@ public sealed class IndexModel : PageModel
         }
     }
 
+    /// <summary>The full organisation page, keeping the list's search, filter and page for the way back.</summary>
+    public string BuildOrganisationPageUrl(int id, string? section = null) =>
+        Url.Page("./Organisation", new
+        {
+            id,
+            q = Q,
+            filter = Filter,
+            sort = SortRouteValue,
+            p = PageNumber,
+            tab = section,
+            projectId = ContextProjectId
+        }) ?? $"/IndustryPartners/{id}";
+
+    /// <summary>The directory list as the user left it.</summary>
+    public string BuildListUrl() =>
+        Url.Page("./Index", new { q = Q, filter = Filter, sort = SortRouteValue, p = PageNumber, projectId = ContextProjectId })
+        ?? "/IndustryPartners";
+
+    public string BuildContactCardUrl(int partnerId, int? contactId = null) =>
+        Url.Page("./Index", "ContactCard", new { partnerId, contactId })
+        ?? $"/IndustryPartners?handler=ContactCard&partnerId={partnerId}";
+
     public string BuildDirectoryUrl(int? id = null, string? tab = null, bool edit = false)
     {
-        return Url.Page("./Index", new
+        return Url.Page(id is null ? "./Index" : OrganisationViewPage, new
         {
             id,
             q = Q,
@@ -587,9 +669,11 @@ public sealed class IndexModel : PageModel
         }) ?? "/IndustryPartners";
     }
 
+    // With an organisation: back to where the action came from (drawer or organisation page).
+    // Without one (for example after a delete): the directory list.
     private RedirectToPageResult RedirectToDirectory(int? id, string? tab, bool edit = false)
     {
-        return RedirectToPage(new
+        return RedirectToPage(id is null ? "./Index" : OrganisationViewPage, new
         {
             id,
             q = Q,
