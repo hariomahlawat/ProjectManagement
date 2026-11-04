@@ -24,6 +24,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
     };
 
     private const int TouchSaveAttempts = 3;
+    private const int MaxExportRows = 10000;
     private const string ProjectJdpForbiddenMessage =
         "You are not authorised to change the JDPs for this project.";
     private const string DuplicateOrganisationMessage =
@@ -48,11 +49,107 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         IndustryPartnerDirectoryFilter filter,
         int page,
         int pageSize,
+        IndustryPartnerDirectorySort sort = IndustryPartnerDirectorySort.Name,
         CancellationToken cancellationToken = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 10, 100);
+        var activeStatus = ProjectLifecycleStatus.Active;
+        var partners = BuildDirectoryQuery(query, filter);
 
+        var total = await partners.CountAsync(cancellationToken);
+        var items = await ApplySort(partners, sort)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(partner => new IndustryPartnerListItem(
+                partner.Id,
+                partner.Name,
+                partner.Location,
+                partner.Contacts
+                    .OrderBy(contact => contact.Id)
+                    .Select(contact => contact.Name)
+                    .FirstOrDefault(),
+                partner.Contacts
+                    .OrderBy(contact => contact.Id)
+                    .Select(contact => contact.Phone)
+                    .FirstOrDefault(),
+                partner.Contacts
+                    .OrderBy(contact => contact.Id)
+                    .Select(contact => contact.Email)
+                    .FirstOrDefault(),
+                partner.Contacts.Count,
+                partner.Attachments.Count,
+                partner.PartnerProjects.Count(link => !link.Project.IsDeleted),
+                partner.PartnerProjects.Count(link =>
+                    !link.Project.IsDeleted &&
+                    !link.Project.IsArchived &&
+                    link.Project.LifecycleStatus == activeStatus),
+                partner.UpdatedUtc ?? partner.CreatedUtc))
+            .ToListAsync(cancellationToken);
+
+        return new IndustryPartnerSearchResult(items, total, page, pageSize);
+    }
+
+    public async Task<IReadOnlyList<IndustryPartnerExportRow>> ExportDirectoryAsync(
+        string? query,
+        IndustryPartnerDirectoryFilter filter,
+        IndustryPartnerDirectorySort sort,
+        CancellationToken cancellationToken = default)
+    {
+        var activeStatus = ProjectLifecycleStatus.Active;
+        var rows = await ApplySort(BuildDirectoryQuery(query, filter), sort)
+            .Take(MaxExportRows)
+            .Select(partner => new
+            {
+                partner.Id,
+                partner.Name,
+                partner.Location,
+                partner.Remarks,
+                ProjectCount = partner.PartnerProjects.Count(link => !link.Project.IsDeleted),
+                ActiveProjectCount = partner.PartnerProjects.Count(link =>
+                    !link.Project.IsDeleted &&
+                    !link.Project.IsArchived &&
+                    link.Project.LifecycleStatus == activeStatus),
+                LastUpdatedUtc = partner.UpdatedUtc ?? partner.CreatedUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var ids = rows.Select(row => row.Id).ToArray();
+        var contacts = await _db.IndustryPartnerContacts
+            .AsNoTracking()
+            .Where(contact => ids.Contains(contact.IndustryPartnerId))
+            .OrderBy(contact => contact.IndustryPartnerId)
+            .ThenBy(contact => contact.Id)
+            .Select(contact => new
+            {
+                contact.IndustryPartnerId,
+                Contact = new IndustryPartnerExportContact(contact.Name, contact.Phone, contact.Email)
+            })
+            .ToListAsync(cancellationToken);
+
+        var contactsByPartner = contacts
+            .GroupBy(item => item.IndustryPartnerId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<IndustryPartnerExportContact>)group.Select(item => item.Contact).ToList());
+
+        return rows
+            .Select(row => new IndustryPartnerExportRow(
+                row.Id,
+                row.Name,
+                row.Location,
+                row.Remarks,
+                row.ProjectCount,
+                row.ActiveProjectCount,
+                row.LastUpdatedUtc,
+                contactsByPartner.GetValueOrDefault(row.Id) ?? Array.Empty<IndustryPartnerExportContact>()))
+            .ToList();
+    }
+
+    // The directory search and filter, shared by the paged list and the export so both
+    // always describe the same set of organisations.
+    private IQueryable<IndustryPartner> BuildDirectoryQuery(string? query, IndustryPartnerDirectoryFilter filter)
+    {
         var normalizedQuery = Normalize(query);
         var loweredQuery = NullIfEmpty(query)?.ToLowerInvariant();
         var activeStatus = ProjectLifecycleStatus.Active;
@@ -106,40 +203,21 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             ;
         }
 
-        var total = await partners.CountAsync(cancellationToken);
-        var items = await partners
+        return partners;
+    }
+
+    private static IOrderedQueryable<IndustryPartner> ApplySort(
+        IQueryable<IndustryPartner> partners,
+        IndustryPartnerDirectorySort sort) => sort switch
+    {
+        IndustryPartnerDirectorySort.RecentlyUpdated => partners
+            .OrderByDescending(partner => partner.UpdatedUtc ?? partner.CreatedUtc)
+            .ThenBy(partner => partner.Name)
+            .ThenBy(partner => partner.Id),
+        _ => partners
             .OrderBy(partner => partner.Name)
             .ThenBy(partner => partner.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(partner => new IndustryPartnerListItem(
-                partner.Id,
-                partner.Name,
-                partner.Location,
-                partner.Contacts
-                    .OrderBy(contact => contact.Id)
-                    .Select(contact => contact.Name)
-                    .FirstOrDefault(),
-                partner.Contacts
-                    .OrderBy(contact => contact.Id)
-                    .Select(contact => contact.Phone)
-                    .FirstOrDefault(),
-                partner.Contacts
-                    .OrderBy(contact => contact.Id)
-                    .Select(contact => contact.Email)
-                    .FirstOrDefault(),
-                partner.Contacts.Count,
-                partner.Attachments.Count,
-                partner.PartnerProjects.Count(link => !link.Project.IsDeleted),
-                partner.PartnerProjects.Count(link =>
-                    !link.Project.IsDeleted &&
-                    !link.Project.IsArchived &&
-                    link.Project.LifecycleStatus == activeStatus),
-                partner.UpdatedUtc ?? partner.CreatedUtc))
-            .ToListAsync(cancellationToken);
-
-        return new IndustryPartnerSearchResult(items, total, page, pageSize);
-    }
+    };
 
     public async Task<IReadOnlyList<IndustryPartnerDuplicateSuggestion>> FindDuplicateSuggestionsAsync(
         string? name,

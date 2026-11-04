@@ -27,6 +27,25 @@ and the project rule must pass. The directory's project picker lists only projec
 link. Links to soft-deleted projects can still be removed by the same people, so an organisation
 can be cleaned up before it is deleted.
 
+## Directory list
+
+The list leads with how to reach each organisation: organisation and location, then the primary
+contact (currently the first contact added) with their phone number and email address. Each value
+has a copy button, because PRISM runs on office desktops where phone links usually cannot dial;
+phone and email links are still there for anyone using PRISM on a phone over the LAN. Copying uses
+the browser clipboard on HTTPS and falls back to the older copy command on plain HTTP.
+
+- **Show** filters by JDP status (all, contact only, all JDPs, current, past) and **Sort** orders by
+  name or most recently updated. Both are in the address, so a filtered list can be shared.
+- Below 1180px wide the email column steps aside so phone numbers are never cut off; on phones each
+  organisation is a card with large copy buttons.
+- Each organisation gets initials in one of eight colour tones derived from its name, so the same
+  organisation always looks the same.
+- **Export to Excel** downloads everything the current search, filter and sort show (all pages, up to
+  10,000 organisations): an Organisations sheet with each primary contact, a Contacts sheet with every
+  contact, and an About sheet describing the view. All values are written as text, so nothing is
+  turned into a formula, number or date. Anyone who can view the directory can export it.
+
 ## JDP status and counts
 
 `JdpStatusRules` is the single source for a linked project's status (Ongoing, Completed,

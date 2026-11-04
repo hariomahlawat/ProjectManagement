@@ -13,15 +13,24 @@
         <div>
             <div class="ip-eyebrow">Projects</div>
             <h1>Industry Directory</h1>
-            <p>Find organisations, contact details and Joint Development Partner history quickly.</p>
+            <p>Organisations and the people to contact there.</p>
         </div>
-        @if (Model.CanCreateOrganisation)
-        {
-            <button type="button" class="btn btn-primary ip-primary-action" data-bs-toggle="modal" data-bs-target="#addOrganisationModal">
-                <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                Add organisation
-            </button>
-        }
+        <div class="ip-header-actions">
+            @if (Model.SearchResult.Total > 0)
+            {
+                <a class="btn btn-outline-secondary ip-export-action" href="@Model.BuildExportUrl()">
+                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                    <span>Export to Excel</span>
+                </a>
+            }
+            @if (Model.CanCreateOrganisation)
+            {
+                <button type="button" class="btn btn-primary ip-primary-action" data-bs-toggle="modal" data-bs-target="#addOrganisationModal" aria-label="Add organisation">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    <span>Add organisation</span>
+                </button>
+            }
+        </div>
     </header>
 
     @if (Model.ProjectContext is not null)
@@ -56,19 +65,19 @@
     }
 
     <section class="ip-directory-card">
-        <div class="ip-toolbar">
-            <form method="get" class="ip-search-form" role="search" data-directory-search-form>
-                <input type="hidden" name="filter" value="@Model.Filter" />
-                @if (Model.ContextProjectId.HasValue)
-                {
-                    <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
-                }
+        <form method="get" class="ip-toolbar" role="search" data-directory-search-form>
+            @if (Model.ContextProjectId.HasValue)
+            {
+                <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+            }
+            <div class="ip-search-form">
                 <i class="bi bi-search" aria-hidden="true"></i>
                 <input type="search"
                        class="form-control"
                        name="q"
                        value="@Model.Q"
-                       placeholder="Search organisation, contact, phone, email, project or file number"
+                       placeholder="Search organisation, person, phone, email, city, notes or project"
+                       aria-label="Search the directory"
                        autocomplete="off"
                        data-directory-search />
                 @if (!string.IsNullOrWhiteSpace(Model.Q))
@@ -76,31 +85,41 @@
                     <a class="ip-search-clear"
                        asp-page="./Index"
                        asp-route-filter="@Model.Filter"
+                       asp-route-sort="@(Model.Sort == "name" ? null : Model.Sort)"
                        asp-route-projectId="@Model.ContextProjectId"
                        aria-label="Clear search">
                         <i class="bi bi-x-lg" aria-hidden="true"></i>
                     </a>
                 }
-            </form>
+            </div>
 
-            <div class="ip-result-count">
+            <label class="ip-select">
+                <span>Show</span>
+                <select name="filter" class="form-select" data-directory-autosubmit>
+                    @foreach (var option in ProjectManagement.Pages.IndustryPartners.IndexModel.FilterOptions)
+                    {
+                        <option value="@option.Key" selected="@(option.Key == Model.Filter)">@option.Label</option>
+                    }
+                </select>
+            </label>
+
+            <label class="ip-select">
+                <span>Sort</span>
+                <select name="sort" class="form-select" data-directory-autosubmit>
+                    @foreach (var option in ProjectManagement.Pages.IndustryPartners.IndexModel.SortOptions)
+                    {
+                        <option value="@option.Key" selected="@(option.Key == Model.Sort)">@option.Label</option>
+                    }
+                </select>
+            </label>
+
+            <noscript><button type="submit" class="btn btn-outline-secondary">Apply</button></noscript>
+
+            <div class="ip-result-count" aria-live="polite">
                 <strong>@Model.SearchResult.Total</strong>
                 <span>@(Model.SearchResult.Total == 1 ? "organisation" : "organisations")</span>
             </div>
-        </div>
-
-        <nav class="ip-filter-tabs" aria-label="Directory filters">
-            <a class="@(Model.Filter == "all" ? "is-active" : null)"
-               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="all" asp-route-projectId="@Model.ContextProjectId">All</a>
-            <a class="@(Model.Filter == "contact" ? "is-active" : null)"
-               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="contact" asp-route-projectId="@Model.ContextProjectId">Contact only</a>
-            <a class="@(Model.Filter == "associated" ? "is-active" : null)"
-               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="associated" asp-route-projectId="@Model.ContextProjectId">All JDPs</a>
-            <a class="@(Model.Filter == "current" ? "is-active" : null)"
-               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="current" asp-route-projectId="@Model.ContextProjectId">Current JDPs</a>
-            <a class="@(Model.Filter == "past" ? "is-active" : null)"
-               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="past" asp-route-projectId="@Model.ContextProjectId">Past JDPs</a>
-        </nav>
+        </form>
 
         <partial name="_DirectoryTable" model="Model" />
     </section>
@@ -121,6 +140,7 @@
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="q" value="@Model.Q" />
                         <input type="hidden" name="filter" value="@Model.Filter" />
+                        <input type="hidden" name="sort" value="@Model.Sort" />
                         <input type="hidden" name="p" value="@Model.PageNumber" />
                         @if (Model.CanLinkContextProject)
                         {
