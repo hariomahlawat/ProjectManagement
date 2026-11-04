@@ -20,20 +20,20 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
     private const string ScopeType = "ActionTask";
     private const int TitlePreviewLength = 80;
 
-    private readonly INotificationPublisher _publisher;
+    private readonly INotificationOutboxWriter _outbox;
     private readonly INotificationPreferenceService _preferences;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IClock _clock;
     private readonly ILogger<ActionTaskNotificationService> _logger;
 
     public ActionTaskNotificationService(
-        INotificationPublisher publisher,
+        INotificationOutboxWriter outbox,
         INotificationPreferenceService preferences,
         UserManager<ApplicationUser> userManager,
         IClock clock,
         ILogger<ActionTaskNotificationService> logger)
     {
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+        _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -378,58 +378,47 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             throw new ArgumentException("Actor user id is required.", nameof(actorUserId));
         }
 
-        try
+        var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await resolveRecipients(recipients);
+        RemoveActor(recipients, actorUserId);
+
+        if (recipients.Count == 0)
         {
-            var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            await resolveRecipients(recipients);
-            RemoveActor(recipients, actorUserId);
-
-            if (recipients.Count == 0)
-            {
-                _logger.LogInformation("No Action Tracker notification recipients for task {TaskId}.", task.Id);
-                return;
-            }
-
-            var allowed = await FilterRecipientsAsync(kind, recipients, cancellationToken);
-            if (allowed.Count == 0)
-            {
-                _logger.LogInformation("All Action Tracker notification recipients opted out for task {TaskId}.", task.Id);
-                return;
-            }
-
-            var payload = new ActionTaskNotificationPayload(
-                task.Id,
-                BuildTaskReference(task),
-                task.Title,
-                previousStatus,
-                currentStatus,
-                dueDate,
-                actorUserId);
-
-            await _publisher.PublishAsync(
-                kind,
-                allowed,
-                payload,
-                module: ModuleName,
-                eventType: eventType,
-                scopeType: ScopeType,
-                scopeId: task.Id.ToString(CultureInfo.InvariantCulture),
-                projectId: null,
-                actorUserId: actorUserId,
-                route: BuildTaskRoute(task.Id),
-                title: title,
-                summary: summary,
-                fingerprint: fingerprint,
-                cancellationToken: cancellationToken);
+            _logger.LogInformation("No Action Tracker notification recipients for task {TaskId}.", task.Id);
+            return;
         }
-        catch (OperationCanceledException)
+
+        var allowed = await FilterRecipientsAsync(kind, recipients, cancellationToken);
+        if (allowed.Count == 0)
         {
-            throw;
+            _logger.LogInformation("All Action Tracker notification recipients opted out for task {TaskId}.", task.Id);
+            return;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish Action Tracker notification {Kind} for task {TaskId}.", kind, task.Id);
-        }
+
+        var payload = new ActionTaskNotificationPayload(
+            task.Id,
+            BuildTaskReference(task),
+            task.Title,
+            previousStatus,
+            currentStatus,
+            dueDate,
+            actorUserId);
+
+        await _outbox.QueueAsync(
+            kind,
+            allowed,
+            payload,
+            module: ModuleName,
+            eventType: eventType,
+            scopeType: ScopeType,
+            scopeId: task.Id.ToString(CultureInfo.InvariantCulture),
+            projectId: null,
+            actorUserId: actorUserId,
+            route: BuildTaskRoute(task.Id),
+            title: title,
+            summary: summary,
+            fingerprint: fingerprint,
+            cancellationToken: cancellationToken);
     }
 
     private async Task<IReadOnlyCollection<string>> FilterRecipientsAsync(NotificationKind kind, IEnumerable<string> recipients, CancellationToken cancellationToken)
