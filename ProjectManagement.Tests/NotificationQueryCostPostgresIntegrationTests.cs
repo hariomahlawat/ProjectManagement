@@ -138,6 +138,62 @@ public sealed class NotificationQueryCostPostgresIntegrationTests
         }
     }
 
+    [PostgresMigrationFact]
+    public async Task ListVersionNeverIncludesARowTheListMissed()
+    {
+        var server = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("PRISM_TEST_POSTGRES_CONNECTION")!);
+        var databaseName = $"prism_test_notifrace_{Guid.NewGuid():N}"[..40];
+        var maintenance = new NpgsqlConnectionStringBuilder(server.ConnectionString) { Database = "postgres" }.ConnectionString;
+        var target = new NpgsqlConnectionStringBuilder(server.ConnectionString) { Database = databaseName }.ConnectionString;
+
+        await ExecuteAsync(maintenance, $"CREATE DATABASE \"{databaseName}\"");
+        try
+        {
+            await using (var setup = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(target).Options))
+            {
+                await setup.Database.MigrateAsync();
+                setup.Notifications.AddRange(Enumerable.Range(0, 5).Select(i => new Notification
+                {
+                    RecipientUserId = UserId,
+                    Kind = NotificationKind.DocumentPublished,
+                    Title = $"Notification {i}",
+                    CreatedUtc = Now.AddMinutes(-i),
+                    DeliveredUtc = Now.AddMinutes(-i),
+                }));
+                await setup.SaveChangesAsync();
+            }
+
+            // A notification is materialised right after the page's rows are read: the moment the
+            // list and its version could disagree.
+            var inserter = new InsertAfterPageQuery(target);
+            await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(target)
+                .AddInterceptors(inserter)
+                .Options);
+            var service = new UserNotificationService(db, FakeClock.AtUtc(new DateTimeOffset(Now)));
+
+            var page = await service.ListPageAsync(Principal, UserId, new NotificationListOptions
+            {
+                Limit = 50,
+                ActionRequiredFirst = true,
+                IncludeFilterOptions = false,
+            });
+
+            Assert.True(inserter.Fired);
+            Assert.DoesNotContain(page.Items, item => item.Title == "Arrived during load");
+
+            // The client caches page.ListVersion. A later check must disagree with it, so the bell
+            // reloads and picks the missing row up; an equal version would hide it indefinitely.
+            var later = await service.CountAsync(Principal, UserId);
+            Assert.NotEqual(page.ListVersion, later.ListVersion);
+        }
+        finally
+        {
+            NpgsqlConnection.ClearAllPools();
+            await ExecuteAsync(maintenance, $"DROP DATABASE IF EXISTS \"{databaseName}\" WITH (FORCE)");
+        }
+    }
+
     private static ClaimsPrincipal Principal => new(new ClaimsIdentity(
         new[] { new Claim(ClaimTypes.NameIdentifier, UserId) },
         "Test"));
@@ -156,6 +212,39 @@ public sealed class NotificationQueryCostPostgresIntegrationTests
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(sql, connection);
         return Convert.ToInt32(await command.ExecuteScalarAsync());
+    }
+
+    private sealed class InsertAfterPageQuery : DbCommandInterceptor
+    {
+        private readonly string _connectionString;
+
+        public InsertAfterPageQuery(string connectionString) => _connectionString = connectionString;
+
+        public bool Fired { get; private set; }
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command,
+            CommandExecutedEventData eventData,
+            DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            // The page query is the ordered, parameter-limited read of Notifications
+            // (FirstOrDefault queries use a literal "LIMIT 1").
+            var sql = command.CommandText;
+            if (!Fired
+                && sql.Contains("FROM \"Notifications\"", StringComparison.Ordinal)
+                && sql.Contains("ORDER BY", StringComparison.Ordinal)
+                && sql.Contains("LIMIT @", StringComparison.Ordinal))
+            {
+                Fired = true;
+                await ExecuteAsync(_connectionString, $"""
+                    INSERT INTO "Notifications" ("RecipientUserId", "Kind", "Title", "CreatedUtc", "DeliveredUtc")
+                    VALUES ('{UserId}', 'DocumentPublished', 'Arrived during load', now() at time zone 'utc', now() at time zone 'utc');
+                    """);
+            }
+
+            return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+        }
     }
 
     private sealed class CommandCounter : DbCommandInterceptor

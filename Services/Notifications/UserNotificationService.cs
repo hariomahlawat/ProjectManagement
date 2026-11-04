@@ -157,6 +157,23 @@ public sealed class UserNotificationService
                 .OrderByDescending(n => n.CreatedUtc)
                 .ThenByDescending(n => n.Id);
 
+        // One aggregate for the badge, the unread header, the seen-all boundary and the list
+        // version. It runs BEFORE the rows are read on purpose: the version may then lag the rows
+        // but can never include a row the page is missing. A change between the two reads makes
+        // the client's next version check disagree and reload; reading in the other order could
+        // cache a version that already counts a row the client never received. The seen-all
+        // boundary matters because a priority-ordered or filtered page can omit newer rows, so the
+        // bell must not derive it from the rows it shows.
+        var summary = await SummarizeAsync(
+            userId,
+            accessibleProjectIds,
+            mutedProjectIds,
+            cancellationToken);
+        var unreadCount = summary.UnreadCount;
+        var unseenCount = summary.UnseenCount;
+        var latestNotificationId = summary.LatestNotificationId;
+        var listVersion = summary.ListVersion;
+
         var rows = await ordered
             .Take(limit + 1)
             .ToListAsync(cancellationToken);
@@ -173,18 +190,6 @@ public sealed class UserNotificationService
             projectMap,
             mutedProjectIds,
             cancellationToken);
-        // One aggregate for the badge, the unread header and the seen-all boundary. The boundary
-        // matters because a priority-ordered or filtered page can omit newer rows, so the bell
-        // must not derive it from the rows it shows.
-        var summary = await SummarizeAsync(
-            userId,
-            accessibleProjectIds,
-            mutedProjectIds,
-            cancellationToken);
-        var unreadCount = summary.UnreadCount;
-        var unseenCount = summary.UnseenCount;
-        var latestNotificationId = summary.LatestNotificationId;
-        var listVersion = summary.ListVersion;
         var filterOptions = options.IncludeFilterOptions
             ? await GetFilterOptionsAsync(
                 userId,
