@@ -390,13 +390,10 @@ public class EditModel : PageModel
     private static bool HasPendingRequest(Project project)
         => project.TotRequest?.DecisionState == ProjectTotRequestDecisionState.Pending;
 
-    private static IReadOnlyList<SelectListItem> BuildStatusOptions() => new List<SelectListItem>
-    {
-        new("Not required", ProjectTotStatus.NotRequired.ToString()),
-        new("Not started", ProjectTotStatus.NotStarted.ToString()),
-        new("In progress", ProjectTotStatus.InProgress.ToString()),
-        new("Completed", ProjectTotStatus.Completed.ToString())
-    };
+    private static IReadOnlyList<SelectListItem> BuildStatusOptions()
+        => ProjectTotPresentation.StatusOptions
+            .Select(option => new SelectListItem(option.Label, option.Status.ToString()))
+            .ToList();
 
     private void PopulateInputFromProject(Project project)
     {
@@ -430,82 +427,16 @@ public class EditModel : PageModel
     private void ValidatePartialDates(UpdateTotInput input)
     {
         // SECTION: Partial date validation
-        var startPartial = input.GetStartPartial();
-        var completionPartial = input.GetCompletionPartial();
+        var dates = ProjectTotDateInput.Resolve(input.Status, input.GetStartPartial(), input.GetCompletionPartial());
+        input.StartedOn = dates.StartedOn;
+        input.StartDatePrecision = dates.StartDatePrecision;
+        input.CompletedOn = dates.CompletedOn;
+        input.CompletionDatePrecision = dates.CompletionDatePrecision;
 
-        input.StartDatePrecision = startPartial.GetPrecision();
-        input.CompletionDatePrecision = completionPartial.GetPrecision();
-
-        input.StartedOn = null;
-        input.CompletedOn = null;
-
-        switch (input.Status)
+        foreach (var error in dates.Errors)
         {
-            case ProjectTotStatus.InProgress:
-                if (!PartialDateHelper.TryToStartDate(startPartial, out var inProgressStart, out var startError))
-                {
-                    ModelState.AddModelError(nameof(input.StartYear), startError ?? "Start date is required when ToT is in progress.");
-                }
-                else
-                {
-                    input.StartedOn = inProgressStart;
-                }
-
-                if (completionPartial.GetPrecision() != PartialDatePrecision.None)
-                {
-                    ModelState.AddModelError(nameof(input.CompletionYear), "Completion must be empty while ToT is in progress.");
-                }
-
-                break;
-            case ProjectTotStatus.Completed:
-                if (!PartialDateHelper.TryToCompletionDate(completionPartial, out var completionDate, out var completionError))
-                {
-                    ModelState.AddModelError(nameof(input.CompletionYear), completionError ?? "Completion date is required when ToT is completed.");
-                }
-                else
-                {
-                    input.CompletedOn = completionDate;
-                }
-
-                if (startPartial.GetPrecision() != PartialDatePrecision.None)
-                {
-                    if (!PartialDateHelper.TryToStartDate(startPartial, out var completedStart, out var completedStartError))
-                    {
-                        ModelState.AddModelError(nameof(input.StartYear), completedStartError ?? "Invalid start date.");
-                    }
-                    else
-                    {
-                        input.StartedOn = completedStart;
-                    }
-                }
-
-                break;
-            case ProjectTotStatus.NotStarted:
-            case ProjectTotStatus.NotRequired:
-                if (startPartial.GetPrecision() != PartialDatePrecision.None)
-                {
-                    ModelState.AddModelError(nameof(input.StartYear), "Start date must be empty when ToT is not started or not required.");
-                }
-
-                if (completionPartial.GetPrecision() != PartialDatePrecision.None)
-                {
-                    ModelState.AddModelError(nameof(input.CompletionYear), "Completion date must be empty when ToT is not started or not required.");
-                }
-
-                break;
+            ModelState.AddModelError(error.Field, error.Message);
         }
-
-        if (!ModelState.IsValid)
-        {
-            return;
-        }
-
-        _logger.LogInformation(
-            "TOT/EDIT POST: ProjectId={ProjectId}, Status={Status}, StartedOn={StartedOn}, CompletedOn={CompletedOn}",
-            input.ProjectId,
-            input.Status,
-            input.StartedOn,
-            input.CompletedOn);
     }
 
     private (RemarkActorContext Actor, RemarkType Type)? BuildRemarkActorContext()

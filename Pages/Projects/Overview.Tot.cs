@@ -128,19 +128,22 @@ public partial class OverviewModel
 
         var tot = project.Tot;
         var status = tot?.Status ?? ProjectTotStatus.NotStarted;
-        var hasRecord = tot is not null;
+        var canManage = await CanManageTotFromOverviewAsync(id, project.LeadPoUserId, project.IsArchived, ct);
+        // Rows saved before precision was tracked carry a full date; show all of it.
+        var startPrecision = EffectivePrecision(tot?.StartDatePrecision);
+        var completionPrecision = EffectivePrecision(tot?.CompletionDatePrecision);
 
         return new JsonResult(new
         {
             success = true,
-            canManage = await CanManageTotFromOverviewAsync(id, project.LeadPoUserId, project.IsArchived, ct),
+            canManage,
             pendingApproval = pending is not null,
             pending = pending is null
                 ? null
                 : new
                 {
                     proposedStatus = pending.ProposedStatus.ToString(),
-                    proposedStatusLabel = TotStatusLabel(pending.ProposedStatus),
+                    proposedStatusLabel = ProjectTotPresentation.StatusLabel(pending.ProposedStatus),
                     submittedOnUtc = pending.SubmittedOnUtc
                 },
             input = new
@@ -148,19 +151,24 @@ public partial class OverviewModel
                 projectId = id,
                 status = status.ToString(),
                 startYear = tot?.StartedOn?.Year,
-                startMonth = tot is not null && tot.StartDatePrecision >= PartialDatePrecision.Month ? tot.StartedOn?.Month : null,
-                startDay = tot is not null && tot.StartDatePrecision == PartialDatePrecision.Day ? tot.StartedOn?.Day : null,
+                startMonth = startPrecision >= PartialDatePrecision.Month ? tot?.StartedOn?.Month : null,
+                startDay = startPrecision == PartialDatePrecision.Day ? tot?.StartedOn?.Day : null,
                 completionYear = tot?.CompletedOn?.Year,
-                completionMonth = tot is not null && tot.CompletionDatePrecision >= PartialDatePrecision.Month ? tot.CompletedOn?.Month : null,
-                completionDay = tot is not null && tot.CompletionDatePrecision == PartialDatePrecision.Day ? tot.CompletedOn?.Day : null,
+                completionMonth = completionPrecision >= PartialDatePrecision.Month ? tot?.CompletedOn?.Month : null,
+                completionDay = completionPrecision == PartialDatePrecision.Day ? tot?.CompletedOn?.Day : null,
                 metDetails = tot?.MetDetails,
                 metCompletedOn = tot?.MetCompletedOn?.ToString("yyyy-MM-dd"),
                 firstProductionModelManufactured = tot?.FirstProductionModelManufactured,
                 firstProductionModelManufacturedOn = tot?.FirstProductionModelManufacturedOn?.ToString("yyyy-MM-dd")
             },
-            card = BuildTotCard(status, hasRecord, pending?.ProposedStatus,
-                tot?.StartedOn, tot?.StartDatePrecision ?? PartialDatePrecision.None,
-                tot?.CompletedOn, tot?.CompletionDatePrecision ?? PartialDatePrecision.None),
+            card = ProjectTotPresentation.BuildCard(
+                tot?.Status,
+                tot?.StartedOn,
+                tot?.StartDatePrecision ?? PartialDatePrecision.None,
+                tot?.CompletedOn,
+                tot?.CompletionDatePrecision ?? PartialDatePrecision.None,
+                pending?.ProposedStatus,
+                canManage),
             summary = BuildTotSummaryPayload(tot),
             latestRemark = await LoadLatestTotRemarkPayloadAsync(id, ct)
         });
@@ -263,10 +271,14 @@ public partial class OverviewModel
             message = result.SubmittedForApproval
                 ? "Transfer of Technology update sent to HoD for approval."
                 : "Transfer of Technology details updated.",
-            card = BuildTotCard(input.Status, true,
+            card = ProjectTotPresentation.BuildCard(
+                input.Status,
+                request!.StartedOn,
+                request.StartDatePrecision,
+                request.CompletedOn,
+                request.CompletionDatePrecision,
                 result.SubmittedForApproval ? input.Status : null,
-                request!.StartedOn, request.StartDatePrecision,
-                request.CompletedOn, request.CompletionDatePrecision)
+                canManage: true)
         });
     }
 
@@ -402,112 +414,26 @@ public partial class OverviewModel
         out ProjectTotUpdateRequest? request,
         out string? error)
     {
-        request = null;
-        error = null;
-
-        var startPartial = input.StartPartial();
-        var completionPartial = input.CompletionPartial();
-        var startPrecision = startPartial.GetPrecision();
-        var completionPrecision = completionPartial.GetPrecision();
-        DateOnly? startedOn = null;
-        DateOnly? completedOn = null;
-
-        switch (input.Status)
+        var dates = ProjectTotDateInput.Resolve(input.Status, input.StartPartial(), input.CompletionPartial());
+        if (!dates.IsValid)
         {
-            case ProjectTotStatus.InProgress:
-                if (!PartialDateHelper.TryToStartDate(startPartial, out var inProgressStart, out var startError))
-                {
-                    error = startError ?? "Start date is required when ToT is in progress.";
-                    return false;
-                }
-                startedOn = inProgressStart;
-                if (completionPrecision != PartialDatePrecision.None)
-                {
-                    error = "Completion date must be empty while ToT is in progress.";
-                    return false;
-                }
-                break;
-
-            case ProjectTotStatus.Completed:
-                if (!PartialDateHelper.TryToCompletionDate(completionPartial, out var completionDate, out var completionError))
-                {
-                    error = completionError ?? "Completion date is required when ToT is completed.";
-                    return false;
-                }
-                completedOn = completionDate;
-                if (startPrecision != PartialDatePrecision.None)
-                {
-                    if (!PartialDateHelper.TryToStartDate(startPartial, out var completedStart, out var completedStartError))
-                    {
-                        error = completedStartError ?? "The ToT start date is not valid.";
-                        return false;
-                    }
-                    startedOn = completedStart;
-                }
-                break;
-
-            case ProjectTotStatus.NotStarted:
-            case ProjectTotStatus.NotRequired:
-                if (startPrecision != PartialDatePrecision.None || completionPrecision != PartialDatePrecision.None)
-                {
-                    error = "Start and completion dates must be empty when ToT is not started or not required.";
-                    return false;
-                }
-                break;
-
-            default:
-                error = "Select a valid Transfer of Technology status.";
-                return false;
+            request = null;
+            error = dates.Errors[0].Message;
+            return false;
         }
 
         request = new ProjectTotUpdateRequest(
             input.Status,
-            startedOn,
-            startPrecision,
-            completedOn,
-            completionPrecision,
+            dates.StartedOn,
+            dates.StartDatePrecision,
+            dates.CompletedOn,
+            dates.CompletionDatePrecision,
             input.MetDetails,
             input.MetCompletedOn,
             input.FirstProductionModelManufactured,
             input.FirstProductionModelManufacturedOn);
+        error = null;
         return true;
-    }
-
-    private static object BuildTotCard(
-        ProjectTotStatus status,
-        bool hasRecord,
-        ProjectTotStatus? proposedStatus,
-        DateOnly? startedOn,
-        PartialDatePrecision startPrecision,
-        DateOnly? completedOn,
-        PartialDatePrecision completionPrecision)
-    {
-        if (proposedStatus.HasValue)
-        {
-            return new { title = "Approval pending", summary = $"Proposed: {TotStatusLabel(proposedStatus.Value)}", tone = "info" };
-        }
-
-        var title = hasRecord
-            ? status == ProjectTotStatus.Completed ? "ToT completed" : TotStatusLabel(status)
-            : "Not recorded";
-        var summary = status switch
-        {
-            ProjectTotStatus.NotRequired => "No ToT action required",
-            ProjectTotStatus.NotStarted => hasRecord ? "ToT action pending" : "Record ToT position",
-            ProjectTotStatus.InProgress when startedOn.HasValue => $"Started {FormatPartialDate(startedOn.Value, startPrecision)}",
-            ProjectTotStatus.InProgress => "ToT is in progress",
-            ProjectTotStatus.Completed when completedOn.HasValue => $"Completed {FormatPartialDate(completedOn.Value, completionPrecision)}",
-            ProjectTotStatus.Completed => "ToT marked completed",
-            _ => "Record ToT position"
-        };
-        var tone = status switch
-        {
-            ProjectTotStatus.Completed => "positive",
-            ProjectTotStatus.InProgress => "info",
-            ProjectTotStatus.NotRequired => "neutral",
-            _ => "warning"
-        };
-        return new { title, summary, tone };
     }
 
     private static object BuildTotSummaryPayload(ProjectTot? tot)
@@ -543,14 +469,10 @@ public partial class OverviewModel
     }
 
     private static string FormatPartialDate(DateOnly value, PartialDatePrecision precision)
-        => PartialDateDisplay.Format(value, precision);
+        => ProjectTotPresentation.FormatDate(value, precision);
 
-    private static string TotStatusLabel(ProjectTotStatus status) => status switch
-    {
-        ProjectTotStatus.NotRequired => "Not required",
-        ProjectTotStatus.NotStarted => "Not started",
-        ProjectTotStatus.InProgress => "In progress",
-        ProjectTotStatus.Completed => "Completed",
-        _ => status.ToString()
-    };
+    private static PartialDatePrecision EffectivePrecision(PartialDatePrecision? precision)
+        => precision is null or PartialDatePrecision.None ? PartialDatePrecision.Day : precision.Value;
+
+    private static string TotStatusLabel(ProjectTotStatus status) => ProjectTotPresentation.StatusLabel(status);
 }

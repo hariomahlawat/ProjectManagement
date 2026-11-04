@@ -1,5 +1,7 @@
 # ToT Module Critical Bug Fix Tasks
 
+> **Historical (2026-11-04).** These tasks are done and are kept only as background. The tracker page lives at `Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml.cs`, not the path named below. Approval now always requires the request's version token (an empty token only matches a legacy row stored without one). Current rules are in `docs/data-domain.md`.
+
 This document tracks the tasks required to address the three critical issues identified during the ToT module review. Each task lists the implementation work, validation requirements, and references to keep in mind for code quality and regression prevention.
 
 ## 1. Allow the tracker to degrade gracefully when ToT request metadata columns are unavailable

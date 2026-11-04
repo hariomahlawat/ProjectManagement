@@ -88,13 +88,6 @@ public sealed record ProjectTotAuditValues(
     string? SubmittedByUserId)
 {
     public string StatusLabel => Enum.TryParse<ProjectTotStatus>(Status, out var status)
-        ? status switch
-        {
-            ProjectTotStatus.NotRequired => "Not required",
-            ProjectTotStatus.NotStarted => "Not started",
-            ProjectTotStatus.InProgress => "In progress",
-            ProjectTotStatus.Completed => "Completed",
-            _ => Status
-        }
+        ? ProjectTotPresentation.StatusLabel(status)
         : Status;
 }
