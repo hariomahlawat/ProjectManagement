@@ -32,31 +32,79 @@
         <div class="project-jdp-editor__partner-list" data-multi-jdp-partner-list>
             @foreach (var partner in profile.Partners)
             {
+                var organisationUrl = Url.Page("/IndustryPartners/Organisation", new { id = partner.Id, projectId });
+                var contact = partner.PrimaryContact;
                 <article class="project-jdp-editor__partner-card" data-partner-id="@partner.Id">
                     <div class="project-jdp-editor__partner-card-main">
                         <span class="project-jdp-editor__icon" aria-hidden="true"><i class="bi bi-building"></i></span>
                         <div class="min-w-0 flex-grow-1">
-                            <a class="project-jdp-editor__partner-name"
-                               href="/IndustryPartners?id=@partner.Id&projectId=@projectId&tab=projects">
+                            <a class="project-jdp-editor__partner-name" href="@organisationUrl">
                                 <span>@partner.Name</span>
-                                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
                             </a>
                             @if (!string.IsNullOrWhiteSpace(partner.Location))
                             {
                                 <span class="project-jdp-editor__location">@partner.Location</span>
                             }
-                            <span class="project-jdp-editor__usage">@partner.UsageSummary</span>
                         </div>
-                        @if (Model.CanManageJdp)
-                        {
-                            <button type="button"
-                                    class="btn btn-link text-danger project-jdp-editor__remove-link"
-                                    data-multi-jdp-remove="@partner.Id"
-                                    data-partner-name="@partner.Name">
-                                Remove link
+                        <div class="dropdown">
+                            <button type="button" class="btn btn-sm btn-light project-jdp-editor__menu" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @partner.Name">
+                                <i class="bi bi-three-dots" aria-hidden="true"></i>
                             </button>
-                        }
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="@organisationUrl"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open organisation</a></li>
+                                @if (Model.CanManageJdp)
+                                {
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
+                                        <button type="button"
+                                                class="dropdown-item text-danger"
+                                                data-multi-jdp-remove="@partner.Id"
+                                                data-partner-name="@partner.Name">
+                                            <i class="bi bi-link-45deg" aria-hidden="true"></i> Remove JDP link…
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
                     </div>
+
+                    @if (contact is null || (string.IsNullOrWhiteSpace(contact.Phone) && string.IsNullOrWhiteSpace(contact.Email)))
+                    {
+                        <div class="project-jdp-editor__contact project-jdp-editor__contact--empty">
+                            No contact recorded yet. <a href="@organisationUrl">Add one in the Industry Directory</a>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="project-jdp-editor__contact">
+                            <div class="project-jdp-editor__contact-name">
+                                <span>@contact.DisplayName</span>
+                                <span class="project-jdp-editor__primary"><i class="bi bi-star-fill" aria-hidden="true"></i> Primary</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(contact.Phone))
+                            {
+                                <div class="project-jdp-editor__contact-row">
+                                    <i class="bi bi-telephone" aria-hidden="true"></i>
+                                    <a href="tel:@contact.Phone" class="project-jdp-editor__contact-value">@contact.Phone</a>
+                                    <button type="button" class="project-jdp-editor__copy" data-copy-value="@contact.Phone" aria-label="Copy phone number for @partner.Name" title="Copy phone number">
+                                        <i class="bi bi-copy" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(contact.Email))
+                            {
+                                <div class="project-jdp-editor__contact-row">
+                                    <i class="bi bi-envelope" aria-hidden="true"></i>
+                                    <a href="mailto:@contact.Email" class="project-jdp-editor__contact-value" title="@contact.Email">@contact.Email</a>
+                                    <button type="button" class="project-jdp-editor__copy" data-copy-value="@contact.Email" aria-label="Copy email address for @partner.Name" title="Copy email address">
+                                        <i class="bi bi-copy" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <span class="project-jdp-editor__usage">@partner.UsageSummary</span>
 
                     @if (partner.OtherProjects.Count > 0)
                     {
