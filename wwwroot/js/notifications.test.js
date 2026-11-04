@@ -600,6 +600,47 @@ test('Notification Centre folder rail applies a server-side Gmail folder filter'
   dom.window.close();
 });
 
+test('Notification Centre shows the action-required chip only while unread and does not repeat the category without a project', async () => {
+  const fixture = await createCenter({
+    storedGrouping: 'false',
+    items: [
+      notification({ id: 31, title: 'Plan submitted for approval', category: 'Approvals', isActionRequired: true }),
+      notification({ id: 32, title: 'Task blocked', category: 'Action tracker', isActionRequired: true, projectId: null, projectName: null, readUtc: '2026-06-30T07:00:00Z' })
+    ]
+  });
+  const { dom, document } = fixture;
+  const row = id => document.querySelector(`[data-notification-row][data-notification-id="${id}"]`);
+
+  assert.equal(row(31).querySelector('[data-notification-action-required]').hidden, false);
+  assert.equal(row(31).querySelector('[data-notification-category]').hidden, false);
+  assert.equal(row(31).querySelector('[data-notification-project]').textContent, 'Project AURA');
+
+  assert.equal(row(32).querySelector('[data-notification-action-required]').hidden, true, 'a read item is history, not work');
+  assert.equal(row(32).querySelector('[data-notification-project]').textContent, 'Action tracker');
+  assert.equal(row(32).querySelector('[data-notification-category]').hidden, true, 'the category is already the source label');
+
+  dom.window.close();
+});
+
+test('Bell marks unread action-required items so they stand apart from routine updates', async () => {
+  const fixture = await createBell({
+    items: [
+      notification({ id: 41, title: 'Plan submitted for approval', isActionRequired: true }),
+      notification({ id: 42, title: 'Old approval', isActionRequired: true, readUtc: '2026-06-30T07:00:00Z' }),
+      notification({ id: 43, title: 'TEC stage completed' })
+    ],
+    unreadCount: 2
+  });
+  const { dom, document } = fixture;
+  const item = id => document.querySelector(`[data-notification-item][data-notification-id="${id}"]`);
+
+  assert.equal(item(41).classList.contains('is-action-required'), true);
+  assert.equal(item(42).classList.contains('is-action-required'), false);
+  assert.equal(item(43).classList.contains('is-action-required'), false);
+
+  dom.window.close();
+});
+
 test('Notification Centre shows selection actions only while rows are selected', async () => {
   const fixture = await createCenter();
   const { dom, window, document } = fixture;

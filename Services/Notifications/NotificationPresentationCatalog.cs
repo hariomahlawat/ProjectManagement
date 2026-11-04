@@ -49,8 +49,8 @@ public static class NotificationPresentationCatalog
                 NotificationKind.DocumentRestored => new("Documents", "bi bi-arrow-counterclockwise", "Normal", false),
                 NotificationKind.DocumentDeleted => new("Documents", "bi bi-trash3", "High", false),
 
-                NotificationKind.RoleAssignmentsChanged => new("Administration", "bi bi-people", "High", true),
-                NotificationKind.ProjectAssignmentChanged => new("Assignments", "bi bi-person-workspace", "High", true),
+                NotificationKind.RoleAssignmentsChanged => new("Administration", "bi bi-people", "Normal", false),
+                NotificationKind.ProjectAssignmentChanged => new("Assignments", "bi bi-person-workspace", "Normal", false),
 
                 NotificationKind.TrainingDeleteRequested => new("Approvals", "bi bi-mortarboard", "High", true),
                 NotificationKind.TrainingDeleteApproved => new("Approvals", "bi bi-check2-circle", "Normal", false),
