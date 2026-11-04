@@ -237,6 +237,14 @@ public sealed class ProjectBriefingDeck
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public DateTimeOffset? LastGeneratedAtUtc { get; set; }
 
+    // A deleted deck is kept for ProjectBriefingDeckService.DeletedRetentionDays so it can be
+    // restored; live queries exclude it. Null for every live deck.
+    public DateTimeOffset? DeletedAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? DeletedByUserId { get; set; }
+    public ApplicationUser? DeletedByUser { get; set; }
+
     [ConcurrencyCheck]
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 

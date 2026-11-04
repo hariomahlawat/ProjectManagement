@@ -322,7 +322,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             throw new UnauthorizedAccessException("The current user could not be resolved.");
         }
 
-        var deck = await _db.Set<ProjectBriefingDeck>()
+        var deck = await _db.Set<ProjectBriefingDeck>().Live()
             .AsNoTracking()
             .Where(candidate => candidate.Id == deckId)
             .Select(candidate => new DeckHeaderSnapshot(

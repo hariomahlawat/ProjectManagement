@@ -486,4 +486,48 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Empty(options.CharterItems);
     }
 
+    [Fact]
+    public void Read_OneFieldOfTheWrongType_FallsBackForThatFieldOnly()
+    {
+        var stored = JsonNode.Parse(ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+            null,
+            ProjectBriefingInstitutionalProfileOptions.Default with
+            {
+                Title = "Our profile",
+                PartnershipEntries = new[] { "IIT Delhi" }
+            }))!.AsObject();
+        // Hand-edited or older data: text where a number belongs and a number where a flag belongs.
+        var profile = stored["institutionalProfile"]!.AsObject();
+        profile["maximumDetailRows"] = "five";
+        profile["includeHistory"] = 1;
+        stored["standardBriefing"] = new JsonObject { ["showPresentStage"] = "false" };
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(stored.ToJsonString());
+
+        Assert.Null(configuration.SelectionRulesJson);
+        Assert.Equal("Our profile", configuration.InstitutionalProfileOptions.Title);
+        Assert.Equal(new[] { "IIT Delhi" }, configuration.InstitutionalProfileOptions.PartnershipEntries);
+        Assert.Equal(6, configuration.InstitutionalProfileOptions.MaximumDetailRows);
+        Assert.True(configuration.InstitutionalProfileOptions.IncludeHistory);
+        Assert.False(configuration.StandardSlideOptions.ShowPresentStage);
+    }
+
+    [Fact]
+    public void Write_AfterReadingAMalformedField_KeepsTheRestOfTheConfiguration()
+    {
+        var stored = JsonNode.Parse(ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+            null,
+            ProjectBriefingInstitutionalProfileOptions.Default with { Title = "Our profile" }))!.AsObject();
+        stored["institutionalProfile"]!.AsObject()["includeSlide"] = "yes";
+
+        var rewritten = ProjectBriefingDeckConfigurationCodec.WithPreset(
+            stored.ToJsonString(),
+            ProjectBriefingDeckPreset.MonthlyCommandReview);
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(rewritten);
+
+        Assert.Null(configuration.SelectionRulesJson);
+        Assert.Equal("Our profile", configuration.InstitutionalProfileOptions.Title);
+        Assert.False(configuration.InstitutionalProfileOptions.IncludeSlide);
+        Assert.Equal(ProjectBriefingDeckPreset.MonthlyCommandReview, configuration.Preset);
+    }
 }

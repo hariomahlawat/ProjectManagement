@@ -5833,6 +5833,13 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<string>("Description")
                         .HasMaxLength(600)
                         .HasColumnType("character varying(600)");
@@ -5919,9 +5926,15 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("OwnerUserId")
                         .HasDatabaseName("IX_ProjectBriefingDecks_OwnerUserId");
 
+                    b.HasIndex("DeletedAtUtc")
+                        .HasDatabaseName("IX_ProjectBriefingDecks_DeletedAtUtc");
+
+                    b.HasIndex("DeletedByUserId");
+
                     b.HasIndex("NormalizedName")
                         .IsUnique()
-                        .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName");
+                        .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName")
+                        .HasFilter("\"DeletedAtUtc\" IS NULL");
 
                     b.ToTable("ProjectBriefingDecks");
                 });
@@ -9669,6 +9682,11 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "DeletedByUser")
+                        .WithMany()
+                        .HasForeignKey("DeletedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
                         .WithMany()
                         .HasForeignKey("LastModifiedByUserId")
@@ -9679,6 +9697,8 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("OwnerUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("DeletedByUser");
 
                     b.Navigation("LastModifiedByUser");
 

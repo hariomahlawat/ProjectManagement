@@ -51,6 +51,16 @@ public sealed record ProjectBriefingDeckSummaryVm(
     string LastModifiedByDisplay,
     string RowVersion);
 
+public sealed record ProjectBriefingDeletedDeckVm(
+    long Id,
+    string Name,
+    int ProjectCount,
+    DateTimeOffset DeletedAtUtc,
+    string DeletedByDisplay,
+    DateTimeOffset RestorableUntilUtc);
+
+public sealed record ProjectBriefingDeckRestoreResult(long DeckId, string Name, bool Renamed);
+
 public sealed class ProjectBriefingDeckVm
 {
     public long Id { get; init; }

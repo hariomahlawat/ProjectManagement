@@ -223,6 +223,7 @@
                     Create deck
                 </button>
             </section>
+            <partial name="_DeletedDecks" model="Model.DeletedDecks" />
         }
         else
         {
@@ -254,6 +255,7 @@
                             </a>
                         }
                     </nav>
+                    <partial name="_DeletedDecks" model="Model.DeletedDecks" />
                 </aside>
 
                 @if (deck is not null)
@@ -1150,7 +1152,7 @@
                     <input type="hidden" name="deckId" value="@deck.Id" />
                     <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
                     <div class="modal-header"><h2 class="modal-title" id="pbd-delete-deck-title">Delete briefing deck?</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-                    <div class="modal-body"><p><strong>@deck.Name</strong> and its saved project selection will be deleted. Project records are not affected.</p></div>
+                    <div class="modal-body"><p><strong>@deck.Name</strong> moves to Recently deleted, where any Comdt/HoD can restore it for @ProjectBriefingDeckService.DeletedRetentionDays days. After that it is removed for good. Project records are not affected.</p></div>
                     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-danger">Delete deck</button></div>
                 </form>
             </div>
