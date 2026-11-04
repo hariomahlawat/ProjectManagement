@@ -197,7 +197,8 @@ public sealed class IndustryPartnerOrganisationAuthorizationTests
             return Task.CompletedTask;
         }
 
-        public Task<IndustryPartnerSearchResult> SearchAsync(string? query, IndustryPartnerDirectoryFilter filter, int page, int pageSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IndustryPartnerSearchResult> SearchAsync(string? query, IndustryPartnerDirectoryFilter filter, int page, int pageSize, IndustryPartnerDirectorySort sort = IndustryPartnerDirectorySort.Name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<IndustryPartnerExportRow>> ExportDirectoryAsync(string? query, IndustryPartnerDirectoryFilter filter, IndustryPartnerDirectorySort sort, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<IndustryPartnerDuplicateSuggestion>> FindDuplicateSuggestionsAsync(string? name, int take = 5, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IndustryPartnerDto?> GetAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlySet<int>> GetJdpManageableProjectIdsAsync(IEnumerable<int> projectIds, ClaimsPrincipal user, CancellationToken cancellationToken = default)

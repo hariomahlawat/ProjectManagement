@@ -248,6 +248,73 @@
     }, 450);
 
     input.addEventListener('input', submitSearch);
+
+    // Keep shared links clean: an empty search box adds no "q=" to the address.
+    form.addEventListener('submit', () => {
+      input.disabled = input.value.trim() === '';
+    });
+    window.addEventListener('pageshow', () => { input.disabled = false; });
+
+    form.querySelectorAll('[data-directory-autosubmit]').forEach((select) => {
+      select.addEventListener('change', () => {
+        // A new filter or order starts again from the first page.
+        form.querySelector('input[name="p"]')?.remove();
+        form.requestSubmit();
+      });
+    });
+  }
+
+  // SECTION: Copy phone numbers and email addresses
+  // navigator.clipboard needs a secure context; on a plain-HTTP LAN address the older
+  // execCommand path is used so the button still works.
+  async function copyText(value) {
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+
+    const field = document.createElement('textarea');
+    field.value = value;
+    field.setAttribute('readonly', '');
+    field.style.position = 'fixed';
+    field.style.top = '-1000px';
+    document.body.appendChild(field);
+    field.select();
+    const copied = document.execCommand('copy');
+    field.remove();
+    if (!copied) {
+      throw new Error('Copy was blocked by the browser.');
+    }
+  }
+
+  function initCopyButtons() {
+    const status = document.querySelector('[data-copy-status]');
+    document.addEventListener('click', async (event) => {
+      const button = event.target.closest?.('[data-copy-value]');
+      if (!button || !root.contains(button)) return;
+
+      event.preventDefault();
+      const value = button.getAttribute('data-copy-value') || '';
+      const icon = button.querySelector('i');
+      try {
+        await copyText(value);
+        button.classList.add('is-copied');
+        button.setAttribute('data-copy-label', 'Copied');
+        icon?.classList.replace('bi-copy', 'bi-check2');
+        if (status) status.textContent = `Copied ${value}`;
+      } catch {
+        button.classList.add('is-copy-failed');
+        button.setAttribute('data-copy-label', 'Copy failed');
+        if (status) status.textContent = 'Copy failed. Select the text and copy it instead.';
+      }
+
+      window.clearTimeout(button._copyTimer);
+      button._copyTimer = window.setTimeout(() => {
+        button.classList.remove('is-copied', 'is-copy-failed');
+        button.removeAttribute('data-copy-label');
+        icon?.classList.replace('bi-check2', 'bi-copy');
+      }, 1600);
+    });
   }
 
   function initDuplicateSuggestions() {
@@ -512,4 +579,5 @@
   initProjectPicker();
   initFileUpload();
   initModalFocus();
+  initCopyButtons();
 })();

@@ -38,6 +38,9 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Filter { get; set; } = "all";
 
+    [BindProperty(SupportsGet = true)]
+    public string? Sort { get; set; }
+
     [BindProperty(SupportsGet = true, Name = "p")]
     public int PageNumber { get; set; } = 1;
 
@@ -56,6 +59,7 @@ public sealed class IndexModel : PageModel
     public IndustryPartnerDto? SelectedPartner { get; private set; }
     public IndustryPartnerProjectContextDto? ProjectContext { get; private set; }
     public IndustryPartnerDirectoryFilter SelectedFilter { get; private set; }
+    public IndustryPartnerDirectorySort SelectedSort { get; private set; }
     public bool CanCreateOrganisation { get; private set; }
     public bool CanEditOrganisation { get; private set; }
     public bool CanDeleteOrganisation { get; private set; }
@@ -98,15 +102,17 @@ public sealed class IndexModel : PageModel
         CurrentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         SelectedFilter = ParseFilter(Filter);
         Filter = ToFilterKey(SelectedFilter);
+        SelectedSort = ParseSort(Sort);
+        Sort = ToSortKey(SelectedSort);
         CreateDraft = ReadDraft(CreateDraftKey);
         EditDraft = ReadDraft(EditDraftKey);
         PageNumber = Math.Max(1, PageNumber);
 
-        SearchResult = await _service.SearchAsync(Q, SelectedFilter, PageNumber, PageSize, cancellationToken);
+        SearchResult = await _service.SearchAsync(Q, SelectedFilter, PageNumber, PageSize, SelectedSort, cancellationToken);
         if (PageNumber > SearchResult.TotalPages && SearchResult.Total > 0)
         {
             PageNumber = SearchResult.TotalPages;
-            SearchResult = await _service.SearchAsync(Q, SelectedFilter, PageNumber, PageSize, cancellationToken);
+            SearchResult = await _service.SearchAsync(Q, SelectedFilter, PageNumber, PageSize, SelectedSort, cancellationToken);
         }
 
         if (ContextProjectId.HasValue)
@@ -147,6 +153,64 @@ public sealed class IndexModel : PageModel
         {
             JdpManageableProjectIds = await _service.GetJdpManageableProjectIdsAsync(projectIds, User, cancellationToken);
         }
+    }
+
+    // Everything the current search, filter and sort show (all pages), as an Excel workbook.
+    // Anyone who can view the directory can export what they can already see.
+    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    {
+        var filter = ParseFilter(Filter);
+        var sort = ParseSort(Sort);
+        var rows = await _service.ExportDirectoryAsync(Q, filter, sort, cancellationToken);
+        var exportedUtc = DateTimeOffset.UtcNow;
+        var file = IndustryPartnerDirectoryExcel.Build(rows, DescribeView(Q, filter, sort), exportedUtc);
+        var stamp = ProjectManagement.Infrastructure.IstClock.ToIst(exportedUtc)
+            .ToString("yyyyMMdd-HHmm", System.Globalization.CultureInfo.InvariantCulture);
+        return File(file, IndustryPartnerDirectoryExcel.ContentType, $"prism-industry-directory-{stamp}.xlsx");
+    }
+
+    public static IReadOnlyList<(string Key, string Label)> FilterOptions { get; } = new[]
+    {
+        ("all", "All organisations"),
+        ("contact", "Contact only"),
+        ("associated", "All JDPs"),
+        ("current", "Current JDPs"),
+        ("past", "Past JDPs")
+    };
+
+    public static IReadOnlyList<(string Key, string Label)> SortOptions { get; } = new[]
+    {
+        ("name", "Name A–Z"),
+        ("updated", "Recently updated")
+    };
+
+    /// <summary>Page numbers to show around the current page (at most five).</summary>
+    public IReadOnlyList<int> PageWindow()
+    {
+        const int width = 5;
+        var total = SearchResult.TotalPages;
+        var first = Math.Max(1, Math.Min(SearchResult.Page - width / 2, total - width + 1));
+        var last = Math.Min(total, first + width - 1);
+        return Enumerable.Range(first, last - first + 1).ToList();
+    }
+
+    public string BuildPageUrl(int page) =>
+        Url.Page("./Index", new { q = Q, filter = Filter, sort = SortRouteValue, p = page, projectId = ContextProjectId })
+        ?? "/IndustryPartners";
+
+    public string BuildExportUrl() =>
+        Url.Page("./Index", "Export", new { q = Q, filter = Filter, sort = SortRouteValue })
+        ?? "/IndustryPartners?handler=Export";
+
+    // The default order is left out of links, so existing URLs keep their exact shape.
+    private string? SortRouteValue => ParseSort(Sort) == IndustryPartnerDirectorySort.Name ? null : ToSortKey(ParseSort(Sort));
+
+    private static string DescribeView(string? query, IndustryPartnerDirectoryFilter filter, IndustryPartnerDirectorySort sort)
+    {
+        var filterLabel = FilterOptions.First(option => option.Key == ToFilterKey(filter)).Label;
+        var sortLabel = SortOptions.First(option => option.Key == ToSortKey(sort)).Label;
+        var search = string.IsNullOrWhiteSpace(query) ? "no search" : $"search \"{query.Trim()}\"";
+        return $"{filterLabel}, {search}, sorted by {sortLabel}";
     }
 
     public async Task<IActionResult> OnGetDuplicateSuggestionsAsync(
@@ -515,6 +579,7 @@ public sealed class IndexModel : PageModel
             id,
             q = Q,
             filter = Filter,
+            sort = SortRouteValue,
             p = PageNumber,
             tab,
             edit = edit ? true : (bool?)null,
@@ -529,6 +594,7 @@ public sealed class IndexModel : PageModel
             id,
             q = Q,
             filter = Filter,
+            sort = SortRouteValue,
             p = PageNumber,
             tab,
             edit = edit ? true : (bool?)null,
@@ -615,6 +681,14 @@ public sealed class IndexModel : PageModel
     {
         TempData["Error"] = string.Join(" ", exception.Errors.SelectMany(pair => pair.Value));
     }
+
+    private static IndustryPartnerDirectorySort ParseSort(string? value) =>
+        string.Equals(value?.Trim(), "updated", StringComparison.OrdinalIgnoreCase)
+            ? IndustryPartnerDirectorySort.RecentlyUpdated
+            : IndustryPartnerDirectorySort.Name;
+
+    private static string ToSortKey(IndustryPartnerDirectorySort sort) =>
+        sort == IndustryPartnerDirectorySort.RecentlyUpdated ? "updated" : "name";
 
     private static IndustryPartnerDirectoryFilter ParseFilter(string? value) =>
         value?.Trim().ToLowerInvariant() switch

@@ -274,11 +274,12 @@
   text-transform: uppercase;
 }
 
-.ip-directory-table thead th:nth-child(1) { width: 31%; }
-.ip-directory-table thead th:nth-child(2) { width: 25%; }
+.ip-directory-table thead th:nth-child(1) { width: 29%; }
+.ip-directory-table thead th:nth-child(2) { width: 20%; }
 .ip-directory-table thead th:nth-child(3) { width: 17%; }
-.ip-directory-table thead th:nth-child(4) { width: 16%; }
+.ip-directory-table thead th:nth-child(4) { width: 20%; }
 .ip-directory-table thead th:nth-child(5) { width: 11%; }
+.ip-directory-table thead th:nth-child(6) { width: 44px; }
 
 .ip-directory-table tbody td {
   padding: 12px 16px;
@@ -499,7 +500,43 @@
   padding: 11px 16px;
   border-top: 1px solid var(--ip-border);
   color: var(--ip-muted);
-  font-size: 0.74rem;
+  font-size: 0.78rem;
+}
+
+.ip-pager {
+  display: flex;
+  gap: 4px;
+}
+
+.ip-pager a,
+.ip-pager span {
+  display: grid;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  place-items: center;
+  border: 1px solid var(--ip-border);
+  border-radius: var(--ip-radius-sm);
+  background: var(--ip-surface);
+  color: var(--ip-text);
+  text-decoration: none;
+  font-weight: 650;
+}
+
+.ip-pager a:hover {
+  border-color: var(--ip-primary-border);
+  color: var(--ip-primary);
+}
+
+.ip-pager .is-current {
+  border-color: var(--ip-primary);
+  background: var(--ip-primary);
+  color: var(--ip-surface);
+}
+
+.ip-pager .is-disabled {
+  color: var(--ip-muted);
+  opacity: 0.5;
 }
 
 /* Drawer */
@@ -1337,15 +1374,19 @@ button.ip-primary-contact-card {
     padding: 18px 18px 28px;
   }
 
-  .ip-directory-table thead th:nth-child(3),
-  .ip-directory-table tbody td:nth-child(3) {
+}
+
+/* Medium widths: the email column gives way so phone numbers are never cut off. */
+@media (min-width: 721px) and (max-width: 1180px) {
+  .ip-directory-table thead th:nth-child(4),
+  .ip-directory-table tbody td:nth-child(4) {
     display: none;
   }
 
   .ip-directory-table thead th:nth-child(1) { width: 35%; }
-  .ip-directory-table thead th:nth-child(2) { width: 30%; }
-  .ip-directory-table thead th:nth-child(4) { width: 22%; }
-  .ip-directory-table thead th:nth-child(5) { width: 13%; }
+  .ip-directory-table thead th:nth-child(2) { width: 25%; }
+  .ip-directory-table thead th:nth-child(3) { width: 22%; }
+  .ip-directory-table thead th:nth-child(5) { width: 18%; }
 }
 
 @media (max-width: 720px) {
@@ -1407,17 +1448,48 @@ button.ip-primary-contact-card {
     display: none;
   }
 
+  /* Phones and tablets: one flat card per organisation, contact details first. */
   .ip-directory-table tbody {
-    padding: 9px;
+    padding: 0;
+  }
+
+  /* The cards sit straight on the page; the list's own frame steps back. */
+  .ip-directory-card {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .ip-directory-card .ip-toolbar {
+    padding: 0 0 10px;
+    border-bottom: 0;
+  }
+
+  .ip-directory-card .ip-pagination {
+    padding: 12px 2px;
+    border-top: 0;
+  }
+
+  .ip-directory-table {
+    background: transparent;
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: transparent;
+  }
+
+  .ip-directory-table tbody td,
+  .ip-directory-row:hover {
+    background: transparent;
+    box-shadow: none;
   }
 
   .ip-directory-table tbody tr {
     position: relative;
-    margin-bottom: 9px;
-    padding: 11px 12px;
+    margin-bottom: 10px;
+    padding: 14px;
     border: 1px solid var(--ip-border);
-    border-radius: 10px;
-    background: var(--pm-card, #fff);
+    border-radius: var(--ip-radius);
+    background: var(--ip-surface);
   }
 
   .ip-directory-table tbody tr:last-child {
@@ -1425,29 +1497,77 @@ button.ip-primary-contact-card {
   }
 
   .ip-directory-table tbody td {
-    padding: 5px 0;
+    padding: 0;
     border: 0;
     text-align: left !important;
   }
 
-  .ip-directory-table tbody td:nth-child(2),
-  .ip-directory-table tbody td:nth-child(3) {
+  .ip-directory-table tbody td.ip-cell-org {
+    padding-right: 36px;
+  }
+
+  .ip-directory-table tbody td.ip-cell-person {
+    padding: 6px 0 8px 47px;
+    color: var(--ip-text);
+  }
+
+  .ip-directory-table tbody td.ip-cell-person:has(> .ip-empty-value) {
     display: none;
   }
 
-  .ip-directory-table tbody td:nth-child(4) {
-    padding-left: 45px;
+  .ip-directory-table tbody td.ip-cell-phone,
+  .ip-directory-table tbody td.ip-cell-email {
+    display: block;
+    border-top: 1px solid var(--ip-border);
   }
 
-  .ip-directory-table tbody td:nth-child(5) {
+  .ip-directory-table tbody td.ip-cell-phone:has(> .ip-empty-value),
+  .ip-directory-table tbody td.ip-cell-email:has(> .ip-empty-value),
+  .ip-directory-table tbody td.ip-cell-jdp:has(> .ip-empty-value) {
+    display: none;
+  }
+
+  .ip-directory-table .ip-copy-line {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    justify-content: space-between;
+  }
+
+  .ip-directory-table .ip-contact-value {
+    font-size: 0.95rem;
+    font-weight: 650;
+  }
+
+  .ip-directory-table .ip-copy {
+    width: 44px;
+    height: 44px;
+    border-color: var(--ip-border);
+    border-radius: 10px;
+    opacity: 1;
+  }
+
+  .ip-directory-table .ip-copy[data-copy-label]::after {
+    top: 50%;
+    right: calc(100% + 8px);
+    bottom: auto;
+    left: auto;
+    transform: translateY(-50%);
+  }
+
+  .ip-directory-table tbody td.ip-cell-jdp {
+    padding-top: 8px;
+  }
+
+  .ip-directory-table tbody td.ip-cell-open {
     position: absolute;
-    top: 13px;
-    right: 9px;
+    top: 14px;
+    right: 10px;
     width: auto;
   }
 
-  .ip-updated-date {
-    display: none;
+  .ip-mobile-only {
+    display: inline-block !important;
   }
 
   .ip-org-avatar {
@@ -1819,4 +1939,286 @@ button.ip-primary-contact-card {
 
 :where([data-bs-theme="dark"]) .ip-duplicate-item:hover {
     background: rgba(22, 24, 27, 0.72);
+}
+
+
+/* ============================================================
+   Directory list: contact-first rows (Industry Directory redesign, PR 1)
+   Colours come only from the page tokens and Bootstrap's palette
+   variables, so the dark theme needs no separate rules here.
+   ============================================================ */
+.ip-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ip-export-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ip-toolbar {
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ip-border);
+}
+
+.ip-toolbar .ip-search-form {
+  flex: 1 1 380px;
+  max-width: none;
+}
+
+.ip-select {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  border: 1px solid var(--ip-border-strong);
+  border-radius: 9px;
+  background: var(--ip-surface);
+}
+
+.ip-select > span {
+  padding-right: 2px;
+  padding-left: 11px;
+  color: var(--ip-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.ip-select .form-select {
+  height: 38px;
+  min-width: 150px;
+  padding-left: 8px;
+  border: 0;
+  background-color: transparent;
+  color: var(--ip-text);
+  font-size: 0.83rem;
+  font-weight: 650;
+  box-shadow: none;
+}
+
+.ip-select:focus-within {
+  border-color: var(--ip-primary-border);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--ip-primary) 14%, transparent);
+}
+
+/* Organisation initials in eight stable tones. */
+.ip-org-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.ip-org-avatar[class*="ip-tone-"] {
+  border-color: color-mix(in srgb, var(--ip-tone) 28%, var(--ip-surface));
+  background: color-mix(in srgb, var(--ip-tone) 16%, var(--ip-surface));
+  color: color-mix(in srgb, var(--ip-tone) 78%, var(--ip-text));
+}
+
+.ip-tone-0 { --ip-tone: var(--bs-blue); }
+.ip-tone-1 { --ip-tone: var(--bs-teal); }
+.ip-tone-2 { --ip-tone: var(--bs-purple); }
+.ip-tone-3 { --ip-tone: var(--bs-orange); }
+.ip-tone-4 { --ip-tone: var(--bs-green); }
+.ip-tone-5 { --ip-tone: var(--bs-pink); }
+.ip-tone-6 { --ip-tone: var(--bs-indigo); }
+.ip-tone-7 { --ip-tone: var(--bs-cyan); }
+
+.ip-contact-name {
+  font-weight: 650;
+}
+
+.ip-mobile-only {
+  display: none !important;
+}
+
+
+.ip-empty-value {
+  color: var(--ip-muted);
+  opacity: 0.75;
+}
+
+.ip-copy-line {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+}
+
+.ip-contact-value {
+  overflow: hidden;
+  color: var(--ip-text);
+  text-decoration: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.ip-cell-phone .ip-contact-value {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.ip-contact-value:hover {
+  color: var(--ip-primary);
+  text-decoration: underline;
+}
+
+.ip-copy {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ip-muted);
+  opacity: 0.55;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.ip-directory-row:hover .ip-copy,
+.ip-copy:focus-visible,
+.ip-copy.is-copied,
+.ip-copy.is-copy-failed {
+  opacity: 1;
+}
+
+.ip-copy:hover,
+.ip-copy:focus-visible {
+  border-color: var(--ip-border);
+  background: var(--ip-surface);
+  color: var(--ip-text);
+}
+
+.ip-copy.is-copied {
+  border-color: color-mix(in srgb, var(--ip-success) 35%, var(--ip-surface));
+  background: var(--ip-success-soft);
+  color: var(--ip-success);
+}
+
+.ip-copy.is-copy-failed {
+  border-color: color-mix(in srgb, var(--ip-danger) 35%, var(--ip-surface));
+  background: var(--ip-danger-soft);
+  color: var(--ip-danger);
+}
+
+.ip-copy[data-copy-label]::after {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 5;
+  padding: 3px 8px;
+  transform: translateX(-50%);
+  border-radius: 6px;
+  background: var(--ip-text);
+  color: var(--ip-surface);
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 650;
+  content: attr(data-copy-label);
+  pointer-events: none;
+}
+
+.ip-jdp-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ip-muted);
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.ip-jdp-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ip-muted) 70%, var(--ip-surface));
+}
+
+.ip-jdp-dot.is-current {
+  background: var(--ip-success);
+}
+
+.ip-directory-table tbody td.ip-cell-open {
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .ip-header-actions {
+    flex-wrap: nowrap;
+  }
+
+  /* Text that steps aside on phones stays readable by screen readers. */
+  .ip-export-action span,
+  .ip-primary-action span,
+  .ip-select > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .ip-export-action,
+  .ip-primary-action {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .ip-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .ip-toolbar .ip-search-form {
+    grid-column: 1 / -1;
+  }
+
+  .ip-toolbar .ip-search-form .form-control {
+    height: 44px;
+  }
+
+  .ip-select {
+    min-width: 0;
+  }
+
+  .ip-select .form-select {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    padding-left: 12px;
+  }
+
+  .ip-result-count {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .ip-pager a:not([aria-label^="Previous"]):not([aria-label^="Next"]),
+  .ip-pager span:not(.is-disabled):not(.is-current) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ip-copy {
+    transition: none;
+  }
 }

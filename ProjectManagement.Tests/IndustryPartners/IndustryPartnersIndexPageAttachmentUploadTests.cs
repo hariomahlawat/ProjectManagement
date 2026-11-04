@@ -103,6 +103,14 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
             IndustryPartnerDirectoryFilter filter,
             int page,
             int pageSize,
+            IndustryPartnerDirectorySort sort = IndustryPartnerDirectorySort.Name,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<IndustryPartnerExportRow>> ExportDirectoryAsync(
+            string? query,
+            IndustryPartnerDirectoryFilter filter,
+            IndustryPartnerDirectorySort sort,
             CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 

@@ -10,6 +10,14 @@ public interface IIndustryPartnerService
         IndustryPartnerDirectoryFilter filter,
         int page,
         int pageSize,
+        IndustryPartnerDirectorySort sort = IndustryPartnerDirectorySort.Name,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Every organisation matching the directory search and filter, with all contacts, for export.</summary>
+    Task<IReadOnlyList<IndustryPartnerExportRow>> ExportDirectoryAsync(
+        string? query,
+        IndustryPartnerDirectoryFilter filter,
+        IndustryPartnerDirectorySort sort,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<IndustryPartnerDuplicateSuggestion>> FindDuplicateSuggestionsAsync(
@@ -60,6 +68,34 @@ public enum IndustryPartnerDirectoryFilter
     JdpAssociated = 2,
     CurrentJdp = 3,
     PastJdp = 4
+}
+
+public enum IndustryPartnerDirectorySort
+{
+    Name = 0,
+    RecentlyUpdated = 1
+}
+
+public sealed record IndustryPartnerExportContact(
+    string? Name,
+    string? Phone,
+    string? Email);
+
+// One organisation as exported; contacts are in the order the directory shows them.
+public sealed record IndustryPartnerExportRow(
+    int Id,
+    string Name,
+    string? Location,
+    string? Remarks,
+    int ProjectCount,
+    int ActiveProjectCount,
+    DateTimeOffset LastUpdatedUtc,
+    IReadOnlyList<IndustryPartnerExportContact> Contacts)
+{
+    public string StatusLabel => JdpStatusRules.PartnerStatusLabel(
+        JdpStatusRules.PartnerStatusKey(ProjectCount, ActiveProjectCount));
+
+    public IndustryPartnerExportContact? PrimaryContact => Contacts.Count > 0 ? Contacts[0] : null;
 }
 
 public sealed record IndustryPartnerSearchResult(
