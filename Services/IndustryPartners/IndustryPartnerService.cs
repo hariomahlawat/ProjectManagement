@@ -61,11 +61,13 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
 
         partners = filter switch
         {
+            // Links to soft-deleted projects do not make an organisation a JDP; they stay
+            // visible in its JDP history only so they can be removed.
             IndustryPartnerDirectoryFilter.ContactOnly =>
-                partners.Where(partner => !partner.PartnerProjects.Any()),
+                partners.Where(partner => !partner.PartnerProjects.Any(link => !link.Project.IsDeleted)),
 
             IndustryPartnerDirectoryFilter.JdpAssociated =>
-                partners.Where(partner => partner.PartnerProjects.Any()),
+                partners.Where(partner => partner.PartnerProjects.Any(link => !link.Project.IsDeleted)),
 
             IndustryPartnerDirectoryFilter.CurrentJdp =>
                 partners.Where(partner => partner.PartnerProjects.Any(link =>
@@ -75,9 +77,9 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
 
             IndustryPartnerDirectoryFilter.PastJdp =>
                 partners.Where(partner => partner.PartnerProjects.Any(link =>
-                    link.Project.IsDeleted ||
-                    link.Project.IsArchived ||
-                    link.Project.LifecycleStatus != activeStatus)),
+                    !link.Project.IsDeleted &&
+                    (link.Project.IsArchived ||
+                     link.Project.LifecycleStatus != activeStatus))),
 
             _ => partners
         };
@@ -128,7 +130,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                     .FirstOrDefault(),
                 partner.Contacts.Count,
                 partner.Attachments.Count,
-                partner.PartnerProjects.Count,
+                partner.PartnerProjects.Count(link => !link.Project.IsDeleted),
                 partner.PartnerProjects.Count(link =>
                     !link.Project.IsDeleted &&
                     !link.Project.IsArchived &&
@@ -151,40 +153,55 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         }
 
         take = Math.Clamp(take, 1, 10);
-        var candidates = await _db.IndustryPartners
+
+        // Canonical names (suffixes and punctuation removed) cannot be compared in SQL, so
+        // every organisation's name is read and matched here. Only id and name are loaded;
+        // counts are fetched for the few matches.
+        var names = await _db.IndustryPartners
             .AsNoTracking()
-            .OrderBy(partner => partner.Name)
-            .Select(partner => new
-            {
-                partner.Id,
-                partner.Name,
-                partner.Location,
-                ContactCount = partner.Contacts.Count,
-                ProjectCount = partner.PartnerProjects.Count
-            })
-            .Take(1000)
+            .Select(partner => new { partner.Id, partner.Name })
             .ToListAsync(cancellationToken);
 
-        return candidates
+        var matchIds = names
             .Select(candidate => new
             {
-                Candidate = candidate,
+                candidate.Id,
+                candidate.Name,
                 Canonical = CanonicalCompanyName(candidate.Name)
             })
             .Where(candidate =>
-                candidate.Canonical == canonical ||
-                candidate.Canonical.Contains(canonical, StringComparison.Ordinal) ||
-                canonical.Contains(candidate.Canonical, StringComparison.Ordinal))
+                candidate.Canonical.Length > 0 &&
+                (candidate.Canonical == canonical ||
+                 candidate.Canonical.Contains(canonical, StringComparison.Ordinal) ||
+                 canonical.Contains(candidate.Canonical, StringComparison.Ordinal)))
             .OrderByDescending(candidate => candidate.Canonical == canonical)
             .ThenBy(candidate => Math.Abs(candidate.Canonical.Length - canonical.Length))
-            .ThenBy(candidate => candidate.Candidate.Name)
+            .ThenBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(candidate => candidate.Id)
             .Take(take)
-            .Select(candidate => new IndustryPartnerDuplicateSuggestion(
-                candidate.Candidate.Id,
-                candidate.Candidate.Name,
-                candidate.Candidate.Location,
-                candidate.Candidate.ContactCount,
-                candidate.Candidate.ProjectCount))
+            .Select(candidate => candidate.Id)
+            .ToList();
+
+        if (matchIds.Count == 0)
+        {
+            return Array.Empty<IndustryPartnerDuplicateSuggestion>();
+        }
+
+        var details = await _db.IndustryPartners
+            .AsNoTracking()
+            .Where(partner => matchIds.Contains(partner.Id))
+            .Select(partner => new IndustryPartnerDuplicateSuggestion(
+                partner.Id,
+                partner.Name,
+                partner.Location,
+                partner.Contacts.Count,
+                partner.PartnerProjects.Count(link => !link.Project.IsDeleted)))
+            .ToListAsync(cancellationToken);
+
+        var byId = details.ToDictionary(item => item.Id);
+        return matchIds
+            .Where(byId.ContainsKey)
+            .Select(id => byId[id])
             .ToList();
     }
 
@@ -313,68 +330,6 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
     }
 
 
-    public async Task<ProjectJdpProfileDto> GetProjectJdpProfileAsync(
-        int projectId,
-        CancellationToken cancellationToken = default)
-    {
-        var projectExists = await _db.Projects
-            .AsNoTracking()
-            .AnyAsync(project => project.Id == projectId && !project.IsDeleted, cancellationToken);
-
-        if (!projectExists)
-        {
-            return ProjectJdpProfileDto.Empty(projectId);
-        }
-
-        var links = await _db.IndustryPartnerProjects
-            .AsNoTracking()
-            .Where(link => link.ProjectId == projectId)
-            .OrderBy(link => link.LinkedUtc)
-            .ThenBy(link => link.IndustryPartnerId)
-            .Select(link => new
-            {
-                link.IndustryPartnerId,
-                link.IndustryPartner.Name,
-                link.IndustryPartner.Location
-            })
-            .ToListAsync(cancellationToken);
-
-        var selected = links.FirstOrDefault();
-        if (selected is null)
-        {
-            return ProjectJdpProfileDto.Empty(projectId);
-        }
-
-        var otherProjects = await _db.IndustryPartnerProjects
-            .AsNoTracking()
-            .Where(link =>
-                link.IndustryPartnerId == selected.IndustryPartnerId &&
-                link.ProjectId != projectId &&
-                !link.Project.IsDeleted)
-            .Select(link => new ProjectJdpLinkedProjectDto(
-                link.ProjectId,
-                link.Project.Name,
-                link.Project.CaseFileNumber,
-                link.Project.LifecycleStatus,
-                link.Project.IsArchived,
-                link.Project.IsDeleted))
-            .ToListAsync(cancellationToken);
-
-        otherProjects = otherProjects
-            .OrderBy(project => project.StatusOrder)
-            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(project => project.ProjectId)
-            .ToList();
-
-        return new ProjectJdpProfileDto(
-            projectId,
-            selected.IndustryPartnerId,
-            selected.Name,
-            selected.Location,
-            otherProjects,
-            links.Count > 1);
-    }
-
     public async Task<ProjectMultiJdpProfileDto> GetProjectMultiJdpProfileAsync(
         int projectId,
         CancellationToken cancellationToken = default)
@@ -499,8 +454,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                     link.ProjectId != projectId &&
                     !link.Project.IsDeleted &&
                     !link.Project.IsArchived &&
-                    link.Project.LifecycleStatus == completedStatus),
-                partner.PartnerProjects.Any(link => link.ProjectId == projectId)))
+                    link.Project.LifecycleStatus == completedStatus)))
             .ToListAsync(cancellationToken);
     }
 

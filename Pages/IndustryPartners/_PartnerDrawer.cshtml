@@ -4,7 +4,6 @@
     var primary = partner.PrimaryContact;
     var hasContextualAssociation = Model.ProjectContext is not null &&
         partner.LinkedProjects.Any(link => link.ProjectId == Model.ProjectContext.Id);
-    var statusKey = partner.LinkedProjects.Count == 0 ? "contact" : partner.ActiveProjectCount > 0 ? "current" : "past";
 }
 
 <div class="offcanvas offcanvas-end ip-partner-drawer"
@@ -17,10 +16,10 @@
     <div class="offcanvas-header ip-drawer-header">
         <div class="min-w-0">
             <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="ip-status-badge ip-status-@statusKey">@partner.StatusLabel</span>
-                @if (partner.LinkedProjects.Count > 0)
+                <span class="ip-status-badge ip-status-@partner.StatusKey">@partner.StatusLabel</span>
+                @if (partner.LiveProjectCount > 0)
                 {
-                    <span class="ip-header-count">@partner.LinkedProjects.Count @(partner.LinkedProjects.Count == 1 ? "project" : "projects")</span>
+                    <span class="ip-header-count">@partner.LiveProjectCount @(partner.LiveProjectCount == 1 ? "project" : "projects")</span>
                 }
             </div>
             <h2 class="offcanvas-title" id="industryPartnerDrawerLabel">@partner.Name</h2>

@@ -231,7 +231,7 @@ public sealed class IndustryPartnerJdpAuthorizationTests
         var page = CreatePage(new IndustryPartnerService(context), User("ta-1", RoleNames.Ta));
         page.ContextProjectId = projectId;
 
-        var result = await page.OnPostCreatePartnerAsync("New Org", null, null, "12345", null, CancellationToken.None);
+        var result = await page.OnPostCreatePartnerAsync("New Org", location: null, remarks: null, contactName: null, contactPhone: "12345", contactEmail: null, CancellationToken.None);
 
         Assert.IsType<RedirectToPageResult>(result);
         Assert.Equal("You are not authorised to change the JDPs for this project.", page.TempData["Error"]);

@@ -3,13 +3,13 @@
 @if (Model.CanManageJdp)
 {
     <div class="pm-summary-footer-actions">
-        <button class="btn btn-sm @(Model.JdpProfile.HasJdp ? "btn-outline-secondary" : "btn-primary")"
+        <button class="btn btn-sm @(Model.MultiJdpProfile.HasJdp ? "btn-outline-secondary" : "btn-primary")"
                 type="button"
                 data-bs-toggle="offcanvas"
                 data-bs-target="#offcanvasJdp"
                 aria-controls="offcanvasJdp"
                 data-jdp-lower-action>
-            @(Model.JdpProfile.HasJdp ? "Manage JDP" : "Link JDP")
+            @(Model.MultiJdpProfile.HasJdp ? "Manage JDP" : "Link JDP")
         </button>
     </div>
 }

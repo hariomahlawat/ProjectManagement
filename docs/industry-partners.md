@@ -27,6 +27,22 @@ and the project rule must pass. The directory's project picker lists only projec
 link. Links to soft-deleted projects can still be removed by the same people, so an organisation
 can be cleaned up before it is deleted.
 
+## JDP status and counts
+
+`JdpStatusRules` is the single source for a linked project's status (Ongoing, Completed,
+Cancelled, Archived, Deleted project), its display order, and the "Also linked to N other
+projects" summary; every directory, Overview and lookup view uses it.
+
+An organisation is **Current JDP** when it has a link to an ongoing project, **Past JDP** when
+its live links are all completed, cancelled or archived, and **Contact only** otherwise. Links to
+soft-deleted projects are not counted anywhere (directory counts, filters, status, duplicate
+suggestions). They still appear in the organisation's JDP history, labelled "Deleted project", so
+they can be removed, and they still block permanent deletion until removed. The Current and Past
+filters overlap on purpose: an organisation with both kinds of link appears in both.
+
+Duplicate suggestions compare every organisation's name with company suffixes, "M/s" and
+punctuation removed.
+
 ## Company files
 
 Allowed types are PDF, Word (`.doc`, `.docx`), PowerPoint (`.ppt`, `.pptx`), JPEG and PNG, up to

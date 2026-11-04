@@ -2,6 +2,11 @@
 @{
     var partner = Model.SelectedPartner!;
     var primary = partner.PrimaryContact;
+    var draft = Model.EditDraft;
+    var editName = draft is not null ? draft.Name : partner.Name;
+    var editLocation = draft is not null ? draft.Location : partner.Location;
+    var editRemarks = draft is not null ? draft.Remarks : partner.Remarks;
+    var editRowVersion = draft?.RowVersion ?? partner.RowVersion;
 }
 
 @if (Model.Edit && Model.CanEditOrganisation)
@@ -9,7 +14,7 @@
     <form method="post" asp-page-handler="UpdatePartner" class="ip-edit-form" data-update-organisation-form>
         @Html.AntiForgeryToken()
         <input type="hidden" name="partnerId" value="@partner.Id" />
-        <input type="hidden" name="rowVersion" value="@partner.RowVersion" />
+        <input type="hidden" name="rowVersion" value="@editRowVersion" />
         <input type="hidden" name="q" value="@Model.Q" />
         <input type="hidden" name="filter" value="@Model.Filter" />
         <input type="hidden" name="p" value="@Model.PageNumber" />
@@ -24,15 +29,15 @@
 
         <div class="mb-3">
             <label class="form-label" for="partnerName">Organisation name</label>
-            <input id="partnerName" name="name" class="form-control" value="@partner.Name" maxlength="200" required />
+            <input id="partnerName" name="name" class="form-control" value="@editName" maxlength="200" required />
         </div>
         <div class="mb-3">
             <label class="form-label" for="partnerLocation">City / location / address</label>
-            <textarea id="partnerLocation" name="location" class="form-control" rows="2" maxlength="2000">@partner.Location</textarea>
+            <textarea id="partnerLocation" name="location" class="form-control" rows="2" maxlength="2000">@editLocation</textarea>
         </div>
         <div class="mb-3">
             <label class="form-label" for="partnerRemarks">Notes</label>
-            <textarea id="partnerRemarks" name="remarks" class="form-control" rows="4" maxlength="4000">@partner.Remarks</textarea>
+            <textarea id="partnerRemarks" name="remarks" class="form-control" rows="4" maxlength="4000">@editRemarks</textarea>
             <div class="form-text">Keep only durable information that helps future engagement with the organisation.</div>
         </div>
         <div class="ip-form-actions">
@@ -128,7 +133,7 @@ else
                 {
                     <div>
                         <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="ip-project-preview-name">@project.ProjectName</a>
-                        <span class="ip-status-badge ip-status-@(project.ProjectStatusLabel == "Ongoing" ? "current" : "past")">@project.ProjectStatusLabel</span>
+                        <span class="ip-status-badge ip-status-@(project.IsCurrent ? "current" : "past")">@project.ProjectStatusLabel</span>
                     </div>
                 }
             </div>

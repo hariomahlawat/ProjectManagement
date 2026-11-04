@@ -10,15 +10,15 @@ public sealed record ProjectJdpPartnerProfileDto(
 {
     public int OtherProjectCount => OtherProjects.Count;
 
-    public int OtherOngoingProjectCount => OtherProjects.Count(project => project.StatusLabel == "Ongoing");
+    public int OtherOngoingProjectCount => OtherProjects.Count(project => project.Status == JdpProjectStatus.Ongoing);
 
-    public int OtherCompletedProjectCount => OtherProjects.Count(project => project.StatusLabel == "Completed");
+    public int OtherCompletedProjectCount => OtherProjects.Count(project => project.Status == JdpProjectStatus.Completed);
 
     public int OtherProjectStatusCount => Math.Max(
         0,
         OtherProjectCount - OtherOngoingProjectCount - OtherCompletedProjectCount);
 
-    public string UsageSummary => ProjectMultiJdpProfileDto.BuildUsageSummary(
+    public string UsageSummary => JdpStatusRules.UsageSummary(
         OtherProjectCount,
         OtherOngoingProjectCount,
         OtherCompletedProjectCount);
@@ -48,34 +48,6 @@ public sealed record ProjectMultiJdpProfileDto(
 
     public static ProjectMultiJdpProfileDto Empty(int projectId) =>
         new(projectId, Array.Empty<ProjectJdpPartnerProfileDto>());
-
-    internal static string BuildUsageSummary(int total, int ongoing, int completed)
-    {
-        if (total == 0)
-        {
-            return "Not linked to any other project";
-        }
-
-        var parts = new List<string>();
-        if (ongoing > 0)
-        {
-            parts.Add($"{ongoing} ongoing");
-        }
-
-        if (completed > 0)
-        {
-            parts.Add($"{completed} completed");
-        }
-
-        var other = Math.Max(0, total - ongoing - completed);
-        if (other > 0)
-        {
-            parts.Add($"{other} other");
-        }
-
-        return $"Also linked to {total} other {(total == 1 ? "project" : "projects")}" +
-               (parts.Count == 0 ? string.Empty : $" · {string.Join(" · ", parts)}");
-    }
 
     private static string BuildPartnerNameSummary(IReadOnlyList<ProjectJdpPartnerProfileDto> partners)
     {
