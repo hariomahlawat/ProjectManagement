@@ -444,7 +444,8 @@ test('the Studio chooses the photograph a deck shows, saved through the deck que
 
 test('speaker notes are edited in the inspector and saved through the deck queue', () => {
   assert.match(studioSource, /if \(hasOwnSlides\(project\)\) nodes\.push\(notesSection\(project\)\);/);
-  assert.match(studioSource, /field\.addEventListener\('blur', \(\) => saveNotes\(project\)\);/);
+  // Saving on blur refreshes the notes box in place, so a click on the next control is not lost.
+  assert.match(studioSource, /field\.addEventListener\('blur', \(\) => saveNotes\(project, refresh\)\);/);
   assert.match(studioSource, /new CustomEvent\('pbd:set-project-notes', \{ detail: \{ projectId: project\.projectId, notes: text \} \}\)/);
   // A draft survives re-rendering until the saved notes come back with the deck.
   assert.match(studioSource, /const notesText = \(project\) => notesDrafts\.get\(project\.projectId\)\?\.text \?\? \(project\.speakerNotes \|\| ''\);/);

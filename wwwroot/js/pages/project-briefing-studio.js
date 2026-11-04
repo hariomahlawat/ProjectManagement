@@ -127,6 +127,25 @@ if (root) {
 
   const gapsFor = (projectId) => gaps[projectId] || gaps[String(projectId)] || [];
 
+  // Re-rendering a panel replaces its nodes. Put keyboard focus (and a text field's caret) back
+  // on the equivalent control, so a keyboard user is not dropped to the top of the page.
+  const focusKeyOf = (node) => node?.dataset?.pbdFocusKey || (node?.id ? `#${node.id}` : '');
+  const keepFocus = (container, render) => {
+    const active = document.activeElement;
+    const key = container && active && active !== container && container.contains(active) ? focusKeyOf(active) : '';
+    const caret = key && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
+    render();
+    if (!key) return;
+    const target = key.startsWith('#')
+      ? container.querySelector(`#${CSS.escape(key.slice(1))}`)
+      : container.querySelector(`[data-pbd-focus-key="${CSS.escape(key)}"]`);
+    if (!target || target.disabled) return;
+    target.focus({ preventScroll: true });
+    if (caret && typeof target.setSelectionRange === 'function') {
+      try { target.setSelectionRange(caret[0], caret[1]); } catch { /* not a text field */ }
+    }
+  };
+
   // Each slide is a fixed 1280 × 720 canvas; its frame scales it to the frame's width.
   const scaleObserver = new ResizeObserver((records) => records.forEach((record) => scaleFrame(record.target)));
   const scaleFrame = (frame) => {
@@ -361,7 +380,9 @@ if (root) {
     root.dataset.unsavedNotes = String(unsaved);
   };
 
-  const saveNotes = (project) => {
+  // `update` refreshes the notes box in place: rebuilding the whole panel on blur would replace
+  // the button the person is clicking (the click is then lost) and drop keyboard focus.
+  const saveNotes = (project, update) => {
     const draft = notesDrafts.get(project.projectId);
     const text = notesText(project).trim();
     if (draft?.saving) return;
@@ -372,7 +393,8 @@ if (root) {
     }
     if (text.length > NOTES_MAX) return;
     notesDrafts.set(project.projectId, { text, saving: true, error: '' });
-    refreshInspector();
+    if (update) update();
+    else refreshInspector();
     document.dispatchEvent(new CustomEvent('pbd:set-project-notes', { detail: { projectId: project.projectId, notes: text } }));
   };
 
@@ -386,14 +408,16 @@ if (root) {
     field.maxLength = NOTES_MAX;
     field.placeholder = 'What to say on this project. Shown to the presenter, not on the slide.';
     field.value = notesText(project);
-    const draft = notesDrafts.get(project.projectId);
-    field.disabled = Boolean(draft?.saving);
+    field.disabled = Boolean(notesDrafts.get(project.projectId)?.saving);
     const footer = el('div', 'pbd-inspector__notes-footer');
     const state = el('small', 'pbd-inspector__notes-state');
     const counter = el('small', 'pbd-inspector__notes-count');
     const save = el('button', 'btn btn-sm btn-outline-primary', 'Save notes');
     save.type = 'button';
+    save.dataset.pbdFocusKey = 'notes-save';
     const refresh = () => {
+      const draft = notesDrafts.get(project.projectId);
+      field.disabled = Boolean(draft?.saving);
       const dirty = field.value.trim() !== (project.speakerNotes || '').trim();
       counter.textContent = `${field.value.length} / ${NOTES_MAX}`;
       save.disabled = !dirty || field.disabled;
@@ -410,8 +434,8 @@ if (root) {
       markUnsavedNotes();
       refresh();
     });
-    field.addEventListener('blur', () => saveNotes(project));
-    save.addEventListener('click', () => saveNotes(project));
+    field.addEventListener('blur', () => saveNotes(project, refresh));
+    save.addEventListener('click', () => saveNotes(project, refresh));
     refresh();
     footer.append(state, counter, save);
     section.append(label, field, footer);
@@ -485,8 +509,20 @@ if (root) {
 
   const canReorder = () => !query && !filterGap;
 
+  // A rebuild (e.g. a preview finishing) must not destroy a drag in progress: wait for the drop.
+  let dragging = false;
+  let outlinePending = false;
   const renderOutline = () => {
     if (!outlineNav) return;
+    if (dragging) {
+      outlinePending = true;
+      return;
+    }
+    outlinePending = false;
+    keepFocus(outlineNav, drawOutline);
+  };
+
+  const drawOutline = () => {
     outlineSortables.forEach((sortable) => sortable.destroy());
     outlineSortables = [];
     const groups = groupsForOutline();
@@ -505,6 +541,7 @@ if (root) {
       const wrapper = el('div', 'pbd-outline__group');
       const header = el('button', group.isStage ? 'pbd-outline__group-toggle is-stage' : 'pbd-outline__group-toggle');
       header.type = 'button';
+      header.dataset.pbdFocusKey = `group:${group.key}`;
       header.setAttribute('aria-expanded', String(open));
       header.append(icon('bi-chevron-right'), el('span', 'pbd-outline__group-label', group.label), el('span', 'pbd-outline__group-count', String(group.entries.length)));
       header.addEventListener('click', () => {
@@ -520,6 +557,7 @@ if (root) {
           const row = el('button', 'pbd-outline__row');
           row.type = 'button';
           row.dataset.pbdOutlineKey = entry.key;
+          row.dataset.pbdFocusKey = `outline:${entry.key}`;
           if (group.isStage && entry.projectId) {
             row.dataset.pbdOutlineProject = String(entry.projectId);
             if (canReorder()) {
@@ -548,7 +586,7 @@ if (root) {
           const project = entry.projectId ? projects.get(entry.projectId) : null;
           const tag = presentationTag(project);
           if (tag) row.append(el('span', 'pbd-outline__tag', tag));
-          const missing = entry.projectId ? gapsFor(entry.projectId) : [];
+          const missing = project?.isPresented ? gapsFor(entry.projectId) : [];
           if (missing.length) {
             const badge = el('span', 'pbd-outline__gaps', String(missing.length));
             badge.title = `Missing: ${missing.map((key) => GAPS[key]?.label.toLowerCase() || key).join(', ')}`;
@@ -565,8 +603,11 @@ if (root) {
             handle: '.pbd-outline__grip',
             animation: 130,
             ghostClass: 'is-dragging',
+            onStart: () => { dragging = true; },
             onEnd: (event) => {
+              dragging = false;
               if (event.oldIndex !== event.newIndex) requestReorder(stageIdsFromList(list));
+              if (outlinePending) renderOutline();
             }
           }));
         }
@@ -665,8 +706,12 @@ if (root) {
   };
 
   const renderSlideInspector = (entry) => {
+    if (!panels.slide) return;
+    keepFocus(panels.slide, () => drawSlideInspector(entry));
+  };
+
+  const drawSlideInspector = (entry) => {
     const panel = panels.slide;
-    if (!panel) return;
     const slide = slides[current];
     // A project with no slide (left out) is still shown, even when the deck has no slides at all.
     if (!entry || (!slide && entry.indices.length)) {
@@ -715,6 +760,7 @@ if (root) {
       actions.append(actionLink('Open project', project.openUrl, project.projectId));
       const remove = el('button', 'btn btn-sm btn-outline-danger', 'Remove from deck');
       remove.type = 'button';
+      remove.dataset.pbdFocusKey = 'remove-project';
       remove.dataset.pbdRemoveProject = '';
       remove.dataset.projectId = String(project.projectId);
       remove.dataset.projectName = project.projectName;
@@ -746,9 +792,14 @@ if (root) {
       if (missing.length) projectsWithGaps += 1;
       missing.forEach((key) => { counts[key] = (counts[key] || 0) + 1; });
     });
+    // The badge counts the checks listed in the tab (what is missing), not projects: a deck where
+    // most projects lack one optional item would otherwise sit at "47" for ever.
+    const openChecks = Object.keys(GAPS).filter((key) => counts[key]).length;
     if (checksBadge) {
-      checksBadge.hidden = projectsWithGaps === 0;
-      checksBadge.textContent = String(projectsWithGaps);
+      checksBadge.hidden = openChecks === 0;
+      checksBadge.textContent = String(openChecks);
+      checksBadge.title = `${plural(openChecks, 'check')} to review`;
+      checksBadge.setAttribute('aria-label', `${plural(openChecks, 'check')} to review`);
     }
     if (total === 0) {
       panel.replaceChildren(el('p', 'pbd-inspector__empty', 'Add projects to check the deck.'));

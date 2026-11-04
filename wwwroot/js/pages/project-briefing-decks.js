@@ -3,6 +3,14 @@ import { prismConfirm } from './project-briefing-confirm.js';
 const root = document.querySelector('[data-pbd-root]');
 
 if (root) {
+
+  // Session storage only remembers conveniences (open sections, tab, scroll). It can be blocked
+  // or full; that must never stop the builder from starting.
+  const storage = {
+    get: (key) => { try { return window.sessionStorage.getItem(key); } catch { return null; } },
+    set: (key, value) => { try { window.sessionStorage.setItem(key, value); } catch { /* not remembered */ } },
+    remove: (key) => { try { window.sessionStorage.removeItem(key); } catch { /* not remembered */ } }
+  };
   const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
   const deckElement = root.querySelector('[data-deck-id]');
   const deckId = Number(deckElement?.dataset.deckId || 0);
@@ -79,19 +87,19 @@ if (root) {
       .filter((section) => !section.hidden && section.open)
       .map((section) => section.dataset.pbdSettingsSection)
       .filter(Boolean);
-    sessionStorage.setItem(settingsSectionStorageKey(), JSON.stringify(openSections));
+    storage.set(settingsSectionStorageKey(), JSON.stringify(openSections));
   };
 
   const restoreSettingsSectionState = () => {
     if (settingsCollapsibleSections.length === 0) return;
     let openSections = defaultOpenSettingsSections();
-    const saved = sessionStorage.getItem(settingsSectionStorageKey());
+    const saved = storage.get(settingsSectionStorageKey());
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) openSections = new Set(parsed.map(String));
       } catch {
-        sessionStorage.removeItem(settingsSectionStorageKey());
+        storage.remove(settingsSectionStorageKey());
       }
     }
     restoringSettingsSections = true;
@@ -1121,10 +1129,10 @@ if (root) {
 
   // Preserve the user's working context for this deck.
   const restoreScroll = () => {
-    const saved = Number(sessionStorage.getItem(`${storagePrefix}scroll`) || 0);
+    const saved = Number(storage.get(`${storagePrefix}scroll`) || 0);
     if (saved > 0) window.requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'auto' }));
   };
-  window.addEventListener('pagehide', () => sessionStorage.setItem(`${storagePrefix}scroll`, String(window.scrollY)));
+  window.addEventListener('pagehide', () => storage.set(`${storagePrefix}scroll`, String(window.scrollY)));
   restoreScroll();
 
   // The shared-deck list folds away at every width so the Studio keeps its three panes; it
@@ -1148,7 +1156,7 @@ if (root) {
     const label = savedDecksToggle.querySelector('span');
     if (label) label.textContent = effectiveOpen ? 'Hide decks' : 'Shared decks';
     if (persist && savedDecksMedia.matches) {
-      sessionStorage.setItem(savedDecksStorageKey, effectiveOpen ? 'true' : 'false');
+      storage.set(savedDecksStorageKey, effectiveOpen ? 'true' : 'false');
     }
   };
 
@@ -1157,7 +1165,7 @@ if (root) {
       setSavedDecksOpen(true, false);
       return;
     }
-    const saved = sessionStorage.getItem(savedDecksStorageKey);
+    const saved = storage.get(savedDecksStorageKey);
     setSavedDecksOpen(saved === 'true', false);
   };
 
@@ -1184,10 +1192,10 @@ if (root) {
       panel.hidden = !active;
       panel.classList.toggle('is-active', active);
     });
-    sessionStorage.setItem(`${storagePrefix}activeTab`, name);
+    storage.set(`${storagePrefix}activeTab`, name);
   };
 
-  const savedTab = sessionStorage.getItem(`${storagePrefix}activeTab`);
+  const savedTab = storage.get(`${storagePrefix}activeTab`);
   if (savedTab && tabs.some((tab) => tab.dataset.pbdSelectorTab === savedTab)) activatePanel(savedTab);
 
   tabs.forEach((tab, index) => {
@@ -1497,6 +1505,7 @@ if (root) {
       });
       setState(membershipStatus, 'Slide order saved.', 'saved');
     } catch (error) {
+      if (error instanceof RequestError && error.status === 409) showConflict(error.message);
       setState(membershipStatus, error.message || 'Slide order could not be saved.', 'error');
     }
     // Rebuild either way: the slides follow the saved order, or return to it after a failure.
