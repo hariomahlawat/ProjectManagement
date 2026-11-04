@@ -1,0 +1,36 @@
+@model IReadOnlyList<ProjectManagement.Services.ProjectBriefings.ProjectBriefingDeletedDeckVm>
+@*
+    Decks deleted in the last ProjectBriefingDeckService.DeletedRetentionDays days. Any Comdt/HoD
+    can restore one; after the window it is removed for good.
+*@
+@if (Model.Count > 0)
+{
+    <details class="pbd-deleted" data-pbd-deleted-decks>
+        <summary>
+            <i class="bi bi-trash3" aria-hidden="true"></i>
+            <span>Recently deleted</span>
+            <span class="pbd-deleted__count">@Model.Count</span>
+        </summary>
+        <ul class="pbd-deleted__list">
+            @foreach (var deleted in Model)
+            {
+                var deletedAtIst = IstClock.ToIst(deleted.DeletedAtUtc);
+                var untilIst = IstClock.ToIst(deleted.RestorableUntilUtc);
+                <li class="pbd-deleted__item">
+                    <span class="pbd-deleted__body">
+                        <strong title="@deleted.Name">@deleted.Name</strong>
+                        <small>
+                            @deleted.ProjectCount @(deleted.ProjectCount == 1 ? "project" : "projects") ·
+                            deleted @deletedAtIst.ToString("dd MMM") by @deleted.DeletedByDisplay
+                        </small>
+                        <small>Can be restored until @untilIst.ToString("dd MMM yyyy")</small>
+                    </span>
+                    <form method="post" asp-page="/Workspace/BriefingDecks/Index" asp-page-handler="Restore">
+                        <input type="hidden" name="deckId" value="@deleted.Id" />
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" aria-label="Restore @deleted.Name">Restore</button>
+                    </form>
+                </li>
+            }
+        </ul>
+    </details>
+}

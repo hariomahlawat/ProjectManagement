@@ -428,7 +428,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         {
             var root = JsonNode.Parse(json) as JsonObject;
             if (root is null
-                || !string.Equals(root["schema"]?.GetValue<string>(), Schema, StringComparison.Ordinal))
+                || !string.Equals(ReadText(root["schema"]), Schema, StringComparison.Ordinal))
             {
                 return Defaults(json);
             }
@@ -583,7 +583,7 @@ public static class ProjectBriefingDeckConfigurationCodec
 
     private static ProjectBriefingUpdateSheetOptions ReadUpdateSheetOptions(JsonObject? updateSheet)
     {
-        var hideEmptyValues = updateSheet?["hideEmptyValues"]?.GetValue<bool>() ?? false;
+        var hideEmptyValues = ReadBoolean(updateSheet?["hideEmptyValues"]) ?? false;
         return ProjectBriefingUpdateSheetOptions.Normalize(
             ReadEnumArray<ProjectBriefingUpdateSheetRow>(updateSheet?["rows"] as JsonArray),
             hideEmptyValues);
@@ -592,9 +592,9 @@ public static class ProjectBriefingDeckConfigurationCodec
     private static ProjectBriefingStandardSlideOptions ReadStandardSlideOptions(JsonObject? standard)
         => ProjectBriefingStandardSlideOptions.Normalize(
             ReadEnum(standard?["projectBriefLayout"], ProjectBriefingProjectBriefLayout.Automatic),
-            standard?["showPresentStage"]?.GetValue<bool>() ?? true,
-            standard?["showPresentStatus"]?.GetValue<bool>() ?? true,
-            standard?["includeStageDistributionTable"]?.GetValue<bool>() ?? false);
+            ReadBoolean(standard?["showPresentStage"]) ?? true,
+            ReadBoolean(standard?["showPresentStatus"]) ?? true,
+            ReadBoolean(standard?["includeStageDistributionTable"]) ?? false);
 
     private static ProjectBriefingClosingSlideType ReadClosingSlideType(JsonNode? node)
         => ReadEnum(node, ProjectBriefingClosingSlideType.JaiHind);
@@ -611,8 +611,8 @@ public static class ProjectBriefingDeckConfigurationCodec
         {
             foreach (var item in historyArray.OfType<JsonObject>())
             {
-                var year = item["year"]?.GetValue<int>() ?? 0;
-                var text = item["text"]?.GetValue<string>();
+                var year = ReadNullableInt(item["year"]) ?? 0;
+                var text = ReadText(item["text"]);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     history.Add(new ProjectBriefingInstitutionalHistoryMilestone(year, text));
@@ -634,28 +634,28 @@ public static class ProjectBriefingDeckConfigurationCodec
             || profile.ContainsKey("footerStripEmphasisValue");
         var legacyCitationCount = ReadNullableInt(profile["unitCitationCount"]);
         var footerEnabled = hasNewFooterConfiguration
-            ? profile["includeFooterStrip"]?.GetValue<bool>() ?? false
-            : profile["includeUnitCitations"]?.GetValue<bool>() ?? false;
+            ? ReadBoolean(profile["includeFooterStrip"]) ?? false
+            : ReadBoolean(profile["includeUnitCitations"]) ?? false;
         var footerText = hasNewFooterConfiguration
-            ? profile["footerStripText"]?.GetValue<string>()
-            : profile["unitCitationLabel"]?.GetValue<string>();
+            ? ReadText(profile["footerStripText"])
+            : ReadText(profile["unitCitationLabel"]);
         var footerValue = hasNewFooterConfiguration
-            ? profile["footerStripEmphasisValue"]?.GetValue<string>()
+            ? ReadText(profile["footerStripEmphasisValue"])
             : legacyCitationCount.HasValue
                 ? legacyCitationCount.Value.ToString("00", System.Globalization.CultureInfo.InvariantCulture)
                 : null;
 
         return ProjectBriefingInstitutionalProfileOptions.Normalize(
-            profile["includeSlide"]?.GetValue<bool>() ?? false,
-            profile["title"]?.GetValue<string>(),
-            profile["includeHistory"]?.GetValue<bool>() ?? true,
+            ReadBoolean(profile["includeSlide"]) ?? false,
+            ReadText(profile["title"]),
+            ReadBoolean(profile["includeHistory"]) ?? true,
             history,
             profile["modules"] is JsonArray moduleArray
                 ? ReadEnumArray<ProjectBriefingInstitutionalProfileModule>(moduleArray)
                 : ProjectBriefingInstitutionalProfileOptions.DefaultModules,
             ReadEnum(profile["projectScope"], ProjectBriefingInstitutionalProjectScope.OriginalCompleted),
-            profile["maximumDetailRows"]?.GetValue<int>() ?? 6,
-            profile["trainingHighlightTechnicalCategory"]?.GetValue<string>(),
+            ReadNullableInt(profile["maximumDetailRows"]) ?? 6,
+            ReadText(profile["trainingHighlightTechnicalCategory"]),
             partnerships,
             footerEnabled,
             footerText,
@@ -672,10 +672,10 @@ public static class ProjectBriefingDeckConfigurationCodec
         }
 
         return ProjectBriefingRoleCharterOptions.Normalize(
-            roleCharter["includeSlide"]?.GetValue<bool>() ?? false,
-            roleCharter["title"]?.GetValue<string>(),
+            ReadBoolean(roleCharter["includeSlide"]) ?? false,
+            ReadText(roleCharter["title"]),
             ReadEnum(roleCharter["layout"], ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter),
-            roleCharter["useSharedContent"]?.GetValue<bool>() ?? true,
+            ReadBoolean(roleCharter["useSharedContent"]) ?? true,
             ReadRoleCharterEntries(roleCharter["roleStatements"] as JsonArray),
             ReadRoleCharterEntries(roleCharter["charterItems"] as JsonArray));
     }
@@ -685,21 +685,21 @@ public static class ProjectBriefingDeckConfigurationCodec
             ? Array.Empty<ProjectBriefingRoleCharterEntry>()
             : array.OfType<JsonObject>()
                 .Select(item => new ProjectBriefingRoleCharterEntry(
-                    item["leadPhrase"]?.GetValue<string>() ?? string.Empty,
-                    item["text"]?.GetValue<string>() ?? string.Empty))
+                    ReadText(item["leadPhrase"]) ?? string.Empty,
+                    ReadText(item["text"]) ?? string.Empty))
                 .ToArray();
 
     private static ProjectBriefingFfcGlobalFootprintOptions ReadFfcGlobalFootprintOptions(JsonObject? footprint)
         => footprint is null
             ? ProjectBriefingFfcGlobalFootprintOptions.Default
             : ProjectBriefingFfcGlobalFootprintOptions.Normalize(
-                footprint["includeSlide"]?.GetValue<bool>() ?? false,
-                footprint["title"]?.GetValue<string>(),
+                ReadBoolean(footprint["includeSlide"]) ?? false,
+                ReadText(footprint["title"]),
                 ReadEnum(
                     footprint["layout"],
                     ProjectBriefingFfcGlobalFootprintLayout.MapWithCountryBreakdown),
-                footprint["maximumCountryRows"]?.GetValue<int>() ?? 8,
-                footprint["includeCountryWiseBreakdown"]?.GetValue<bool>() ?? false);
+                ReadNullableInt(footprint["maximumCountryRows"]) ?? 8,
+                ReadBoolean(footprint["includeCountryWiseBreakdown"]) ?? false);
 
     private static IReadOnlyList<ProjectBriefingAdditionalSlideType> ReadAdditionalSlideOrder(JsonArray? array)
     {
@@ -740,6 +740,28 @@ public static class ProjectBriefingDeckConfigurationCodec
 
         return value.TryGetValue<int>(out var result) ? result : null;
     }
+
+    // The readers below never throw: a field of the wrong type reads as missing, so it falls back
+    // to its own default instead of discarding the whole stored configuration.
+    private static bool? ReadBoolean(JsonNode? node)
+    {
+        if (node is not JsonValue value)
+        {
+            return null;
+        }
+
+        if (value.TryGetValue<bool>(out var flag))
+        {
+            return flag;
+        }
+
+        return value.TryGetValue<string>(out var text) && bool.TryParse(text, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static string? ReadText(JsonNode? node)
+        => node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
     private static string Write(ProjectBriefingDeckConfiguration configuration)
     {

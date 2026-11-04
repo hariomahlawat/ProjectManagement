@@ -51,6 +51,8 @@ public sealed class IndexModel : PageModel
 
     public IReadOnlyList<ProjectBriefingDeckSummaryVm> Decks { get; private set; }
         = Array.Empty<ProjectBriefingDeckSummaryVm>();
+    public IReadOnlyList<ProjectBriefingDeletedDeckVm> DeletedDecks { get; private set; }
+        = Array.Empty<ProjectBriefingDeletedDeckVm>();
     public ProjectBriefingDeckVm? SelectedDeck { get; private set; }
     public ProjectBriefingSelectionOptionsVm SelectionOptions { get; private set; } = new();
     public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { HasCommandAccess = true, ActiveLens = "command", ActiveItem = "command-briefing-decks" };
@@ -137,7 +139,7 @@ public sealed class IndexModel : PageModel
         try
         {
             await _deckService.DeleteAsync(deckId, userId, rowVersion, cancellationToken);
-            StatusMessage = "Briefing deck deleted.";
+            StatusMessage = $"Briefing deck deleted. It can be restored from Recently deleted for {ProjectBriefingDeckService.DeletedRetentionDays} days.";
             return RedirectToPage();
         }
         catch (KeyNotFoundException exception)
@@ -149,6 +151,31 @@ public sealed class IndexModel : PageModel
         {
             ErrorMessage = "The deck was updated by another user and was not deleted. Reload and try again.";
             return RedirectToPage(new { deckId });
+        }
+    }
+
+    public async Task<IActionResult> OnPostRestoreAsync(
+        long deckId,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        try
+        {
+            var restored = await _deckService.RestoreAsync(deckId, userId, cancellationToken);
+            StatusMessage = restored.Renamed
+                ? $"Briefing deck restored as “{restored.Name}” because another deck now uses its name."
+                : "Briefing deck restored.";
+            return RedirectToPage(new { deckId = restored.DeckId });
+        }
+        catch (KeyNotFoundException exception)
+        {
+            ErrorMessage = exception.Message;
+            return RedirectToPage();
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage = "The deck could not be restored. Reload and try again.";
+            return RedirectToPage();
         }
     }
 
@@ -1151,6 +1178,7 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         Decks = await _deckService.ListAsync(userId, cancellationToken);
+        DeletedDecks = await _deckService.ListDeletedAsync(userId, cancellationToken);
         var deckId = requestedDeckId ?? Decks.FirstOrDefault()?.Id;
         if (deckId.HasValue)
         {

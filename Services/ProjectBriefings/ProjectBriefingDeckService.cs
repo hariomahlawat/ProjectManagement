@@ -155,6 +155,15 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ProjectBriefingDeletedDeckVm>> ListDeletedAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<ProjectBriefingDeckRestoreResult> RestoreAsync(
+        long deckId,
+        string requestingUserId,
+        CancellationToken cancellationToken = default);
+
     Task MarkGeneratedAsync(
         long deckId,
         string requestingUserId,
@@ -189,7 +198,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         _ = NormalizeUserId(requestingUserId);
-        var rows = await _db.Set<ProjectBriefingDeck>()
+        var rows = await _db.Set<ProjectBriefingDeck>().Live()
             .AsNoTracking()
             .OrderByDescending(deck => deck.UpdatedAtUtc)
             .ThenBy(deck => deck.Name)
@@ -239,7 +248,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         _ = NormalizeUserId(requestingUserId);
-        IQueryable<ProjectBriefingDeck> query = _db.Set<ProjectBriefingDeck>();
+        IQueryable<ProjectBriefingDeck> query = _db.Set<ProjectBriefingDeck>().Live();
         if (includeItems)
         {
             query = query
@@ -1279,17 +1288,124 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ?? throw new KeyNotFoundException("The shared command deck was not found.");
         EnsureVersion(deck, rowVersion);
 
-        _db.Remove(deck);
+        // Soft delete: the deck, its projects, notes and choices stay intact and can be restored
+        // for DeletedRetentionDays. Decks deleted longer ago than that are removed for good here.
+        var now = _clock.UtcNow.ToUniversalTime();
+        deck.DeletedAtUtc = now;
+        deck.DeletedByUserId = userId;
+        deck.RowVersion = NewRowVersion();
+
+        var expiredBefore = now.AddDays(-DeletedRetentionDays);
+        var expired = await _db.Set<ProjectBriefingDeck>()
+            .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
+            .ToListAsync(cancellationToken);
+        _db.RemoveRange(expired);
+
         await _db.SaveChangesAsync(cancellationToken);
         await TryAuditAsync(
             "ProjectBriefing.DeckDeleted",
-            "Project briefing deck deleted.",
+            $"Project briefing deck deleted; it can be restored for {DeletedRetentionDays} days.",
             userId,
             new Dictionary<string, string?>
             {
                 ["DeckId"] = deckId.ToString(),
                 ["DeckName"] = deck.Name
             });
+    }
+
+    public const int DeletedRetentionDays = 30;
+
+    public async Task<IReadOnlyList<ProjectBriefingDeletedDeckVm>> ListDeletedAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = NormalizeUserId(requestingUserId);
+        var restorableAfter = _clock.UtcNow.ToUniversalTime().AddDays(-DeletedRetentionDays);
+        var rows = await _db.Set<ProjectBriefingDeck>()
+            .AsNoTracking()
+            .Where(deck => deck.DeletedAtUtc != null && deck.DeletedAtUtc >= restorableAfter)
+            .OrderByDescending(deck => deck.DeletedAtUtc)
+            .Select(deck => new
+            {
+                deck.Id,
+                deck.Name,
+                ProjectCount = deck.Items.Count,
+                DeletedAtUtc = deck.DeletedAtUtc!.Value,
+                DeletedByDisplay = deck.DeletedByUser != null
+                    ? (deck.DeletedByUser.FullName != string.Empty
+                        ? deck.DeletedByUser.FullName
+                        : deck.DeletedByUser.UserName ?? "Unknown user")
+                    : "Unknown user"
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(row => new ProjectBriefingDeletedDeckVm(
+                row.Id,
+                row.Name,
+                row.ProjectCount,
+                row.DeletedAtUtc,
+                row.DeletedByDisplay,
+                row.DeletedAtUtc.AddDays(DeletedRetentionDays)))
+            .ToList();
+    }
+
+    public async Task<ProjectBriefingDeckRestoreResult> RestoreAsync(
+        long deckId,
+        string requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = NormalizeUserId(requestingUserId);
+        var restorableAfter = _clock.UtcNow.ToUniversalTime().AddDays(-DeletedRetentionDays);
+        var deck = await _db.Set<ProjectBriefingDeck>()
+            .FirstOrDefaultAsync(
+                candidate => candidate.Id == deckId
+                    && candidate.DeletedAtUtc != null
+                    && candidate.DeletedAtUtc >= restorableAfter,
+                cancellationToken)
+            ?? throw new KeyNotFoundException("The deleted deck was not found or can no longer be restored.");
+
+        // Another deck may have taken the name since: restore under a free variant instead.
+        var originalName = deck.Name;
+        var name = originalName;
+        var number = 1;
+        while (await NameTakenAsync(name, cancellationToken))
+        {
+            name = number switch
+            {
+                1 => $"{TrimForSuffix(originalName, 11)} (restored)",
+                <= 99 => $"{TrimForSuffix(originalName, 14)} (restored {number})",
+                _ => $"{TrimForSuffix(originalName, 17)} — {_clock.UtcNow:yyyyMMddHHmmss}"
+            };
+            if (number > 99) break;
+            number++;
+        }
+
+        deck.Name = name;
+        deck.NormalizedName = NormalizeName(name);
+        deck.DeletedAtUtc = null;
+        deck.DeletedByUserId = null;
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync("ProjectBriefing.DeckRestored", userId, deck, "Project briefing deck restored.");
+        return new ProjectBriefingDeckRestoreResult(
+            deck.Id,
+            deck.Name,
+            !string.Equals(name, originalName, StringComparison.Ordinal));
+    }
+
+    private Task<bool> NameTakenAsync(string name, CancellationToken cancellationToken)
+    {
+        var normalized = NormalizeName(name);
+        return _db.Set<ProjectBriefingDeck>().Live().AsNoTracking()
+            .AnyAsync(deck => deck.NormalizedName == normalized, cancellationToken);
+    }
+
+    // Leaves room for a suffix within the 160-character name limit.
+    private static string TrimForSuffix(string name, int suffixLength)
+    {
+        var limit = 160 - suffixLength;
+        return name.Length <= limit ? name : name[..limit].TrimEnd();
     }
 
     public async Task MarkGeneratedAsync(
@@ -1303,7 +1419,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         // Generation metadata must not invalidate a shared editor's optimistic-concurrency token.
         // ExecuteUpdate bypasses the tracked SaveChanges row-version rotation intentionally.
-        var updated = await _db.Set<ProjectBriefingDeck>()
+        var updated = await _db.Set<ProjectBriefingDeck>().Live()
             .Where(deck => deck.Id == deckId)
             .ExecuteUpdateAsync(
                 setters => setters.SetProperty(deck => deck.LastGeneratedAtUtc, now),
@@ -1329,7 +1445,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         long? excludedDeckId,
         CancellationToken cancellationToken)
     {
-        var exists = await _db.Set<ProjectBriefingDeck>()
+        var exists = await _db.Set<ProjectBriefingDeck>().Live()
             .AsNoTracking()
             .AnyAsync(deck => deck.NormalizedName == normalizedName
                 && (!excludedDeckId.HasValue || deck.Id != excludedDeckId.Value), cancellationToken);
@@ -1345,8 +1461,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     {
         for (var number = 1; number <= 99; number++)
         {
-            var candidate = number == 1 ? $"{sourceName} — Copy" : $"{sourceName} — Copy {number}";
-            if (!await _db.Set<ProjectBriefingDeck>().AsNoTracking().AnyAsync(
+            var candidate = number == 1
+                ? $"{TrimForSuffix(sourceName, 7)} — Copy"
+                : $"{TrimForSuffix(sourceName, 10)} — Copy {number}";
+            if (!await _db.Set<ProjectBriefingDeck>().Live().AsNoTracking().AnyAsync(
                     deck => deck.NormalizedName == NormalizeName(candidate),
                     cancellationToken))
             {
@@ -1354,7 +1472,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             }
         }
 
-        return $"{sourceName} — {_clock.UtcNow:yyyyMMddHHmmss}";
+        return $"{TrimForSuffix(sourceName, 17)} — {_clock.UtcNow:yyyyMMddHHmmss}";
     }
 
     private void Touch(ProjectBriefingDeck deck, string userId)
@@ -1527,4 +1645,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     private static byte[] NewRowVersion() => Guid.NewGuid().ToByteArray();
     private static string Encode(byte[] value) => value is { Length: > 0 } ? Convert.ToBase64String(value) : string.Empty;
+}
+
+internal static class ProjectBriefingDeckQueries
+{
+    // Decks a user works with: everything except decks in the deleted list.
+    public static IQueryable<ProjectBriefingDeck> Live(this IQueryable<ProjectBriefingDeck> decks)
+        => decks.Where(deck => deck.DeletedAtUtc == null);
 }

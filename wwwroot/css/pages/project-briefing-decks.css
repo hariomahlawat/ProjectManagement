@@ -203,6 +203,70 @@
     min-width: 0;
 }
 
+/* Recently deleted decks: collapsed by default under the shared-deck list. */
+.pbd-deleted {
+    border-top: 1px solid var(--pbd-border);
+    color: var(--pbd-muted);
+    font-size: .8rem;
+}
+
+.pbd-deleted > summary {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .6rem .9rem;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.pbd-deleted__count {
+    margin-left: auto;
+    font-weight: 700;
+}
+
+.pbd-deleted__list {
+    display: grid;
+    gap: .35rem;
+    margin: 0;
+    padding: 0 .6rem .7rem;
+    list-style: none;
+}
+
+.pbd-deleted__item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem .55rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .5rem;
+    background: var(--pbd-canvas);
+}
+
+.pbd-deleted__body {
+    min-width: 0;
+}
+
+.pbd-deleted__body strong,
+.pbd-deleted__body small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pbd-deleted__body strong {
+    color: var(--pbd-ink);
+    font-size: .82rem;
+}
+
+.pbd-first-use + .pbd-deleted {
+    margin-top: 1rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .75rem;
+    background: var(--pbd-surface);
+}
+
 .pbd-saved-card__body strong,
 .pbd-saved-card__body small {
     display: block;

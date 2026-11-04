@@ -824,9 +824,15 @@ namespace ProjectManagement.Data
                 entity.Property(deck => deck.HandlingMarking).HasMaxLength(80);
                 entity.Property(deck => deck.SelectionRulesJson).HasColumnType("jsonb");
                 ConfigureRowVersion(entity);
+                entity.Property(deck => deck.DeletedByUserId).HasMaxLength(450);
+                // Names are unique among live decks only: a deleted deck kept for restore does not
+                // block reusing its name (a restore renames itself if the name was taken meanwhile).
                 entity.HasIndex(deck => deck.NormalizedName)
                     .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName")
-                    .IsUnique();
+                    .IsUnique()
+                    .HasFilter("\"DeletedAtUtc\" IS NULL");
+                entity.HasIndex(deck => deck.DeletedAtUtc)
+                    .HasDatabaseName("IX_ProjectBriefingDecks_DeletedAtUtc");
                 entity.HasIndex(deck => deck.UpdatedAtUtc)
                     .HasDatabaseName("IX_ProjectBriefingDecks_UpdatedAtUtc");
                 entity.HasIndex(deck => deck.OwnerUserId)
@@ -838,6 +844,10 @@ namespace ProjectManagement.Data
                 entity.HasOne(deck => deck.LastModifiedByUser)
                     .WithMany()
                     .HasForeignKey(deck => deck.LastModifiedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(deck => deck.DeletedByUser)
+                    .WithMany()
+                    .HasForeignKey(deck => deck.DeletedByUserId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
 
