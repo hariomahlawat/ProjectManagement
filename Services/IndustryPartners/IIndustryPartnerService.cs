@@ -45,6 +45,7 @@ public interface IIndustryPartnerService
     Task<int> AddContactAsync(int partnerId, ContactRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default);
     Task UpdateContactAsync(int partnerId, int contactId, ContactRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default);
     Task DeleteContactAsync(int partnerId, int contactId, ClaimsPrincipal user, CancellationToken cancellationToken = default);
+    Task SetPrimaryContactAsync(int partnerId, int contactId, ClaimsPrincipal user, CancellationToken cancellationToken = default);
 
     Task LinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default);
     Task UnlinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default);
@@ -142,7 +143,8 @@ public sealed record IndustryPartnerContactDto(
     string? Email,
     string? CreatedByUserId,
     DateTimeOffset CreatedUtc,
-    string RowVersion)
+    string RowVersion,
+    bool IsPrimary = false)
 {
     public string DisplayName => string.IsNullOrWhiteSpace(Name) ? "General contact" : Name.Trim();
 }

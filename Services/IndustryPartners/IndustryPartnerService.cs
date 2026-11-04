@@ -58,34 +58,56 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         var partners = BuildDirectoryQuery(query, filter);
 
         var total = await partners.CountAsync(cancellationToken);
-        var items = await ApplySort(partners, sort)
+        var rows = await ApplySort(partners, sort)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(partner => new IndustryPartnerListItem(
+            .Select(partner => new
+            {
                 partner.Id,
                 partner.Name,
                 partner.Location,
-                partner.Contacts
-                    .OrderBy(contact => contact.Id)
-                    .Select(contact => contact.Name)
-                    .FirstOrDefault(),
-                partner.Contacts
-                    .OrderBy(contact => contact.Id)
-                    .Select(contact => contact.Phone)
-                    .FirstOrDefault(),
-                partner.Contacts
-                    .OrderBy(contact => contact.Id)
-                    .Select(contact => contact.Email)
-                    .FirstOrDefault(),
-                partner.Contacts.Count,
-                partner.Attachments.Count,
-                partner.PartnerProjects.Count(link => !link.Project.IsDeleted),
-                partner.PartnerProjects.Count(link =>
+                partner.PrimaryContactId,
+                ContactCount = partner.Contacts.Count,
+                AttachmentCount = partner.Attachments.Count,
+                ProjectCount = partner.PartnerProjects.Count(link => !link.Project.IsDeleted),
+                ActiveProjectCount = partner.PartnerProjects.Count(link =>
                     !link.Project.IsDeleted &&
                     !link.Project.IsArchived &&
                     link.Project.LifecycleStatus == activeStatus),
-                partner.UpdatedUtc ?? partner.CreatedUtc))
+                LastUpdatedUtc = partner.UpdatedUtc ?? partner.CreatedUtc
+            })
             .ToListAsync(cancellationToken);
+
+        // The primary contact of each organisation on the page, by the same rule as everywhere
+        // else (EffectivePrimaryContactId). Loaded separately so the list query stays simple.
+        var ids = rows.Select(row => row.Id).ToArray();
+        var contacts = await _db.IndustryPartnerContacts
+            .AsNoTracking()
+            .Where(contact => ids.Contains(contact.IndustryPartnerId))
+            .Select(contact => new { contact.Id, contact.IndustryPartnerId, contact.Name, contact.Phone, contact.Email })
+            .ToListAsync(cancellationToken);
+        var contactsByPartner = contacts.ToLookup(contact => contact.IndustryPartnerId);
+
+        var items = rows
+            .Select(row =>
+            {
+                var own = contactsByPartner[row.Id].ToList();
+                var primaryId = EffectivePrimaryContactId(row.PrimaryContactId, own.Select(contact => contact.Id));
+                var primary = own.FirstOrDefault(contact => contact.Id == primaryId);
+                return new IndustryPartnerListItem(
+                    row.Id,
+                    row.Name,
+                    row.Location,
+                    primary?.Name,
+                    primary?.Phone,
+                    primary?.Email,
+                    row.ContactCount,
+                    row.AttachmentCount,
+                    row.ProjectCount,
+                    row.ActiveProjectCount,
+                    row.LastUpdatedUtc);
+            })
+            .ToList();
 
         return new IndustryPartnerSearchResult(items, total, page, pageSize);
     }
@@ -110,7 +132,8 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                     !link.Project.IsDeleted &&
                     !link.Project.IsArchived &&
                     link.Project.LifecycleStatus == activeStatus),
-                LastUpdatedUtc = partner.UpdatedUtc ?? partner.CreatedUtc
+                LastUpdatedUtc = partner.UpdatedUtc ?? partner.CreatedUtc,
+                partner.PrimaryContactId
             })
             .ToListAsync(cancellationToken);
 
@@ -122,16 +145,28 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             .ThenBy(contact => contact.Id)
             .Select(contact => new
             {
+                contact.Id,
                 contact.IndustryPartnerId,
                 Contact = new IndustryPartnerExportContact(contact.Name, contact.Phone, contact.Email)
             })
             .ToListAsync(cancellationToken);
 
+        var chosenByPartner = rows.ToDictionary(row => row.Id, row => row.PrimaryContactId);
         var contactsByPartner = contacts
             .GroupBy(item => item.IndustryPartnerId)
             .ToDictionary(
                 group => group.Key,
-                group => (IReadOnlyList<IndustryPartnerExportContact>)group.Select(item => item.Contact).ToList());
+                group =>
+                {
+                    var primaryId = EffectivePrimaryContactId(
+                        chosenByPartner.GetValueOrDefault(group.Key),
+                        group.Select(item => item.Id));
+                    return (IReadOnlyList<IndustryPartnerExportContact>)group
+                        .OrderBy(item => item.Id == primaryId ? 0 : 1)
+                        .ThenBy(item => item.Id)
+                        .Select(item => item.Contact)
+                        .ToList();
+                });
 
         return rows
             .Select(row => new IndustryPartnerExportRow(
@@ -301,8 +336,11 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             return null;
         }
 
+        // The chosen primary contact comes first; without a choice, the first contact added.
+        var primaryContactId = EffectivePrimaryContactId(partner.PrimaryContactId, partner.Contacts.Select(contact => contact.Id));
         var contacts = partner.Contacts
-            .OrderBy(contact => contact.Id)
+            .OrderBy(contact => contact.Id == primaryContactId ? 0 : 1)
+            .ThenBy(contact => contact.Id)
             .Select(contact => new IndustryPartnerContactDto(
                 contact.Id,
                 contact.Name,
@@ -310,7 +348,8 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                 contact.Email,
                 contact.CreatedByUserId,
                 contact.CreatedUtc,
-                Convert.ToBase64String(contact.RowVersion)))
+                Convert.ToBase64String(contact.RowVersion),
+                IsPrimary: contact.Id == primaryContactId))
             .ToList();
 
         var attachments = partner.Attachments
@@ -710,6 +749,49 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         }
     }
 
+    public async Task SetPrimaryContactAsync(
+        int partnerId,
+        int contactId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
+
+        var belongs = await _db.IndustryPartnerContacts
+            .AnyAsync(contact => contact.Id == contactId && contact.IndustryPartnerId == partnerId, cancellationToken);
+        if (!belongs)
+        {
+            throw new KeyNotFoundException("Contact not found.");
+        }
+
+        if (partner.PrimaryContactId == contactId)
+        {
+            return;
+        }
+
+        partner.PrimaryContactId = contactId;
+        Touch(partner, user);
+        await SaveTouchingPartnerAsync(
+            partner,
+            user,
+            cancellationToken,
+            reapply: reloaded => reloaded.PrimaryContactId = contactId);
+    }
+
+    /// <summary>The chosen primary contact if it still exists, otherwise the first contact added.</summary>
+    internal static int? EffectivePrimaryContactId(int? chosenContactId, IEnumerable<int> contactIds)
+    {
+        var ids = contactIds.ToList();
+        if (chosenContactId.HasValue && ids.Contains(chosenContactId.Value))
+        {
+            return chosenContactId;
+        }
+
+        return ids.Count == 0 ? null : ids.Min();
+    }
+
     public async Task LinkProjectAsync(
         int partnerId,
         int projectId,
@@ -945,7 +1027,8 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
     private async Task SaveTouchingPartnerAsync(
         IndustryPartner partner,
         ClaimsPrincipal user,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<IndustryPartner>? reapply = null)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -966,6 +1049,9 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                     throw new KeyNotFoundException("Industry organisation not found.");
                 }
 
+                // The reload discarded this request's own change to the organisation row
+                // (if any), so it is applied again on top of the other user's version.
+                reapply?.Invoke(partner);
                 Touch(partner, user);
             }
         }

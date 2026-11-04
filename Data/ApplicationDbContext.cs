@@ -4167,6 +4167,11 @@ namespace ProjectManagement.Data
                     .HasDatabaseName("UX_IndustryPartners_NormalizedName_NormalizedLocation")
                     .IsUnique();
                 withLocationUnique.HasFilter("\"NormalizedLocation\" IS NOT NULL");
+
+                entity.HasOne<IndustryPartnerContact>()
+                    .WithMany()
+                    .HasForeignKey(x => x.PrimaryContactId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<IndustryPartnerContact>(entity =>

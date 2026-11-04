@@ -30,7 +30,7 @@ can be cleaned up before it is deleted.
 ## Directory list
 
 The list leads with how to reach each organisation: organisation and location, then the primary
-contact (currently the first contact added) with their phone number and email address. Each value
+contact with their phone number and email address. Each value
 has a copy button, because PRISM runs on office desktops where phone links usually cannot dial;
 phone and email links are still there for anyone using PRISM on a phone over the LAN. Copying uses
 the browser clipboard on HTTPS and falls back to the older copy command on plain HTTP.
@@ -45,6 +45,24 @@ the browser clipboard on HTTPS and falls back to the older copy command on plain
   10,000 organisations): an Organisations sheet with each primary contact, a Contacts sheet with every
   contact, and an About sheet describing the view. All values are written as text, so nothing is
   turned into a formula, number or date. Anyone who can view the directory can export it.
+
+## Organisation page and primary contact
+
+Each organisation has a full page at `/IndustryPartners/{id}` that can be shared and printed; the
+side drawer on the list stays as a quick preview with an **Open page** button. The page shows the
+people first (with copy buttons), then notes, JDP projects, files and the record dates. It offers
+exactly the same actions as the drawer, with the same permissions, and returns to the page after
+each one. **Print** gives a clean copy without menus, buttons or forms.
+
+- **Primary contact.** People who can edit the organisation (its creator, or Admin / HoD / Comdt)
+  can choose the primary contact with **Make primary** on any contact. Until someone chooses, the
+  first contact added is primary, so existing records look as they did. Removing the chosen contact
+  clears the choice (the database sets `IndustryPartners.PrimaryContactId` to null) and the first
+  remaining contact becomes primary again. The list, the organisation page, the drawer and the
+  Excel export all use this one rule.
+- **Contact cards.** Any contact, or all of an organisation's contacts, can be downloaded as a
+  vCard 3.0 file for a phone or Outlook. The contact's single name field becomes the card's name
+  and the organisation its company.
 
 ## JDP status and counts
 

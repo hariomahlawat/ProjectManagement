@@ -12,6 +12,9 @@ public class IndustryPartner
     [MaxLength(2000)] public string? Location { get; set; }
     [MaxLength(2000)] public string? NormalizedLocation { get; set; }
     [MaxLength(4000)] public string? Remarks { get; set; }
+    // The contact users chose as primary. Null means the first contact added is primary.
+    // Cleared automatically (ON DELETE SET NULL) when that contact is removed.
+    public int? PrimaryContactId { get; set; }
     public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
     [Required][MaxLength(450)] public string CreatedByUserId { get; set; } = string.Empty;
     public DateTimeOffset? UpdatedUtc { get; set; }

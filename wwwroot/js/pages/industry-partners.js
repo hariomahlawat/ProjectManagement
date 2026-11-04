@@ -264,6 +264,21 @@
     });
   }
 
+  // SECTION: Organisation page — print, and return to the section an action came from
+  function initOrganisationPage() {
+    if (!root.hasAttribute('data-organisation-page')) return;
+
+    root.querySelectorAll('[data-print-page]').forEach((button) => {
+      button.addEventListener('click', () => window.print());
+    });
+
+    const section = new URL(window.location.href).searchParams.get('tab');
+    if (section && section !== 'overview') {
+      root.querySelector(`[data-page-section="${escapeSelector(section)}"]`)
+        ?.scrollIntoView({ block: 'start' });
+    }
+  }
+
   // SECTION: Copy phone numbers and email addresses
   // navigator.clipboard needs a secure context; on a plain-HTTP LAN address the older
   // execCommand path is used so the button still works.
@@ -580,4 +595,5 @@
   initFileUpload();
   initModalFocus();
   initCopyButtons();
+  initOrganisationPage();
 })();
