@@ -18,7 +18,7 @@
         <div class="ip-header-actions">
             @if (Model.SearchResult.Total > 0)
             {
-                <a class="btn btn-outline-secondary ip-export-action" href="@Model.BuildExportUrl()">
+                <a class="btn btn-outline-secondary ip-export-action" href="@Model.BuildExportUrl()" aria-label="Export to Excel" title="Export to Excel">
                     <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
                     <span>Export to Excel</span>
                 </a>
