@@ -28,7 +28,14 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
     private static readonly XNamespace P = "http://schemas.openxmlformats.org/presentationml/2006/main";
     private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
-    public static ProjectBriefingSlidePreview Render(byte[] presentation, DateTimeOffset generatedAtUtc)
+    /// <param name="knownImageKeys">
+    /// Image keys the browser already holds from an earlier build. Keys are hashes of the image
+    /// bytes, so a known key is not re-encoded or sent again; the slides still reference it.
+    /// </param>
+    public static ProjectBriefingSlidePreview Render(
+        byte[] presentation,
+        DateTimeOffset generatedAtUtc,
+        IReadOnlySet<string>? knownImageKeys = null)
     {
         ArgumentNullException.ThrowIfNull(presentation);
         using var stream = new MemoryStream(presentation, writable: false);
@@ -40,6 +47,7 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
         var heightPx = Px(slideSize?.Cy?.Value ?? 6858000);
 
         var images = new Dictionary<string, string>(StringComparer.Ordinal);
+        var known = knownImageKeys ?? new HashSet<string>(StringComparer.Ordinal);
         var slides = new List<ProjectBriefingSlidePreviewSlide>();
         var slideIds = presentationPart.Presentation.SlideIdList?.Elements<DocumentFormat.OpenXml.Presentation.SlideId>()
             ?? Enumerable.Empty<DocumentFormat.OpenXml.Presentation.SlideId>();
@@ -63,7 +71,7 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
                 $"<div class=\"pbd-slide-stage\" style=\"width:{N(widthPx)}px;height:{N(heightPx)}px;font-family:{FontStack}\">");
             if (tree is not null)
             {
-                var context = new RenderContext(slidePart, images, html);
+                var context = new RenderContext(slidePart, images, known, html);
                 RenderChildren(tree, Transform.Identity, context);
             }
 
@@ -426,12 +434,18 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
     {
         private readonly SlidePart _slidePart;
         private readonly Dictionary<string, string> _images;
+        private readonly IReadOnlySet<string> _knownImages;
         private readonly Dictionary<string, string?> _keysByRelationship = new(StringComparer.Ordinal);
 
-        public RenderContext(SlidePart slidePart, Dictionary<string, string> images, StringBuilder html)
+        public RenderContext(
+            SlidePart slidePart,
+            Dictionary<string, string> images,
+            IReadOnlySet<string> knownImages,
+            StringBuilder html)
         {
             _slidePart = slidePart;
             _images = images;
+            _knownImages = knownImages;
             Html = html;
         }
 
@@ -455,7 +469,7 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
                 }
 
                 key = Convert.ToHexString(SHA256.HashData(content))[..16].ToLowerInvariant();
-                if (!_images.ContainsKey(key))
+                if (!_images.ContainsKey(key) && !_knownImages.Contains(key))
                 {
                     var dataUri = ToPreviewDataUri(content);
                     if (dataUri is null)

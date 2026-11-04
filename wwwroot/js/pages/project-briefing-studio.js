@@ -950,7 +950,12 @@ if (root) {
     try {
       const response = await fetch(root.dataset.previewUrl, {
         credentials: 'same-origin',
-        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        headers: {
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          // Images are keyed by a hash of their bytes: the server skips the ones already here.
+          'X-Pbd-Known-Images': Object.keys(images).join(',')
+        },
         signal: request.signal
       });
       const payload = await response.json().catch(() => null);
@@ -958,7 +963,7 @@ if (root) {
       if (request.signal.aborted) return;
       if (!response.ok || !payload) throw new Error(payload?.message || `The slides could not be built (${response.status}).`);
       slides = Array.isArray(payload.slides) ? payload.slides : [];
-      images = payload.images || {};
+      images = { ...images, ...(payload.images || {}) };
       if (Array.isArray(payload.projects)) {
         readStudioData({ projects: payload.projects, contentGaps: payload.contentGaps });
       }

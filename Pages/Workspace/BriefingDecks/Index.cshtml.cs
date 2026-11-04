@@ -1024,7 +1024,10 @@ public sealed class IndexModel : PageModel
         try
         {
             var composed = await _exportService.ComposeAsync(deckId, userId, cancellationToken);
-            var preview = ProjectBriefingSlidePreviewRenderer.Render(composed.Content, composed.Data.GeneratedAtUtc);
+            var preview = ProjectBriefingSlidePreviewRenderer.Render(
+                composed.Content,
+                composed.Data.GeneratedAtUtc,
+                ReadKnownPreviewImageKeys());
             // Project facts and gaps travel with the slides, so a rebuild after a fix made in
             // another tab also clears the Studio's outline badges and checks.
             var deck = await _dataService.GetDeckAsync(deckId, userId, cancellationToken);
@@ -1069,6 +1072,23 @@ public sealed class IndexModel : PageModel
                 StatusCodes.Status500InternalServerError,
                 new { message = $"The slide preview could not be built. Reference: {traceId}" });
         }
+    }
+
+    // The Studio sends the image keys it already holds (hex hashes, comma-separated) so a rebuild
+    // after each edit does not ship every photograph again. Anything else in the header is ignored.
+    private IReadOnlySet<string> ReadKnownPreviewImageKeys()
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var value in Request.Headers["X-Pbd-Known-Images"])
+        {
+            foreach (var key in (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (keys.Count >= 512) return keys;
+                if (key.Length == 16 && key.All(Uri.IsHexDigit)) keys.Add(key.ToLowerInvariant());
+            }
+        }
+
+        return keys;
     }
 
     public async Task<IActionResult> OnPostGenerateAsync(long deckId, CancellationToken cancellationToken)
@@ -1154,10 +1174,10 @@ public sealed class IndexModel : PageModel
         var deckId = requestedDeckId ?? Decks.FirstOrDefault()?.Id;
         if (deckId.HasValue)
         {
-            SelectedDeck = await _dataService.GetDeckAsync(deckId.Value, userId, cancellationToken);
+            SelectedDeck = await _dataService.GetDeckAsync(deckId.Value, userId, cancellationToken, includeFfcFootprintSummary: true);
             if (SelectedDeck is null && Decks.Count > 0)
             {
-                SelectedDeck = await _dataService.GetDeckAsync(Decks[0].Id, userId, cancellationToken);
+                SelectedDeck = await _dataService.GetDeckAsync(Decks[0].Id, userId, cancellationToken, includeFfcFootprintSummary: true);
             }
         }
 
