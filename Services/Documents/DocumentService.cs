@@ -12,6 +12,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Data.Projects;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Storage;
@@ -29,6 +30,7 @@ public sealed class DocumentService : IDocumentService
     private readonly IProjectDocumentStorageResolver _storageResolver;
     private readonly IVirusScanner? _virusScanner;
     private readonly ILogger<DocumentService>? _logger;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     private static readonly string[] PdfMagic = { "%PDF-" };
     private static int _tempRequestTokenSeed = (int)(DateTime.UtcNow.Ticks & 0x7FFFFFFF);
@@ -42,7 +44,8 @@ public sealed class DocumentService : IDocumentService
         IDocumentNotificationService notifications,
         IProjectDocumentStorageResolver storageResolver,
         IVirusScanner? virusScanner = null,
-        ILogger<DocumentService>? logger = null)
+        ILogger<DocumentService>? logger = null,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -53,6 +56,7 @@ public sealed class DocumentService : IDocumentService
         _storageResolver = storageResolver ?? throw new ArgumentNullException(nameof(storageResolver));
         _virusScanner = virusScanner;
         _logger = logger;
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
     }
 
     public int CreateTempRequestToken()
@@ -257,22 +261,22 @@ public sealed class DocumentService : IDocumentService
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             SafeDelete(tempPath);
             throw;
         }
 
         document.StorageKey = storageKey;
-        await _db.SaveChangesAsync(cancellationToken);
+        await _notificationQueue.QueueAfterSaveAsync(
+            "document publish",
+            ct => _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, ct),
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         await Audit.Events.ProjectDocumentPublished(projectId, document.Id, performedByUserId, document.FileStamp)
             .WriteAsync(_audit);
 
         document.Project = project;
-        await NotifySafelyAsync(
-            () => _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, cancellationToken),
-            nameof(_notifications.NotifyDocumentPublishedAsync));
 
         return document;
     }
@@ -330,7 +334,7 @@ public sealed class DocumentService : IDocumentService
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             SafeDelete(tempPath);
             throw;
         }
@@ -359,16 +363,16 @@ public sealed class DocumentService : IDocumentService
             document.ArchivedByUserId = null;
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
+        await _notificationQueue.QueueAfterSaveAsync(
+            "document replace",
+            ct => _notifications.NotifyDocumentReplacedAsync(document, project, performedByUserId, ct),
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         await Audit.Events.ProjectDocumentReplaced(document.ProjectId, document.Id, performedByUserId, document.FileStamp)
             .WriteAsync(_audit);
 
         document.Project = project;
-        await NotifySafelyAsync(
-            () => _notifications.NotifyDocumentReplacedAsync(document, project, performedByUserId, cancellationToken),
-            nameof(_notifications.NotifyDocumentReplacedAsync));
 
         return document;
     }
@@ -399,15 +403,15 @@ public sealed class DocumentService : IDocumentService
         document.ArchivedAtUtc = _clock.UtcNow;
         document.ArchivedByUserId = performedByUserId;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        await _notificationQueue.SaveAndQueueAsync(
+            "document archive",
+            ct => _notifications.NotifyDocumentArchivedAsync(document, project, performedByUserId, ct),
+            cancellationToken);
 
         await Audit.Events.ProjectDocumentRemoved(document.ProjectId, document.Id, performedByUserId)
             .WriteAsync(_audit);
 
         document.Project = project;
-        await NotifySafelyAsync(
-            () => _notifications.NotifyDocumentArchivedAsync(document, project, performedByUserId, cancellationToken),
-            nameof(_notifications.NotifyDocumentArchivedAsync));
 
         return document;
     }
@@ -438,15 +442,15 @@ public sealed class DocumentService : IDocumentService
         document.ArchivedAtUtc = null;
         document.ArchivedByUserId = null;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        await _notificationQueue.SaveAndQueueAsync(
+            "document restore",
+            ct => _notifications.NotifyDocumentRestoredAsync(document, project, performedByUserId, ct),
+            cancellationToken);
 
         await Audit.Events.ProjectDocumentRestored(document.ProjectId, document.Id, performedByUserId)
             .WriteAsync(_audit);
 
         document.Project = project;
-        await NotifySafelyAsync(
-            () => _notifications.NotifyDocumentRestoredAsync(document, project, performedByUserId, cancellationToken),
-            nameof(_notifications.NotifyDocumentRestoredAsync));
 
         return document;
     }
@@ -532,11 +536,20 @@ public sealed class DocumentService : IDocumentService
             await Audit.Events.ProjectDocumentHardDeleted(projectId, documentId, performedByUserId)
                 .WriteAsync(_audit);
 
+            if (project is not null)
+            {
+                await _notificationQueue.QueueAfterSaveAsync(
+                    "document hard delete",
+                    ct => _notifications.NotifyDocumentDeletedAsync(document, project, performedByUserId, ct),
+                    cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            // The request token is ignored so a cancelled request still restores the file.
+            await transaction.RollbackAsync(CancellationToken.None);
             _db.ChangeTracker.Clear();
 
             if (quarantinedFile is not null)
@@ -612,14 +625,6 @@ public sealed class DocumentService : IDocumentService
             _logger?.LogWarning(
                 "Document {DocumentId} was hard-deleted, but its storage file was not present at deletion time.",
                 documentId);
-        }
-
-        if (project is not null)
-        {
-            document.Project = project;
-            await NotifySafelyAsync(
-                () => _notifications.NotifyDocumentDeletedAsync(document, project, performedByUserId, cancellationToken),
-                nameof(_notifications.NotifyDocumentDeletedAsync));
         }
     }
 
@@ -712,18 +717,6 @@ public sealed class DocumentService : IDocumentService
     private string ResolveAbsolutePath(string storageKey)
     {
         return _storageResolver.ResolveAbsolutePath(storageKey);
-    }
-
-    private async Task NotifySafelyAsync(Func<Task> publishAsync, string operationName)
-    {
-        try
-        {
-            await publishAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogWarning(ex, "Notification dispatch failed for {Operation}.", operationName);
-        }
     }
 
     private static void SafeDelete(string? path)
