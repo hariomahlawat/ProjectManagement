@@ -1363,6 +1363,7 @@
       row.dataset.muted = String(notification.isProjectMuted);
       row.classList.toggle('is-read', notification.isRead);
       row.classList.toggle('is-unread', !notification.isRead);
+      row.classList.toggle('is-action-required', isPriorityItem(notification));
 
       setIcon(row.querySelector('[data-notification-icon]'), notification.iconCssClass);
       setText(row.querySelector('[data-notification-project]'), notification.projectName || notification.category);
@@ -2214,8 +2215,12 @@
       if (projectLabel) {
         project?.setAttribute('title', projectLabel);
       }
-      setText(row.querySelector('[data-notification-category]'), notification.category);
-      setHidden(row.querySelector('[data-notification-action-required]'), !notification.isActionRequired);
+      const category = row.querySelector('[data-notification-category]');
+      setText(category, notification.category);
+      // Without a project the category is already the source label; do not repeat it.
+      setHidden(category, !notification.projectName);
+      // The chip marks work still waiting; once read, the item is history like any other.
+      setHidden(row.querySelector('[data-notification-action-required]'), !isPriorityItem(notification));
       setHidden(row.querySelector('[data-notification-muted]'), !notification.isProjectMuted);
 
       const title = row.querySelector('[data-notification-title]');
@@ -2325,7 +2330,9 @@
       const project = header.querySelector('[data-notification-project]');
       setText(project, projectLabel);
       project?.setAttribute('title', multiProject ? projectNames.join(', ') : projectLabel);
-      setText(header.querySelector('[data-notification-category]'), lead.category);
+      const groupCategory = header.querySelector('[data-notification-category]');
+      setText(groupCategory, lead.category);
+      setHidden(groupCategory, !multiProject && !lead.projectName);
       setText(header.querySelector('[data-notification-group-title]'), groupHeadline(group));
       const preview = header.querySelector('[data-notification-summary]');
       setText(preview, `Latest: ${lead.title || 'Notification'}`);

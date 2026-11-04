@@ -10052,6 +10052,329 @@ main[role="main"].analytics-main > .pm-page-shell {
     }
 }
 
+/* ============================================================
+   Notification Centre v6 — two-line rows
+   Line one: the title (never starved), its summary and the status chips.
+   Line two: project · category on the left, the actor on the right.
+   The time sits on the right across both lines; row actions overlay it on hover.
+   Unread rows carry an accent bar instead of a dot.
+   ============================================================ */
+.notification-inbox-row__flags {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.notification-inbox-row__flags:not(:has(> :not([hidden]))) {
+    display: none;
+}
+
+.notification-inbox-row .notification-inbox-row__unread-dot {
+    display: none;
+}
+
+.notification-inbox-row.is-unread,
+.notification-inbox-row.is-unread:hover,
+.notification-inbox-row.is-unread:focus-within,
+.notification-inbox-row.is-unread:focus-visible {
+    box-shadow: inset 3px 0 0 var(--bs-primary);
+}
+
+.notification-inbox-row__category[hidden] {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .notification-inbox-row {
+        grid-template-columns: 2rem 2.2rem minmax(0, 1fr) auto 6.25rem;
+        grid-template-rows: auto auto;
+        grid-template-areas:
+            "select icon message flags time"
+            "select icon source  actor time";
+        column-gap: .7rem;
+        row-gap: .14rem;
+        min-height: 4.1rem;
+        padding: .6rem 1rem .6rem .75rem;
+    }
+
+    .notification-inbox-row__select { grid-area: select; }
+    .notification-inbox-row__icon { grid-area: icon; }
+
+    .notification-inbox-row__message {
+        grid-area: message;
+        display: flex;
+        align-items: baseline;
+        gap: .4rem;
+        white-space: nowrap;
+    }
+
+    /* The title keeps its full width; the summary gives way first. */
+    .notification-inbox-row__title {
+        flex: 0 0 auto;
+        max-width: 100%;
+        font-size: .86rem;
+    }
+
+    .notification-inbox-row__preview {
+        flex: 1 1 0;
+        font-size: .78rem;
+    }
+
+    .notification-inbox-row__source {
+        grid-area: source;
+        min-width: 0;
+        flex-direction: row;
+        align-items: baseline;
+        gap: .4rem;
+        padding-left: 0;
+    }
+
+    .notification-inbox-row__project {
+        min-width: 0;
+        font-size: .74rem;
+        font-weight: 600;
+        color: var(--pm-text-secondary);
+    }
+
+    .notification-inbox-row.is-unread .notification-inbox-row__project {
+        font-weight: 650;
+    }
+
+    .notification-inbox-row__category {
+        flex: 0 0 auto;
+        font-size: .62rem;
+    }
+
+    .notification-inbox-row__project:not(:empty) + .notification-inbox-row__category:not([hidden])::before {
+        content: "·";
+        margin-right: .4rem;
+        color: var(--pm-text-muted);
+    }
+
+    .notification-inbox-row__actor {
+        display: contents;
+    }
+
+    .notification-inbox-row__actor-name {
+        grid-area: actor;
+        justify-self: end;
+        max-width: 12rem;
+        overflow: hidden;
+        color: var(--pm-text-muted);
+        font-size: .7rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .notification-inbox-row__flags {
+        grid-area: flags;
+        justify-self: end;
+    }
+
+    .notification-inbox-row__time {
+        grid-area: time;
+        align-self: center;
+        justify-self: end;
+        font-size: .72rem;
+    }
+
+    .notification-inbox-row__quick-actions {
+        position: absolute;
+        top: 50%;
+        right: .75rem;
+        width: auto;
+        transform: translateY(-50%);
+        border-radius: .55rem;
+        background: inherit;
+    }
+
+    .notification-inbox__date-group {
+        padding-left: 6.35rem;
+    }
+}
+
+/* Touch screens at tablet width and up keep the row actions visible (hover: none), so
+   they get their own column instead of overlaying the time. */
+@media (min-width: 768px) and (hover: none) {
+    .notification-inbox-row {
+        /* A fixed action column keeps the times aligned whether a row shows one, two or three actions. */
+        grid-template-columns: 2rem 2.2rem minmax(0, 1fr) auto 6.25rem var(--notification-row-actions-width, 6.6rem);
+        grid-template-areas:
+            "select icon message flags time actions"
+            "select icon source  actor time actions";
+    }
+
+    .notification-inbox-row__quick-actions {
+        grid-area: actions;
+        justify-content: flex-end;
+        position: static;
+        align-self: center;
+        transform: none;
+        background: none;
+    }
+
+    .notification-inbox-row:focus-within .notification-inbox-row__time,
+    .notification-inbox-row:hover .notification-inbox-row__time {
+        visibility: visible;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1199.98px) and (hover: none) {
+    /* Mute is hidden at these widths, leaving at most two actions. */
+    .notification-inbox-row {
+        --notification-row-actions-width: 4.4rem;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .notification-inbox__filters {
+        grid-template-columns: minmax(10rem, 1fr) 8rem minmax(8rem, 10rem) minmax(8rem, 9.5rem) 2.15rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .notification-inbox-row {
+        min-height: 0;
+        grid-template-columns: 1.6rem 2.05rem minmax(0, 1fr) auto;
+        grid-template-rows: auto auto auto;
+        grid-template-areas:
+            "select icon message time"
+            "select icon source  source"
+            "select icon meta    actions";
+        align-items: start;
+        gap: .18rem .5rem;
+        padding: .65rem .6rem .55rem;
+    }
+
+    .notification-inbox-row__select { grid-area: select; padding-top: .45rem; }
+    .notification-inbox-row__icon { grid-area: icon; margin-top: .1rem; }
+
+    .notification-inbox-row__message {
+        grid-area: message;
+        display: block;
+        white-space: normal;
+    }
+
+    .notification-inbox-row__title {
+        -webkit-line-clamp: 2;
+        font-size: .86rem;
+    }
+
+    .notification-inbox-row__preview {
+        margin-top: .1rem;
+        font-size: .76rem;
+    }
+
+    .notification-inbox-row__source {
+        grid-area: source;
+        display: flex;
+        padding-left: 0;
+    }
+
+    .notification-inbox-row__project {
+        min-width: 0;
+        color: var(--pm-text-secondary);
+        font-size: .72rem;
+        font-weight: 600;
+    }
+
+    .notification-inbox-row__actor {
+        grid-area: meta;
+        align-self: center;
+        display: flex;
+        min-height: 0;
+        align-items: center;
+        gap: .4rem;
+        font-size: .68rem;
+    }
+
+    .notification-inbox-row__actor-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .notification-inbox-row__time {
+        grid-area: time;
+        align-self: start;
+        padding-top: .1rem;
+        font-size: .68rem;
+        visibility: visible;
+    }
+
+    /* Below the tablet breakpoint the row actions sit on the last line instead of over the time. */
+    .notification-inbox-row__quick-actions {
+        grid-area: actions;
+        position: static;
+        width: auto;
+        align-self: center;
+        justify-self: end;
+        background: none;
+        transform: none;
+    }
+
+    .notification-inbox-row:hover .notification-inbox-row__time,
+    .notification-inbox-row:focus-within .notification-inbox-row__time {
+        visibility: visible;
+    }
+
+    .notification-inbox__date-group {
+        padding-left: 5.2rem;
+    }
+}
+
+@media (max-width: 479.98px) {
+    .notification-inbox-row__actor {
+        display: flex;
+    }
+}
+
+/* ---------- Bell: needs-action items and header text button ---------- */
+.notification-menu__item.is-action-required::before {
+    content: "";
+    position: absolute;
+    top: .7rem;
+    bottom: .7rem;
+    left: 0;
+    width: 3px;
+    border-radius: 3px;
+    background: var(--pm-warning);
+}
+
+.notification-menu__item.is-action-required .notification-menu__icon {
+    color: var(--pm-warning-muted);
+    background: color-mix(in srgb, var(--pm-warning) 12%, var(--pm-card));
+    border-color: color-mix(in srgb, var(--pm-warning) 30%, transparent);
+}
+
+.notification-menu__text-button {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .28rem .55rem;
+    border: 0;
+    border-radius: 999px;
+    color: var(--bs-primary);
+    background: transparent;
+    font-size: .74rem;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.notification-menu__text-button:hover,
+.notification-menu__text-button:focus-visible {
+    color: var(--bs-primary);
+    background: color-mix(in srgb, var(--bs-primary) 9%, transparent);
+}
+
+.notification-menu__text-button:disabled,
+.notification-menu__text-button[aria-disabled="true"] {
+    color: var(--pm-text-muted);
+    background: transparent;
+    opacity: .7;
+}
+
 /* ---------- Conference remark treatment ---------- */
 .remarks-item.remarks-type-conference {
     border-color: rgba(79, 70, 229, .24);

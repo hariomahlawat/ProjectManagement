@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Security.Claims;
 using ProjectManagement.Models.Notifications;
@@ -53,6 +54,18 @@ public sealed class NotificationGroupingTests
     [InlineData(NotificationKind.NotebookAccessRemoved)]
     public void ActionRequiredAndHigherPriorityKindsAreNeverGrouped(NotificationKind kind)
         => Assert.Null(Key(kind, 42, Morning));
+
+    [Theory]
+    [InlineData(NotificationKind.RoleAssignmentsChanged, false)]
+    [InlineData(NotificationKind.ProjectAssignmentChanged, false)]
+    [InlineData(NotificationKind.ActionTaskDueDateChanged, true)]
+    [InlineData(NotificationKind.ActionTaskAssigned, true)]
+    [InlineData(NotificationKind.StageAssigned, true)]
+    public void RoleAndProjectOfficerChangesAreInformationalWhileWorkAssignmentsNeedAction(NotificationKind kind, bool actionRequired)
+    {
+        Assert.Equal(actionRequired, NotificationPresentationCatalog.ActionRequiredKinds.Contains(kind));
+        Assert.Equal(actionRequired, NotificationPresentationCatalog.Resolve(kind, null, null).IsActionRequired);
+    }
 
     [Fact]
     public void SeniorRolesGetOneRemarkGroupPerDayAcrossProjects()
