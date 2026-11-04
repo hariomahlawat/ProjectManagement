@@ -955,7 +955,11 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     .Paginate(project.BriefDescription)
                     .ContinuationSlideCount)
             : 0;
-        var projectBriefSlides = includesDetailedSlides && includeProjectBrief ? slideProjects.Length : 0;
+        // A long brief continues onto extra slides; the estimate assumes the standard layout.
+        var projectBriefSlides = includesDetailedSlides && includeProjectBrief
+            ? slideProjects.Sum(project =>
+                ProjectBriefingSlideComposer.EstimateProjectBriefSlideCount(project.ProjectBrief))
+            : 0;
 
         return new ProjectBriefingSlideEstimateVm
         {

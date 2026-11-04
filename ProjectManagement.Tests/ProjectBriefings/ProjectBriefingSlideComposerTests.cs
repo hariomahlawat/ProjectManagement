@@ -1845,11 +1845,15 @@ public sealed class ProjectBriefingSlideComposerTests
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
+        // A narrative this long continues on a full-width slide; the photo slide uses the standard design.
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var slide = Assert.Single(slides.Where(candidate => candidate.Slide
+            .Descendants<P.NonVisualDrawingProperties>()
+            .Any(properties => string.Equals(properties.Name?.Value, "Project brief photograph frame", StringComparison.Ordinal))));
         Assert.NotNull(ShapeByName(slide, "Project brief photograph frame"));
-        Assert.DoesNotContain(
-            slide.Slide.Descendants<P.NonVisualDrawingProperties>(),
-            properties => string.Equals(properties.Name?.Value, "Photo-emphasis project photograph", StringComparison.Ordinal));
+        Assert.All(slides, candidate => Assert.DoesNotContain(
+            candidate.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "Photo-emphasis project photograph", StringComparison.Ordinal)));
     }
 
 
