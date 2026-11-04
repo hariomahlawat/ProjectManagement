@@ -17,18 +17,18 @@ namespace ProjectManagement.Services.Remarks;
 public sealed class RemarkNotificationService : IRemarkNotificationService
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly INotificationPublisher _publisher;
+    private readonly INotificationOutboxWriter _outbox;
     private readonly INotificationPreferenceService _preferences;
     private readonly ILogger<RemarkNotificationService> _logger;
 
     public RemarkNotificationService(
         UserManager<ApplicationUser> userManager,
-        INotificationPublisher publisher,
+        INotificationOutboxWriter outbox,
         INotificationPreferenceService preferences,
         ILogger<RemarkNotificationService> logger)
     {
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+        _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -49,111 +49,100 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
             throw new ArgumentNullException(nameof(project));
         }
 
-        try
+        var recipients = await ResolveRecipientsAsync(project, remark, cancellationToken);
+        var mentionRecipients = ResolveMentionRecipients(remark);
+
+        // The author may also be the Project Officer, HoD, Comdt or an explicit mention.
+        // Never notify a user about the remark they have just issued.
+        recipients.Remove(actor.UserId);
+        mentionRecipients.Remove(actor.UserId);
+
+        if (mentionRecipients.Count > 0)
         {
-            var recipients = await ResolveRecipientsAsync(project, remark, cancellationToken);
-            var mentionRecipients = ResolveMentionRecipients(remark);
+            recipients.ExceptWith(mentionRecipients);
+        }
 
-            // The author may also be the Project Officer, HoD, Comdt or an explicit mention.
-            // Never notify a user about the remark they have just issued.
-            recipients.Remove(actor.UserId);
-            mentionRecipients.Remove(actor.UserId);
+        var payload = BuildPayload(remark, actor, project);
+        if (recipients.Count == 0)
+        {
+            _logger.LogInformation(
+                "No remark notification recipients found for project {ProjectId}.",
+                project.ProjectId);
+        }
+        else
+        {
+            var optedInRecipients = await FilterOptOutAsync(
+                NotificationKind.RemarkCreated,
+                recipients,
+                project.ProjectId,
+                cancellationToken);
 
-            if (mentionRecipients.Count > 0)
-            {
-                recipients.ExceptWith(mentionRecipients);
-            }
-
-            var payload = BuildPayload(remark, actor, project);
-            if (recipients.Count == 0)
+            if (optedInRecipients.Count == 0)
             {
                 _logger.LogInformation(
-                    "No remark notification recipients found for project {ProjectId}.",
-                    project.ProjectId);
+                    "All potential recipients for remark {RemarkId} have opted out of notifications.",
+                    remark.Id);
             }
             else
             {
-                var optedInRecipients = await FilterOptOutAsync(
+                var metadata = BuildMetadata(
+                    remark,
+                    project,
+                    actor,
+                    eventType: "RemarkCreated",
+                    titlePrefix: "New remark posted");
+
+                await _outbox.QueueAsync(
                     NotificationKind.RemarkCreated,
-                    recipients,
+                    optedInRecipients,
+                    payload,
+                    metadata.Module,
+                    metadata.EventType,
+                    metadata.ScopeType,
+                    metadata.ScopeId,
                     project.ProjectId,
+                    actor.UserId,
+                    metadata.Route,
+                    metadata.Title,
+                    metadata.Summary,
+                    metadata.Fingerprint,
                     cancellationToken);
-
-                if (optedInRecipients.Count == 0)
-                {
-                    _logger.LogInformation(
-                        "All potential recipients for remark {RemarkId} have opted out of notifications.",
-                        remark.Id);
-                }
-                else
-                {
-                    var metadata = BuildMetadata(
-                        remark,
-                        project,
-                        actor,
-                        eventType: "RemarkCreated",
-                        titlePrefix: "New remark posted");
-
-                    await _publisher.PublishAsync(
-                        NotificationKind.RemarkCreated,
-                        optedInRecipients,
-                        payload,
-                        metadata.Module,
-                        metadata.EventType,
-                        metadata.ScopeType,
-                        metadata.ScopeId,
-                        project.ProjectId,
-                        actor.UserId,
-                        metadata.Route,
-                        metadata.Title,
-                        metadata.Summary,
-                        metadata.Fingerprint,
-                        cancellationToken);
-                }
             }
+        }
 
-            if (mentionRecipients.Count > 0)
+        if (mentionRecipients.Count > 0)
+        {
+            var mentionOptedIn = await FilterOptOutAsync(
+                NotificationKind.MentionedInRemark,
+                mentionRecipients,
+                project.ProjectId,
+                cancellationToken);
+
+            if (mentionOptedIn.Count > 0)
             {
-                var mentionOptedIn = await FilterOptOutAsync(
+                var mentionMetadata = BuildMetadata(
+                    remark,
+                    project,
+                    actor,
+                    eventType: "RemarkMentioned",
+                    titlePrefix: "You were mentioned");
+
+                await _outbox.QueueAsync(
                     NotificationKind.MentionedInRemark,
-                    mentionRecipients,
+                    mentionOptedIn,
+                    payload,
+                    mentionMetadata.Module,
+                    mentionMetadata.EventType,
+                    mentionMetadata.ScopeType,
+                    mentionMetadata.ScopeId,
                     project.ProjectId,
+                    actor.UserId,
+                    mentionMetadata.Route,
+                    mentionMetadata.Title,
+                    mentionMetadata.Summary,
+                    mentionMetadata.Fingerprint,
                     cancellationToken);
-
-                if (mentionOptedIn.Count > 0)
-                {
-                    var mentionMetadata = BuildMetadata(
-                        remark,
-                        project,
-                        actor,
-                        eventType: "RemarkMentioned",
-                        titlePrefix: "You were mentioned");
-
-                    await _publisher.PublishAsync(
-                        NotificationKind.MentionedInRemark,
-                        mentionOptedIn,
-                        payload,
-                        mentionMetadata.Module,
-                        mentionMetadata.EventType,
-                        mentionMetadata.ScopeType,
-                        mentionMetadata.ScopeId,
-                        project.ProjectId,
-                        actor.UserId,
-                        mentionMetadata.Route,
-                        mentionMetadata.Title,
-                        mentionMetadata.Summary,
-                        mentionMetadata.Fingerprint,
-                        cancellationToken);
-                }
             }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed preparing remark notification for remark {RemarkId}.", remark.Id);
         }
     }
 

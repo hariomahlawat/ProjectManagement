@@ -13,18 +13,18 @@ namespace ProjectManagement.Services.Notifications;
 
 public sealed class RoleNotificationService : ProjectManagement.Services.IRoleNotificationService
 {
-    private readonly INotificationPublisher _publisher;
+    private readonly INotificationOutboxWriter _outbox;
     private readonly INotificationPreferenceService _preferences;
     private readonly IClock _clock;
     private readonly ILogger<RoleNotificationService> _logger;
 
     public RoleNotificationService(
-        INotificationPublisher publisher,
+        INotificationOutboxWriter outbox,
         INotificationPreferenceService preferences,
         IClock clock,
         ILogger<RoleNotificationService> logger)
     {
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+        _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -52,85 +52,74 @@ public sealed class RoleNotificationService : ProjectManagement.Services.IRoleNo
             throw new ArgumentException("Actor user id is required.", nameof(actorUserId));
         }
 
-        try
-        {
-            if (!await _preferences.AllowsAsync(
-                    NotificationKind.RoleAssignmentsChanged,
-                    user.Id,
-                    projectId: null,
-                    cancellationToken))
-            {
-                _logger.LogInformation("User {UserId} opted out of role notifications.", user.Id);
-                return;
-            }
-
-            var recipient = new[] { user.Id };
-            var added = (addedRoles ?? Array.Empty<string>())
-                .Where(r => !string.IsNullOrWhiteSpace(r))
-                .Select(r => r.Trim())
-                .Where(r => r.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            var removed = (removedRoles ?? Array.Empty<string>())
-                .Where(r => !string.IsNullOrWhiteSpace(r))
-                .Select(r => r.Trim())
-                .Where(r => r.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            var displayName = string.IsNullOrWhiteSpace(user.FullName)
-                ? user.UserName ?? user.Id
-                : user.FullName;
-
-            var summaryParts = new List<string>();
-            if (added.Length > 0)
-            {
-                summaryParts.Add("Added: " + string.Join(", ", added));
-            }
-
-            if (removed.Length > 0)
-            {
-                summaryParts.Add("Removed: " + string.Join(", ", removed));
-            }
-
-            var summary = summaryParts.Count > 0
-                ? string.Join("; ", summaryParts)
-                : "Role assignments were reviewed.";
-
-            var payload = new RoleNotificationPayload(
-                user.Id,
-                displayName,
-                added,
-                removed);
-
-            await _publisher.PublishAsync(
+        if (!await _preferences.AllowsAsync(
                 NotificationKind.RoleAssignmentsChanged,
-                recipient,
-                payload,
-                module: "Users",
-                eventType: "RoleAssignmentsChanged",
-                scopeType: "User",
-                scopeId: user.Id,
+                user.Id,
                 projectId: null,
-                actorUserId: actorUserId,
-                route: "/Identity/Account/Manage",
-                title: "Your roles have been updated",
-                summary: summary,
-                fingerprint: string.Format(
-                    CultureInfo.InvariantCulture,
-                    "role:{0}:{1}",
-                    user.Id,
-                    _clock.UtcNow.UtcTicks),
-                cancellationToken: cancellationToken);
-        }
-        catch (OperationCanceledException)
+                cancellationToken))
         {
-            throw;
+            _logger.LogInformation("User {UserId} opted out of role notifications.", user.Id);
+            return;
         }
-        catch (Exception ex)
+
+        var recipient = new[] { user.Id };
+        var added = (addedRoles ?? Array.Empty<string>())
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => r.Trim())
+            .Where(r => r.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var removed = (removedRoles ?? Array.Empty<string>())
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => r.Trim())
+            .Where(r => r.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var displayName = string.IsNullOrWhiteSpace(user.FullName)
+            ? user.UserName ?? user.Id
+            : user.FullName;
+
+        var summaryParts = new List<string>();
+        if (added.Length > 0)
         {
-            _logger.LogError(ex, "Failed to publish role notification for user {UserId}.", user.Id);
+            summaryParts.Add("Added: " + string.Join(", ", added));
         }
+
+        if (removed.Length > 0)
+        {
+            summaryParts.Add("Removed: " + string.Join(", ", removed));
+        }
+
+        var summary = summaryParts.Count > 0
+            ? string.Join("; ", summaryParts)
+            : "Role assignments were reviewed.";
+
+        var payload = new RoleNotificationPayload(
+            user.Id,
+            displayName,
+            added,
+            removed);
+
+        await _outbox.QueueAsync(
+            NotificationKind.RoleAssignmentsChanged,
+            recipient,
+            payload,
+            module: "Users",
+            eventType: "RoleAssignmentsChanged",
+            scopeType: "User",
+            scopeId: user.Id,
+            projectId: null,
+            actorUserId: actorUserId,
+            route: "/Identity/Account/Manage",
+            title: "Your roles have been updated",
+            summary: summary,
+            fingerprint: string.Format(
+                CultureInfo.InvariantCulture,
+                "role:{0}:{1}",
+                user.Id,
+                _clock.UtcNow.UtcTicks),
+            cancellationToken: cancellationToken);
     }
 
     private sealed record RoleNotificationPayload(

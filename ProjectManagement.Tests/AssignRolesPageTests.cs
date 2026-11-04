@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -107,6 +108,62 @@ public sealed class AssignRolesPageTests
         Assert.Equal("Olivia Officer", payload.PreviousProjectOfficerName);
         Assert.Equal("po-new", payload.CurrentProjectOfficerUserId);
         Assert.Equal("Noah Officer", payload.CurrentProjectOfficerName);
+    }
+
+    [Fact]
+    public async Task OnPostAsync_NotificationFailure_KeepsTheAssignmentAndRedirects()
+    {
+        // The notification used to be published after the save with no error handling, so a
+        // failure there returned an error page for an assignment that had already been saved.
+        var scope = CreateContextWithIdentity();
+        await using var db = scope.Context;
+        var userManager = scope.UserManager;
+        await userManager.CreateAsync(new ApplicationUser { Id = "po-new", UserName = "new.po", FullName = "Noah Officer" });
+        db.Projects.Add(new Project { Id = 11, Name = "Harbour Link" });
+        await db.SaveChangesAsync();
+        var project = await db.Projects.SingleAsync(p => p.Id == 11);
+
+        var page = new AssignRolesModel(db, userManager, new NoOpAuditService(), new FailingOutboxWriter())
+        {
+            Input = new AssignRolesModel.InputModel
+            {
+                ProjectId = project.Id,
+                PoUserId = "po-new",
+                RowVersion = Convert.ToBase64String(project.RowVersion)
+            }
+        };
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "actor-1") }, "TestAuth"))
+        };
+        page.PageContext = new PageContext(new ActionContext(httpContext, new RouteData(), new ActionDescriptor()));
+        page.TempData = new TempDataDictionary(httpContext, new DictionaryTempDataProvider());
+
+        var result = await page.OnPostAsync();
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("Roles updated.", page.TempData["Flash"]);
+        Assert.Equal("po-new", (await db.Projects.AsNoTracking().SingleAsync(p => p.Id == 11)).LeadPoUserId);
+    }
+
+    private sealed class FailingOutboxWriter : INotificationOutboxWriter
+    {
+        public Task<int> QueueAsync(
+            NotificationKind kind,
+            IReadOnlyCollection<string> recipientUserIds,
+            object payload,
+            string? module,
+            string? eventType,
+            string? scopeType,
+            string? scopeId,
+            int? projectId,
+            string? actorUserId,
+            string? route,
+            string? title,
+            string? summary,
+            string? fingerprint,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Injected notification failure.");
     }
 
     private static (ApplicationDbContext Context, UserManager<ApplicationUser> UserManager) CreateContextWithIdentity()

@@ -15,6 +15,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Remarks;
@@ -28,6 +29,7 @@ public sealed class RemarkService : IRemarkService
     private readonly IRemarkMetrics _metrics;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public const string ConcurrencyConflictMessage = "This remark was changed by someone else. Reload to continue.";
     public const string RowVersionRequiredMessage = "Row version is required for this operation.";
@@ -46,7 +48,8 @@ public sealed class RemarkService : IRemarkService
         IRemarkNotificationService notification,
         IRemarkMetrics metrics,
         IWorkflowStageMetadataProvider workflowStageMetadataProvider,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -55,6 +58,7 @@ public sealed class RemarkService : IRemarkService
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
     }
 
     public async Task<Remark> CreateRemarkAsync(CreateRemarkRequest request, CancellationToken cancellationToken = default)
@@ -119,22 +123,20 @@ public sealed class RemarkService : IRemarkService
 
         var audit = CreateAudit(remark, RemarkAuditAction.Created, request.Actor.ActorRole, request.Actor.UserId, now, request.Meta);
         _db.RemarkAudits.Add(audit);
-        await _db.SaveChangesAsync(cancellationToken);
 
-        transaction.RegisterAfterCommit(async afterCommitToken =>
+        // The remark, its audit row and its notifications commit together. A notification
+        // failure is contained by the queue and never fails or undoes the remark.
+        await _notificationQueue.QueueAfterSaveAsync(
+            "remark create",
+            ct => _notification.NotifyRemarkCreatedAsync(remark, request.Actor, project, ct),
+            cancellationToken);
+
+        transaction.RegisterAfterCommit(_ =>
         {
             try
             {
                 LogDecision("Create", true, null, request.Actor, remark.Id, remark.ProjectId);
                 _metrics.RecordCreated();
-                await _notification.NotifyRemarkCreatedAsync(remark, request.Actor, project, afterCommitToken);
-            }
-            catch (OperationCanceledException exception)
-            {
-                _logger.LogWarning(
-                    exception,
-                    "Post-commit processing was cancelled for remark {RemarkId}.",
-                    remark.Id);
             }
             catch (Exception exception)
             {
@@ -143,6 +145,8 @@ public sealed class RemarkService : IRemarkService
                     "Failed to complete post-commit processing for remark {RemarkId}.",
                     remark.Id);
             }
+
+            return Task.CompletedTask;
         });
 
         await transaction.CommitAsync(cancellationToken);

@@ -688,6 +688,107 @@ public sealed class RemarkServiceTests
         Assert.Equal(RemarkAuditAction.Created, audits[0].Action);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreateRemarkAsync_CommitsItsNotificationWithTheRemark_AndSurvivesANotificationFailure(bool failNotification)
+    {
+        // The notification used to be published after the commit. It is now written in the
+        // remark's transaction: it commits with the remark, and a failure leaves the remark.
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 10);
+        var notifier = new OutboxRemarkNotifier(db, failNotification ? OutboxRemarkNotifier.Mode.Throw : OutboxRemarkNotifier.Mode.Queue);
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), notifier, out var metrics);
+
+        var remark = await service.CreateRemarkAsync(NewInternalRemark(), CancellationToken.None);
+
+        Assert.True(remark.Id > 0);
+        Assert.Equal(1, await db.Remarks.CountAsync());
+        Assert.Equal(1, await db.RemarkAudits.CountAsync());
+        Assert.Equal(failNotification ? 0 : 1, await db.NotificationDispatches.CountAsync());
+        Assert.Equal(1, metrics.CreatedCount);
+    }
+
+    [Fact]
+    public async Task CreateRemarkAsync_CancelledWhileNotifying_KeepsNeitherTheRemarkNorItsNotification()
+    {
+        // Publishing after the commit left a committed remark that nobody was told about when the
+        // request was cancelled at that point. The remark and its notification now roll back together.
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 10);
+        using var cancellation = new CancellationTokenSource();
+        var notifier = new OutboxRemarkNotifier(db, OutboxRemarkNotifier.Mode.Cancel, cancellation);
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), notifier, out var metrics);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.CreateRemarkAsync(NewInternalRemark(), cancellation.Token));
+
+        Assert.Equal(0, await db.Remarks.CountAsync());
+        Assert.Equal(0, await db.RemarkAudits.CountAsync());
+        Assert.Equal(0, await db.NotificationDispatches.CountAsync());
+        Assert.Equal(0, metrics.CreatedCount);
+    }
+
+    private static CreateRemarkRequest NewInternalRemark()
+        => new(
+            ProjectId: 10,
+            Actor: new RemarkActorContext("user-1", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer }),
+            Type: RemarkType.Internal,
+            Scope: RemarkScope.General,
+            Body: "Progress noted",
+            EventDate: new DateOnly(2024, 9, 30),
+            StageRef: null,
+            StageNameSnapshot: null,
+            Meta: null);
+
+    private static RemarkService CreateService(ApplicationDbContext db, IClock clock, IRemarkNotificationService notifier, out TestRemarkMetrics metrics)
+    {
+        metrics = new TestRemarkMetrics();
+        return new RemarkService(db, clock, NullLogger<RemarkService>.Instance, notifier, metrics, new WorkflowStageMetadataProvider(), CreateUserManager(db));
+    }
+
+    /// <summary>Queues an outbox row into the caller's context like the real producer, or fails.</summary>
+    private sealed class OutboxRemarkNotifier(ApplicationDbContext db, OutboxRemarkNotifier.Mode mode, CancellationTokenSource? cancellation = null)
+        : IRemarkNotificationService
+    {
+        public enum Mode
+        {
+            Queue,
+            Throw,
+            Cancel,
+        }
+
+        public Task NotifyRemarkCreatedAsync(
+            Remark remark,
+            RemarkActorContext actor,
+            RemarkProjectInfo project,
+            CancellationToken cancellationToken = default)
+        {
+            switch (mode)
+            {
+                case Mode.Throw:
+                    throw new InvalidOperationException("Injected notification failure.");
+                case Mode.Cancel:
+                    cancellation!.Cancel();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    break;
+                default:
+                    db.NotificationDispatches.Add(new ProjectManagement.Models.Notifications.NotificationDispatch
+                    {
+                        RecipientUserId = "hod-1",
+                        Kind = ProjectManagement.Models.Notifications.NotificationKind.RemarkCreated,
+                        PayloadJson = "{}",
+                        CreatedUtc = DateTime.UtcNow,
+                    });
+                    break;
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
     private static RemarkService CreateService(ApplicationDbContext db, IClock clock, out TestRemarkNotificationService notifier, out TestRemarkMetrics metrics)
     {
         notifier = new TestRemarkNotificationService();
