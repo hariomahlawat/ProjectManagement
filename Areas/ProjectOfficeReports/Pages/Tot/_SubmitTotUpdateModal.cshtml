@@ -6,14 +6,7 @@
 @using System.Linq
 
 @functions {
-    private static string StatusLabel(ProjectTotStatus status) => status switch
-    {
-        ProjectTotStatus.NotRequired => "Not required",
-        ProjectTotStatus.NotStarted => "Not started",
-        ProjectTotStatus.InProgress => "In progress",
-        ProjectTotStatus.Completed => "Completed",
-        _ => status.ToString()
-    };
+    private static string StatusLabel(ProjectTotStatus status) => ProjectManagement.Services.Projects.ProjectTotPresentation.StatusLabel(status);
 }
 
 <form method="post" asp-page-handler="Submit">

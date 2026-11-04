@@ -1963,14 +1963,7 @@ namespace ProjectManagement.Pages.Projects
                 InapplicabilityReason = null,
                 HasTotRecord = true,
                 Status = tot.Status,
-                StatusLabel = tot.Status switch
-                {
-                    ProjectTotStatus.NotRequired => "Not required",
-                    ProjectTotStatus.NotStarted => "Not started",
-                    ProjectTotStatus.InProgress => "In progress",
-                    ProjectTotStatus.Completed => "Completed",
-                    _ => tot.Status.ToString()
-                },
+                StatusLabel = ProjectTotPresentation.StatusLabel(tot.Status),
                 Summary = summary,
                 Facts = facts,
                 LastApprovedBy = FormatUser(
@@ -2000,14 +1993,7 @@ namespace ProjectManagement.Pages.Projects
                 _ => request.State.ToString()
             };
 
-            var proposedStatusLabel = request.ProposedStatus switch
-            {
-                ProjectTotStatus.NotRequired => "Not required",
-                ProjectTotStatus.NotStarted => "Not started",
-                ProjectTotStatus.InProgress => "In progress",
-                ProjectTotStatus.Completed => "Completed",
-                _ => request.ProposedStatus.ToString()
-            };
+            var proposedStatusLabel = ProjectTotPresentation.StatusLabel(request.ProposedStatus);
 
             var proposedMetDetails = string.IsNullOrWhiteSpace(request.ProposedMetDetails)
                 ? null

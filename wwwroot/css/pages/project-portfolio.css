@@ -3273,18 +3273,7 @@ button.project-intelligence-card--tot:focus-visible {
     line-height: 1.35;
 }
 
-.project-jdp-editor__remove-link {
-    flex: 0 0 auto;
-    padding: .15rem .25rem;
-    font-size: .76rem;
-    font-weight: 600;
-    text-decoration: none;
-}
 
-.project-jdp-editor__remove-link:hover,
-.project-jdp-editor__remove-link:focus-visible {
-    text-decoration: underline;
-}
 
 .project-jdp-editor__related-projects {
     border-top: 1px solid var(--portfolio-border, #dfe5ef);
@@ -3357,15 +3346,6 @@ button.project-intelligence-card--tot:focus-visible {
     width: 100%;
 }
 
-@media (max-width: 575.98px) {
-    .project-jdp-editor__partner-card-main {
-        flex-wrap: wrap;
-    }
-
-    .project-jdp-editor__remove-link {
-        margin-left: 3rem;
-    }
-}
 
 /* ==========================================================================
    V6: Overview visual pass
@@ -4495,4 +4475,151 @@ a.project-intelligence-card:focus-visible {
     border-color: var(--pm-danger-soft-border);
     color: var(--pm-danger-soft-text);
     background: var(--pm-card);
+}
+
+
+/* ============================================================
+   Project JDP panel: each partner's primary contact (Industry Directory redesign, PR 3)
+   Colours use the page and Bootstrap theme variables, so dark mode follows them.
+   ============================================================ */
+.project-jdp-editor__partner-card {
+    /* The actions menu must not be clipped by the card; min-width keeps long names and
+       addresses from stretching the card past the panel (overflow: hidden used to do that). */
+    overflow: visible;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.project-jdp-editor__partner-card-main > .min-w-0 {
+    min-width: 0;
+}
+
+.project-jdp-editor__related-projects {
+    overflow: hidden;
+    border-radius: 0 0 .8rem .8rem;
+}
+
+.project-jdp-editor__menu {
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    color: var(--portfolio-muted);
+}
+
+.project-jdp-editor__partner-card > .project-jdp-editor__usage {
+    padding: 0 1rem .8rem;
+}
+
+.project-jdp-editor__contact {
+    margin: 0 1rem .55rem;
+    padding: .55rem .7rem;
+    border-radius: .6rem;
+    background: var(--portfolio-soft);
+    font-size: .82rem;
+}
+
+.project-jdp-editor__contact--empty {
+    color: var(--portfolio-muted);
+}
+
+.project-jdp-editor__contact-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .1rem .5rem;
+    margin-bottom: .2rem;
+    font-weight: 650;
+}
+
+.project-jdp-editor__primary {
+    color: var(--pm-accent-blue, var(--bs-primary));
+    white-space: nowrap;
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.project-jdp-editor__contact-row {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 1.9rem;
+}
+
+.project-jdp-editor__contact-row > i {
+    flex: 0 0 auto;
+    color: var(--portfolio-muted);
+}
+
+.project-jdp-editor__contact-value {
+    overflow: hidden;
+    min-width: 0;
+    color: var(--bs-body-color);
+    white-space: nowrap;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+}
+
+.project-jdp-editor__contact-value:hover {
+    color: var(--pm-accent-blue, var(--bs-primary));
+    text-decoration: underline;
+}
+
+.project-jdp-editor__copy {
+    position: relative;
+    display: inline-grid;
+    flex: 0 0 auto;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: .45rem;
+    background: transparent;
+    color: var(--portfolio-muted);
+}
+
+.project-jdp-editor__copy:hover,
+.project-jdp-editor__copy:focus-visible {
+    border-color: var(--portfolio-border);
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+.project-jdp-editor__copy.is-copied {
+    color: var(--bs-success);
+}
+
+.project-jdp-editor__copy[data-copy-label]::after {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    z-index: 5;
+    padding: 2px 8px;
+    transform: translateX(-50%);
+    border-radius: 6px;
+    background: var(--bs-body-color);
+    color: var(--bs-body-bg);
+    white-space: nowrap;
+    font-size: .72rem;
+    font-weight: 650;
+    content: attr(data-copy-label);
+    pointer-events: none;
+}
+
+@media (max-width: 575.98px) {
+    .project-jdp-editor__copy {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+
+    /* On phones the name wraps rather than being cut off; the menu stays top right. */
+    .project-jdp-editor__partner-name,
+    .project-jdp-editor__partner-name span {
+        overflow: visible;
+        white-space: normal;
+        text-overflow: clip;
+        overflow-wrap: anywhere;
+    }
 }

@@ -796,10 +796,8 @@ public sealed class IndexModel : PageModel
             actionDescription,
             roleClaims.Length == 0 ? "(none)" : string.Join(", ", roleClaims));
 
-        var roleDisplay = roleClaims.Length == 0 ? "(none)" : string.Join(", ", roleClaims);
-        var toastMessage = $"You do not have permission to perform this action. Policy: {policy}. Roles: {roleDisplay}.";
-
-        TempData["ToastError"] = toastMessage;
+        // Policy names and role lists stay in the server log; the user gets a plain message.
+        TempData["ToastError"] = $"You do not have permission to {actionDescription}.";
 
         return RedirectToPage(new
         {
@@ -936,89 +934,15 @@ public sealed class IndexModel : PageModel
     private void ValidatePartialDates(ITotStatusMilestoneFields input)
     {
         // SECTION: Partial date validation
-        var startPartial = new PartialDateInput
+        var dates = ProjectTotDateInput.Resolve(input.Status, new PartialDateInput { Year = input.StartYear, Month = input.StartMonth, Day = input.StartDay }, new PartialDateInput { Year = input.CompletionYear, Month = input.CompletionMonth, Day = input.CompletionDay });
+        input.StartedOn = dates.StartedOn;
+        input.StartDatePrecision = dates.StartDatePrecision;
+        input.CompletedOn = dates.CompletedOn;
+        input.CompletionDatePrecision = dates.CompletionDatePrecision;
+
+        foreach (var error in dates.Errors)
         {
-            Year = input.StartYear,
-            Month = input.StartMonth,
-            Day = input.StartDay
-        };
-        var completionPartial = new PartialDateInput
-        {
-            Year = input.CompletionYear,
-            Month = input.CompletionMonth,
-            Day = input.CompletionDay
-        };
-
-        input.StartDatePrecision = startPartial.GetPrecision();
-        input.CompletionDatePrecision = completionPartial.GetPrecision();
-
-        input.StartedOn = null;
-        input.CompletedOn = null;
-
-        switch (input.Status)
-        {
-            case ProjectTotStatus.InProgress:
-                if (!PartialDateHelper.TryToStartDate(startPartial, out var inProgressStart, out var startError))
-                {
-                    ModelState.AddModelError(nameof(input.StartYear), startError ?? "Start date is required when ToT is in progress.");
-                }
-                else
-                {
-                    input.StartedOn = inProgressStart;
-                }
-
-                if (completionPartial.GetPrecision() != PartialDatePrecision.None)
-                {
-                    ModelState.AddModelError(nameof(input.CompletionYear), "Completion must be empty while ToT is in progress.");
-                }
-
-                break;
-            case ProjectTotStatus.Completed:
-                if (!PartialDateHelper.TryToCompletionDate(completionPartial, out var completionDate, out var completionError))
-                {
-                    ModelState.AddModelError(nameof(input.CompletionYear), completionError ?? "Completion date is required when ToT is completed.");
-                }
-                else
-                {
-                    input.CompletedOn = completionDate;
-                }
-
-                if (startPartial.GetPrecision() != PartialDatePrecision.None)
-                {
-                    if (!PartialDateHelper.TryToStartDate(startPartial, out var completedStart, out var completedStartError))
-                    {
-                        ModelState.AddModelError(nameof(input.StartYear), completedStartError ?? "Invalid start date.");
-                    }
-                    else
-                    {
-                        input.StartedOn = completedStart;
-                    }
-                }
-
-                break;
-            case ProjectTotStatus.NotStarted:
-            case ProjectTotStatus.NotRequired:
-                if (startPartial.GetPrecision() != PartialDatePrecision.None)
-                {
-                    ModelState.AddModelError(nameof(input.StartYear), "Start date must be empty when ToT is not started or not required.");
-                }
-
-                if (completionPartial.GetPrecision() != PartialDatePrecision.None)
-                {
-                    ModelState.AddModelError(nameof(input.CompletionYear), "Completion date must be empty when ToT is not started or not required.");
-                }
-
-                break;
-        }
-
-        if (ModelState.IsValid)
-        {
-            _logger.LogInformation(
-                "TOT/TRACKER PARTIAL DATES: ProjectId={ProjectId}, Status={Status}, StartedOn={StartedOn}, CompletedOn={CompletedOn}",
-                input.ProjectId,
-                input.Status,
-                input.StartedOn,
-                input.CompletedOn);
+            ModelState.AddModelError(error.Field, error.Message);
         }
     }
 

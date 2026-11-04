@@ -26,7 +26,7 @@ public sealed class ProjectJdpServiceTests
         Assert.Equal(2, partner.OtherProjectCount);
         Assert.Equal(1, partner.OtherOngoingProjectCount);
         Assert.Equal(1, partner.OtherCompletedProjectCount);
-        Assert.Equal("Also linked to 2 other projects · 1 ongoing · 1 completed", profile.CardSummary);
+        Assert.Equal("Also a JDP on 2 other projects · 1 ongoing · 1 completed", profile.CardSummary);
     }
 
     [Fact]

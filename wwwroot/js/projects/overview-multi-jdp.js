@@ -99,23 +99,102 @@
                </details>`
             : '';
 
+        const organisationUrl = partner.organisationUrl || `/IndustryPartners/${partner.id}?projectId=${projectId}`;
+        const contact = partner.primaryContact;
+        const copyRow = (icon, href, value, label) => `
+                <div class="project-jdp-editor__contact-row">
+                    <i class="bi ${icon}" aria-hidden="true"></i>
+                    <a href="${href}${escapeHtml(value)}" class="project-jdp-editor__contact-value" title="${escapeHtml(value)}">${escapeHtml(value)}</a>
+                    <button type="button" class="project-jdp-editor__copy" data-copy-value="${escapeHtml(value)}" aria-label="${escapeHtml(label)} for ${escapeHtml(partner.name)}" title="${escapeHtml(label)}">
+                        <i class="bi bi-copy" aria-hidden="true"></i>
+                    </button>
+                </div>`;
+        const contactBlock = contact && (contact.phone || contact.email)
+            ? `<div class="project-jdp-editor__contact">
+                    <div class="project-jdp-editor__contact-name">
+                        <span>${escapeHtml(contact.name)}</span>
+                        <span class="project-jdp-editor__primary"><i class="bi bi-star-fill" aria-hidden="true"></i> Primary</span>
+                    </div>
+                    ${contact.phone ? copyRow('bi-telephone', 'tel:', contact.phone, 'Copy phone number') : ''}
+                    ${contact.email ? copyRow('bi-envelope', 'mailto:', contact.email, 'Copy email address') : ''}
+               </div>`
+            : `<div class="project-jdp-editor__contact project-jdp-editor__contact--empty">
+                    No contact recorded yet. <a href="${escapeHtml(organisationUrl)}">Add one in the Industry Directory</a>
+               </div>`;
+
         return `
             <article class="project-jdp-editor__partner-card" data-partner-id="${partner.id}">
                 <div class="project-jdp-editor__partner-card-main">
                     <span class="project-jdp-editor__icon" aria-hidden="true"><i class="bi bi-building"></i></span>
                     <div class="min-w-0 flex-grow-1">
-                        <a class="project-jdp-editor__partner-name" href="/IndustryPartners?id=${partner.id}&projectId=${projectId}&tab=projects">
+                        <a class="project-jdp-editor__partner-name" href="${escapeHtml(organisationUrl)}">
                             <span>${escapeHtml(partner.name)}</span>
-                            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
                         </a>
                         ${partner.location ? `<span class="project-jdp-editor__location">${escapeHtml(partner.location)}</span>` : ''}
-                        <span class="project-jdp-editor__usage">${escapeHtml(partner.usageSummary)}</span>
                     </div>
-                    ${canManage ? `<button type="button" class="btn btn-link text-danger project-jdp-editor__remove-link" data-multi-jdp-remove="${partner.id}" data-partner-name="${escapeHtml(partner.name)}">Remove link</button>` : ''}
+                    <div class="dropdown">
+                        <button type="button" class="btn btn-sm btn-light project-jdp-editor__menu" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for ${escapeHtml(partner.name)}">
+                            <i class="bi bi-three-dots" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="${escapeHtml(organisationUrl)}"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open organisation</a></li>
+                            ${canManage ? `<li><hr class="dropdown-divider" /></li>
+                            <li><button type="button" class="dropdown-item text-danger" data-multi-jdp-remove="${partner.id}" data-partner-name="${escapeHtml(partner.name)}"><i class="bi bi-link-45deg" aria-hidden="true"></i> Remove JDP link…</button></li>` : ''}
+                        </ul>
+                    </div>
                 </div>
+                ${contactBlock}
+                <span class="project-jdp-editor__usage">${escapeHtml(partner.usageSummary)}</span>
                 ${related}
             </article>`;
     };
+
+    // SECTION: Copy a JDP's phone number or email address (clipboard on HTTPS,
+    // the older copy command on a plain-HTTP LAN address).
+    const copyText = async value => {
+        if (window.isSecureContext && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            return;
+        }
+
+        const field = document.createElement('textarea');
+        field.value = value;
+        field.setAttribute('readonly', '');
+        field.style.position = 'fixed';
+        field.style.top = '-1000px';
+        document.body.appendChild(field);
+        field.select();
+        const copied = document.execCommand('copy');
+        field.remove();
+        if (!copied) {
+            throw new Error('Copy was blocked by the browser.');
+        }
+    };
+
+    root.addEventListener('click', async event => {
+        const button = event.target.closest('[data-copy-value]');
+        if (!button || !root.contains(button)) return;
+
+        event.preventDefault();
+        const value = button.getAttribute('data-copy-value') || '';
+        const icon = button.querySelector('i');
+        try {
+            await copyText(value);
+            button.classList.add('is-copied');
+            button.setAttribute('data-copy-label', 'Copied');
+            icon?.classList.replace('bi-copy', 'bi-check2');
+            showToast(`Copied ${value}`, 'success');
+        } catch {
+            showToast('Copy failed. Select the text and copy it instead.', 'error');
+        }
+
+        window.clearTimeout(button._copyTimer);
+        button._copyTimer = window.setTimeout(() => {
+            button.classList.remove('is-copied');
+            button.removeAttribute('data-copy-label');
+            icon?.classList.replace('bi-check2', 'bi-copy');
+        }, 1600);
+    });
 
     const updateHeader = data => {
         const title = document.querySelector('[data-jdp-card-title]');
