@@ -64,6 +64,8 @@ The `MaxAge` exemption means an unread action-required notification can outlive 
 
 **Bell badge.** The bell badge counts notifications the user has not yet *seen*, not unread ones. Opening the bell calls `POST /api/notifications/seen-all`, which clears the badge and leaves read state unchanged. The bell header, the Notification Centre and "Mark all read" continue to use the unread count. The bell lists unread action-required notifications first under "Needs action" (`GET /api/notifications?order=priority`), then everything else newest first.
 
+**Bell grouping.** Routine notifications for the same project, category and India-time day show as one expandable row in the bell, for example "Project Orion · Documents — 6 updates · 5 unread". A notification is groupable only when it is not action-required and has normal priority; approvals, mentions, assignments, blocked tasks and high-priority items such as document deletions always stay on their own row. The server decides this and sends `groupKey` with each list item (`NotificationGrouping`); the client only collapses rows with equal keys. To build groups from real volume, the bell loads the newest 50 rows and shows 10 entries. The Notification Centre list is not grouped.
+
 ## Chat
 
 | Key | Default | Purpose |

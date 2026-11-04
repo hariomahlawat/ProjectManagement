@@ -37,6 +37,7 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
          data-unread-url="/api/notifications/count"
          data-hub-url=""
          data-notification-limit="10"
+         data-notification-fetch-limit="50"
          data-unread-count="${unreadCount}"
          data-unseen-count="${unseenCount}"
          data-latest-notification-id="${latestNotificationId}"
@@ -61,6 +62,20 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
           <span data-notification-actor></span>
           <span data-notification-unread-dot></span>
           <button type="button" data-notification-action="toggle-read"><i class="bi"></i></button>
+        </li>
+      </template>
+      <template data-notification-group-template>
+        <li data-notification-group>
+          <i data-notification-icon></i>
+          <button type="button" data-notification-action="toggle-group" aria-expanded="false">
+            <span data-notification-project></span>
+            <span data-notification-group-title></span>
+            <span data-notification-summary></span>
+            <time data-notification-created></time>
+          </button>
+          <span data-notification-unread-dot></span>
+          <button type="button" data-notification-action="toggle-group-read"><i class="bi"></i></button>
+          <ul data-notification-group-items hidden></ul>
         </li>
       </template>
     </div>
@@ -99,6 +114,17 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
       };
     } else if (pathname === '/api/notifications' && pagePayload) {
       payload = pagePayload;
+    } else if (pathname.endsWith('/read')) {
+      const ids = JSON.parse(options.body).ids;
+      payload = {
+        notificationIds: ids,
+        isRead: true,
+        readUtc: '2026-06-30T07:00:00Z',
+        seenUtc: '2026-06-30T07:00:00Z',
+        appliesToAll: false,
+        affectedCount: ids.length,
+        unreadCount: 0
+      };
     } else if (pathname.endsWith('/seen')) {
       const ids = JSON.parse(options.body).ids;
       payload = {
@@ -255,8 +281,87 @@ test('bell refresh requests the priority order and applies the unseen count', as
   const pageRequest = requests.find(request => new URL(request.url).pathname === '/api/notifications');
   assert.ok(pageRequest);
   assert.equal(new URL(pageRequest.url).searchParams.get('order'), 'priority');
+  // The bell loads a wider window than it shows so that groups reflect real volume.
+  assert.equal(new URL(pageRequest.url).searchParams.get('limit'), '50');
   assert.equal(document.querySelector('[data-notification-unread-count]').textContent, '4');
   assert.equal(document.querySelector('[data-notification-header-count]').textContent, '5');
+
+  dom.window.close();
+});
+
+function documentUpdate(id, minutesAgo, overrides = {}) {
+  const created = new Date(Date.parse('2026-06-30T09:00:00Z') - minutesAgo * 60_000).toISOString();
+  return notification({
+    id,
+    title: `Document ${id} published`,
+    category: 'Documents',
+    createdUtc: created,
+    groupKey: '4|Documents|2026-06-30',
+    ...overrides
+  });
+}
+
+test('bell collapses routine updates that share a group key and keeps action items separate', async () => {
+  const fixture = await createBell({
+    items: [
+      documentUpdate(31, 1),
+      documentUpdate(30, 2),
+      documentUpdate(29, 3),
+      notification({ id: 40, title: 'Plan awaiting approval', isActionRequired: true, createdUtc: '2026-06-29T09:00:00Z' }),
+      // A different key with a single row stays a plain row.
+      notification({ id: 50, title: 'Stage updated', createdUtc: '2026-06-30T08:00:00Z', groupKey: '4|Project lifecycle|2026-06-30' })
+    ]
+  });
+  const { dom, document } = fixture;
+
+  const groups = document.querySelectorAll('[data-notification-group]');
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].querySelector('[data-notification-group-title]').textContent, '3 updates · 3 unread');
+  assert.equal(groups[0].querySelector('[data-notification-project]').textContent, 'Project AURA · Documents');
+  assert.equal(groups[0].querySelector('[data-notification-summary]').textContent, 'Latest: Document 31 published');
+
+  // Top-level rows: the action item first, then the group, then the single stage update.
+  const topLevel = Array.from(document.querySelector('[data-notification-list]').children)
+    .filter(node => node.matches('[data-notification-item], [data-notification-group]'));
+  assert.equal(topLevel.length, 3);
+  assert.equal(topLevel[0].querySelector('[data-notification-title]').textContent, 'Plan awaiting approval');
+  assert.ok(topLevel[1].matches('[data-notification-group]'));
+  assert.equal(topLevel[2].querySelector('[data-notification-title]').textContent, 'Stage updated');
+
+  dom.window.close();
+});
+
+test('expanding a group shows its notifications and keeps it open across re-renders', async () => {
+  const fixture = await createBell({ items: [documentUpdate(31, 1), documentUpdate(30, 2)] });
+  const { dom, window, document } = fixture;
+
+  const toggle = document.querySelector('[data-notification-action="toggle-group"]');
+  assert.ok(document.querySelector('[data-notification-group-items]').hidden);
+
+  toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+
+  const children = document.querySelector('[data-notification-group-items]');
+  assert.equal(children.hidden, false);
+  assert.equal(children.querySelectorAll('[data-notification-item]').length, 2);
+  assert.equal(document.querySelector('[data-notification-action="toggle-group"]').getAttribute('aria-expanded'), 'true');
+
+  dom.window.close();
+});
+
+test('marking a group read sends one request with every unread id in it', async () => {
+  const fixture = await createBell({
+    items: [documentUpdate(31, 1), documentUpdate(30, 2, { readUtc: '2026-06-30T08:00:00Z' }), documentUpdate(29, 3)]
+  });
+  const { dom, window, document, requests } = fixture;
+
+  document.querySelector('[data-notification-action="toggle-group-read"]')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+
+  const readRequest = requests.find(request => new URL(request.url, window.location.origin).pathname === '/api/notifications/read');
+  assert.ok(readRequest);
+  assert.deepEqual(JSON.parse(readRequest.options.body), { ids: [31, 29] });
+  assert.equal(document.querySelector('[data-notification-group-title]').textContent, '3 updates');
 
   dom.window.close();
 });

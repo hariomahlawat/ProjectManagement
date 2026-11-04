@@ -52,10 +52,12 @@ public sealed class NotificationBellViewComponent : ViewComponent
             return BuildAnonymousModel();
         }
 
+        // The bell shows RecentLimit entries, but loads a wider window so routine updates can be
+        // collapsed into groups that reflect the real volume rather than just the last ten rows.
         const int limit = 10;
         var options = new NotificationListOptions
         {
-            Limit = limit,
+            Limit = NotificationBellViewModel.GroupingWindow,
             IncludeMuted = false,
             IncludeFilterOptions = false,
             ActionRequiredFirst = true,

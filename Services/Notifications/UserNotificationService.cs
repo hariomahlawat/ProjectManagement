@@ -362,7 +362,11 @@ public sealed class UserNotificationService
                 presentation.Priority,
                 presentation.IsActionRequired,
                 notification.DeliveredUtc.HasValue ? EnsureUtc(notification.DeliveredUtc.Value) : null,
-                content.SummaryTooltip));
+                content.SummaryTooltip,
+                NotificationGrouping.ResolveGroupKey(
+                    presentation,
+                    notification.ProjectId,
+                    EnsureUtc(notification.CreatedUtc))));
         }
 
         return results;

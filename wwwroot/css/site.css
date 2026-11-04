@@ -8136,6 +8136,59 @@ main[role="main"].analytics-main > .pm-page-shell {
     text-decoration: none;
 }
 
+/* Grouped routine updates: the header is a button that expands the group in place. */
+.notification-menu__group-toggle {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: start;
+    cursor: pointer;
+}
+
+.notification-menu__group-toggle:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+    border-radius: .35rem;
+}
+
+.notification-menu__group-chevron {
+    display: inline-block;
+    margin-inline-start: .3rem;
+    font-size: .72rem;
+    transition: transform .16s ease;
+}
+
+.notification-menu__group.is-expanded .notification-menu__group-chevron {
+    transform: rotate(180deg);
+}
+
+.notification-menu__group-items {
+    margin: 0 0 .35rem;
+    padding: 0 0 0 2.4rem;
+    list-style: none;
+}
+
+.notification-menu__group-items .notification-menu__item {
+    margin: 0;
+    background: transparent;
+}
+
+.notification-menu__group-items .notification-menu__item-inner {
+    padding-block: .5rem;
+}
+
+/* The group header already names the project and category. */
+.notification-menu__group-items .notification-menu__eyebrow {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notification-menu__group-chevron {
+        transition: none;
+    }
+}
+
 .notification-menu__eyebrow {
     max-width: 100%;
     overflow: hidden;

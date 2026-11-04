@@ -709,6 +709,32 @@ public sealed class UserNotificationServiceTests
         Assert.Equal(9, actionOnly.LatestNotificationId);
     }
 
+    [Fact]
+    public async Task ListPageAsync_SetsGroupKeysForRoutineRowsOnly()
+    {
+        var (context, service, clock) = CreateService();
+        await using var _ = context;
+        const string userId = "user-1";
+        var now = clock.UtcNow.UtcDateTime;
+
+        context.Projects.Add(new Project { Id = 7, Name = "Orion", LeadPoUserId = userId });
+        context.Notifications.AddRange(
+            new Notification { Id = 1, RecipientUserId = userId, ProjectId = 7, Kind = NotificationKind.DocumentPublished, CreatedUtc = now },
+            new Notification { Id = 2, RecipientUserId = userId, ProjectId = 7, Kind = NotificationKind.DocumentReplaced, CreatedUtc = now.AddMinutes(-5) },
+            new Notification { Id = 3, RecipientUserId = userId, ProjectId = 7, Kind = NotificationKind.PlanSubmitted, CreatedUtc = now.AddMinutes(-10) });
+        await context.SaveChangesAsync();
+
+        var page = await service.ListPageAsync(
+            CreatePrincipal(userId),
+            userId,
+            new NotificationListOptions { IncludeFilterOptions = false });
+
+        var byId = page.Items.ToDictionary(item => item.Id);
+        Assert.NotNull(byId[1].GroupKey);
+        Assert.Equal(byId[1].GroupKey, byId[2].GroupKey);
+        Assert.Null(byId[3].GroupKey);
+    }
+
     private static (ApplicationDbContext Context, UserNotificationService Service, TestClock Clock) CreateService()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

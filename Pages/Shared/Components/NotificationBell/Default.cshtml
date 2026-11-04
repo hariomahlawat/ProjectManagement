@@ -18,6 +18,7 @@
      data-unread-url="@Model.UnreadCountUrl"
      data-hub-url="@Model.HubUrl"
      data-notification-limit="@Model.RecentLimit"
+     data-notification-fetch-limit="@Model.FetchLimit"
      data-unread-count="@Model.UnreadCount"
      data-unseen-count="@Model.UnseenCount"
      data-latest-notification-id="@Model.LatestNotificationId"
@@ -83,7 +84,8 @@
                 </div>
 
                 <ul class="notification-menu__list" data-notification-list>
-                    @foreach (var item in Model.Notifications)
+                    @* Ungrouped fallback until the script renders the grouped list. *@
+                    @foreach (var item in Model.Notifications.Take(Model.RecentLimit))
                     {
                         <li class="notification-menu__item @(item.IsRead ? "is-read" : "is-unread")"
                             data-notification-item
@@ -188,6 +190,42 @@
                         </button>
                     </div>
                 </div>
+            </li>
+        </template>
+
+        @* Several routine updates for one project, category and day, collapsed into one row. *@
+        <template data-notification-group-template>
+            <li class="notification-menu__item notification-menu__group is-unread" data-notification-group>
+                <div class="notification-menu__item-inner">
+                    <span class="notification-menu__icon" aria-hidden="true"><i data-notification-icon class="bi bi-bell"></i></span>
+                    <div class="notification-menu__content">
+                        <button type="button"
+                                class="notification-menu__link notification-menu__group-toggle"
+                                data-notification-action="toggle-group"
+                                aria-expanded="false">
+                            <span class="notification-menu__eyebrow" data-notification-project></span>
+                            <span class="notification-menu__title">
+                                <span data-notification-group-title></span>
+                                <i class="bi bi-chevron-down notification-menu__group-chevron" aria-hidden="true"></i>
+                            </span>
+                            <span class="notification-menu__summary" data-notification-summary></span>
+                            <span class="notification-menu__meta">
+                                <time data-notification-created datetime=""></time>
+                            </span>
+                        </button>
+                    </div>
+                    <div class="notification-menu__controls">
+                        <span class="notification-menu__unread-dot" data-notification-unread-dot aria-hidden="true"></span>
+                        <button type="button"
+                                class="btn btn-sm notification-icon-button"
+                                data-notification-action="toggle-group-read"
+                                title="Mark all as read"
+                                aria-label="Mark all as read">
+                            <span aria-hidden="true" class="bi bi-envelope-check"></span>
+                        </button>
+                    </div>
+                </div>
+                <ul class="notification-menu__group-items" data-notification-group-items hidden></ul>
             </li>
         </template>
     </div>
