@@ -417,7 +417,7 @@ test('opening a bell notification closes the dropdown before navigation', async 
   dom.window.close();
 });
 
-async function createCenter() {
+async function createCenter({ items = null, storedGrouping = null } = {}) {
   const inboxItem = notification({ id: 21, title: 'TEC stage completed' });
   const documentItem = notification({
     id: 22,
@@ -437,9 +437,10 @@ async function createCenter() {
     { key: 'all', totalCount: 2, unreadCount: 1 },
     { key: 'muted', totalCount: 0, unreadCount: 0 }
   ];
+  const bootstrapItems = items || [inboxItem, documentItem];
   const bootstrap = {
-    items: [inboxItem, documentItem],
-    totalCount: 2,
+    items: bootstrapItems,
+    totalCount: bootstrapItems.length,
     unreadCount: 1,
     nextCursor: null,
     hasMore: false,
@@ -459,7 +460,7 @@ async function createCenter() {
       <span data-notification-total-label>notifications</span>
       <button data-notification-folder="inbox" class="is-active"><span>Inbox</span><span data-folder-count data-folder-key="inbox" data-folder-count-mode="unread">1</span></button>
       <button data-notification-folder="documents"><span>Documents</span><span data-folder-count data-folder-key="documents" data-folder-count-mode="unread"></span></button>
-      <div data-default-actions><button data-notification-action="refresh"></button><button data-notification-action="mark-all-read"></button></div>
+      <div data-default-actions><button data-notification-action="refresh"></button><button data-notification-action="mark-all-read"></button><button data-notification-action="toggle-grouping" aria-pressed="true"></button></div>
       <div data-selection-actions hidden>
         <span data-selection-count></span>
         <button data-notification-bulk="mark-read"></button>
@@ -502,6 +503,23 @@ async function createCenter() {
           <span data-notification-state></span>
         </article>
       </template>
+      <template data-notification-group-template>
+        <div data-notification-group>
+          <article class="notification-inbox-group__header">
+            <input type="checkbox" data-notification-group-select>
+            <i data-notification-icon></i>
+            <span data-notification-unread-dot></span>
+            <span data-notification-project></span>
+            <span data-notification-category></span>
+            <button type="button" data-notification-group-action="toggle-group" aria-expanded="false"><span data-notification-group-title></span></button>
+            <span data-notification-summary></span>
+            <time data-notification-created></time>
+            <button type="button" data-notification-group-action="toggle-read"><i class="bi"></i></button>
+            <button type="button" data-notification-group-action="toggle-mute"><i class="bi"></i></button>
+          </article>
+          <div data-notification-group-items hidden></div>
+        </div>
+      </template>
     </section>
   </body></html>`, {
     url: 'https://example.test/Notifications',
@@ -510,6 +528,9 @@ async function createCenter() {
 
   const { window } = dom;
   const requests = [];
+  if (storedGrouping !== null) {
+    window.localStorage.setItem('prism.notifications.centre.grouped', storedGrouping);
+  }
   window.Headers = global.Headers;
   window.setInterval = () => 1;
   window.clearInterval = () => {};
@@ -520,8 +541,8 @@ async function createCenter() {
     if ((options.method || 'GET').toUpperCase() === 'GET') {
       const folder = parsed.searchParams.get('folder');
       payload = {
-        items: folder === 'documents' ? [documentItem] : [inboxItem, documentItem],
-        totalCount: folder === 'documents' ? 1 : 2,
+        items: folder === 'documents' ? [documentItem] : bootstrapItems,
+        totalCount: folder === 'documents' ? 1 : bootstrapItems.length,
         unreadCount: 1,
         nextCursor: null,
         hasMore: false,
@@ -699,4 +720,111 @@ test('notification realtime uses application-owned diagnostics instead of duplic
   assert.equal(typeof handlers.reconnecting, 'function');
   assert.equal(typeof handlers.close, 'function');
   dom.window.close();
+});
+
+function centreDocument(id, minutesAgo, overrides = {}) {
+  return notification({
+    id,
+    title: `Document ${id} published`,
+    category: 'Documents',
+    createdUtc: new Date(Date.parse('2026-06-30T09:00:00Z') - minutesAgo * 60_000).toISOString(),
+    groupKey: '4|Documents|2026-06-30',
+    ...overrides
+  });
+}
+
+function centreGroupItems() {
+  return [
+    centreDocument(61, 1),
+    centreDocument(60, 2),
+    notification({ id: 70, title: 'Plan awaiting approval', isActionRequired: true, createdUtc: '2026-06-30T08:55:00Z' }),
+    centreDocument(59, 10, { readUtc: '2026-06-30T08:59:00Z' })
+  ];
+}
+
+test('Notification Centre collapses routine updates into one group row', async () => {
+  const fixture = await createCenter({ items: centreGroupItems() });
+  const { dom, window, document } = fixture;
+
+  const groups = document.querySelectorAll('[data-notification-group]');
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].querySelector('[data-notification-group-title]').textContent, '3 updates · 2 unread');
+  assert.equal(groups[0].querySelector('[data-notification-summary]').textContent, 'Latest: Document 61 published');
+
+  // The approval stays a top-level row; grouped documents are not.
+  const topLevelRows = Array.from(document.querySelector('[data-notification-rows]').children)
+    .filter(node => node.matches('[data-notification-row]'));
+  assert.deepEqual(topLevelRows.map(row => row.dataset.notificationId), ['70']);
+  // The range still counts individual notifications.
+  assert.equal(document.querySelector('[data-notification-list-summary]').textContent, '1–4 of 4');
+
+  groups[0].querySelector('[data-notification-group-action="toggle-group"]')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  const children = document.querySelector('[data-notification-group-items]');
+  assert.equal(children.hidden, false);
+  assert.deepEqual(
+    Array.from(children.querySelectorAll('[data-notification-row]')).map(row => row.dataset.notificationId),
+    ['61', '60', '59']);
+
+  dom.window.close();
+});
+
+test('Notification Centre group checkbox selects every notification in the group', async () => {
+  const fixture = await createCenter({ items: centreGroupItems() });
+  const { dom, window, document } = fixture;
+
+  const groupBox = document.querySelector('[data-notification-group-select]');
+  groupBox.checked = true;
+  groupBox.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+  assert.equal(document.querySelector('[data-selection-count]').textContent, '3 selected');
+  assert.equal(document.querySelector('[data-selection-actions]').hidden, false);
+
+  // Unselecting one child leaves the group checkbox part-checked.
+  document.querySelector('[data-notification-group-action="toggle-group"]')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  const child = document.querySelector('[data-notification-group-items] [data-notification-select]');
+  child.checked = false;
+  child.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+  const refreshedBox = document.querySelector('[data-notification-group-select]');
+  assert.equal(refreshedBox.checked, false);
+  assert.equal(refreshedBox.indeterminate, true);
+  assert.equal(document.querySelector('[data-selection-count]').textContent, '2 selected');
+
+  dom.window.close();
+});
+
+test('Notification Centre group read action marks only its unread notifications', async () => {
+  const fixture = await createCenter({ items: centreGroupItems() });
+  const { dom, window, document, requests } = fixture;
+
+  document.querySelector('[data-notification-group-action="toggle-read"]')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+
+  const readRequest = requests.find(request => new URL(request.url, window.location.origin).pathname === '/api/notifications/read');
+  assert.ok(readRequest);
+  assert.deepEqual(JSON.parse(readRequest.options.body), { ids: [61, 60] });
+
+  dom.window.close();
+});
+
+test('Notification Centre grouping can be switched off and the choice is remembered', async () => {
+  const fixture = await createCenter({ items: centreGroupItems() });
+  const { dom, window, document } = fixture;
+
+  const toggle = document.querySelector('[data-notification-action="toggle-grouping"]');
+  assert.equal(toggle.getAttribute('aria-pressed'), 'true');
+  toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+
+  assert.equal(document.querySelectorAll('[data-notification-group]').length, 0);
+  assert.equal(document.querySelectorAll('[data-notification-rows] > [data-notification-row]').length, 4);
+  assert.equal(toggle.getAttribute('aria-pressed'), 'false');
+  assert.equal(window.localStorage.getItem('prism.notifications.centre.grouped'), 'false');
+  dom.window.close();
+
+  const reloaded = await createCenter({ items: centreGroupItems(), storedGrouping: 'false' });
+  assert.equal(reloaded.document.querySelectorAll('[data-notification-group]').length, 0);
+  reloaded.dom.window.close();
 });
