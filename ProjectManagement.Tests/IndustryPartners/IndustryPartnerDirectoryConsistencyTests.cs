@@ -185,6 +185,39 @@ public sealed class IndustryPartnerDirectoryConsistencyTests
         Assert.Null(conflict.EditDraft);
     }
 
+    [Fact]
+    public void Drafts_StayWithinTheCookieBudget_DroppingLongFieldsFirst()
+    {
+        // 4,000 Devanagari characters: each is escaped to six bytes when stored in TempData.
+        var longHindiNotes = new string('\u0928', 4000);
+        var longHindiLocation = new string('\u092A', 2000);
+        var draft = new ProjectManagement.Pages.IndustryPartners.IndexModel.OrganisationDraft(
+            null, "Heron Labs", longHindiLocation, longHindiNotes, "Ms Rao", "98765", "rao@example.test");
+
+        var stored = ProjectManagement.Pages.IndustryPartners.IndexModel.FitDraftForCookie(draft);
+
+        Assert.NotNull(stored);
+        Assert.True(System.Text.Json.JsonSerializer.Serialize(stored).Length
+            <= ProjectManagement.Pages.IndustryPartners.IndexModel.MaxStoredDraftLength);
+        var kept = System.Text.Json.JsonSerializer.Deserialize<ProjectManagement.Pages.IndustryPartners.IndexModel.OrganisationDraft>(stored!)!;
+        Assert.Equal("Heron Labs", kept.Name);
+        Assert.Equal("98765", kept.ContactPhone);
+        Assert.Null(kept.Remarks);
+        Assert.Null(kept.Location);
+    }
+
+    [Fact]
+    public void Drafts_WithOrdinaryInput_AreKeptWhole()
+    {
+        var draft = new ProjectManagement.Pages.IndustryPartners.IndexModel.OrganisationDraft(
+            null, "Heron Labs", "Pune", new string('n', 3000));
+
+        var stored = ProjectManagement.Pages.IndustryPartners.IndexModel.FitDraftForCookie(draft);
+
+        var kept = System.Text.Json.JsonSerializer.Deserialize<ProjectManagement.Pages.IndustryPartners.IndexModel.OrganisationDraft>(stored!)!;
+        Assert.Equal(draft, kept);
+    }
+
     [Theory]
     [InlineData("50%", @"50\%")]
     [InlineData("file_no", @"file\_no")]

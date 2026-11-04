@@ -565,9 +565,46 @@ public sealed class IndexModel : PageModel
     private async Task<bool> CanAddContactAsync() =>
         (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.AddContact)).Succeeded;
 
+    // TempData lives in a cookie, and the TempData serializer escapes every non-ASCII
+    // character as \uXXXX. A draft is therefore kept only within this budget (measured as
+    // stored), so a long notes field can never push request headers past the server limit.
+    internal const int MaxStoredDraftLength = 8 * 1024;
+
     private void WriteDraft(string key, OrganisationDraft draft)
     {
-        TempData[key] = JsonSerializer.Serialize(draft);
+        var stored = FitDraftForCookie(draft);
+        if (stored is not null)
+        {
+            TempData[key] = stored;
+        }
+    }
+
+    /// <summary>
+    /// The draft as stored in TempData, dropping the longest optional fields (notes, then
+    /// location) if needed to stay within <see cref="MaxStoredDraftLength"/>; null if even
+    /// the short fields do not fit.
+    /// </summary>
+    internal static string? FitDraftForCookie(OrganisationDraft draft)
+    {
+        var candidates = new[]
+        {
+            draft,
+            draft with { Remarks = null },
+            draft with { Remarks = null, Location = null }
+        };
+
+        foreach (var candidate in candidates)
+        {
+            var json = JsonSerializer.Serialize(candidate);
+
+            // Measure as the TempData serializer will write it: the JSON string re-encoded.
+            if (JsonSerializer.Serialize(json).Length <= MaxStoredDraftLength)
+            {
+                return json;
+            }
+        }
+
+        return null;
     }
 
     private OrganisationDraft? ReadDraft(string key)
