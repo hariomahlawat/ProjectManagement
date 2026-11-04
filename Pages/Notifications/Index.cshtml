@@ -139,6 +139,12 @@
                             <i class="bi bi-check2-all" aria-hidden="true"></i>
                             <span>Mark all read</span>
                         </button>
+                        @* Collapses routine updates for one project, category and day; the choice is kept per browser. *@
+                        <button type="button" class="notification-inbox__toolbar-button" data-notification-action="toggle-grouping"
+                                aria-pressed="true" title="Group similar updates" aria-label="Group similar updates">
+                            <i class="bi bi-collection" aria-hidden="true"></i>
+                            <span>Group similar</span>
+                        </button>
                     </div>
 
                     <div class="notification-inbox__selection-actions" data-selection-actions hidden>
@@ -340,5 +346,43 @@
             </div>
             <span class="visually-hidden" data-notification-state>Unread</span>
         </article>
+    </template>
+    @* Several routine updates for one project, category and day, collapsed into one row. *@
+    <template data-notification-group-template>
+        <div class="notification-inbox-group" data-notification-group>
+            <article class="notification-inbox-row notification-inbox-group__header is-unread">
+                <div class="notification-inbox-row__select">
+                    <input class="form-check-input" type="checkbox" data-notification-group-select aria-label="Select all notifications in this group" />
+                </div>
+                <div class="notification-inbox-row__icon" aria-hidden="true"><i data-notification-icon class="bi bi-bell"></i></div>
+                <div class="notification-inbox-row__source">
+                    <span class="notification-inbox-row__unread-dot" data-notification-unread-dot aria-hidden="true"></span>
+                    <span class="notification-inbox-row__project" data-notification-project></span>
+                    <span class="notification-inbox-row__category" data-notification-category></span>
+                </div>
+                <div class="notification-inbox-row__message">
+                    <button type="button" class="notification-inbox-row__title notification-inbox-group__toggle"
+                            data-notification-group-action="toggle-group" aria-expanded="false">
+                        <span data-notification-group-title></span>
+                        <i class="bi bi-chevron-down notification-inbox-group__chevron" aria-hidden="true"></i>
+                    </button>
+                    <span class="notification-inbox-row__separator" aria-hidden="true">—</span>
+                    <span class="notification-inbox-row__preview" data-notification-summary></span>
+                </div>
+                <div class="notification-inbox-row__actor"></div>
+                <div class="notification-inbox-row__time">
+                    <time data-notification-created datetime=""></time>
+                </div>
+                <div class="notification-inbox-row__quick-actions" role="group" aria-label="Group actions">
+                    <button type="button" class="notification-inbox__icon-button" data-notification-group-action="toggle-read" title="Mark all as read" aria-label="Mark all as read">
+                        <i class="bi bi-envelope-open" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="notification-inbox__icon-button" data-notification-group-action="toggle-mute" title="Mute project" aria-label="Mute project">
+                        <i class="bi bi-bell-slash" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </article>
+            <div class="notification-inbox-group__items" data-notification-group-items hidden></div>
+        </div>
     </template>
 </section>

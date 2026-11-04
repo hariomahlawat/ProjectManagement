@@ -144,8 +144,9 @@
 
   // Collapses rows that share a server-assigned group key into one entry, keeping the order of
   // the first (newest) row in each group. Unread action-required rows are never grouped. A
-  // group of one is shown as a plain row. Returns at most `limit` entries.
-  function buildBellEntries(items, limit) {
+  // group of one is shown as a plain row. Returns at most `limit` entries. Shared by the bell
+  // and the Notification Centre.
+  function buildGroupedEntries(items, limit = Number.POSITIVE_INFINITY) {
     const entries = [];
     const groups = new Map();
 
@@ -171,6 +172,32 @@
         ? { type: 'item', item: entry.items[0] }
         : entry))
       .slice(0, limit);
+  }
+
+  const CENTRE_GROUPING_STORAGE_KEY = 'prism.notifications.centre.grouped';
+
+  // A per-browser display preference only; grouping defaults to on when storage is unavailable.
+  function readCentreGroupingPreference() {
+    try {
+      return window.localStorage.getItem(CENTRE_GROUPING_STORAGE_KEY) !== 'false';
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function writeCentreGroupingPreference(enabled) {
+    try {
+      window.localStorage.setItem(CENTRE_GROUPING_STORAGE_KEY, enabled ? 'true' : 'false');
+    } catch (error) {
+      // Storage may be blocked; the choice then lasts for this page only.
+    }
+  }
+
+  function groupHeadline(group) {
+    const unread = group.items.filter(item => !item.isRead).length;
+    return unread > 0
+      ? `${group.items.length} updates · ${unread} unread`
+      : `${group.items.length} updates`;
   }
 
   function normalizePage(raw) {
@@ -1142,7 +1169,7 @@
         .sort(comparePriorityThenNewest);
       // Without the group template (an older cached layout) every row renders on its own.
       const entries = this.groupTemplate
-        ? buildBellEntries(sorted, this.limit)
+        ? buildGroupedEntries(sorted, this.limit)
         : sorted.slice(0, this.limit).map(item => ({ type: 'item', item }));
 
       this.list.innerHTML = '';
@@ -1193,11 +1220,7 @@
       setIcon(row.querySelector('[data-notification-icon]'), lead.iconCssClass);
       const eyebrow = lead.projectName ? `${lead.projectName} · ${lead.category}` : lead.category;
       setText(row.querySelector('[data-notification-project]'), eyebrow);
-      setText(
-        row.querySelector('[data-notification-group-title]'),
-        unread.length > 0
-          ? `${group.items.length} updates · ${unread.length} unread`
-          : `${group.items.length} updates`);
+      setText(row.querySelector('[data-notification-group-title]'), groupHeadline(group));
       setText(row.querySelector('[data-notification-summary]'), `Latest: ${lead.title || 'Notification'}`);
       setTimeElement(row.querySelector('[data-notification-created]'), lead);
 
@@ -1374,6 +1397,12 @@
       this.statusTimer = null;
       this.newNotificationRefresh = debounce(() => this.refresh({ silent: true }), 450);
       this.selectedIds = new Set();
+      this.groupTemplate = root.querySelector('template[data-notification-group-template]');
+      this.groupingToggle = root.querySelector('[data-notification-action="toggle-grouping"]');
+      this.groupingEnabled = Boolean(this.groupTemplate) && readCentreGroupingPreference();
+      this.expandedGroups = new Set();
+      this.renderedGroups = new Map();
+      setHidden(this.groupingToggle, !this.groupTemplate);
       this.filters = {
         folder: root.dataset.activeFolder || 'inbox',
         status: 'all',
@@ -1398,6 +1427,20 @@
 
     bind() {
       this.root.addEventListener('change', event => {
+        const groupCheckbox = event.target.closest('[data-notification-group-select]');
+        if (groupCheckbox && this.root.contains(groupCheckbox)) {
+          const group = this.renderedGroups.get(groupCheckbox.value);
+          group?.items.forEach(item => {
+            if (groupCheckbox.checked) {
+              this.selectedIds.add(item.id);
+            } else {
+              this.selectedIds.delete(item.id);
+            }
+          });
+          this.renderSelection();
+          return;
+        }
+
         const checkbox = event.target.closest('[data-notification-select]');
         if (checkbox && this.root.contains(checkbox)) {
           const id = asInteger(checkbox.value);
@@ -1425,6 +1468,14 @@
           return;
         }
 
+        const groupAction = event.target.closest('[data-notification-group-action]');
+        if (groupAction && this.root.contains(groupAction)) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.handleGroupAction(groupAction);
+          return;
+        }
+
         const rowAction = event.target.closest('[data-notification-row-action]');
         if (rowAction && this.root.contains(rowAction)) {
           event.preventDefault();
@@ -1449,6 +1500,8 @@
             this.clearFilters();
           } else if (action.dataset.notificationAction === 'mark-all-read') {
             this.markAllRead();
+          } else if (action.dataset.notificationAction === 'toggle-grouping') {
+            this.setGrouping(!this.groupingEnabled);
           }
           return;
         }
@@ -2041,17 +2094,34 @@
       }
 
       this.rows.innerHTML = '';
-      let currentGroup = null;
-      this.items.forEach(notification => {
-        const group = notificationDateGroup(notification.createdUtc);
-        if (group.key !== currentGroup) {
-          appendDateGroup(this.rows, group, 'notification-inbox__date-group');
-          currentGroup = group.key;
+      this.renderedGroups = new Map();
+      this.syncGroupingToggle();
+      const entries = this.groupingEnabled
+        ? buildGroupedEntries(this.items)
+        : this.items.map(item => ({ type: 'item', item }));
+      let currentHeading = null;
+      entries.forEach(entry => {
+        const lead = entry.type === 'group' ? entry.items[0] : entry.item;
+        const heading = notificationDateGroup(lead.createdUtc);
+        if (heading.key !== currentHeading) {
+          appendDateGroup(this.rows, heading, 'notification-inbox__date-group');
+          currentHeading = heading.key;
+        }
+
+        if (entry.type === 'group') {
+          this.rows.appendChild(this.renderGroup(entry));
+          return;
         }
 
         const row = this.template.content.firstElementChild.cloneNode(true);
-        this.populateRow(row, notification);
+        this.populateRow(row, entry.item);
         this.rows.appendChild(row);
+      });
+
+      this.expandedGroups.forEach(key => {
+        if (!this.renderedGroups.has(key)) {
+          this.expandedGroups.delete(key);
+        }
       });
 
       setHidden(this.empty, this.items.length !== 0);
@@ -2153,9 +2223,166 @@
         `${notification.isRead ? 'Read' : 'Unread'} notification: ${notification.title || 'Notification'}`);
     }
 
+    setGrouping(enabled) {
+      if (!this.groupTemplate) {
+        return;
+      }
+
+      this.groupingEnabled = Boolean(enabled);
+      writeCentreGroupingPreference(this.groupingEnabled);
+      this.render();
+    }
+
+    syncGroupingToggle() {
+      if (!this.groupingToggle) {
+        return;
+      }
+
+      const label = this.groupingEnabled ? 'Show every notification separately' : 'Group similar updates';
+      this.groupingToggle.setAttribute('aria-pressed', String(this.groupingEnabled));
+      this.groupingToggle.classList.toggle('is-active', this.groupingEnabled);
+      this.groupingToggle.title = label;
+      this.groupingToggle.setAttribute('aria-label', label);
+    }
+
+    renderGroup(group) {
+      const wrapper = this.groupTemplate.content.firstElementChild.cloneNode(true);
+      const header = wrapper.querySelector('.notification-inbox-group__header') || wrapper;
+      const lead = group.items[0];
+      const unread = group.items.filter(item => !item.isRead);
+      const expanded = this.expandedGroups.has(group.key);
+      this.renderedGroups.set(group.key, group);
+
+      wrapper.dataset.groupKey = group.key;
+      wrapper.classList.toggle('is-expanded', expanded);
+      header.classList.toggle('is-read', unread.length === 0);
+      header.classList.toggle('is-unread', unread.length > 0);
+      header.classList.toggle('is-muted', lead.isProjectMuted);
+
+      const checkbox = header.querySelector('[data-notification-group-select]');
+      if (checkbox) {
+        checkbox.value = group.key;
+      }
+
+      setIcon(header.querySelector('[data-notification-icon]'), lead.iconCssClass);
+      const projectLabel = lead.projectName || lead.category;
+      const project = header.querySelector('[data-notification-project]');
+      setText(project, projectLabel);
+      project?.setAttribute('title', projectLabel);
+      setText(header.querySelector('[data-notification-category]'), lead.category);
+      setText(header.querySelector('[data-notification-group-title]'), groupHeadline(group));
+      const preview = header.querySelector('[data-notification-summary]');
+      setText(preview, `Latest: ${lead.title || 'Notification'}`);
+      preview?.setAttribute('title', lead.title || 'Notification');
+      setTimeElement(header.querySelector('[data-notification-created]'), lead);
+      setHidden(header.querySelector('[data-notification-unread-dot]'), unread.length === 0);
+
+      header.querySelectorAll('[data-notification-group-action]').forEach(button => {
+        button.dataset.groupKey = group.key;
+      });
+
+      const toggle = header.querySelector('[data-notification-group-action="toggle-group"]');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.setAttribute(
+          'aria-label',
+          `${expanded ? 'Collapse' : 'Expand'} ${group.items.length} ${lead.category} updates${lead.projectName ? ` for ${lead.projectName}` : ''}`);
+      }
+
+      const readButton = header.querySelector('[data-notification-group-action="toggle-read"]');
+      if (readButton) {
+        const label = unread.length > 0
+          ? `Mark all ${group.items.length} as read`
+          : `Mark all ${group.items.length} as unread`;
+        readButton.title = label;
+        readButton.setAttribute('aria-label', label);
+        setIcon(readButton.querySelector('.bi'), unread.length > 0 ? 'bi bi-envelope-open' : 'bi bi-envelope');
+      }
+
+      const muteButton = header.querySelector('[data-notification-group-action="toggle-mute"]');
+      if (muteButton) {
+        setHidden(muteButton, lead.projectId == null);
+        const label = lead.isProjectMuted ? 'Unmute project' : 'Mute project';
+        muteButton.title = label;
+        muteButton.setAttribute('aria-label', label);
+        setIcon(muteButton.querySelector('.bi'), lead.isProjectMuted ? 'bi bi-bell' : 'bi bi-bell-slash');
+      }
+
+      const children = wrapper.querySelector('[data-notification-group-items]');
+      if (children) {
+        group.items.forEach(item => {
+          const row = this.template.content.firstElementChild.cloneNode(true);
+          this.populateRow(row, item);
+          children.appendChild(row);
+        });
+        setHidden(children, !expanded);
+      }
+
+      return wrapper;
+    }
+
+    async handleGroupAction(button) {
+      const key = button.dataset.groupKey;
+      const group = this.renderedGroups.get(key);
+      if (!group) {
+        return;
+      }
+
+      const action = button.dataset.notificationGroupAction;
+      if (action === 'toggle-group') {
+        if (this.expandedGroups.has(key)) {
+          this.expandedGroups.delete(key);
+        } else {
+          this.expandedGroups.add(key);
+        }
+        this.render();
+        // Re-rendering replaces the button; keep keyboard focus on the same group.
+        Array.from(this.rows.querySelectorAll('[data-notification-group-action="toggle-group"]'))
+          .find(candidate => candidate.dataset.groupKey === key)
+          ?.focus();
+        return;
+      }
+
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      try {
+        if (action === 'toggle-read') {
+          const unreadIds = group.items.filter(item => !item.isRead).map(item => item.id);
+          if (unreadIds.length > 0) {
+            const result = await this.runtime.markRead(unreadIds);
+            this.setStatus(`${result.affectedCount} notification${result.affectedCount === 1 ? '' : 's'} marked read.`, 'success');
+          } else {
+            const result = await this.runtime.markUnread(group.items.map(item => item.id));
+            this.setStatus(`${result.affectedCount} notification${result.affectedCount === 1 ? '' : 's'} marked unread.`, 'success');
+          }
+        } else if (action === 'toggle-mute') {
+          const lead = group.items[0];
+          if (lead.projectId == null) {
+            throw new Error('These notifications are not linked to a project.');
+          }
+          await this.runtime.muteProject(lead.projectId, !lead.isProjectMuted);
+          this.setStatus(lead.isProjectMuted ? 'Project muted.' : 'Project unmuted.', 'success');
+        }
+        this.newNotificationRefresh();
+      } catch (error) {
+        this.setStatus(error.message || 'Unable to update notifications.', 'danger');
+      } finally {
+        if (button.isConnected) {
+          button.disabled = false;
+          button.removeAttribute('aria-busy');
+        }
+      }
+    }
+
     renderSelection() {
       this.rows?.querySelectorAll('[data-notification-select]').forEach(checkbox => {
         checkbox.checked = this.selectedIds.has(asInteger(checkbox.value));
+      });
+      this.rows?.querySelectorAll('[data-notification-group-select]').forEach(checkbox => {
+        const group = this.renderedGroups.get(checkbox.value);
+        const selected = group ? group.items.filter(item => this.selectedIds.has(item.id)).length : 0;
+        checkbox.checked = Boolean(group) && selected === group.items.length;
+        checkbox.indeterminate = selected > 0 && !checkbox.checked;
       });
 
       if (this.selectAll) {
