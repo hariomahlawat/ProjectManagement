@@ -11,7 +11,8 @@ public sealed record NotificationPageDto(
     bool HasMore,
     IReadOnlyList<NotificationProjectOptionDto> Projects,
     IReadOnlyList<string> Modules,
-    IReadOnlyList<NotificationFolderCountDto> Folders);
+    IReadOnlyList<NotificationFolderCountDto> Folders,
+    int UnseenCount);
 
 public sealed record NotificationProjectOptionDto(int Id, string Label, bool IsMuted);
 
@@ -29,15 +30,26 @@ public sealed record NotificationMutationDto(
     DateTime? SeenUtc,
     bool AppliesToAll,
     int AffectedCount,
-    int UnreadCount);
+    int UnreadCount,
+    int UnseenCount);
 
 public sealed record NotificationSeenDto(
     IReadOnlyList<int> NotificationIds,
     DateTime SeenUtc,
-    int AffectedCount);
+    int AffectedCount,
+    bool AppliesToAll,
+    int UnseenCount);
+
+/// <summary>
+/// Marks the recipient's unseen notifications as seen. When <see cref="UpToId"/> is supplied only
+/// notifications up to that identifier are affected, so an item that arrives while the bell is
+/// opening is not marked seen before it has been rendered.
+/// </summary>
+public sealed record NotificationSeenAllRequest(int? UpToId);
 
 public sealed record NotificationProjectMuteDto(
     int ProjectId,
     bool IsMuted,
     IReadOnlyList<int> ChangedNotificationIds,
-    int UnreadCount);
+    int UnreadCount,
+    int UnseenCount);

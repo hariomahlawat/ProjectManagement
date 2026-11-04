@@ -8,6 +8,9 @@ public sealed record NotificationBellViewModel
 
     public int UnreadCount { get; init; }
 
+    /// <summary>Drives the bell badge; clears once the recipient opens the bell.</summary>
+    public int UnseenCount { get; init; }
+
     public IReadOnlyList<NotificationDisplayModel> Notifications { get; init; } = new List<NotificationDisplayModel>();
 
     public string NotificationCenterUrl { get; init; } = string.Empty;

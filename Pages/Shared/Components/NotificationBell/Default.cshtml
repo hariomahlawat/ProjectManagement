@@ -4,7 +4,8 @@
     var initialJson = JsonSerializer.Serialize(
         Model.Notifications,
         new JsonSerializerOptions(JsonSerializerDefaults.Web));
-    var unreadClass = Model.UnreadCount > 0 ? string.Empty : "d-none";
+    // The badge shows what is new since the bell was last opened; "unread" remains in the header.
+    var unseenClass = Model.UnseenCount > 0 ? string.Empty : "d-none";
     var markAllLabel = Model.UnreadCount == 0
         ? "No unread notifications"
         : "Mark all notifications as read";
@@ -18,6 +19,7 @@
      data-hub-url="@Model.HubUrl"
      data-notification-limit="@Model.RecentLimit"
      data-unread-count="@Model.UnreadCount"
+     data-unseen-count="@Model.UnseenCount"
      data-is-authenticated="@(Model.IsAuthenticated ? "true" : "false")"
      data-notification-center-url="@Model.NotificationCenterUrl">
     <script type="application/json" data-notification-bootstrap>@Html.Raw(initialJson)</script>
@@ -31,11 +33,11 @@
             aria-expanded="false"
             aria-label="Open notifications">
         <i class="bi bi-bell fs-5" aria-hidden="true"></i>
-        <span class="badge rounded-pill bg-danger notification-bell__badge @unreadClass"
+        <span class="badge rounded-pill bg-danger notification-bell__badge @unseenClass"
               data-notification-unread
               aria-live="polite">
-            <span class="visually-hidden">Unread notifications:</span>
-            <span data-notification-unread-count>@(Model.UnreadCount > 999 ? "999+" : Model.UnreadCount)</span>
+            <span class="visually-hidden">New notifications:</span>
+            <span data-notification-unread-count>@(Model.UnseenCount > 999 ? "999+" : Model.UnseenCount)</span>
         </span>
     </button>
 

@@ -27,7 +27,7 @@ function notification(overrides = {}) {
   };
 }
 
-async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1 } = {}) {
+async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, pagePayload = null } = {}) {
   const tokenMarkup = csrfToken == null
     ? ''
     : `<meta name="csrf-token" content="${csrfToken}">`;
@@ -38,6 +38,7 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
          data-hub-url=""
          data-notification-limit="10"
          data-unread-count="${unreadCount}"
+         data-unseen-count="${unseenCount}"
          data-is-authenticated="true"
          data-notification-center-url="/Notifications">
       <script type="application/json" data-notification-bootstrap>${JSON.stringify(items)}</script>
@@ -84,8 +85,19 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
         seenUtc: '2026-06-30T07:00:00Z',
         appliesToAll: true,
         affectedCount: unreadCount,
-        unreadCount: 0
+        unreadCount: 0,
+        unseenCount: 0
       };
+    } else if (pathname.endsWith('/seen-all')) {
+      payload = {
+        notificationIds: [],
+        seenUtc: '2026-06-30T07:00:00Z',
+        affectedCount: unseenCount,
+        appliesToAll: true,
+        unseenCount: 0
+      };
+    } else if (pathname === '/api/notifications' && pagePayload) {
+      payload = pagePayload;
     } else if (pathname.endsWith('/seen')) {
       const ids = JSON.parse(options.body).ids;
       payload = {
@@ -128,18 +140,102 @@ test('mark all read uses one protected bulk request and updates the unread badge
   dom.window.close();
 });
 
-test('opening the notification dropdown records unseen rows through the protected seen endpoint', async () => {
-  const fixture = await createBell({ items: [notification({ id: 17 }), notification({ id: 18, seenUtc: '2026-06-29T07:00:00Z' })], unreadCount: 2 });
+test('opening the notification dropdown marks everything loaded as seen and clears the badge', async () => {
+  const fixture = await createBell({
+    items: [notification({ id: 17 }), notification({ id: 18, seenUtc: '2026-06-29T07:00:00Z' })],
+    unreadCount: 2,
+    unseenCount: 1
+  });
+  const { dom, window, document, requests } = fixture;
+
+  assert.equal(document.querySelector('[data-notification-unread-count]').textContent, '1');
+
+  document.querySelector('.notification-bell__trigger')
+    .dispatchEvent(new window.Event('shown.bs.dropdown', { bubbles: true }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+
+  const seenRequest = requests.find(request => new URL(request.url, window.location.origin).pathname.endsWith('/seen-all'));
+  assert.ok(seenRequest);
+  assert.equal(seenRequest.options.headers.get('X-CSRF-TOKEN'), 'token-123');
+  assert.deepEqual(JSON.parse(seenRequest.options.body), { upToId: 18 });
+
+  // The badge clears; the unread header and the mark-all action are unchanged.
+  assert.equal(document.querySelector('[data-notification-unread-count]').textContent, '0');
+  assert.ok(document.querySelector('[data-notification-unread]').classList.contains('d-none'));
+  assert.equal(document.querySelector('[data-notification-header-count]').textContent, '2');
+  assert.equal(document.querySelector('[data-notification-action="mark-all-read"]').disabled, false);
+
+  dom.window.close();
+});
+
+test('opening the dropdown with nothing new sends no seen request', async () => {
+  const fixture = await createBell({
+    items: [notification({ id: 17, seenUtc: '2026-06-29T07:00:00Z' })],
+    unreadCount: 1,
+    unseenCount: 0
+  });
   const { dom, window, document, requests } = fixture;
 
   document.querySelector('.notification-bell__trigger')
     .dispatchEvent(new window.Event('shown.bs.dropdown', { bubbles: true }));
   await new Promise(resolve => window.setTimeout(resolve, 0));
 
-  const seenRequest = requests.find(request => new URL(request.url, window.location.origin).pathname.endsWith('/seen'));
-  assert.ok(seenRequest);
-  assert.equal(seenRequest.options.headers.get('X-CSRF-TOKEN'), 'token-123');
-  assert.deepEqual(JSON.parse(seenRequest.options.body), { ids: [17] });
+  assert.equal(requests.filter(request => request.options.method === 'POST').length, 0);
+
+  dom.window.close();
+});
+
+test('bell badge shows the unseen count while the header keeps the unread count', async () => {
+  const fixture = await createBell({ unreadCount: 140, unseenCount: 3 });
+  const { dom, document } = fixture;
+
+  assert.equal(document.querySelector('[data-notification-unread-count]').textContent, '3');
+  assert.equal(document.querySelector('[data-notification-header-count]').textContent, '140');
+
+  dom.window.close();
+});
+
+test('bell lists unread action-required items first under Needs action', async () => {
+  const fixture = await createBell({
+    items: [
+      notification({ id: 1, title: 'Newest update', createdUtc: '2026-06-30T09:00:00Z' }),
+      notification({ id: 2, title: 'Plan awaiting approval', isActionRequired: true, createdUtc: '2026-06-27T09:00:00Z' }),
+      notification({ id: 3, title: 'Handled approval', isActionRequired: true, readUtc: '2026-06-28T09:00:00Z', createdUtc: '2026-06-28T09:00:00Z' })
+    ]
+  });
+  const { dom, document } = fixture;
+
+  const titles = Array.from(document.querySelectorAll('[data-notification-title]')).map(node => node.textContent);
+  assert.deepEqual(titles, ['Plan awaiting approval', 'Newest update', 'Handled approval']);
+
+  const firstGroup = document.querySelector('[data-notification-date-group]');
+  assert.equal(firstGroup.dataset.notificationDateGroup, 'needs-action');
+  assert.equal(firstGroup.textContent, 'Needs action');
+
+  dom.window.close();
+});
+
+test('bell refresh requests the priority order and applies the unseen count', async () => {
+  const fixture = await createBell({
+    unreadCount: 1,
+    unseenCount: 1,
+    pagePayload: { items: [notification()], totalCount: 1, unreadCount: 5, unseenCount: 4 }
+  });
+  const { dom, window, document, requests } = fixture;
+
+  // The fixture has no refresh control; add one to exercise the bell's refresh path.
+  const refresh = document.createElement('button');
+  refresh.dataset.notificationAction = 'refresh';
+  document.querySelector('[data-notification-bell]').appendChild(refresh);
+  refresh.dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+
+  const pageRequest = requests.find(request => new URL(request.url).pathname === '/api/notifications');
+  assert.ok(pageRequest);
+  assert.equal(new URL(pageRequest.url).searchParams.get('order'), 'priority');
+  assert.equal(document.querySelector('[data-notification-unread-count]').textContent, '4');
+  assert.equal(document.querySelector('[data-notification-header-count]').textContent, '5');
 
   dom.window.close();
 });

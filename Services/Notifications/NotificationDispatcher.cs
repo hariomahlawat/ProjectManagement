@@ -404,11 +404,12 @@ public sealed class NotificationDispatcher : BackgroundService
                     await hubContext.Clients.User(userId).ReceiveNotification(item);
                 }
 
-                var unreadCount = await notificationService.CountUnreadAsync(
+                var counts = await notificationService.CountAsync(
                     principal,
                     userId,
                     cancellationToken);
-                await hubContext.Clients.User(userId).ReceiveUnreadCount(unreadCount);
+                await hubContext.Clients.User(userId).ReceiveUnreadCount(counts.UnreadCount);
+                await hubContext.Clients.User(userId).ReceiveUnseenCount(counts.UnseenCount);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

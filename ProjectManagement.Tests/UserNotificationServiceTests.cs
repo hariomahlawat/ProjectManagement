@@ -584,6 +584,124 @@ public sealed class UserNotificationServiceTests
             });
     }
 
+    [Fact]
+    public async Task CountUnseenAsync_CountsOnlyUnseenUnmutedAccessibleItems()
+    {
+        var (context, service, clock) = CreateService();
+        await using var _ = context;
+        const string userId = "user-1";
+        var now = clock.UtcNow.UtcDateTime;
+
+        context.Projects.AddRange(
+            new Project { Id = 1, Name = "Open", LeadPoUserId = userId },
+            new Project { Id = 2, Name = "Muted", LeadPoUserId = userId });
+        context.UserProjectMutes.Add(new UserProjectMute { UserId = userId, ProjectId = 2 });
+        context.Notifications.AddRange(
+            // Unseen and unread: counted.
+            new Notification { Id = 1, RecipientUserId = userId, ProjectId = 1, CreatedUtc = now },
+            // Seen but still unread: no longer counted by the badge, still counted as unread.
+            new Notification { Id = 2, RecipientUserId = userId, ProjectId = 1, CreatedUtc = now, SeenUtc = now },
+            // No project: counted.
+            new Notification { Id = 3, RecipientUserId = userId, CreatedUtc = now },
+            // Muted project: excluded.
+            new Notification { Id = 4, RecipientUserId = userId, ProjectId = 2, CreatedUtc = now },
+            // Another recipient: excluded.
+            new Notification { Id = 5, RecipientUserId = "user-2", CreatedUtc = now },
+            // Legacy row read without a seen stamp: read implies seen, so not counted.
+            new Notification { Id = 6, RecipientUserId = userId, CreatedUtc = now, ReadUtc = now });
+        await context.SaveChangesAsync();
+
+        var principal = CreatePrincipal(userId);
+        var counts = await service.CountAsync(principal, userId);
+
+        Assert.Equal(2, await service.CountUnseenAsync(principal, userId));
+        Assert.Equal(new NotificationCounts(UnreadCount: 3, UnseenCount: 2), counts);
+    }
+
+    [Fact]
+    public async Task MarkAllSeenAsync_ClearsBadgeWithoutChangingReadStateAndHonoursUpToId()
+    {
+        var (context, service, clock) = CreateService();
+        await using var _ = context;
+        const string userId = "user-1";
+        var now = clock.UtcNow.UtcDateTime;
+
+        context.Notifications.AddRange(
+            new Notification { Id = 1, RecipientUserId = userId, CreatedUtc = now.AddMinutes(-3) },
+            new Notification { Id = 2, RecipientUserId = userId, CreatedUtc = now.AddMinutes(-2) },
+            // Arrived after the bell list was loaded (id above upToId): stays unseen.
+            new Notification { Id = 3, RecipientUserId = userId, CreatedUtc = now.AddMinutes(-1) },
+            new Notification { Id = 4, RecipientUserId = "user-2", CreatedUtc = now });
+        await context.SaveChangesAsync();
+
+        var principal = CreatePrincipal(userId);
+        var result = await service.MarkAllSeenAsync(principal, userId, upToId: 2);
+
+        Assert.Equal(NotificationOperationResult.Success, result.Result);
+        Assert.True(result.AppliesToAll);
+        Assert.Equal(2, result.AffectedCount);
+
+        var rows = await context.Notifications.AsNoTracking().OrderBy(n => n.Id).ToListAsync();
+        Assert.NotNull(rows[0].SeenUtc);
+        Assert.NotNull(rows[1].SeenUtc);
+        Assert.Null(rows[2].SeenUtc);
+        Assert.Null(rows[3].SeenUtc);
+        Assert.All(rows, row => Assert.Null(row.ReadUtc));
+
+        Assert.Equal(1, await service.CountUnseenAsync(principal, userId));
+        Assert.Equal(3, await service.CountUnreadAsync(principal, userId));
+
+        var all = await service.MarkAllSeenAsync(principal, userId, upToId: null);
+        Assert.Equal(1, all.AffectedCount);
+        Assert.Equal(0, await service.CountUnseenAsync(principal, userId));
+    }
+
+    [Fact]
+    public async Task ListPageAsync_ActionRequiredFirstListsUnreadActionItemsBeforeNewerUpdates()
+    {
+        var (context, service, clock) = CreateService();
+        await using var _ = context;
+        const string userId = "user-1";
+        var now = clock.UtcNow.UtcDateTime;
+
+        context.Notifications.AddRange(
+            new Notification { Id = 1, RecipientUserId = userId, Kind = NotificationKind.PlanSubmitted, CreatedUtc = now.AddDays(-3) },
+            new Notification { Id = 2, RecipientUserId = userId, Kind = NotificationKind.DocumentPublished, CreatedUtc = now.AddMinutes(-1) },
+            new Notification { Id = 3, RecipientUserId = userId, Kind = NotificationKind.RemarkCreated, CreatedUtc = now.AddMinutes(-2) },
+            // Action-required but already read: ordered by time like any other row.
+            new Notification { Id = 4, RecipientUserId = userId, Kind = NotificationKind.ActionTaskAssigned, CreatedUtc = now.AddDays(-1), ReadUtc = now },
+            new Notification { Id = 5, RecipientUserId = userId, Kind = NotificationKind.MentionedInRemark, CreatedUtc = now.AddDays(-2) });
+        await context.SaveChangesAsync();
+
+        var principal = CreatePrincipal(userId);
+        var page = await service.ListPageAsync(
+            principal,
+            userId,
+            new NotificationListOptions { Limit = 4, ActionRequiredFirst = true, IncludeFilterOptions = false });
+
+        Assert.Equal(new[] { 5, 1, 2, 3 }, page.Items.Select(item => item.Id).ToArray());
+        Assert.True(page.HasMore);
+        Assert.Null(page.NextCursor);
+
+        var chronological = await service.ListPageAsync(
+            principal,
+            userId,
+            new NotificationListOptions { Limit = 4, IncludeFilterOptions = false });
+
+        Assert.Equal(new[] { 2, 3, 4, 5 }, chronological.Items.Select(item => item.Id).ToArray());
+        Assert.NotNull(chronological.NextCursor);
+    }
+
+    private static (ApplicationDbContext Context, UserNotificationService Service, TestClock Clock) CreateService()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"user-notification-tests-{Guid.NewGuid()}")
+            .Options;
+        var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 12, 0, 0, TimeSpan.Zero));
+        return (context, new UserNotificationService(context, clock), clock);
+    }
+
     private static ClaimsPrincipal CreatePrincipal(string userId)
     {
         var identity = new ClaimsIdentity(
