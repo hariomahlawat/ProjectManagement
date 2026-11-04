@@ -266,12 +266,23 @@ public sealed class DocumentService : IDocumentService
             throw;
         }
 
-        document.StorageKey = storageKey;
-        await _notificationQueue.QueueAfterSaveAsync(
-            "document publish",
-            ct => _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, ct),
-            cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        try
+        {
+            document.StorageKey = storageKey;
+            await _notificationQueue.QueueAfterSaveAsync(
+                "document publish",
+                ct => _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, ct),
+                cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            // Nothing was committed: return the file to its staging path so the request can be
+            // approved again.
+            await transaction.RollbackAsync(CancellationToken.None);
+            ReturnToStaging(destinationPath, tempPath);
+            throw;
+        }
 
         await Audit.Events.ProjectDocumentPublished(projectId, document.Id, performedByUserId, document.FileStamp)
             .WriteAsync(_audit);
@@ -328,17 +339,84 @@ public sealed class DocumentService : IDocumentService
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
+        // The current file is moved aside rather than overwritten, so it can be put back if the
+        // transaction does not commit. It is deleted only after the commit.
+        FileQuarantineHandle? previousFile = null;
         try
         {
+            previousFile = FileSystemQuarantine.StageFile(
+                destinationPath,
+                _uploadRootProvider.RootPath,
+                "documents-replaced",
+                documentId.ToString(CultureInfo.InvariantCulture));
             File.Move(tempPath, destinationPath, overwrite: true);
         }
         catch
         {
             await transaction.RollbackAsync(CancellationToken.None);
+            RestorePreviousFile(previousFile, documentId);
             SafeDelete(tempPath);
             throw;
         }
 
+        try
+        {
+            await SaveReplacementAsync(
+                document,
+                project,
+                sanitizedName,
+                normalizedContentType,
+                fileSize,
+                uploadedByUserId,
+                performedByUserId,
+                transaction,
+                cancellationToken);
+        }
+        catch
+        {
+            // Nothing was committed: return the new file to its staging path so the request can
+            // be approved again, and put the current file back.
+            await transaction.RollbackAsync(CancellationToken.None);
+            ReturnToStaging(destinationPath, tempPath);
+            RestorePreviousFile(previousFile, documentId);
+            throw;
+        }
+
+        if (previousFile is not null)
+        {
+            try
+            {
+                FileSystemQuarantine.FinalizeDeletion(previousFile);
+            }
+            catch (Exception cleanupError)
+            {
+                _logger?.LogWarning(
+                    cleanupError,
+                    "Document {DocumentId} was replaced, but its previous file could not be removed. Quarantine reference: {Reference}",
+                    documentId,
+                    FileSystemQuarantine.GetSafeReference(previousFile));
+            }
+        }
+
+        await Audit.Events.ProjectDocumentReplaced(document.ProjectId, document.Id, performedByUserId, document.FileStamp)
+            .WriteAsync(_audit);
+
+        document.Project = project;
+
+        return document;
+    }
+
+    private async Task SaveReplacementAsync(
+        ProjectDocument document,
+        Project project,
+        string sanitizedName,
+        string normalizedContentType,
+        long fileSize,
+        string uploadedByUserId,
+        string performedByUserId,
+        RelationalTransactionScope transaction,
+        CancellationToken cancellationToken)
+    {
         document.OriginalFileName = sanitizedName;
         document.ContentType = normalizedContentType;
         document.FileSize = fileSize;
@@ -368,13 +446,50 @@ public sealed class DocumentService : IDocumentService
             ct => _notifications.NotifyDocumentReplacedAsync(document, project, performedByUserId, ct),
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
 
-        await Audit.Events.ProjectDocumentReplaced(document.ProjectId, document.Id, performedByUserId, document.FileStamp)
-            .WriteAsync(_audit);
+    // Moves a file that was placed for an uncommitted change back to its staging path.
+    private void ReturnToStaging(string placedPath, string stagingPath)
+    {
+        try
+        {
+            if (File.Exists(placedPath) && !File.Exists(stagingPath))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(stagingPath)!);
+                File.Move(placedPath, stagingPath);
+            }
+        }
+        catch (Exception error)
+        {
+            _logger?.LogError(error, "A file placed for an uncommitted document change could not be returned to staging.");
+        }
+    }
 
-        document.Project = project;
+    private void RestorePreviousFile(FileQuarantineHandle? previousFile, int documentId)
+    {
+        if (previousFile is null)
+        {
+            return;
+        }
 
-        return document;
+        try
+        {
+            if (File.Exists(previousFile.OriginalPath) && File.Exists(previousFile.QuarantinePath))
+            {
+                // The new file is still in place; the original takes its slot back.
+                File.Delete(previousFile.OriginalPath);
+            }
+
+            FileSystemQuarantine.Restore(previousFile);
+        }
+        catch (Exception restoreError)
+        {
+            _logger?.LogCritical(
+                restoreError,
+                "Document {DocumentId} replacement failed and its previous file could not be restored. Quarantine reference: {Reference}",
+                documentId,
+                FileSystemQuarantine.GetSafeReference(previousFile));
+        }
     }
 
     public async Task<ProjectDocument> SoftDeleteAsync(

@@ -180,6 +180,95 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
         Assert.Equal(NotificationKind.DocumentDeleted, (await verify.NotificationDispatches.SingleAsync()).Kind);
     }
 
+    [Fact]
+    public async Task Replace_InterruptedWhileNotifying_KeepsTheOriginalFileAndRecord()
+    {
+        // The new file used to overwrite the original before the commit. A cancellation while
+        // notifying then rolled the record back to the old file stamp and size with the old
+        // bytes already gone. The original is now moved aside and put back.
+        var documentId = await PublishDocumentAsync();
+        var storageKey = await StorageKeyAsync();
+        var originalBytes = await File.ReadAllBytesAsync(StoredPath(storageKey));
+        await using var db = new ApplicationDbContext(_options);
+        var documentService = CreateDocumentService(db, new CancellingNotifier(new CancellationTokenSource()));
+        var replacement = await SaveTempAsync(documentService, "%PDF-1.4\nReplacement content");
+        using var cancellation = new CancellationTokenSource();
+        documentService = CreateDocumentService(db, new CancellingNotifier(cancellation));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => documentService.OverwriteAsync(
+            documentId, replacement.StorageKey, "spec-v2.pdf", replacement.Length, "application/pdf", "requestor", "approver", cancellation.Token));
+
+        await using var verify = new ApplicationDbContext(_options);
+        Assert.Equal(1, (await verify.ProjectDocuments.SingleAsync()).FileStamp);
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(StoredPath(storageKey)));
+        Assert.True(File.Exists(StoredPath(replacement.StorageKey)), "The replacement should be back in staging for a retry.");
+        Assert.Equal(0, await verify.NotificationDispatches.CountAsync());
+    }
+
+    [Fact]
+    public async Task Replace_CommitsTheNewFileWithItsNotification_AndRemovesTheOldOne()
+    {
+        var documentId = await PublishDocumentAsync();
+        var storageKey = await StorageKeyAsync();
+        await using var db = new ApplicationDbContext(_options);
+        var documentService = CreateDocumentService(db, new QueueingNotifier(db, NotifierMode.Queue));
+        var replacement = await SaveTempAsync(documentService, "%PDF-1.4\nReplacement content");
+
+        await documentService.OverwriteAsync(
+            documentId, replacement.StorageKey, "spec-v2.pdf", replacement.Length, "application/pdf", "requestor", "approver", CancellationToken.None);
+
+        await using var verify = new ApplicationDbContext(_options);
+        Assert.Equal(2, (await verify.ProjectDocuments.SingleAsync()).FileStamp);
+        Assert.Equal("%PDF-1.4\nReplacement content", await File.ReadAllTextAsync(StoredPath(storageKey)));
+        Assert.Equal(NotificationKind.DocumentReplaced, (await verify.NotificationDispatches.SingleAsync()).Kind);
+        var quarantine = Path.Combine(_root, ".purge-quarantine");
+        Assert.True(!Directory.Exists(quarantine) || !Directory.EnumerateFiles(quarantine, "*", SearchOption.AllDirectories).Any());
+    }
+
+    [Fact]
+    public async Task ApprovedUpload_InterruptedWhileNotifying_CanBeApprovedAgain()
+    {
+        // Nothing commits, and the uploaded file goes back to staging instead of being left
+        // at a path no record points to, so a second approval succeeds.
+        var requestId = await SubmitUploadRequestAsync();
+        await using (var db = new ApplicationDbContext(_options))
+        {
+            using var cancellation = new CancellationTokenSource();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CreateDecisionService(db, new CancellingNotifier(cancellation))
+                .ApproveAsync(requestId, "approver", isAdmin: true, isHoD: false, note: null, cancellation.Token));
+        }
+
+        await using (var verify = new ApplicationDbContext(_options))
+        {
+            Assert.Equal(0, await verify.ProjectDocuments.CountAsync());
+            Assert.Equal(ProjectDocumentRequestStatus.Submitted, (await verify.ProjectDocumentRequests.SingleAsync()).Status);
+        }
+
+        await using (var retry = new ApplicationDbContext(_options))
+        {
+            await CreateDecisionService(retry, new QueueingNotifier(retry, NotifierMode.Queue))
+                .ApproveAsync(requestId, "approver", isAdmin: true, isHoD: false, note: null, CancellationToken.None);
+        }
+
+        await using var final = new ApplicationDbContext(_options);
+        var document = await final.ProjectDocuments.SingleAsync();
+        Assert.True(File.Exists(StoredPath(document.StorageKey)));
+        Assert.Equal(ProjectDocumentRequestStatus.Approved, (await final.ProjectDocumentRequests.SingleAsync()).Status);
+        Assert.Equal(1, await final.NotificationDispatches.CountAsync());
+    }
+
+    private static async Task<DocumentFileDescriptor> SaveTempAsync(DocumentService documentService, string content)
+    {
+        await using var pdf = new MemoryStream(Encoding.ASCII.GetBytes(content));
+        return await documentService.SaveTempAsync(ProjectId, pdf, "spec-v2.pdf", "application/pdf", CancellationToken.None);
+    }
+
+    private async Task<string> StorageKeyAsync()
+    {
+        await using var read = new ApplicationDbContext(_options);
+        return (await read.ProjectDocuments.SingleAsync()).StorageKey;
+    }
+
     private async Task<int> SubmitUploadRequestAsync()
     {
         await using var db = new ApplicationDbContext(_options);
