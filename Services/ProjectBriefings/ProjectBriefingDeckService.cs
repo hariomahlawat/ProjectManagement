@@ -375,22 +375,17 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.ShowPresentStage,
             command.ShowPresentStatus,
             command.IncludeStageDistributionTable);
-        var institutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
-            command.InstitutionalProfileOptions.IncludeSlide,
-            command.InstitutionalProfileOptions.Title,
-            command.InstitutionalProfileOptions.IncludeHistory,
-            command.InstitutionalProfileOptions.HistoryMilestones,
-            command.InstitutionalProfileOptions.Modules,
-            command.InstitutionalProfileOptions.ProjectScope,
-            command.InstitutionalProfileOptions.MaximumDetailRows,
-            command.InstitutionalProfileOptions.TrainingHighlightTechnicalCategory,
-            command.InstitutionalProfileOptions.PartnershipEntries,
-            command.InstitutionalProfileOptions.IncludeFooterStrip,
-            command.InstitutionalProfileOptions.FooterStripText,
-            command.InstitutionalProfileOptions.FooterStripEmphasisValue,
-            command.InstitutionalProfileOptions.FooterStripStyle,
-            command.InstitutionalProfileOptions.FooterStripAlignment);
-        ValidateInstitutionalProfile(institutionalProfileOptions);
+        var institutionalProfileOptions = NormalizeProfile(command.InstitutionalProfileOptions);
+
+        // Only check the SDD profile when this save changes it. A deck-tab save (name, theme, cost
+        // mode…) passes the stored profile straight through; re-checking it would block those saves
+        // on a section the user never touched (e.g. a profile switched on by an older preset).
+        var storedProfile = NormalizeProfile(
+            ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).InstitutionalProfileOptions);
+        if (!SameProfile(institutionalProfileOptions, storedProfile))
+        {
+            ValidateInstitutionalProfile(institutionalProfileOptions);
+        }
 
         var normalizedName = NormalizeName(command.Name);
         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
@@ -475,7 +470,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         {
             if (!profile.IncludeSlide)
             {
-                profile = profile with { IncludeSlide = true };
+                profile = PrepareProfileForPreset(profile);
+                ValidateInstitutionalProfile(profile);
                 additionalSlidesChanged = true;
             }
 
@@ -508,6 +504,56 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             $"Project briefing deck set from the {ProjectBriefingDeckPresets.Get(preset).Title} preset.");
         return additionalSlidesChanged;
     }
+
+    /// <summary>
+    /// Switches the SDD profile on for a preset without leaving it in a state the editor would refuse:
+    /// the partnerships module needs at least one MoU or partner, so a profile with none drops that
+    /// module (the user can add it back with entries), and a profile left with nothing to show keeps
+    /// its history timeline.
+    /// </summary>
+    internal static ProjectBriefingInstitutionalProfileOptions PrepareProfileForPreset(
+        ProjectBriefingInstitutionalProfileOptions profile)
+    {
+        var modules = profile.PartnershipEntries.Count == 0
+            ? profile.Modules
+                .Where(module => module != ProjectBriefingInstitutionalProfileModule.Partnerships)
+                .ToArray()
+            : profile.Modules;
+
+        return profile with
+        {
+            IncludeSlide = true,
+            Modules = modules,
+            IncludeHistory = profile.IncludeHistory || modules.Count == 0
+        };
+    }
+
+    private static ProjectBriefingInstitutionalProfileOptions NormalizeProfile(
+        ProjectBriefingInstitutionalProfileOptions options) =>
+        ProjectBriefingInstitutionalProfileOptions.Normalize(
+            options.IncludeSlide,
+            options.Title,
+            options.IncludeHistory,
+            options.HistoryMilestones,
+            options.Modules,
+            options.ProjectScope,
+            options.MaximumDetailRows,
+            options.TrainingHighlightTechnicalCategory,
+            options.PartnershipEntries,
+            options.IncludeFooterStrip,
+            options.FooterStripText,
+            options.FooterStripEmphasisValue,
+            options.FooterStripStyle,
+            options.FooterStripAlignment);
+
+    // The options record holds lists, so record equality compares references; compare the values.
+    private static bool SameProfile(
+        ProjectBriefingInstitutionalProfileOptions left,
+        ProjectBriefingInstitutionalProfileOptions right) =>
+        string.Equals(
+            System.Text.Json.JsonSerializer.Serialize(left),
+            System.Text.Json.JsonSerializer.Serialize(right),
+            StringComparison.Ordinal);
 
     private static void ValidateInstitutionalProfile(ProjectBriefingInstitutionalProfileOptions options)
     {

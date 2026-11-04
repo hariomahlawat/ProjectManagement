@@ -1,0 +1,198 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using ProjectManagement.Data;
+using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Services;
+using ProjectManagement.Services.ProjectBriefings;
+using Xunit;
+
+namespace ProjectManagement.Tests.ProjectBriefings;
+
+// A preset that switches the SDD profile on must not leave the deck in a state that blocks
+// later deck-tab saves (rename, theme…) the user makes without touching the profile.
+public sealed class ProjectBriefingDeckPresetServiceTests
+{
+    private const string UserId = "user-1";
+
+    [Fact]
+    public async Task VisitPreset_OnANewDeck_DropsTheEmptyPartnershipsModule_AndLaterSavesWork()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, configurationJson: null);
+        var service = Service(db);
+
+        await service.ApplyPresetAsync(
+            deck.Id, UserId, ProjectBriefingDeckPreset.VisitOrExternalAudience, Version(deck));
+
+        var profile = Configuration(deck).InstitutionalProfileOptions;
+        Assert.True(profile.IncludeSlide);
+        Assert.DoesNotContain(ProjectBriefingInstitutionalProfileModule.Partnerships, profile.Modules);
+        Assert.Contains(ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped, profile.Modules);
+
+        await service.UpdateSettingsAsync(deck.Id, UserId, RenameCommand(deck, "Visit deck renamed"));
+        Assert.Equal("Visit deck renamed", deck.Name);
+    }
+
+    [Fact]
+    public async Task VisitPreset_KeepsPartnerships_WhenTheDeckHasPartners()
+    {
+        await using var db = CreateDb();
+        var withPartners = ProjectBriefingInstitutionalProfileOptions.Default with
+        {
+            PartnershipEntries = new[] { "IIT Delhi" }
+        };
+        var deck = await SeedAsync(
+            db,
+            ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(null, withPartners));
+
+        await Service(db).ApplyPresetAsync(
+            deck.Id, UserId, ProjectBriefingDeckPreset.VisitOrExternalAudience, Version(deck));
+
+        var profile = Configuration(deck).InstitutionalProfileOptions;
+        Assert.True(profile.IncludeSlide);
+        Assert.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships, profile.Modules);
+    }
+
+    [Fact]
+    public async Task ADeckAlreadyStuckByAnOlderPreset_CanStillBeRenamed()
+    {
+        await using var db = CreateDb();
+        var stuck = ProjectBriefingInstitutionalProfileOptions.Default with { IncludeSlide = true };
+        var deck = await SeedAsync(
+            db,
+            ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(null, stuck));
+
+        await Service(db).UpdateSettingsAsync(deck.Id, UserId, RenameCommand(deck, "Renamed deck"));
+
+        Assert.Equal("Renamed deck", deck.Name);
+    }
+
+    [Fact]
+    public async Task ChangingTheProfileToAnInvalidOne_IsStillRefused()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, configurationJson: null);
+        var invalid = ProjectBriefingInstitutionalProfileOptions.Default with { IncludeSlide = true };
+        var command = RenameCommand(deck, "Same name", invalid);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Service(db).UpdateSettingsAsync(deck.Id, UserId, command));
+
+        Assert.Contains("MoU or partner", error.Message);
+    }
+
+    [Fact]
+    public void PreparingAProfileWithOnlyPartnerships_KeepsTheHistoryTimeline()
+    {
+        var onlyPartnerships = ProjectBriefingInstitutionalProfileOptions.Default with
+        {
+            IncludeHistory = false,
+            Modules = new[] { ProjectBriefingInstitutionalProfileModule.Partnerships }
+        };
+
+        var prepared = ProjectBriefingDeckService.PrepareProfileForPreset(onlyPartnerships);
+
+        Assert.True(prepared.IncludeSlide);
+        Assert.Empty(prepared.Modules);
+        Assert.True(prepared.IncludeHistory);
+    }
+
+    private static ProjectBriefingDeckSettingsCommand RenameCommand(
+        ProjectBriefingDeck deck,
+        string name,
+        ProjectBriefingInstitutionalProfileOptions? profile = null)
+    {
+        // Mirrors the deck-tab save: everything except the edited fields comes from the stored deck.
+        var configuration = Configuration(deck);
+        return new ProjectBriefingDeckSettingsCommand
+        {
+            Name = name,
+            Layout = deck.Layout,
+            PresentationMode = deck.PresentationMode,
+            CostMode = deck.CostMode,
+            NarrativeMode = deck.NarrativeMode,
+            ProjectBriefLayout = configuration.StandardSlideOptions.ProjectBriefLayout,
+            ShowPresentStage = configuration.StandardSlideOptions.ShowPresentStage,
+            ShowPresentStatus = configuration.StandardSlideOptions.ShowPresentStatus,
+            PresentationTheme = deck.PresentationTheme,
+            ClosingSlideType = configuration.ClosingSlideType,
+            InstitutionalProfileOptions = profile ?? configuration.InstitutionalProfileOptions,
+            RoleCharterOptions = configuration.RoleCharterOptions,
+            FfcGlobalFootprintOptions = configuration.FfcGlobalFootprintOptions,
+            AdditionalSlideOrder = configuration.AdditionalSlideOrder,
+            UpdateSheetRows = configuration.UpdateSheetOptions.Rows,
+            HideEmptyUpdateSheetValues = configuration.UpdateSheetOptions.HideEmptyValues,
+            RowVersion = Version(deck)
+        };
+    }
+
+    private static ProjectBriefingDeckConfiguration Configuration(ProjectBriefingDeck deck)
+        => ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+
+    private static string Version(ProjectBriefingDeck deck) => Convert.ToBase64String(deck.RowVersion);
+
+    private static async Task<ProjectBriefingDeck> SeedAsync(ApplicationDbContext db, string? configurationJson)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var deck = new ProjectBriefingDeck
+        {
+            Name = "Preset deck",
+            NormalizedName = "PRESET DECK",
+            OwnerUserId = UserId,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now,
+            RowVersion = Guid.NewGuid().ToByteArray(),
+            SelectionRulesJson = configurationJson
+        };
+        db.Add(deck);
+        await db.SaveChangesAsync();
+        return deck;
+    }
+
+    private static ProjectBriefingDeckService Service(ApplicationDbContext db)
+        => new(db, new NoSelection(), new NoAudit(), new FixedClock(), NullLogger<ProjectBriefingDeckService>.Instance);
+
+    private static ApplicationDbContext CreateDb()
+        => new(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"briefing-deck-preset-{Guid.NewGuid()}")
+            .Options);
+
+    private sealed class NoAudit : IAuditService
+    {
+        public Task LogAsync(
+            string action,
+            string? message = null,
+            string level = "Info",
+            string? userId = null,
+            string? userName = null,
+            IDictionary<string, string?>? data = null,
+            HttpContext? http = null)
+            => Task.CompletedTask;
+    }
+
+    private sealed class FixedClock : IClock
+    {
+        public DateTimeOffset UtcNow { get; } = new(2026, 11, 1, 9, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class NoSelection : IProjectBriefingSelectionService
+    {
+        public Task<ProjectBriefingSelectionOptionsVm> GetOptionsAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<ProjectBriefingSelectionResult> ResolveAsync(ProjectBriefingSelectionRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ProjectBriefingSearchResultVm>> SearchAsync(string? query, int take = 25, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<int>> ValidateProjectIdsAsync(IReadOnlyCollection<int> projectIds, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+}
