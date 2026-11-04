@@ -6,6 +6,7 @@ using System.Text;
 using ClosedXML.Excel;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.PartialDates;
 
@@ -203,15 +204,7 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
 
     private static string FormatTotStatus(ProjectTotStatus? status)
     {
-        return status switch
-        {
-            ProjectTotStatus.NotRequired => "Not required",
-            ProjectTotStatus.NotStarted => "Not started",
-            ProjectTotStatus.InProgress => "In progress",
-            ProjectTotStatus.Completed => "Completed",
-            null => "—",
-            _ => status.ToString() ?? "—"
-        };
+        return status is { } value ? ProjectTotPresentation.StatusLabel(value) : "—";
     }
 
     private static string FormatStatusFilter(ProjectTotStatus? status)
