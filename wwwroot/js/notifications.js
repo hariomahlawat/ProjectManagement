@@ -147,6 +147,7 @@
       totalCount: asInteger(raw?.totalCount ?? raw?.TotalCount),
       unreadCount: asInteger(raw?.unreadCount ?? raw?.UnreadCount),
       unseenCount: optionalCount(raw?.unseenCount, raw?.UnseenCount),
+      latestNotificationId: optionalCount(raw?.latestNotificationId, raw?.LatestNotificationId),
       nextCursor: raw?.nextCursor ?? raw?.NextCursor ?? null,
       hasMore: Boolean(raw?.hasMore ?? raw?.HasMore),
       projects: asArray(raw?.projects ?? raw?.Projects).map(project => ({
@@ -776,6 +777,9 @@
       this.centerUrl = root.dataset.notificationCenterUrl || '/Notifications';
       this.authenticated = root.dataset.isAuthenticated === 'true';
       this.items = asArray(parseJsonScript(root)).map(normalizeNotification);
+      // Newest id in the server snapshot. The priority-ordered page can omit newer rows, so the
+      // seen-all boundary comes from here, not from the rows shown.
+      this.latestNotificationId = asInteger(root.dataset.latestNotificationId);
       this.list = root.querySelector('[data-notification-list]');
       this.template = root.querySelector('template[data-notification-item-template]');
       this.empty = root.querySelector('[data-notification-empty]');
@@ -826,7 +830,7 @@
           return;
         }
 
-        const upToId = this.items.reduce((max, item) => Math.max(max, item.id), 0);
+        const upToId = this.items.reduce((max, item) => Math.max(max, item.id), this.latestNotificationId);
         this.runtime.markAllSeen(upToId > 0 ? upToId : null).catch(() => {});
       });
     }
@@ -848,6 +852,9 @@
           order: 'priority'
         });
         this.items = page.items;
+        if (page.latestNotificationId !== null) {
+          this.latestNotificationId = page.latestNotificationId;
+        }
         this.runtime.setUnreadCount(page.unreadCount);
         this.runtime.setUnseenCount(page.unseenCount);
         this.render();
@@ -957,6 +964,7 @@
         return;
       }
 
+      this.latestNotificationId = Math.max(this.latestNotificationId, notification.id);
       this.items = [notification, ...this.items.filter(item => item.id !== notification.id)]
         .sort(comparePriorityThenNewest)
         .slice(0, this.limit);

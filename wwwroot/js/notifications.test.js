@@ -27,7 +27,7 @@ function notification(overrides = {}) {
   };
 }
 
-async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, pagePayload = null } = {}) {
+async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, latestNotificationId = '', pagePayload = null } = {}) {
   const tokenMarkup = csrfToken == null
     ? ''
     : `<meta name="csrf-token" content="${csrfToken}">`;
@@ -39,6 +39,7 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
          data-notification-limit="10"
          data-unread-count="${unreadCount}"
          data-unseen-count="${unseenCount}"
+         data-latest-notification-id="${latestNotificationId}"
          data-is-authenticated="true"
          data-notification-center-url="/Notifications">
       <script type="application/json" data-notification-bootstrap>${JSON.stringify(items)}</script>
@@ -164,6 +165,26 @@ test('opening the notification dropdown marks everything loaded as seen and clea
   assert.ok(document.querySelector('[data-notification-unread]').classList.contains('d-none'));
   assert.equal(document.querySelector('[data-notification-header-count]').textContent, '2');
   assert.equal(document.querySelector('[data-notification-action="mark-all-read"]').disabled, false);
+
+  dom.window.close();
+});
+
+test('seen-all uses the snapshot boundary when the priority page omits newer rows', async () => {
+  // Ten pending approvals fill the bell; a newer routine update (id 40) is not shown.
+  const fixture = await createBell({
+    items: [notification({ id: 12, isActionRequired: true })],
+    unreadCount: 11,
+    unseenCount: 11,
+    latestNotificationId: 40
+  });
+  const { dom, window, document, requests } = fixture;
+
+  document.querySelector('.notification-bell__trigger')
+    .dispatchEvent(new window.Event('shown.bs.dropdown', { bubbles: true }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+
+  const seenRequest = requests.find(request => new URL(request.url, window.location.origin).pathname.endsWith('/seen-all'));
+  assert.deepEqual(JSON.parse(seenRequest.options.body), { upToId: 40 });
 
   dom.window.close();
 });

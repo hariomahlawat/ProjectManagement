@@ -72,6 +72,7 @@ public sealed class NotificationBellViewComponent : ViewComponent
             Notifications = displayItems,
             UnreadCount = page.UnreadCount,
             UnseenCount = page.UnseenCount,
+            LatestNotificationId = page.LatestNotificationId,
             NotificationCenterUrl = _linkGenerator.GetPathByPage(HttpContext, page: "/Notifications/Index") ?? "/Notifications",
             ApiBaseUrl = Url.Content("~/api/notifications"),
             UnreadCountUrl = Url.Content("~/api/notifications/count"),

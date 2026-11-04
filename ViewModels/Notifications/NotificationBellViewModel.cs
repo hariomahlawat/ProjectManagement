@@ -11,6 +11,9 @@ public sealed record NotificationBellViewModel
     /// <summary>Drives the bell badge; clears once the recipient opens the bell.</summary>
     public int UnseenCount { get; init; }
 
+    /// <summary>Newest notification id in the bell's snapshot; the seen-all boundary.</summary>
+    public int? LatestNotificationId { get; init; }
+
     public IReadOnlyList<NotificationDisplayModel> Notifications { get; init; } = new List<NotificationDisplayModel>();
 
     public string NotificationCenterUrl { get; init; } = string.Empty;

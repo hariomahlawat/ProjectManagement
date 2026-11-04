@@ -183,6 +183,13 @@ public sealed class UserNotificationService
             accessibleProjectIds,
             mutedProjectIds,
             cancellationToken);
+        // The seen-all boundary for this snapshot. A priority-ordered or filtered page can omit
+        // newer rows, so the bell must not derive the boundary from the rows it shows.
+        var latestNotificationId = await FilterMuted(
+                BuildAccessibleQuery(userId, accessibleProjectIds),
+                mutedProjectIds,
+                onlyMuted: false)
+            .MaxAsync(n => (int?)n.Id, cancellationToken);
         var filterOptions = options.IncludeFilterOptions
             ? await GetFilterOptionsAsync(
                 userId,
@@ -213,7 +220,8 @@ public sealed class UserNotificationService
             filterOptions.Projects,
             filterOptions.Modules,
             folderCounts,
-            unseenCount);
+            unseenCount,
+            latestNotificationId);
     }
 
     public async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(

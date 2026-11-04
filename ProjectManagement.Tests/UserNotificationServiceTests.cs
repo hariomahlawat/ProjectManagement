@@ -690,6 +690,23 @@ public sealed class UserNotificationServiceTests
 
         Assert.Equal(new[] { 2, 3, 4, 5 }, chronological.Items.Select(item => item.Id).ToArray());
         Assert.NotNull(chronological.NextCursor);
+
+        // The seen-all boundary is the newest row in the snapshot, not the newest row shown.
+        var actionOnly = await service.ListPageAsync(
+            principal,
+            userId,
+            new NotificationListOptions { Limit = 2, ActionRequiredFirst = true, IncludeFilterOptions = false });
+        Assert.Equal(new[] { 5, 1 }, actionOnly.Items.Select(item => item.Id).ToArray());
+        Assert.Equal(5, actionOnly.LatestNotificationId);
+
+        context.Notifications.Add(new Notification { Id = 9, RecipientUserId = userId, Kind = NotificationKind.DocumentPublished, CreatedUtc = now });
+        await context.SaveChangesAsync();
+        actionOnly = await service.ListPageAsync(
+            principal,
+            userId,
+            new NotificationListOptions { Limit = 2, ActionRequiredFirst = true, IncludeFilterOptions = false });
+        Assert.DoesNotContain(9, actionOnly.Items.Select(item => item.Id));
+        Assert.Equal(9, actionOnly.LatestNotificationId);
     }
 
     private static (ApplicationDbContext Context, UserNotificationService Service, TestClock Clock) CreateService()

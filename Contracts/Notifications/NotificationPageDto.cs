@@ -12,7 +12,8 @@ public sealed record NotificationPageDto(
     IReadOnlyList<NotificationProjectOptionDto> Projects,
     IReadOnlyList<string> Modules,
     IReadOnlyList<NotificationFolderCountDto> Folders,
-    int UnseenCount);
+    int UnseenCount,
+    int? LatestNotificationId);
 
 public sealed record NotificationProjectOptionDto(int Id, string Label, bool IsMuted);
 
