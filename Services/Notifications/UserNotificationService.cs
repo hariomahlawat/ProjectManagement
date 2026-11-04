@@ -791,6 +791,7 @@ public sealed class UserNotificationService
             // they do not reappear as an unread backlog when the project is later unmuted.
             var now = _clock.UtcNow.UtcDateTime;
             var unreadRows = await _db.Notifications
+                .WhereKindIsReadable()
                 .Where(n =>
                     n.RecipientUserId == userId
                     && n.ProjectId == projectId
@@ -902,6 +903,7 @@ public sealed class UserNotificationService
         CancellationToken cancellationToken)
     {
         var rows = await _db.Notifications
+            .WhereKindIsReadable()
             .Where(n => n.RecipientUserId == userId && ids.Contains(n.Id))
             .Where(n => n.ActorUserId == null
                 || n.ActorUserId != userId
@@ -935,8 +937,11 @@ public sealed class UserNotificationService
         string userId,
         IReadOnlyCollection<int> accessibleProjectIds)
     {
+        // Every list, count and folder query starts here, so rows with a kind from a newer
+        // release are skipped consistently on an older instance during a rolling deployment.
         var query = _db.Notifications
             .AsNoTracking()
+            .WhereKindIsReadable()
             .Where(n => n.RecipientUserId == userId)
             .Where(n => n.ActorUserId == null
                 || n.ActorUserId != userId

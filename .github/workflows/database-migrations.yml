@@ -82,6 +82,15 @@ jobs:
           --no-build
           --filter FullyQualifiedName~NotificationBadgeAndRetentionPostgresIntegrationTests
 
+      - name: Run notification kind-compatibility PostgreSQL test
+        # Rows with a notification kind from a newer release are skipped, not fatal. Creates,
+        # migrates and drops its own prism_test_notifkind_* database on this server.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~NotificationKindCompatibilityPostgresIntegrationTests
+
       - name: Run Document Repository PostgreSQL tests
         # OCR queue claims, delete-approval decisions and search snippets. Creates, migrates and
         # drops its own prism_test_docrepo_* databases on this server.

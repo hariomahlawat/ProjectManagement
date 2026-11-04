@@ -93,6 +93,21 @@ public sealed class NotificationDispatcher : BackgroundService
 
             try
             {
+                // AttemptCount is incremented when a dispatch is claimed. A dispatch claimed more
+                // than MaximumAttempts times without reaching completion or RegisterFailureAsync
+                // (for example because the process stopped mid-batch each time) is dead-lettered
+                // here instead of being retried forever.
+                if (dispatch.AttemptCount > MaximumAttempts)
+                {
+                    DeadLetter(dispatch, _clock.UtcNow.UtcDateTime, "Exceeded the maximum number of delivery attempts without completing.");
+                    await db.SaveChangesAsync(stoppingToken);
+                    _logger.LogError(
+                        "Dead-lettered notification dispatch {DispatchId} after {AttemptCount} claims without completion.",
+                        dispatch.Id,
+                        dispatch.AttemptCount);
+                    continue;
+                }
+
                 var recipientIsActive = await db.Users
                     .AsNoTracking()
                     .AnyAsync(user =>
@@ -125,8 +140,8 @@ public sealed class NotificationDispatcher : BackgroundService
                     continue;
                 }
 
-                var existing = await FindExistingNotificationAsync(db, dispatch, stoppingToken);
-                if (existing is not null)
+                var exists = await NotificationExistsAsync(db, dispatch, stoppingToken);
+                if (exists)
                 {
                     CompleteDispatch(dispatch, _clock.UtcNow.UtcDateTime);
                     await db.SaveChangesAsync(stoppingToken);
@@ -196,6 +211,12 @@ public sealed class NotificationDispatcher : BackgroundService
             }
             catch (Exception ex)
             {
+                // Undo this dispatch's unsaved work before recording the failure: the pending
+                // Notification insert and the completion stamp. Otherwise saving the failure would
+                // either retry the insert or persist DispatchedUtc for a notification that was
+                // never written, and the dispatch would never be claimed again.
+                DiscardUnsavedNotifications(db);
+                dispatch.DispatchedUtc = null;
                 await RegisterFailureAsync(db, dispatch, ex, stoppingToken);
             }
         }
@@ -241,8 +262,11 @@ public sealed class NotificationDispatcher : BackgroundService
         var lockExpiry = now.Add(LockDuration);
         var claimToken = Guid.NewGuid().ToString("N");
 
+        // Only claim kinds this build can read, so a newer release's rows are left for an
+        // instance that understands them during a rolling deployment.
         var candidateIds = await db.NotificationDispatches
             .AsNoTracking()
+            .WhereKindIsReadable()
             .Where(d => d.DispatchedUtc == null && d.DeadLetteredUtc == null)
             .Where(d => d.LockedUntilUtc == null || d.LockedUntilUtc <= now)
             .OrderBy(d => d.CreatedUtc)
@@ -296,7 +320,7 @@ public sealed class NotificationDispatcher : BackgroundService
         return inMemoryRows;
     }
 
-    private static async Task<Notification?> FindExistingNotificationAsync(
+    private static async Task<bool> NotificationExistsAsync(
         ApplicationDbContext db,
         NotificationDispatch dispatch,
         CancellationToken cancellationToken)
@@ -309,12 +333,13 @@ public sealed class NotificationDispatcher : BackgroundService
 
         if (local is not null)
         {
-            return local;
+            return true;
         }
 
+        // An existence check, not a load: the matching row may carry a kind this build cannot read.
         return await db.Notifications
             .AsNoTracking()
-            .FirstOrDefaultAsync(n =>
+            .AnyAsync(n =>
                 n.SourceDispatchId == dispatch.Id
                 || (!string.IsNullOrWhiteSpace(dispatch.Fingerprint)
                     && n.RecipientUserId == dispatch.RecipientUserId
@@ -334,8 +359,7 @@ public sealed class NotificationDispatcher : BackgroundService
 
         if (dispatch.AttemptCount >= MaximumAttempts)
         {
-            dispatch.DeadLetteredUtc = now;
-            dispatch.LockedUntilUtc = null;
+            DeadLetter(dispatch, now, dispatch.Error);
 
             _logger.LogError(
                 exception,
@@ -355,6 +379,25 @@ public sealed class NotificationDispatcher : BackgroundService
         }
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void DeadLetter(NotificationDispatch dispatch, DateTime now, string? error)
+    {
+        dispatch.DeadLetteredUtc = now;
+        dispatch.DispatchedUtc = null;
+        dispatch.LockedUntilUtc = null;
+        dispatch.LockToken = null;
+        dispatch.Error = Truncate(error, ErrorMessageMaxLength);
+    }
+
+    private static void DiscardUnsavedNotifications(ApplicationDbContext db)
+    {
+        foreach (var entry in db.ChangeTracker.Entries<Notification>()
+                     .Where(entry => entry.State == EntityState.Added)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
     }
 
     private static void CompleteDispatch(NotificationDispatch dispatch, DateTime dispatchedUtc)

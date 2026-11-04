@@ -131,7 +131,9 @@ public sealed class NotificationRetentionService : BackgroundService
         if (options.MaxAge is TimeSpan maxAge && maxAge > TimeSpan.Zero)
         {
             var cutoff = nowUtc - maxAge;
+            // Rows with a kind from a newer release are left for an instance that can read them.
             var stale = await db.Notifications
+                .WhereKindIsReadable()
                 .Where(n => n.CreatedUtc < cutoff)
                 .Where(n => !protectActionRequired
                     || n.ReadUtc != null
@@ -163,6 +165,7 @@ public sealed class NotificationRetentionService : BackgroundService
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var extras = await db.Notifications
+                    .WhereKindIsReadable()
                     .Where(n => n.RecipientUserId == userId)
                     .OrderByDescending(n => n.CreatedUtc)
                     .ThenByDescending(n => n.Id)
@@ -195,6 +198,7 @@ public sealed class NotificationRetentionService : BackgroundService
         {
             var completedCutoff = nowUtc - completedDispatchMaxAge;
             var completedDispatches = await db.NotificationDispatches
+                .WhereKindIsReadable()
                 .Where(dispatch =>
                     dispatch.DispatchedUtc != null
                     && dispatch.DispatchedUtc < completedCutoff)
@@ -212,6 +216,7 @@ public sealed class NotificationRetentionService : BackgroundService
         {
             var deadLetterCutoff = nowUtc - deadLetterMaxAge;
             var deadLetters = await db.NotificationDispatches
+                .WhereKindIsReadable()
                 .Where(dispatch =>
                     dispatch.DeadLetteredUtc != null
                     && dispatch.DeadLetteredUtc < deadLetterCutoff)
@@ -246,9 +251,12 @@ public sealed class NotificationRetentionService : BackgroundService
             && informationalAfter > TimeSpan.Zero)
         {
             var cutoff = nowUtc - informationalAfter;
+            // A kind from a newer release would otherwise count as informational here and be
+            // auto-read after the informational window even if that release marks it
+            // action-required. Leave it for an instance that knows the kind.
             total += await MarkReadAsync(
                 db,
-                db.Notifications.Where(n =>
+                db.Notifications.WhereKindIsReadable().Where(n =>
                     n.ReadUtc == null
                     && n.CreatedUtc < cutoff
                     && (!n.Kind.HasValue || !actionKinds.Contains(n.Kind.Value))),
@@ -262,7 +270,7 @@ public sealed class NotificationRetentionService : BackgroundService
             var cutoff = nowUtc - actionAfter;
             total += await MarkReadAsync(
                 db,
-                db.Notifications.Where(n =>
+                db.Notifications.WhereKindIsReadable().Where(n =>
                     n.ReadUtc == null
                     && n.CreatedUtc < cutoff
                     && n.Kind.HasValue
