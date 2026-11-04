@@ -337,6 +337,7 @@ public enum ProjectBriefingSlideRole
     ProjectCapability,
     ProjectCapabilityContinuation,
     ProjectBrief,
+    ProjectBriefContinuation,
     ProjectUpdateSheet,
     ProjectUpdateSheetContinuation,
     FfcGlobalFootprint,

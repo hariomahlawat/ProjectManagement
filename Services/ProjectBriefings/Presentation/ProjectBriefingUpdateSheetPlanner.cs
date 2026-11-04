@@ -356,10 +356,17 @@ public static class ProjectBriefingUpdateSheetPlanner
         return Math.Clamp(required, .30, 1.05);
     }
 
-    private static IReadOnlyList<ProjectBriefingUpdateSheetBriefPage> PaginateBrief(
+    /// <summary>
+    /// Splits a brief across a first text area and full-width continuation areas, at paragraph
+    /// or sentence boundaries, never below the tight 12 pt profile. Shared by update sheets and
+    /// the project brief slide so both continue long briefs the same way.
+    /// </summary>
+    public static IReadOnlyList<ProjectBriefingUpdateSheetBriefPage> PaginateBrief(
         string normalized,
         double firstSlideWidth,
-        double firstSlideHeight)
+        double firstSlideHeight,
+        double continuationWidth = 11.81,
+        double continuationHeight = 5.07)
     {
         if (IsMissingBrief(normalized))
         {
@@ -397,8 +404,6 @@ public static class ProjectBriefingUpdateSheetPlanner
             IsMissing: false));
 
         var remaining = firstSplit.Remainder;
-        const double continuationWidth = 11.81;
-        const double continuationHeight = 5.07;
         while (!string.IsNullOrWhiteSpace(remaining))
         {
             var fitted = false;
@@ -543,7 +548,7 @@ public static class ProjectBriefingUpdateSheetPlanner
         return wordBreak >= minimum ? wordBreak + 1 : limit;
     }
 
-    private static bool Fits(
+    public static bool Fits(
         string value,
         double width,
         double height,

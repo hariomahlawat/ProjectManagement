@@ -19,6 +19,7 @@ public sealed class ProjectBriefingItemPresentationTests
         ProjectBriefingSlideRole.ProjectCapability,
         ProjectBriefingSlideRole.ProjectCapabilityContinuation,
         ProjectBriefingSlideRole.ProjectBrief,
+        ProjectBriefingSlideRole.ProjectBriefContinuation,
         ProjectBriefingSlideRole.ProjectUpdateSheet,
         ProjectBriefingSlideRole.ProjectUpdateSheetContinuation
     };

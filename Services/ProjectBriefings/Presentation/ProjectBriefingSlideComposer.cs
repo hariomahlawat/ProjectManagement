@@ -439,10 +439,28 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
                 if (includeProjectBrief)
                 {
+                    var briefPages = PaginateProjectBrief(data, capturedProject);
+                    var firstBriefPage = briefPages[0];
                     plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                        RenderProjectBrief(canvas, data, capturedProject),
+                        RenderProjectBrief(canvas, data, capturedProject, firstBriefPage),
                         ProjectBriefingSlideRole.ProjectBrief,
                         capturedProject.ProjectId));
+
+                    var continuationBriefPages = briefPages.Skip(1).ToArray();
+                    for (var index = 0; index < continuationBriefPages.Length; index++)
+                    {
+                        var capturedPage = continuationBriefPages[index];
+                        var capturedIndex = index;
+                        plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
+                            RenderProjectBriefContinuation(
+                                canvas,
+                                capturedProject,
+                                capturedPage,
+                                capturedIndex + 1,
+                                continuationBriefPages.Length),
+                            ProjectBriefingSlideRole.ProjectBriefContinuation,
+                            capturedProject.ProjectId));
+                    }
                 }
             }
         }
@@ -976,7 +994,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private static void RenderProjectBrief(
         SlideCanvas canvas,
         ProjectBriefingPresentationData data,
-        ProjectBriefingPresentationProject project)
+        ProjectBriefingPresentationProject project,
+        ProjectBriefingUpdateSheetBriefPage page)
     {
         AddSlideTitle(
             canvas,
@@ -985,11 +1004,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         var layout = ResolveProjectBriefLayout(data, project);
         if (layout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)
         {
-            RenderPhotoEmphasisProjectBrief(canvas, data, project);
+            RenderPhotoEmphasisProjectBrief(canvas, data, project, page);
             return;
         }
 
-        RenderStandardProjectBrief(canvas, data, project);
+        RenderStandardProjectBrief(canvas, data, project, page);
     }
 
     private static ProjectBriefingProjectBriefLayout ResolveProjectBriefLayout(
@@ -1040,7 +1059,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private static void RenderStandardProjectBrief(
         SlideCanvas canvas,
         ProjectBriefingPresentationData data,
-        ProjectBriefingPresentationProject project)
+        ProjectBriefingPresentationProject project,
+        ProjectBriefingUpdateSheetBriefPage page)
     {
         const double leftX = .60;
         const double leftWidth = 3.65;
@@ -1075,7 +1095,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             top,
             rightWidth,
             contentBottom - top,
-            project.ProjectBrief);
+            page,
+            "PROJECT BRIEF");
 
         AddProjectBriefInformationStrip(
             canvas,
@@ -1090,7 +1111,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private static void RenderPhotoEmphasisProjectBrief(
         SlideCanvas canvas,
         ProjectBriefingPresentationData data,
-        ProjectBriefingPresentationProject project)
+        ProjectBriefingPresentationProject project,
+        ProjectBriefingUpdateSheetBriefPage page)
     {
         const double leftX = .60;
         const double leftWidth = 5.48;
@@ -1126,7 +1148,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             top,
             rightWidth,
             contentBottom - top,
-            project.ProjectBrief);
+            page,
+            "PROJECT BRIEF");
 
         AddProjectBriefInformationStrip(
             canvas,
@@ -1418,7 +1441,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         double y,
         double width,
         double height,
-        string? projectBrief)
+        ProjectBriefingUpdateSheetBriefPage page,
+        string heading)
     {
         canvas.AddRoundedRect(
             x,
@@ -1442,7 +1466,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             y + .20,
             width - .56,
             height - .40,
-            BuildProjectBriefParagraphs(canvas, projectBrief),
+            BuildProjectBriefParagraphs(canvas, page, heading),
             "Project brief",
             verticalAnchor: "t",
             allowAutoFit: true,
@@ -1479,7 +1503,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
     private static IReadOnlyList<RichTextParagraph> BuildProjectBriefParagraphs(
         SlideCanvas canvas,
-        string? projectBrief)
+        ProjectBriefingUpdateSheetBriefPage page,
+        string heading)
     {
         var paragraphs = new List<RichTextParagraph>
         {
@@ -1487,7 +1512,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 new[]
                 {
                     new RichTextRun(
-                        "PROJECT BRIEF",
+                        heading,
                         10.5,
                         canvas.Theme.NarrativeAccent,
                         Bold: true)
@@ -1496,9 +1521,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 LineSpacingPoints: 12.6)
         };
 
-        var isMissing = string.IsNullOrWhiteSpace(projectBrief)
-            || string.Equals(projectBrief.Trim(), "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
-        if (isMissing)
+        if (page.IsMissing)
         {
             paragraphs.Add(new RichTextParagraph(
                 new[]
@@ -1513,8 +1536,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             return paragraphs;
         }
 
-        var typography = ProjectBriefingNarrativeTypography.ResolveProjectBrief(projectBrief);
-        foreach (var paragraph in projectBrief!
+        foreach (var paragraph in page.Text
                      .Replace("\r\n", "\n", StringComparison.Ordinal)
                      .Replace("\r", "\n", StringComparison.Ordinal)
                      .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -1524,11 +1546,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 {
                     new RichTextRun(
                         paragraph.Replace("\n", " ", StringComparison.Ordinal),
-                        typography.BodyFontSize,
+                        page.Typography.BodyFontSize,
                         canvas.Theme.TextPrimary)
                 },
-                SpaceAfterPoints: typography.SpaceAfterPoints,
-                LineSpacingPoints: typography.LineSpacingPoints));
+                SpaceAfterPoints: page.Typography.SpaceAfterPoints,
+                LineSpacingPoints: page.Typography.LineSpacingPoints));
         }
 
         return paragraphs;

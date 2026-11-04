@@ -40,7 +40,7 @@ if (root) {
   const ROLES = {
     Cover: { section: 'opening', label: 'Cover', about: 'The deck name and description, the project counts and the handling marking.' },
     InstitutionalProfile: { section: 'opening', label: 'SDD profile', editor: '[data-pbd-profile-open]', about: 'History, institutional outputs and partnerships, from PRISM and the profile settings.' },
-    RoleCharter: { section: 'opening', label: 'Role & Charter', editor: '[data-pbd-role-charter-open]', about: 'The role statements and charter items kept for this deck.' },
+    RoleCharter: { section: 'opening', label: 'Role & Charter', fold: true, editor: '[data-pbd-role-charter-open]', about: 'The role statements and charter items kept for this deck. A long charter continues on a second slide rather than shrinking below 10 pt.' },
     PortfolioSummary: { section: 'portfolio', label: 'Portfolio summary', about: 'Selected, completed and ongoing projects, with the recorded costs.' },
     StageSummary: { section: 'portfolio', label: 'Stage summary', about: 'Ongoing projects by present stage, with the leading stage called out.' },
     StageDistributionTable: { section: 'portfolio', label: 'Stage table', about: 'The stage-wise counts as an editable table.' },
@@ -49,6 +49,7 @@ if (root) {
     ProjectCapability: { section: 'project', label: 'Capability overview' },
     ProjectCapabilityContinuation: { section: 'project', label: 'Capability overview, continued' },
     ProjectBrief: { section: 'project', label: 'Project brief' },
+    ProjectBriefContinuation: { section: 'project', label: 'Project brief, continued' },
     ProjectUpdateSheet: { section: 'project', label: 'Update sheet' },
     ProjectUpdateSheetContinuation: { section: 'project', label: 'Update sheet, continued' },
     FfcGlobalFootprint: { section: 'closing', label: 'FFC footprint', editor: '[data-pbd-ffc-footprint-open]', about: 'Countries supplied with PRISM projects, from live FFC records.' },

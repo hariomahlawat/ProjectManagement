@@ -91,6 +91,7 @@ the server; the script inserts only slide HTML and writes all other text as text
 4. Moving a project across stages in the table is saved but ignored by the generator, which
    always groups by stage.
 5. Project briefs and Role & Charter never continue onto a second slide; long text only shrinks.
+   (Fixed in 6d.)
 6. The page's slide estimate is a second copy of the generator's sequence and can disagree with it.
 7. A corrupt configuration silently resets to defaults; the next save overwrites every option.
 
@@ -161,7 +162,18 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
      into the PowerPoint's notes for the project's first slide only, adding a notes master
      when the deck has notes (the template has none); the integrity check validates the notes
      pages and master. The slide preview is unchanged.
-   - 6d: continuation slides for long project briefs and Role & Charter (fixes 5).
+   - 6d, done (this change): continuation slides (fixes 5). **Role & Charter** stays one slide
+     while its charter fits at 10 pt or larger (`ProjectBriefingRoleCharterPaginator`); a longer
+     charter keeps the role and as many items as fit on the first slide and continues, in source
+     order, on "— Continued" slides, never an empty one. The paginator also sizes the charter type
+     for the renderer, with a line estimate that scales with font size, and role statements now
+     size to fit their panel instead of a fixed 16 pt. A **project brief** that fits beside the
+     photograph keeps its typography; a longer one keeps the photograph, the start of the brief and
+     the status/cost strip, and continues at 12 pt or more on full-width "Project brief — continued"
+     slides (`ProjectBriefContinuation` role), split at paragraph or sentence boundaries by the
+     update sheets' brief splitter. The slide estimate counts both. Owner decisions (4 Nov 2026):
+     continue Role & Charter below 10 pt, reversing the August single-slide rule; briefs as photo
+     slide plus full-width text.
 7. **Library and lifecycle**: deck cards (purpose, owner, last generated and presented, search,
    pin, archive); Draft, Finalised (locked, PowerPoint kept on the LAN store), Presented; a
    "What changed since the last briefing" slide reusing the PO desk's What-moved facts;
