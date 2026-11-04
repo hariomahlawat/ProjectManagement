@@ -85,8 +85,9 @@ public sealed class NotificationKindCompatibilityPostgresIntegrationTests
                 clock,
                 NullLogger<NotificationRetentionService>.Instance);
             await retention.RunOnceAsync(CancellationToken.None);
+            // Kept, and not auto-read: this build cannot tell whether the newer kind needs action.
             Assert.Equal(1, await CountAsync(target,
-                $"SELECT COUNT(*) FROM \"Notifications\" WHERE \"Kind\" = '{FutureKind}'"));
+                $"SELECT COUNT(*) FROM \"Notifications\" WHERE \"Kind\" = '{FutureKind}' AND \"ReadUtc\" IS NULL"));
         }
         finally
         {

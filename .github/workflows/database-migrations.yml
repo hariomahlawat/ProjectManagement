@@ -73,6 +73,15 @@ jobs:
           --no-build
           --filter FullyQualifiedName~ProliferationWritePostgresIntegrationTests
 
+      - name: Run notification badge and retention PostgreSQL test
+        # Priority ordering, unseen counts, seen-all and retention auto-read. Creates, migrates and
+        # drops its own prism_test_notif_* database on this server.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~NotificationBadgeAndRetentionPostgresIntegrationTests
+
       - name: Run notification kind-compatibility PostgreSQL test
         # Rows with a notification kind from a newer release are skipped, not fatal. Creates,
         # migrates and drops its own prism_test_notifkind_* database on this server.

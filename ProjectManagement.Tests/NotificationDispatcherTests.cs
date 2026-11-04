@@ -83,6 +83,10 @@ public sealed class NotificationDispatcherTests
         var unreadCount = Assert.Single(client.UnreadCounts);
         Assert.Equal(1, unreadCount);
 
+        // The badge count is broadcast alongside unread: a fresh notification is also unseen.
+        var unseenCount = Assert.Single(client.UnseenCounts);
+        Assert.Equal(1, unseenCount);
+
         using (var verificationScope = provider.CreateScope())
         {
             var db = verificationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -347,6 +351,8 @@ public sealed class NotificationDispatcherTests
 
         public List<int> UnreadCounts { get; } = new();
 
+        public List<int> UnseenCounts { get; } = new();
+
         public List<IReadOnlyList<NotificationListItem>> NotificationLists { get; } = new();
 
         public Task ReceiveNotification(NotificationListItem notification)
@@ -364,6 +370,12 @@ public sealed class NotificationDispatcherTests
         public Task ReceiveUnreadCount(int count)
         {
             UnreadCounts.Add(count);
+            return Task.CompletedTask;
+        }
+
+        public Task ReceiveUnseenCount(int count)
+        {
+            UnseenCounts.Add(count);
             return Task.CompletedTask;
         }
 

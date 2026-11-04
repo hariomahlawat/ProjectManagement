@@ -28,11 +28,12 @@ public sealed class NotificationsHub : Hub<INotificationsClient>
             throw new HubException("User identifier is not available.");
         }
 
-        var count = await _notifications.CountUnreadAsync(
+        var counts = await _notifications.CountAsync(
             Context.User ?? new ClaimsPrincipal(),
             userId,
             cancellationToken);
-        await Clients.Caller.ReceiveUnreadCount(count);
+        await Clients.Caller.ReceiveUnreadCount(counts.UnreadCount);
+        await Clients.Caller.ReceiveUnseenCount(counts.UnseenCount);
     }
 
     public async Task RequestRecentNotifications(int limit = 20, CancellationToken cancellationToken = default)
@@ -62,6 +63,12 @@ public sealed class NotificationsHub : Hub<INotificationsClient>
 public interface INotificationsClient
 {
     Task ReceiveUnreadCount(int count);
+
+    /// <summary>
+    /// Bell badge count: notifications the recipient has not yet seen. Sent alongside
+    /// <see cref="ReceiveUnreadCount"/>; clients that predate it simply ignore it.
+    /// </summary>
+    Task ReceiveUnseenCount(int count);
 
     Task ReceiveNotification(NotificationListItem notification);
 

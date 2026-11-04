@@ -54,7 +54,15 @@ This document lists every supported configuration value, its default, and how th
 | --- | --- | --- |
 | `Notifications:Retention:SweepInterval` | `00:15:00` (15 minutes) | How frequently `NotificationRetentionService` scans for expired notifications. (see appsettings.json lines 32-37) (see Program.cs lines 206-236) |
 | `Notifications:Retention:MaxAge` | `30.00:00:00` (30 days) | Maximum age before a notification becomes eligible for deletion. |
-| `Notifications:Retention:MaxPerUser` | `200` | Hard cap on stored notifications per user; the retention worker trims the oldest extras. |
+| `Notifications:Retention:MaxPerUser` | `200` | Hard cap on stored notifications per user; the retention worker trims the oldest extras. Unread action-required notifications are exempt while `AutoReadActionRequiredAfter` is enabled. |
+| `Notifications:Retention:CompletedDispatchMaxAge` | `14.00:00:00` (14 days) | Age after which delivered outbox dispatch rows are removed. |
+| `Notifications:Retention:DeadLetterMaxAge` | `90.00:00:00` (90 days) | Age after which dead-lettered outbox dispatch rows are removed. |
+| `Notifications:Retention:AutoReadInformationalAfter` | `7.00:00:00` (7 days) | Unread notifications that are not action-required are marked read once older than this. Rows are kept; only read state changes. Empty or `00:00:00` disables it. |
+| `Notifications:Retention:AutoReadActionRequiredAfter` | `30.00:00:00` (30 days) | Unread action-required notifications (approvals, delete requests, mentions, assignments, blocked tasks, notebook shares) are marked read once older than this. Until then they are exempt from `MaxAge` and `MaxPerUser` deletion. Empty or `00:00:00` disables both the auto-read and the exemption. |
+
+The `MaxAge` exemption means an unread action-required notification can outlive `MaxAge` until it reaches `AutoReadActionRequiredAfter`. Action-required kinds come from `NotificationPresentationCatalog.ActionRequiredKinds`.
+
+**Bell badge.** The bell badge counts notifications the user has not yet *seen*, not unread ones. Opening the bell calls `POST /api/notifications/seen-all`, which clears the badge and leaves read state unchanged. The bell header, the Notification Centre and "Mark all read" continue to use the unread count. The bell lists unread action-required notifications first under "Needs action" (`GET /api/notifications?order=priority`), then everything else newest first.
 
 ## Chat
 
