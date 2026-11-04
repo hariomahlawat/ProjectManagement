@@ -10,22 +10,30 @@ import {
 
 let chart = null;
 let rows = [];
+// Theme switches can arrive before the data does; nothing is drawn until it has loaded.
+let loaded = false;
 
-function showMessage(text) {
+// Shows either the chart (message null) or a message in its place, never both.
+function setState(messageText) {
     const message = document.getElementById("tot-yearly-chart-message");
     const host = document.getElementById("tot-yearly-chart-host");
     const download = document.getElementById("tot-chart-download");
+    const showChart = messageText === null;
     if (message) {
-        message.textContent = text;
-        message.hidden = false;
+        message.textContent = showChart ? "" : messageText;
+        message.hidden = showChart;
     }
-    if (host) host.hidden = true;
-    if (download) download.hidden = true;
+    if (host) host.hidden = !showChart;
+    if (download) download.hidden = !showChart;
+}
+
+function showMessage(text) {
+    setState(text);
 }
 
 function render() {
     const canvas = document.getElementById("tot-yearly-chart");
-    if (!canvas) return;
+    if (!canvas || !loaded) return;
 
     if (chart) {
         chart.destroy();
@@ -37,6 +45,7 @@ function render() {
         return;
     }
 
+    setState(null);
     chart = new Chart(canvas, {
         type: "bar",
         data: {
@@ -102,6 +111,7 @@ async function init() {
         return;
     }
 
+    loaded = true;
     render();
 }
 
