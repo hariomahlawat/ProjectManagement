@@ -929,3 +929,30 @@ test('a background refresh reloads at least every 15 minutes even with an unchan
 
   dom.window.close();
 });
+
+test('a local change to the bell list invalidates its version so the next refresh reloads', async () => {
+  // Marked read here, then marked unread in another tab while this one was offline: the server's
+  // version is back to the cached one, but the row shown here is still read.
+  const fixture = await createBell({
+    items: [notification({ id: 17, seenUtc: '2026-06-30T06:30:00Z' })],
+    unreadCount: 1,
+    unseenCount: 0,
+    latestNotificationId: 17,
+    listVersion: '1.17.1.0.17.0',
+    countPayload: { unreadCount: 1, unseenCount: 0, latestNotificationId: 17, listVersion: '1.17.1.0.17.0' },
+    pagePayload: { items: [notification({ id: 17, seenUtc: '2026-06-30T06:30:00Z' })], totalCount: 1, unreadCount: 1, unseenCount: 0, latestNotificationId: 17, listVersion: '1.17.1.0.17.0' }
+  });
+  const { dom, window, document, requests } = fixture;
+
+  document.querySelector('[data-notification-action="toggle-read"]')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+  assert.equal(document.querySelector('[data-notification-action="toggle-read"]').getAttribute('aria-label'), 'Mark as unread');
+
+  await backgroundRefresh(window);
+
+  assert.ok(pathsOf(requests, window).includes('/api/notifications'));
+  assert.equal(document.querySelector('[data-notification-action="toggle-read"]').getAttribute('aria-label'), 'Mark as read');
+
+  dom.window.close();
+});

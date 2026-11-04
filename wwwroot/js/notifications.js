@@ -1079,10 +1079,19 @@
         .finally(() => window.location.assign(route));
     }
 
+    // The cached list version is valid only while the rows shown are exactly those loaded with
+    // it. Any local change to the rows (own actions, other tabs via realtime, new arrivals)
+    // clears it, so the next background refresh reloads instead of trusting a stale version.
+    invalidateListVersion() {
+      this.listVersion = null;
+    }
+
     handleNewNotification(notification) {
       if (notification.isProjectMuted) {
         return;
       }
+
+      this.invalidateListVersion();
 
       this.latestNotificationId = Math.max(this.latestNotificationId, notification.id);
       this.items = [notification, ...this.items.filter(item => item.id !== notification.id)]
@@ -1092,6 +1101,7 @@
     }
 
     handleNotificationList(notifications) {
+      this.invalidateListVersion();
       this.items = notifications
         .filter(item => !item.isProjectMuted)
         .sort(comparePriorityThenNewest)
@@ -1100,6 +1110,7 @@
     }
 
     handleStateMutation(mutation) {
+      this.invalidateListVersion();
       const ids = new Set(mutation.notificationIds);
       this.items.forEach(item => {
         if ((!mutation.appliesToAll && !ids.has(item.id))
@@ -1117,6 +1128,7 @@
     }
 
     handleSeenMutation(mutation) {
+      this.invalidateListVersion();
       const ids = new Set(mutation.notificationIds);
       this.items.forEach(item => {
         if (item.isSeen || (!mutation.appliesToAll && !ids.has(item.id))) {
@@ -1129,6 +1141,7 @@
     }
 
     handleMuteMutation(mutation) {
+      this.invalidateListVersion();
       this.items.forEach(item => {
         if (item.projectId === mutation.projectId) {
           item.isProjectMuted = mutation.isMuted;
