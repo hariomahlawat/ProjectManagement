@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using ProjectManagement.Models.Notifications;
 
 namespace ProjectManagement.Services.Notifications;
@@ -10,6 +12,16 @@ namespace ProjectManagement.Services.Notifications;
 /// </summary>
 public static class NotificationPresentationCatalog
 {
+    /// <summary>
+    /// Every notification kind the catalogue marks as requiring the recipient's action. This is
+    /// the single source used by inbox folders, priority ordering and retention so that the
+    /// "needs action" treatment cannot drift between the UI and the background workers.
+    /// </summary>
+    public static IReadOnlyList<NotificationKind> ActionRequiredKinds { get; } = Enum
+        .GetValues<NotificationKind>()
+        .Where(kind => Resolve(kind, module: null, eventType: null).IsActionRequired)
+        .ToArray();
+
     public static NotificationPresentation Resolve(
         NotificationKind? kind,
         string? module,

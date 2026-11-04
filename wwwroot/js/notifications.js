@@ -118,11 +118,36 @@
     };
   }
 
+  // Returns null when the server omitted the value, so callers keep their current count rather
+  // than resetting the badge to zero.
+  function optionalCount(...values) {
+    const value = values.find(candidate => candidate !== undefined && candidate !== null);
+    return value === undefined ? null : Math.max(0, asInteger(value));
+  }
+
+  function isPriorityItem(notification) {
+    return Boolean(notification?.isActionRequired) && !notification?.isRead;
+  }
+
+  // The bell lists unread items that need the recipient's action first, then everything else
+  // newest first. The server applies the same order to the bell's page (order=priority).
+  function comparePriorityThenNewest(a, b) {
+    const priorityDelta = Number(isPriorityItem(b)) - Number(isPriorityItem(a));
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+
+    const timeDelta = new Date(b.createdUtc) - new Date(a.createdUtc);
+    return timeDelta !== 0 ? timeDelta : b.id - a.id;
+  }
+
   function normalizePage(raw) {
     return {
       items: asArray(raw?.items ?? raw?.Items).map(normalizeNotification),
       totalCount: asInteger(raw?.totalCount ?? raw?.TotalCount),
       unreadCount: asInteger(raw?.unreadCount ?? raw?.UnreadCount),
+      unseenCount: optionalCount(raw?.unseenCount, raw?.UnseenCount),
+      latestNotificationId: optionalCount(raw?.latestNotificationId, raw?.LatestNotificationId),
       nextCursor: raw?.nextCursor ?? raw?.NextCursor ?? null,
       hasMore: Boolean(raw?.hasMore ?? raw?.HasMore),
       projects: asArray(raw?.projects ?? raw?.Projects).map(project => ({
@@ -350,11 +375,13 @@
       this.reconnectAttempt = 0;
       this.lifecycleBound = false;
       this.unreadCount = config.unreadCount || 0;
+      this.unseenCount = config.unseenCount || 0;
     }
 
     register(view) {
       this.views.add(view);
       view.setUnreadCount(this.unreadCount);
+      view.setUnseenCount?.(this.unseenCount);
     }
 
     async request(path, options = {}) {
@@ -440,6 +467,16 @@
       return mutation;
     }
 
+    async markAllSeen(upToId) {
+      const body = asInteger(upToId) > 0 ? { upToId: asInteger(upToId) } : {};
+      const mutation = await this.request(`${this.apiBase}/seen-all`, {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      this.handleSeenMutation(mutation);
+      return mutation;
+    }
+
     async markSeen(ids) {
       const uniqueIds = Array.from(new Set(asArray(ids).map(value => asInteger(value)).filter(id => id > 0)));
       if (uniqueIds.length === 0) {
@@ -472,6 +509,15 @@
       this.views.forEach(view => view.setUnreadCount(this.unreadCount));
     }
 
+    setUnseenCount(count) {
+      if (count === null || count === undefined) {
+        return;
+      }
+
+      this.unseenCount = Math.max(0, asInteger(count));
+      this.views.forEach(view => view.setUnseenCount?.(this.unseenCount));
+    }
+
     handleNewNotification(raw) {
       const notification = normalizeNotification(raw);
       this.views.forEach(view => view.handleNewNotification(notification));
@@ -498,6 +544,7 @@
       };
 
       this.setUnreadCount(mutation.unreadCount);
+      this.setUnseenCount(optionalCount(raw.unseenCount, raw.UnseenCount));
       this.views.forEach(view => view.handleStateMutation(mutation));
     }
 
@@ -509,9 +556,11 @@
       const mutation = {
         notificationIds: asArray(raw.notificationIds ?? raw.NotificationIds).map(value => asInteger(value)),
         seenUtc: raw.seenUtc ?? raw.SeenUtc ?? new Date().toISOString(),
-        affectedCount: asInteger(raw.affectedCount ?? raw.AffectedCount)
+        affectedCount: asInteger(raw.affectedCount ?? raw.AffectedCount),
+        appliesToAll: Boolean(raw.appliesToAll ?? raw.AppliesToAll)
       };
 
+      this.setUnseenCount(optionalCount(raw.unseenCount, raw.UnseenCount));
       this.views.forEach(view => view.handleSeenMutation(mutation));
     }
 
@@ -528,6 +577,7 @@
       };
 
       this.setUnreadCount(mutation.unreadCount);
+      this.setUnseenCount(optionalCount(raw.unseenCount, raw.UnseenCount));
       this.views.forEach(view => view.handleMuteMutation(mutation));
     }
 
@@ -567,6 +617,7 @@
       this.connection.keepAliveIntervalInMilliseconds = 15_000;
 
       this.connection.on('ReceiveUnreadCount', count => this.setUnreadCount(count));
+      this.connection.on('ReceiveUnseenCount', count => this.setUnseenCount(count));
       this.connection.on('ReceiveNotification', notification => this.handleNewNotification(notification));
       this.connection.on('ReceiveNotifications', notifications => this.handleNotificationList(notifications));
       this.connection.on('ReceiveNotificationStateChanged', mutation => this.handleStateMutation(mutation));
@@ -726,6 +777,9 @@
       this.centerUrl = root.dataset.notificationCenterUrl || '/Notifications';
       this.authenticated = root.dataset.isAuthenticated === 'true';
       this.items = asArray(parseJsonScript(root)).map(normalizeNotification);
+      // Newest id in the server snapshot. The priority-ordered page can omit newer rows, so the
+      // seen-all boundary comes from here, not from the rows shown.
+      this.latestNotificationId = asInteger(root.dataset.latestNotificationId);
       this.list = root.querySelector('[data-notification-list]');
       this.template = root.querySelector('template[data-notification-item-template]');
       this.empty = root.querySelector('[data-notification-empty]');
@@ -768,14 +822,16 @@
       });
 
       this.trigger?.addEventListener('shown.bs.dropdown', () => {
-        const unseenIds = this.items
-          .filter(item => !item.isSeen && !item.isProjectMuted)
-          .slice(0, this.limit)
-          .map(item => item.id);
-
-        if (unseenIds.length > 0) {
-          this.runtime.markSeen(unseenIds).catch(() => {});
+        // Opening the bell acknowledges everything new, including items beyond the visible list,
+        // so the badge clears; read state is unchanged. upToId stops an item that arrives after
+        // this list was loaded from being marked seen before it is shown.
+        const hasUnseenRows = this.items.some(item => !item.isSeen && !item.isRead && !item.isProjectMuted);
+        if (!hasUnseenRows && this.runtime.unseenCount <= 0) {
+          return;
         }
+
+        const upToId = this.items.reduce((max, item) => Math.max(max, item.id), this.latestNotificationId);
+        this.runtime.markAllSeen(upToId > 0 ? upToId : null).catch(() => {});
       });
     }
 
@@ -792,10 +848,15 @@
         const page = await this.runtime.fetchPage({
           limit: this.limit,
           includeMuted: false,
-          includeFilterOptions: false
+          includeFilterOptions: false,
+          order: 'priority'
         });
         this.items = page.items;
+        if (page.latestNotificationId !== null) {
+          this.latestNotificationId = page.latestNotificationId;
+        }
         this.runtime.setUnreadCount(page.unreadCount);
+        this.runtime.setUnseenCount(page.unseenCount);
         this.render();
         if (!options.silent) {
           this.setStatus('Updated', 'success');
@@ -903,8 +964,9 @@
         return;
       }
 
+      this.latestNotificationId = Math.max(this.latestNotificationId, notification.id);
       this.items = [notification, ...this.items.filter(item => item.id !== notification.id)]
-        .sort((a, b) => new Date(b.createdUtc) - new Date(a.createdUtc))
+        .sort(comparePriorityThenNewest)
         .slice(0, this.limit);
       this.render();
     }
@@ -912,7 +974,7 @@
     handleNotificationList(notifications) {
       this.items = notifications
         .filter(item => !item.isProjectMuted)
-        .sort((a, b) => new Date(b.createdUtc) - new Date(a.createdUtc))
+        .sort(comparePriorityThenNewest)
         .slice(0, this.limit);
       this.render();
     }
@@ -937,10 +999,12 @@
     handleSeenMutation(mutation) {
       const ids = new Set(mutation.notificationIds);
       this.items.forEach(item => {
-        if (ids.has(item.id)) {
-          item.isSeen = true;
-          item.seenUtc = mutation.seenUtc;
+        if (item.isSeen || (!mutation.appliesToAll && !ids.has(item.id))) {
+          return;
         }
+
+        item.isSeen = true;
+        item.seenUtc = mutation.seenUtc;
       });
     }
 
@@ -962,10 +1026,14 @@
     }
 
     setUnreadCount(count) {
-      setText(this.unreadCount, formatCompactCount(count));
       setText(this.headerCount, count);
-      this.unreadBadge?.classList.toggle('d-none', count <= 0);
       this.updateMarkAllButton(count);
+    }
+
+    // The badge counts what is new since the bell was last opened; unread stays in the header.
+    setUnseenCount(count) {
+      setText(this.unreadCount, formatCompactCount(count));
+      this.unreadBadge?.classList.toggle('d-none', count <= 0);
     }
 
     updateMarkAllButton(count) {
@@ -990,13 +1058,15 @@
 
       const visible = this.items
         .filter(item => !item.isProjectMuted)
-        .sort((a, b) => new Date(b.createdUtc) - new Date(a.createdUtc))
+        .sort(comparePriorityThenNewest)
         .slice(0, this.limit);
 
       this.list.innerHTML = '';
       let currentGroup = null;
       visible.forEach(notification => {
-        const group = notificationDateGroup(notification.createdUtc);
+        const group = isPriorityItem(notification)
+          ? { key: 'needs-action', label: 'Needs action' }
+          : notificationDateGroup(notification.createdUtc);
         if (group.key !== currentGroup) {
           appendDateGroup(this.list, group, 'notification-menu__date-group', 'li');
           currentGroup = group.key;
@@ -1700,10 +1770,12 @@
     handleSeenMutation(mutation) {
       const ids = new Set(mutation.notificationIds);
       this.items.forEach(item => {
-        if (ids.has(item.id)) {
-          item.isSeen = true;
-          item.seenUtc = mutation.seenUtc;
+        if (item.isSeen || (!mutation.appliesToAll && !ids.has(item.id))) {
+          return;
         }
+
+        item.isSeen = true;
+        item.seenUtc = mutation.seenUtc;
       });
     }
 
@@ -2007,7 +2079,8 @@
       apiBase: firstRoot.dataset.apiBase || '/api/notifications',
       unreadUrl: firstRoot.dataset.unreadUrl || '/api/notifications/count',
       hubUrl: firstRoot.dataset.hubUrl || '/hubs/notifications',
-      unreadCount: asInteger(firstRoot.dataset.unreadCount)
+      unreadCount: asInteger(firstRoot.dataset.unreadCount),
+      unseenCount: asInteger(bellRoots[0]?.dataset.unseenCount)
     });
 
     bellRoots.forEach(root => runtime.register(new NotificationBellView(root, runtime)));

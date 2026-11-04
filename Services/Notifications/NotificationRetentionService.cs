@@ -18,6 +18,9 @@ namespace ProjectManagement.Services.Notifications;
 public sealed class NotificationRetentionService : BackgroundService
 {
     private const string WorkerKey = "notification-retention";
+
+    private static readonly NotificationKind[] ActionRequiredKinds =
+        NotificationPresentationCatalog.ActionRequiredKinds.ToArray();
     private static readonly TimeSpan DefaultIdleDelay = TimeSpan.FromMinutes(5);
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -53,11 +56,18 @@ public sealed class NotificationRetentionService : BackgroundService
                 if (options.IsRetentionEnabled())
                 {
                     _status?.MarkStarted(WorkerKey);
-                    var removed = await RunOnceAsync(stoppingToken);
-                    _status?.MarkSucceeded(WorkerKey, $"Removed {removed} notification record(s).");
-                    if (removed > 0)
+                    var result = await RunSweepAsync(stoppingToken);
+                    _status?.MarkSucceeded(
+                        WorkerKey,
+                        $"Removed {result.RemovedCount} notification record(s); auto-marked {result.AutoReadCount} as read.");
+                    if (result.RemovedCount > 0)
                     {
-                        _logger.LogInformation("Notification retention removed {RemovedCount} notification records.", removed);
+                        _logger.LogInformation("Notification retention removed {RemovedCount} notification records.", result.RemovedCount);
+                    }
+
+                    if (result.AutoReadCount > 0)
+                    {
+                        _logger.LogInformation("Notification retention auto-marked {AutoReadCount} stale notifications as read.", result.AutoReadCount);
                     }
                 }
                 else
@@ -91,17 +101,30 @@ public sealed class NotificationRetentionService : BackgroundService
         }
     }
 
+    /// <summary>Returns the number of records removed; see <see cref="RunSweepAsync"/>.</summary>
     internal async Task<int> RunOnceAsync(CancellationToken cancellationToken)
+        => (await RunSweepAsync(cancellationToken)).RemovedCount;
+
+    internal async Task<NotificationRetentionSweepResult> RunSweepAsync(CancellationToken cancellationToken)
     {
         var options = _options.Value;
         if (!options.IsRetentionEnabled())
         {
-            return 0;
+            return NotificationRetentionSweepResult.None;
         }
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var nowUtc = _clock.UtcNow.UtcDateTime;
+
+        // SECTION: Auto-read. Runs before deletion and changes read state only.
+        var autoReadCount = await AutoMarkStaleAsReadAsync(db, options, nowUtc, cancellationToken);
+
+        // Unread action-required rows younger than the action auto-read window are protected
+        // from age and per-user deletion. Once auto-read marks them read they become eligible.
+        var protectActionRequired = NotificationRetentionOptions.IsEnabled(options.AutoReadActionRequiredAfter);
+        var actionKinds = ActionRequiredKinds;
+
         var removals = new List<Notification>();
         var removalIds = new HashSet<int>();
 
@@ -110,6 +133,10 @@ public sealed class NotificationRetentionService : BackgroundService
             var cutoff = nowUtc - maxAge;
             var stale = await db.Notifications
                 .Where(n => n.CreatedUtc < cutoff)
+                .Where(n => !protectActionRequired
+                    || n.ReadUtc != null
+                    || !n.Kind.HasValue
+                    || !actionKinds.Contains(n.Kind.Value))
                 .ToListAsync(cancellationToken);
 
             foreach (var notification in stale)
@@ -144,6 +171,11 @@ public sealed class NotificationRetentionService : BackgroundService
 
                 foreach (var notification in extras)
                 {
+                    if (protectActionRequired && IsUnreadActionRequired(notification))
+                    {
+                        continue;
+                    }
+
                     if (removalIds.Add(notification.Id))
                     {
                         removals.Add(notification);
@@ -194,10 +226,93 @@ public sealed class NotificationRetentionService : BackgroundService
 
         if (removedCount == 0)
         {
-            return 0;
+            return new NotificationRetentionSweepResult(0, autoReadCount);
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        return removedCount;
+        return new NotificationRetentionSweepResult(removedCount, autoReadCount);
     }
+
+    private static async Task<int> AutoMarkStaleAsReadAsync(
+        ApplicationDbContext db,
+        NotificationRetentionOptions options,
+        DateTime nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var actionKinds = ActionRequiredKinds;
+        var total = 0;
+
+        if (options.AutoReadInformationalAfter is TimeSpan informationalAfter
+            && informationalAfter > TimeSpan.Zero)
+        {
+            var cutoff = nowUtc - informationalAfter;
+            total += await MarkReadAsync(
+                db,
+                db.Notifications.Where(n =>
+                    n.ReadUtc == null
+                    && n.CreatedUtc < cutoff
+                    && (!n.Kind.HasValue || !actionKinds.Contains(n.Kind.Value))),
+                nowUtc,
+                cancellationToken);
+        }
+
+        if (options.AutoReadActionRequiredAfter is TimeSpan actionAfter
+            && actionAfter > TimeSpan.Zero)
+        {
+            var cutoff = nowUtc - actionAfter;
+            total += await MarkReadAsync(
+                db,
+                db.Notifications.Where(n =>
+                    n.ReadUtc == null
+                    && n.CreatedUtc < cutoff
+                    && n.Kind.HasValue
+                    && actionKinds.Contains(n.Kind.Value)),
+                nowUtc,
+                cancellationToken);
+        }
+
+        return total;
+    }
+
+    private static async Task<int> MarkReadAsync(
+        ApplicationDbContext db,
+        IQueryable<Notification> query,
+        DateTime nowUtc,
+        CancellationToken cancellationToken)
+    {
+        if (db.Database.IsRelational())
+        {
+            // A set-based update: idempotent, so overlapping sweeps on several instances are safe.
+            return await query.ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(n => n.ReadUtc, nowUtc)
+                    .SetProperty(n => n.SeenUtc, n => n.SeenUtc ?? nowUtc),
+                cancellationToken);
+        }
+
+        // EF InMemory does not implement ExecuteUpdateAsync.
+        var rows = await query.ToListAsync(cancellationToken);
+        foreach (var notification in rows)
+        {
+            notification.ReadUtc = nowUtc;
+            notification.SeenUtc ??= nowUtc;
+        }
+
+        if (rows.Count > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return rows.Count;
+    }
+
+    private static bool IsUnreadActionRequired(Notification notification)
+        => notification.ReadUtc is null
+           && notification.Kind is NotificationKind kind
+           && ActionRequiredKinds.Contains(kind);
+}
+
+internal sealed record NotificationRetentionSweepResult(int RemovedCount, int AutoReadCount)
+{
+    public static NotificationRetentionSweepResult None { get; } = new(0, 0);
 }

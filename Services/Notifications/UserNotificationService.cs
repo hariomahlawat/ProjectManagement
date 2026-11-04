@@ -33,23 +33,7 @@ public sealed class UserNotificationService
     };
 
     private static readonly NotificationKind[] ActionRequiredKinds =
-    {
-        NotificationKind.MentionedInRemark,
-        NotificationKind.PlanSubmitted,
-        NotificationKind.PlanRejected,
-        NotificationKind.StageAssigned,
-        NotificationKind.RoleAssignmentsChanged,
-        NotificationKind.ProjectAssignmentChanged,
-        NotificationKind.TrainingDeleteRequested,
-        NotificationKind.TrainingDeleteRejected,
-        NotificationKind.ActivityDeleteRequested,
-        NotificationKind.ActivityDeleteRejected,
-        NotificationKind.ActionTaskAssigned,
-        NotificationKind.ActionTaskBlocked,
-        NotificationKind.ActionTaskSubmittedForClosure,
-        NotificationKind.ActionTaskDueDateChanged,
-        NotificationKind.NotebookShared,
-    };
+        NotificationPresentationCatalog.ActionRequiredKinds.ToArray();
 
     private static readonly NotificationKind[] ApprovalKinds =
     {
@@ -150,16 +134,30 @@ public sealed class UserNotificationService
 
         var totalCount = await query.CountAsync(cancellationToken);
 
-        if (NotificationCursor.TryDecode(options.Cursor, out var cursor))
+        // Priority ordering serves the bell's first page only. Cursor paging is defined over the
+        // chronological order, so a cursor always pages chronologically.
+        var hasCursor = NotificationCursor.TryDecode(options.Cursor, out var cursor);
+        var actionRequiredFirst = options.ActionRequiredFirst && !hasCursor;
+
+        if (hasCursor)
         {
             query = query.Where(n =>
                 n.CreatedUtc < cursor.CreatedUtc
                 || (n.CreatedUtc == cursor.CreatedUtc && n.Id < cursor.Id));
         }
 
-        var rows = await query
-            .OrderByDescending(n => n.CreatedUtc)
-            .ThenByDescending(n => n.Id)
+        var ordered = actionRequiredFirst
+            ? query
+                .OrderByDescending(n => n.ReadUtc == null
+                    && n.Kind.HasValue
+                    && ActionRequiredKinds.Contains(n.Kind.Value))
+                .ThenByDescending(n => n.CreatedUtc)
+                .ThenByDescending(n => n.Id)
+            : query
+                .OrderByDescending(n => n.CreatedUtc)
+                .ThenByDescending(n => n.Id);
+
+        var rows = await ordered
             .Take(limit + 1)
             .ToListAsync(cancellationToken);
 
@@ -180,6 +178,18 @@ public sealed class UserNotificationService
             accessibleProjectIds,
             mutedProjectIds,
             cancellationToken);
+        var unseenCount = await CountUnseenInternalAsync(
+            userId,
+            accessibleProjectIds,
+            mutedProjectIds,
+            cancellationToken);
+        // The seen-all boundary for this snapshot. A priority-ordered or filtered page can omit
+        // newer rows, so the bell must not derive the boundary from the rows it shows.
+        var latestNotificationId = await FilterMuted(
+                BuildAccessibleQuery(userId, accessibleProjectIds),
+                mutedProjectIds,
+                onlyMuted: false)
+            .MaxAsync(n => (int?)n.Id, cancellationToken);
         var filterOptions = options.IncludeFilterOptions
             ? await GetFilterOptionsAsync(
                 userId,
@@ -196,7 +206,8 @@ public sealed class UserNotificationService
                 cancellationToken)
             : Array.Empty<NotificationFolderCountDto>();
 
-        var nextCursor = hasMore && rows.Count > 0
+        // A priority-ordered page has no chronological boundary to continue from.
+        var nextCursor = hasMore && rows.Count > 0 && !actionRequiredFirst
             ? NotificationCursor.Encode(rows[^1].CreatedUtc, rows[^1].Id)
             : null;
 
@@ -208,7 +219,9 @@ public sealed class UserNotificationService
             hasMore,
             filterOptions.Projects,
             filterOptions.Modules,
-            folderCounts);
+            folderCounts,
+            unseenCount,
+            latestNotificationId);
     }
 
     public async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(
@@ -238,7 +251,10 @@ public sealed class UserNotificationService
         var mutedProjectIds = await GetMutedProjectIdsAsync(userId, cancellationToken);
 
         return await ProjectNotificationsAsync(
-            notifications,
+            notifications
+                .OrderByDescending(row => row.CreatedUtc)
+                .ThenByDescending(row => row.Id)
+                .ToArray(),
             userId,
             accessibleProjects,
             mutedProjectIds,
@@ -289,10 +305,10 @@ public sealed class UserNotificationService
                 StringComparer.Ordinal);
         }
 
+        // Rows are projected in the order supplied: ListPageAsync passes them already ordered
+        // (chronologically or priority-first); ProjectAsync orders its ad-hoc set itself.
         var results = new List<NotificationListItem>(notifications.Count);
-        foreach (var notification in notifications
-                     .OrderByDescending(row => row.CreatedUtc)
-                     .ThenByDescending(row => row.Id))
+        foreach (var notification in notifications)
         {
             if (string.Equals(notification.ActorUserId, userId, StringComparison.Ordinal)
                 && notification.Kind.HasValue
@@ -368,6 +384,73 @@ public sealed class UserNotificationService
             accessibleProjectIds,
             mutedProjectIds,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Counts notifications the recipient has not yet seen. This drives the bell badge: opening
+    /// the bell marks items seen, so the badge reflects what is new since the last look rather
+    /// than every item that was never individually opened.
+    /// </summary>
+    public async Task<int> CountUnseenAsync(
+        ClaimsPrincipal principal,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePrincipalAndUser(principal, userId);
+
+        var projectMap = await GetAccessibleProjectMapAsync(principal, userId, cancellationToken);
+        var mutedProjectIds = await GetMutedProjectIdsAsync(userId, cancellationToken);
+
+        return await CountUnseenInternalAsync(
+            userId,
+            projectMap.Keys.ToArray(),
+            mutedProjectIds,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns the unread and unseen counts together for callers that publish both, avoiding a
+    /// second accessible-project lookup.
+    /// </summary>
+    public async Task<NotificationCounts> CountAsync(
+        ClaimsPrincipal principal,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePrincipalAndUser(principal, userId);
+
+        var projectMap = await GetAccessibleProjectMapAsync(principal, userId, cancellationToken);
+        var accessibleProjectIds = projectMap.Keys.ToArray();
+        var mutedProjectIds = await GetMutedProjectIdsAsync(userId, cancellationToken);
+
+        var unread = await CountUnreadInternalAsync(
+            userId,
+            accessibleProjectIds,
+            mutedProjectIds,
+            cancellationToken);
+        var unseen = await CountUnseenInternalAsync(
+            userId,
+            accessibleProjectIds,
+            mutedProjectIds,
+            cancellationToken);
+
+        return new NotificationCounts(unread, unseen);
+    }
+
+    private async Task<int> CountUnseenInternalAsync(
+        string userId,
+        IReadOnlyCollection<int> accessibleProjectIds,
+        IReadOnlyCollection<int> mutedProjectIds,
+        CancellationToken cancellationToken)
+    {
+        // A read notification has been looked at even if a legacy path never stamped SeenUtc.
+        var query = FilterMuted(
+            BuildAccessibleQuery(userId, accessibleProjectIds)
+                .Where(notification => notification.SeenUtc == null && notification.ReadUtc == null),
+            mutedProjectIds,
+            onlyMuted: false);
+
+        return await query.CountAsync(cancellationToken);
     }
 
     private async Task<int> CountUnreadInternalAsync(
@@ -531,7 +614,9 @@ public sealed class UserNotificationService
             return new NotificationSeenMutationResult(
                 NotificationOperationResult.Success,
                 Array.Empty<int>(),
-                _clock.UtcNow.UtcDateTime);
+                _clock.UtcNow.UtcDateTime,
+                AppliesToAll: false,
+                AffectedCount: 0);
         }
 
         var rows = await GetAccessibleNotificationsByIdsAsync(
@@ -545,7 +630,9 @@ public sealed class UserNotificationService
             return new NotificationSeenMutationResult(
                 NotificationOperationResult.NotFound,
                 Array.Empty<int>(),
-                _clock.UtcNow.UtcDateTime);
+                _clock.UtcNow.UtcDateTime,
+                AppliesToAll: false,
+                AffectedCount: 0);
         }
 
         var now = _clock.UtcNow.UtcDateTime;
@@ -568,7 +655,78 @@ public sealed class UserNotificationService
         return new NotificationSeenMutationResult(
             NotificationOperationResult.Success,
             changed,
-            now);
+            now,
+            AppliesToAll: false,
+            AffectedCount: changed.Count);
+    }
+
+    /// <summary>
+    /// Marks every accessible, unmuted notification the recipient has not seen as seen. Read
+    /// state is unchanged. When <paramref name="upToId"/> is supplied, notifications with a
+    /// higher identifier (materialised after the caller's view was loaded) are left unseen.
+    /// </summary>
+    public async Task<NotificationSeenMutationResult> MarkAllSeenAsync(
+        ClaimsPrincipal principal,
+        string userId,
+        int? upToId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePrincipalAndUser(principal, userId);
+
+        var projectMap = await GetAccessibleProjectMapAsync(principal, userId, cancellationToken);
+        var mutedProjectIds = await GetMutedProjectIdsAsync(userId, cancellationToken);
+
+        var query = FilterMuted(
+            BuildAccessibleQuery(userId, projectMap.Keys.ToArray())
+                .Where(n => n.SeenUtc == null),
+            mutedProjectIds,
+            onlyMuted: false);
+
+        if (upToId is int maxId)
+        {
+            query = query.Where(n => n.Id <= maxId);
+        }
+
+        var now = _clock.UtcNow.UtcDateTime;
+        int affectedCount;
+
+        if (_db.Database.IsRelational())
+        {
+            affectedCount = await query.ExecuteUpdateAsync(
+                setters => setters.SetProperty(n => n.SeenUtc, now),
+                cancellationToken);
+        }
+        else
+        {
+            // EF InMemory does not implement ExecuteUpdateAsync; reload the rows as tracked.
+            var rowIds = await query
+                .Select(notification => notification.Id)
+                .ToListAsync(cancellationToken);
+            var rows = rowIds.Count == 0
+                ? new List<Notification>()
+                : await _db.Notifications
+                    .Where(notification => rowIds.Contains(notification.Id))
+                    .ToListAsync(cancellationToken);
+
+            foreach (var notification in rows)
+            {
+                notification.SeenUtc ??= now;
+            }
+
+            affectedCount = rows.Count;
+            if (affectedCount > 0)
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        // Like read-all, seen-all is broadcast as a scoped mutation instead of every id.
+        return new NotificationSeenMutationResult(
+            NotificationOperationResult.Success,
+            Array.Empty<int>(),
+            now,
+            AppliesToAll: true,
+            AffectedCount: affectedCount);
     }
 
     public async Task<NotificationOperationResult> SetProjectMuteAsync(
@@ -1198,7 +1356,16 @@ public sealed class NotificationListOptions
     public string? Cursor { get; set; }
 
     public bool IncludeFilterOptions { get; set; } = true;
+
+    /// <summary>
+    /// Orders unread action-required notifications before everything else, then newest first.
+    /// Applies to the first page only: a page requested with a cursor is always chronological and
+    /// a priority-ordered page returns no next cursor.
+    /// </summary>
+    public bool ActionRequiredFirst { get; set; }
 }
+
+public sealed record NotificationCounts(int UnreadCount, int UnseenCount);
 
 public enum NotificationOperationResult
 {
@@ -1219,7 +1386,9 @@ public sealed record NotificationReadMutationResult(
 public sealed record NotificationSeenMutationResult(
     NotificationOperationResult Result,
     IReadOnlyList<int> NotificationIds,
-    DateTime SeenUtc);
+    DateTime SeenUtc,
+    bool AppliesToAll,
+    int AffectedCount);
 
 public sealed record NotificationProjectMuteResult(
     NotificationOperationResult Result,

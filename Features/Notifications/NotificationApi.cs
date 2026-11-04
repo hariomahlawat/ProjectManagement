@@ -54,6 +54,7 @@ public static class NotificationApi
         group.MapPost("/unread", MarkManyUnreadAsync);
         group.MapPost("/read-all", MarkAllReadAsync);
         group.MapPost("/seen", MarkSeenAsync);
+        group.MapPost("/seen-all", MarkAllSeenAsync);
 
         group.MapPost("/projects/{projectId:int}/mute", MuteProjectAsync);
         group.MapDelete("/projects/{projectId:int}/mute", UnmuteProjectAsync);
@@ -143,6 +144,23 @@ public static class NotificationApi
             });
         }
 
+        var order = request.Order?.Trim().ToLowerInvariant();
+        if (order is not null and not "" and not "newest" and not "priority")
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["order"] = new[] { "Order must be newest or priority." }
+            });
+        }
+
+        if (order == "priority" && !string.IsNullOrWhiteSpace(request.Cursor))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["order"] = new[] { "Priority order returns a single page and cannot be combined with a cursor." }
+            });
+        }
+
         SetNoStoreHeaders(httpContext.Response);
 
         var options = new NotificationListOptions
@@ -158,6 +176,7 @@ public static class NotificationApi
             IncludeMuted = request.IncludeMuted ?? false,
             OnlyMuted = string.Equals(folder, "muted", StringComparison.OrdinalIgnoreCase),
             IncludeFilterOptions = request.IncludeFilterOptions ?? false,
+            ActionRequiredFirst = order == "priority",
         };
 
         var page = await notifications.ListPageAsync(
@@ -181,12 +200,12 @@ public static class NotificationApi
 
         SetNoStoreHeaders(httpContext.Response);
 
-        var unread = await notifications.CountUnreadAsync(
+        var counts = await notifications.CountAsync(
             httpContext.User,
             userId,
             cancellationToken);
 
-        return Results.Ok(new NotificationCountDto(unread));
+        return Results.Ok(new NotificationCountDto(counts.UnreadCount, counts.UnseenCount));
     }
 
     private static Task<IResult> MarkManyReadAsync(
@@ -371,7 +390,9 @@ public static class NotificationApi
                 result,
                 httpContext,
                 userId,
-                hubContext),
+                notifications,
+                hubContext,
+                cancellationToken),
             NotificationOperationResult.NotFound => Results.NotFound(new
             {
                 error = "No accessible notification matched the supplied identifiers."
@@ -381,22 +402,73 @@ public static class NotificationApi
         };
     }
 
+    private static async Task<IResult> MarkAllSeenAsync(
+        NotificationSeenAllRequest? request,
+        HttpContext httpContext,
+        UserNotificationService notifications,
+        IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request?.UpToId is <= 0)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["upToId"] = new[] { "The notification identifier must be a positive integer." }
+            });
+        }
+
+        var result = await notifications.MarkAllSeenAsync(
+            httpContext.User,
+            userId,
+            request?.UpToId,
+            cancellationToken);
+
+        return await CompleteSeenMutationAsync(
+            result,
+            httpContext,
+            userId,
+            notifications,
+            hubContext,
+            cancellationToken);
+    }
+
     private static async Task<IResult> CompleteSeenMutationAsync(
         NotificationSeenMutationResult result,
         HttpContext httpContext,
         string userId,
-        IHubContext<NotificationsHub, INotificationsClient> hubContext)
+        UserNotificationService notifications,
+        IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        CancellationToken cancellationToken)
     {
+        var unseen = await notifications.CountUnseenAsync(
+            httpContext.User,
+            userId,
+            cancellationToken);
         var dto = new NotificationSeenDto(
             result.NotificationIds,
             result.SeenUtc,
-            result.NotificationIds.Count);
+            result.AffectedCount,
+            result.AppliesToAll,
+            unseen);
 
         await BroadcastBestEffortAsync(
             httpContext,
             userId,
             "seen-state",
-            hubContext.Clients.User(userId).ReceiveNotificationSeen(dto));
+            hubContext.Clients.User(userId).ReceiveNotificationSeen(dto),
+            hubContext.Clients.User(userId).ReceiveUnseenCount(unseen));
 
         return Results.Ok(dto);
     }
@@ -483,7 +555,7 @@ public static class NotificationApi
             return Results.BadRequest(new { error = "The project notification preference could not be updated." });
         }
 
-        var unread = await notifications.CountUnreadAsync(
+        var counts = await notifications.CountAsync(
             httpContext.User,
             userId,
             cancellationToken);
@@ -491,14 +563,16 @@ public static class NotificationApi
             result.ProjectId,
             result.IsMuted,
             result.ChangedNotificationIds,
-            unread);
+            counts.UnreadCount,
+            counts.UnseenCount);
 
         await BroadcastBestEffortAsync(
             httpContext,
             userId,
             "project-mute",
             hubContext.Clients.User(userId).ReceiveProjectMuteChanged(dto),
-            hubContext.Clients.User(userId).ReceiveUnreadCount(unread));
+            hubContext.Clients.User(userId).ReceiveUnreadCount(counts.UnreadCount),
+            hubContext.Clients.User(userId).ReceiveUnseenCount(counts.UnseenCount));
 
         return Results.Ok(dto);
     }
@@ -530,7 +604,7 @@ public static class NotificationApi
             return Results.BadRequest(new { error = "The notification state could not be updated." });
         }
 
-        var unread = await notifications.CountUnreadAsync(
+        var counts = await notifications.CountAsync(
             principal,
             userId,
             cancellationToken);
@@ -541,14 +615,16 @@ public static class NotificationApi
             result.SeenUtc,
             result.AppliesToAll,
             result.AffectedCount,
-            unread);
+            counts.UnreadCount,
+            counts.UnseenCount);
 
         await BroadcastBestEffortAsync(
             httpContext,
             userId,
             "read-state",
             hubContext.Clients.User(userId).ReceiveNotificationStateChanged(dto),
-            hubContext.Clients.User(userId).ReceiveUnreadCount(unread));
+            hubContext.Clients.User(userId).ReceiveUnreadCount(counts.UnreadCount),
+            hubContext.Clients.User(userId).ReceiveUnseenCount(counts.UnseenCount));
 
         return Results.Ok(dto);
     }
