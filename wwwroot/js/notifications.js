@@ -456,6 +456,16 @@
       return payload;
     }
 
+    // Unread, unseen and the newest id: three cheap queries instead of a full list page.
+    async fetchCounts() {
+      const raw = await this.request(new URL(this.unreadUrl, window.location.origin).toString());
+      return {
+        unreadCount: optionalCount(raw?.unreadCount, raw?.UnreadCount),
+        unseenCount: optionalCount(raw?.unseenCount, raw?.UnseenCount),
+        latestNotificationId: optionalCount(raw?.latestNotificationId, raw?.LatestNotificationId)
+      };
+    }
+
     async fetchPage(parameters = {}) {
       const url = new URL(this.apiBase, window.location.origin);
       Object.entries(parameters).forEach(([key, value]) => {
@@ -879,6 +889,29 @@
       });
     }
 
+    // A background refresh (realtime connect, reconnect, polling, tab focus) first asks for the
+    // counts. When the newest id and both counts match what the bell already shows, nothing has
+    // arrived or changed, so the full list is not reloaded.
+    async isUnchanged() {
+      if (!this.runtime.unreadUrl || this.latestNotificationId <= 0) {
+        return false;
+      }
+
+      try {
+        const counts = await this.runtime.fetchCounts();
+        if (counts.latestNotificationId === null || counts.unreadCount === null || counts.unseenCount === null) {
+          return false;
+        }
+
+        const unchanged = counts.latestNotificationId === this.latestNotificationId
+          && counts.unreadCount === this.runtime.unreadCount
+          && counts.unseenCount === this.runtime.unseenCount;
+        return unchanged;
+      } catch (error) {
+        return false;
+      }
+    }
+
     async refresh(options = {}) {
       if (!this.authenticated) {
         return;
@@ -886,6 +919,10 @@
 
       if (!options.silent) {
         this.setStatus('Refreshing…', 'muted');
+      }
+
+      if (options.silent && !options.full && await this.isUnchanged()) {
+        return;
       }
 
       try {
@@ -1065,7 +1102,7 @@
       this.items = this.items.filter(item => !item.isProjectMuted);
       this.render();
       if (mutation.isMuted) {
-        this.refresh({ silent: true }).catch(() => {});
+        this.refresh({ silent: true, full: true }).catch(() => {});
       }
     }
 

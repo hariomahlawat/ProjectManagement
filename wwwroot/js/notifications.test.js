@@ -27,7 +27,7 @@ function notification(overrides = {}) {
   };
 }
 
-async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, latestNotificationId = '', pagePayload = null } = {}) {
+async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, latestNotificationId = '', pagePayload = null, countPayload = null } = {}) {
   const tokenMarkup = csrfToken == null
     ? ''
     : `<meta name="csrf-token" content="${csrfToken}">`;
@@ -114,6 +114,8 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
       };
     } else if (pathname === '/api/notifications' && pagePayload) {
       payload = pagePayload;
+    } else if (pathname.endsWith('/count') && countPayload) {
+      payload = countPayload;
     } else if (pathname.endsWith('/read')) {
       const ids = JSON.parse(options.body).ids;
       payload = {
@@ -698,5 +700,62 @@ test('notification realtime uses application-owned diagnostics instead of duplic
   assert.equal(configuredLogLevel, window.signalR.LogLevel.None);
   assert.equal(typeof handlers.reconnecting, 'function');
   assert.equal(typeof handlers.close, 'function');
+  dom.window.close();
+});
+
+async function backgroundRefresh(window) {
+  // Coming back online runs the same silent refresh as a realtime reconnect or a poll.
+  window.dispatchEvent(new window.Event('online'));
+  for (let i = 0; i < 4; i += 1) {
+    await new Promise(resolve => window.setTimeout(resolve, 0));
+  }
+}
+
+function pathsOf(requests, window) {
+  return requests.map(request => new URL(request.url, window.location.origin).pathname);
+}
+
+test('a background refresh skips the list when the counts show nothing changed', async () => {
+  const fixture = await createBell({
+    unreadCount: 3,
+    unseenCount: 2,
+    latestNotificationId: 17,
+    countPayload: { unreadCount: 3, unseenCount: 2, latestNotificationId: 17 },
+    pagePayload: { items: [], totalCount: 0, unreadCount: 0, unseenCount: 0 }
+  });
+  const { dom, window, document, requests } = fixture;
+
+  await backgroundRefresh(window);
+
+  const paths = pathsOf(requests, window);
+  assert.ok(paths.includes('/api/notifications/count'));
+  assert.ok(!paths.includes('/api/notifications'));
+  assert.equal(document.querySelectorAll('[data-notification-item]').length, 1);
+
+  dom.window.close();
+});
+
+test('a background refresh reloads the list when a newer notification exists', async () => {
+  const fixture = await createBell({
+    unreadCount: 3,
+    unseenCount: 2,
+    latestNotificationId: 17,
+    countPayload: { unreadCount: 4, unseenCount: 3, latestNotificationId: 18 },
+    pagePayload: {
+      items: [notification({ id: 18, title: 'Newer notification' }), notification()],
+      totalCount: 2,
+      unreadCount: 4,
+      unseenCount: 3,
+      latestNotificationId: 18
+    }
+  });
+  const { dom, window, document, requests } = fixture;
+
+  await backgroundRefresh(window);
+
+  assert.ok(pathsOf(requests, window).includes('/api/notifications'));
+  assert.equal(document.querySelector('[data-notification-title]').textContent, 'Newer notification');
+  assert.equal(document.querySelector('[data-notification-unread-count]').textContent, '3');
+
   dom.window.close();
 });

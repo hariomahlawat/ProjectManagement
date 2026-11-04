@@ -205,7 +205,7 @@ public static class NotificationApi
             userId,
             cancellationToken);
 
-        return Results.Ok(new NotificationCountDto(counts.UnreadCount, counts.UnseenCount));
+        return Results.Ok(new NotificationCountDto(counts.UnreadCount, counts.UnseenCount, counts.LatestNotificationId));
     }
 
     private static Task<IResult> MarkManyReadAsync(
