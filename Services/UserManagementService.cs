@@ -9,6 +9,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Services
 {
@@ -22,6 +23,7 @@ namespace ProjectManagement.Services
         private readonly IRoleNotificationService _roleNotifications;
         private readonly ILogger<UserManagementService> _logger;
         private readonly IAdminAuditService? _adminAudit;
+        private readonly TransactionalNotificationQueue _notificationQueue;
 
         public UserManagementService(
             ApplicationDbContext db,
@@ -31,7 +33,8 @@ namespace ProjectManagement.Services
             IAuditService audit,
             IRoleNotificationService roleNotifications,
             ILogger<UserManagementService>? logger = null,
-            IAdminAuditService? adminAudit = null)
+            IAdminAuditService? adminAudit = null,
+            TransactionalNotificationQueue? notificationQueue = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
@@ -41,6 +44,7 @@ namespace ProjectManagement.Services
             _roleNotifications = roleNotifications ?? throw new ArgumentNullException(nameof(roleNotifications));
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<UserManagementService>.Instance;
             _adminAudit = adminAudit;
+            _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
         }
 
         private static bool IsAdministrativelyActive(ApplicationUser user) =>
@@ -266,6 +270,17 @@ namespace ProjectManagement.Services
                     before: new { FullName = previousFullName, Rank = previousRank, AccountKind = previousAccountKind, Roles = previousRoles },
                     after: new { user.FullName, user.Rank, user.AccountKind, Roles = targetRoles.OrderBy(role => role).ToArray() });
 
+                // The role change and its notification commit together. A notification failure
+                // is contained by the queue and never fails or undoes the update.
+                if (toAdd.Length > 0 || toRemove.Length > 0)
+                {
+                    var actorUserId = GetCurrentActorUserId() ?? user.Id;
+                    await _notificationQueue.QueueAfterSaveAsync(
+                        "user role update",
+                        ct => _roleNotifications.NotifyRolesUpdatedAsync(user, toAdd, toRemove, actorUserId, ct),
+                        CancellationToken.None);
+                }
+
                 await transaction.CommitAsync();
             }
             catch (Exception ex)
@@ -273,27 +288,6 @@ namespace ProjectManagement.Services
                 _logger.LogError(ex, "Atomic user update failed for {UserId}.", userId);
                 await RestoreUserStateAsync(user, previousFullName, previousRank, previousAccountKind, previousRoles, transaction);
                 return Failure("The user could not be updated. Previous details and roles were retained.");
-            }
-
-            if (toAdd.Length > 0 || toRemove.Length > 0)
-            {
-                var actorUserId = GetCurrentActorUserId() ?? user.Id;
-                try
-                {
-                    await _roleNotifications.NotifyRolesUpdatedAsync(
-                        user,
-                        toAdd,
-                        toRemove,
-                        actorUserId,
-                        CancellationToken.None);
-                }
-                catch (Exception notificationError)
-                {
-                    _logger.LogWarning(
-                        notificationError,
-                        "User {UserId} was updated, but role-change notifications could not be delivered.",
-                        user.Id);
-                }
             }
 
             return IdentityResult.Success;

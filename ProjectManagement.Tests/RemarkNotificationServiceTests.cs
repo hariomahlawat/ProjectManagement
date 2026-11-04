@@ -363,8 +363,28 @@ public class RemarkNotificationServiceTests
         string? Summary,
         string? Fingerprint);
 
-    private sealed class TestNotificationPublisher : INotificationPublisher
+    private sealed class TestNotificationPublisher : INotificationPublisher, INotificationOutboxWriter
     {
+        public async Task<int> QueueAsync(
+            NotificationKind kind,
+            IReadOnlyCollection<string> recipientUserIds,
+            object payload,
+            string? module,
+            string? eventType,
+            string? scopeType,
+            string? scopeId,
+            int? projectId,
+            string? actorUserId,
+            string? route,
+            string? title,
+            string? summary,
+            string? fingerprint,
+            CancellationToken cancellationToken = default)
+        {
+            await PublishAsync(kind, recipientUserIds, payload, module, eventType, scopeType, scopeId, projectId, actorUserId, route, title, summary, fingerprint, cancellationToken);
+            return recipientUserIds.Count;
+        }
+
         public List<TestNotification> Events { get; } = new();
 
         public Task PublishAsync(

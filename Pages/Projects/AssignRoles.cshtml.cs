@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -22,18 +24,21 @@ namespace ProjectManagement.Pages.Projects
         private readonly ApplicationDbContext _db;
         private readonly UserManager<ApplicationUser> _users;
         private readonly IAuditService _audit;
-        private readonly INotificationPublisher _notifications;
+        private readonly INotificationOutboxWriter _notifications;
+        private readonly TransactionalNotificationQueue _notificationQueue;
 
         public AssignRolesModel(
             ApplicationDbContext db,
             UserManager<ApplicationUser> users,
             IAuditService audit,
-            INotificationPublisher notifications)
+            INotificationOutboxWriter notifications,
+            TransactionalNotificationQueue? notificationQueue = null)
         {
             _db = db;
             _users = users;
             _audit = audit;
             _notifications = notifications;
+            _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
         }
 
         [BindProperty]
@@ -104,9 +109,17 @@ namespace ProjectManagement.Pages.Projects
             project.HodUserId = string.IsNullOrWhiteSpace(Input.HodUserId) ? null : Input.HodUserId;
             project.LeadPoUserId = string.IsNullOrWhiteSpace(Input.PoUserId) ? null : Input.PoUserId;
 
+            var currentUserId = _users.GetUserId(User);
+            var currentUserName = User.Identity?.Name;
+
             try
             {
-                await _db.SaveChangesAsync();
+                // The assignment and its notification commit together. A notification failure is
+                // contained by the queue and never fails or undoes the assignment.
+                await _notificationQueue.SaveAndQueueAsync(
+                    "project officer assignment",
+                    ct => QueueProjectOfficerChangeAsync(project, previousPo, currentUserId, ct),
+                    CancellationToken.None);
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -114,9 +127,6 @@ namespace ProjectManagement.Pages.Projects
                 TempData["OpenOffcanvas"] = "assign-roles";
                 return RedirectToPage("/Projects/Overview", new { id = project.Id });
             }
-
-            var currentUserId = _users.GetUserId(User);
-            var currentUserName = User.Identity?.Name;
 
             await _audit.LogAsync(
                 "Projects.AssignRoles",
@@ -132,11 +142,6 @@ namespace ProjectManagement.Pages.Projects
                 userId: currentUserId,
                 userName: currentUserName
             );
-
-            await PublishProjectOfficerChangeAsync(
-                project,
-                previousPo,
-                currentUserId);
 
             TempData["Flash"] = "Roles updated.";
 
@@ -193,10 +198,11 @@ namespace ProjectManagement.Pages.Projects
             return user.Email ?? user.Id;
         }
 
-        private async Task PublishProjectOfficerChangeAsync(
+        private async Task QueueProjectOfficerChangeAsync(
             Project project,
             string? previousPoUserId,
-            string? actorUserId)
+            string? actorUserId,
+            CancellationToken cancellationToken)
         {
             if (string.Equals(previousPoUserId, project.LeadPoUserId, StringComparison.OrdinalIgnoreCase))
             {
@@ -262,7 +268,7 @@ namespace ProjectManagement.Pages.Projects
                     currentPoName ?? "Unassigned");
             }
 
-            await _notifications.PublishAsync(
+            await _notifications.QueueAsync(
                 NotificationKind.ProjectAssignmentChanged,
                 recipients,
                 payload,
@@ -275,7 +281,8 @@ namespace ProjectManagement.Pages.Projects
                 route: $"/projects/overview/{project.Id}",
                 title: title,
                 summary: summary,
-                fingerprint: null);
+                fingerprint: null,
+                cancellationToken: cancellationToken);
         }
 
         private async Task<string?> GetUserDisplayNameAsync(string? userId)
