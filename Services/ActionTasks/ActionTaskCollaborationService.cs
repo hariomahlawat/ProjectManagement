@@ -11,6 +11,7 @@ using ProjectManagement.Application.Security;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.ActionTasks;
@@ -39,6 +40,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     private readonly IProtectedFileUrlBuilder _urlBuilder;
     private readonly IActionTrackerClock _clock;
     private readonly IActionTaskNotificationService? _notifications;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public ActionTaskCollaborationService(
         ApplicationDbContext context,
@@ -47,7 +49,8 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         IFileSecurityValidator fileSecurityValidator,
         IProtectedFileUrlBuilder urlBuilder,
         IActionTrackerClock clock,
-        IActionTaskNotificationService? notifications = null)
+        IActionTaskNotificationService? notifications = null,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _context = context;
         _permission = permission;
@@ -56,6 +59,28 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         _urlBuilder = urlBuilder;
         _clock = clock;
         _notifications = notifications;
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(context);
+    }
+
+    // Saves the pending change and writes its notification in the open transaction, or in a
+    // transaction of its own. A notification failure is contained by the queue and never fails
+    // or undoes the change.
+    private async Task SaveWithNotificationAsync(
+        string operation,
+        Func<IActionTaskNotificationService, CancellationToken, Task> notify,
+        CancellationToken cancellationToken)
+    {
+        if (_notifications is null)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var notifications = _notifications;
+        await _notificationQueue.SaveAndQueueAsync(
+            $"action task {operation}",
+            ct => notify(notifications, ct),
+            cancellationToken);
     }
 
     // SECTION: Add update with optional attachments
@@ -115,8 +140,9 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         // SECTION: Validate all uploaded files before persisting update
         ValidateAttachmentCollection(files);
 
-        // These methods own physical files and publish notifications after committing.
-        // Preserve their independent transaction boundary rather than joining an outer transaction.
+        // These methods own physical files, which they remove again if the transaction does not
+        // commit. Preserve their independent transaction boundary rather than joining an outer
+        // transaction.
         if (_context.Database.IsRelational() && _context.Database.CurrentTransaction is not null)
         {
             throw new InvalidOperationException("Task updates cannot run inside an existing transaction.");
@@ -152,23 +178,18 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
                 }
             }
 
+            // SECTION: In-app notification, written in the same transaction before it commits
+            await SaveWithNotificationAsync(
+                "AddUpdateAsync",
+                (n, ct) => n.NotifyProgressUpdatedAsync(task, update, userId, ct),
+                cancellationToken);
+
             await transaction.CommitAsync(cancellationToken);
-
-            // SECTION: In-app notification after successful transaction commit
-            if (_notifications is not null)
-            {
-                await _notifications.NotifyProgressUpdatedAsync(task, update, userId, cancellationToken);
-            }
-
             return update;
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
-            foreach (var filePath in committedFiles)
-            {
-                SafeDelete(filePath);
-            }
+            await DiscardUncommittedFilesAsync(transaction, committedFiles);
 
             throw;
         }
@@ -198,8 +219,9 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         ValidateAttachmentCollection(files);
         ValidateAtomicStatusChange(task, requestedStatus, userId, role, body);
 
-        // These methods own physical files and publish notifications after committing.
-        // Preserve their independent transaction boundary rather than joining an outer transaction.
+        // These methods own physical files, which they remove again if the transaction does not
+        // commit. Preserve their independent transaction boundary rather than joining an outer
+        // transaction.
         if (_context.Database.IsRelational() && _context.Database.CurrentTransaction is not null)
         {
             throw new InvalidOperationException("Task updates cannot run inside an existing transaction.");
@@ -250,51 +272,45 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
                 }
             }
 
-            await transaction.CommitAsync(cancellationToken);
-
-            // SECTION: In-app notification after successful transaction commit
-            if (_notifications is not null && update is not null)
+            // SECTION: In-app notification, written in the same transaction before it commits
+            if (update is not null)
             {
-                if (hasStatusChange)
-                {
-                    if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+                await SaveWithNotificationAsync(
+                    "AddUpdateAndMaybeChangeStatusAsync",
+                    async (n, ct) =>
                     {
-                        await _notifications.NotifyTaskBlockedAsync(task, userId, cancellationToken);
-                    }
-                    else if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-                    {
-                        await _notifications.NotifySubmittedForClosureAsync(task, userId, cancellationToken);
-                    }
-                    else
-                    {
-                        await _notifications.NotifyStatusChangedAsync(task, previousStatus, task.Status, userId, cancellationToken);
-                    }
-                }
-                else
-                {
-                    await _notifications.NotifyProgressUpdatedAsync(task, update, userId, cancellationToken);
-                }
+                        if (!hasStatusChange)
+                        {
+                            await n.NotifyProgressUpdatedAsync(task, update, userId, ct);
+                        }
+                        else if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+                        {
+                            await n.NotifyTaskBlockedAsync(task, userId, ct);
+                        }
+                        else if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+                        {
+                            await n.NotifySubmittedForClosureAsync(task, userId, ct);
+                        }
+                        else
+                        {
+                            await n.NotifyStatusChangedAsync(task, previousStatus, task.Status, userId, ct);
+                        }
+                    },
+                    cancellationToken);
             }
 
+            await transaction.CommitAsync(cancellationToken);
             return update;
         }
         catch (DbUpdateConcurrencyException)
         {
-            await transaction.RollbackAsync(cancellationToken);
-            foreach (var filePath in committedFiles)
-            {
-                SafeDelete(filePath);
-            }
+            await DiscardUncommittedFilesAsync(transaction, committedFiles);
 
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
-            foreach (var filePath in committedFiles)
-            {
-                SafeDelete(filePath);
-            }
+            await DiscardUncommittedFilesAsync(transaction, committedFiles);
 
             throw;
         }
@@ -348,12 +364,16 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             NewValue = normalizedBody,
             Remarks = $"{ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)} remark edited. [update:{update.Id}]"
         });
-        await _context.SaveChangesAsync(cancellationToken);
-
-        if (_notifications is not null
-            && string.Equals(update.UpdateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(update.UpdateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase))
         {
-            await _notifications.NotifyConferenceDirectionEditedAsync(task, update, userId, cancellationToken);
+            await SaveWithNotificationAsync(
+                "EditRemarkAsync",
+                (n, ct) => n.NotifyConferenceDirectionEditedAsync(task, update, userId, ct),
+                cancellationToken);
+        }
+        else
+        {
+            await _context.SaveChangesAsync(cancellationToken);
         }
     }
 
@@ -398,12 +418,16 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             NewValue = null,
             Remarks = $"{ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)} remark deleted. [update:{update.Id}]"
         });
-        await _context.SaveChangesAsync(cancellationToken);
-
-        if (_notifications is not null
-            && string.Equals(update.UpdateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(update.UpdateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase))
         {
-            await _notifications.NotifyConferenceDirectionDeletedAsync(task, update, userId, cancellationToken);
+            await SaveWithNotificationAsync(
+                "DeleteRemarkAsync",
+                (n, ct) => n.NotifyConferenceDirectionDeletedAsync(task, update, userId, ct),
+                cancellationToken);
+        }
+        else
+        {
+            await _context.SaveChangesAsync(cancellationToken);
         }
     }
 
@@ -725,6 +749,23 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     {
         var relative = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
         return Path.Combine(_uploadRootProvider.RootPath, relative);
+    }
+
+    // Rolls back and removes the files written for the update, unless the transaction already
+    // committed: committed attachment rows point at those files. The rollback ignores the request
+    // token so a cancelled request still cleans up.
+    private static async Task DiscardUncommittedFilesAsync(RelationalTransactionScope transaction, IReadOnlyList<string> files)
+    {
+        if (transaction.IsCommitted)
+        {
+            return;
+        }
+
+        await transaction.RollbackAsync(CancellationToken.None);
+        foreach (var filePath in files)
+        {
+            SafeDelete(filePath);
+        }
     }
 
     private static void SafeDelete(string path)

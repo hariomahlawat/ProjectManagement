@@ -101,6 +101,23 @@ public sealed class TransactionalNotificationQueue
         }
     }
 
+    /// <summary>
+    /// Saves pending business changes and queues their notifications in one transaction, then
+    /// commits it. Use it where the change would otherwise be a single
+    /// <c>SaveChangesAsync</c>. Inside an outer transaction this becomes a savepoint and the
+    /// outer transaction decides the commit.
+    /// </summary>
+    public async Task<bool> SaveAndQueueAsync(
+        string operation,
+        Func<CancellationToken, Task> queue,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        var queued = await QueueAfterSaveAsync(operation, queue, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return queued;
+    }
+
     private async Task DiscardAsync(RelationalTransactionScope savepoint)
     {
         await savepoint.RollbackAsync(CancellationToken.None);

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Services.ActionTasks;
 
@@ -22,17 +23,40 @@ public class ActionTaskService : IActionTaskService
     private readonly ActionTaskPermissionService _permission;
     private readonly IActionTrackerClock _clock;
     private readonly IActionTaskNotificationService? _notifications;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public ActionTaskService(
         ApplicationDbContext context,
         ActionTaskPermissionService permission,
         IActionTrackerClock clock,
-        IActionTaskNotificationService? notifications = null)
+        IActionTaskNotificationService? notifications = null,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _context = context;
         _permission = permission;
         _clock = clock;
         _notifications = notifications;
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(context);
+    }
+
+    // Saves the change and writes its notification in one transaction. A notification failure
+    // is contained by the queue and never fails or undoes the change.
+    private async Task SaveWithNotificationAsync(
+        string operation,
+        Func<IActionTaskNotificationService, CancellationToken, Task> notify,
+        CancellationToken cancellationToken)
+    {
+        if (_notifications is null)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var notifications = _notifications;
+        await _notificationQueue.SaveAndQueueAsync(
+            $"action task {operation}",
+            ct => notify(notifications, ct),
+            cancellationToken);
     }
 
     // SECTION: Task read APIs
@@ -167,14 +191,11 @@ public class ActionTaskService : IActionTaskService
             remarks: normalizedAuditRemarks,
             task: task));
 
-        // SECTION: Persistence
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // SECTION: In-app notification after successful persistence
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyTaskAssignedAsync(task, task.CreatedByUserId, cancellationToken);
-        }
+        // SECTION: Persistence, with the in-app notification in the same transaction
+        await SaveWithNotificationAsync(
+            "CreateTaskAsync",
+            (n, ct) => n.NotifyTaskAssignedAsync(task, task.CreatedByUserId, ct),
+            cancellationToken);
 
         return task;
     }
@@ -296,24 +317,21 @@ public class ActionTaskService : IActionTaskService
         // SECTION: Persistence
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await SaveWithNotificationAsync("UpdateStatusAsync", async (n, ct) =>
+            {
+                if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+                {
+                    await n.NotifyTaskBlockedAsync(task, userId, ct);
+                }
+                else
+                {
+                    await n.NotifyStatusChangedAsync(task, oldStatus, task.Status, userId, ct);
+                }
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
-        }
-
-        // SECTION: In-app notification after successful persistence
-        if (_notifications is not null)
-        {
-            if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
-            {
-                await _notifications.NotifyTaskBlockedAsync(task, userId, cancellationToken);
-            }
-            else
-            {
-                await _notifications.NotifyStatusChangedAsync(task, oldStatus, task.Status, userId, cancellationToken);
-            }
         }
     }
 
@@ -371,17 +389,14 @@ public class ActionTaskService : IActionTaskService
         // SECTION: Persistence
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await SaveWithNotificationAsync("SubmitTaskAsync", async (n, ct) =>
+            {
+                await n.NotifySubmittedForClosureAsync(task, userId, ct);
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
-        }
-
-        // SECTION: In-app notification after successful persistence
-        if (_notifications is not null)
-        {
-            await _notifications.NotifySubmittedForClosureAsync(task, userId, cancellationToken);
         }
     }
 
@@ -423,16 +438,14 @@ public class ActionTaskService : IActionTaskService
 
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await SaveWithNotificationAsync("ReturnTaskForActionAsync", async (n, ct) =>
+            {
+                await n.NotifyStatusChangedAsync(task, oldStatus, task.Status, userId, ct);
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
-        }
-
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyStatusChangedAsync(task, oldStatus, task.Status, userId, cancellationToken);
         }
     }
 
@@ -498,16 +511,14 @@ public class ActionTaskService : IActionTaskService
 
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await SaveWithNotificationAsync("CloseTaskCoreAsync", async (n, ct) =>
+            {
+                await n.NotifyTaskClosedAsync(task, closedByUserId, closedByCommandAuthority: true, ct);
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
-        }
-
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyTaskClosedAsync(task, closedByUserId, closedByCommandAuthority: true, cancellationToken);
         }
     }
 
@@ -557,16 +568,14 @@ public class ActionTaskService : IActionTaskService
 
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await SaveWithNotificationAsync("UpdateTaskDetailsAsync", async (n, ct) =>
+            {
+                await n.NotifyTaskDetailsUpdatedAsync(task, userId, ct);
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
-        }
-
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyTaskDetailsUpdatedAsync(task, userId, cancellationToken);
         }
     }
 
@@ -603,16 +612,14 @@ public class ActionTaskService : IActionTaskService
 
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await SaveWithNotificationAsync("ReassignTaskAsync", async (n, ct) =>
+            {
+                await n.NotifyTaskReassignedAsync(task, oldAssignee, userId, ct);
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
-        }
-
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyTaskReassignedAsync(task, oldAssignee, userId, cancellationToken);
         }
     }
 
@@ -652,16 +659,14 @@ public class ActionTaskService : IActionTaskService
 
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await SaveWithNotificationAsync("UpdateTaskPriorityAsync", async (n, ct) =>
+            {
+                await n.NotifyProgressUpdatedAsync(task, update, userId, ct);
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
-        }
-
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyProgressUpdatedAsync(task, update, userId, cancellationToken);
         }
     }
 
@@ -712,17 +717,14 @@ public class ActionTaskService : IActionTaskService
         // SECTION: Persistence
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            await SaveWithNotificationAsync("UpdateTaskDateAsync", async (n, ct) =>
+            {
+                await n.NotifyDueDateChangedAsync(task, oldDate, normalizedNewDate, userId, ct);
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
-        }
-
-        // SECTION: In-app notification after successful persistence
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyDueDateChangedAsync(task, oldDate, normalizedNewDate, userId, cancellationToken);
         }
     }
 

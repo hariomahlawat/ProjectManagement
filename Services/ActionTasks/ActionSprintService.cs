@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Services.ActionTasks;
 
@@ -19,19 +20,22 @@ public class ActionSprintService
     private readonly ActionSprintWorkflowPolicy _workflow;
     private readonly IActionTrackerClock _clock;
     private readonly IActionTaskNotificationService? _notifications;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public ActionSprintService(
         ApplicationDbContext context,
         ActionTaskPermissionService permission,
         ActionSprintWorkflowPolicy workflow,
         IActionTrackerClock clock,
-        IActionTaskNotificationService? notifications = null)
+        IActionTaskNotificationService? notifications = null,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _context = context;
         _permission = permission;
         _workflow = workflow;
         _clock = clock;
         _notifications = notifications;
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(context);
     }
 
 
@@ -320,13 +324,11 @@ public class ActionSprintService
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
         AddTaskSprintAudit(task.Id, "TaskAssignedToSprint", userId, role, oldValue, DescribeTaskBucket(task), $"Assigned to sprint: {sprint.Name}; responsible person selected.");
 
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // SECTION: In-app notification after successful persistence
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyTaskAssignedAsync(task, userId, cancellationToken);
-        }
+        // SECTION: Persistence, with the in-app notification in the same transaction
+        await SaveWithNotificationAsync(
+            "AssignBacklogItemToSprintAsync",
+            (n, ct) => n.NotifyTaskAssignedAsync(task, userId, ct),
+            cancellationToken);
 
         return task;
     }
@@ -357,13 +359,11 @@ public class ActionSprintService
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
         AddTaskSprintAudit(task.Id, "OutsideSprintTaskAssignedToSprint", userId, role, oldValue, DescribeTaskBucket(task), $"Added Outside Sprint task to sprint: {sprint.Name}; responsible person retained.");
 
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // SECTION: In-app notification after successful persistence
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyAddedToSprintAsync(task, userId, cancellationToken);
-        }
+        // SECTION: Persistence, with the in-app notification in the same transaction
+        await SaveWithNotificationAsync(
+            "AssignOutsideSprintTaskToSprintAsync",
+            (n, ct) => n.NotifyAddedToSprintAsync(task, userId, ct),
+            cancellationToken);
 
         return task;
     }
@@ -386,13 +386,11 @@ public class ActionSprintService
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
         AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, DescribeTaskBucket(task), AppendRemark("Removed from sprint and kept assigned as Outside Sprint work.", remarks));
 
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // SECTION: In-app notification after successful persistence
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyRemovedFromSprintAsync(task, userId, cancellationToken);
-        }
+        // SECTION: Persistence, with the in-app notification in the same transaction
+        await SaveWithNotificationAsync(
+            "RemoveTaskFromSprintKeepAssignedAsync",
+            (n, ct) => n.NotifyRemovedFromSprintAsync(task, userId, ct),
+            cancellationToken);
 
         return task;
     }
@@ -424,13 +422,11 @@ public class ActionSprintService
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
         AddTaskSprintAudit(task.Id, "TaskMovedToBacklogRemoveAssignee", userId, role, oldValue, DescribeTaskBucket(task), AppendRemark("Moved to backlog and removed assignee.", remarks));
 
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // SECTION: In-app notification after successful persistence
-        if (_notifications is not null)
-        {
-            await _notifications.NotifyMovedToBacklogAsync(task, previousAssigneeUserId, userId, cancellationToken);
-        }
+        // SECTION: Persistence, with the in-app notification in the same transaction
+        await SaveWithNotificationAsync(
+            "MoveTaskToBacklogRemoveAssigneeAsync",
+            (n, ct) => n.NotifyMovedToBacklogAsync(task, previousAssigneeUserId, userId, ct),
+            cancellationToken);
 
         return task;
     }
@@ -547,6 +543,26 @@ public class ActionSprintService
     private void ApplySprintRowVersion(ActionSprint sprint, byte[] rowVersion)
     {
         _context.Entry(sprint).Property(x => x.RowVersion).OriginalValue = rowVersion;
+    }
+
+    // Saves the change and writes its notification in one transaction. A notification failure
+    // is contained by the queue and never fails or undoes the change.
+    private async Task SaveWithNotificationAsync(
+        string operation,
+        Func<IActionTaskNotificationService, CancellationToken, Task> notify,
+        CancellationToken cancellationToken)
+    {
+        if (_notifications is null)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var notifications = _notifications;
+        await _notificationQueue.SaveAndQueueAsync(
+            $"action sprint {operation}",
+            ct => notify(notifications, ct),
+            cancellationToken);
     }
 
     private async Task SaveSprintChangesAsync(CancellationToken cancellationToken)
