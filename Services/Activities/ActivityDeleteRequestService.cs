@@ -8,8 +8,10 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Notifications;
 using Npgsql;
 
 namespace ProjectManagement.Services.Activities;
@@ -23,6 +25,7 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
     private readonly IUserContext _userContext;
     private readonly IClock _clock;
     private readonly ILogger<ActivityDeleteRequestService> _logger;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public ActivityDeleteRequestService(
         ApplicationDbContext dbContext,
@@ -30,7 +33,8 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
         IActivityNotificationService notificationService,
         IUserContext userContext,
         IClock clock,
-        ILogger<ActivityDeleteRequestService> logger)
+        ILogger<ActivityDeleteRequestService> logger,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _activityService = activityService ?? throw new ArgumentNullException(nameof(activityService));
@@ -38,6 +42,7 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(dbContext);
     }
 
     public async Task<int> RequestAsync(int activityId, string? reason, CancellationToken cancellationToken = default)
@@ -80,6 +85,8 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
             Reason = trimmedReason
         };
 
+        // The request and its notification commit together (see TransactionalNotificationQueue).
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_dbContext.Database, cancellationToken);
         await _dbContext.ActivityDeleteRequests.AddAsync(request, cancellationToken);
         try
         {
@@ -110,7 +117,11 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
             Normalize(requester?.Email),
             request.Reason);
 
-        await NotifyAsync(() => _notificationService.NotifyDeleteRequestedAsync(context, cancellationToken));
+        await _notificationQueue.QueueAfterSaveAsync(
+            "activity delete request",
+            ct => _notificationService.NotifyDeleteRequestedAsync(context, ct),
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return request.Id;
     }
@@ -146,8 +157,12 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
             throw new InvalidOperationException("The associated activity could not be found.");
         }
 
+        // DeleteAsync commits the soft-delete before it removes attachment files, so the record
+        // can never be left half-active if file cleanup fails. It therefore runs on its own,
+        // before the transaction below; only the approval record and its notification share one.
         await _activityService.DeleteAsync(request.ActivityId, cancellationToken);
 
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_dbContext.Database, cancellationToken);
         request.ApprovedAtUtc = _clock.UtcNow;
         request.ApprovedByUserId = approverId;
         request.RejectedAtUtc = null;
@@ -156,7 +171,11 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var context = CreateNotificationContext(request);
-        await NotifyAsync(() => _notificationService.NotifyDeleteApprovedAsync(context, approverId, cancellationToken));
+        await _notificationQueue.QueueAfterSaveAsync(
+            "activity delete approval",
+            ct => _notificationService.NotifyDeleteApprovedAsync(context, approverId, ct),
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task RejectAsync(int requestId, string? reason, CancellationToken cancellationToken = default)
@@ -185,6 +204,7 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
             throw new InvalidOperationException("The delete request is no longer pending.");
         }
 
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_dbContext.Database, cancellationToken);
         request.RejectedAtUtc = _clock.UtcNow;
         request.RejectedByUserId = approverId;
         request.ApprovedAtUtc = null;
@@ -194,7 +214,11 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
 
         var context = CreateNotificationContext(request);
         var notes = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-        await NotifyAsync(() => _notificationService.NotifyDeleteRejectedAsync(context, approverId, notes ?? string.Empty, cancellationToken));
+        await _notificationQueue.QueueAfterSaveAsync(
+            "activity delete rejection",
+            ct => _notificationService.NotifyDeleteRejectedAsync(context, approverId, notes ?? string.Empty, ct),
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ActivityDeleteRequestSummary>> GetPendingAsync(CancellationToken cancellationToken = default)
@@ -219,22 +243,6 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
             .ToListAsync(cancellationToken);
 
         return pending;
-    }
-
-    private async Task NotifyAsync(Func<Task> notification)
-    {
-        try
-        {
-            await notification();
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish activity delete notification.");
-        }
     }
 
     private void EnsureCanRequest()

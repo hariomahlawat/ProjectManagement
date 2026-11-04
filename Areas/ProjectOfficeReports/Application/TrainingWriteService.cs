@@ -7,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using DomainTraining = ProjectManagement.Areas.ProjectOfficeReports.Domain.Training;
 using DomainTrainingCounters = ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounters;
@@ -23,17 +25,20 @@ public sealed class TrainingWriteService
     private readonly IClock _clock;
     private readonly ITrainingNotificationService _notifications;
     private readonly ILogger<TrainingWriteService> _logger;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public TrainingWriteService(
         ApplicationDbContext db,
         IClock clock,
         ITrainingNotificationService notifications,
-        ILogger<TrainingWriteService> logger)
+        ILogger<TrainingWriteService> logger,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
     }
 
     public async Task<TrainingMutationResult> CreateAsync(TrainingMutationCommand command, string userId, CancellationToken cancellationToken)
@@ -601,6 +606,9 @@ public sealed class TrainingWriteService
             RowVersion = Guid.NewGuid().ToByteArray()
         };
 
+        // The request and its notification commit together (see TransactionalNotificationQueue);
+        // a failed save returns its failure result and disposing the scope rolls back.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         _db.TrainingDeleteRequests.Add(request);
 
         try
@@ -631,22 +639,11 @@ public sealed class TrainingWriteService
         }
 
         var notificationContext = CreateNotificationContext(training, request);
-
-        try
-        {
-            await _notifications.NotifyDeleteRequestedAsync(notificationContext, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to publish delete request notification for training {TrainingId}.",
-                trainingId);
-        }
+        await _notificationQueue.QueueAfterSaveAsync(
+            "training delete request",
+            ct => _notifications.NotifyDeleteRequestedAsync(notificationContext, ct),
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return TrainingDeleteRequestResult.Success(request.Id);
     }
@@ -722,6 +719,8 @@ public sealed class TrainingWriteService
         request.DecisionNotes = null;
         request.RowVersion = Guid.NewGuid().ToByteArray();
 
+        // The deletion, the decision and its notification commit together.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -751,21 +750,11 @@ public sealed class TrainingWriteService
                 "The delete request could not be approved. Please try again.");
         }
 
-        try
-        {
-            await _notifications.NotifyDeleteApprovedAsync(notificationContext, approverUserId, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to publish approval notification for training {TrainingId}.",
-                trainingId);
-        }
+        await _notificationQueue.QueueAfterSaveAsync(
+            "training delete approval",
+            ct => _notifications.NotifyDeleteApprovedAsync(notificationContext, approverUserId, ct),
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return TrainingDeleteDecisionResult.Success();
     }
@@ -835,6 +824,8 @@ public sealed class TrainingWriteService
         request.DecisionNotes = normalizedReason;
         request.RowVersion = Guid.NewGuid().ToByteArray();
 
+        // The decision and its notification commit together.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -862,25 +853,11 @@ public sealed class TrainingWriteService
                 "The delete request could not be rejected. Please try again.");
         }
 
-        try
-        {
-            await _notifications.NotifyDeleteRejectedAsync(
-                notificationContext,
-                approverUserId,
-                normalizedReason,
-                cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to publish rejection notification for delete request {RequestId}.",
-                requestId);
-        }
+        await _notificationQueue.QueueAfterSaveAsync(
+            "training delete rejection",
+            ct => _notifications.NotifyDeleteRejectedAsync(notificationContext, approverUserId, normalizedReason, ct),
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return TrainingDeleteDecisionResult.Success();
     }
