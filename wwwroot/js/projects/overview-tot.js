@@ -189,7 +189,13 @@
             populateForm(payload.input); renderSummary(payload); updateCard(payload.card);
             if (editButton instanceof HTMLButtonElement) toggle(editButton, !payload.canManage || payload.pendingApproval);
             loaded = true;
-        } catch (error) { message(globalError, error instanceof Error ? error.message : 'Unable to load Transfer of Technology details.'); }
+        } catch (error) {
+            // The form was not filled from the server, so editing it could overwrite the
+            // stored details with defaults. Hide Edit until a later load succeeds.
+            loaded = false;
+            toggle(editButton, true);
+            message(globalError, error instanceof Error ? error.message : 'Unable to load Transfer of Technology details.');
+        }
         finally { setLoading(false); }
     }
 
@@ -256,6 +262,7 @@
         if (mode !== 'edit') return;
 
         await lastLoad;
+        if (!loaded) return; // the load error stays on screen
         const canEdit = editButton instanceof HTMLButtonElement && !editButton.classList.contains('d-none');
         if (canEdit && form instanceof HTMLFormElement) { clearMessages(); setEditMode(true); }
     })();
