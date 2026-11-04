@@ -229,7 +229,8 @@
         } catch (error) { message(remarkError, error instanceof Error ? error.message : 'Unable to save the remark.'); }
     });
 
-    offcanvas.addEventListener('show.bs.offcanvas', () => { setRemarkMode(false); setEditMode(false); loadDetails(); });
+    let lastLoad = Promise.resolve();
+    offcanvas.addEventListener('show.bs.offcanvas', () => { setRemarkMode(false); setEditMode(false); lastLoad = loadDetails(); });
     offcanvas.addEventListener('hide.bs.offcanvas', (event) => {
         const hasRemarkDraft = remarking && (remarkBody?.value?.trim()?.length || 0) > 0;
         if ((hasUnsavedDetails() || hasRemarkDraft) &&
@@ -237,4 +238,25 @@
             event.preventDefault();
         }
     });
+
+    // ?tot=open opens the drawer; ?tot=edit also starts editing when this user may edit and
+    // nothing is pending. The old /Projects/Tot/Edit address redirects here with ?tot=edit.
+    (async () => {
+        let mode = null;
+        try { mode = new URLSearchParams(window.location.search).get('tot'); } catch { mode = null; }
+        if (mode !== 'open' && mode !== 'edit') return;
+
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('tot');
+            window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+        } catch { /* leave the address as it is */ }
+
+        bootstrap.Offcanvas.getOrCreateInstance(offcanvas).show();
+        if (mode !== 'edit') return;
+
+        await lastLoad;
+        const canEdit = editButton instanceof HTMLButtonElement && !editButton.classList.contains('d-none');
+        if (canEdit && form instanceof HTMLFormElement) { clearMessages(); setEditMode(true); }
+    })();
 })();
