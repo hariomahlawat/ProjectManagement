@@ -102,6 +102,46 @@ public sealed class DeleteRequestNotificationAtomicityTests : IAsyncLifetime
         Assert.Equal(0, await verify.NotificationDispatches.CountAsync());
     }
 
+    [Fact]
+    public async Task ActivityDeleteApproval_CancelledAfterTheDeletion_StillRecordsTheDecision()
+    {
+        // DeleteAsync commits the soft-delete before the approval transaction starts. If a
+        // cancellation then rolled the approval back, the activity would stay deleted with its
+        // request pending, and retrying would fail because the activity is already deleted.
+        var activityId = await SeedActivityAsync();
+        int requestId;
+        await using (var setup = new ApplicationDbContext(_options))
+        {
+            var request = new ActivityDeleteRequest
+            {
+                ActivityId = activityId,
+                RequestedByUserId = "requester",
+                RequestedAtUtc = DateTimeOffset.UtcNow,
+                Reason = "duplicate",
+            };
+            setup.ActivityDeleteRequests.Add(request);
+            await setup.SaveChangesAsync();
+            requestId = request.Id;
+        }
+
+        await using var db = new ApplicationDbContext(_options);
+        using var cancellation = new CancellationTokenSource();
+        var service = new ActivityDeleteRequestService(
+            db,
+            new SoftDeletingActivityService(db),
+            new CancellingApprovalNotifier(db, cancellation),
+            new TestUserContext("hod", "HoD"),
+            FakeClock.AtUtc(DateTimeOffset.UtcNow),
+            NullLogger<ActivityDeleteRequestService>.Instance);
+
+        await service.ApproveAsync(requestId, cancellation.Token);
+
+        await using var verify = new ApplicationDbContext(_options);
+        Assert.True((await verify.Activities.SingleAsync()).IsDeleted);
+        Assert.NotNull((await verify.ActivityDeleteRequests.SingleAsync()).ApprovedAtUtc);
+        Assert.Equal(1, await verify.NotificationDispatches.CountAsync());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -291,6 +331,46 @@ public sealed class DeleteRequestNotificationAtomicityTests : IAsyncLifetime
 
         public Task NotifyDeleteRejectedAsync(ActivityDeleteNotificationContext context, string approverUserId, string decisionNotes, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+    }
+
+    /// <summary>Cancels the caller's request while the approval notification is being written.</summary>
+    private sealed class CancellingApprovalNotifier(ApplicationDbContext db, CancellationTokenSource cancellation) : IActivityNotificationService
+    {
+        public Task NotifyDeleteApprovedAsync(ActivityDeleteNotificationContext context, string approverUserId, CancellationToken cancellationToken)
+        {
+            cancellation.Cancel();
+            cancellationToken.ThrowIfCancellationRequested();
+            db.NotificationDispatches.Add(Dispatch(NotificationKind.ActivityDeleteApproved));
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyDeleteRequestedAsync(ActivityDeleteNotificationContext context, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task NotifyDeleteRejectedAsync(ActivityDeleteNotificationContext context, string approverUserId, string decisionNotes, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>Commits the soft-delete on its own, as ActivityService.DeleteAsync does.</summary>
+    private sealed class SoftDeletingActivityService(ApplicationDbContext db) : IActivityService
+    {
+        public async Task DeleteAsync(int activityId, CancellationToken cancellationToken = default)
+        {
+            var activity = await db.Activities.SingleAsync(a => a.Id == activityId, cancellationToken);
+            activity.IsDeleted = true;
+            activity.DeletedAtUtc = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        public Task<Activity> CreateAsync(ActivityInput input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Activity> UpdateAsync(int activityId, ActivityInput input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Activity?> GetAsync(int activityId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Activity>> ListByTypeAsync(int activityTypeId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ActivityAttachment> AddAttachmentAsync(int activityId, ActivityAttachmentUpload upload, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task RemoveAttachmentAsync(int attachmentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class QueueingTrainingNotifier(ApplicationDbContext db, bool fail) : ITrainingNotificationService

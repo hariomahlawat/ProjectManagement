@@ -162,20 +162,24 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
         // before the transaction below; only the approval record and its notification share one.
         await _activityService.DeleteAsync(request.ActivityId, cancellationToken);
 
-        await using var transaction = await RelationalTransactionScope.CreateAsync(_dbContext.Database, cancellationToken);
+        // The deletion is now committed and cannot be undone, so the decision must be recorded
+        // even if the caller cancels: rolling it back would leave a deleted activity with a
+        // pending request that can no longer be approved. Cancellation is not honoured past here.
+        var completion = CancellationToken.None;
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_dbContext.Database, completion);
         request.ApprovedAtUtc = _clock.UtcNow;
         request.ApprovedByUserId = approverId;
         request.RejectedAtUtc = null;
         request.RejectedByUserId = null;
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.SaveChangesAsync(completion);
 
         var context = CreateNotificationContext(request);
         await _notificationQueue.QueueAfterSaveAsync(
             "activity delete approval",
             ct => _notificationService.NotifyDeleteApprovedAsync(context, approverId, ct),
-            cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            completion);
+        await transaction.CommitAsync(completion);
     }
 
     public async Task RejectAsync(int requestId, string? reason, CancellationToken cancellationToken = default)
