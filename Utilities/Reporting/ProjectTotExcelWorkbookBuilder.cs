@@ -162,7 +162,10 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
             ? "(not set)"
             : context.Filter.SearchTerm;
 
-        worksheet.Range(metadataRow, 1, metadataRow + 7, 1).Style.Font.Bold = true;
+        worksheet.Cell(metadataRow + 8, 1).Value = "Other filters";
+        worksheet.Cell(metadataRow + 8, 2).Value = FormatOtherFilters(context.Filter);
+
+        worksheet.Range(metadataRow, 1, metadataRow + 8, 1).Style.Font.Bold = true;
     }
 
     private static void SetDateOnlyCell(IXLCell cell, DateOnly? value)
@@ -236,6 +239,22 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
         }
 
         return filter.RequestState.HasValue ? FormatRequestState(filter.RequestState) : "All";
+    }
+
+    private static string FormatOtherFilters(ProjectTotTrackerFilter filter)
+    {
+        var parts = new List<string>(2);
+        if (filter.RequiresTotOnly)
+        {
+            parts.Add("Requires ToT only");
+        }
+
+        if (filter.MetCompletedOnly)
+        {
+            parts.Add("MET completed only");
+        }
+
+        return parts.Count == 0 ? "(not set)" : string.Join("; ", parts);
     }
 
     private static string FormatBoolean(bool? value)

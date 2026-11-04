@@ -387,26 +387,14 @@ public sealed class IndexModel : PageModel
 
         if (!result.IsSuccess)
         {
-            var projectId = SubmitInput.ProjectId;
-            var status = request.Status;
-            var started = request.StartedOn;
-            var completed = request.CompletedOn;
-            var metDetails = request.MetDetails;
-            var metCompletedOn = request.MetCompletedOn;
-            var firstProductionModelManufactured = request.FirstProductionModelManufactured;
-            var firstProductionModelManufacturedOn = request.FirstProductionModelManufacturedOn;
+            // Keep everything the user entered, including the year/month/day fields the form
+            // renders, so the modal reopens with their values rather than the stored record.
+            var preservedInput = SubmitInput;
             var message = result.ErrorMessage ?? "Unable to submit the Transfer of Technology update.";
             ModelState.AddModelError(string.Empty, message);
             TempData["ToastError"] = message;
             await PopulateAsync(cancellationToken);
-            SubmitInput.ProjectId = projectId;
-            SubmitInput.Status = status;
-            SubmitInput.StartedOn = started;
-            SubmitInput.CompletedOn = completed;
-            SubmitInput.MetDetails = metDetails;
-            SubmitInput.MetCompletedOn = metCompletedOn;
-            SubmitInput.FirstProductionModelManufactured = firstProductionModelManufactured;
-            SubmitInput.FirstProductionModelManufacturedOn = firstProductionModelManufacturedOn;
+            SubmitInput = preservedInput;
             SubmitContextBody = submitContext;
             ShowSubmitModal = true;
             return Page();
@@ -464,14 +452,19 @@ public sealed class IndexModel : PageModel
             return Challenge();
         }
 
+        // The export carries the same filters as the register on screen.
         var request = new ProjectTotExportRequest(
-            Export.TotStatus,
+            Export.TotStatus ?? TotStatusFilter,
             Export.StartedFrom,
             Export.StartedTo,
-            Export.CompletedFrom,
-            Export.CompletedTo,
+            Export.CompletedFrom ?? CompletedFrom,
+            Export.CompletedTo ?? CompletedTo,
             SearchTerm,
-            userId);
+            userId,
+            RequestStateFilter,
+            OnlyPending,
+            RequiresTotOnly,
+            MetCompletedOnly);
 
         var result = await _exportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
@@ -666,37 +659,7 @@ public sealed class IndexModel : PageModel
 
         if (SelectedProject is { } selected)
         {
-            SubmitInput = new SubmitRequestInput
-            {
-                ProjectId = selected.ProjectId,
-                Status = selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted,
-                StartedOn = selected.RequestedStartedOn ?? selected.TotStartedOn,
-                StartDatePrecision = (selected.RequestedStartedOn ?? selected.TotStartedOn) is null
-                    ? PartialDatePrecision.None
-                    : PartialDatePrecision.Day,
-                CompletedOn = selected.RequestedCompletedOn ?? selected.TotCompletedOn,
-                CompletionDatePrecision = (selected.RequestedCompletedOn ?? selected.TotCompletedOn) is null
-                    ? PartialDatePrecision.None
-                    : PartialDatePrecision.Day,
-                MetDetails = selected.RequestedMetDetails ?? selected.TotMetDetails,
-                MetCompletedOn = selected.RequestedMetCompletedOn ?? selected.TotMetCompletedOn,
-                FirstProductionModelManufactured = selected.RequestedFirstProductionModelManufactured ?? selected.TotFirstProductionModelManufactured,
-                FirstProductionModelManufacturedOn = selected.RequestedFirstProductionModelManufacturedOn ?? selected.TotFirstProductionModelManufacturedOn
-            };
-
-            if (SubmitInput.StartedOn is { } start)
-            {
-                SubmitInput.StartYear = start.Year;
-                SubmitInput.StartMonth = start.Month;
-                SubmitInput.StartDay = start.Day;
-            }
-
-            if (SubmitInput.CompletedOn is { } completion)
-            {
-                SubmitInput.CompletionYear = completion.Year;
-                SubmitInput.CompletionMonth = completion.Month;
-                SubmitInput.CompletionDay = completion.Day;
-            }
+            SubmitInput = BuildSubmitInput(selected);
 
             DecideInput = new DecideRequestInput
             {
@@ -718,6 +681,63 @@ public sealed class IndexModel : PageModel
             DecideContextBody = null;
         }
     }
+
+    // The submit form starts from the approved ToT record. Only a still-pending proposal is
+    // carried forward; an approved or rejected request is history, not the current position.
+    // Each date keeps its stored precision, so "2024" is not resubmitted as "31 Dec 2024".
+    internal static SubmitRequestInput BuildSubmitInput(ProjectTotTrackerRow row)
+    {
+        var input = row.RequestState == ProjectTotRequestDecisionState.Pending
+            ? new SubmitRequestInput
+            {
+                ProjectId = row.ProjectId,
+                Status = row.RequestedStatus ?? row.TotStatus ?? ProjectTotStatus.NotStarted,
+                StartedOn = row.RequestedStartedOn,
+                StartDatePrecision = row.RequestedStartedOn.HasValue ? row.RequestedStartDatePrecision : PartialDatePrecision.None,
+                CompletedOn = row.RequestedCompletedOn,
+                CompletionDatePrecision = row.RequestedCompletedOn.HasValue ? row.RequestedCompletionDatePrecision : PartialDatePrecision.None,
+                MetDetails = row.RequestedMetDetails,
+                MetCompletedOn = row.RequestedMetCompletedOn,
+                FirstProductionModelManufactured = row.RequestedFirstProductionModelManufactured,
+                FirstProductionModelManufacturedOn = row.RequestedFirstProductionModelManufacturedOn
+            }
+            : new SubmitRequestInput
+            {
+                ProjectId = row.ProjectId,
+                Status = row.TotStatus ?? ProjectTotStatus.NotStarted,
+                StartedOn = row.TotStartedOn,
+                StartDatePrecision = row.TotStartedOn.HasValue ? row.TotStartDatePrecision : PartialDatePrecision.None,
+                CompletedOn = row.TotCompletedOn,
+                CompletionDatePrecision = row.TotCompletedOn.HasValue ? row.TotCompletionDatePrecision : PartialDatePrecision.None,
+                MetDetails = row.TotMetDetails,
+                MetCompletedOn = row.TotMetCompletedOn,
+                FirstProductionModelManufactured = row.TotFirstProductionModelManufactured,
+                FirstProductionModelManufacturedOn = row.TotFirstProductionModelManufacturedOn
+            };
+
+        if (input.StartedOn is { } start)
+        {
+            var precision = EffectivePrecision(input.StartDatePrecision);
+            input.StartYear = start.Year;
+            input.StartMonth = precision >= PartialDatePrecision.Month ? start.Month : null;
+            input.StartDay = precision == PartialDatePrecision.Day ? start.Day : null;
+        }
+
+        if (input.CompletedOn is { } completion)
+        {
+            var precision = EffectivePrecision(input.CompletionDatePrecision);
+            input.CompletionYear = completion.Year;
+            input.CompletionMonth = precision >= PartialDatePrecision.Month ? completion.Month : null;
+            input.CompletionDay = precision == PartialDatePrecision.Day ? completion.Day : null;
+        }
+
+        return input;
+    }
+
+    // A date stored before precision was tracked has no precision recorded; show it in full
+    // rather than dropping the month and day the user originally entered.
+    private static PartialDatePrecision EffectivePrecision(PartialDatePrecision precision)
+        => precision == PartialDatePrecision.None ? PartialDatePrecision.Day : precision;
 
     private IActionResult PermissionDenied(string actionDescription, string policy, int? projectId)
     {

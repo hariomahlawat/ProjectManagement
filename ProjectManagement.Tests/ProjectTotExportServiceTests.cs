@@ -142,6 +142,80 @@ public sealed class ProjectTotExportServiceTests
         Assert.Equal(10, row.ProjectId);
     }
 
+    [Fact]
+    public async Task ExportAsync_CarriesRequestAndScopeFilters()
+    {
+        await using var context = CreateContext();
+        context.Projects.AddRange(
+            new Project
+            {
+                Id = 20,
+                Name = "Pending one",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                Tot = new ProjectTot { ProjectId = 20, Status = ProjectTotStatus.InProgress, StartedOn = new DateOnly(2024, 1, 1), StartDatePrecision = PartialDatePrecision.Year },
+                TotRequest = new ProjectTotRequest
+                {
+                    ProjectId = 20,
+                    ProposedStatus = ProjectTotStatus.Completed,
+                    DecisionState = ProjectTotRequestDecisionState.Pending,
+                    SubmittedByUserId = "po-1",
+                    SubmittedOnUtc = new DateTime(2024, 2, 22, 8, 0, 0, DateTimeKind.Utc)
+                }
+            },
+            new Project
+            {
+                Id = 21,
+                Name = "Not required pending",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                Tot = new ProjectTot { ProjectId = 21, Status = ProjectTotStatus.NotRequired },
+                TotRequest = new ProjectTotRequest
+                {
+                    ProjectId = 21,
+                    ProposedStatus = ProjectTotStatus.NotStarted,
+                    DecisionState = ProjectTotRequestDecisionState.Pending,
+                    SubmittedByUserId = "po-1",
+                    SubmittedOnUtc = new DateTime(2024, 2, 22, 8, 0, 0, DateTimeKind.Utc)
+                }
+            },
+            new Project
+            {
+                Id = 22,
+                Name = "No request",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                Tot = new ProjectTot { ProjectId = 22, Status = ProjectTotStatus.InProgress, StartedOn = new DateOnly(2024, 1, 1), StartDatePrecision = PartialDatePrecision.Year }
+            });
+        await context.SaveChangesAsync();
+
+        var workbookBuilder = new RecordingProjectTotWorkbookBuilder();
+        var service = new ProjectTotExportService(
+            new ProjectTotTrackerReadService(context),
+            workbookBuilder,
+            FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 8, 0, 0, TimeSpan.Zero)));
+
+        var request = new ProjectTotExportRequest(
+            TotStatus: null,
+            StartedFrom: null,
+            StartedTo: null,
+            CompletedFrom: null,
+            CompletedTo: null,
+            SearchTerm: null,
+            RequestedByUserId: "export-user",
+            RequestState: ProjectTotRequestDecisionState.Approved,
+            OnlyPendingRequests: true,
+            RequiresTotOnly: true,
+            MetCompletedOnly: false);
+
+        var result = await service.ExportAsync(request, CancellationToken.None);
+
+        Assert.True(result.Success);
+        var filter = workbookBuilder.Context!.Filter;
+        Assert.True(filter.OnlyPendingRequests);
+        Assert.Null(filter.RequestState);
+        Assert.True(filter.RequiresTotOnly);
+        var row = Assert.Single(workbookBuilder.Context.Rows);
+        Assert.Equal(20, row.ProjectId);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

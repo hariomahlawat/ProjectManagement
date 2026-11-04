@@ -127,6 +127,144 @@ public sealed class TotIndexPageTests
         Assert.Equal(new DateOnly(2024, 5, 15), tot.CompletedOn);
     }
 
+    [Fact]
+    public async Task BuildSubmitInput_KeepsStoredPrecision_AndIgnoresRejectedProposal()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 610,
+            Name = "Project Year Only",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            Tot = new ProjectTot
+            {
+                ProjectId = 610,
+                Status = ProjectTotStatus.Completed,
+                StartedOn = new DateOnly(2023, 6, 1),
+                StartDatePrecision = PartialDatePrecision.Month,
+                CompletedOn = new DateOnly(2024, 12, 31),
+                CompletionDatePrecision = PartialDatePrecision.Year,
+                MetDetails = "Current MET"
+            },
+            TotRequest = new ProjectTotRequest
+            {
+                ProjectId = 610,
+                DecisionState = ProjectTotRequestDecisionState.Rejected,
+                ProposedStatus = ProjectTotStatus.InProgress,
+                ProposedStartedOn = new DateOnly(2022, 1, 15),
+                ProposedStartDatePrecision = PartialDatePrecision.Day,
+                ProposedMetDetails = "Rejected MET",
+                SubmittedByUserId = "office",
+                RowVersion = Guid.NewGuid().ToByteArray()
+            }
+        });
+        await db.SaveChangesAsync();
+
+        var row = Assert.Single(await new ProjectTotTrackerReadService(db).GetAsync(new ProjectTotTrackerFilter()));
+        var input = IndexModel.BuildSubmitInput(row);
+
+        Assert.Equal(ProjectTotStatus.Completed, input.Status);
+        Assert.Equal("Current MET", input.MetDetails);
+        Assert.Equal(2023, input.StartYear);
+        Assert.Equal(6, input.StartMonth);
+        Assert.Null(input.StartDay);
+        Assert.Equal(2024, input.CompletionYear);
+        Assert.Null(input.CompletionMonth);
+        Assert.Null(input.CompletionDay);
+    }
+
+    [Fact]
+    public async Task BuildSubmitInput_UsesPendingProposal()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 611,
+            Name = "Project Pending",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            Tot = new ProjectTot { ProjectId = 611, Status = ProjectTotStatus.NotStarted },
+            TotRequest = new ProjectTotRequest
+            {
+                ProjectId = 611,
+                DecisionState = ProjectTotRequestDecisionState.Pending,
+                ProposedStatus = ProjectTotStatus.InProgress,
+                ProposedStartedOn = new DateOnly(2024, 1, 1),
+                ProposedStartDatePrecision = PartialDatePrecision.Year,
+                SubmittedByUserId = "office",
+                RowVersion = Guid.NewGuid().ToByteArray()
+            }
+        });
+        await db.SaveChangesAsync();
+
+        var row = Assert.Single(await new ProjectTotTrackerReadService(db).GetAsync(new ProjectTotTrackerFilter()));
+        var input = IndexModel.BuildSubmitInput(row);
+
+        Assert.Equal(ProjectTotStatus.InProgress, input.Status);
+        Assert.Equal(2024, input.StartYear);
+        Assert.Null(input.StartMonth);
+        Assert.Null(input.StartDay);
+    }
+
+    [Fact]
+    public async Task OnPostSubmitAsync_WhenServiceRejects_KeepsTheUsersDates()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 620,
+            Name = "Project Keep Input",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            Tot = new ProjectTot
+            {
+                ProjectId = 620,
+                Status = ProjectTotStatus.InProgress,
+                StartedOn = new DateOnly(2021, 1, 1),
+                StartDatePrecision = PartialDatePrecision.Year
+            }
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 10, 1, 6, 0, 0, TimeSpan.Zero));
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(
+            db,
+            new ProjectTotTrackerReadService(db),
+            new ProjectTotService(db, clock),
+            new StubProjectTotExportService(),
+            new AllowAllAuthorizationService(),
+            userManager,
+            new StubRemarkService(),
+            NullLogger<IndexModel>.Instance);
+        ConfigurePageContext(page, CreatePrincipal("office", "Project Office"));
+
+        page.SelectedProjectId = 620;
+        page.SubmitInput = new IndexModel.SubmitRequestInput
+        {
+            ProjectId = 620,
+            Status = ProjectTotStatus.Completed,
+            StartYear = 2025,
+            StartMonth = 6,
+            CompletionYear = 2025,
+            CompletionMonth = 3
+        };
+
+        var result = await page.OnPostSubmitAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ShowSubmitModal);
+        Assert.Equal(ProjectTotStatus.Completed, page.SubmitInput.Status);
+        Assert.Equal(2025, page.SubmitInput.StartYear);
+        Assert.Equal(6, page.SubmitInput.StartMonth);
+        Assert.Equal(2025, page.SubmitInput.CompletionYear);
+        Assert.Equal(3, page.SubmitInput.CompletionMonth);
+        Assert.False(await db.ProjectTotRequests.AnyAsync());
+    }
+
+    private static ApplicationDbContext CreateContext()
+        => new(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
+
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };

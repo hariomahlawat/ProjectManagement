@@ -763,6 +763,88 @@ public sealed class ProjectTotServiceTests
         Assert.Null(tot.CompletedOn);
     }
 
+    [Fact]
+    public async Task UpdateAsync_WhenRequestPending_ReturnsConflictAndLeavesTotUnchanged()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 16,
+            Name = "Zeta",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        });
+        db.ProjectTots.Add(new ProjectTot
+        {
+            ProjectId = 16,
+            Status = ProjectTotStatus.InProgress,
+            StartedOn = new DateOnly(2024, 3, 1),
+            StartDatePrecision = PartialDatePrecision.Month
+        });
+        db.ProjectTotRequests.Add(new ProjectTotRequest
+        {
+            ProjectId = 16,
+            ProposedStatus = ProjectTotStatus.InProgress,
+            DecisionState = ProjectTotRequestDecisionState.Pending,
+            SubmittedByUserId = "office",
+            SubmittedOnUtc = new DateTime(2024, 9, 1, 6, 0, 0, DateTimeKind.Utc),
+            RowVersion = Guid.NewGuid().ToByteArray()
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            16,
+            CreateRequest(
+                ProjectTotStatus.Completed,
+                startedOn: new DateOnly(2024, 3, 1),
+                completedOn: new DateOnly(2024, 9, 30)),
+            "po");
+
+        Assert.Equal(ProjectTotUpdateStatus.Conflict, result.Status);
+        Assert.Equal(ProjectTotService.PendingRequestMessage, result.ErrorMessage);
+
+        var tot = await db.ProjectTots.AsNoTracking().SingleAsync(t => t.ProjectId == 16);
+        Assert.Equal(ProjectTotStatus.InProgress, tot.Status);
+        Assert.Null(tot.CompletedOn);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenLastRequestDecided_AllowsDirectUpdate()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 17,
+            Name = "Eta",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        });
+        db.ProjectTotRequests.Add(new ProjectTotRequest
+        {
+            ProjectId = 17,
+            ProposedStatus = ProjectTotStatus.InProgress,
+            DecisionState = ProjectTotRequestDecisionState.Rejected,
+            SubmittedByUserId = "office",
+            SubmittedOnUtc = new DateTime(2024, 9, 1, 6, 0, 0, DateTimeKind.Utc),
+            RowVersion = Guid.NewGuid().ToByteArray()
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(17, CreateRequest(ProjectTotStatus.NotRequired), "po");
+
+        Assert.True(result.IsSuccess);
+        var tot = await db.ProjectTots.AsNoTracking().SingleAsync(t => t.ProjectId == 17);
+        Assert.Equal(ProjectTotStatus.NotRequired, tot.Status);
+    }
+
     private static ProjectTotUpdateRequest CreateRequest(
         ProjectTotStatus status,
         DateOnly? startedOn = null,

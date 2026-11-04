@@ -14,6 +14,9 @@ namespace ProjectManagement.Services.Projects;
 
 public sealed class ProjectTotService
 {
+    public const string PendingRequestMessage =
+        "A Transfer of Technology update is already pending approval for this project. It must be approved or rejected before the ToT details can be changed.";
+
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
 
@@ -41,6 +44,7 @@ public sealed class ProjectTotService
 
         var project = await _db.Projects
             .Include(p => p.Tot)
+            .Include(p => p.TotRequest)
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
 
         if (project is null)
@@ -51,6 +55,13 @@ public sealed class ProjectTotService
         if (ProjectTotApplicabilityPolicy.GetIneligibilityReason(project) is { } eligibilityError)
         {
             return ProjectTotUpdateResult.ValidationFailed(eligibilityError);
+        }
+
+        // A direct write while a request is pending would later be overwritten when that
+        // older proposal is approved, so the pending request must be decided first.
+        if (project.TotRequest?.DecisionState == ProjectTotRequestDecisionState.Pending)
+        {
+            return ProjectTotUpdateResult.Conflict(PendingRequestMessage);
         }
 
         var todayLocal = GetTodayInIst();

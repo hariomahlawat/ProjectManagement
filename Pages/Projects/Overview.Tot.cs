@@ -203,17 +203,6 @@ public partial class OverviewModel
             };
         }
 
-        var hasPendingRequest = await _db.ProjectTotRequests
-            .AsNoTracking()
-            .AnyAsync(request => request.ProjectId == id && request.DecisionState == ProjectTotRequestDecisionState.Pending, ct);
-        if (hasPendingRequest)
-        {
-            return new JsonResult(new { error = "A Transfer of Technology update is already pending approval for this project." })
-            {
-                StatusCode = StatusCodes.Status409Conflict
-            };
-        }
-
         if (!TryBuildTotRequest(input, out var request, out var validationError))
         {
             return new JsonResult(new { error = validationError })
@@ -235,6 +224,14 @@ public partial class OverviewModel
             return new JsonResult(new { error = "Project not found." })
             {
                 StatusCode = StatusCodes.Status404NotFound
+            };
+        }
+
+        if (result.Status == ProjectTotUpdateStatus.Conflict)
+        {
+            return new JsonResult(new { error = result.ErrorMessage })
+            {
+                StatusCode = StatusCodes.Status409Conflict
             };
         }
 
