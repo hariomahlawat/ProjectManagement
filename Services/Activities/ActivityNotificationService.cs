@@ -12,23 +12,29 @@ using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Services.Activities;
 
+/// <summary>
+/// Queues delete-request notifications into the caller's DbContext without saving. Callers run it
+/// through <see cref="TransactionalNotificationQueue"/> inside the business transaction, which
+/// saves the rows with the change and contains any failure; exceptions here therefore
+/// propagate instead of being swallowed.
+/// </summary>
 public sealed class ActivityNotificationService : IActivityNotificationService
 {
     private static readonly string[] ApproverRoles = { "Admin", "HoD" };
 
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly INotificationPublisher _publisher;
+    private readonly INotificationOutboxWriter _outbox;
     private readonly INotificationPreferenceService _preferences;
     private readonly ILogger<ActivityNotificationService> _logger;
 
     public ActivityNotificationService(
         UserManager<ApplicationUser> userManager,
-        INotificationPublisher publisher,
+        INotificationOutboxWriter outbox,
         INotificationPreferenceService preferences,
         ILogger<ActivityNotificationService> logger)
     {
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+        _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -235,32 +241,21 @@ public sealed class ActivityNotificationService : IActivityNotificationService
         string fingerprint,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            await _publisher.PublishAsync(
-                kind,
-                recipients,
-                payload,
-                module: "Activities",
-                eventType: "ActivityDelete",
-                scopeType: "Activity",
-                scopeId: payload.ActivityId.ToString(CultureInfo.InvariantCulture),
-                projectId: null,
-                actorUserId: actorUserId,
-                route: route,
-                title: title,
-                summary: summary,
-                fingerprint: fingerprint,
-                cancellationToken: cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish activity delete notification for request {RequestId}.", payload.RequestId);
-        }
+        await _outbox.QueueAsync(
+            kind,
+            recipients,
+            payload,
+            module: "Activities",
+            eventType: "ActivityDelete",
+            scopeType: "Activity",
+            scopeId: payload.ActivityId.ToString(CultureInfo.InvariantCulture),
+            projectId: null,
+            actorUserId: actorUserId,
+            route: route,
+            title: title,
+            summary: summary,
+            fingerprint: fingerprint,
+            cancellationToken: cancellationToken);
     }
 
     private static ActivityDeleteNotificationPayload BuildPayload(

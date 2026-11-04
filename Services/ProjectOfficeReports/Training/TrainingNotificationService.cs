@@ -12,24 +12,30 @@ using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Services.ProjectOfficeReports.Training;
 
+/// <summary>
+/// Queues delete-request notifications into the caller's DbContext without saving. Callers run it
+/// through <see cref="TransactionalNotificationQueue"/> inside the business transaction, which
+/// saves the rows with the change and contains any failure; exceptions here therefore
+/// propagate instead of being swallowed.
+/// </summary>
 public sealed class TrainingNotificationService : ITrainingNotificationService
 {
     private static readonly IReadOnlyList<string> ApproverRoles =
         ProjectOfficeReportsPolicies.TrainingTrackerApproverRoles;
 
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly INotificationPublisher _publisher;
+    private readonly INotificationOutboxWriter _outbox;
     private readonly INotificationPreferenceService _preferences;
     private readonly ILogger<TrainingNotificationService> _logger;
 
     public TrainingNotificationService(
         UserManager<ApplicationUser> userManager,
-        INotificationPublisher publisher,
+        INotificationOutboxWriter outbox,
         INotificationPreferenceService preferences,
         ILogger<TrainingNotificationService> logger)
     {
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+        _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -304,7 +310,7 @@ public sealed class TrainingNotificationService : ITrainingNotificationService
             return;
         }
 
-        await _publisher.PublishAsync(
+        await _outbox.QueueAsync(
             kind,
             recipients,
             payload,
