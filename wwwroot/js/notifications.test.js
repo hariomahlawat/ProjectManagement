@@ -27,7 +27,7 @@ function notification(overrides = {}) {
   };
 }
 
-async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, latestNotificationId = '', pagePayload = null, countPayload = null } = {}) {
+async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, latestNotificationId = '', listVersion = '', pagePayload = null, countPayload = null } = {}) {
   const tokenMarkup = csrfToken == null
     ? ''
     : `<meta name="csrf-token" content="${csrfToken}">`;
@@ -41,6 +41,7 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
          data-unread-count="${unreadCount}"
          data-unseen-count="${unseenCount}"
          data-latest-notification-id="${latestNotificationId}"
+         data-list-version="${listVersion}"
          data-is-authenticated="true"
          data-notification-center-url="/Notifications">
       <script type="application/json" data-notification-bootstrap>${JSON.stringify(items)}</script>
@@ -843,12 +844,13 @@ function pathsOf(requests, window) {
   return requests.map(request => new URL(request.url, window.location.origin).pathname);
 }
 
-test('a background refresh skips the list when the counts show nothing changed', async () => {
+test('a background refresh skips the list when the list version is unchanged', async () => {
   const fixture = await createBell({
     unreadCount: 3,
     unseenCount: 2,
     latestNotificationId: 17,
-    countPayload: { unreadCount: 3, unseenCount: 2, latestNotificationId: 17 },
+    listVersion: '5.17.3.2.40.30',
+    countPayload: { unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '5.17.3.2.40.30' },
     pagePayload: { items: [], totalCount: 0, unreadCount: 0, unseenCount: 0 }
   });
   const { dom, window, document, requests } = fixture;
@@ -868,7 +870,8 @@ test('a background refresh reloads the list when a newer notification exists', a
     unreadCount: 3,
     unseenCount: 2,
     latestNotificationId: 17,
-    countPayload: { unreadCount: 4, unseenCount: 3, latestNotificationId: 18 },
+    listVersion: '5.17.3.2.40.30',
+    countPayload: { unreadCount: 4, unseenCount: 3, latestNotificationId: 18, listVersion: '6.18.4.3.58.48' },
     pagePayload: {
       items: [notification({ id: 18, title: 'Newer notification' }), notification()],
       totalCount: 2,
@@ -884,6 +887,45 @@ test('a background refresh reloads the list when a newer notification exists', a
   assert.ok(pathsOf(requests, window).includes('/api/notifications'));
   assert.equal(document.querySelector('[data-notification-title]').textContent, 'Newer notification');
   assert.equal(document.querySelector('[data-notification-unread-count]').textContent, '3');
+
+  dom.window.close();
+});
+
+test('a background refresh reloads when only a deletion changed the list', async () => {
+  // Retention removed an old read row: counts and the newest id are the same, the version is not.
+  const fixture = await createBell({
+    unreadCount: 3,
+    unseenCount: 2,
+    latestNotificationId: 17,
+    listVersion: '5.17.3.2.40.30',
+    countPayload: { unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '4.17.3.2.40.30' },
+    pagePayload: { items: [notification()], totalCount: 1, unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '4.17.3.2.40.30' }
+  });
+  const { dom, window, requests } = fixture;
+
+  await backgroundRefresh(window);
+
+  assert.ok(pathsOf(requests, window).includes('/api/notifications'));
+
+  dom.window.close();
+});
+
+test('a background refresh reloads at least every 15 minutes even with an unchanged version', async () => {
+  const fixture = await createBell({
+    unreadCount: 3,
+    unseenCount: 2,
+    latestNotificationId: 17,
+    listVersion: '5.17.3.2.40.30',
+    countPayload: { unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '5.17.3.2.40.30' },
+    pagePayload: { items: [notification()], totalCount: 1, unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '5.17.3.2.40.30' }
+  });
+  const { dom, window, requests } = fixture;
+
+  const realNow = window.Date.now.bind(window.Date);
+  window.Date.now = () => realNow() + 16 * 60_000;
+  await backgroundRefresh(window);
+
+  assert.ok(pathsOf(requests, window).includes('/api/notifications'));
 
   dom.window.close();
 });

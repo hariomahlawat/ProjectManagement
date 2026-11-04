@@ -3,6 +3,9 @@
 
   const CSRF_HEADER = 'X-CSRF-TOKEN';
   const POLL_INTERVAL_MS = 60_000;
+  // A background refresh reloads the bell list at least this often, even when the server's list
+  // version is unchanged.
+  const BELL_FULL_REFRESH_MAX_AGE_MS = 15 * 60_000;
   const SEARCH_DEBOUNCE_MS = 300;
   const STATUS_CLEAR_MS = 3_000;
   const IST_FORMATTER = new Intl.DateTimeFormat('en-IN', {
@@ -207,6 +210,7 @@
       unreadCount: asInteger(raw?.unreadCount ?? raw?.UnreadCount),
       unseenCount: optionalCount(raw?.unseenCount, raw?.UnseenCount),
       latestNotificationId: optionalCount(raw?.latestNotificationId, raw?.LatestNotificationId),
+      listVersion: raw?.listVersion ?? raw?.ListVersion ?? null,
       nextCursor: raw?.nextCursor ?? raw?.NextCursor ?? null,
       hasMore: Boolean(raw?.hasMore ?? raw?.HasMore),
       projects: asArray(raw?.projects ?? raw?.Projects).map(project => ({
@@ -489,7 +493,8 @@
       return {
         unreadCount: optionalCount(raw?.unreadCount, raw?.UnreadCount),
         unseenCount: optionalCount(raw?.unseenCount, raw?.UnseenCount),
-        latestNotificationId: optionalCount(raw?.latestNotificationId, raw?.LatestNotificationId)
+        latestNotificationId: optionalCount(raw?.latestNotificationId, raw?.LatestNotificationId),
+        listVersion: raw?.listVersion ?? raw?.ListVersion ?? null
       };
     }
 
@@ -854,6 +859,9 @@
       // Newest id in the server snapshot. The priority-ordered page can omit newer rows, so the
       // seen-all boundary comes from here, not from the rows shown.
       this.latestNotificationId = asInteger(root.dataset.latestNotificationId);
+      // Server snapshot version and when the list was last fully loaded (the page render counts).
+      this.listVersion = root.dataset.listVersion || null;
+      this.lastFullRefreshAt = Date.now();
       this.list = root.querySelector('[data-notification-list]');
       this.template = root.querySelector('template[data-notification-item-template]');
       this.empty = root.querySelector('[data-notification-empty]');
@@ -917,23 +925,25 @@
     }
 
     // A background refresh (realtime connect, reconnect, polling, tab focus) first asks for the
-    // counts. When the newest id and both counts match what the bell already shows, nothing has
-    // arrived or changed, so the full list is not reloaded.
+    // counts. The server's list version changes whenever a row the bell could show is added,
+    // deleted (for example by retention), read, unread or seen, so an equal version means the list
+    // is unchanged and is not reloaded. A full reload still happens at least every 15 minutes,
+    // and whenever the version is unknown.
     async isUnchanged() {
-      if (!this.runtime.unreadUrl || this.latestNotificationId <= 0) {
+      if (!this.runtime.unreadUrl || !this.listVersion
+          || Date.now() - this.lastFullRefreshAt >= BELL_FULL_REFRESH_MAX_AGE_MS) {
         return false;
       }
 
       try {
         const counts = await this.runtime.fetchCounts();
-        if (counts.latestNotificationId === null || counts.unreadCount === null || counts.unseenCount === null) {
+        if (!counts.listVersion || counts.listVersion !== this.listVersion) {
           return false;
         }
 
-        const unchanged = counts.latestNotificationId === this.latestNotificationId
-          && counts.unreadCount === this.runtime.unreadCount
-          && counts.unseenCount === this.runtime.unseenCount;
-        return unchanged;
+        this.runtime.setUnreadCount(counts.unreadCount);
+        this.runtime.setUnseenCount(counts.unseenCount);
+        return true;
       } catch (error) {
         return false;
       }
@@ -963,6 +973,8 @@
         if (page.latestNotificationId !== null) {
           this.latestNotificationId = page.latestNotificationId;
         }
+        this.listVersion = page.listVersion;
+        this.lastFullRefreshAt = Date.now();
         this.runtime.setUnreadCount(page.unreadCount);
         this.runtime.setUnseenCount(page.unseenCount);
         this.render();

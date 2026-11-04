@@ -14,6 +14,9 @@ public sealed record NotificationBellViewModel
     /// <summary>Newest notification id in the bell's snapshot; the seen-all boundary.</summary>
     public int? LatestNotificationId { get; init; }
 
+    /// <summary>Snapshot version; a background refresh skips the list while it is unchanged.</summary>
+    public string? ListVersion { get; init; }
+
     public IReadOnlyList<NotificationDisplayModel> Notifications { get; init; } = new List<NotificationDisplayModel>();
 
     public string NotificationCenterUrl { get; init; } = string.Empty;

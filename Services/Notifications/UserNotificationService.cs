@@ -184,6 +184,7 @@ public sealed class UserNotificationService
         var unreadCount = summary.UnreadCount;
         var unseenCount = summary.UnseenCount;
         var latestNotificationId = summary.LatestNotificationId;
+        var listVersion = summary.ListVersion;
         var filterOptions = options.IncludeFilterOptions
             ? await GetFilterOptionsAsync(
                 userId,
@@ -215,7 +216,8 @@ public sealed class UserNotificationService
             filterOptions.Modules,
             folderCounts,
             unseenCount,
-            latestNotificationId);
+            latestNotificationId,
+            listVersion);
     }
 
     public async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(
@@ -425,7 +427,11 @@ public sealed class UserNotificationService
             mutedProjectIds,
             cancellationToken);
 
-        return new NotificationCounts(summary.UnreadCount, summary.UnseenCount, summary.LatestNotificationId);
+        return new NotificationCounts(
+            summary.UnreadCount,
+            summary.UnseenCount,
+            summary.LatestNotificationId,
+            summary.ListVersion);
     }
 
     /// <summary>
@@ -447,10 +453,13 @@ public sealed class UserNotificationService
             .Select(rows => new NotificationSummary(
                 rows.Count(n => n.ReadUtc == null),
                 rows.Count(n => n.SeenUtc == null && n.ReadUtc == null),
-                rows.Max(n => (int?)n.Id)))
+                rows.Max(n => (int?)n.Id),
+                rows.Count(),
+                rows.Sum(n => n.ReadUtc == null ? (long)n.Id : 0L),
+                rows.Sum(n => n.SeenUtc == null && n.ReadUtc == null ? (long)n.Id : 0L)))
             .FirstOrDefaultAsync(cancellationToken);
 
-        return summary ?? new NotificationSummary(0, 0, null);
+        return summary ?? new NotificationSummary(0, 0, null, 0, 0, 0);
     }
 
     private async Task<int> CountUnseenInternalAsync(
@@ -1227,7 +1236,23 @@ public sealed class UserNotificationService
                 project => project.Id,
                 project => FirstNonEmpty(project.Name, $"Project #{project.Id}"));
 
-    private sealed record NotificationSummary(int UnreadCount, int UnseenCount, int? LatestNotificationId);
+    private sealed record NotificationSummary(
+        int UnreadCount,
+        int UnseenCount,
+        int? LatestNotificationId,
+        int TotalCount,
+        long UnreadIdSum,
+        long UnseenIdSum)
+    {
+        /// <summary>
+        /// Changes whenever a row the bell could show is added, deleted (for example by
+        /// retention), read, unread or seen, including read/unread changes that leave the
+        /// counts equal. Clients compare it to skip reloading an unchanged list.
+        /// </summary>
+        public string ListVersion => string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{TotalCount}.{LatestNotificationId ?? 0}.{UnreadCount}.{UnseenCount}.{UnreadIdSum}.{UnseenIdSum}");
+    }
 
     private async Task<HashSet<int>> GetMutedProjectIdsAsync(
         string userId,
@@ -1389,7 +1414,11 @@ public sealed class NotificationListOptions
     public bool ActionRequiredFirst { get; set; }
 }
 
-public sealed record NotificationCounts(int UnreadCount, int UnseenCount, int? LatestNotificationId = null);
+public sealed record NotificationCounts(
+    int UnreadCount,
+    int UnseenCount,
+    int? LatestNotificationId = null,
+    string? ListVersion = null);
 
 public enum NotificationOperationResult
 {

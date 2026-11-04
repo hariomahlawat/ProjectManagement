@@ -22,6 +22,7 @@
      data-unread-count="@Model.UnreadCount"
      data-unseen-count="@Model.UnseenCount"
      data-latest-notification-id="@Model.LatestNotificationId"
+     data-list-version="@Model.ListVersion"
      data-is-authenticated="@(Model.IsAuthenticated ? "true" : "false")"
      data-notification-center-url="@Model.NotificationCenterUrl">
     <script type="application/json" data-notification-bootstrap>@Html.Raw(initialJson)</script>

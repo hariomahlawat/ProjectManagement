@@ -106,6 +106,27 @@ public sealed class NotificationQueryCostPostgresIntegrationTests
                 await ScalarAsync(target, $"SELECT MAX(\"Id\") FROM \"Notifications\" WHERE \"RecipientUserId\" = '{UserId}' AND (\"ProjectId\" IS NULL OR \"ProjectId\" <> 3)"),
                 bell.LatestNotificationId);
 
+            // Deleting an old read row (as retention does) changes neither count nor the newest id,
+            // but must change the list version so the bell reloads.
+            Assert.Equal(bell.ListVersion, counts.ListVersion);
+            await ExecuteAsync(target, $"DELETE FROM \"Notifications\" WHERE \"Id\" = (SELECT MIN(\"Id\") FROM \"Notifications\" WHERE \"RecipientUserId\" = '{UserId}' AND \"ReadUtc\" IS NOT NULL AND (\"ProjectId\" IS NULL OR \"ProjectId\" <> 3))");
+            var afterDelete = await service.CountAsync(Principal, UserId);
+            Assert.Equal(counts.UnreadCount, afterDelete.UnreadCount);
+            Assert.Equal(counts.UnseenCount, afterDelete.UnseenCount);
+            Assert.Equal(counts.LatestNotificationId, afterDelete.LatestNotificationId);
+            Assert.NotEqual(counts.ListVersion, afterDelete.ListVersion);
+
+            // Swapping read state between two rows keeps both counts but changes the version.
+            await ExecuteAsync(target, $"""
+                UPDATE "Notifications" SET "ReadUtc" = now(), "SeenUtc" = COALESCE("SeenUtc", now())
+                WHERE "Id" = (SELECT MAX("Id") FROM "Notifications" WHERE "RecipientUserId" = '{UserId}' AND "ReadUtc" IS NULL AND ("ProjectId" IS NULL OR "ProjectId" <> 3));
+                UPDATE "Notifications" SET "ReadUtc" = NULL
+                WHERE "Id" = (SELECT MIN("Id") FROM "Notifications" WHERE "RecipientUserId" = '{UserId}' AND "ReadUtc" IS NOT NULL AND ("ProjectId" IS NULL OR "ProjectId" <> 3));
+                """);
+            var afterSwap = await service.CountAsync(Principal, UserId);
+            Assert.Equal(afterDelete.UnreadCount, afterSwap.UnreadCount);
+            Assert.NotEqual(afterDelete.ListVersion, afterSwap.ListVersion);
+
             // Budgets, in database round trips.
             Assert.True(bellCommands <= 6, $"Bell page used {bellCommands} round trips (budget 6).");
             Assert.True(countCommands <= 3, $"Counts used {countCommands} round trips (budget 3).");

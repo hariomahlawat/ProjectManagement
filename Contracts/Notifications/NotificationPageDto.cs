@@ -13,7 +13,8 @@ public sealed record NotificationPageDto(
     IReadOnlyList<string> Modules,
     IReadOnlyList<NotificationFolderCountDto> Folders,
     int UnseenCount,
-    int? LatestNotificationId);
+    int? LatestNotificationId,
+    string? ListVersion = null);
 
 public sealed record NotificationProjectOptionDto(int Id, string Label, bool IsMuted);
 
