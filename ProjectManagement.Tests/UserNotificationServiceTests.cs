@@ -615,7 +615,10 @@ public sealed class UserNotificationServiceTests
         var counts = await service.CountAsync(principal, userId);
 
         Assert.Equal(2, await service.CountUnseenAsync(principal, userId));
-        Assert.Equal(new NotificationCounts(UnreadCount: 3, UnseenCount: 2), counts);
+        Assert.Equal(3, counts.UnreadCount);
+        Assert.Equal(2, counts.UnseenCount);
+        Assert.Equal(6, counts.LatestNotificationId);
+        Assert.False(string.IsNullOrEmpty(counts.ListVersion));
     }
 
     [Fact]

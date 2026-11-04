@@ -27,7 +27,7 @@ function notification(overrides = {}) {
   };
 }
 
-async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, latestNotificationId = '', pagePayload = null } = {}) {
+async function createBell({ csrfToken = 'token-123', items = [notification()], unreadCount = 1, unseenCount = unreadCount, latestNotificationId = '', listVersion = '', pagePayload = null, countPayload = null } = {}) {
   const tokenMarkup = csrfToken == null
     ? ''
     : `<meta name="csrf-token" content="${csrfToken}">`;
@@ -41,6 +41,7 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
          data-unread-count="${unreadCount}"
          data-unseen-count="${unseenCount}"
          data-latest-notification-id="${latestNotificationId}"
+         data-list-version="${listVersion}"
          data-is-authenticated="true"
          data-notification-center-url="/Notifications">
       <script type="application/json" data-notification-bootstrap>${JSON.stringify(items)}</script>
@@ -114,6 +115,8 @@ async function createBell({ csrfToken = 'token-123', items = [notification()], u
       };
     } else if (pathname === '/api/notifications' && pagePayload) {
       payload = pagePayload;
+    } else if (pathname.endsWith('/count') && countPayload) {
+      payload = countPayload;
     } else if (pathname.endsWith('/read')) {
       const ids = JSON.parse(options.body).ids;
       payload = {
@@ -827,4 +830,129 @@ test('Notification Centre grouping can be switched off and the choice is remembe
   const reloaded = await createCenter({ items: centreGroupItems(), storedGrouping: 'false' });
   assert.equal(reloaded.document.querySelectorAll('[data-notification-group]').length, 0);
   reloaded.dom.window.close();
+});
+
+async function backgroundRefresh(window) {
+  // Coming back online runs the same silent refresh as a realtime reconnect or a poll.
+  window.dispatchEvent(new window.Event('online'));
+  for (let i = 0; i < 4; i += 1) {
+    await new Promise(resolve => window.setTimeout(resolve, 0));
+  }
+}
+
+function pathsOf(requests, window) {
+  return requests.map(request => new URL(request.url, window.location.origin).pathname);
+}
+
+test('a background refresh skips the list when the list version is unchanged', async () => {
+  const fixture = await createBell({
+    unreadCount: 3,
+    unseenCount: 2,
+    latestNotificationId: 17,
+    listVersion: '5.17.3.2.40.30',
+    countPayload: { unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '5.17.3.2.40.30' },
+    pagePayload: { items: [], totalCount: 0, unreadCount: 0, unseenCount: 0 }
+  });
+  const { dom, window, document, requests } = fixture;
+
+  await backgroundRefresh(window);
+
+  const paths = pathsOf(requests, window);
+  assert.ok(paths.includes('/api/notifications/count'));
+  assert.ok(!paths.includes('/api/notifications'));
+  assert.equal(document.querySelectorAll('[data-notification-item]').length, 1);
+
+  dom.window.close();
+});
+
+test('a background refresh reloads the list when a newer notification exists', async () => {
+  const fixture = await createBell({
+    unreadCount: 3,
+    unseenCount: 2,
+    latestNotificationId: 17,
+    listVersion: '5.17.3.2.40.30',
+    countPayload: { unreadCount: 4, unseenCount: 3, latestNotificationId: 18, listVersion: '6.18.4.3.58.48' },
+    pagePayload: {
+      items: [notification({ id: 18, title: 'Newer notification' }), notification()],
+      totalCount: 2,
+      unreadCount: 4,
+      unseenCount: 3,
+      latestNotificationId: 18
+    }
+  });
+  const { dom, window, document, requests } = fixture;
+
+  await backgroundRefresh(window);
+
+  assert.ok(pathsOf(requests, window).includes('/api/notifications'));
+  assert.equal(document.querySelector('[data-notification-title]').textContent, 'Newer notification');
+  assert.equal(document.querySelector('[data-notification-unread-count]').textContent, '3');
+
+  dom.window.close();
+});
+
+test('a background refresh reloads when only a deletion changed the list', async () => {
+  // Retention removed an old read row: counts and the newest id are the same, the version is not.
+  const fixture = await createBell({
+    unreadCount: 3,
+    unseenCount: 2,
+    latestNotificationId: 17,
+    listVersion: '5.17.3.2.40.30',
+    countPayload: { unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '4.17.3.2.40.30' },
+    pagePayload: { items: [notification()], totalCount: 1, unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '4.17.3.2.40.30' }
+  });
+  const { dom, window, requests } = fixture;
+
+  await backgroundRefresh(window);
+
+  assert.ok(pathsOf(requests, window).includes('/api/notifications'));
+
+  dom.window.close();
+});
+
+test('a background refresh reloads at least every 15 minutes even with an unchanged version', async () => {
+  const fixture = await createBell({
+    unreadCount: 3,
+    unseenCount: 2,
+    latestNotificationId: 17,
+    listVersion: '5.17.3.2.40.30',
+    countPayload: { unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '5.17.3.2.40.30' },
+    pagePayload: { items: [notification()], totalCount: 1, unreadCount: 3, unseenCount: 2, latestNotificationId: 17, listVersion: '5.17.3.2.40.30' }
+  });
+  const { dom, window, requests } = fixture;
+
+  const realNow = window.Date.now.bind(window.Date);
+  window.Date.now = () => realNow() + 16 * 60_000;
+  await backgroundRefresh(window);
+
+  assert.ok(pathsOf(requests, window).includes('/api/notifications'));
+
+  dom.window.close();
+});
+
+test('a local change to the bell list invalidates its version so the next refresh reloads', async () => {
+  // Marked read here, then marked unread in another tab while this one was offline: the server's
+  // version is back to the cached one, but the row shown here is still read.
+  const fixture = await createBell({
+    items: [notification({ id: 17, seenUtc: '2026-06-30T06:30:00Z' })],
+    unreadCount: 1,
+    unseenCount: 0,
+    latestNotificationId: 17,
+    listVersion: '1.17.1.0.17.0',
+    countPayload: { unreadCount: 1, unseenCount: 0, latestNotificationId: 17, listVersion: '1.17.1.0.17.0' },
+    pagePayload: { items: [notification({ id: 17, seenUtc: '2026-06-30T06:30:00Z' })], totalCount: 1, unreadCount: 1, unseenCount: 0, latestNotificationId: 17, listVersion: '1.17.1.0.17.0' }
+  });
+  const { dom, window, document, requests } = fixture;
+
+  document.querySelector('[data-notification-action="toggle-read"]')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+  assert.equal(document.querySelector('[data-notification-action="toggle-read"]').getAttribute('aria-label'), 'Mark as unread');
+
+  await backgroundRefresh(window);
+
+  assert.ok(pathsOf(requests, window).includes('/api/notifications'));
+  assert.equal(document.querySelector('[data-notification-action="toggle-read"]').getAttribute('aria-label'), 'Mark as read');
+
+  dom.window.close();
 });

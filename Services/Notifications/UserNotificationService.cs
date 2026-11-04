@@ -157,6 +157,23 @@ public sealed class UserNotificationService
                 .OrderByDescending(n => n.CreatedUtc)
                 .ThenByDescending(n => n.Id);
 
+        // One aggregate for the badge, the unread header, the seen-all boundary and the list
+        // version. It runs BEFORE the rows are read on purpose: the version may then lag the rows
+        // but can never include a row the page is missing. A change between the two reads makes
+        // the client's next version check disagree and reload; reading in the other order could
+        // cache a version that already counts a row the client never received. The seen-all
+        // boundary matters because a priority-ordered or filtered page can omit newer rows, so the
+        // bell must not derive it from the rows it shows.
+        var summary = await SummarizeAsync(
+            userId,
+            accessibleProjectIds,
+            mutedProjectIds,
+            cancellationToken);
+        var unreadCount = summary.UnreadCount;
+        var unseenCount = summary.UnseenCount;
+        var latestNotificationId = summary.LatestNotificationId;
+        var listVersion = summary.ListVersion;
+
         var rows = await ordered
             .Take(limit + 1)
             .ToListAsync(cancellationToken);
@@ -173,23 +190,6 @@ public sealed class UserNotificationService
             projectMap,
             mutedProjectIds,
             cancellationToken);
-        var unreadCount = await CountUnreadInternalAsync(
-            userId,
-            accessibleProjectIds,
-            mutedProjectIds,
-            cancellationToken);
-        var unseenCount = await CountUnseenInternalAsync(
-            userId,
-            accessibleProjectIds,
-            mutedProjectIds,
-            cancellationToken);
-        // The seen-all boundary for this snapshot. A priority-ordered or filtered page can omit
-        // newer rows, so the bell must not derive the boundary from the rows it shows.
-        var latestNotificationId = await FilterMuted(
-                BuildAccessibleQuery(userId, accessibleProjectIds),
-                mutedProjectIds,
-                onlyMuted: false)
-            .MaxAsync(n => (int?)n.Id, cancellationToken);
         var filterOptions = options.IncludeFilterOptions
             ? await GetFilterOptionsAsync(
                 userId,
@@ -221,7 +221,8 @@ public sealed class UserNotificationService
             filterOptions.Modules,
             folderCounts,
             unseenCount,
-            latestNotificationId);
+            latestNotificationId,
+            listVersion);
     }
 
     public async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(
@@ -424,21 +425,46 @@ public sealed class UserNotificationService
         ValidatePrincipalAndUser(principal, userId);
 
         var projectMap = await GetAccessibleProjectMapAsync(principal, userId, cancellationToken);
-        var accessibleProjectIds = projectMap.Keys.ToArray();
         var mutedProjectIds = await GetMutedProjectIdsAsync(userId, cancellationToken);
-
-        var unread = await CountUnreadInternalAsync(
+        var summary = await SummarizeAsync(
             userId,
-            accessibleProjectIds,
-            mutedProjectIds,
-            cancellationToken);
-        var unseen = await CountUnseenInternalAsync(
-            userId,
-            accessibleProjectIds,
+            projectMap.Keys.ToArray(),
             mutedProjectIds,
             cancellationToken);
 
-        return new NotificationCounts(unread, unseen);
+        return new NotificationCounts(
+            summary.UnreadCount,
+            summary.UnseenCount,
+            summary.LatestNotificationId,
+            summary.ListVersion);
+    }
+
+    /// <summary>
+    /// Unread count, unseen (badge) count and newest id over the accessible, unmuted rows, in a
+    /// single round trip. The predicates match <see cref="CountUnreadInternalAsync"/> and
+    /// <see cref="CountUnseenInternalAsync"/>.
+    /// </summary>
+    private async Task<NotificationSummary> SummarizeAsync(
+        string userId,
+        IReadOnlyCollection<int> accessibleProjectIds,
+        IReadOnlyCollection<int> mutedProjectIds,
+        CancellationToken cancellationToken)
+    {
+        var summary = await FilterMuted(
+                BuildAccessibleQuery(userId, accessibleProjectIds),
+                mutedProjectIds,
+                onlyMuted: false)
+            .GroupBy(_ => 1)
+            .Select(rows => new NotificationSummary(
+                rows.Count(n => n.ReadUtc == null),
+                rows.Count(n => n.SeenUtc == null && n.ReadUtc == null),
+                rows.Max(n => (int?)n.Id),
+                rows.Count(),
+                rows.Sum(n => n.ReadUtc == null ? (long)n.Id : 0L),
+                rows.Sum(n => n.SeenUtc == null && n.ReadUtc == null ? (long)n.Id : 0L)))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return summary ?? new NotificationSummary(0, 0, null, 0, 0, 0);
     }
 
     private async Task<int> CountUnseenInternalAsync(
@@ -1173,22 +1199,17 @@ public sealed class UserNotificationService
             return new Dictionary<int, string>();
         }
 
-        // Restrict the project lookup to projects actually referenced by this user's retained
-        // notifications. This avoids loading the complete portfolio for every bell/count request.
-        var referencedProjectIds = await _db.Notifications
+        // Only projects referenced by this user's retained notifications, found with a subquery
+        // in the same round trip. Full rows are loaded on purpose: ProjectAccessGuard receives
+        // the same Project it always has, so a future resource-level rule keeps working here.
+        var projects = await _db.Projects
             .AsNoTracking()
-            .Where(notification =>
+            .Where(project => _db.Notifications.Any(notification =>
                 notification.RecipientUserId == userId
-                && notification.ProjectId.HasValue)
-            .Select(notification => notification.ProjectId!.Value)
-            .Distinct()
+                && notification.ProjectId == project.Id))
             .ToListAsync(cancellationToken);
 
-        return await GetAccessibleProjectsAsync(
-            principal,
-            userId,
-            referencedProjectIds,
-            cancellationToken);
+        return ToAccessibleProjectMap(projects, principal, userId);
     }
 
     private async Task<Dictionary<int, string>> GetAccessibleProjectsAsync(
@@ -1207,11 +1228,35 @@ public sealed class UserNotificationService
             .Where(project => projectIds.Contains(project.Id))
             .ToListAsync(cancellationToken);
 
-        return projects
+        return ToAccessibleProjectMap(projects, principal, userId);
+    }
+
+    private static Dictionary<int, string> ToAccessibleProjectMap(
+        IEnumerable<Project> projects,
+        ClaimsPrincipal principal,
+        string userId)
+        => projects
             .Where(project => ProjectAccessGuard.CanViewProject(project, principal, userId))
             .ToDictionary(
                 project => project.Id,
                 project => FirstNonEmpty(project.Name, $"Project #{project.Id}"));
+
+    private sealed record NotificationSummary(
+        int UnreadCount,
+        int UnseenCount,
+        int? LatestNotificationId,
+        int TotalCount,
+        long UnreadIdSum,
+        long UnseenIdSum)
+    {
+        /// <summary>
+        /// Changes whenever a row the bell could show is added, deleted (for example by
+        /// retention), read, unread or seen, including read/unread changes that leave the
+        /// counts equal. Clients compare it to skip reloading an unchanged list.
+        /// </summary>
+        public string ListVersion => string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{TotalCount}.{LatestNotificationId ?? 0}.{UnreadCount}.{UnseenCount}.{UnreadIdSum}.{UnseenIdSum}");
     }
 
     private async Task<HashSet<int>> GetMutedProjectIdsAsync(
@@ -1374,7 +1419,11 @@ public sealed class NotificationListOptions
     public bool ActionRequiredFirst { get; set; }
 }
 
-public sealed record NotificationCounts(int UnreadCount, int UnseenCount);
+public sealed record NotificationCounts(
+    int UnreadCount,
+    int UnseenCount,
+    int? LatestNotificationId = null,
+    string? ListVersion = null);
 
 public enum NotificationOperationResult
 {

@@ -3,6 +3,9 @@
 
   const CSRF_HEADER = 'X-CSRF-TOKEN';
   const POLL_INTERVAL_MS = 60_000;
+  // A background refresh reloads the bell list at least this often, even when the server's list
+  // version is unchanged.
+  const BELL_FULL_REFRESH_MAX_AGE_MS = 15 * 60_000;
   const SEARCH_DEBOUNCE_MS = 300;
   const STATUS_CLEAR_MS = 3_000;
   const IST_FORMATTER = new Intl.DateTimeFormat('en-IN', {
@@ -207,6 +210,7 @@
       unreadCount: asInteger(raw?.unreadCount ?? raw?.UnreadCount),
       unseenCount: optionalCount(raw?.unseenCount, raw?.UnseenCount),
       latestNotificationId: optionalCount(raw?.latestNotificationId, raw?.LatestNotificationId),
+      listVersion: raw?.listVersion ?? raw?.ListVersion ?? null,
       nextCursor: raw?.nextCursor ?? raw?.NextCursor ?? null,
       hasMore: Boolean(raw?.hasMore ?? raw?.HasMore),
       projects: asArray(raw?.projects ?? raw?.Projects).map(project => ({
@@ -481,6 +485,17 @@
       }
 
       return payload;
+    }
+
+    // Unread, unseen and the newest id: three cheap queries instead of a full list page.
+    async fetchCounts() {
+      const raw = await this.request(new URL(this.unreadUrl, window.location.origin).toString());
+      return {
+        unreadCount: optionalCount(raw?.unreadCount, raw?.UnreadCount),
+        unseenCount: optionalCount(raw?.unseenCount, raw?.UnseenCount),
+        latestNotificationId: optionalCount(raw?.latestNotificationId, raw?.LatestNotificationId),
+        listVersion: raw?.listVersion ?? raw?.ListVersion ?? null
+      };
     }
 
     async fetchPage(parameters = {}) {
@@ -844,6 +859,9 @@
       // Newest id in the server snapshot. The priority-ordered page can omit newer rows, so the
       // seen-all boundary comes from here, not from the rows shown.
       this.latestNotificationId = asInteger(root.dataset.latestNotificationId);
+      // Server snapshot version and when the list was last fully loaded (the page render counts).
+      this.listVersion = root.dataset.listVersion || null;
+      this.lastFullRefreshAt = Date.now();
       this.list = root.querySelector('[data-notification-list]');
       this.template = root.querySelector('template[data-notification-item-template]');
       this.empty = root.querySelector('[data-notification-empty]');
@@ -906,6 +924,31 @@
       });
     }
 
+    // A background refresh (realtime connect, reconnect, polling, tab focus) first asks for the
+    // counts. The server's list version changes whenever a row the bell could show is added,
+    // deleted (for example by retention), read, unread or seen, so an equal version means the list
+    // is unchanged and is not reloaded. A full reload still happens at least every 15 minutes,
+    // and whenever the version is unknown.
+    async isUnchanged() {
+      if (!this.runtime.unreadUrl || !this.listVersion
+          || Date.now() - this.lastFullRefreshAt >= BELL_FULL_REFRESH_MAX_AGE_MS) {
+        return false;
+      }
+
+      try {
+        const counts = await this.runtime.fetchCounts();
+        if (!counts.listVersion || counts.listVersion !== this.listVersion) {
+          return false;
+        }
+
+        this.runtime.setUnreadCount(counts.unreadCount);
+        this.runtime.setUnseenCount(counts.unseenCount);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
     async refresh(options = {}) {
       if (!this.authenticated) {
         return;
@@ -913,6 +956,10 @@
 
       if (!options.silent) {
         this.setStatus('Refreshing…', 'muted');
+      }
+
+      if (options.silent && !options.full && await this.isUnchanged()) {
+        return;
       }
 
       try {
@@ -926,6 +973,8 @@
         if (page.latestNotificationId !== null) {
           this.latestNotificationId = page.latestNotificationId;
         }
+        this.listVersion = page.listVersion;
+        this.lastFullRefreshAt = Date.now();
         this.runtime.setUnreadCount(page.unreadCount);
         this.runtime.setUnseenCount(page.unseenCount);
         this.render();
@@ -1030,10 +1079,19 @@
         .finally(() => window.location.assign(route));
     }
 
+    // The cached list version is valid only while the rows shown are exactly those loaded with
+    // it. Any local change to the rows (own actions, other tabs via realtime, new arrivals)
+    // clears it, so the next background refresh reloads instead of trusting a stale version.
+    invalidateListVersion() {
+      this.listVersion = null;
+    }
+
     handleNewNotification(notification) {
       if (notification.isProjectMuted) {
         return;
       }
+
+      this.invalidateListVersion();
 
       this.latestNotificationId = Math.max(this.latestNotificationId, notification.id);
       this.items = [notification, ...this.items.filter(item => item.id !== notification.id)]
@@ -1043,6 +1101,7 @@
     }
 
     handleNotificationList(notifications) {
+      this.invalidateListVersion();
       this.items = notifications
         .filter(item => !item.isProjectMuted)
         .sort(comparePriorityThenNewest)
@@ -1051,6 +1110,7 @@
     }
 
     handleStateMutation(mutation) {
+      this.invalidateListVersion();
       const ids = new Set(mutation.notificationIds);
       this.items.forEach(item => {
         if ((!mutation.appliesToAll && !ids.has(item.id))
@@ -1068,6 +1128,7 @@
     }
 
     handleSeenMutation(mutation) {
+      this.invalidateListVersion();
       const ids = new Set(mutation.notificationIds);
       this.items.forEach(item => {
         if (item.isSeen || (!mutation.appliesToAll && !ids.has(item.id))) {
@@ -1080,6 +1141,7 @@
     }
 
     handleMuteMutation(mutation) {
+      this.invalidateListVersion();
       this.items.forEach(item => {
         if (item.projectId === mutation.projectId) {
           item.isProjectMuted = mutation.isMuted;
@@ -1092,7 +1154,7 @@
       this.items = this.items.filter(item => !item.isProjectMuted);
       this.render();
       if (mutation.isMuted) {
-        this.refresh({ silent: true }).catch(() => {});
+        this.refresh({ silent: true, full: true }).catch(() => {});
       }
     }
 

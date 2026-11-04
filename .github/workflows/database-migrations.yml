@@ -91,6 +91,15 @@ jobs:
           --no-build
           --filter FullyQualifiedName~NotificationKindCompatibilityPostgresIntegrationTests
 
+      - name: Run notification query-cost PostgreSQL test
+        # Round-trip budgets for the bell page and the unread/unseen counts. Creates, migrates and
+        # drops its own prism_test_notifcost_* database on this server.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~NotificationQueryCostPostgresIntegrationTests
+
       - name: Run Document Repository PostgreSQL tests
         # OCR queue claims, delete-approval decisions and search snippets. Creates, migrates and
         # drops its own prism_test_docrepo_* databases on this server.
