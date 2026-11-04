@@ -1004,3 +1004,28 @@ test('Notification Centre labels a cross-project group and hides its mute action
 
   dom.window.close();
 });
+
+test('a remark group across two projects with the same name still counts as two projects', async () => {
+  const bell = await createBell({
+    items: [
+      remarkAcrossProjects(91, 4, 'Project Orion', 1),
+      remarkAcrossProjects(92, 5, 'Project Orion', 2)
+    ]
+  });
+  const group = bell.document.querySelector('[data-notification-group]');
+  assert.ok(group.classList.contains('is-multi-project'));
+  assert.equal(group.querySelector('[data-notification-project]').textContent, '2 projects · Collaboration');
+  assert.equal(group.querySelector('[data-notification-project]').getAttribute('title'), 'Project Orion (#4), Project Orion (#5)');
+  bell.dom.window.close();
+
+  const centre = await createCenter({
+    items: [
+      remarkAcrossProjects(91, 4, 'Project Orion', 1),
+      remarkAcrossProjects(92, 5, 'Project Orion', 2)
+    ]
+  });
+  const centreGroup = centre.document.querySelector('[data-notification-group]');
+  assert.equal(centreGroup.querySelector('[data-notification-project]').textContent, '2 projects');
+  assert.equal(centreGroup.querySelector('[data-notification-group-action="toggle-mute"]').hidden, true);
+  centre.dom.window.close();
+});

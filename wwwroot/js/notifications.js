@@ -196,11 +196,20 @@
     }
   }
 
-  // Senior roles' remark groups can span projects; returns the distinct project names in order.
+  // Senior roles' remark groups can span projects. Returns one display name per distinct project
+  // id, in order. Projects are told apart by id, since names need not be unique; a name shared by
+  // two projects gets its id appended so the label stays unambiguous.
   function groupProjectNames(group) {
-    return Array.from(new Set(group.items
-      .filter(item => item.projectId != null)
-      .map(item => item.projectName || `Project #${item.projectId}`)));
+    const projects = new Map();
+    group.items.forEach(item => {
+      if (item.projectId != null && !projects.has(item.projectId)) {
+        projects.set(item.projectId, item.projectName || `Project #${item.projectId}`);
+      }
+    });
+
+    const names = Array.from(projects.values());
+    return Array.from(projects.entries()).map(([id, name]) =>
+      names.filter(other => other === name).length > 1 ? `${name} (#${id})` : name);
   }
 
   function groupHeadline(group) {
