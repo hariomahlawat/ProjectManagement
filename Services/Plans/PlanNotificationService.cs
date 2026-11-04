@@ -12,18 +12,24 @@ using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Services.Plans;
 
+/// <summary>
+/// Queues plan notifications into the caller's DbContext without saving. Callers run it
+/// through <see cref="TransactionalNotificationQueue"/> inside the business transaction, which
+/// saves the rows with the change and contains any failure; exceptions here therefore
+/// propagate instead of being swallowed.
+/// </summary>
 public sealed class PlanNotificationService : IPlanNotificationService
 {
-    private readonly INotificationPublisher _publisher;
+    private readonly INotificationOutboxWriter _outbox;
     private readonly INotificationPreferenceService _preferences;
     private readonly ILogger<PlanNotificationService> _logger;
 
     public PlanNotificationService(
-        INotificationPublisher publisher,
+        INotificationOutboxWriter outbox,
         INotificationPreferenceService preferences,
         ILogger<PlanNotificationService> logger)
     {
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+        _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -154,58 +160,47 @@ public sealed class PlanNotificationService : IPlanNotificationService
             throw new ArgumentException("Actor user id is required.", nameof(actorUserId));
         }
 
-        try
+        var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        populateRecipients(recipients);
+
+        if (recipients.Count == 0)
         {
-            var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            populateRecipients(recipients);
-
-            if (recipients.Count == 0)
-            {
-                _logger.LogInformation("No recipients resolved for plan notification {Kind} on plan {PlanId}.", kind, plan.Id);
-                return;
-            }
-
-            var allowed = await FilterRecipientsAsync(kind, recipients, plan.ProjectId, cancellationToken);
-            if (allowed.Count == 0)
-            {
-                _logger.LogInformation("All recipients opted out for plan notification {Kind} on plan {PlanId}.", kind, plan.Id);
-                return;
-            }
-
-            var payload = new PlanNotificationPayload(
-                plan.Id,
-                plan.ProjectId,
-                GetProjectName(project),
-                plan.VersionNo,
-                plan.Status.ToString(),
-                plan.OwnerUserId,
-                plan.SubmittedByUserId,
-                plan.RejectionNote);
-
-            await _publisher.PublishAsync(
-                kind,
-                allowed,
-                payload,
-                metadata.Module,
-                metadata.EventType,
-                metadata.ScopeType,
-                metadata.ScopeId,
-                plan.ProjectId,
-                actorUserId,
-                metadata.Route,
-                metadata.Title,
-                metadata.Summary,
-                metadata.Fingerprint,
-                cancellationToken);
+            _logger.LogInformation("No recipients resolved for plan notification {Kind} on plan {PlanId}.", kind, plan.Id);
+            return;
         }
-        catch (OperationCanceledException)
+
+        var allowed = await FilterRecipientsAsync(kind, recipients, plan.ProjectId, cancellationToken);
+        if (allowed.Count == 0)
         {
-            throw;
+            _logger.LogInformation("All recipients opted out for plan notification {Kind} on plan {PlanId}.", kind, plan.Id);
+            return;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish plan notification {Kind} for plan {PlanId}.", kind, plan.Id);
-        }
+
+        var payload = new PlanNotificationPayload(
+            plan.Id,
+            plan.ProjectId,
+            GetProjectName(project),
+            plan.VersionNo,
+            plan.Status.ToString(),
+            plan.OwnerUserId,
+            plan.SubmittedByUserId,
+            plan.RejectionNote);
+
+        await _outbox.QueueAsync(
+            kind,
+            allowed,
+            payload,
+            metadata.Module,
+            metadata.EventType,
+            metadata.ScopeType,
+            metadata.ScopeId,
+            plan.ProjectId,
+            actorUserId,
+            metadata.Route,
+            metadata.Title,
+            metadata.Summary,
+            metadata.Fingerprint,
+            cancellationToken);
     }
 
     private static void AddRecipient(ISet<string> recipients, string? userId)

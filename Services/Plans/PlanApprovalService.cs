@@ -17,6 +17,8 @@ using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Authorization;
 using ProjectManagement.Infrastructure;
 
+using ProjectManagement.Services.Notifications;
+
 namespace ProjectManagement.Services.Plans;
 
 public class PlanApprovalService
@@ -27,6 +29,7 @@ public class PlanApprovalService
     private readonly PlanSnapshotService _snapshots;
     private readonly IPlanNotificationService _notifications;
     private readonly IPlannedTimelineValidationService _timelineValidation;
+    private readonly TransactionalNotificationQueue _notificationQueue;
 
     public PlanApprovalService(
         ApplicationDbContext db,
@@ -53,7 +56,8 @@ public class PlanApprovalService
         ILogger<PlanApprovalService> logger,
         PlanSnapshotService snapshots,
         IPlanNotificationService notifications,
-        IPlannedTimelineValidationService timelineValidation)
+        IPlannedTimelineValidationService timelineValidation,
+        TransactionalNotificationQueue? notificationQueue = null)
     {
         _db = db;
         _clock = clock;
@@ -61,6 +65,7 @@ public class PlanApprovalService
         _snapshots = snapshots;
         _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
         _timelineValidation = timelineValidation ?? throw new ArgumentNullException(nameof(timelineValidation));
+        _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
     }
 
     public async Task SubmitAsync(int projectId, string userId, CancellationToken cancellationToken = default)
@@ -148,21 +153,25 @@ public class PlanApprovalService
         });
 
         await _db.SaveChangesAsync(cancellationToken);
-        // A page-level Submit is nested under the editor's project gate.
-        // Releasing its savepoint must not emit notifications before the
-        // outer edit + replacement transaction actually commits.
+        // Notifications are written inside the transaction. A page-level Submit is nested under
+        // the editor's project gate, so they commit only when the outer edit + replacement
+        // transaction commits, and a rollback anywhere discards them.
         if (pending?.Project is not null)
         {
             var replaced = pending;
             var project = pending.Project;
-            transaction.RegisterAfterCommit(ct =>
-                _notifications.NotifyPlanSupersededAsync(replaced, project, userId, ct));
+            await _notificationQueue.QueueAfterSaveAsync(
+                "plan superseded",
+                ct => _notifications.NotifyPlanSupersededAsync(replaced, project, userId, ct),
+                cancellationToken);
         }
         if (plan.Project is not null)
         {
             var project = plan.Project;
-            transaction.RegisterAfterCommit(ct =>
-                _notifications.NotifyPlanSubmittedAsync(plan, project, userId, ct));
+            await _notificationQueue.QueueAfterSaveAsync(
+                "plan submitted",
+                ct => _notifications.NotifyPlanSubmittedAsync(plan, project, userId, ct),
+                cancellationToken);
         }
         await transaction.CommitAsync(cancellationToken);
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
@@ -238,9 +247,15 @@ public class PlanApprovalService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         if (plan.Project is not null)
-            await _notifications.NotifyPlanWithdrawnAsync(plan, plan.Project, userId, cancellationToken);
+        {
+            var project = plan.Project;
+            await _notificationQueue.QueueAfterSaveAsync(
+                "plan withdrawn",
+                ct => _notifications.NotifyPlanWithdrawnAsync(plan, project, userId, ct),
+                cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
         return true;
     }
 
@@ -461,6 +476,11 @@ public class PlanApprovalService
         plan.RejectionNote = null;
 
         await _db.SaveChangesAsync(cancellationToken);
+        plan.Project ??= project;
+        await _notificationQueue.QueueAfterSaveAsync(
+            "plan approved",
+            ct => _notifications.NotifyPlanApprovedAsync(plan, project, hodUserId, ct),
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation(
@@ -469,8 +489,6 @@ public class PlanApprovalService
             plan.ProjectId,
             hodUserId);
 
-        plan.Project ??= project;
-        await _notifications.NotifyPlanApprovedAsync(plan, project, hodUserId, cancellationToken);
         return true;
     }
 
@@ -654,17 +672,20 @@ public class PlanApprovalService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        if (plan.Project is not null)
+        {
+            var project = plan.Project;
+            await _notificationQueue.QueueAfterSaveAsync(
+                "plan rejected",
+                ct => _notifications.NotifyPlanRejectedAsync(plan, project, hodUserId, ct),
+                cancellationToken);
+        }
         await transaction.CommitAsync(cancellationToken);
         _logger.LogInformation(
             "Plan version {PlanVersionId} for project {ProjectId} was rejected by {UserId}.",
             plan.Id,
             plan.ProjectId,
             hodUserId);
-
-        if (plan.Project is not null)
-        {
-            await _notifications.NotifyPlanRejectedAsync(plan, plan.Project, hodUserId, cancellationToken);
-        }
 
         return true;
     }
