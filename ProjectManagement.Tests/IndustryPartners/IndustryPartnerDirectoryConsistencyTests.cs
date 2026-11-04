@@ -215,24 +215,37 @@ public sealed class IndustryPartnerDirectoryConsistencyTests
     }
 
     [Fact]
-    public void Drafts_StayWithinTheCookieBudget_DroppingLongFieldsFirst()
+    public void Drafts_TooLargeForTheCookie_AreNotKeptAtAll()
     {
         // 4,000 Devanagari characters: each is escaped to six bytes when stored in TempData.
-        var longHindiNotes = new string('\u0928', 4000);
-        var longHindiLocation = new string('\u092A', 2000);
         var draft = new ProjectManagement.Pages.IndustryPartners.IndexModel.OrganisationDraft(
-            null, "Heron Labs", longHindiLocation, longHindiNotes, "Ms Rao", "98765", "rao@example.test");
+            1, "Heron Labs", "Pune", new string('\u0928', 4000));
 
-        var stored = ProjectManagement.Pages.IndustryPartners.IndexModel.FitDraftForCookie(draft);
+        Assert.Null(ProjectManagement.Pages.IndustryPartners.IndexModel.FitDraftForCookie(draft));
+    }
 
-        Assert.NotNull(stored);
-        Assert.True(System.Text.Json.JsonSerializer.Serialize(stored).Length
-            <= ProjectManagement.Pages.IndustryPartners.IndexModel.MaxStoredDraftLength);
-        var kept = System.Text.Json.JsonSerializer.Deserialize<ProjectManagement.Pages.IndustryPartners.IndexModel.OrganisationDraft>(stored!)!;
-        Assert.Equal("Heron Labs", kept.Name);
-        Assert.Equal("98765", kept.ContactPhone);
-        Assert.Null(kept.Remarks);
-        Assert.Null(kept.Location);
+    [Fact]
+    public async Task UpdateHandler_WhenTheDraftIsTooLarge_ShowsTheSavedValuesSoNothingIsErased()
+    {
+        await using var db = await IndustryPartnerTestDb.CreateAsync();
+        await db.AddPartnerAsync("Existing Org");
+        var partnerId = await db.AddPartnerAsync("Editable Org", createdByUserId: "owner");
+        var longNotes = new string('\u0928', 4000);
+        var owner = User("owner");
+        var version = (await new IndustryPartnerService(db.NewContext()).GetAsync(partnerId))!.RowVersion;
+        await new IndustryPartnerService(db.NewContext()).UpdateAsync(
+            partnerId, new UpdateIndustryPartnerRequest("Editable Org", null, longNotes, version), owner);
+        version = (await new IndustryPartnerService(db.NewContext()).GetAsync(partnerId))!.RowVersion;
+
+        // Only the name is changed, to a duplicate; the long saved notes are submitted unchanged.
+        var page = IndustryPartnerJdpAuthorizationTests.CreatePage(new IndustryPartnerService(db.NewContext()), owner);
+        page.Id = partnerId;
+        await page.OnPostUpdatePartnerAsync(partnerId, "Existing Org", null, longNotes, version, CancellationToken.None);
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Null(page.EditDraft);
+        Assert.NotNull(page.TempData["Error"]);
+        Assert.Equal(longNotes, page.SelectedPartner!.Remarks);
     }
 
     [Fact]
