@@ -298,17 +298,19 @@
 }
 
     .tot-summary__chart .card-body {
-        /* this is the visible height of the card */
-        height: 280px;
-        position: relative;
         padding: 1rem 1.25rem 1.25rem 1.25rem;
     }
 
-/* make the canvas fill the card-body */
-#tot-yearly-chart {
-    width: 100% !important;
-    height: 100% !important;
-    display: block;
+/* The canvas gets its own box below the title, so it never runs past the card. */
+.tot-summary__chart-host {
+    position: relative;
+    height: 240px;
+}
+
+.tot-summary__chart-message {
+    padding: 2rem 0;
+    text-align: center;
+    font-size: .85rem;
 }
 
 
