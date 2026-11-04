@@ -2,11 +2,20 @@ using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.IndustryPartners;
 
+public sealed record ProjectJdpContactDto(
+    string? Name,
+    string? Phone,
+    string? Email)
+{
+    public string DisplayName => string.IsNullOrWhiteSpace(Name) ? "General contact" : Name.Trim();
+}
+
 public sealed record ProjectJdpPartnerProfileDto(
     int Id,
     string Name,
     string? Location,
-    IReadOnlyList<ProjectJdpLinkedProjectDto> OtherProjects)
+    IReadOnlyList<ProjectJdpLinkedProjectDto> OtherProjects,
+    ProjectJdpContactDto? PrimaryContact = null)
 {
     public int OtherProjectCount => OtherProjects.Count;
 
@@ -19,9 +28,7 @@ public sealed record ProjectJdpPartnerProfileDto(
         OtherProjectCount - OtherOngoingProjectCount - OtherCompletedProjectCount);
 
     public string UsageSummary => JdpStatusRules.UsageSummary(
-        OtherProjectCount,
-        OtherOngoingProjectCount,
-        OtherCompletedProjectCount);
+        OtherProjects.Select(project => project.Status).ToList());
 }
 
 public sealed record ProjectMultiJdpProfileDto(

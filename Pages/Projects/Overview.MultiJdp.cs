@@ -120,7 +120,7 @@ public partial class OverviewModel
         }
     }
 
-    private static object ToMultiJdpResponse(ProjectMultiJdpProfileDto profile) => new
+    private object ToMultiJdpResponse(ProjectMultiJdpProfileDto profile) => new
     {
         projectId = profile.ProjectId,
         count = profile.Count,
@@ -133,6 +133,15 @@ public partial class OverviewModel
             name = partner.Name,
             location = partner.Location,
             usageSummary = partner.UsageSummary,
+            organisationUrl = Url.Page("/IndustryPartners/Organisation", new { id = partner.Id, projectId = profile.ProjectId }),
+            primaryContact = partner.PrimaryContact is null
+                ? null
+                : new
+                {
+                    name = partner.PrimaryContact.DisplayName,
+                    phone = partner.PrimaryContact.Phone,
+                    email = partner.PrimaryContact.Email
+                },
             otherProjectCount = partner.OtherProjectCount,
             otherOngoingProjectCount = partner.OtherOngoingProjectCount,
             otherCompletedProjectCount = partner.OtherCompletedProjectCount,

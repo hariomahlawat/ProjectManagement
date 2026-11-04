@@ -72,12 +72,39 @@ public static class JdpStatusRules
         _ => "Contact only"
     };
 
-    /// <summary>How else an organisation is used, e.g. "Also linked to 3 other projects · 2 ongoing · 1 completed".</summary>
+    public const string NoOtherProjects = "Not a JDP on any other project";
+
+    /// <summary>
+    /// How else an organisation is used, from the status of each of its other (live) projects:
+    /// "Also a JDP on 1 other project (archived)" or
+    /// "Also a JDP on 3 other projects · 2 ongoing · 1 completed".
+    /// </summary>
+    public static string UsageSummary(IReadOnlyCollection<JdpProjectStatus> otherProjects)
+    {
+        ArgumentNullException.ThrowIfNull(otherProjects);
+        if (otherProjects.Count == 0)
+        {
+            return NoOtherProjects;
+        }
+
+        if (otherProjects.Count == 1)
+        {
+            return $"Also a JDP on 1 other project ({Label(otherProjects.First()).ToLowerInvariant()})";
+        }
+
+        var parts = otherProjects
+            .GroupBy(status => status)
+            .OrderBy(group => group.Key)
+            .Select(group => $"{group.Count()} {Label(group.Key).ToLowerInvariant()}");
+        return $"Also a JDP on {otherProjects.Count} other projects · {string.Join(" · ", parts)}";
+    }
+
+    /// <summary>The same wording from counts only (the Add JDP search results), where the rest is "other".</summary>
     public static string UsageSummary(int otherProjects, int ongoing, int completed)
     {
         if (otherProjects == 0)
         {
-            return "Not linked to any other project";
+            return NoOtherProjects;
         }
 
         var parts = new List<string>();
@@ -97,7 +124,7 @@ public static class JdpStatusRules
             parts.Add($"{other} other");
         }
 
-        return $"Also linked to {otherProjects} other {(otherProjects == 1 ? "project" : "projects")}" +
+        return $"Also a JDP on {otherProjects} other {(otherProjects == 1 ? "project" : "projects")}" +
                (parts.Count == 0 ? string.Empty : $" · {string.Join(" · ", parts)}");
     }
 }

@@ -44,8 +44,8 @@ public sealed class IndustryPartnerDirectoryConsistencyTests
     {
         var option = new ProjectJdpOptionDto(1, "Org", null, OtherProjectCount: 3, OtherOngoingProjectCount: 1, OtherCompletedProjectCount: 1);
 
-        Assert.Equal("Also linked to 3 other projects · 1 ongoing · 1 completed · 1 other", option.UsageSummary);
-        Assert.Equal("Not linked to any other project", new ProjectJdpOptionDto(1, "Org", null, 0, 0, 0).UsageSummary);
+        Assert.Equal("Also a JDP on 3 other projects · 1 ongoing · 1 completed · 1 other", option.UsageSummary);
+        Assert.Equal("Not a JDP on any other project", new ProjectJdpOptionDto(1, "Org", null, 0, 0, 0).UsageSummary);
     }
 
     [Fact]

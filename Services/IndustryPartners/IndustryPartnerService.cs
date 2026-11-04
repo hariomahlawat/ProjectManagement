@@ -469,13 +469,30 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             {
                 Id = link.IndustryPartnerId,
                 link.IndustryPartner.Name,
-                link.IndustryPartner.Location
+                link.IndustryPartner.Location,
+                link.IndustryPartner.PrimaryContactId
             })
             .ToListAsync(cancellationToken);
 
         if (linkedPartners.Count == 0)
         {
             return ProjectMultiJdpProfileDto.Empty(projectId);
+        }
+
+        // Each partner's primary contact, by the same rule as the Industry Directory.
+        var linkedIds = linkedPartners.Select(partner => partner.Id).ToArray();
+        var contactRows = await _db.IndustryPartnerContacts
+            .AsNoTracking()
+            .Where(contact => linkedIds.Contains(contact.IndustryPartnerId))
+            .Select(contact => new { contact.Id, contact.IndustryPartnerId, contact.Name, contact.Phone, contact.Email })
+            .ToListAsync(cancellationToken);
+        var contactsByPartner = contactRows.ToLookup(contact => contact.IndustryPartnerId);
+        ProjectJdpContactDto? PrimaryContactOf(int partnerId, int? chosenId)
+        {
+            var own = contactsByPartner[partnerId].ToList();
+            var primaryId = EffectivePrimaryContactId(chosenId, own.Select(contact => contact.Id));
+            var primary = own.FirstOrDefault(contact => contact.Id == primaryId);
+            return primary is null ? null : new ProjectJdpContactDto(primary.Name, primary.Phone, primary.Email);
         }
 
         var partnerIds = linkedPartners.Select(partner => partner.Id).ToArray();
@@ -514,7 +531,8 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                 partner.Id,
                 partner.Name,
                 partner.Location,
-                projectsByPartner.GetValueOrDefault(partner.Id) ?? Array.Empty<ProjectJdpLinkedProjectDto>()))
+                projectsByPartner.GetValueOrDefault(partner.Id) ?? Array.Empty<ProjectJdpLinkedProjectDto>(),
+                PrimaryContactOf(partner.Id, partner.PrimaryContactId)))
             .ToList();
 
         return new ProjectMultiJdpProfileDto(projectId, partners);
