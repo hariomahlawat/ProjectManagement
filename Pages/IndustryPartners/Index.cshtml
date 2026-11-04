@@ -95,7 +95,7 @@
 
             <label class="ip-select">
                 <span>Show</span>
-                <select name="filter" class="form-select" data-directory-autosubmit>
+                <select name="filter" class="form-select" aria-label="Show organisations" data-directory-autosubmit>
                     @foreach (var option in ProjectManagement.Pages.IndustryPartners.IndexModel.FilterOptions)
                     {
                         <option value="@option.Key" selected="@(option.Key == Model.Filter)">@option.Label</option>
@@ -105,7 +105,7 @@
 
             <label class="ip-select">
                 <span>Sort</span>
-                <select name="sort" class="form-select" data-directory-autosubmit>
+                <select name="sort" class="form-select" aria-label="Sort organisations" data-directory-autosubmit>
                     @foreach (var option in ProjectManagement.Pages.IndustryPartners.IndexModel.SortOptions)
                     {
                         <option value="@option.Key" selected="@(option.Key == Model.Sort)">@option.Label</option>

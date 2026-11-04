@@ -2159,9 +2159,17 @@ button.ip-primary-contact-card {
     flex-wrap: nowrap;
   }
 
+  /* Text that steps aside on phones stays readable by screen readers. */
   .ip-export-action span,
-  .ip-primary-action span {
-    display: none;
+  .ip-primary-action span,
+  .ip-select > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .ip-export-action,
@@ -2189,10 +2197,6 @@ button.ip-primary-contact-card {
 
   .ip-select {
     min-width: 0;
-  }
-
-  .ip-select > span {
-    display: none;
   }
 
   .ip-select .form-select {
