@@ -186,6 +186,35 @@ public sealed class IndustryPartnerDirectoryConsistencyTests
     }
 
     [Fact]
+    public async Task UpdateHandler_RestoredEdit_KeepsTheSubmittedVersionSoAConcurrentChangeIsNotOverwritten()
+    {
+        await using var db = await IndustryPartnerTestDb.CreateAsync();
+        await db.AddPartnerAsync("Existing Org");
+        var partnerId = await db.AddPartnerAsync("Editable Org", createdByUserId: "owner");
+        var owner = User("owner");
+        var loadedVersion = (await new IndustryPartnerService(db.NewContext()).GetAsync(partnerId))!.RowVersion;
+
+        // Another user saves the organisation after this user's form was loaded.
+        await new IndustryPartnerService(db.NewContext()).UpdateAsync(
+            partnerId, new UpdateIndustryPartnerRequest("Editable Org", "Delhi", "Other user's notes", loadedVersion), User("hod", RoleNames.HoD));
+
+        // This user's submission fails validation first (duplicate name), so the form is restored.
+        var refused = IndustryPartnerJdpAuthorizationTests.CreatePage(new IndustryPartnerService(db.NewContext()), owner);
+        refused.Id = partnerId;
+        await refused.OnPostUpdatePartnerAsync(partnerId, "Existing Org", null, "My notes", loadedVersion, CancellationToken.None);
+        await refused.OnGetAsync(CancellationToken.None);
+        Assert.Equal(loadedVersion, refused.EditDraft?.RowVersion);
+
+        // Correcting the name and resubmitting the restored form reports the conflict.
+        var resubmit = IndustryPartnerJdpAuthorizationTests.CreatePage(new IndustryPartnerService(db.NewContext()), owner);
+        await resubmit.OnPostUpdatePartnerAsync(partnerId, "Editable Org", null, "My notes", refused.EditDraft!.RowVersion, CancellationToken.None);
+
+        Assert.Contains("changed by another user", resubmit.TempData["Error"] as string);
+        await using var check = db.NewContext();
+        Assert.Equal("Other user's notes", (await check.IndustryPartners.SingleAsync(p => p.Id == partnerId)).Remarks);
+    }
+
+    [Fact]
     public void Drafts_StayWithinTheCookieBudget_DroppingLongFieldsFirst()
     {
         // 4,000 Devanagari characters: each is escaped to six bytes when stored in TempData.

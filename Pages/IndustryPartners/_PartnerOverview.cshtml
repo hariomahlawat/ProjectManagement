@@ -6,6 +6,7 @@
     var editName = draft is not null ? draft.Name : partner.Name;
     var editLocation = draft is not null ? draft.Location : partner.Location;
     var editRemarks = draft is not null ? draft.Remarks : partner.Remarks;
+    var editRowVersion = draft?.RowVersion ?? partner.RowVersion;
 }
 
 @if (Model.Edit && Model.CanEditOrganisation)
@@ -13,7 +14,7 @@
     <form method="post" asp-page-handler="UpdatePartner" class="ip-edit-form" data-update-organisation-form>
         @Html.AntiForgeryToken()
         <input type="hidden" name="partnerId" value="@partner.Id" />
-        <input type="hidden" name="rowVersion" value="@partner.RowVersion" />
+        <input type="hidden" name="rowVersion" value="@editRowVersion" />
         <input type="hidden" name="q" value="@Model.Q" />
         <input type="hidden" name="filter" value="@Model.Filter" />
         <input type="hidden" name="p" value="@Model.PageNumber" />

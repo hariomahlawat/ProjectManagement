@@ -84,7 +84,8 @@ public sealed class IndexModel : PageModel
         string? Remarks,
         string? ContactName = null,
         string? ContactPhone = null,
-        string? ContactEmail = null);
+        string? ContactEmail = null,
+        string? RowVersion = null);
 
     public string ActiveTab => NormalizeTab(Tab, ProjectContext is not null);
 
@@ -234,7 +235,9 @@ public sealed class IndexModel : PageModel
             // user reapplies their change knowingly; other errors keep what they typed.
             if (!exception.Errors.ContainsKey("concurrency"))
             {
-                WriteDraft(EditDraftKey, new OrganisationDraft(partnerId, name, location, remarks));
+                // The submitted record version travels with the draft: if someone else saved
+                // the organisation meanwhile, resubmitting still reports the conflict.
+                WriteDraft(EditDraftKey, new OrganisationDraft(partnerId, name, location, remarks, RowVersion: rowVersion));
             }
 
             return RedirectToDirectory(partnerId, "overview", edit: true);
