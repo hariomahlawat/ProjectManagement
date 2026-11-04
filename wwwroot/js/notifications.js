@@ -196,6 +196,22 @@
     }
   }
 
+  // Senior roles' remark groups can span projects. Returns one display name per distinct project
+  // id, in order. Projects are told apart by id, since names need not be unique; a name shared by
+  // two projects gets its id appended so the label stays unambiguous.
+  function groupProjectNames(group) {
+    const projects = new Map();
+    group.items.forEach(item => {
+      if (item.projectId != null && !projects.has(item.projectId)) {
+        projects.set(item.projectId, item.projectName || `Project #${item.projectId}`);
+      }
+    });
+
+    const names = Array.from(projects.values());
+    return Array.from(projects.entries()).map(([id, name]) =>
+      names.filter(other => other === name).length > 1 ? `${name} (#${id})` : name);
+  }
+
   function groupHeadline(group) {
     const unread = group.items.filter(item => !item.isRead).length;
     return unread > 0
@@ -1243,8 +1259,17 @@
       row.classList.toggle('is-unread', unread.length > 0);
 
       setIcon(row.querySelector('[data-notification-icon]'), lead.iconCssClass);
-      const eyebrow = lead.projectName ? `${lead.projectName} · ${lead.category}` : lead.category;
-      setText(row.querySelector('[data-notification-project]'), eyebrow);
+      const projectNames = groupProjectNames(group);
+      const multiProject = projectNames.length > 1;
+      row.classList.toggle('is-multi-project', multiProject);
+      const eyebrow = multiProject
+        ? `${projectNames.length} projects · ${lead.category}`
+        : lead.projectName ? `${lead.projectName} · ${lead.category}` : lead.category;
+      const eyebrowElement = row.querySelector('[data-notification-project]');
+      setText(eyebrowElement, eyebrow);
+      if (multiProject) {
+        eyebrowElement?.setAttribute('title', projectNames.join(', '));
+      }
       setText(row.querySelector('[data-notification-group-title]'), groupHeadline(group));
       setText(row.querySelector('[data-notification-summary]'), `Latest: ${lead.title || 'Notification'}`);
       setTimeElement(row.querySelector('[data-notification-created]'), lead);
@@ -1253,9 +1278,12 @@
       if (toggle) {
         toggle.dataset.groupKey = group.key;
         toggle.setAttribute('aria-expanded', String(expanded));
+        const scope = multiProject
+          ? ` across ${projectNames.length} projects`
+          : lead.projectName ? ` for ${lead.projectName}` : '';
         toggle.setAttribute(
           'aria-label',
-          `${expanded ? 'Collapse' : 'Expand'} ${group.items.length} ${lead.category} updates${lead.projectName ? ` for ${lead.projectName}` : ''}`);
+          `${expanded ? 'Collapse' : 'Expand'} ${group.items.length} ${lead.category} updates${scope}`);
       }
       row.classList.toggle('is-expanded', expanded);
 
@@ -2290,10 +2318,13 @@
       }
 
       setIcon(header.querySelector('[data-notification-icon]'), lead.iconCssClass);
-      const projectLabel = lead.projectName || lead.category;
+      const projectNames = groupProjectNames(group);
+      const multiProject = projectNames.length > 1;
+      wrapper.classList.toggle('is-multi-project', multiProject);
+      const projectLabel = multiProject ? `${projectNames.length} projects` : lead.projectName || lead.category;
       const project = header.querySelector('[data-notification-project]');
       setText(project, projectLabel);
-      project?.setAttribute('title', projectLabel);
+      project?.setAttribute('title', multiProject ? projectNames.join(', ') : projectLabel);
       setText(header.querySelector('[data-notification-category]'), lead.category);
       setText(header.querySelector('[data-notification-group-title]'), groupHeadline(group));
       const preview = header.querySelector('[data-notification-summary]');
@@ -2309,9 +2340,12 @@
       const toggle = header.querySelector('[data-notification-group-action="toggle-group"]');
       if (toggle) {
         toggle.setAttribute('aria-expanded', String(expanded));
+        const scope = multiProject
+          ? ` across ${projectNames.length} projects`
+          : lead.projectName ? ` for ${lead.projectName}` : '';
         toggle.setAttribute(
           'aria-label',
-          `${expanded ? 'Collapse' : 'Expand'} ${group.items.length} ${lead.category} updates${lead.projectName ? ` for ${lead.projectName}` : ''}`);
+          `${expanded ? 'Collapse' : 'Expand'} ${group.items.length} ${lead.category} updates${scope}`);
       }
 
       const readButton = header.querySelector('[data-notification-group-action="toggle-read"]');
@@ -2326,7 +2360,8 @@
 
       const muteButton = header.querySelector('[data-notification-group-action="toggle-mute"]');
       if (muteButton) {
-        setHidden(muteButton, lead.projectId == null);
+        // Muting applies to one project; a group spanning projects offers it on each row instead.
+        setHidden(muteButton, lead.projectId == null || multiProject);
         const label = lead.isProjectMuted ? 'Unmute project' : 'Mute project';
         muteButton.title = label;
         muteButton.setAttribute('aria-label', label);

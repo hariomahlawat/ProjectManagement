@@ -189,6 +189,7 @@ public sealed class UserNotificationService
             userId,
             projectMap,
             mutedProjectIds,
+            NotificationGrouping.CombinesRemarksAcrossProjects(principal),
             cancellationToken);
         var filterOptions = options.IncludeFilterOptions
             ? await GetFilterOptionsAsync(
@@ -259,6 +260,7 @@ public sealed class UserNotificationService
             userId,
             accessibleProjects,
             mutedProjectIds,
+            NotificationGrouping.CombinesRemarksAcrossProjects(principal),
             cancellationToken);
     }
 
@@ -267,6 +269,7 @@ public sealed class UserNotificationService
         string userId,
         IReadOnlyDictionary<int, string> accessibleProjects,
         IReadOnlyCollection<int> mutedProjectIds,
+        bool combineRemarksAcrossProjects,
         CancellationToken cancellationToken)
     {
         if (notifications.Count == 0)
@@ -365,9 +368,11 @@ public sealed class UserNotificationService
                 notification.DeliveredUtc.HasValue ? EnsureUtc(notification.DeliveredUtc.Value) : null,
                 content.SummaryTooltip,
                 NotificationGrouping.ResolveGroupKey(
+                    notification.Kind,
                     presentation,
                     notification.ProjectId,
-                    EnsureUtc(notification.CreatedUtc))));
+                    EnsureUtc(notification.CreatedUtc),
+                    combineRemarksAcrossProjects)));
         }
 
         return results;

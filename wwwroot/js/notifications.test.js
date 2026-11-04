@@ -956,3 +956,76 @@ test('a local change to the bell list invalidates its version so the next refres
 
   dom.window.close();
 });
+
+function remarkAcrossProjects(id, projectId, projectName, minutesAgo) {
+  return notification({
+    id,
+    projectId,
+    projectName,
+    title: `New remark on ${projectName}`,
+    category: 'Collaboration',
+    iconCssClass: 'bi bi-chat-left-text',
+    createdUtc: new Date(Date.parse('2026-06-30T09:00:00Z') - minutesAgo * 60_000).toISOString(),
+    groupKey: 'all-projects|remarks|2026-06-30'
+  });
+}
+
+test('bell shows a senior role remark group as spanning projects', async () => {
+  const fixture = await createBell({
+    items: [
+      remarkAcrossProjects(81, 4, 'Project AURA', 1),
+      remarkAcrossProjects(82, 5, 'Project Vega', 2),
+      remarkAcrossProjects(83, 4, 'Project AURA', 3)
+    ]
+  });
+  const { dom, document } = fixture;
+
+  const group = document.querySelector('[data-notification-group]');
+  assert.ok(group.classList.contains('is-multi-project'));
+  assert.equal(group.querySelector('[data-notification-project]').textContent, '2 projects · Collaboration');
+  assert.equal(group.querySelector('[data-notification-project]').getAttribute('title'), 'Project AURA, Project Vega');
+  assert.match(group.querySelector('[data-notification-action="toggle-group"]').getAttribute('aria-label'), /across 2 projects/);
+
+  dom.window.close();
+});
+
+test('Notification Centre labels a cross-project group and hides its mute action', async () => {
+  const fixture = await createCenter({
+    items: [
+      remarkAcrossProjects(81, 4, 'Project AURA', 1),
+      remarkAcrossProjects(82, 5, 'Project Vega', 2)
+    ]
+  });
+  const { dom, document } = fixture;
+
+  const group = document.querySelector('[data-notification-group]');
+  assert.equal(group.querySelector('[data-notification-project]').textContent, '2 projects');
+  assert.equal(group.querySelector('[data-notification-group-action="toggle-mute"]').hidden, true);
+
+  dom.window.close();
+});
+
+test('a remark group across two projects with the same name still counts as two projects', async () => {
+  const bell = await createBell({
+    items: [
+      remarkAcrossProjects(91, 4, 'Project Orion', 1),
+      remarkAcrossProjects(92, 5, 'Project Orion', 2)
+    ]
+  });
+  const group = bell.document.querySelector('[data-notification-group]');
+  assert.ok(group.classList.contains('is-multi-project'));
+  assert.equal(group.querySelector('[data-notification-project]').textContent, '2 projects · Collaboration');
+  assert.equal(group.querySelector('[data-notification-project]').getAttribute('title'), 'Project Orion (#4), Project Orion (#5)');
+  bell.dom.window.close();
+
+  const centre = await createCenter({
+    items: [
+      remarkAcrossProjects(91, 4, 'Project Orion', 1),
+      remarkAcrossProjects(92, 5, 'Project Orion', 2)
+    ]
+  });
+  const centreGroup = centre.document.querySelector('[data-notification-group]');
+  assert.equal(centreGroup.querySelector('[data-notification-project]').textContent, '2 projects');
+  assert.equal(centreGroup.querySelector('[data-notification-group-action="toggle-mute"]').hidden, true);
+  centre.dom.window.close();
+});

@@ -8183,6 +8183,11 @@ main[role="main"].analytics-main > .pm-page-shell {
     display: none;
 }
 
+/* A group spanning projects (senior roles' remarks) names each row's project. */
+.notification-menu__group.is-multi-project .notification-menu__group-items .notification-menu__eyebrow {
+    display: inline;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .notification-menu__group-chevron {
         transition: none;
