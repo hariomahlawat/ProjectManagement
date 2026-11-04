@@ -83,8 +83,10 @@ public sealed class ProjectTotExportService : IProjectTotExportService
         var filter = new ProjectTotTrackerFilter
         {
             TotStatus = request.TotStatus,
-            RequestState = null,
-            OnlyPendingRequests = false,
+            RequestState = request.OnlyPendingRequests ? null : request.RequestState,
+            OnlyPendingRequests = request.OnlyPendingRequests,
+            RequiresTotOnly = request.RequiresTotOnly,
+            MetCompletedOnly = request.MetCompletedOnly,
             SearchTerm = normalizedSearchTerm,
             StartedFrom = request.StartedFrom,
             StartedTo = request.StartedTo,
@@ -110,7 +112,11 @@ public sealed record ProjectTotExportRequest(
     DateOnly? CompletedFrom,
     DateOnly? CompletedTo,
     string? SearchTerm,
-    string RequestedByUserId);
+    string RequestedByUserId,
+    ProjectTotRequestDecisionState? RequestState = null,
+    bool OnlyPendingRequests = false,
+    bool RequiresTotOnly = false,
+    bool MetCompletedOnly = false);
 
 public sealed record ProjectTotExportFile(string FileName, byte[] Content, string ContentType)
 {

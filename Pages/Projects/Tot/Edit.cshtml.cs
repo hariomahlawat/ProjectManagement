@@ -153,6 +153,12 @@ public class EditModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }
 
+        if (HasPendingRequest(project))
+        {
+            TempData["Error"] = ProjectTotService.PendingRequestMessage;
+            return RedirectToPage("/Projects/Overview", new { id = project.Id });
+        }
+
         PopulateInputFromProject(project);
         RemarkInput.ProjectId = project.Id;
         RemarkInput.Body = string.Empty;
@@ -217,6 +223,12 @@ public class EditModel : PageModel
         if (result.Status == ProjectTotUpdateStatus.NotFound)
         {
             return NotFound();
+        }
+
+        if (result.Status == ProjectTotUpdateStatus.Conflict)
+        {
+            TempData["Error"] = result.ErrorMessage;
+            return RedirectToPage("/Projects/Overview", new { id });
         }
 
         if (!result.IsSuccess)
@@ -329,6 +341,7 @@ public class EditModel : PageModel
     {
         var project = await _db.Projects
             .Include(p => p.Tot)
+            .Include(p => p.TotRequest)
             .Include(p => p.HodUser)
             .Include(p => p.LeadPoUser)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
@@ -358,6 +371,9 @@ public class EditModel : PageModel
 
         return project;
     }
+
+    private static bool HasPendingRequest(Project project)
+        => project.TotRequest?.DecisionState == ProjectTotRequestDecisionState.Pending;
 
     private static IReadOnlyList<SelectListItem> BuildStatusOptions() => new List<SelectListItem>
     {

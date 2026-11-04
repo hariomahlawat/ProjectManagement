@@ -8,7 +8,8 @@ public enum ProjectTotUpdateStatus
 {
     Success = 0,
     NotFound = 1,
-    ValidationFailed = 2
+    ValidationFailed = 2,
+    Conflict = 3
 }
 
 public sealed record ProjectTotUpdateRequest(
@@ -32,4 +33,7 @@ public sealed record ProjectTotUpdateResult(ProjectTotUpdateStatus Status, strin
 
     public static ProjectTotUpdateResult ValidationFailed(string message) =>
         new(ProjectTotUpdateStatus.ValidationFailed, message);
+
+    public static ProjectTotUpdateResult Conflict(string message) =>
+        new(ProjectTotUpdateStatus.Conflict, message);
 }
