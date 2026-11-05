@@ -59,6 +59,8 @@
             if (!next || !existing) throw new Error('No register in the response.');
             existing.replaceWith(next);
             carrySearch(params.get('SearchTerm') ?? '');
+            const exportButton = document.querySelector('[data-tot-export-button]');
+            if (exportButton) exportButton.disabled = next.dataset.totCount === '0';
             const search = params.toString();
             window.history.replaceState(window.history.state, '', search ? `${window.location.pathname}?${search}` : window.location.pathname);
         } catch {

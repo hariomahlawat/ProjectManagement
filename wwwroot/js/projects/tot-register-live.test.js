@@ -12,7 +12,8 @@ const page = `
     <input type="hidden" name="LongWaiting" value="" />
     <input name="SearchTerm" data-tot-live-search />
   </form>
-  <div data-tot-register><span class="count">139 projects</span></div>
+  <button data-tot-export-button disabled>Export</button>
+  <div data-tot-register data-tot-count="0"><span class="count">No projects</span></div>
   <form id="tot-filter-form" method="get" data-tot-carries-search><input type="hidden" name="Sort" value="project" /></form>
   <form id="export" method="post" data-tot-carries-search><input type="hidden" name="SearchTerm" value="" /></form>`;
 
@@ -31,7 +32,7 @@ function run(respond) {
   return { window, calls };
 }
 
-const html = (count) => `<div data-tot-register><span class="count">${count}</span></div>`;
+const html = (count, total = 3) => `<div data-tot-register data-tot-count="${total}"><span class="count">${count}</span></div>`;
 const ok = (body) => Promise.resolve({ ok: true, text: () => Promise.resolve(body) });
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -90,4 +91,23 @@ test('the More filters and Export dialogs follow the live search', async () => {
   await wait(350);
   assert.equal(term('tot-filter-form'), null, 'a cleared search leaves the filter address');
   assert.equal(term('export'), '');
+});
+
+test('Export follows the register: on when a search finds projects, off when none', async () => {
+  let total = 3;
+  const { window } = run(() => ok(html('n', total)));
+  const doc = window.document;
+  const input = doc.querySelector('[data-tot-live-search]');
+  const exportButton = doc.querySelector('[data-tot-export-button]');
+
+  input.value = 'drona';
+  input.dispatchEvent(new window.Event('input'));
+  await wait(350);
+  assert.equal(exportButton.disabled, false);
+
+  total = 0;
+  input.value = 'nothing';
+  input.dispatchEvent(new window.Event('input'));
+  await wait(350);
+  assert.equal(exportButton.disabled, true);
 });

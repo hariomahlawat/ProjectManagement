@@ -71,7 +71,7 @@
 
     var total = Model.Projects.Count;
 }
-<div class="tot-register" data-tot-register>
+<div class="tot-register" data-tot-register data-tot-count="@total">
     <nav class="tot-status-buttons" aria-label="Show projects by ToT status">
         @foreach (var button in buttons)
         {
