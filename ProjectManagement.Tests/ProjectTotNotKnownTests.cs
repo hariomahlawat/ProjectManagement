@@ -14,8 +14,8 @@ using Xunit;
 namespace ProjectManagement.Tests;
 
 /// <summary>
-/// Redesign PR 3: "Not known" is read everywhere but cannot be recorded yet, so no row can hold
-/// it before every running instance can read it (docs/ux/tot.md, Deployment and rollback).
+/// "Not known": read everywhere from redesign PR 3, recordable from PR 4
+/// (docs/ux/tot.md, Deployment and rollback).
 /// </summary>
 public sealed class ProjectTotNotKnownTests
 {
@@ -51,16 +51,83 @@ public sealed class ProjectTotNotKnownTests
     }
 
     [Fact]
-    public void NotKnown_IsNotOfferedOrRecordableYet()
+    public void EveryStatus_IsOfferedAndRecordable()
     {
-        Assert.DoesNotContain(ProjectTotPresentation.StatusOptions, option => option.Status == ProjectTotStatus.NotKnown);
-        Assert.False(ProjectTotPresentation.IsRecordable(ProjectTotStatus.NotKnown));
-        Assert.True(ProjectTotPresentation.IsRecordable(ProjectTotStatus.NotStarted));
-        Assert.True(ProjectTotPresentation.IsRecordable(ProjectTotStatus.Completed));
+        Assert.Contains(ProjectTotPresentation.StatusOptions, option => option.Status == ProjectTotStatus.NotKnown && option.Label == "Not known");
+        foreach (var status in Enum.GetValues<ProjectTotStatus>())
+        {
+            Assert.True(ProjectTotPresentation.IsRecordable(status), $"{status} is not offered");
+        }
+
+        Assert.False(ProjectTotPresentation.IsRecordable((ProjectTotStatus)99));
     }
 
     [Fact]
-    public async Task UpdateAndSubmit_RefuseNotKnown()
+    public async Task Update_RecordsNotKnownWithoutDatesOrMilestones()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 73,
+            Name = "Anti Pers Mine Sml",
+            CreatedAt = new DateTime(2005, 1, 1),
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            Tot = new ProjectTot { ProjectId = 73, Status = ProjectTotStatus.NotStarted }
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectTotService(db, new FixedClock(new DateTimeOffset(2026, 11, 5, 6, 0, 0, TimeSpan.Zero)));
+        var result = await service.UpdateAsync(
+            73,
+            new ProjectTotUpdateRequest(
+                ProjectTotStatus.NotKnown, null, PartialDatePrecision.None, null, PartialDatePrecision.None,
+                "MET held", new DateOnly(2010, 1, 1), true, new DateOnly(2011, 1, 1)),
+            "hod");
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        db.ChangeTracker.Clear();
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 73);
+        Assert.Equal(ProjectTotStatus.NotKnown, tot.Status);
+        Assert.Null(tot.StartedOn);
+        Assert.Null(tot.CompletedOn);
+        Assert.Null(tot.MetDetails);
+        Assert.Null(tot.MetCompletedOn);
+        Assert.Null(tot.FirstProductionModelManufactured);
+    }
+
+    [Fact]
+    public async Task Submit_NotKnownGoesForApproval()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 74,
+            Name = "HE 36 Grenade Sml",
+            CreatedAt = new DateTime(1998, 1, 1),
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            Tot = new ProjectTot { ProjectId = 74, Status = ProjectTotStatus.NotStarted }
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectTotService(db, new FixedClock(new DateTimeOffset(2026, 11, 5, 6, 0, 0, TimeSpan.Zero)));
+        var submit = await service.SubmitRequestAsync(
+            74,
+            new ProjectTotUpdateRequest(
+                ProjectTotStatus.NotKnown, null, PartialDatePrecision.None, null, PartialDatePrecision.None, null, null, null, null),
+            "project-office");
+
+        Assert.True(submit.IsSuccess, submit.ErrorMessage);
+        db.ChangeTracker.Clear();
+        var request = await db.ProjectTotRequests.SingleAsync(r => r.ProjectId == 74);
+        Assert.Equal(ProjectTotStatus.NotKnown, request.ProposedStatus);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, request.DecisionState);
+        Assert.Equal(ProjectTotStatus.NotStarted, (await db.ProjectTots.SingleAsync(t => t.ProjectId == 74)).Status);
+    }
+
+    [Fact]
+    public async Task UpdateAndSubmit_RefuseAStatusTheFormsDoNotOffer()
     {
         await using var db = CreateContext();
         db.Projects.Add(new Project
@@ -76,7 +143,7 @@ public sealed class ProjectTotNotKnownTests
 
         var service = new ProjectTotService(db, new FixedClock(new DateTimeOffset(2026, 11, 5, 6, 0, 0, TimeSpan.Zero)));
         var request = new ProjectTotUpdateRequest(
-            ProjectTotStatus.NotKnown, null, PartialDatePrecision.None, null, PartialDatePrecision.None, null, null, null, null);
+            (ProjectTotStatus)99, null, PartialDatePrecision.None, null, PartialDatePrecision.None, null, null, null, null);
 
         var update = await service.UpdateAsync(70, request, "hod");
         Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, update.Status);

@@ -11,8 +11,7 @@ namespace ProjectManagement.Models
         InProgress = 2,
         Completed = 3,
         // Nobody knows whether ToT took place (typically a project completed long ago). Stored as
-        // the text "NotKnown"; read everywhere, recordable only once it is in
-        // ProjectTotPresentation.StatusOptions (redesign PR 4, docs/ux/tot.md).
+        // the text "NotKnown". Read from redesign PR 3, recordable from PR 4 (docs/ux/tot.md).
         NotKnown = 4
     }
 
