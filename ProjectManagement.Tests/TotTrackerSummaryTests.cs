@@ -116,6 +116,20 @@ public sealed class TotTrackerSummaryTests
     }
 
     [Fact]
+    public void RowNote_TellsOfARejectedRequest_ButNotAnApprovedOne()
+    {
+        var today = new DateOnly(2026, 11, 5);
+        // 21:00 UTC on 2 Nov is 02:30 IST on 3 Nov.
+        var rejected = CreateRow(1, ProjectTotStatus.NotStarted, ProjectTotRequestDecisionState.Rejected, projectCompletedYear: 1998)
+            with { DecidedOnUtc = new DateTime(2026, 11, 2, 21, 0, 0, DateTimeKind.Utc) };
+        var approved = CreateRow(2, ProjectTotStatus.Completed, ProjectTotRequestDecisionState.Approved, projectCompletedYear: 2024, totCompletedOn: new DateOnly(2025, 6, 1))
+            with { DecidedOnUtc = new DateTime(2026, 11, 2, 21, 0, 0, DateTimeKind.Utc) };
+
+        Assert.Equal("Request rejected 03 Nov 2026", ProjectTotOverview.RowNote(ProjectTotRegisterFactsBuilder.BuildFacts(rejected, today)));
+        Assert.Equal("1 year after completion", ProjectTotOverview.RowNote(ProjectTotRegisterFactsBuilder.BuildFacts(approved, today)));
+    }
+
+    [Fact]
     public void BuildYearlyCompletions_ShowsYearsWithoutCompletionsAsZero()
     {
         var rows = new List<ProjectTotTrackerRow>

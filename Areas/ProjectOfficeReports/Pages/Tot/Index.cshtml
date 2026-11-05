@@ -75,6 +75,7 @@
     <section class="tot-overview" aria-labelledby="tot-position-heading">
         <h2 class="visually-hidden" id="tot-position-heading">Position</h2>
         <div class="tot-summary__metrics row g-3">
+            @* A count of zero stays plain: a tinted card should point at something. *@
             @* Phones show two counts (Completed, Not started); the sentence above gives the rest. *@
             <div class="col-6 col-lg tot-overview__secondary">
                 <a class="tot-summary__metric-card tot-overview__card" asp-page="./Index" asp-route-RequiresTotOnly="true">
@@ -84,20 +85,20 @@
                 </a>
             </div>
             <div class="col-6 col-lg">
-                <a class="tot-summary__metric-card tot-summary__metric-card--completed tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="Completed">
+                <a class="tot-summary__metric-card @(position.Completed > 0 ? "tot-summary__metric-card--completed" : null) tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="Completed">
                     <span class="tot-summary__metric-label d-block">ToT completed</span>
                     <span class="tot-summary__metric-value d-block">@position.Completed</span>
                     <span class="tot-overview__card-note">@(position.CompletedPercent is { } pct ? $"{pct}% of {position.NeedTot}" : "—")</span>
                 </a>
             </div>
             <div class="col-6 col-lg tot-overview__secondary">
-                <a class="tot-summary__metric-card tot-summary__metric-card--inprogress tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="InProgress">
+                <a class="tot-summary__metric-card @(position.InProgress > 0 ? "tot-summary__metric-card--inprogress" : null) tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="InProgress">
                     <span class="tot-summary__metric-label d-block">In progress</span>
                     <span class="tot-summary__metric-value d-block">@position.InProgress</span>
                 </a>
             </div>
             <div class="col-6 col-lg">
-                <a class="tot-summary__metric-card tot-summary__metric-card--notstarted tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="NotStarted">
+                <a class="tot-summary__metric-card @(position.NotStarted > 0 ? "tot-summary__metric-card--notstarted" : null) tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="NotStarted">
                     <span class="tot-summary__metric-label d-block">Not started</span>
                     <span class="tot-summary__metric-value d-block">@position.NotStarted</span>
                     @if (position.LongWaiting > 0)
@@ -138,6 +139,16 @@
         @{
             var role = Model.RoleView;
             var istLabel = (DateTime? utc) => ProjectManagement.Services.Projects.ProjectTotPresentation.FormatMoment(utc);
+            // A card with nothing in it becomes one line above the grid, so it never leaves a blank
+            // box beside a full one; the cards that remain share (or take) the width.
+            var showDecide = role is ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Approver or ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Maintainer && Model.WaitingForDecision.Count > 0;
+            var showRecent = role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Viewer && Model.RecentlyCompleted.Count > 0;
+            var showLong = Model.LongWaitingCount > 0;
+            var allClear = new List<string>();
+            if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Approver && !showDecide) allClear.Add("Nothing is waiting for your decision.");
+            if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Maintainer && !showDecide) allClear.Add("No update is waiting for the HoD.");
+            if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Viewer && !showRecent) allClear.Add("No ToT completions recorded yet.");
+            if (!showLong) allClear.Add("No project completed over five years ago is still waiting to start ToT.");
         }
         <div class="tot-attention" aria-labelledby="tot-attention-heading">
             <h2 class="tot-register__heading" id="tot-attention-heading">
@@ -148,20 +159,20 @@
                     _ => "At a glance"
                 })
             </h2>
+            @foreach (var line in allClear)
+            {
+                <p class="tot-attention__clear"><i class="bi bi-check2-circle" aria-hidden="true"></i> @line</p>
+            }
+            @if (showDecide || showRecent || showLong)
+            {
             <div class="tot-attention__grid">
-                @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Approver)
+                @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Approver && showDecide)
                 {
                     <section class="tot-attention__card tot-attention__card--decide" aria-labelledby="tot-attention-decide">
                         <div class="tot-attention__head">
                             <h3 id="tot-attention-decide">Waiting for your decision</h3>
                             <span class="tot-attention__count">@Model.WaitingForDecision.Count</span>
                         </div>
-                        @if (Model.WaitingForDecision.Count == 0)
-                        {
-                            <p class="tot-attention__empty">Nothing is waiting for you.</p>
-                        }
-                        else
-                        {
                             <ul class="tot-attention__list">
                                 @foreach (var item in Model.WaitingForDecision)
                                 {
@@ -175,21 +186,14 @@
                                     </li>
                                 }
                             </ul>
-                        }
                     </section>
                 }
-                @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Viewer)
+                @if (showRecent)
                 {
                     <section class="tot-attention__card" aria-labelledby="tot-attention-recent">
                         <div class="tot-attention__head">
                             <h3 id="tot-attention-recent">Recently completed</h3>
                         </div>
-                        @if (Model.RecentlyCompleted.Count == 0)
-                        {
-                            <p class="tot-attention__empty">No ToT completions recorded yet.</p>
-                        }
-                        else
-                        {
                             <ul class="tot-attention__list">
                                 @foreach (var item in Model.RecentlyCompleted)
                                 {
@@ -202,10 +206,11 @@
                                     </li>
                                 }
                             </ul>
-                        }
                     </section>
                 }
 
+                @if (showLong)
+                {
                 <section class="tot-attention__card tot-attention__card--waiting" aria-labelledby="tot-attention-long">
                     <div class="tot-attention__head">
                         <h3 id="tot-attention-long">Not started, over five years</h3>
@@ -219,12 +224,6 @@
                     {
                         <p class="tot-attention__hint">Still expected, Not required, or Not known? Project Office proposes; you approve, or update it yourself.</p>
                     }
-                    @if (Model.LongWaitingCount == 0)
-                    {
-                        <p class="tot-attention__empty">None. Every project completed over five years ago has a ToT position.</p>
-                    }
-                    else
-                    {
                         <ul class="tot-attention__list">
                             @foreach (var item in Model.LongWaitingProjects)
                             {
@@ -241,22 +240,16 @@
                         {
                             <a class="tot-attention__more" asp-page="./Index" asp-route-LongWaiting="true">See all @Model.LongWaitingCount</a>
                         }
-                    }
                 </section>
+                }
 
-                @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Maintainer)
+                @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Maintainer && showDecide)
                 {
                     <section class="tot-attention__card tot-attention__card--decide" aria-labelledby="tot-attention-sent">
                         <div class="tot-attention__head">
                             <h3 id="tot-attention-sent">Waiting for the HoD</h3>
                             <span class="tot-attention__count">@Model.WaitingForDecision.Count</span>
                         </div>
-                        @if (Model.WaitingForDecision.Count == 0)
-                        {
-                            <p class="tot-attention__empty">No update is waiting for approval.</p>
-                        }
-                        else
-                        {
                             <ul class="tot-attention__list">
                                 @foreach (var item in Model.WaitingForDecision)
                                 {
@@ -271,10 +264,10 @@
                                 }
                             </ul>
                             <p class="tot-attention__hint mb-0">Sent by mistake? The HoD can reject it with a reason.</p>
-                        }
                     </section>
                 }
             </div>
+            }
         </div>
 
         @* Not on phones: a year axis that narrow cannot be read (tot.css). *@

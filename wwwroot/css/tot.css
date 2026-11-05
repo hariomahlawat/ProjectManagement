@@ -223,6 +223,35 @@ a.tot-overview__card:focus-visible {
 }
 
 /* The role top section: what this reader should look at first. */
+.tot-attention {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.tot-attention > .tot-register__heading {
+    margin-bottom: 0;
+}
+
+/* An empty attention card, as one line: no blank box beside a full one. */
+.tot-attention__clear {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 0.75rem;
+    background: var(--pm-card);
+    color: var(--pm-text-muted);
+    font-size: 0.875rem;
+}
+
+.tot-attention__clear .bi {
+    color: var(--pm-success);
+    font-size: 1rem;
+}
+
 .tot-attention__grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
@@ -266,7 +295,6 @@ a.tot-overview__card:focus-visible {
 }
 
 .tot-attention__hint,
-.tot-attention__empty,
 .tot-attention__meta {
     font-size: 0.8125rem;
     color: var(--pm-text-muted);
@@ -455,6 +483,12 @@ a.tot-overview__card:focus-visible {
     color: var(--pm-text-muted);
     text-align: left;
     white-space: nowrap;
+}
+
+.tot-table__sort {
+    margin-left: 0.15rem;
+    font-size: 0.8125rem;
+    vertical-align: -0.05em;
 }
 
 .tot-table thead th a {

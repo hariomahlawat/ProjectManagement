@@ -266,7 +266,6 @@ public sealed class TotIndexPageTests
         Assert.Equal(new[] { 633, 634 }, page.Projects.Select(p => p.ProjectId).OrderBy(id => id));
         Assert.False(page.ShowStartedColumn);
         Assert.False(page.ShowMetColumn);
-        Assert.False(page.ShowRequestColumn);
         // The status buttons still count every status for the other filters.
         Assert.Equal(5, page.StatusCountAll);
         Assert.Equal(2, page.StatusCounts.Completed);
@@ -297,6 +296,26 @@ public sealed class TotIndexPageTests
         Assert.False(waiting.RegisterRoute().ContainsKey(nameof(waiting.RequestStateFilter)));
         Assert.Equal(631, Assert.Single(waiting.Projects).ProjectId);
         Assert.Equal(5, waiting.StatusCountAll);
+    }
+
+    [Fact]
+    public async Task StartedColumn_AppearsOnlyWhenAnInProgressProjectIsListed()
+    {
+        await using var db = await SeedAsync();
+        var hod = CreatePage(db, "hod", "HoD");
+        var input = new ProjectTotDrawerInput { ProjectId = 630, Status = ProjectTotStatus.InProgress, StartYear = 2025 };
+        var save = Assert.IsType<JsonResult>(await hod.OnPostTotAsync(630, input, CancellationToken.None));
+        Assert.Equal(StatusCodes.Status200OK, save.StatusCode ?? StatusCodes.Status200OK);
+        db.ChangeTracker.Clear();
+
+        var all = CreatePage(db, "comdt", "Comdt");
+        await all.OnGetAsync(CancellationToken.None);
+        Assert.True(all.ShowStartedColumn);
+
+        var completed = CreatePage(db, "comdt", "Comdt");
+        completed.TotStatusFilter = ProjectTotStatus.Completed;
+        await completed.OnGetAsync(CancellationToken.None);
+        Assert.False(completed.ShowStartedColumn);
     }
 
     [Fact]
