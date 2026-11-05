@@ -84,6 +84,14 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? SelectedProjectId { get; set; }
 
+    /// <summary>Register order: name (default), status, tot (ToT completion), project (project completion).</summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Sort { get; set; }
+
+    /// <summary>asc (default) or desc.</summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Dir { get; set; }
+
     /// <summary>Only Not started projects completed more than five years ago (the role section's "See all").</summary>
     [BindProperty(SupportsGet = true)]
     public bool LongWaiting { get; set; }
@@ -126,6 +134,78 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<ProjectTotRegisterFacts> LongWaitingProjects { get; private set; } = Array.Empty<ProjectTotRegisterFacts>();
 
     public int LongWaitingCount { get; private set; }
+
+    /// <summary>The listed projects' facts, for the Project completed and Note columns.</summary>
+    public IReadOnlyDictionary<int, ProjectTotRegisterFacts> RowFacts { get; private set; } = new Dictionary<int, ProjectTotRegisterFacts>();
+
+    /// <summary>Optional columns appear only when some listed project has data for them.</summary>
+    public bool ShowStartedColumn { get; private set; }
+
+    public bool ShowMetColumn { get; private set; }
+
+    public bool ShowRequestColumn { get; private set; }
+
+    /// <summary>Counts for the status buttons: every filter except the status ones (search included).</summary>
+    public ProjectTotPosition StatusCounts { get; private set; } = ProjectTotPosition.Empty;
+
+    public int StatusCountAll { get; private set; }
+
+    public string SortKey => Sort?.ToLowerInvariant() switch
+    {
+        "status" => "status",
+        "tot" => "tot",
+        "project" => "project",
+        _ => "name"
+    };
+
+    public bool SortDescending => string.Equals(Dir, "desc", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The register's current filters and order, as link values (no selected project).</summary>
+    public Dictionary<string, object?> RegisterRoute()
+    {
+        var route = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        void Add(string key, object? value)
+        {
+            if (value is null || value is false || value is string { Length: 0 })
+            {
+                return;
+            }
+
+            route[key] = value;
+        }
+
+        Add(nameof(SearchTerm), SearchTerm);
+        Add(nameof(TotStatusFilter), TotStatusFilter?.ToString());
+        Add(nameof(RequestStateFilter), RequestStateFilter?.ToString());
+        Add(nameof(OnlyPending), OnlyPending ? "true" : null);
+        Add(nameof(RequiresTotOnly), RequiresTotOnly ? "true" : null);
+        Add(nameof(MetCompletedOnly), MetCompletedOnly ? "true" : null);
+        Add(nameof(LongWaiting), LongWaiting ? "true" : null);
+        Add(nameof(CompletedFrom), DayValue(CompletedFrom));
+        Add(nameof(CompletedTo), DayValue(CompletedTo));
+        Add(nameof(Sort), SortKey == "name" ? null : SortKey);
+        Add(nameof(Dir), SortDescending ? "desc" : null);
+        return route;
+    }
+
+    /// <summary>The current route with some keys changed or removed (null removes).</summary>
+    public Dictionary<string, object?> RegisterRouteWith(params (string Key, object? Value)[] changes)
+    {
+        var route = RegisterRoute();
+        foreach (var (key, value) in changes)
+        {
+            if (value is null)
+            {
+                route.Remove(key);
+            }
+            else
+            {
+                route[key] = value;
+            }
+        }
+
+        return route;
+    }
 
     /// <summary>The five latest ToT completions.</summary>
     public IReadOnlyList<ProjectTotRegisterFacts> RecentlyCompleted { get; private set; } = Array.Empty<ProjectTotRegisterFacts>();
@@ -303,6 +383,13 @@ public sealed class IndexModel : PageModel
         return File(result.File.Content, result.File.ContentType, result.File.FileName);
     }
 
+    // GET ?handler=Register: just the register (buttons, chips, table), for the live search.
+    public async Task<IActionResult> OnGetRegisterAsync(CancellationToken cancellationToken)
+    {
+        await PopulateAsync(cancellationToken);
+        return Partial("_TotRegister", this);
+    }
+
     // GET ?handler=Yearly: [{ "year": 2021, "count": 4 }, ...] for the "completed per year" chart.
     public async Task<JsonResult> OnGetYearlyAsync(CancellationToken cancellationToken)
     {
@@ -387,6 +474,13 @@ public sealed class IndexModel : PageModel
     {
         await PopulatePermissionsAsync();
 
+        // Waiting for decision already means "latest request pending"; a latest-request filter
+        // carried alongside it is ignored, so drop it rather than carry it to the next click.
+        if (OnlyPending)
+        {
+            RequestStateFilter = null;
+        }
+
         var filter = new ProjectTotTrackerFilter
         {
             TotStatus = TotStatusFilter,
@@ -436,7 +530,91 @@ public sealed class IndexModel : PageModel
             Projects = Projects.Where(p => ids.Contains(p.ProjectId)).ToList();
             Summary = TotTrackerSummary.FromProjects(Projects);
         }
+
+        // SECTION: The register table: facts per row, optional columns, order, status counts.
+        var today = DateOnly.FromDateTime(ProjectManagement.Infrastructure.IstClock.ToIst(_clock.UtcNow.UtcDateTime));
+        var rowFacts = Projects.ToDictionary(row => row.ProjectId, row => ProjectTotRegisterFactsBuilder.BuildFacts(row, today));
+        RowFacts = rowFacts;
+        ShowStartedColumn = Projects.Any(row => row.TotStartedOn.HasValue);
+        ShowMetColumn = Projects.Any(row => row.TotMetCompletedOn.HasValue);
+        ShowRequestColumn = Projects.Any(row => row.RequestState is not null);
+        Projects = OrderRows(Projects, rowFacts);
+
+        // Each count describes the page its button opens. Waiting for decision drops any
+        // latest-request filter, so it is counted without one; the other buttons keep it.
+        var statusFree = TotStatusFilter is null && !RequiresTotOnly && !OnlyPending && !LongWaiting && RequestStateFilter is null;
+        var countRows = statusFree
+            ? Projects
+            : await _trackerService.GetAsync(filter with { TotStatus = null, RequiresTotOnly = false, OnlyPendingRequests = false, RequestState = null }, cancellationToken);
+        var requestRows = RequestStateFilter is { } requestState
+            ? countRows.Where(row => row.RequestState == requestState).ToList()
+            : countRows;
+        var counted = ProjectTotRegisterFactsBuilder.Build(requestRows, today);
+        var waiting = ReferenceEquals(requestRows, countRows)
+            ? counted.Position.WaitingForDecision
+            : ProjectTotRegisterFactsBuilder.Build(countRows, today).Position.WaitingForDecision;
+        StatusCounts = counted.Position with { WaitingForDecision = waiting };
+        StatusCountAll = counted.Projects.Count;
     }
+
+    public static string StatusChipClass(ProjectTotStatus status) => status switch
+    {
+        ProjectTotStatus.NotRequired => "chip-status-not-required",
+        ProjectTotStatus.NotStarted => "chip-status-not-started",
+        ProjectTotStatus.InProgress => "chip-status-in-progress",
+        ProjectTotStatus.Completed => "chip-status-completed",
+        ProjectTotStatus.NotKnown => "chip-status-not-required",
+        _ => "chip-status-not-started"
+    };
+
+    public static string RequestStateLabel(ProjectTotRequestDecisionState state) => state switch
+    {
+        ProjectTotRequestDecisionState.Pending => "Pending approval",
+        ProjectTotRequestDecisionState.Approved => "Approved",
+        ProjectTotRequestDecisionState.Rejected => "Rejected",
+        _ => state.ToString()
+    };
+
+    public static string RequestStateChipClass(ProjectTotRequestDecisionState state) => state switch
+    {
+        ProjectTotRequestDecisionState.Pending => "chip-decision-pending",
+        ProjectTotRequestDecisionState.Approved => "chip-decision-approved",
+        ProjectTotRequestDecisionState.Rejected => "chip-decision-rejected",
+        _ => "chip-decision-pending"
+    };
+
+    private IReadOnlyList<ProjectTotTrackerRow> OrderRows(
+        IReadOnlyList<ProjectTotTrackerRow> rows,
+        IReadOnlyDictionary<int, ProjectTotRegisterFacts> facts)
+    {
+        IOrderedEnumerable<ProjectTotTrackerRow> ordered = SortKey switch
+        {
+            // The order a reader expects: Completed, In progress, Not started, Not known, Not required.
+            "status" => Order(rows, row => StatusRank(facts[row.ProjectId].Status)),
+            "tot" => Order(rows, row => row.TotStatus == ProjectTotStatus.Completed ? row.TotCompletedOn : null),
+            "project" => Order(rows, row => facts[row.ProjectId].ProjectCompletedYear),
+            _ => SortDescending
+                ? rows.OrderByDescending(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+        };
+        return ordered.ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    // Projects without a value go last in either direction.
+    private IOrderedEnumerable<ProjectTotTrackerRow> Order<TKey>(IReadOnlyList<ProjectTotTrackerRow> rows, Func<ProjectTotTrackerRow, TKey?> key)
+    {
+        var withValue = rows.OrderBy(row => key(row) is null ? 1 : 0);
+        return SortDescending ? withValue.ThenByDescending(key) : withValue.ThenBy(key);
+    }
+
+    private static int StatusRank(ProjectTotStatus status) => status switch
+    {
+        ProjectTotStatus.Completed => 0,
+        ProjectTotStatus.InProgress => 1,
+        ProjectTotStatus.NotStarted => 2,
+        ProjectTotStatus.NotKnown => 3,
+        _ => 4
+    };
 
     private IActionResult PermissionDenied(string actionDescription, string policy, int? projectId)
     {

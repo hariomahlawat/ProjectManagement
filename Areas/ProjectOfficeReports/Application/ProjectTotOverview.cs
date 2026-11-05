@@ -108,6 +108,34 @@ public static class ProjectTotOverview
         return first is null ? "No field changes" : $"{first.Field}: {first.Now} → {first.Proposed}";
     }
 
+    /// <summary>
+    /// The register's Note for a project, or null: a request waiting, how long a not-started
+    /// project has waited, or how long after the project's completion ToT was completed.
+    /// </summary>
+    public static string? RowNote(ProjectTotRegisterFacts facts)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+
+        if (facts.Pending is not null)
+        {
+            return "Waiting for a decision";
+        }
+
+        if (facts.IsLongWaiting && facts.YearsSinceProjectCompleted is { } waited)
+        {
+            return $"Waiting {waited.ToString(CultureInfo.InvariantCulture)} years";
+        }
+
+        return facts.YearsFromProjectToTot switch
+        {
+            null => null,
+            < 0 => "Before project completion",
+            0 => "Same year as completion",
+            1 => "1 year after completion",
+            { } years => $"{years.ToString(CultureInfo.InvariantCulture)} years after completion"
+        };
+    }
+
     private static string Count(int count, string singular, string plural)
         => $"{count.ToString(CultureInfo.InvariantCulture)} {(count == 1 ? singular : plural)}";
 

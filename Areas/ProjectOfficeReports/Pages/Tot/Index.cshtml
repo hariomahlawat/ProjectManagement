@@ -10,73 +10,13 @@
 {
     <link rel="stylesheet" href="~/css/tot.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/project-tot-drawer.css" asp-append-version="true" />
-    
 }
 
 @{
     ViewData["Title"] = "Transfer of Technology";
 
-    string StatusLabel(ProjectTotStatus status) => ProjectManagement.Services.Projects.ProjectTotPresentation.StatusLabel(status);
-
-    string RequestStateLabel(ProjectTotRequestDecisionState state) => state switch
-    {
-        ProjectTotRequestDecisionState.Pending => "Pending approval",
-        ProjectTotRequestDecisionState.Approved => "Approved",
-        ProjectTotRequestDecisionState.Rejected => "Rejected",
-        _ => state.ToString()
-    };
-
-    string TotStatusChipClass(ProjectTotStatus status) => status switch
-    {
-        ProjectTotStatus.NotRequired => "chip-status-not-required",
-        ProjectTotStatus.NotStarted => "chip-status-not-started",
-        ProjectTotStatus.InProgress => "chip-status-in-progress",
-        ProjectTotStatus.Completed => "chip-status-completed",
-        ProjectTotStatus.NotKnown => "chip-status-not-required",
-        _ => "chip-status-not-started"
-    };
-
-    string RequestStateChipClass(ProjectTotRequestDecisionState state) => state switch
-    {
-        ProjectTotRequestDecisionState.Pending => "chip-decision-pending",
-        ProjectTotRequestDecisionState.Approved => "chip-decision-approved",
-        ProjectTotRequestDecisionState.Rejected => "chip-decision-rejected",
-        _ => "chip-decision-pending"
-    };
-
-
-    var summary = Model.Summary;
-
-    var totalCount = Model.Projects.Count;
-    var resultCountText = totalCount == 0
-        ? "No projects"
-        : totalCount == 1
-            ? "Showing 1 project"
-            : $"Showing {totalCount} projects";
-
-    var filterBits = new List<string>();
-    if (!string.IsNullOrWhiteSpace(Model.SearchTerm)) filterBits.Add($"Search: “{Model.SearchTerm}”");
-    if (Model.TotStatusFilter is { } f) filterBits.Add($"Status: {StatusLabel(f)}");
-    if (Model.RequestStateFilter is { } rs) filterBits.Add($"Request: {RequestStateLabel(rs)}");
-    if (Model.OnlyPending) filterBits.Add("Pending only");
-    if (Model.RequiresTotOnly) filterBits.Add("Requires ToT");
-    if (Model.MetCompletedOnly) filterBits.Add("MET completed");
-    if (Model.LongWaiting) filterBits.Add("Not started, over five years");
-    if (Model.CompletedFrom.HasValue || Model.CompletedTo.HasValue)
-    {
-        var inv = System.Globalization.CultureInfo.InvariantCulture;
-        filterBits.Add((Model.CompletedFrom, Model.CompletedTo) switch
-        {
-            ({ } cf, { } ct) => $"Completed {cf.ToString("dd MMM", inv)} – {ct.ToString("dd MMM yyyy", inv)}",
-            ({ } cf, null) => $"Completed from {cf.ToString("dd MMM yyyy", inv)}",
-            (null, { } ct) => $"Completed to {ct.ToString("dd MMM yyyy", inv)}",
-            _ => string.Empty
-        });
-    }
     var completedFromValue = Model.CompletedFrom?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var completedToValue = Model.CompletedTo?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var filterSummary = filterBits.Any() ? string.Join(" · ", filterBits) : null;
-    string FormatDay(DateOnly? value) => ProjectManagement.Services.Projects.ProjectTotPresentation.FormatDay(value) ?? "—";
 }
 
 <div class="tot-shell">
@@ -98,24 +38,14 @@
             <p class="tot-overview__lede mb-0">@Model.Narrative</p>
         </div>
         <div class="tot-toolbar-actions">
-            @if (Model.Projects.Any())
-            {
-                <button type="button"
-                        class="btn btn-outline-primary d-flex align-items-center gap-2"
-                        data-bs-toggle="modal" data-bs-target="#tot-export-modal">
-                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                    <span>Export</span>
-                </button>
-            }
-            else
-            {
-                <button type="button"
-                        class="btn btn-outline-primary d-flex align-items-center gap-2"
-                        disabled>
-                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                    <span>Export</span>
-                </button>
-            }
+            @* Disabled when nothing matches; the live search turns it back on (tot-register.js). *@
+            <button type="button"
+                    class="btn btn-outline-primary d-flex align-items-center gap-2"
+                    data-bs-toggle="modal" data-bs-target="#tot-export-modal" data-tot-export-button
+                    disabled="@(Model.Projects.Any() ? null : "disabled")">
+                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                <span>Export</span>
+            </button>
 
         </div>
     </div>
@@ -369,132 +299,35 @@
         </div>
     </section>
 
-    <h2 class="tot-register__heading" id="tot-register-heading">Register</h2>
-
-    <!-- context bar -->
-    <div class="tot-context-bar" aria-label="Current ToT view summary">
-        <div class="tot-context-left">
-            <span class="tot-pill"><strong>@resultCountText</strong></span>
-            @if (filterSummary is not null)
-            {
-                <span class="tot-pill tot-pill-muted">@filterSummary</span>
-            }
+    <section class="tot-register-section" aria-labelledby="tot-register-heading">
+        <div class="tot-register__bar">
+            <h2 class="tot-register__heading mb-0" id="tot-register-heading">Register</h2>
+            <form method="get" class="tot-register__search" role="search" data-tot-search>
+                @* Only the filters in use, so no empty value is ever sent for a yes/no filter. *@
+                @foreach (var (name, value) in Model.RegisterRouteWith((nameof(Model.SearchTerm), null)))
+                {
+                    <input type="hidden" name="@name" value="@value" />
+                }
+                <label class="visually-hidden" for="tot-register-search">Search projects or units</label>
+                <input id="tot-register-search"
+                       name="SearchTerm"
+                       value="@Model.SearchTerm"
+                       class="form-control"
+                       type="search"
+                       autocomplete="off"
+                       placeholder="Search projects or units"
+                       data-tot-live-search />
+                <button type="submit" class="btn btn-outline-secondary">Search</button>
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#tot-filter-modal">
+                    More filters
+                </button>
+            </form>
         </div>
-        @if (summary.PendingApprovals > 0)
-        {
-            <a class="tot-pill" asp-page="./Index" asp-route-OnlyPending="true">
-                Waiting for approval: <strong>@summary.PendingApprovals</strong>
-            </a>
-        }
-    </div>
-
-    <!-- main workspace -->
-    <div class="tot-workspace-grid tot-workspace-grid--single">
-        <!-- left: list -->
-        <div class="tot-list-panel" aria-label="Register">
-                <form method="get" class="tot-searchbar" role="search">
-                    <input type="hidden" name="TotStatusFilter" value="@Model.TotStatusFilter" />
-                    <input type="hidden" name="RequestStateFilter" value="@Model.RequestStateFilter" />
-                    <input type="hidden" name="OnlyPending" value="@Model.OnlyPending" />
-                    <input type="hidden" name="RequiresTotOnly" value="@Model.RequiresTotOnly" />
-                    <input type="hidden" name="MetCompletedOnly" value="@Model.MetCompletedOnly" />
-                    <input type="hidden" name="LongWaiting" value="@Model.LongWaiting" />
-                    <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
-                    <input type="hidden" name="CompletedTo" value="@completedToValue" />
-                    <input type="hidden" name="SelectedProjectId" value="@Model.SelectedProjectId" />
-
-                    <div class="input-group input-group-sm pm-util-maxw-320">
-                        <span class="input-group-text bg-white border-end-0">
-                            <i class="bi bi-search" aria-hidden="true"></i>
-                        </span>
-                        <input name="SearchTerm"
-                               value="@Model.SearchTerm"
-                               class="form-control border-start-0"
-                               type="search"
-                               placeholder="Search projects, units…" />
-                    </div>
-                    <button type="submit" class="btn btn-sm btn-primary">Search</button>
-                    <button type="button"
-                            class="btn btn-sm btn-outline-secondary"
-                            data-bs-toggle="modal"
-                            data-bs-target="#tot-filter-modal">
-                        Filters
-                    </button>
-                </form>
-
-            @if (!Model.Projects.Any())
-            {
-                <div class="p-4 text-center text-muted">No projects match the current search and filters.</div>
-            }
-            else
-            {
-                <div class="tot-list-body">
-                    <div class="tot-list-head">
-                        <div>Project</div>
-                        <div>ToT status</div>
-                        <div>Started</div>
-                        <div>Completed</div>
-                        <div>MET</div>
-                        <div>Request</div>
-                    </div>
-
-                    @foreach (var row in Model.Projects)
-                    {
-                        var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
-                        <a class="tot-row @(isSelected ? "is-selected" : "")"
-                           data-tot-open-project-id="@row.ProjectId"
-                           data-tot-project-name="@row.ProjectName"
-                           asp-page="./Index"
-                           asp-route-TotStatusFilter="@Model.TotStatusFilter"
-                           asp-route-RequestStateFilter="@Model.RequestStateFilter"
-                           asp-route-SearchTerm="@Model.SearchTerm"
-                           asp-route-OnlyPending="@Model.OnlyPending"
-                           asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
-                           asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
-                           asp-route-CompletedFrom="@completedFromValue"
-                           asp-route-CompletedTo="@completedToValue"
-                           asp-route-SelectedProjectId="@row.ProjectId">
-                            <div>
-                                <div class="tot-row-title">@row.ProjectName</div>
-                                @if (!string.IsNullOrWhiteSpace(row.SponsoringUnit))
-                                {
-                                    <div class="tot-row-sub">@row.SponsoringUnit</div>
-                                }
-                            </div>
-                            <div>
-                                <span class="chip-sm @TotStatusChipClass(row.TotStatus ?? ProjectTotStatus.NotStarted)">
-                                    @StatusLabel(row.TotStatus ?? ProjectTotStatus.NotStarted)
-                                </span>
-                            </div>
-                            <div>
-                                @(PartialDateDisplay.Format(row.TotStartedOn, row.TotStartDatePrecision) ?? "—")
-                            </div>
-                            <div>
-                                @(PartialDateDisplay.Format(row.TotCompletedOn, row.TotCompletionDatePrecision) ?? "—")
-                            </div>
-                            <div>
-                                @FormatDay(row.TotMetCompletedOn)
-                            </div>
-                            <div>
-                                @if (row.RequestState is { } rstate)
-                                {
-                                    <span class="chip-sm @RequestStateChipClass(rstate)">
-                                        @RequestStateLabel(rstate)
-                                    </span>
-                                    @* extra visibility for approvers *@
-                                    @if (Model.CanApprove && rstate == ProjectTotRequestDecisionState.Pending)
-                                    {
-                                        <span class="tot-row-sub d-block">Needs your decision</span>
-                                    }
-                                }
-                            </div>
-                        </a>
-                    }
-                </div>
-            }
-        </div>
-
-    </div>
+        <partial name="_TotRegister" model="Model" />
+    </section>
 </div>
 
 <!-- filter modal -->
@@ -504,7 +337,7 @@
 <div class="modal fade" id="tot-export-modal" tabindex="-1" aria-labelledby="tot-export-modal-label" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <form method="post" asp-page-handler="Export">
+            <form method="post" asp-page-handler="Export" data-tot-carries-search>
                 <div class="modal-header">
                     <h2 class="modal-title fs-5" id="tot-export-modal-label">Export ToT data</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -563,6 +396,7 @@
 {
     <script type="module" src="~/js/pages/project-office-reports/tot.js" asp-append-version="true"></script>
     <script src="~/js/projects/overview-tot.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-office-reports/tot-register.js" asp-append-version="true"></script>
     <script src="~/lib/chart.js/chart.umd.js"></script>
     <script type="module" src="~/js/pages/project-office-reports/tot-chart.js" asp-append-version="true"></script>
 }

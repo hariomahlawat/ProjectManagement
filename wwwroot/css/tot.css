@@ -1017,3 +1017,196 @@ a.tot-overview__card:focus-visible {
     font-size: 0.875rem;
     font-weight: 600;
 }
+
+/* The register: a heading with search, status buttons with counts, the filters in use, the table. */
+.tot-register-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.tot-register__bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.tot-register__search {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.tot-register__search .form-control {
+    width: 18rem;
+    max-width: 100%;
+}
+
+.tot-register {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.tot-status-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tot-status-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.25rem;
+    padding: 0.25rem 0.85rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 999px;
+    background: var(--pm-card);
+    color: var(--pm-text);
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+
+.tot-status-button:hover,
+.tot-status-button:focus-visible {
+    border-color: var(--pm-text-muted);
+    color: var(--pm-text);
+}
+
+.tot-status-button.is-active {
+    background: var(--pm-text);
+    border-color: var(--pm-text);
+    color: var(--pm-card);
+}
+
+.tot-status-button__count {
+    font-weight: 600;
+}
+
+.tot-register__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.tot-register__count {
+    font-weight: 600;
+}
+
+.tot-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    background: var(--pm-surface-soft, var(--pm-border-subtle));
+    color: var(--pm-text);
+    font-size: 0.8125rem;
+    text-decoration: none;
+}
+
+.tot-chip:hover,
+.tot-chip:focus-visible {
+    text-decoration: line-through;
+}
+
+.tot-chip-clear {
+    font-size: 0.8125rem;
+}
+
+.tot-register__empty {
+    margin: 0;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--pm-text-muted);
+    border: 1px dashed var(--pm-border);
+    border-radius: 0.75rem;
+}
+
+.tot-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--pm-border);
+    border-radius: 0.75rem;
+    background: var(--pm-card);
+}
+
+.tot-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.tot-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--pm-surface-soft, var(--pm-card));
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--pm-text-muted);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.tot-table thead th a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.tot-table thead th a:hover,
+.tot-table thead th a:focus-visible,
+.tot-table thead th[aria-sort] a {
+    color: var(--pm-text);
+}
+
+.tot-table th,
+.tot-table td {
+    padding: 0.55rem 0.85rem;
+    border-bottom: 1px solid var(--pm-border-subtle);
+    vertical-align: top;
+}
+
+.tot-table tbody tr:last-child th,
+.tot-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.tot-table tbody tr:hover {
+    background: var(--pm-surface-soft, var(--pm-border-subtle));
+}
+
+.tot-table tbody tr.is-selected {
+    box-shadow: inset 3px 0 0 var(--pm-accent-blue, var(--pm-border));
+}
+
+.tot-table tbody th {
+    font-weight: 500;
+    text-align: left;
+    min-width: 16rem;
+}
+
+.tot-table__project {
+    color: var(--pm-text);
+    text-decoration: none;
+}
+
+.tot-table__project:hover,
+.tot-table__project:focus-visible {
+    text-decoration: underline;
+}
+
+.tot-table__unit,
+.tot-table__note {
+    font-size: 0.8125rem;
+    color: var(--pm-text-muted);
+}
+
+.tot-table__unit {
+    display: block;
+}
