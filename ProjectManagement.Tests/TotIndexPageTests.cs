@@ -23,7 +23,9 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Remarks;
 using ProjectManagement.Utilities.PartialDates;
 using Xunit;
 
@@ -153,6 +155,41 @@ public sealed class TotIndexPageTests
         Assert.NotEqual(StatusCodes.Status200OK, result.Status);
     }
 
+    [Theory]
+    [InlineData("office", "Project Office", 630, RemarkActorRole.ProjectOffice, RemarkType.External)]
+    [InlineData("hod", "HoD", 630, RemarkActorRole.HeadOfDepartment, RemarkType.Internal)]
+    [InlineData("po-1", "Project Officer", 631, RemarkActorRole.ProjectOfficer, RemarkType.Internal)]
+    public async Task Remarks_GoThroughTheRemarkService_WithTheAuthorsRole(
+        string userId, string role, int projectId, RemarkActorRole expectedRole, RemarkType expectedType)
+    {
+        await using var db = await SeedAsync();
+        var remarks = new RecordingRemarkService();
+        var page = CreatePage(db, userId, role, remarks);
+
+        var result = Assert.IsType<JsonResult>(await page.OnPostTotRemarkAsync(projectId, projectId, "Checked with the user unit.", CancellationToken.None));
+
+        Assert.Equal(StatusCodes.Status200OK, result.StatusCode ?? StatusCodes.Status200OK);
+        var request = Assert.Single(remarks.Created);
+        Assert.Equal(projectId, request.ProjectId);
+        Assert.Equal(expectedRole, request.Actor.ActorRole);
+        Assert.Equal(expectedType, request.Type);
+        Assert.Equal(RemarkScope.TransferOfTechnology, request.Scope);
+        Assert.Equal("Checked with the user unit.", request.Body);
+    }
+
+    [Fact]
+    public async Task Remarks_AreRefusedWhereTheUserMayNotUpdate()
+    {
+        await using var db = await SeedAsync();
+        var remarks = new RecordingRemarkService();
+
+        var result = Assert.IsType<JsonResult>(await CreatePage(db, "po-1", "Project Officer", remarks)
+            .OnPostTotRemarkAsync(630, 630, "Not my project.", CancellationToken.None));
+
+        Assert.Equal(StatusCodes.Status403Forbidden, result.StatusCode);
+        Assert.Empty(remarks.Created);
+    }
+
     private static async Task<JsonElement> DetailsAsync(ApplicationDbContext db, int projectId, string userId, string role)
     {
         var page = CreatePage(db, userId, role);
@@ -218,7 +255,7 @@ public sealed class TotIndexPageTests
         return db;
     }
 
-    private static IndexModel CreatePage(ApplicationDbContext db, string userId, string role)
+    private static IndexModel CreatePage(ApplicationDbContext db, string userId, string role, RecordingRemarkService? remarks = null)
     {
         var page = new IndexModel(
             db,
@@ -227,6 +264,7 @@ public sealed class TotIndexPageTests
             new RoleAuthorizationService(),
             CreateUserManager(db),
             new FixedClock(Now),
+            remarks ?? new RecordingRemarkService(),
             NullLogger<IndexModel>.Instance);
 
         var user = new ClaimsPrincipal(new ClaimsIdentity(
@@ -275,6 +313,29 @@ public sealed class TotIndexPageTests
             };
             return Task.FromResult(roles.Any(user.IsInRole) ? AuthorizationResult.Success() : AuthorizationResult.Failed());
         }
+    }
+
+    private sealed class RecordingRemarkService : IRemarkService
+    {
+        public List<CreateRemarkRequest> Created { get; } = new();
+
+        public Task<Remark> CreateRemarkAsync(CreateRemarkRequest request, CancellationToken cancellationToken = default)
+        {
+            Created.Add(request);
+            return Task.FromResult(new Remark { ProjectId = request.ProjectId, Body = request.Body });
+        }
+
+        public Task<RemarkListResult> ListRemarksAsync(ListRemarksRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(new RemarkListResult(0, Array.Empty<Remark>(), 1, 0));
+
+        public Task<Remark?> EditRemarkAsync(int remarkId, EditRemarkRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult<Remark?>(null);
+
+        public Task<bool> SoftDeleteRemarkAsync(int remarkId, SoftDeleteRemarkRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<IReadOnlyList<RemarkAudit>> GetRemarkAuditAsync(int remarkId, RemarkActorContext actor, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<RemarkAudit>>(Array.Empty<RemarkAudit>());
     }
 
     private sealed class StubProjectTotExportService : IProjectTotExportService

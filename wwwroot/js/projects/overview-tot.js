@@ -263,24 +263,34 @@
         card.classList.add(`project-intelligence-card--tone-${tone}`);
         card.dataset.totCardTone = tone;
     }
+    // Each load is numbered: only the latest load for the project now shown may fill the drawer.
+    // Otherwise a slow answer for a project opened earlier could show its values while the
+    // forms point at the project opened since, and a save would write them to the wrong project.
+    let loadSequence = 0;
     async function loadDetails(force = false) {
         if (loaded && !force) return;
+        const requestedProjectId = projectId;
+        const sequence = ++loadSequence;
+        const isCurrent = () => sequence === loadSequence && requestedProjectId === projectId;
         setLoading(true); clearMessages();
         try {
             const response = await fetch(handlerUrl('TotDetails'), { credentials:'same-origin', headers:{ Accept:'application/json','X-Requested-With':'XMLHttpRequest' } });
             const payload = await response.json().catch(() => null);
+            if (!isCurrent()) return;
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to load Transfer of Technology details.');
+            if (payload.projectId != null && Number(payload.projectId) !== requestedProjectId) throw new Error('Unable to load Transfer of Technology details.');
             populateForm(payload.input); renderSummary(payload); updateCard(payload.card); pointAtProject(payload);
             if (editButton instanceof HTMLButtonElement) toggle(editButton, !payload.canManage || payload.pendingApproval);
             loaded = true;
         } catch (error) {
+            if (!isCurrent()) return;
             // The form was not filled from the server, so editing it could overwrite the
             // stored details with defaults. Hide Edit until a later load succeeds.
             loaded = false;
             toggle(editButton, true);
             message(globalError, error instanceof Error ? error.message : 'Unable to load Transfer of Technology details.');
         }
-        finally { setLoading(false); }
+        finally { if (isCurrent()) setLoading(false); }
     }
 
     statusInput?.addEventListener('change', updateConditionalFields);
@@ -365,6 +375,8 @@
             projectId = id;
             loaded = false;
             offcanvas.dataset.projectId = String(id);
+            // Nothing from the previous project may be saved against this one.
+            toggle(editButton, true);
         }
         if (projectNameLabel) projectNameLabel.textContent = name || '';
         bootstrap.Offcanvas.getOrCreateInstance(offcanvas).show();

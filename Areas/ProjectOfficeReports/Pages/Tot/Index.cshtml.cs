@@ -16,6 +16,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Remarks;
 using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot;
@@ -35,6 +36,7 @@ public sealed class IndexModel : PageModel
     private readonly IAuthorizationService _authorizationService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IClock _clock;
+    private readonly IRemarkService _remarkService;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
@@ -44,6 +46,7 @@ public sealed class IndexModel : PageModel
         IAuthorizationService authorizationService,
         UserManager<ApplicationUser> userManager,
         IClock clock,
+        IRemarkService remarkService,
         ILogger<IndexModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -52,6 +55,7 @@ public sealed class IndexModel : PageModel
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _remarkService = remarkService ?? throw new ArgumentNullException(nameof(remarkService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -314,14 +318,8 @@ public sealed class IndexModel : PageModel
         [FromForm] string? body,
         CancellationToken ct)
     {
-        var role = User.IsInRole(RoleNames.Admin)
-            ? RemarkActorRole.Administrator
-            : User.IsInRole(RoleNames.HoD)
-                ? RemarkActorRole.HeadOfDepartment
-                : User.IsInRole(RoleNames.ProjectOffice) || User.IsInRole(RoleNames.ProjectOfficeAlternate)
-                    ? RemarkActorRole.ProjectOffice
-                    : RemarkActorRole.ProjectOfficer;
-        return ToJson(await TotDrawer().AddRemarkAsync(id, projectId, body, role, await DrawerAccessAsync(), ct));
+        var roles = User.FindAll(ClaimTypes.Role).Select(claim => claim.Value);
+        return ToJson(await TotDrawer().AddRemarkAsync(id, projectId, body, roles, _remarkService, await DrawerAccessAsync(), ct));
     }
 
     private ProjectTotDrawerService TotDrawer() => new(_db, _clock);

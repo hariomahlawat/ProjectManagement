@@ -96,6 +96,39 @@ test('a ctrl-click keeps the link, so the project can open in a new tab', async 
   assert.deepEqual(calls, []);
 });
 
+test('a slow answer for the project opened earlier never fills the drawer', async () => {
+  const dom = new JSDOM(`<!doctype html><body>${markup(false, '')}</body>`, {
+    url: 'http://localhost/ProjectOfficeReports/Tot',
+    runScripts: 'outside-only'
+  });
+  const { window } = dom;
+  const pending = {};
+  window.fetch = (url) => {
+    const id = Number(new URL(String(url), 'http://localhost').searchParams.get('id'));
+    return new Promise((resolve) => {
+      pending[id] = () => resolve({ ok: true, json: () => Promise.resolve({
+        success: true, projectId: id, projectName: `Project ${id}`, canManage: true, pendingApproval: false,
+        input: { status: 'NotStarted' }, summary: { statusLabel: `Status of ${id}`, facts: [] }
+      }) });
+    });
+  };
+  window.bootstrap = {
+    Offcanvas: { getOrCreateInstance: (element) => ({ show: () => element.dispatchEvent(new window.Event('show.bs.offcanvas')) }) }
+  };
+  window.eval(script);
+
+  window.document.querySelector('#row-630').click();
+  window.document.querySelector('#row-631').click();
+  pending[631]();
+  await settle(); await settle();
+  pending[630]();
+  await settle(); await settle();
+
+  assert.equal(window.document.querySelector('[data-tot-status-label]').textContent, 'Status of 631');
+  assert.equal(new URL(window.document.querySelector('[data-tot-form]').action).search, '?handler=Tot&id=631');
+  assert.equal(window.document.querySelector('[data-tot-project-field]').value, '631');
+});
+
 test('a selected project in the address opens on load', async () => {
   const { calls, shown } = run({ openOnLoad: true, projectId: 631 });
   await settle();
