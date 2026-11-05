@@ -36,7 +36,7 @@ last-updated deck, so nobody edits a deck they did not pick.
   unknown or deleted id returns to the library with a one-request notice.
 - **Data moved since last generated** (PR 2). Each generation keeps, per presented project, what
   the slides said: stage code, external status remark (date and a digest of its text; not compared for a project whose slides did not show it), stage (always: it also orders the slides) and the
-  costs the deck draws — the R&D cost with its basis label, the proliferation cost by cost mode, the IPA cost on update sheets (`LastGeneratedFactsJson`, `ProjectBriefingSlideFacts`). The library
+  costs the deck draws — the R&D cost with its basis label, the proliferation cost by cost mode, the IPA cost on update sheets (`LastGeneratedFactsJson`, `ProjectBriefingSlideFacts`), with the layout and cost mode it was drawn with, so a later settings change is not mistaken for moved data. The library
   compares them with `GetCurrentSlideFactsAsync`, which uses the same cost resolver, external
   status service and stage rule as generation, so a fact that would change a slide counts and
   nothing else does (a project completing can also revise its cost, by the shared cost rule).

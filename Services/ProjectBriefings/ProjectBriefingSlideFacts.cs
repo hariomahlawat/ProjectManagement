@@ -42,6 +42,13 @@ public sealed record ProjectBriefingCurrentProjectFacts(
             costMode);
 }
 
+// The facts a generation kept, with the layout and cost mode it was drawn with: today's facts are
+// built with those, so changing the deck's settings afterwards is never mistaken for moved data.
+public sealed record ProjectBriefingGeneratedFacts(
+    [property: JsonPropertyName("l")] ProjectBriefingLayout Layout,
+    [property: JsonPropertyName("m")] ProjectBriefingCostMode CostMode,
+    [property: JsonPropertyName("f")] IReadOnlyList<ProjectBriefingSlideFact> Facts);
+
 public sealed record ProjectBriefingMovedProject(int ProjectId, string ProjectName, bool Stage, bool Status, bool Cost);
 
 // How the data behind a deck's projects moved since its last generation.
@@ -149,12 +156,17 @@ public static class ProjectBriefingSlideFacts
             || project.TableRowOnly
             || data.StandardSlideOptions.ShowPresentStatus;
 
-    public static string Write(IEnumerable<ProjectBriefingSlideFact> facts)
-        => JsonSerializer.Serialize(facts.OrderBy(fact => fact.ProjectId).ToArray(), JsonOptions);
+    public static string Write(ProjectBriefingPresentationData data)
+        => Write(data.Layout, data.CostMode, data.Projects.Select(project => FromPresentation(project, data)));
+
+    public static string Write(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode, IEnumerable<ProjectBriefingSlideFact> facts)
+        => JsonSerializer.Serialize(
+            new ProjectBriefingGeneratedFacts(layout, costMode, facts.OrderBy(fact => fact.ProjectId).ToArray()),
+            JsonOptions);
 
     // Null when the deck was generated before facts were kept, or the stored value is unreadable:
     // the library then says nothing about movement rather than guessing.
-    public static IReadOnlyList<ProjectBriefingSlideFact>? Read(string? json)
+    public static ProjectBriefingGeneratedFacts? Read(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -163,7 +175,9 @@ public static class ProjectBriefingSlideFacts
 
         try
         {
-            return JsonSerializer.Deserialize<ProjectBriefingSlideFact[]>(json, JsonOptions);
+            return JsonSerializer.Deserialize<ProjectBriefingGeneratedFacts>(json, JsonOptions) is { Facts: not null } read
+                ? read
+                : null;
         }
         catch (JsonException)
         {
@@ -174,13 +188,12 @@ public static class ProjectBriefingSlideFacts
     // Projects no longer resolvable today (deleted since) are left out: a removal is a deck edit,
     // not data that moved.
     public static ProjectBriefingDataMovement Compare(
-        IReadOnlyList<ProjectBriefingSlideFact> generated,
-        ProjectBriefingLayout layout,
-        ProjectBriefingCostMode costMode,
+        ProjectBriefingGeneratedFacts generated,
         IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts> current)
     {
+        var (layout, costMode) = (generated.Layout, generated.CostMode);
         var moved = new List<ProjectBriefingMovedProject>();
-        foreach (var before in generated)
+        foreach (var before in generated.Facts)
         {
             if (!current.TryGetValue(before.ProjectId, out var facts))
             {

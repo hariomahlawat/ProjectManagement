@@ -60,7 +60,7 @@ public sealed record ProjectBriefingDeckSummaryVm(
 
     // What the last generated PowerPoint said about each project; null when the deck was never
     // generated, or was generated before these facts were kept.
-    public IReadOnlyList<ProjectBriefingSlideFact>? GeneratedFacts { get; init; }
+    public ProjectBriefingGeneratedFacts? GeneratedFacts { get; init; }
 
     // How the data moved since then (set by the data service); null when it cannot be told.
     public ProjectBriefingDataMovement? DataMovement { get; init; }

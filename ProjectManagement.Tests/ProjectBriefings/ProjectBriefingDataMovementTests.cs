@@ -65,7 +65,7 @@ public sealed class ProjectBriefingDataMovementTests
             [4] = Current(4, "DEVP", "Unchanged", 400m)
         };
 
-        var movement = ProjectBriefingSlideFacts.Compare(generated, ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, current);
+        var movement = ProjectBriefingSlideFacts.Compare(Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, generated), current);
 
         Assert.Equal(1, movement.StageChanges);
         Assert.Equal(1, movement.StatusChanges);
@@ -90,7 +90,7 @@ public sealed class ProjectBriefingDataMovementTests
             [1] = new(1, "One", "DEVP", "x", RemarkDate, Cost(100m), Cost(0m), Cost(999m))
         };
 
-        var movement = ProjectBriefingSlideFacts.Compare(generated, ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingCostMode.Both, current);
+        var movement = ProjectBriefingSlideFacts.Compare(Generated(ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingCostMode.Both, generated), current);
 
         Assert.False(movement.HasMoved);
     }
@@ -104,12 +104,12 @@ public sealed class ProjectBriefingDataMovementTests
 
         // No costs on the slides: nothing moved.
         var noCosts = before.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None);
-        Assert.False(ProjectBriefingSlideFacts.Compare(new[] { noCosts }, ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None, current).HasMoved);
+        Assert.False(ProjectBriefingSlideFacts.Compare(Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None, noCosts), current).HasMoved);
 
         // Proliferation only: the R&D and IPA revisions are not drawn, the proliferation one is.
         var proliferationOnly = (before with { CostRd = after.CostRd, IpaCost = after.IpaCost })
             .ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.ProliferationOnly);
-        Assert.Equal(1, ProjectBriefingSlideFacts.Compare(new[] { proliferationOnly }, ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.ProliferationOnly, current).CostChanges);
+        Assert.Equal(1, ProjectBriefingSlideFacts.Compare(Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.ProliferationOnly, proliferationOnly), current).CostChanges);
     }
 
     [Theory]
@@ -145,9 +145,7 @@ public sealed class ProjectBriefingDataMovementTests
         };
 
         var movement = ProjectBriefingSlideFacts.Compare(
-            new[] { ProjectBriefingSlideFacts.FromPresentation(presented, data) },
-            ProjectBriefingLayout.StandardBriefing,
-            ProjectBriefingCostMode.None,
+            Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None, ProjectBriefingSlideFacts.FromPresentation(presented, data)),
             current);
 
         Assert.Equal(counted ? 1 : 0, movement.StatusChanges);
@@ -160,9 +158,7 @@ public sealed class ProjectBriefingDataMovementTests
         var after = before with { CostRd = new ProjectBriefingCostValue(100m, ProjectBriefingCostBasis.None, "1.00", "PNC") };
 
         var movement = ProjectBriefingSlideFacts.Compare(
-            new[] { before.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly) },
-            ProjectBriefingLayout.StandardBriefing,
-            ProjectBriefingCostMode.CostRdOnly,
+            Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly, before.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly)),
             new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after });
 
         Assert.Equal(1, movement.CostChanges);
@@ -180,9 +176,11 @@ public sealed class ProjectBriefingDataMovementTests
     {
         var facts = new[] { Fact(2, "AON", "b", 2m), Fact(1, "DEVP", "a", 1m) };
 
-        var read = ProjectBriefingSlideFacts.Read(ProjectBriefingSlideFacts.Write(facts));
+        var read = ProjectBriefingSlideFacts.Read(ProjectBriefingSlideFacts.Write(ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingCostMode.CostRdOnly, facts));
 
-        Assert.Equal(facts.OrderBy(fact => fact.ProjectId), read);
+        Assert.NotNull(read);
+        Assert.Equal((ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingCostMode.CostRdOnly), (read!.Layout, read.CostMode));
+        Assert.Equal(facts.OrderBy(fact => fact.ProjectId), read.Facts);
     }
 
     [Fact]
@@ -204,7 +202,13 @@ public sealed class ProjectBriefingDataMovementTests
         var kept = (await service.GetCurrentSlideFactsAsync(new[] { 1, 2 }))
             .Values.Select(facts => facts.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly))
             .ToList();
-        var generatedDeck = Summary(1, "Monthly review", ProjectBriefingCostMode.CostRdOnly) with { LastGeneratedAtUtc = DateTimeOffset.UtcNow, GeneratedFacts = kept };
+        // Generated with R&D costs; costs were switched off afterwards. The settings edit is not
+        // data that moved, so the R&D revision below still counts against the generated slides.
+        var generatedDeck = Summary(1, "Monthly review", ProjectBriefingCostMode.None) with
+        {
+            LastGeneratedAtUtc = DateTimeOffset.UtcNow,
+            GeneratedFacts = Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly, kept.ToArray())
+        };
         var oldDeck = Summary(2, "Generated before tracking") with { LastGeneratedAtUtc = DateTimeOffset.UtcNow };
         var neverGenerated = Summary(3, "Never generated");
 
@@ -240,7 +244,7 @@ public sealed class ProjectBriefingDataMovementTests
             RowVersion = Guid.NewGuid().ToByteArray()
         });
         await db.SaveChangesAsync();
-        var facts = ProjectBriefingSlideFacts.Write(new[] { Fact(1, "DEVP", "a", 1m) });
+        var facts = ProjectBriefingSlideFacts.Write(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, new[] { Fact(1, "DEVP", "a", 1m) });
         var deckService = new ProjectBriefingDeckService(db, Stub<IProjectBriefingSelectionService>(), new NoAudit(), new FixedClock(), NullLogger<ProjectBriefingDeckService>.Instance);
 
         // ExecuteUpdate is not supported by the in-memory provider; the stored value is what the
@@ -252,8 +256,11 @@ public sealed class ProjectBriefingDataMovementTests
 
         var listed = Assert.Single(await deckService.ListAsync("u"));
 
-        Assert.Equal(ProjectBriefingSlideFacts.Read(facts), listed.GeneratedFacts);
+        Assert.Equal(ProjectBriefingSlideFacts.Read(facts)!.Facts, listed.GeneratedFacts!.Facts);
     }
+
+    private static ProjectBriefingGeneratedFacts Generated(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode, params ProjectBriefingSlideFact[] facts)
+        => new(layout, costMode, facts);
 
     private static ProjectBriefingSlideFact Fact(int id, string stage, string? status, decimal cost)
         => Current(id, stage, status, cost).ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both);

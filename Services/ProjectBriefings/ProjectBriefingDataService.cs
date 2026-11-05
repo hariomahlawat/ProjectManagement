@@ -225,8 +225,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         CancellationToken cancellationToken = default)
     {
         var projectIds = decks
-            .Where(deck => deck.GeneratedFacts is { Count: > 0 })
-            .SelectMany(deck => deck.GeneratedFacts!.Select(fact => fact.ProjectId))
+            .Where(deck => deck.GeneratedFacts is { Facts.Count: > 0 })
+            .SelectMany(deck => deck.GeneratedFacts!.Facts.Select(fact => fact.ProjectId))
             .Distinct()
             .ToArray();
         if (projectIds.Length == 0)
@@ -240,7 +240,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         return decks
             .Select(deck => deck.GeneratedFacts is null
                 ? deck
-                : deck with { DataMovement = ProjectBriefingSlideFacts.Compare(deck.GeneratedFacts, deck.Layout, deck.CostMode, current) })
+                : deck with { DataMovement = ProjectBriefingSlideFacts.Compare(deck.GeneratedFacts, current) })
             .ToList();
     }
 
