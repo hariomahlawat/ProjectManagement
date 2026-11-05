@@ -840,3 +840,9 @@ body .modal-backdrop {
             }
         }
 
+
+/* The selected project is the panel's title: the shared .h6 size (12px) is too small here. */
+.tot-detail-panel h2.h6 {
+    font-size: 1rem;
+    font-weight: 600;
+}
