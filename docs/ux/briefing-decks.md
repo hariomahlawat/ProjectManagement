@@ -369,3 +369,66 @@ A separate icon rail was considered and rejected: the inspector is narrow and ha
    stage and category summaries, cover, portfolio summary and closing show their slide). Theme
    and marking keep the slide in view. Every rebuild now also keeps the kind of slide in view for
    its project (a brief stays a brief), not only the project.
+
+## Plan: Studio usability
+
+A walkthrough on 5 Nov 2026 as a first-time user (new deck, 49 ongoing projects, template switch,
+checks, Present, phone width) on a copy of the development database.
+
+**Review findings.**
+
+- **The preview is the smallest pane on a laptop.** The breakpoints use the window width, but the
+  workspace navigation takes about 250 px of it. At 1440 px the panes are navigation 252, outline
+  286, preview 389 and inspector about 380 px; the slide is about 360 px wide and its text cannot be
+  read. Below 1400 px the inspector drops beneath the outline and preview, out of sight. At 1920 px
+  the preview is about 830 px and works. The "Wide screens" plan above (inspector as a drawer at
+  1200–1599 px) was never built.
+- **A new deck has no workflow.** New deck asks only for a name; the deck opens as "Set up by hand"
+  with "Add projects to build the slides." three times, and the outline says "Slides 4" while it
+  is empty. Nothing shows the order: template, projects, gaps, settings, generate.
+- **Templates overwrite without warning.** Picking a template applies it at once, with no
+  confirmation and no undo, even when the deck was customised.
+- **"Present" is a viewer.** It opens an in-page dialog with a filmstrip; the slide fills about
+  60 % of the window, it is not full screen, and speaker notes ("shown to the presenter") only reach
+  the PowerPoint.
+- **The model is not explained.** The deck rebuilds from live PRISM data, saves as you go and is
+  shared with every Comdt/HoD user; none of this is visible where it matters. Gap fixes either
+  change the project record ("Record in project", "Write in project") or only this deck ("Write for
+  this deck"), with no label saying which.
+- **Scope and signals.** Selecting a slide leaves the inspector on the Deck tab. A gap shows twice
+  (the card under the preview and the This slide tab). The outline's orange numbers (missing
+  items) have no explanation. In Add projects the button still reads "Add" after adding, and
+  Escape did not close the dialog. The library's Slides column shows "—" until a PowerPoint is
+  generated, though the Studio knows the count. "New briefing deck created." stays on screen; "Missing content uses defined
+  placeholders." sits under Generate on an empty deck; the browser title says "Project Briefing
+  Deck Builder" while the page says "Briefing decks".
+- **Phone.** The Studio is about 11,800 px tall: the All slides grid (remembered from the desktop)
+  is about 9,600 px, and the settings start near 11,000 px.
+
+What works: the template descriptions, the numbered settings steps, the Checks tab ("8 of 49
+projects missing", Show) and the preview following each settings change.
+
+**PRs**
+
+1. **Room for the preview.** The Studio folds the workspace navigation to its icon rail. Pane
+   widths follow the Studio's own width (container queries), not the window. From about 1200 px
+   the inspector stays beside the preview, or opens as a drawer over it, never below the fold.
+   Target: a slide of at least 640 px at 1366 px. The "Wide screens" section is updated to match.
+2. **First run.** New deck asks for the name and the template (three cards plus "Set up by hand"),
+   then opens Add projects. One empty state with one action replaces the three messages, and the
+   empty outline shows no slide count. Switching template on a customised deck asks first, and every template
+   switch shows "Template applied · Undo". The created message clears itself; the placeholder note
+   shows only when there are gaps; the browser title says "Briefing decks".
+3. **Guidance in the Studio.** A progress line in the deck header: Projects 49 · Gaps 5 ·
+   Settings: template name · Generate, each part opening its tab. A one-time line explaining the model
+   ("Rebuilt from live PRISM data each time. Saved as you go, shared with Comdt and HoDs.") with a
+   dismiss, and "Saved · shared" next to the title. Gap actions say their scope: "Fix in project"
+   or "This deck only". Selecting a slide opens This slide; each gap shows in one place; the
+   outline numbers get a tooltip and an accessible label. Add projects marks a quick add as
+   "Added" and closes on Escape. The library shows the slide count from the last build.
+4. **Present.** Full screen (Fullscreen API, falling back to the dialog), the slide as large as the
+   screen allows, filmstrip hidden until asked for, and an optional notes view showing the
+   project's speaker notes. It starts at the selected slide, with "From the start" beside it.
+   Keyboard help: arrows, Home/End, N for notes, Esc.
+5. **Phone.** One slide at a time (All slides is not restored below 900 px), the outline as a
+   sheet, Generate and Present first, settings in a sheet.
