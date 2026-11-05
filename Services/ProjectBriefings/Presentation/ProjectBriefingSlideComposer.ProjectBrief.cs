@@ -26,6 +26,13 @@ public sealed partial class ProjectBriefingSlideComposer
     private const double BriefPanelHorizontalInsets = .66;
     private const double BriefPanelVerticalInsets = .44 + ((12.6 + 12.0) / 72d);
 
+    // How many slides this project's brief takes in this deck, by the same pagination the slides
+    // use (photo layout, information strip and cost cards included).
+    public static int ProjectBriefSlideCount(
+        ProjectBriefingPresentationData data,
+        ProjectBriefingPresentationProject project)
+        => PaginateProjectBrief(data, project).Count;
+
     private static IReadOnlyList<ProjectBriefingUpdateSheetBriefPage> PaginateProjectBrief(
         ProjectBriefingPresentationData data,
         ProjectBriefingPresentationProject project)

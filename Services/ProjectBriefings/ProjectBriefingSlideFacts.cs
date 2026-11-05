@@ -163,7 +163,7 @@ public static class ProjectBriefingSlideFacts
         var drawsSubtitle = hasOwnSlides && !updateSheet
             && (ProjectBriefingSlideComposer.DrawsCapabilitySlides(data.NarrativeMode)
                 || (ProjectBriefingSlideComposer.DrawsProjectBriefSlides(data.NarrativeMode)
-                    && ProjectBriefingSlideComposer.EstimateProjectBriefSlideCount(project.ProjectBrief) > 1));
+                    && ProjectBriefingSlideComposer.ProjectBriefSlideCount(data, project) > 1));
         if (data.IncludePortfolioSummarySlide
             || drawsSubtitle
             || (!updateSheet && data.IncludeStageSummary))
