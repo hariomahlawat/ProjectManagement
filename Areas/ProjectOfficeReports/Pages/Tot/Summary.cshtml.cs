@@ -39,18 +39,30 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
         {
             var projects = await _trackerService.GetAsync(new ProjectTotTrackerFilter(), cancellationToken);
 
-            var data = projects
+            return new JsonResult(BuildYearlyCompletions(projects)
+                .Select(point => new { year = point.Year, count = point.Count })
+                .ToList());
+        }
+
+        // One point per year from the first to the last completion, so a year with no completions
+        // shows as zero instead of being left off the axis.
+        internal static IReadOnlyList<(int Year, int Count)> BuildYearlyCompletions(IReadOnlyList<ProjectTotTrackerRow> projects)
+        {
+            var counts = projects
                 .Where(p => p.TotStatus == ProjectTotStatus.Completed && p.TotCompletedOn.HasValue)
                 .GroupBy(p => p.TotCompletedOn!.Value.Year)
-                .OrderBy(g => g.Key)
-                .Select(g => new
-                {
-                    year = g.Key,
-                    count = g.Count()
-                })
-                .ToList();
+                .ToDictionary(g => g.Key, g => g.Count());
 
-            return new JsonResult(data);
+            if (counts.Count == 0)
+            {
+                return Array.Empty<(int, int)>();
+            }
+
+            var first = counts.Keys.Min();
+            var last = counts.Keys.Max();
+            return Enumerable.Range(first, last - first + 1)
+                .Select(year => (year, counts.GetValueOrDefault(year)))
+                .ToList();
         }
 
         public sealed record TotSummaryViewModel(
@@ -124,8 +136,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                     }
                 }
 
+                // "Not required" projects are not ToT-applicable: they are listed, but not counted in the total.
+                var applicable = items.Count - notRequired.Count;
                 var narrative = BuildNarrative(
-                    items.Count,
+                    applicable,
                     completed.Count,
                     notStarted.Count,
                     inProgressMetComplete.Count,
@@ -139,7 +153,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                     inProgressMetComplete,
                     inProgressMetIncomplete,
                     notRequired,
-                    items.Count);
+                    applicable);
             }
 
             public static string? FormatCompletionLabel(TotSummaryEntry entry)
@@ -178,9 +192,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                 int inProgressMetIncomplete,
                 int notRequired)
             {
+                var notRequiredNote = notRequired switch
+                {
+                    0 => string.Empty,
+                    1 => " A further 1 project does not require Transfer of Technology.",
+                    _ => $" A further {notRequired} projects do not require Transfer of Technology."
+                };
+
                 if (total == 0)
                 {
-                    return "No ToT-applicable completed projects have Transfer of Technology progress to report yet.";
+                    return "No ToT-applicable completed projects have Transfer of Technology progress to report yet." + notRequiredNote;
                 }
 
                 var segments = new List<string>();
@@ -212,18 +233,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                     segments.Add(string.Join(" and ", inProgressSegments));
                 }
 
-                if (notRequired > 0)
-                {
-                    segments.Add($"{FormatCount(notRequired, "project does", "projects do")} not require Transfer of Technology");
-                }
-
                 var prefix = total == 1
                     ? "There is 1 ToT-applicable completed project"
                     : $"Across {total} ToT-applicable completed projects";
 
                 if (segments.Count == 0)
                 {
-                    return $"{prefix}, but no projects have reported Transfer of Technology progress yet.";
+                    return $"{prefix}, but no projects have reported Transfer of Technology progress yet.{notRequiredNote}";
                 }
 
                 var summary = segments.Count switch
@@ -233,7 +249,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                     _ => string.Join(", ", segments.Take(segments.Count - 1)) + ", and " + segments[^1]
                 };
 
-                return $"{prefix}, {summary}.";
+                return $"{prefix}, {summary}.{notRequiredNote}";
             }
 
             private static string FormatCount(int count, string singular, string plural)

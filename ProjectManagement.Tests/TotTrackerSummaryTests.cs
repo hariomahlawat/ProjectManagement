@@ -95,7 +95,8 @@ public sealed class TotTrackerSummaryTests
 
         var summary = SummaryModel.TotSummaryViewModel.FromProjects(rows);
 
-        Assert.Equal(5, summary.TotalProjects);
+        // "Not required" is listed but is not ToT-applicable, so it is not in the total.
+        Assert.Equal(4, summary.TotalProjects);
         Assert.Equal(1, summary.CompletedCount);
         Assert.Equal(1, summary.NotStartedCount);
         Assert.Equal(2, summary.InProgressCount);
@@ -129,6 +130,45 @@ public sealed class TotTrackerSummaryTests
         Assert.Equal("2022", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(metComplete));
     }
 
+    [Fact]
+    public void TotSummaryViewModel_NarrativeCountsOnlyApplicableProjects()
+    {
+        var rows = new List<ProjectTotTrackerRow>
+        {
+            CreateRow(1, ProjectTotStatus.Completed, null),
+            CreateRow(2, ProjectTotStatus.Completed, null),
+            CreateRow(3, ProjectTotStatus.NotStarted, null),
+            CreateRow(4, ProjectTotStatus.NotRequired, null),
+            CreateRow(5, ProjectTotStatus.NotRequired, null)
+        };
+
+        var summary = SummaryModel.TotSummaryViewModel.FromProjects(rows);
+
+        Assert.Equal(3, summary.TotalProjects);
+        Assert.Equal(
+            "Across 3 ToT-applicable completed projects, 2 projects have completed Transfer of Technology and 1 project has not yet started Transfer of Technology work. A further 2 projects do not require Transfer of Technology.",
+            summary.Narrative);
+    }
+
+    [Fact]
+    public void BuildYearlyCompletions_ShowsYearsWithoutCompletionsAsZero()
+    {
+        var rows = new List<ProjectTotTrackerRow>
+        {
+            CreateRow(1, ProjectTotStatus.Completed, null, totCompletedOn: new DateOnly(2009, 5, 1)),
+            CreateRow(2, ProjectTotStatus.Completed, null, totCompletedOn: new DateOnly(2012, 1, 1)),
+            CreateRow(3, ProjectTotStatus.Completed, null, totCompletedOn: new DateOnly(2012, 12, 31)),
+            // Not counted: not completed, or completed without a date.
+            CreateRow(4, ProjectTotStatus.InProgress, null, totCompletedOn: new DateOnly(2010, 1, 1)),
+            CreateRow(5, ProjectTotStatus.Completed, null)
+        };
+
+        var points = SummaryModel.BuildYearlyCompletions(rows);
+
+        Assert.Equal(new[] { (2009, 1), (2010, 0), (2011, 0), (2012, 2) }, points);
+        Assert.Empty(SummaryModel.BuildYearlyCompletions(Array.Empty<ProjectTotTrackerRow>()));
+    }
+
     private static ProjectTotTrackerRow CreateRow(
         int projectId,
         ProjectTotStatus? totStatus,
@@ -136,7 +176,8 @@ public sealed class TotTrackerSummaryTests
         DateOnly? projectCompletedOn = null,
         int? projectCompletedYear = null,
         DateOnly? totMetCompletedOn = null,
-        bool? totFirstProductionModelManufactured = null)
+        bool? totFirstProductionModelManufactured = null,
+        DateOnly? totCompletedOn = null)
         => new(
             ProjectId: projectId,
             ProjectName: $"Project {projectId}",
@@ -146,8 +187,8 @@ public sealed class TotTrackerSummaryTests
             TotStatus: totStatus,
             TotStartedOn: null,
             TotStartDatePrecision: PartialDatePrecision.None,
-            TotCompletedOn: null,
-            TotCompletionDatePrecision: PartialDatePrecision.None,
+            TotCompletedOn: totCompletedOn,
+            TotCompletionDatePrecision: totCompletedOn.HasValue ? PartialDatePrecision.Day : PartialDatePrecision.None,
             TotMetDetails: null,
             TotMetCompletedOn: totMetCompletedOn,
             TotFirstProductionModelManufactured: totFirstProductionModelManufactured,
