@@ -381,7 +381,10 @@ test('saving a capability overview refreshes the studio project data', () => {
 test('an emptied deck clears the slide grid and says why', () => {
   const empty = studioSource.slice(studioSource.indexOf('const renderEmpty'), studioSource.indexOf('const loadPreview'));
   assert.match(empty, /releaseFrames\(gridBox\);\s*gridBox\?\.replaceChildren\(\);/);
-  assert.ok(empty.indexOf('renderStage();') < empty.indexOf("slideBox?.replaceChildren(el('p', 'pbd-stage__empty', message));"));
+  assert.ok(empty.indexOf('renderStage();') < empty.indexOf('slideBox?.replaceChildren(empty);'));
+  // One empty state: a heading, why, and (with no projects at all) the one action.
+  assert.match(empty, /el\('h4', null, 'Add the projects to brief'\),\s*el\('p', null, message\)\)/);
+  assert.match(empty, /if \(!projects\.size\) \{[\s\S]*?add\.dataset\.pbdOpenSelector = '';/);
 });
 
 test('every slide rebuild also refreshes project facts and gaps', () => {
@@ -501,7 +504,7 @@ test('step summaries read each choice by its label, not its description', () => 
 
 test('a settings save names the settings that changed, for the preview to follow', () => {
   assert.match(source, /if \(name && event\.target\.form === settingsForm\) \{\s*changedSettings\.delete\(name\);\s*changedSettings\.add\(name\);/);
-  assert.match(source, /if \(changed\.length\) document\.dispatchEvent\(new CustomEvent\('pbd:settings-saved', \{ detail: \{ changed \} \}\)\);/);
+  assert.match(source, /if \(changed\.length\) \{\s*root\.querySelector\('\[data-pbd-preset-undo\]'\)\?\.remove\(\);\s*document\.dispatchEvent\(new CustomEvent\('pbd:settings-saved', \{ detail: \{ changed \} \}\)\);/);
 });
 
 test('settings changed by script (row order, Select all) count as changed for the preview', () => {

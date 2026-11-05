@@ -28,6 +28,7 @@ if (root) {
   const panels = Object.fromEntries([...root.querySelectorAll('[data-pbd-inspector-panel]')]
     .map((panel) => [panel.dataset.pbdInspectorPanel, panel]));
   const checksBadge = root.querySelector('[data-pbd-checks-badge]');
+  const placeholderNote = document.querySelector('[data-pbd-placeholder-note]');
   const slideTotal = document.querySelector('[data-pbd-slide-total]');
   const slideBreakdown = document.querySelector('[data-pbd-slide-breakdown]');
   const viewer = document.querySelector('[data-pbd-viewer]');
@@ -849,6 +850,7 @@ if (root) {
     // The badge counts the checks listed in the tab (what is missing), not projects: a deck where
     // most projects lack one optional item would otherwise sit at "47" for ever.
     const openChecks = Object.keys(GAPS).filter((key) => counts[key]).length;
+    if (placeholderNote) placeholderNote.hidden = openChecks === 0;
     if (checksBadge) {
       checksBadge.hidden = openChecks === 0;
       checksBadge.textContent = String(openChecks);
@@ -1023,11 +1025,27 @@ if (root) {
       renderChecksPanel();
       return;
     }
-    outlineNav?.replaceChildren(el('p', 'pbd-outline__empty', message));
+    outlineNav?.replaceChildren(el('p', 'pbd-outline__empty', 'No slides yet.'));
     renderStage();
     renderChecksPanel();
-    // renderStage clears the slide area when there are no slides; say why after it.
-    slideBox?.replaceChildren(el('p', 'pbd-stage__empty', message));
+    if (countLabel) countLabel.textContent = '';
+    if (status) status.textContent = '';
+    // renderStage clears the slide area when there are no slides; say why after it, with the one
+    // thing to do next.
+    const empty = el('div', 'pbd-stage__start');
+    empty.append(
+      el('span', 'pbd-stage__start-icon'),
+      el('h4', null, 'Add the projects to brief'),
+      el('p', null, message));
+    empty.querySelector('.pbd-stage__start-icon').append(icon('bi-collection'));
+    if (!projects.size) {
+      const add = el('button', 'btn btn-primary');
+      add.type = 'button';
+      add.dataset.pbdOpenSelector = '';
+      add.append(icon('bi-plus-lg'), document.createTextNode(' Add projects'));
+      empty.append(add);
+    }
+    slideBox?.replaceChildren(empty);
   };
 
   const loadPreview = async () => {
@@ -1040,7 +1058,7 @@ if (root) {
       if (refreshButton) refreshButton.disabled = false;
       renderEmpty(projects.size
         ? 'Every project in this deck is left out of the PowerPoint. Bring one back to build the slides.'
-        : 'Add projects to build the slides.');
+        : 'Pick ongoing projects, a category or individual projects. The slides build from current PRISM data.');
       return;
     }
 

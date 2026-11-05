@@ -1038,7 +1038,10 @@ if (root) {
       changedSettings.clear();
       applyEditorState(payload?.deck);
       // The Studio shows a slide the change affects once it has rebuilt the slides.
-      if (changed.length) document.dispatchEvent(new CustomEvent('pbd:settings-saved', { detail: { changed } }));
+      if (changed.length) {
+        root.querySelector('[data-pbd-preset-undo]')?.remove();
+        document.dispatchEvent(new CustomEvent('pbd:settings-saved', { detail: { changed } }));
+      }
       applySettingsDeck(payload?.deck);
       refreshSettingsSummary();
       setState(settingsStatus, 'All changes saved.', 'saved');
@@ -1147,6 +1150,19 @@ if (root) {
   // Presets: applied on the server from one definition, then the page reloads to show every
   // setting (the Studio returns to the same slide and tab).
   root.querySelectorAll('[data-pbd-preset]').forEach((button) => button.addEventListener('click', async () => {
+    // A customised deck loses those choices; Undo is offered afterwards, but ask first.
+    if (templateCustomised && !templateCustomised.hidden) {
+      const title = presetTitles[button.dataset.pbdPreset] || 'this template';
+      const confirmed = await prismConfirm({
+        title: `Apply ${title}?`,
+        message: `This deck's slide, cost and look settings change to the ${title} template, replacing your customised choices. Projects, notes and slide text stay. You can undo straight after.`,
+        confirmText: 'Apply template',
+        cancelText: 'Keep my settings',
+        tone: 'primary',
+        returnFocus: button
+      });
+      if (!confirmed) return;
+    }
     if (settingsPending() && !(await saveSettingsNow())) return;
     root.querySelectorAll('[data-pbd-preset]').forEach((other) => { other.disabled = true; });
     setState(settingsStatus, 'Applying the template…', 'saving');
@@ -1301,16 +1317,33 @@ if (root) {
   });
 
 
+  root.querySelectorAll('[data-pbd-auto-dismiss]').forEach((alert) => {
+    window.setTimeout(() => {
+      alert.classList.add('is-leaving');
+      window.setTimeout(() => alert.remove(), 300);
+    }, 6000);
+  });
+
   // Add projects: a dialog over the Studio. Every selection method saves in place.
   const addProjectsModalElement = document.getElementById('pbd-add-projects-modal');
   const addProjectsModal = addProjectsModalElement && window.bootstrap
     ? window.bootstrap.Modal.getOrCreateInstance(addProjectsModalElement)
     : null;
   const addProjectsStatus = addProjectsModalElement?.querySelector('[data-pbd-add-projects-status]');
-  root.querySelectorAll('[data-pbd-open-selector]').forEach((button) => button.addEventListener('click', () => {
+  const openAddProjects = () => {
     setState(addProjectsStatus, '');
     addProjectsModal?.show();
-  }));
+  };
+  root.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('[data-pbd-open-selector]')) openAddProjects();
+  });
+  // A new deck opens on Add projects, its next step. Drop the flag so a reload does not reopen it.
+  if (root.querySelector('[data-pbd-studio][data-pbd-start="projects"]')) {
+    openAddProjects();
+    const url = new URL(window.location.href);
+    url.searchParams.delete('start');
+    window.history.replaceState(window.history.state, '', url);
+  }
   addProjectsModalElement?.addEventListener('shown.bs.modal', () => {
     addProjectsModalElement.querySelector('[data-pbd-selector-tab].is-active')?.focus();
   });
@@ -1379,6 +1412,7 @@ if (root) {
 
   // The Studio listens for this and rebuilds after any in-place change.
   const announceDeckChange = (detail = {}) => {
+    root.querySelector('[data-pbd-preset-undo]')?.remove();
     document.dispatchEvent(new CustomEvent('pbd:deck-changed', { detail }));
   };
 
