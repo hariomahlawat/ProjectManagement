@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -13,14 +14,18 @@ namespace ProjectManagement.Services.ProjectBriefings;
 public enum ProjectBriefingShownFacts
 {
     None = 0,
-    // The stage name is drawn (a table row, a detail slide, the stage summary, an update-sheet row).
+    // The stage name is drawn (a table row, a detail slide, the stage summary).
     Stage = 1,
-    // Only the stage's maturity matters: it orders the slides and buckets the portfolio counts.
+    // The stage's maturity orders two or more projects' slides.
     StageOrder = 2,
     Status = 4,
     CostRd = 8,
     IpaCost = 16,
-    ProliferationCost = 32
+    ProliferationCost = 32,
+    // The portfolio summary counts ongoing, completed and cancelled projects.
+    Lifecycle = 64,
+    // An update sheet's milestone row: a PDC date in development, else completion or cancellation.
+    Milestone = 128
 }
 
 // What a generated deck said about one project, each fact reduced to a short comparable value,
@@ -53,6 +58,7 @@ public sealed record ProjectBriefingCurrentProjectFacts(
             shown,
             StageCode,
             ProjectBriefingStageOrder.Resolve(LifecycleStatus, StageCode),
+            LifecycleStatus,
             ExternalStatus,
             ExternalStatusDate,
             CostRd,
@@ -112,10 +118,10 @@ public static class ProjectBriefingSlideFacts
     //   status and the costs of the cost mode;
     // - a standard detail slide draws stage and status when "Show present stage/status" is on,
     //   and the cost cards of the cost mode;
-    // - an update sheet draws its selected rows: cost, status, and the PDC or completion row
-    //   (chosen by stage);
-    // - the stage summary draws every project's stage; the portfolio summary counts completion
-    //   and totals the costs (the IPA cost only on update sheets);
+    // - an update sheet draws its selected rows: cost, status, and the milestone row (a PDC date in
+    //   development, else the completion or cancellation; never the stage name);
+    // - the stage summary draws every project's stage; the portfolio summary counts lifecycle
+    //   (ongoing, completed, cancelled) and totals the costs (the IPA cost only on update sheets);
     // - with two or more projects on slides of their own, stage maturity orders the slides.
     public static ProjectBriefingShownFacts Shown(ProjectBriefingPresentationProject project, ProjectBriefingPresentationData data)
     {
@@ -132,15 +138,23 @@ public static class ProjectBriefingSlideFacts
 
         if (inTable
             || (hasOwnSlides && !updateSheet && data.StandardSlideOptions.ShowPresentStage)
-            || (hasOwnSlides && updateSheet && rows.Contains(ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus))
             || (!updateSheet && data.IncludeStageSummary))
         {
             shown |= ProjectBriefingShownFacts.Stage;
         }
-        else if (data.IncludePortfolioSummarySlide
-            || data.Projects.Count(other => !other.TableRowOnly) >= 2)
+        else if (data.Projects.Count(other => !other.TableRowOnly) >= 2)
         {
             shown |= ProjectBriefingShownFacts.StageOrder;
+        }
+
+        if (data.IncludePortfolioSummarySlide)
+        {
+            shown |= ProjectBriefingShownFacts.Lifecycle;
+        }
+
+        if (hasOwnSlides && updateSheet && rows.Contains(ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus))
+        {
+            shown |= ProjectBriefingShownFacts.Milestone;
         }
 
         if (inTable
@@ -177,6 +191,7 @@ public static class ProjectBriefingSlideFacts
         ProjectBriefingShownFacts shown,
         string? stageCode,
         int stageOrder,
+        ProjectLifecycleStatus lifecycleStatus,
         string? externalStatus,
         DateOnly? externalStatusDate,
         ProjectBriefingCostValue? costRd,
@@ -190,15 +205,41 @@ public static class ProjectBriefingSlideFacts
         }
 
         var showsCost = (shown & (ProjectBriefingShownFacts.CostRd | ProjectBriefingShownFacts.IpaCost | ProjectBriefingShownFacts.ProliferationCost)) != 0;
+        var code = (stageCode ?? string.Empty).Trim().ToUpperInvariant();
+
+        // Each drawn reading of the stage, as one comparable value (null when none is drawn).
+        var stageParts = new List<string>(4);
+        if (shown.HasFlag(ProjectBriefingShownFacts.Stage))
+        {
+            stageParts.Add(code);
+        }
+
+        if (shown.HasFlag(ProjectBriefingShownFacts.StageOrder))
+        {
+            stageParts.Add($"#{stageOrder.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        if (shown.HasFlag(ProjectBriefingShownFacts.Lifecycle))
+        {
+            stageParts.Add($"L{lifecycleStatus}");
+        }
+
+        if (shown.HasFlag(ProjectBriefingShownFacts.Milestone))
+        {
+            // ProjectBriefingUpdateSheetPlanner.ResolveMilestone: completion, cancellation, else a
+            // PDC date only in development.
+            stageParts.Add(lifecycleStatus switch
+            {
+                ProjectLifecycleStatus.Completed => "M:completed",
+                ProjectLifecycleStatus.Cancelled => "M:cancelled",
+                _ => string.Equals(code, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase) ? "M:pdc" : "M:none"
+            });
+        }
 
         return new ProjectBriefingSlideFact(
             projectId,
             shown,
-            shown.HasFlag(ProjectBriefingShownFacts.Stage)
-                ? (stageCode ?? string.Empty).Trim().ToUpperInvariant()
-                : shown.HasFlag(ProjectBriefingShownFacts.StageOrder)
-                    ? $"#{stageOrder.ToString(CultureInfo.InvariantCulture)}"
-                    : null,
+            stageParts.Count == 0 ? null : string.Join("|", stageParts),
             !shown.HasFlag(ProjectBriefingShownFacts.Status)
                 ? null
                 : status.Length == 0 && externalStatusDate is null
@@ -221,6 +262,7 @@ public static class ProjectBriefingSlideFacts
             Shown(project, data),
             project.PresentStageCode,
             project.PresentStageOrder,
+            project.LifecycleStatus,
             project.ExternalStatus,
             project.ExternalStatusDate,
             project.CostRd,

@@ -34,6 +34,7 @@ public sealed class ProjectBriefingDataMovementTests
         var presented = new ProjectBriefingPresentationProject
         {
             ProjectId = 7,
+            LifecycleStatus = ProjectLifecycleStatus.Active,
             PresentStageCode = "devp",
             PresentStageOrder = ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, "DEVP"),
             ExternalStatus = ProjectBriefingSlideFacts.NoExternalStatus,
@@ -129,6 +130,58 @@ public sealed class ProjectBriefingDataMovementTests
         });
 
         Assert.Equal(1, completed.StageChanges);
+    }
+
+    [Theory]
+    // The portfolio summary counts lifecycle: moving between ongoing stages is not drawn...
+    [InlineData(ProjectBriefingShownFacts.Lifecycle, "EAS", ProjectLifecycleStatus.Active, false)]
+    // ...completing is.
+    [InlineData(ProjectBriefingShownFacts.Lifecycle, "COMPLETED", ProjectLifecycleStatus.Completed, true)]
+    // The update-sheet milestone row: two ongoing stages outside development read the same...
+    [InlineData(ProjectBriefingShownFacts.Milestone, "EAS", ProjectLifecycleStatus.Active, false)]
+    // ...entering development brings the PDC date.
+    [InlineData(ProjectBriefingShownFacts.Milestone, "DEVP", ProjectLifecycleStatus.Active, true)]
+    [InlineData(ProjectBriefingShownFacts.Milestone, "AON", ProjectLifecycleStatus.Cancelled, true)]
+    public void Compare_StageCountsOnlyAsTheSlidesReadIt(
+        ProjectBriefingShownFacts shown,
+        string stageNow,
+        ProjectLifecycleStatus lifecycleNow,
+        bool counted)
+    {
+        var before = Current(1, "AON", "x", 1m);
+        var after = before with { StageCode = stageNow, LifecycleStatus = lifecycleNow };
+
+        var movement = ProjectBriefingSlideFacts.Compare(
+            Generated(before.ToSlideFact(shown)),
+            new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after });
+
+        Assert.Equal(counted ? 1 : 0, movement.StageChanges);
+    }
+
+    [Fact]
+    public void Shown_PortfolioSummaryTracksLifecycleAndTheUpdateSheetItsMilestone()
+    {
+        var project = new ProjectBriefingPresentationProject { ProjectId = 1 };
+        var standard = new ProjectBriefingPresentationData
+        {
+            Layout = ProjectBriefingLayout.StandardBriefing,
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludePortfolioSummarySlide = true,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with { ShowPresentStage = false, ShowPresentStatus = false },
+            Projects = new[] { project }
+        };
+        var sheet = new ProjectBriefingPresentationData
+        {
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            CostMode = ProjectBriefingCostMode.CostRdOnly,
+            IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(new[] { ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus }, HideEmptyValues: false),
+            Projects = new[] { project }
+        };
+
+        Assert.Equal(ProjectBriefingShownFacts.Lifecycle, ProjectBriefingSlideFacts.Shown(project, standard));
+        Assert.Equal(ProjectBriefingShownFacts.Milestone, ProjectBriefingSlideFacts.Shown(project, sheet));
     }
 
     // Where the composer draws each fact (ProjectBriefingSlideFacts.Shown).
