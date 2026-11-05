@@ -34,17 +34,23 @@ last-updated deck, so nobody edits a deck they did not pick.
 - `/Workspace/BriefingDecks/{id}` is the Studio. Its bar has "← Briefing decks" and **Switch
   deck** (each deck's purpose and project count); the old saved-decks side panel is gone. An
   unknown or deleted id returns to the library with a one-request notice.
-- **Data moved since last generated** (PR 2). Each generation keeps, per presented project, what
-  the slides said: stage code, external status remark (date and a digest of its text; not compared for a project whose slides did not show it), stage (always: it also orders the slides) and the
-  costs the deck draws — the R&D cost with its basis label, the proliferation cost by cost mode, the IPA cost on update sheets (`LastGeneratedFactsJson`, `ProjectBriefingSlideFacts`), with the layout and cost mode it was drawn with, so a later settings change is not mistaken for moved data. The library
-  compares them with `GetCurrentSlideFactsAsync`, which uses the same cost resolver, external
-  status service and stage rule as generation, so a fact that would change a slide counts and
-  nothing else does (a project completing can also revise its cost, by the shared cost rule).
-  Shown as an amber line on the Continue card, a Data since column ("N changes", "Up to date",
-  "Not generated yet", or "—" for decks generated before facts were kept) and a Needs attention
-  strip of up to three other moved decks with the projects that moved. Deleted or archived
-  projects are left out, as generation leaves them out. Content checks are not counted on the
-  library: they would mean composing every deck on each visit.
+- **Data moved since last generated** (PR 2). Each generation keeps, per presented project, the
+  facts its slides drew and which ones they drew (`LastGeneratedFactsJson`,
+  `ProjectBriefingSlideFacts`): the stage (its name where a table row, detail slide, stage summary
+  or update-sheet row shows it; otherwise only its maturity, which orders the slides and buckets
+  the portfolio counts), the external status remark (date and a digest of its text) and the costs
+  drawn (the R&D cost with its basis label, the proliferation cost by cost mode, the IPA cost in
+  an update sheet's portfolio totals). `ProjectBriefingSlideFacts.Shown` mirrors the composer:
+  "Show present stage/status", the update sheet's selected rows, table-row-only projects, the
+  summary slides and the cost mode. The library rebuilds today's facts with
+  `GetCurrentSlideFactsAsync` (the same cost resolver, external status service and stage rule as
+  generation) and compares only what each project's slides showed, so a hidden fact or a settings
+  change since never counts (a project completing can also revise its cost, by the shared cost
+  rule). Shown as an amber line on the Continue card, a Data since column ("N changes", "Up to
+  date", "Not generated yet", or "—" for decks generated before facts were kept) and a Needs
+  attention strip of up to three other moved decks with the projects that moved. Deleted or
+  archived projects are left out, as generation leaves them out. Content checks are not counted
+  on the library: they would mean composing every deck on each visit.
 
 ## Studio
 

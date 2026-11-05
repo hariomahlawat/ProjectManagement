@@ -289,6 +289,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 return new ProjectBriefingCurrentProjectFacts(
                     project.Id,
                     project.Name,
+                    project.LifecycleStatus,
                     ResolveStageCode(
                         project.LifecycleStatus,
                         project.WorkflowVersion,

@@ -3,25 +3,42 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
-// What a generated deck said about one project: its stage, its external status remark and its
-// costs, each reduced to a short comparable value. Kept with the deck on every generation so the
-// library can tell, from the same resolvers the slides use, when the data has moved since.
+// Which of a project's facts a generated deck drew, and so which are compared afterwards.
+[Flags]
+public enum ProjectBriefingShownFacts
+{
+    None = 0,
+    // The stage name is drawn (a table row, a detail slide, the stage summary, an update-sheet row).
+    Stage = 1,
+    // Only the stage's maturity matters: it orders the slides and buckets the portfolio counts.
+    StageOrder = 2,
+    Status = 4,
+    CostRd = 8,
+    IpaCost = 16,
+    ProliferationCost = 32
+}
+
+// What a generated deck said about one project, each fact reduced to a short comparable value,
+// with the facts it showed. Kept with the deck on every generation so the library can tell, from
+// the same resolvers the slides use, when data the slides showed has moved since. A fact the deck
+// did not show is null and never compared.
 public sealed record ProjectBriefingSlideFact(
     [property: JsonPropertyName("p")] int ProjectId,
-    [property: JsonPropertyName("s")] string Stage,
-    // Null when no slide showed this project's status remark (it is then not compared).
+    [property: JsonPropertyName("v")] ProjectBriefingShownFacts Shown,
+    [property: JsonPropertyName("s")] string? Stage,
     [property: JsonPropertyName("r")] string? Status,
-    [property: JsonPropertyName("c")] string Costs);
+    [property: JsonPropertyName("c")] string? Costs);
 
-// The facts a slide would show for a project today, before the deck's layout decides which
-// costs appear.
+// The facts a slide would show for a project today.
 public sealed record ProjectBriefingCurrentProjectFacts(
     int ProjectId,
     string ProjectName,
+    ProjectLifecycleStatus LifecycleStatus,
     string StageCode,
     string? ExternalStatus,
     DateOnly? ExternalStatusDate,
@@ -29,21 +46,21 @@ public sealed record ProjectBriefingCurrentProjectFacts(
     ProjectBriefingCostValue IpaCost,
     ProjectBriefingCostValue ProliferationCost)
 {
-    public ProjectBriefingSlideFact ToSlideFact(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode)
+    // Today's facts, reduced the way a generation that showed `shown` reduced them.
+    public ProjectBriefingSlideFact ToSlideFact(ProjectBriefingShownFacts shown)
         => ProjectBriefingSlideFacts.Create(
             ProjectId,
+            shown,
             StageCode,
+            ProjectBriefingStageOrder.Resolve(LifecycleStatus, StageCode),
             ExternalStatus,
             ExternalStatusDate,
             CostRd,
             IpaCost,
-            ProliferationCost,
-            layout,
-            costMode);
+            ProliferationCost);
 }
 
-// The facts a generation kept, with the layout and cost mode it was drawn with: today's facts are
-// built with those, so changing the deck's settings afterwards is never mistaken for moved data.
+// The facts a generation kept, with the layout and cost mode it was drawn with.
 public sealed record ProjectBriefingGeneratedFacts(
     [property: JsonPropertyName("l")] ProjectBriefingLayout Layout,
     [property: JsonPropertyName("m")] ProjectBriefingCostMode CostMode,
@@ -90,71 +107,125 @@ public static class ProjectBriefingSlideFacts
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
 
-    // Which costs a deck draws, by the composer's rules (cost cards, cost table columns and the
-    // portfolio cost metrics): the update sheet always shows the R&D cost (with its basis) and
-    // totals the IPA cost; a standard briefing shows the R&D cost and/or the proliferation cost by
-    // its cost mode, and never the IPA cost.
-    public static (bool CostRd, bool Ipa, bool Proliferation) ShownCosts(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode)
-        => layout == ProjectBriefingLayout.ProjectUpdateSheet
-            ? (true, true, false)
-            : (costMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both,
-                false,
-                costMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both);
+    // Which facts the composer draws for this project in this deck (ProjectBriefingSlideComposer):
+    // - the executive table (table modes; a table-row-only project in any mode) draws stage,
+    //   status and the costs of the cost mode;
+    // - a standard detail slide draws stage and status when "Show present stage/status" is on,
+    //   and the cost cards of the cost mode;
+    // - an update sheet draws its selected rows: cost, status, and the PDC or completion row
+    //   (chosen by stage);
+    // - the stage summary draws every project's stage; the portfolio summary counts completion
+    //   and totals the costs (the IPA cost only on update sheets);
+    // - with two or more projects on slides of their own, stage maturity orders the slides.
+    public static ProjectBriefingShownFacts Shown(ProjectBriefingPresentationProject project, ProjectBriefingPresentationData data)
+    {
+        var updateSheet = data.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
+        var costMode = updateSheet ? ProjectBriefingCostMode.CostRdOnly : data.CostMode;
+        var costRdMode = costMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
+        var proliferationMode = costMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
+        var inTable = project.TableRowOnly
+            || (!updateSheet && data.PresentationMode is ProjectBriefingPresentationMode.ExecutiveTable or ProjectBriefingPresentationMode.Combined);
+        var hasOwnSlides = !project.TableRowOnly
+            && (updateSheet || data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined);
+        var rows = data.UpdateSheetOptions.Rows;
+        var shown = ProjectBriefingShownFacts.None;
+
+        if (inTable
+            || (hasOwnSlides && !updateSheet && data.StandardSlideOptions.ShowPresentStage)
+            || (hasOwnSlides && updateSheet && rows.Contains(ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus))
+            || (!updateSheet && data.IncludeStageSummary))
+        {
+            shown |= ProjectBriefingShownFacts.Stage;
+        }
+        else if (data.IncludePortfolioSummarySlide
+            || data.Projects.Count(other => !other.TableRowOnly) >= 2)
+        {
+            shown |= ProjectBriefingShownFacts.StageOrder;
+        }
+
+        if (inTable
+            || (hasOwnSlides && (updateSheet
+                ? rows.Contains(ProjectBriefingUpdateSheetRow.PresentStatus)
+                : data.StandardSlideOptions.ShowPresentStatus)))
+        {
+            shown |= ProjectBriefingShownFacts.Status;
+        }
+
+        if (costRdMode
+            && (inTable
+                || data.IncludePortfolioSummarySlide
+                || (hasOwnSlides && (!updateSheet || rows.Contains(ProjectBriefingUpdateSheetRow.ProjectCost)))))
+        {
+            shown |= ProjectBriefingShownFacts.CostRd;
+        }
+
+        if (updateSheet && data.IncludePortfolioSummarySlide)
+        {
+            shown |= ProjectBriefingShownFacts.IpaCost;
+        }
+
+        if (proliferationMode && (inTable || hasOwnSlides || data.IncludePortfolioSummarySlide))
+        {
+            shown |= ProjectBriefingShownFacts.ProliferationCost;
+        }
+
+        return shown;
+    }
 
     public static ProjectBriefingSlideFact Create(
         int projectId,
+        ProjectBriefingShownFacts shown,
         string? stageCode,
+        int stageOrder,
         string? externalStatus,
         DateOnly? externalStatusDate,
         ProjectBriefingCostValue? costRd,
         ProjectBriefingCostValue? ipaCost,
-        ProjectBriefingCostValue? proliferationCost,
-        ProjectBriefingLayout layout,
-        ProjectBriefingCostMode costMode,
-        bool statusShown = true)
+        ProjectBriefingCostValue? proliferationCost)
     {
-        var shown = ShownCosts(layout, costMode);
         var status = externalStatus?.Trim() ?? string.Empty;
         if (string.Equals(status, NoExternalStatus, StringComparison.Ordinal))
         {
             status = string.Empty;
         }
 
+        var showsCost = (shown & (ProjectBriefingShownFacts.CostRd | ProjectBriefingShownFacts.IpaCost | ProjectBriefingShownFacts.ProliferationCost)) != 0;
+
         return new ProjectBriefingSlideFact(
             projectId,
-            (stageCode ?? string.Empty).Trim().ToUpperInvariant(),
-            !statusShown
+            shown,
+            shown.HasFlag(ProjectBriefingShownFacts.Stage)
+                ? (stageCode ?? string.Empty).Trim().ToUpperInvariant()
+                : shown.HasFlag(ProjectBriefingShownFacts.StageOrder)
+                    ? $"#{stageOrder.ToString(CultureInfo.InvariantCulture)}"
+                    : null,
+            !shown.HasFlag(ProjectBriefingShownFacts.Status)
                 ? null
                 : status.Length == 0 && externalStatusDate is null
-                ? string.Empty
-                : $"{externalStatusDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}|{Hash(status)}",
-            string.Join("|",
-                shown.CostRd ? $"{Amount(costRd)}/{(costRd?.IsAvailable == true ? costRd.BasisDisplay : string.Empty)}" : string.Empty,
-                shown.Ipa ? Amount(ipaCost) : string.Empty,
-                shown.Proliferation ? Amount(proliferationCost) : string.Empty));
+                    ? string.Empty
+                    : $"{externalStatusDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}|{Hash(status)}",
+            !showsCost
+                ? null
+                : string.Join("|",
+                    // The R&D cost is drawn with its basis label ("PNC", "L1", ...).
+                    shown.HasFlag(ProjectBriefingShownFacts.CostRd)
+                        ? $"{Amount(costRd)}/{(costRd?.IsAvailable == true ? costRd.BasisDisplay : string.Empty)}"
+                        : string.Empty,
+                    shown.HasFlag(ProjectBriefingShownFacts.IpaCost) ? Amount(ipaCost) : string.Empty,
+                    shown.HasFlag(ProjectBriefingShownFacts.ProliferationCost) ? Amount(proliferationCost) : string.Empty));
     }
 
     public static ProjectBriefingSlideFact FromPresentation(ProjectBriefingPresentationProject project, ProjectBriefingPresentationData data)
         => Create(
             project.ProjectId,
+            Shown(project, data),
             project.PresentStageCode,
+            project.PresentStageOrder,
             project.ExternalStatus,
             project.ExternalStatusDate,
             project.CostRd,
             project.IpaCost,
-            project.ProliferationCost,
-            data.Layout,
-            data.CostMode,
-            IsStatusShown(project, data));
-
-    // Where the composer draws a project's external status remark: every update sheet; the
-    // executive table (Executive table and Combined modes, and the "other projects" table for
-    // table-row-only projects); and a project's own slides only when "Show present status" is on.
-    public static bool IsStatusShown(ProjectBriefingPresentationProject project, ProjectBriefingPresentationData data)
-        => data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-            || data.PresentationMode is ProjectBriefingPresentationMode.ExecutiveTable or ProjectBriefingPresentationMode.Combined
-            || project.TableRowOnly
-            || data.StandardSlideOptions.ShowPresentStatus;
+            project.ProliferationCost);
 
     public static string Write(ProjectBriefingPresentationData data)
         => Write(data.Layout, data.CostMode, data.Projects.Select(project => FromPresentation(project, data)));
@@ -185,13 +256,13 @@ public static class ProjectBriefingSlideFacts
         }
     }
 
-    // Projects no longer resolvable today (deleted since) are left out: a removal is a deck edit,
-    // not data that moved.
+    // Today's facts are reduced with what each project's generated slides showed, so a fact the
+    // deck did not show, or a settings change since, never counts. Projects no longer resolvable
+    // today (deleted since) are left out: a removal is a deck edit, not data that moved.
     public static ProjectBriefingDataMovement Compare(
         ProjectBriefingGeneratedFacts generated,
         IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts> current)
     {
-        var (layout, costMode) = (generated.Layout, generated.CostMode);
         var moved = new List<ProjectBriefingMovedProject>();
         foreach (var before in generated.Facts)
         {
@@ -200,9 +271,9 @@ public static class ProjectBriefingSlideFacts
                 continue;
             }
 
-            var now = facts.ToSlideFact(layout, costMode);
+            var now = facts.ToSlideFact(before.Shown);
             var stage = !string.Equals(before.Stage, now.Stage, StringComparison.Ordinal);
-            var status = before.Status is not null && !string.Equals(before.Status, now.Status, StringComparison.Ordinal);
+            var status = !string.Equals(before.Status, now.Status, StringComparison.Ordinal);
             var cost = !string.Equals(before.Costs, now.Costs, StringComparison.Ordinal);
             if (stage || status || cost)
             {

@@ -22,6 +22,10 @@ public sealed class ProjectBriefingDataMovementTests
 {
     private static readonly DateOnly RemarkDate = new(2026, 10, 30);
 
+    private const ProjectBriefingShownFacts All =
+        ProjectBriefingShownFacts.Stage | ProjectBriefingShownFacts.Status | ProjectBriefingShownFacts.CostRd
+        | ProjectBriefingShownFacts.IpaCost | ProjectBriefingShownFacts.ProliferationCost;
+
     [Fact]
     public void FactsKeptAtGeneration_MatchTodaysFactsForUnchangedData()
     {
@@ -31,20 +35,20 @@ public sealed class ProjectBriefingDataMovementTests
         {
             ProjectId = 7,
             PresentStageCode = "devp",
+            PresentStageOrder = ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, "DEVP"),
             ExternalStatus = ProjectBriefingSlideFacts.NoExternalStatus,
             CostRd = Cost(1_250_000.4m),
             IpaCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
             ProliferationCost = Cost(300_000m)
         };
+        var data = Data(ProjectBriefingPresentationMode.Combined, ProjectBriefingCostMode.Both, presented);
         var current = new ProjectBriefingCurrentProjectFacts(
-            7, "Counter-UAS", "DEVP", null, null,
+            7, "Counter-UAS", ProjectLifecycleStatus.Active, "DEVP", null, null,
             Cost(1_250_000m), ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA), Cost(300_000m));
 
-        var data = new ProjectBriefingPresentationData { Layout = ProjectBriefingLayout.StandardBriefing, CostMode = ProjectBriefingCostMode.Both };
+        var kept = ProjectBriefingSlideFacts.FromPresentation(presented, data);
 
-        Assert.Equal(
-            ProjectBriefingSlideFacts.FromPresentation(presented, data),
-            current.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both));
+        Assert.Equal(kept, current.ToSlideFact(kept.Shown));
     }
 
     [Fact]
@@ -65,7 +69,7 @@ public sealed class ProjectBriefingDataMovementTests
             [4] = Current(4, "DEVP", "Unchanged", 400m)
         };
 
-        var movement = ProjectBriefingSlideFacts.Compare(Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, generated), current);
+        var movement = ProjectBriefingSlideFacts.Compare(Generated(generated), current);
 
         Assert.Equal(1, movement.StageChanges);
         Assert.Equal(1, movement.StatusChanges);
@@ -78,77 +82,26 @@ public sealed class ProjectBriefingDataMovementTests
     }
 
     [Fact]
-    public void Compare_LeavesOutProjectsThatAreGoneAndIgnoresProliferationOnUpdateSheets()
+    public void Compare_LeavesOutProjectsThatAreGone()
     {
-        var generated = new[]
-        {
-            ProjectBriefingSlideFacts.Create(1, "DEVP", "x", RemarkDate, Cost(100m), Cost(0m), ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation), ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingCostMode.Both),
-            Fact(9, "DEVP", "deleted since", 1m)
-        };
-        var current = new Dictionary<int, ProjectBriefingCurrentProjectFacts>
-        {
-            [1] = new(1, "One", "DEVP", "x", RemarkDate, Cost(100m), Cost(0m), Cost(999m))
-        };
+        var current = new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = Current(1, "DEVP", "x", 100m) };
 
-        var movement = ProjectBriefingSlideFacts.Compare(Generated(ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingCostMode.Both, generated), current);
+        var movement = ProjectBriefingSlideFacts.Compare(Generated(Fact(1, "DEVP", "x", 100m), Fact(9, "DEVP", "deleted since", 1m)), current);
 
         Assert.False(movement.HasMoved);
     }
 
     [Fact]
-    public void Compare_IgnoresCostsTheDeckDoesNotShow()
+    public void Compare_IgnoresFactsTheGeneratedSlidesDidNotShow()
     {
-        var before = Current(1, "DEVP", "x", 100m) with { IpaCost = Cost(10m), ProliferationCost = Cost(20m) };
-        var after = before with { CostRd = Cost(500m), IpaCost = Cost(11m), ProliferationCost = Cost(21m) };
+        var before = Current(1, "DEVP", "x", 100m);
+        var after = Current(1, "AON", "y", 500m) with { IpaCost = Cost(11m), ProliferationCost = Cost(21m) };
         var current = new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after };
 
-        // No costs on the slides: nothing moved.
-        var noCosts = before.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None);
-        Assert.False(ProjectBriefingSlideFacts.Compare(Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None, noCosts), current).HasMoved);
+        Assert.False(ProjectBriefingSlideFacts.Compare(Generated(before.ToSlideFact(ProjectBriefingShownFacts.None)), current).HasMoved);
 
-        // Proliferation only: the R&D and IPA revisions are not drawn, the proliferation one is.
-        var proliferationOnly = (before with { CostRd = after.CostRd, IpaCost = after.IpaCost })
-            .ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.ProliferationOnly);
-        Assert.Equal(1, ProjectBriefingSlideFacts.Compare(Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.ProliferationOnly, proliferationOnly), current).CostChanges);
-    }
-
-    [Theory]
-    [InlineData(ProjectBriefingPresentationMode.DetailedProjects, false, false, false)]
-    [InlineData(ProjectBriefingPresentationMode.DetailedProjects, false, true, true)]
-    [InlineData(ProjectBriefingPresentationMode.DetailedProjects, true, false, true)]
-    [InlineData(ProjectBriefingPresentationMode.Combined, false, false, true)]
-    [InlineData(ProjectBriefingPresentationMode.ExecutiveTable, false, false, true)]
-    public void StatusRemark_CountsOnlyWhereASlideShowsIt(
-        ProjectBriefingPresentationMode mode,
-        bool showPresentStatus,
-        bool tableRowOnly,
-        bool counted)
-    {
-        var presented = new ProjectBriefingPresentationProject
-        {
-            ProjectId = 1,
-            PresentStageCode = "DEVP",
-            ExternalStatus = "Trials planned",
-            ExternalStatusDate = RemarkDate,
-            TableRowOnly = tableRowOnly
-        };
-        var data = new ProjectBriefingPresentationData
-        {
-            Layout = ProjectBriefingLayout.StandardBriefing,
-            PresentationMode = mode,
-            CostMode = ProjectBriefingCostMode.None,
-            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with { ShowPresentStatus = showPresentStatus }
-        };
-        var current = new Dictionary<int, ProjectBriefingCurrentProjectFacts>
-        {
-            [1] = new(1, "One", "DEVP", "Trials complete", RemarkDate.AddDays(3), ProjectBriefingCostValue.Missing(), ProjectBriefingCostValue.Missing(), ProjectBriefingCostValue.Missing())
-        };
-
-        var movement = ProjectBriefingSlideFacts.Compare(
-            Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None, ProjectBriefingSlideFacts.FromPresentation(presented, data)),
-            current);
-
-        Assert.Equal(counted ? 1 : 0, movement.StatusChanges);
+        var proliferationOnly = ProjectBriefingSlideFacts.Compare(Generated(before.ToSlideFact(ProjectBriefingShownFacts.ProliferationCost)), current);
+        Assert.Equal((0, 0, 1), (proliferationOnly.StageChanges, proliferationOnly.StatusChanges, proliferationOnly.CostChanges));
     }
 
     [Fact]
@@ -158,10 +111,90 @@ public sealed class ProjectBriefingDataMovementTests
         var after = before with { CostRd = new ProjectBriefingCostValue(100m, ProjectBriefingCostBasis.None, "1.00", "PNC") };
 
         var movement = ProjectBriefingSlideFacts.Compare(
-            Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly, before.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly)),
+            Generated(before.ToSlideFact(ProjectBriefingShownFacts.CostRd)),
             new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after });
 
         Assert.Equal(1, movement.CostChanges);
+    }
+
+    [Fact]
+    public void Compare_StageOrderOnlyCountsAMoveToAnotherMaturity()
+    {
+        var before = Current(1, "DEVP", "x", 1m);
+        var kept = Generated(before.ToSlideFact(ProjectBriefingShownFacts.StageOrder));
+
+        var completed = ProjectBriefingSlideFacts.Compare(kept, new Dictionary<int, ProjectBriefingCurrentProjectFacts>
+        {
+            [1] = before with { LifecycleStatus = ProjectLifecycleStatus.Completed, StageCode = ProjectBriefingStageOrder.CompletedCode }
+        });
+
+        Assert.Equal(1, completed.StageChanges);
+    }
+
+    // Where the composer draws each fact (ProjectBriefingSlideFacts.Shown).
+    [Theory]
+    // Detailed slides with stage and status hidden, one project, no summaries: neither is shown.
+    [InlineData(ProjectBriefingLayout.StandardBriefing, ProjectBriefingPresentationMode.DetailedProjects, false, false, false, false, false, false)]
+    // ...but a table-row-only project is in the executive table.
+    [InlineData(ProjectBriefingLayout.StandardBriefing, ProjectBriefingPresentationMode.DetailedProjects, false, false, false, true, true, true)]
+    // Detailed slides showing stage and status.
+    [InlineData(ProjectBriefingLayout.StandardBriefing, ProjectBriefingPresentationMode.DetailedProjects, true, true, false, false, true, true)]
+    // The executive table always shows both.
+    [InlineData(ProjectBriefingLayout.StandardBriefing, ProjectBriefingPresentationMode.ExecutiveTable, false, false, false, false, true, true)]
+    // The stage summary shows the stage.
+    [InlineData(ProjectBriefingLayout.StandardBriefing, ProjectBriefingPresentationMode.DetailedProjects, false, false, true, false, true, false)]
+    public void Shown_FollowsTheComposer(
+        ProjectBriefingLayout layout,
+        ProjectBriefingPresentationMode mode,
+        bool showStage,
+        bool showStatus,
+        bool stageSummary,
+        bool tableRowOnly,
+        bool stageShown,
+        bool statusShown)
+    {
+        var project = new ProjectBriefingPresentationProject { ProjectId = 1, TableRowOnly = tableRowOnly };
+        var data = new ProjectBriefingPresentationData
+        {
+            Layout = layout,
+            PresentationMode = mode,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludeStageSummary = stageSummary,
+            IncludePortfolioSummarySlide = false,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with { ShowPresentStage = showStage, ShowPresentStatus = showStatus },
+            Projects = new[] { project }
+        };
+
+        var shown = ProjectBriefingSlideFacts.Shown(project, data);
+
+        Assert.Equal(stageShown, shown.HasFlag(ProjectBriefingShownFacts.Stage));
+        Assert.Equal(statusShown, shown.HasFlag(ProjectBriefingShownFacts.Status));
+        Assert.False(shown.HasFlag(ProjectBriefingShownFacts.CostRd));
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void Shown_UpdateSheetFollowsItsSelectedRows(bool statusRow, bool statusShown)
+    {
+        var project = new ProjectBriefingPresentationProject { ProjectId = 1 };
+        var rows = statusRow
+            ? new[] { ProjectBriefingUpdateSheetRow.PresentStatus }
+            : new[] { ProjectBriefingUpdateSheetRow.AonDate };
+        var data = new ProjectBriefingPresentationData
+        {
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            CostMode = ProjectBriefingCostMode.CostRdOnly,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(rows, HideEmptyValues: false),
+            IncludePortfolioSummarySlide = false,
+            Projects = new[] { project }
+        };
+
+        var shown = ProjectBriefingSlideFacts.Shown(project, data);
+
+        Assert.Equal(statusShown, shown.HasFlag(ProjectBriefingShownFacts.Status));
+        Assert.False(shown.HasFlag(ProjectBriefingShownFacts.CostRd));
+        Assert.False(shown.HasFlag(ProjectBriefingShownFacts.Stage));
     }
 
     [Theory]
@@ -198,16 +231,16 @@ public sealed class ProjectBriefingDataMovementTests
         statuses.Latest[2] = new ProjectBriefingExternalStatus(2, 11, "Trials planned", RemarkDate, DateTime.UtcNow);
         var service = Service(db, costs, statuses);
 
-        // What a generation would have kept, today.
+        // What a generation showing stage, status and R&D cost would have kept, today.
         var kept = (await service.GetCurrentSlideFactsAsync(new[] { 1, 2 }))
-            .Values.Select(facts => facts.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly))
-            .ToList();
-        // Generated with R&D costs; costs were switched off afterwards. The settings edit is not
-        // data that moved, so the R&D revision below still counts against the generated slides.
+            .Values.Select(facts => facts.ToSlideFact(ProjectBriefingShownFacts.Stage | ProjectBriefingShownFacts.Status | ProjectBriefingShownFacts.CostRd))
+            .ToArray();
+        // Costs were switched off after generating: a settings edit, not moved data, so the R&D
+        // revision below still counts against the generated slides.
         var generatedDeck = Summary(1, "Monthly review", ProjectBriefingCostMode.None) with
         {
             LastGeneratedAtUtc = DateTimeOffset.UtcNow,
-            GeneratedFacts = Generated(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly, kept.ToArray())
+            GeneratedFacts = Generated(kept)
         };
         var oldDeck = Summary(2, "Generated before tracking") with { LastGeneratedAtUtc = DateTimeOffset.UtcNow };
         var neverGenerated = Summary(3, "Never generated");
@@ -259,14 +292,20 @@ public sealed class ProjectBriefingDataMovementTests
         Assert.Equal(ProjectBriefingSlideFacts.Read(facts)!.Facts, listed.GeneratedFacts!.Facts);
     }
 
-    private static ProjectBriefingGeneratedFacts Generated(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode, params ProjectBriefingSlideFact[] facts)
-        => new(layout, costMode, facts);
+    private static ProjectBriefingGeneratedFacts Generated(params ProjectBriefingSlideFact[] facts)
+        => new(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, facts);
+
+    private static ProjectBriefingPresentationData Data(
+        ProjectBriefingPresentationMode mode,
+        ProjectBriefingCostMode costMode,
+        params ProjectBriefingPresentationProject[] projects)
+        => new() { Layout = ProjectBriefingLayout.StandardBriefing, PresentationMode = mode, CostMode = costMode, Projects = projects };
 
     private static ProjectBriefingSlideFact Fact(int id, string stage, string? status, decimal cost)
-        => Current(id, stage, status, cost).ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both);
+        => Current(id, stage, status, cost).ToSlideFact(All);
 
     private static ProjectBriefingCurrentProjectFacts Current(int id, string stage, string? status, decimal cost)
-        => new(id, $"Project {id}", stage, status, status is null ? null : RemarkDate,
+        => new(id, $"Project {id}", ProjectLifecycleStatus.Active, stage, status, status is null ? null : RemarkDate,
             Cost(cost), ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
             ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation));
 
