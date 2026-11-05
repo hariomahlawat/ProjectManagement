@@ -1,11 +1,11 @@
-@using ProjectManagement.Models
-@model ProjectManagement.Pages.Projects.OverviewModel
+@model ProjectManagement.ViewModels.ProjectTotDrawerViewModel
 @{
-    var tot = Model.TotSummary;
-    var pending = tot.PendingRequest is { State: ProjectTotRequestDecisionState.Pending };
-    var saveLabel = Model.TotSaveNeedsApproval ? "Submit for approval" : "Save details";
+    // Shared by the project page and the ToT register. Forms post to the hosting page's handlers;
+    // the drawer script points them at the project being shown.
+    var pending = Model.Pending;
+    var saveLabel = Model.SaveNeedsApproval ? "Submit for approval" : "Save details";
     // The decision form is rendered for approvers only; the server checks again on post.
-    var canDecide = ProjectManagement.Services.Authorization.ApprovalAuthorization.CanApproveProjectChanges(User);
+    var canDecide = Model.CanDecide;
 }
 <div class="project-tot-drawer" data-tot-root>
     <div class="project-tot-drawer__loading" data-tot-loading>
@@ -21,10 +21,10 @@
             <div class="project-tot-status-card">
                 <div>
                     <span class="project-tot-status-card__label">Current position</span>
-                    <strong data-tot-status-label>@tot.StatusLabel</strong>
-                    <p class="mb-0" data-tot-summary-text>@tot.Summary</p>
+                    <strong data-tot-status-label>@Model.StatusLabel</strong>
+                    <p class="mb-0" data-tot-summary-text>@Model.Summary</p>
                 </div>
-                <span class="badge rounded-pill" data-tot-status-badge>@tot.StatusLabel</span>
+                <span class="badge rounded-pill" data-tot-status-badge>@Model.StatusLabel</span>
             </div>
 
             <div class="project-tot-facts" data-tot-facts></div>
@@ -47,8 +47,7 @@
                 @if (canDecide)
                 {
                     <form method="post"
-                          asp-page-handler="TotDecide"
-                          asp-route-id="@Model.Project.Id"
+                          action="@Model.HandlerUrl("TotDecide")"
                           class="project-tot-decide d-none"
                           data-tot-decide-form
                           novalidate>
@@ -65,23 +64,18 @@
                 }
             </section>
 
-            @if (tot.IsApplicable)
+            @if (Model.IsApplicable)
             {
                 <div class="project-tot-remark" data-tot-latest-remark-wrap>
                     <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                         <h6 class="mb-0">Latest ToT remark</h6>
-                        @if (Model.CanManageTot)
+                        @if (Model.CanManage)
                         {
                             <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" data-tot-add-remark>Add remark</button>
                         }
                     </div>
-                    <p class="mb-1" data-tot-latest-remark>@(tot.LatestRemark?.Body ?? "No ToT remark recorded.")</p>
-                    <small class="text-muted" data-tot-latest-remark-meta>
-                        @if (tot.LatestRemark is { } remark)
-                        {
-                            @($"{remark.TypeLabel} · {remark.AuthorDisplayName ?? "Unknown"}")
-                        }
-                    </small>
+                    <p class="mb-1" data-tot-latest-remark>@(Model.LatestRemarkBody ?? "No ToT remark recorded.")</p>
+                    <small class="text-muted" data-tot-latest-remark-meta>@Model.LatestRemarkMeta</small>
                 </div>
 
                 <section class="project-tot-history d-none" data-tot-history-wrap aria-labelledby="tot-history-heading">
@@ -89,15 +83,14 @@
                     <ol class="project-tot-history__list" data-tot-history></ol>
                 </section>
 
-                @if (Model.CanManageTot)
+                @if (Model.CanManage)
                 {
                     <form method="post"
-                          asp-page-handler="TotRemark"
-                          asp-route-id="@Model.Project.Id"
+                          action="@Model.HandlerUrl("TotRemark")"
                           class="project-tot-remark-editor d-none"
                           data-tot-remark-form>
                         @Html.AntiForgeryToken()
-                        <input type="hidden" name="projectId" value="@Model.Project.Id" />
+                        <input type="hidden" name="projectId" value="@Model.ProjectId" data-tot-project-field />
                         <label class="form-label" for="tot-remark-body">Add ToT remark</label>
                         <textarea class="form-control" id="tot-remark-body" name="body" rows="3" maxlength="2000" required data-tot-remark-body></textarea>
                         <div class="form-text">Saved under the Transfer of Technology scope.</div>
@@ -111,20 +104,19 @@
             }
         </section>
 
-        @if (Model.CanManageTot)
+        @if (Model.CanManage)
         {
             <section class="project-tot-editor d-none" data-tot-edit-view>
                 <form method="post"
-                      asp-page-handler="Tot"
-                      asp-route-id="@Model.Project.Id"
+                      action="@Model.HandlerUrl("Tot")"
                       data-tot-form
                       novalidate>
                     @Html.AntiForgeryToken()
-                    <input type="hidden" name="ProjectId" value="@Model.Project.Id" />
+                    <input type="hidden" name="ProjectId" value="@Model.ProjectId" data-tot-project-field />
 
                     <div class="alert alert-danger d-none" role="alert" data-tot-errors></div>
 
-                    @if (Model.TotSaveNeedsApproval)
+                    @if (Model.SaveNeedsApproval)
                     {
                         <p class="form-text mt-0 mb-3">Your changes go to the HoD for approval. The current position stays as it is until they are approved.</p>
                     }
@@ -196,20 +188,21 @@
     <div class="project-tot-drawer__footer">
         <div class="project-tot-footer-group" data-tot-summary-footer>
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Close</button>
-            @if (tot.IsApplicable)
+            @if (Model.IsApplicable && Model.RegisterUrl is { } registerUrl)
             {
-                <a class="btn btn-outline-primary"
-                   asp-area="ProjectOfficeReports"
-                   asp-page="/Tot/Index"
-                   asp-route-selectedProjectId="@Model.Project.Id">Open register</a>
+                <a class="btn btn-outline-primary" href="@registerUrl">Open register</a>
             }
-            @if (Model.CanManageTot)
+            @if (Model.LinkToProject)
+            {
+                <a class="btn btn-outline-primary" href="#" data-tot-open-project>Open project</a>
+            }
+            @if (Model.CanManage)
             {
                 @* Hidden while a request is pending; the drawer script shows it again once the request is decided. *@
                 <button type="button" class="btn btn-primary @(pending ? "d-none" : string.Empty)" data-tot-edit-button>Update details</button>
             }
         </div>
-        @if (Model.CanManageTot)
+        @if (Model.CanManage)
         {
             <div class="project-tot-footer-group d-none" data-tot-edit-footer>
                 <button type="button" class="btn btn-outline-secondary" data-tot-cancel-button>Cancel</button>
