@@ -137,6 +137,8 @@ public sealed class ProjectBriefingDataMovementTests
     [InlineData(ProjectBriefingShownFacts.Lifecycle, "EAS", ProjectLifecycleStatus.Active, false)]
     // ...completing is.
     [InlineData(ProjectBriefingShownFacts.Lifecycle, "COMPLETED", ProjectLifecycleStatus.Completed, true)]
+    // Cancelling keeps the stage; the lifecycle reading still changes.
+    [InlineData(ProjectBriefingShownFacts.Lifecycle, "AON", ProjectLifecycleStatus.Cancelled, true)]
     // The update-sheet milestone row: two ongoing stages outside development read the same...
     [InlineData(ProjectBriefingShownFacts.Milestone, "EAS", ProjectLifecycleStatus.Active, false)]
     // ...entering development brings the PDC date.
@@ -181,6 +183,17 @@ public sealed class ProjectBriefingDataMovementTests
         };
 
         Assert.Equal(ProjectBriefingShownFacts.Lifecycle, ProjectBriefingSlideFacts.Shown(project, standard));
+        // Without the portfolio summary, a detail slide's subtitle still draws the lifecycle, so
+        // cancelling a project (its stages kept) counts.
+        Assert.Equal(ProjectBriefingShownFacts.Lifecycle, ProjectBriefingSlideFacts.Shown(project, new ProjectBriefingPresentationData
+        {
+            Layout = standard.Layout,
+            PresentationMode = standard.PresentationMode,
+            CostMode = standard.CostMode,
+            IncludePortfolioSummarySlide = false,
+            StandardSlideOptions = standard.StandardSlideOptions,
+            Projects = standard.Projects
+        }));
         Assert.Equal(ProjectBriefingShownFacts.Milestone, ProjectBriefingSlideFacts.Shown(project, sheet));
     }
 

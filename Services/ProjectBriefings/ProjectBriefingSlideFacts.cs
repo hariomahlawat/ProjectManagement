@@ -22,7 +22,8 @@ public enum ProjectBriefingShownFacts
     CostRd = 8,
     IpaCost = 16,
     ProliferationCost = 32,
-    // The portfolio summary counts ongoing, completed and cancelled projects.
+    // The lifecycle (ongoing, completed, cancelled): a standard detail slide's subtitle, and the
+    // portfolio summary's counts.
     Lifecycle = 64,
     // An update sheet's milestone row: a PDC date in development, else completion or cancellation.
     Milestone = 128
@@ -120,6 +121,7 @@ public static class ProjectBriefingSlideFacts
     //   and the cost cards of the cost mode;
     // - an update sheet draws its selected rows: cost, status, and the milestone row (a PDC date in
     //   development, else the completion or cancellation; never the stage name);
+    // - a standard detail slide's subtitle draws the lifecycle ("Ongoing", "Cancelled", ...);
     // - the stage summary draws every project's stage; the portfolio summary counts lifecycle
     //   (ongoing, completed, cancelled) and totals the costs (the IPA cost only on update sheets);
     // - with two or more projects on slides of their own, stage maturity orders the slides.
@@ -147,7 +149,7 @@ public static class ProjectBriefingSlideFacts
             shown |= ProjectBriefingShownFacts.StageOrder;
         }
 
-        if (data.IncludePortfolioSummarySlide)
+        if (data.IncludePortfolioSummarySlide || (hasOwnSlides && !updateSheet))
         {
             shown |= ProjectBriefingShownFacts.Lifecycle;
         }
