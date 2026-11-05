@@ -93,8 +93,8 @@ keep working: `/Tot`, `/Tot/Summary`, `SelectedProjectId`, the filter parameters
 
 | # | PR | Scope | Status |
 | --- | --- | --- | --- |
-| 1 | Words, dates, sizes | One name ("Transfer of Technology") and one verb per action; one date style everywhere, MET and manufacture dates included; breadcrumbs that agree; one Filters entry; the search box stays when nothing matches; no "No request" on every row; 13 px minimum. | In review |
-| 2 | Register facts | `ProjectTotRegisterFacts` per project: status, dates at precision, project completion year, years waiting, long-waiting flag, the pending request as a list of changed fields, the latest decision and reason; plus the Position counts. Tests. No UI change. | Planned |
+| 1 | Words, dates, sizes | One name ("Transfer of Technology") and one verb per action; one date style everywhere, MET and manufacture dates included; breadcrumbs that agree; one Filters entry; the search box stays when nothing matches; no "No request" on every row; 13 px minimum. | Merged (#2884) |
+| 2 | Register facts | `ProjectTotRegisterFacts` per project: status, dates at precision, project completion year, years waiting, long-waiting flag, the pending request as a list of changed fields, the latest decision; plus the Position counts. Tests. No UI change. | In review |
 | 3 | Not known: read everywhere | `ProjectTotStatus.NotKnown` (stored as text "NotKnown"; the column is text, max 32, no check constraint, so no migration). Every reader handles it: labels, Position counts, filters, export, the Summary and chart, Command desk and completed-portfolio counts, Approvals → Pending, applicability rules. Nothing offers it yet, so no row can hold it. | Planned |
 | 4 | Not known: can be recorded | The form and the register's status buttons offer Not known. Ships only after PR 3 is deployed everywhere, because code before PR 3 cannot read the value. | Planned |
 | 5 | Drawer: decide in place | The drawer shows a pending request as Now → Proposed (changed fields only, rejection reason, history) with Approve / Reject for approvers through `ProjectTotService.DecideRequestAsync` (version token and reason rules unchanged), and "Waiting for HoD since …" for others. Project page only. | Planned |
@@ -103,6 +103,23 @@ keep working: `/Tot`, `/Tot/Summary`, `SelectedProjectId`, the filter parameters
 | 8 | Role top section | HoD, Comdt and Project Office sections from PR 2's facts; the Command desk links here. | Planned |
 | 9 | Register table | Status buttons with counts, live search, data-driven columns, Note column, sort; filters from links get removable chips. Export follows the visible register. | Planned |
 | 10 | Phone and clean-up | Phone cards and summary bar; unused rules removed from `tot.css`. | Planned |
+
+### Register facts (`Areas/ProjectOfficeReports/Application/ProjectTotRegisterFacts.cs`)
+
+`ProjectTotRegisterFactsService.GetAsync(filter)` reads the tracker rows once
+(`ProjectTotTrackerReadService`) and `ProjectTotRegisterFactsBuilder` resolves, with today in IST:
+
+| Fact | Rule |
+| --- | --- |
+| `Status`, `StatusLabel` | The ToT status; a project with no ToT record is Not started |
+| `ProjectCompletedYear` | The project's completion date's year, else its recorded completion year |
+| `YearsSinceProjectCompleted` | Today's year minus that year, in calendar years |
+| `IsLongWaiting` | Not started and the project completed more than five calendar years ago (`LongWaitingYears`) |
+| `Started`, `Completed` | ToT dates at their precision ("2004", "Nov 2025", "15 Oct 2026") |
+| `YearsFromProjectToTot` | For Completed: ToT completion year minus the project's completion year |
+| `Pending` | A request waiting for the HoD: proposed status, submitter, time, and only the fields it changes (status, started, completed, MET details and date, first production model and date), now against proposed |
+| `LastDecision` | The latest approved or rejected request: who and when. Its reason is in the ToT history (`ProjectTotTrackerReadService.GetHistoryAsync`) |
+| `Position` | Need ToT (all but Not required), Completed with its percentage, In progress, Not started, Not required, Waiting for decision, Long waiting |
 
 ### Deployment and rollback
 
