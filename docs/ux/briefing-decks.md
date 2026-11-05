@@ -292,4 +292,8 @@ Owner decisions (5 Nov 2026):
    brief pagination follow the smaller text panel; the preview reads the composed PowerPoint, so
    it is exact. The Checks tab lists projects with no key points as "Key points" (a project with
    some is complete). The slide estimate still assumes the established layouts.
-3. "Data since": a changed key point counts as data moved, for decks that show key points.
+3. "Data since": done (this change). A generation that drew key points keeps a digest of them
+   (`ProjectBriefingShownFacts.KeyPoints`, fact key `k`; facts kept earlier have none and never
+   count). Adding, editing or removing a point then shows on the library as "key points edited
+   on N projects" and, per project, "key points". The lifecycle subtitle is tracked as the key
+   points layout draws it: on a first capability slide only when it has no stage and cost line.
