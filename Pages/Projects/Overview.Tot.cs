@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Authorization;
@@ -119,16 +120,13 @@ public partial class OverviewModel
         var pending = await _db.ProjectTotRequests
             .AsNoTracking()
             .Where(request => request.ProjectId == id && request.DecisionState == ProjectTotRequestDecisionState.Pending)
-            .Select(request => new
-            {
-                request.ProposedStatus,
-                request.SubmittedOnUtc
-            })
             .SingleOrDefaultAsync(ct);
+        var submittedBy = pending is null ? null : await DisplayNameAsync(pending.SubmittedByUserId, ct);
 
         var tot = project.Tot;
         var status = tot?.Status ?? ProjectTotStatus.NotStarted;
         var canManage = await CanManageTotFromOverviewAsync(id, project.LeadPoUserId, project.IsArchived, ct);
+        var history = await new ProjectTotTrackerReadService(_db).GetHistoryAsync(id, 10, ct);
         // Rows saved before precision was tracked carry a full date; show all of it.
         var startPrecision = EffectivePrecision(tot?.StartDatePrecision);
         var completionPrecision = EffectivePrecision(tot?.CompletionDatePrecision);
@@ -138,14 +136,8 @@ public partial class OverviewModel
             success = true,
             canManage,
             pendingApproval = pending is not null,
-            pending = pending is null
-                ? null
-                : new
-                {
-                    proposedStatus = pending.ProposedStatus.ToString(),
-                    proposedStatusLabel = ProjectTotPresentation.StatusLabel(pending.ProposedStatus),
-                    submittedOnUtc = pending.SubmittedOnUtc
-                },
+            pending = pending is null ? null : BuildTotPendingPayload(tot, pending, submittedBy),
+            history = history.Select(BuildTotHistoryPayload).ToArray(),
             input = new
             {
                 projectId = id,
@@ -280,6 +272,165 @@ public partial class OverviewModel
                 result.SubmittedForApproval ? input.Status : null,
                 canManage: true)
         });
+    }
+
+    /// <summary>
+    /// The HoD's decision from the drawer: the same rules as the ToT register (approver roles,
+    /// the request's current version token, a reason to reject), applied by ProjectTotService.
+    /// </summary>
+    public async Task<IActionResult> OnPostTotDecideAsync(
+        int id,
+        [FromForm] bool approve,
+        [FromForm] string? rowVersion,
+        [FromForm] string? reason,
+        CancellationToken ct)
+    {
+        var project = await _db.Projects
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == id && !item.IsDeleted, ct);
+        if (project is null)
+        {
+            return new JsonResult(new { error = "Project not found." }) { StatusCode = StatusCodes.Status404NotFound };
+        }
+
+        if (!ApprovalAuthorization.CanApproveProjectChanges(User))
+        {
+            return new JsonResult(new { error = "Only the HoD or an administrator can decide Transfer of Technology updates." })
+            {
+                StatusCode = StatusCodes.Status403Forbidden
+            };
+        }
+
+        var actorUserId = _users.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(actorUserId))
+        {
+            return Forbid();
+        }
+
+        byte[]? expectedVersion = null;
+        if (!string.IsNullOrWhiteSpace(rowVersion))
+        {
+            try
+            {
+                expectedVersion = Convert.FromBase64String(rowVersion);
+            }
+            catch (FormatException)
+            {
+                expectedVersion = null;
+            }
+        }
+
+        if (expectedVersion is null)
+        {
+            return new JsonResult(new { error = "This request could not be identified. Close the panel and open it again." })
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            };
+        }
+
+        var trimmedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        if (trimmedReason is { Length: > ProjectTotAuditActions.MaxReasonLength })
+        {
+            return new JsonResult(new { error = $"The reason must be {ProjectTotAuditActions.MaxReasonLength} characters or fewer." })
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            };
+        }
+
+        var service = new ProjectTotService(_db, _clock);
+        var result = await service.DecideRequestAsync(
+            id,
+            approve,
+            actorUserId,
+            User.IsInRole("Admin"),
+            User.IsInRole("HoD"),
+            expectedVersion,
+            trimmedReason,
+            ct);
+
+        if (!result.IsSuccess)
+        {
+            var statusCode = result.Status switch
+            {
+                ProjectTotRequestActionStatus.NotFound => StatusCodes.Status404NotFound,
+                ProjectTotRequestActionStatus.Forbidden => StatusCodes.Status403Forbidden,
+                ProjectTotRequestActionStatus.Conflict => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status400BadRequest
+            };
+            var error = result.Status == ProjectTotRequestActionStatus.NotFound
+                ? "No Transfer of Technology request is waiting for a decision on this project."
+                : result.ErrorMessage ?? "Unable to record the decision.";
+            return new JsonResult(new { error }) { StatusCode = statusCode };
+        }
+
+        _logger.LogInformation(
+            "Project ToT request {Decision} from overview. ProjectId={ProjectId}, UserId={UserId}",
+            approve ? "approved" : "rejected",
+            id,
+            actorUserId);
+
+        var tot = await _db.ProjectTots.AsNoTracking().SingleOrDefaultAsync(item => item.ProjectId == id, ct);
+        return new JsonResult(new
+        {
+            success = true,
+            message = approve ? "Transfer of Technology update approved." : "Transfer of Technology update rejected.",
+            card = ProjectTotPresentation.BuildCard(
+                tot?.Status,
+                tot?.StartedOn,
+                tot?.StartDatePrecision ?? PartialDatePrecision.None,
+                tot?.CompletedOn,
+                tot?.CompletionDatePrecision ?? PartialDatePrecision.None,
+                null,
+                canManage: true)
+        });
+    }
+
+    private object BuildTotPendingPayload(ProjectTot? current, ProjectTotRequest pending, string? submittedBy)
+    {
+        var change = ProjectTotRegisterFactsBuilder.BuildPendingChange(current, pending, submittedBy);
+        return new
+        {
+            proposedStatus = pending.ProposedStatus.ToString(),
+            proposedStatusLabel = ProjectTotPresentation.StatusLabel(pending.ProposedStatus),
+            submittedBy = change.SubmittedBy ?? "Unknown",
+            submittedOn = ProjectTotPresentation.FormatMoment(change.SubmittedOnUtc),
+            changes = change.Changes.Select(item => new { field = item.Field, now = item.Now, proposed = item.Proposed }).ToArray(),
+            rowVersion = Convert.ToBase64String(pending.RowVersion ?? Array.Empty<byte>()),
+            canDecide = ApprovalAuthorization.CanApproveProjectChanges(User)
+        };
+    }
+
+    private static object BuildTotHistoryPayload(ProjectTotHistoryEntry entry)
+    {
+        string? values = null;
+        if (entry.Values is { } recorded)
+        {
+            values = recorded.StatusLabel
+                + (recorded.Started is { } started ? $" · started {started}" : string.Empty)
+                + (recorded.Completed is { } completed ? $" · completed {completed}" : string.Empty);
+        }
+
+        return new
+        {
+            label = entry.ActionLabel,
+            by = entry.PerformedBy,
+            on = ProjectTotPresentation.FormatMoment(entry.PerformedAt.UtcDateTime),
+            values,
+            reason = entry.Reason
+        };
+    }
+
+    private async Task<string?> DisplayNameAsync(string? userId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return null;
+        }
+
+        return await _db.Users.AsNoTracking()
+            .Where(item => item.Id == userId)
+            .Select(item => item.FullName ?? item.UserName ?? item.Email ?? item.Id)
+            .FirstOrDefaultAsync(ct) ?? userId;
     }
 
     public async Task<IActionResult> OnPostTotRemarkAsync(

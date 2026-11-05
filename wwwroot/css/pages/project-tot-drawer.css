@@ -161,3 +161,91 @@
     font-size: 0.875rem;
     font-weight: 600;
 }
+
+/* A request waiting for the HoD: Now -> Proposed, then the decision (approvers). */
+.project-tot-pending {
+    margin-top: .9rem;
+    padding: .85rem;
+    border: 1px solid var(--tot-border);
+    border-radius: .8rem;
+    background: var(--tot-soft);
+}
+
+.project-tot-pending__head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: .25rem .75rem;
+    margin-bottom: .5rem;
+}
+
+.project-tot-pending__meta {
+    font-size: 0.8125rem;
+    color: var(--pm-text-muted);
+}
+
+.project-tot-changes {
+    --bs-table-bg: transparent;
+    font-size: 0.875rem;
+}
+
+.project-tot-changes th,
+.project-tot-changes td {
+    padding: .4rem .25rem;
+}
+
+.project-tot-changes thead th {
+    font-weight: 600;
+    color: var(--pm-text-muted);
+}
+
+.project-tot-changes tbody th {
+    font-weight: 500;
+}
+
+.project-tot-decide {
+    margin-top: .85rem;
+    padding-top: .85rem;
+    border-top: 1px solid var(--tot-border);
+}
+
+/* History of submissions, decisions and direct updates. */
+.project-tot-history {
+    margin-top: .9rem;
+}
+
+.project-tot-history__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.875rem;
+}
+
+.project-tot-history__item {
+    padding: .5rem 0;
+    border-top: 1px solid var(--tot-border);
+}
+
+.project-tot-history__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem .5rem;
+    align-items: baseline;
+}
+
+.project-tot-history__head span,
+.project-tot-history__reason {
+    font-size: 0.8125rem;
+    color: var(--pm-text-muted);
+}
+
+/* The project page's offcanvas rule (project-portfolio.css, ID-specific) sets labels and help
+   text to 12.8px; in the ToT drawer they stay readable. */
+#offcanvasTot .offcanvas-body .form-label {
+    font-size: 0.875rem;
+}
+
+#offcanvasTot .offcanvas-body .form-text {
+    font-size: 0.8125rem;
+}
