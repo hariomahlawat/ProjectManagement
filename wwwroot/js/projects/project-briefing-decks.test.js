@@ -477,3 +477,16 @@ test('generating waits for in-place saves and refuses unsaved speaker notes', ()
   assert.match(studioSource, /root\.dataset\.unsavedNotes = String\(unsaved\);/);
   assert.match(studioSource, /notesDrafts\.set\(project\.projectId, \{ text: field\.value, saving: false, error: '' \}\);\s*markUnsavedNotes\(\);/);
 });
+
+test('segmented choices show help for the selected option only, refreshed with the summaries', () => {
+  assert.match(source, /const refreshSegmentHelp = \(\) => \{/);
+  assert.match(source, /help\.textContent = settingsForm\.querySelector\(`input\[name="\$\{name\}"\]:checked`\)\?\.dataset\.help \|\| '';/);
+  assert.match(source, /if \(!settingsForm\) return;\s*refreshSegmentHelp\(\);/);
+  assert.match(viewSource, /<label class="pbd-seg__option"><input type="radio" name="CostMode" value="CostRdOnly"/);
+});
+
+test('step summaries read each choice by its label, not its description', () => {
+  assert.match(source, /return input\?\.dataset\.label \|\| /);
+  assert.match(viewSource, /name="PresentationTheme" value="EditorialLight"[^>]*data-label="Editorial Light"/);
+  assert.match(viewSource, /name="PresentationTheme" value="GraphiteDark"[^>]*data-label="Graphite Dark"/);
+});

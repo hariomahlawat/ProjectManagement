@@ -348,8 +348,12 @@ A separate icon rail was considered and rejected: the inspector is narrow and ha
    every change, numbers following the visible steps. The existing controls moved into their steps
    with shorter wording; the field names and saving are unchanged. The library's column is
    "Template".
-3. Compact controls in every step (segmented buttons, chips, switches), help for the selected
-   option only.
+3. Compact controls: done (this change). Every choice card in the steps is a segmented control
+   (`pbd-seg`, a 2×2 grid for cost) whose one help line (`data-pbd-seg-help`, from each option's
+   `data-help`) explains only the selected option; stage and status are chips; key points is a
+   switch; the themes are two small swatches. The radios and checkboxes stay real, focusable
+   inputs with the same names. The open step stays open when other settings change (the
+   remembered step is restored only when the layout changes).
 4. Extra slides: summary slides and institution slides together in one step (switch and Edit,
    opening the existing editors); the separate Additional slides section goes.
 5. Preview follows the change: after a change the preview shows a slide it affects (for example the
