@@ -47,6 +47,8 @@ public sealed class ProjectBriefingContractTests
         // The landing page is the deck library; the Studio switches decks from its own bar.
         Assert.Contains("<partial name=\"_DeckLibrary\"", page, StringComparison.Ordinal);
         Assert.Contains("Switch deck", page, StringComparison.Ordinal);
+        // The way back must not inherit the open deck's id from the route (it would reload the deck).
+        Assert.Contains("class=\"pbd-studio-nav__back\" href=\"@Url.Content(\"~/Workspace/BriefingDecks\")\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("data-pbd-decks-toggle", page, StringComparison.Ordinal);
         Assert.DoesNotContain("is-decks-collapsed", script, StringComparison.Ordinal);
 
