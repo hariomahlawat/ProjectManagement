@@ -77,8 +77,9 @@ if (root) {
     HideEmptyUpdateSheetValues: () => ['ProjectUpdateSheet'],
     IncludeStageSummary: () => ['StageSummary'],
     IncludeStageDistributionTable: () => ['StageDistributionTable', 'StageSummary'],
-    IncludeProjectCategorySummary: () => ['CategorySummary'],
-    IncludeTechnicalCategorySummary: () => ['CategorySummary'],
+    // Both category charts share a role; their titles tell them apart.
+    IncludeProjectCategorySummary: () => [{ role: 'CategorySummary', title: /project-category/i }],
+    IncludeTechnicalCategorySummary: () => [{ role: 'CategorySummary', title: /technical-category/i }],
     IncludeCoverSlide: () => ['Cover'],
     IncludePortfolioSummarySlide: () => ['PortfolioSummary'],
     BrandingScope: () => ['Cover'],
@@ -92,10 +93,13 @@ if (root) {
     followRoles = null;
     if (!roles?.length || !outlineItems.length) return false;
     const inView = entryForIndex(current)?.projectId;
-    for (const role of roles) {
+    for (const target of roles) {
+      // A target is a role, or a role with the slide title that picks one kind of it.
+      const role = typeof target === 'string' ? target : target.role;
+      const title = typeof target === 'string' ? null : target.title;
       const matches = outlineItems
         .map((item, index) => ({ item, index }))
-        .filter(({ item }) => item.role === role);
+        .filter(({ item, index }) => item.role === role && (!title || title.test(slides[index]?.title || '')));
       if (!matches.length) continue;
       const chosen = matches.find(({ item }) => inView && item.projectId === inView) || matches[0];
       selectIndex(chosen.index, { key: entryForIndex(chosen.index)?.key || '' });

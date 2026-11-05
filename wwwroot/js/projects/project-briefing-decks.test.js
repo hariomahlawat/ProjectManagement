@@ -503,3 +503,16 @@ test('a settings save names the settings that changed, for the preview to follow
   assert.match(source, /if \(name && event\.target\.form === settingsForm\) \{\s*changedSettings\.delete\(name\);\s*changedSettings\.add\(name\);/);
   assert.match(source, /if \(changed\.length\) document\.dispatchEvent\(new CustomEvent\('pbd:settings-saved', \{ detail: \{ changed \} \}\)\);/);
 });
+
+test('settings changed by script (row order, Select all) count as changed for the preview', () => {
+  const save = source.slice(source.indexOf('const saveSettingsOnce'), source.indexOf('const refreshSettingsDirtyState'));
+  assert.match(save, /const moved = movedSettings\(settingsSavedState, state\);/);
+  // Names moved by script first, then those edited by hand in the order they were edited.
+  assert.match(save, /\.\.\.moved\.filter\(\(name\) => !changedSettings\.has\(name\)\),\s*\.\.\.\[\.\.\.changedSettings\]\.filter\(\(name\) => moved\.includes\(name\)\)/);
+  // The diff itself: a sorted name=value list, compared per name.
+  const diff = source.slice(source.indexOf('const movedSettings'), source.indexOf('const settingsDrainPending') > 0 ? source.indexOf('const settingsDrainPending') : undefined);
+  const movedSettings = new Function(`${diff.slice(0, diff.indexOf('};', diff.indexOf('.filter((name)')) + 2)}; return movedSettings;`)();
+  assert.deepEqual(
+    movedSettings('A=1&UpdateSheetRowOrder=ProjectCost,AonDate&UpdateSheetRows=AonDate', 'A=1&UpdateSheetRowOrder=AonDate,ProjectCost&UpdateSheetRows=AonDate&UpdateSheetRows=ProjectCost'),
+    ['UpdateSheetRowOrder', 'UpdateSheetRows']);
+});

@@ -290,3 +290,25 @@ test('a project-slide change stays on the project in view, and a theme change ke
   await settle(window);
   assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 6 of 7/);
 });
+
+test('turning on the technical-category summary shows it, not the project-category one before it', async () => {
+  const categories = () => payload({
+    slideCount: 4,
+    slides: [slide(1, 'Cover'), slide(2, 'Project-category summary'), slide(3, 'Technical-category summary'), slide(4, 'Closing')],
+    outline: [
+      { number: 1, role: 'Cover', projectId: null, listedProjectIds: [] },
+      { number: 2, role: 'CategorySummary', projectId: null, listedProjectIds: [] },
+      { number: 3, role: 'CategorySummary', projectId: null, listedProjectIds: [] },
+      { number: 4, role: 'Closing', projectId: null, listedProjectIds: [] }
+    ]
+  });
+  const { window, document, requests } = startStudio();
+  requests[0].answer(categories());
+  await settle(window);
+
+  await saveSettings(window, document, ['IncludeTechnicalCategorySummary']);
+  requests[1].answer(categories());
+  await settle(window);
+
+  assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 3 of 4/);
+});

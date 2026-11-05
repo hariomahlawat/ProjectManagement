@@ -831,6 +831,21 @@ if (root) {
   const serializeSettings = () => serializeForm(settingsForm);
   // Settings changed since the last save, latest last.
   const changedSettings = new Set();
+  // The names whose values differ between two serialized settings states.
+  const movedSettings = (before, after) => {
+    const read = (state) => {
+      const values = new Map();
+      String(state || '').split('&').filter(Boolean).forEach((pair) => {
+        const name = pair.slice(0, Math.max(0, pair.indexOf('=')));
+        values.set(name, [...(values.get(name) || []), pair.slice(name.length + 1)]);
+      });
+      return values;
+    };
+    const a = read(before);
+    const b = read(after);
+    return [...new Set([...a.keys(), ...b.keys()])]
+      .filter((name) => (a.get(name) || []).join('') !== (b.get(name) || []).join(''));
+  };
 
   // Deck settings live in the Studio's Deck tab and save themselves: a change is posted in place
   // a moment after the last edit, saves never overlap, and the Studio rebuilds from the saved deck.
@@ -1012,8 +1027,14 @@ if (root) {
         throw new Error('Not saved: someone else changed this deck.');
       }
       if (!response.ok) throw new Error(payload?.message || `The settings could not be saved (${response.status}).`);
+      // Every setting whose saved value moved, including ones set by script (row order, Select
+      // all), the latest edit last so the preview follows it.
+      const moved = movedSettings(settingsSavedState, state);
+      const changed = [
+        ...moved.filter((name) => !changedSettings.has(name)),
+        ...[...changedSettings].filter((name) => moved.includes(name))
+      ];
       settingsSavedState = state;
-      const changed = [...changedSettings];
       changedSettings.clear();
       applyEditorState(payload?.deck);
       // The Studio shows a slide the change affects once it has rebuilt the slides.
