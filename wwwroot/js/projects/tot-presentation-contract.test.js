@@ -47,3 +47,12 @@ test('the register keeps its search box when nothing matches', () => {
   assert.doesNotMatch(index, /No request/);
   assert.doesNotMatch(index, /More filters/);
 });
+
+test('the long-waiting scope survives the filter and export dialogs', () => {
+  const filters = read('Areas/ProjectOfficeReports/Pages/Tot/_TotFiltersModal.cshtml');
+  const index = read('Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml');
+  assert.match(filters, /<input type="hidden" asp-for="LongWaiting" \/>/);
+  const exportForm = index.slice(index.indexOf('asp-page-handler="Export"'));
+  assert.match(exportForm, /<input type="hidden" asp-for="LongWaiting" \/>/);
+  assert.match(index, /<input type="hidden" name="LongWaiting" value="@Model.LongWaiting" \/>/);
+});

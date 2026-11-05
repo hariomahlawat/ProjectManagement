@@ -84,6 +84,10 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? SelectedProjectId { get; set; }
 
+    /// <summary>Only Not started projects completed more than five years ago (the role section's "See all").</summary>
+    [BindProperty(SupportsGet = true)]
+    public bool LongWaiting { get; set; }
+
     [BindProperty(SupportsGet = true)]
     public ViewModeOption ViewMode { get; set; } = ViewModeOption.Cards;
 
@@ -104,6 +108,27 @@ public sealed class IndexModel : PageModel
     public ProjectTotPosition Position { get; private set; } = ProjectTotPosition.Empty;
 
     public string Narrative { get; private set; } = string.Empty;
+
+    /// <summary>Who is reading decides the top section: decide, maintain, or check.</summary>
+    public enum TotRoleView
+    {
+        Approver,
+        Maintainer,
+        Viewer
+    }
+
+    public TotRoleView RoleView { get; private set; } = TotRoleView.Viewer;
+
+    /// <summary>Requests waiting for the HoD, oldest first.</summary>
+    public IReadOnlyList<ProjectTotRegisterFacts> WaitingForDecision { get; private set; } = Array.Empty<ProjectTotRegisterFacts>();
+
+    /// <summary>The first five long-waiting projects, longest waiting first; <see cref="LongWaitingCount"/> is all of them.</summary>
+    public IReadOnlyList<ProjectTotRegisterFacts> LongWaitingProjects { get; private set; } = Array.Empty<ProjectTotRegisterFacts>();
+
+    public int LongWaitingCount { get; private set; }
+
+    /// <summary>The five latest ToT completions.</summary>
+    public IReadOnlyList<ProjectTotRegisterFacts> RecentlyCompleted { get; private set; } = Array.Empty<ProjectTotRegisterFacts>();
 
     public bool CanSubmit { get; private set; }
 
@@ -254,7 +279,8 @@ public sealed class IndexModel : PageModel
             RequestStateFilter,
             OnlyPending,
             RequiresTotOnly,
-            MetCompletedOnly);
+            MetCompletedOnly,
+            LongWaiting);
 
         var result = await _exportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
@@ -380,6 +406,36 @@ public sealed class IndexModel : PageModel
             .GetAsync(new ProjectTotTrackerFilter(), cancellationToken);
         Position = register.Position;
         Narrative = ProjectTotOverview.Narrative(Position);
+
+        // SECTION: The role top section, from the same facts.
+        RoleView = CanApprove ? TotRoleView.Approver : CanSubmit ? TotRoleView.Maintainer : TotRoleView.Viewer;
+        var facts = register.Projects;
+        WaitingForDecision = facts
+            .Where(p => p.Pending is not null)
+            .OrderBy(p => p.Pending!.SubmittedOnUtc)
+            .ThenBy(p => p.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var longWaiting = facts
+            .Where(p => p.IsLongWaiting)
+            .OrderBy(p => p.ProjectCompletedYear)
+            .ThenBy(p => p.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        LongWaitingCount = longWaiting.Count;
+        LongWaitingProjects = longWaiting.Take(5).ToList();
+        RecentlyCompleted = facts
+            .Where(p => p.CompletedOn.HasValue)
+            .OrderByDescending(p => p.CompletedOn)
+            .ThenBy(p => p.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .Take(5)
+            .ToList();
+
+        if (LongWaiting)
+        {
+            // The same rule the export applies (ProjectTotRegisterFactsBuilder.KeepLongWaiting).
+            var ids = longWaiting.Select(p => p.ProjectId).ToHashSet();
+            Projects = Projects.Where(p => ids.Contains(p.ProjectId)).ToList();
+            Summary = TotTrackerSummary.FromProjects(Projects);
+        }
     }
 
     private IActionResult PermissionDenied(string actionDescription, string policy, int? projectId)

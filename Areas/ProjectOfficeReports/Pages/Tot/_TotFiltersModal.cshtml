@@ -14,6 +14,8 @@
                     <!-- keep current project + view -->
                     <input type="hidden" asp-for="SelectedProjectId" />
                     <input type="hidden" asp-for="ViewMode" />
+                    @* Refining a "See all" list keeps it to the long-waiting projects; Clear all drops it. *@
+                    <input type="hidden" asp-for="LongWaiting" />
                     @* Keep a Command desk completion window while refining the other filters. *@
                     <input type="hidden" name="CompletedFrom" value="@Model.CompletedFrom?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
                     <input type="hidden" name="CompletedTo" value="@Model.CompletedTo?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />

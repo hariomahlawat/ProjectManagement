@@ -483,6 +483,13 @@ public sealed record ProjectTotTrackerFilter
     public DateOnly? StartedTo { get; init; }
     public DateOnly? CompletedFrom { get; init; }
     public DateOnly? CompletedTo { get; init; }
+
+    /// <summary>
+    /// Only Not started projects completed more than five years ago. It needs today's date, so the
+    /// query ignores it: callers apply it after loading with
+    /// <see cref="ProjectTotRegisterFactsBuilder.KeepLongWaiting"/> (the register and the export).
+    /// </summary>
+    public bool LongWaitingOnly { get; init; }
 }
 
 public sealed record ProjectTotHistoryEntry(

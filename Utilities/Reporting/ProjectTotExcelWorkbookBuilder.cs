@@ -247,6 +247,11 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
             parts.Add("MET completed only");
         }
 
+        if (filter.LongWaitingOnly)
+        {
+            parts.Add("Not started, over five years");
+        }
+
         return parts.Count == 0 ? "(not set)" : string.Join("; ", parts);
     }
 
