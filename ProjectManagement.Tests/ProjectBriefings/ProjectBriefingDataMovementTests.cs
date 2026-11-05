@@ -112,6 +112,47 @@ public sealed class ProjectBriefingDataMovementTests
         Assert.Equal(1, ProjectBriefingSlideFacts.Compare(new[] { proliferationOnly }, ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.ProliferationOnly, current).CostChanges);
     }
 
+    [Theory]
+    [InlineData(ProjectBriefingPresentationMode.DetailedProjects, false, false, false)]
+    [InlineData(ProjectBriefingPresentationMode.DetailedProjects, false, true, true)]
+    [InlineData(ProjectBriefingPresentationMode.DetailedProjects, true, false, true)]
+    [InlineData(ProjectBriefingPresentationMode.Combined, false, false, true)]
+    [InlineData(ProjectBriefingPresentationMode.ExecutiveTable, false, false, true)]
+    public void StatusRemark_CountsOnlyWhereASlideShowsIt(
+        ProjectBriefingPresentationMode mode,
+        bool showPresentStatus,
+        bool tableRowOnly,
+        bool counted)
+    {
+        var presented = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 1,
+            PresentStageCode = "DEVP",
+            ExternalStatus = "Trials planned",
+            ExternalStatusDate = RemarkDate,
+            TableRowOnly = tableRowOnly
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            Layout = ProjectBriefingLayout.StandardBriefing,
+            PresentationMode = mode,
+            CostMode = ProjectBriefingCostMode.None,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with { ShowPresentStatus = showPresentStatus }
+        };
+        var current = new Dictionary<int, ProjectBriefingCurrentProjectFacts>
+        {
+            [1] = new(1, "One", "DEVP", "Trials complete", RemarkDate.AddDays(3), ProjectBriefingCostValue.Missing(), ProjectBriefingCostValue.Missing(), ProjectBriefingCostValue.Missing())
+        };
+
+        var movement = ProjectBriefingSlideFacts.Compare(
+            new[] { ProjectBriefingSlideFacts.FromPresentation(presented, data) },
+            ProjectBriefingLayout.StandardBriefing,
+            ProjectBriefingCostMode.None,
+            current);
+
+        Assert.Equal(counted ? 1 : 0, movement.StatusChanges);
+    }
+
     [Fact]
     public void Compare_CountsAChangeOfCostBasisAtTheSameAmount()
     {

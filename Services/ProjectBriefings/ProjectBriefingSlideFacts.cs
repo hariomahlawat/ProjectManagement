@@ -13,7 +13,8 @@ namespace ProjectManagement.Services.ProjectBriefings;
 public sealed record ProjectBriefingSlideFact(
     [property: JsonPropertyName("p")] int ProjectId,
     [property: JsonPropertyName("s")] string Stage,
-    [property: JsonPropertyName("r")] string Status,
+    // Null when no slide showed this project's status remark (it is then not compared).
+    [property: JsonPropertyName("r")] string? Status,
     [property: JsonPropertyName("c")] string Costs);
 
 // The facts a slide would show for a project today, before the deck's layout decides which
@@ -102,7 +103,8 @@ public static class ProjectBriefingSlideFacts
         ProjectBriefingCostValue? ipaCost,
         ProjectBriefingCostValue? proliferationCost,
         ProjectBriefingLayout layout,
-        ProjectBriefingCostMode costMode)
+        ProjectBriefingCostMode costMode,
+        bool statusShown = true)
     {
         var shown = ShownCosts(layout, costMode);
         var status = externalStatus?.Trim() ?? string.Empty;
@@ -114,7 +116,9 @@ public static class ProjectBriefingSlideFacts
         return new ProjectBriefingSlideFact(
             projectId,
             (stageCode ?? string.Empty).Trim().ToUpperInvariant(),
-            status.Length == 0 && externalStatusDate is null
+            !statusShown
+                ? null
+                : status.Length == 0 && externalStatusDate is null
                 ? string.Empty
                 : $"{externalStatusDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}|{Hash(status)}",
             string.Join("|",
@@ -133,7 +137,17 @@ public static class ProjectBriefingSlideFacts
             project.IpaCost,
             project.ProliferationCost,
             data.Layout,
-            data.CostMode);
+            data.CostMode,
+            IsStatusShown(project, data));
+
+    // Where the composer draws a project's external status remark: every update sheet; the
+    // executive table (Executive table and Combined modes, and the "other projects" table for
+    // table-row-only projects); and a project's own slides only when "Show present status" is on.
+    public static bool IsStatusShown(ProjectBriefingPresentationProject project, ProjectBriefingPresentationData data)
+        => data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+            || data.PresentationMode is ProjectBriefingPresentationMode.ExecutiveTable or ProjectBriefingPresentationMode.Combined
+            || project.TableRowOnly
+            || data.StandardSlideOptions.ShowPresentStatus;
 
     public static string Write(IEnumerable<ProjectBriefingSlideFact> facts)
         => JsonSerializer.Serialize(facts.OrderBy(fact => fact.ProjectId).ToArray(), JsonOptions);
@@ -175,7 +189,7 @@ public static class ProjectBriefingSlideFacts
 
             var now = facts.ToSlideFact(layout, costMode);
             var stage = !string.Equals(before.Stage, now.Stage, StringComparison.Ordinal);
-            var status = !string.Equals(before.Status, now.Status, StringComparison.Ordinal);
+            var status = before.Status is not null && !string.Equals(before.Status, now.Status, StringComparison.Ordinal);
             var cost = !string.Equals(before.Costs, now.Costs, StringComparison.Ordinal);
             if (stage || status || cost)
             {
