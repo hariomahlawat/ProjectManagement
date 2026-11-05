@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.ProjectBriefings.Presentation;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -50,7 +51,10 @@ public sealed record ProjectBriefingCurrentProjectFacts(
     DateOnly? ExternalStatusDate,
     ProjectBriefingCostValue CostRd,
     ProjectBriefingCostValue IpaCost,
-    ProjectBriefingCostValue ProliferationCost)
+    ProjectBriefingCostValue ProliferationCost,
+    // For an update sheet's milestone row (resolved only where a generation showed that row).
+    DateOnly? DevelopmentPdcDate = null,
+    string? CompletionStatusDisplay = null)
 {
     // Today's facts, reduced the way a generation that showed `shown` reduced them.
     public ProjectBriefingSlideFact ToSlideFact(ProjectBriefingShownFacts shown)
@@ -64,7 +68,9 @@ public sealed record ProjectBriefingCurrentProjectFacts(
             ExternalStatusDate,
             CostRd,
             IpaCost,
-            ProliferationCost);
+            ProliferationCost,
+            DevelopmentPdcDate,
+            CompletionStatusDisplay);
 }
 
 // The facts a generation kept, with the layout and cost mode it was drawn with.
@@ -198,7 +204,9 @@ public static class ProjectBriefingSlideFacts
         DateOnly? externalStatusDate,
         ProjectBriefingCostValue? costRd,
         ProjectBriefingCostValue? ipaCost,
-        ProjectBriefingCostValue? proliferationCost)
+        ProjectBriefingCostValue? proliferationCost,
+        DateOnly? developmentPdcDate = null,
+        string? completionStatusDisplay = null)
     {
         var status = externalStatus?.Trim() ?? string.Empty;
         if (string.Equals(status, NoExternalStatus, StringComparison.Ordinal))
@@ -228,14 +236,9 @@ public static class ProjectBriefingSlideFacts
 
         if (shown.HasFlag(ProjectBriefingShownFacts.Milestone))
         {
-            // ProjectBriefingUpdateSheetPlanner.ResolveMilestone: completion, cancellation, else a
-            // PDC date only in development.
-            stageParts.Add(lifecycleStatus switch
-            {
-                ProjectLifecycleStatus.Completed => "M:completed",
-                ProjectLifecycleStatus.Cancelled => "M:cancelled",
-                _ => string.Equals(code, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase) ? "M:pdc" : "M:none"
-            });
+            // The row exactly as the update sheet draws it (the planner's own rule).
+            stageParts.Add("M:" + ProjectBriefingUpdateSheetPlanner.DescribeMilestone(
+                lifecycleStatus, code, developmentPdcDate, completionStatusDisplay));
         }
 
         return new ProjectBriefingSlideFact(
@@ -269,7 +272,9 @@ public static class ProjectBriefingSlideFacts
             project.ExternalStatusDate,
             project.CostRd,
             project.IpaCost,
-            project.ProliferationCost);
+            project.ProliferationCost,
+            project.DevelopmentPdcDate,
+            project.CompletionStatusDisplay);
 
     public static string Write(ProjectBriefingPresentationData data)
         => Write(data.Layout, data.CostMode, data.Projects.Select(project => FromPresentation(project, data)));

@@ -38,7 +38,8 @@ public interface IProjectBriefingDataService
     // projects are left out: generation leaves them out too.
     Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
         IReadOnlyCollection<int> projectIds,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<int>? milestoneProjectIds = null);
 
     // The decks with DataMovement set wherever their last generation kept slide facts: one pass
     // over every deck's projects, for the deck library.
@@ -236,7 +237,15 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 .ToList();
         }
 
-        var current = await GetCurrentSlideFactsAsync(projectIds, cancellationToken);
+        // The update-sheet facts (PDC date) are resolved only where a generation drew that row.
+        var milestoneProjectIds = decks
+            .Where(deck => deck.GeneratedFacts is not null)
+            .SelectMany(deck => deck.GeneratedFacts!.Facts)
+            .Where(fact => fact.Shown.HasFlag(ProjectBriefingShownFacts.Milestone))
+            .Select(fact => fact.ProjectId)
+            .Distinct()
+            .ToArray();
+        var current = await GetCurrentSlideFactsAsync(projectIds, cancellationToken, milestoneProjectIds);
         return decks
             .Select(deck => deck.GeneratedFacts is null
                 ? deck
@@ -246,7 +255,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
     public async Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
         IReadOnlyCollection<int> projectIds,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<int>? milestoneProjectIds = null)
     {
         var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
         if (ids.Length == 0)
@@ -257,7 +267,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var projects = await _db.Projects
             .AsNoTracking()
             .Where(project => ids.Contains(project.Id) && !project.IsDeleted && !project.IsArchived)
-            .Select(project => new { project.Id, project.Name, project.LifecycleStatus, project.WorkflowVersion })
+            .Select(project => new
+            {
+                project.Id,
+                project.Name,
+                project.LifecycleStatus,
+                project.WorkflowVersion,
+                project.CompletedOn,
+                project.CompletedYear,
+                project.CompletedMonth
+            })
             .ToListAsync(cancellationToken);
         if (projects.Count == 0)
         {
@@ -280,6 +299,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var costs = await _costResolver.ResolveCostsAsync(liveIds, cancellationToken);
         var proliferation = await _costResolver.ResolveProliferationCostAsync(liveIds, cancellationToken);
         var externalStatuses = await _externalStatusService.GetLatestAsync(liveIds, cancellationToken);
+        var milestoneIds = milestoneProjectIds?.Where(liveIds.Contains).Distinct().ToArray() ?? Array.Empty<int>();
+        var updateSheetFacts = milestoneIds.Length == 0
+            ? new Dictionary<int, ProjectBriefingUpdateSheetFacts>()
+            : await _updateSheetFactsResolver.ResolveAsync(milestoneIds, cancellationToken);
 
         return projects.ToDictionary(
             project => project.Id,
@@ -298,7 +321,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     external?.EventDate,
                     costs.CostRd.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(),
                     costs.Ipa.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
-                    proliferation.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation));
+                    proliferation.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+                    updateSheetFacts.GetValueOrDefault(project.Id)?.DevelopmentPdcDate,
+                    BuildCompletionStatusDisplay(project.LifecycleStatus, project.CompletedOn, project.CompletedYear, project.CompletedMonth));
             });
     }
 
@@ -829,20 +854,27 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     }
 
     private static string? BuildCompletionStatusDisplay(DeckItemSnapshot item)
+        => BuildCompletionStatusDisplay(item.LifecycleStatus, item.CompletedOn, item.CompletedYear, item.CompletedMonth);
+
+    private static string? BuildCompletionStatusDisplay(
+        ProjectLifecycleStatus lifecycleStatus,
+        DateOnly? completedOn,
+        int? completedYear,
+        short? completedMonth)
     {
-        if (item.LifecycleStatus != ProjectLifecycleStatus.Completed) return null;
+        if (lifecycleStatus != ProjectLifecycleStatus.Completed) return null;
 
         var completion = ProjectCompletionFormatter.Format(
-            item.CompletedOn,
-            item.CompletedYear,
-            item.CompletedMonth,
+            completedOn,
+            completedYear,
+            completedMonth,
             unknownText: string.Empty);
         if (string.IsNullOrWhiteSpace(completion)) return "Project completed";
 
         var precision = ProjectCompletionFormatter.InferPrecision(
-            item.CompletedOn,
-            item.CompletedYear,
-            item.CompletedMonth);
+            completedOn,
+            completedYear,
+            completedMonth);
         return precision == ProjectCompletionPrecision.ExactDate
             ? $"Project completed on {completion}"
             : $"Project completed in {completion}";

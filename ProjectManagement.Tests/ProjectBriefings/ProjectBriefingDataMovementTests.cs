@@ -141,8 +141,8 @@ public sealed class ProjectBriefingDataMovementTests
     [InlineData(ProjectBriefingShownFacts.Lifecycle, "AON", ProjectLifecycleStatus.Cancelled, true)]
     // The update-sheet milestone row: two ongoing stages outside development read the same...
     [InlineData(ProjectBriefingShownFacts.Milestone, "EAS", ProjectLifecycleStatus.Active, false)]
-    // ...entering development brings the PDC date.
-    [InlineData(ProjectBriefingShownFacts.Milestone, "DEVP", ProjectLifecycleStatus.Active, true)]
+    // ...and entering development with no PDC date recorded draws the same blank PDC row.
+    [InlineData(ProjectBriefingShownFacts.Milestone, "DEVP", ProjectLifecycleStatus.Active, false)]
     [InlineData(ProjectBriefingShownFacts.Milestone, "AON", ProjectLifecycleStatus.Cancelled, true)]
     public void Compare_StageCountsOnlyAsTheSlidesReadIt(
         ProjectBriefingShownFacts shown,
@@ -158,6 +158,29 @@ public sealed class ProjectBriefingDataMovementTests
             new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after });
 
         Assert.Equal(counted ? 1 : 0, movement.StageChanges);
+    }
+
+    [Fact]
+    public void Compare_MilestoneRowCountsTheValueTheUpdateSheetDraws()
+    {
+        var inDevelopment = Current(1, "DEVP", "x", 1m) with { DevelopmentPdcDate = new DateOnly(2027, 3, 12) };
+        var completed = Current(2, "COMPLETED", "x", 1m) with
+        {
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            CompletionStatusDisplay = "Project completed in Mar 2026"
+        };
+        var kept = Generated(
+            inDevelopment.ToSlideFact(ProjectBriefingShownFacts.Milestone),
+            completed.ToSlideFact(ProjectBriefingShownFacts.Milestone));
+
+        var movement = ProjectBriefingSlideFacts.Compare(kept, new Dictionary<int, ProjectBriefingCurrentProjectFacts>
+        {
+            [1] = inDevelopment with { DevelopmentPdcDate = new DateOnly(2027, 6, 30) },
+            [2] = completed with { CompletionStatusDisplay = "Project completed on 14 Mar 2026" }
+        });
+
+        Assert.Equal(2, movement.StageChanges);
+        Assert.Contains("PDC Date: 12 Mar 27", kept.Facts[0].Stage);
     }
 
     [Fact]
