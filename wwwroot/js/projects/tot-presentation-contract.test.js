@@ -9,8 +9,6 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const totViews = [
   'Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml',
   'Areas/ProjectOfficeReports/Pages/Tot/Summary.cshtml',
-  'Areas/ProjectOfficeReports/Pages/Tot/_LatestTotRequestModal.cshtml',
-  'Areas/ProjectOfficeReports/Pages/Tot/_SubmitTotUpdateModal.cshtml',
   'Pages/Projects/_ProjectTotDrawer.cshtml'
 ];
 

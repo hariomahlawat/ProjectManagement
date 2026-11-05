@@ -846,3 +846,8 @@ body .modal-backdrop {
     font-size: 1rem;
     font-weight: 600;
 }
+
+/* The register is one column: rows open the shared ToT drawer instead of a side panel. */
+.tot-workspace-grid--single {
+    grid-template-columns: minmax(0, 1fr);
+}

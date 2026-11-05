@@ -9,7 +9,9 @@
     if (!offcanvas) return;
     const card = document.getElementById('project-tot-card');
 
-    const projectId = Number.parseInt(offcanvas.dataset.projectId || '0', 10);
+    // The register shows one project at a time and switches between them; the project page has one.
+    let projectId = Number.parseInt(offcanvas.dataset.projectId || '0', 10);
+    const projectNameLabel = offcanvas.querySelector('[data-tot-project-name]');
     const endpoint = offcanvas.dataset.totEndpoint || window.location.pathname;
     function handlerUrl(handler) {
         return `${endpoint}?handler=${encodeURIComponent(handler)}&id=${encodeURIComponent(projectId)}`;
@@ -57,6 +59,8 @@
     const openProjectLink = root?.querySelector('[data-tot-open-project]');
 
     let loaded = false;
+    // A save, decision or remark made in the register leaves its rows out of date until reload.
+    let changed = false;
     let editing = false;
     let remarking = false;
     let initialFormFingerprint = '';
@@ -244,6 +248,7 @@
         root?.querySelectorAll('[data-tot-project-field]').forEach((field) => { field.value = String(projectId); });
         if (openProjectLink instanceof HTMLAnchorElement) openProjectLink.href = `/Projects/Overview/${encodeURIComponent(projectId)}`;
         toggle(addRemarkButton, !payload?.canManage);
+        if (projectNameLabel && payload?.projectName) projectNameLabel.textContent = payload.projectName;
     }
     function updateCard(payload) {
         if (!payload || !card) return;
@@ -291,6 +296,7 @@
             const response = await fetch(form.action, { method:'POST', body:new FormData(form), credentials:'same-origin', headers:{ Accept:'application/json','X-Requested-With':'XMLHttpRequest' } });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to save Transfer of Technology details.');
+            changed = true;
             updateCard(payload.card); loaded = false; await loadDetails(true); setEditMode(false); message(successBox, payload.message || 'Transfer of Technology details updated.');
         } catch (error) { message(errorBox, error instanceof Error ? error.message : 'Unable to save Transfer of Technology details.'); }
         finally { setBusy(false); }
@@ -314,6 +320,7 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to record the decision.');
             if (decideReason) decideReason.value = '';
+            changed = true;
             updateCard(payload.card);
             loaded = false;
             await loadDetails(true);
@@ -337,6 +344,7 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to save the remark.');
             setRemarkMode(false);
+            changed = true;
             loaded = false;
             await loadDetails(true);
             message(successBox, payload.message || 'ToT remark added.');
@@ -344,6 +352,30 @@
     });
 
     let lastLoad = Promise.resolve();
+    // The register (no project card) shows its rows again with the change once the drawer closes.
+    offcanvas.addEventListener('hidden.bs.offcanvas', () => {
+        if (changed && !card) window.location.reload();
+    });
+
+    // Register rows open the drawer in place; their link (with SelectedProjectId) still works
+    // without the script, or when opened in a new tab.
+    function openProject(id, name) {
+        if (!Number.isInteger(id) || id <= 0) return;
+        if (id !== projectId) {
+            projectId = id;
+            loaded = false;
+            offcanvas.dataset.projectId = String(id);
+        }
+        if (projectNameLabel) projectNameLabel.textContent = name || '';
+        bootstrap.Offcanvas.getOrCreateInstance(offcanvas).show();
+    }
+    document.addEventListener('click', (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const trigger = event.target instanceof Element ? event.target.closest('[data-tot-open-project-id]') : null;
+        if (!trigger) return;
+        event.preventDefault();
+        openProject(Number.parseInt(trigger.getAttribute('data-tot-open-project-id') || '0', 10), trigger.getAttribute('data-tot-project-name') || '');
+    });
     offcanvas.addEventListener('show.bs.offcanvas', () => { setRemarkMode(false); setEditMode(false); lastLoad = loadDetails(); });
     offcanvas.addEventListener('hide.bs.offcanvas', (event) => {
         const hasRemarkDraft = remarking && (remarkBody?.value?.trim()?.length || 0) > 0;
@@ -374,4 +406,7 @@
         const canEdit = editButton instanceof HTMLButtonElement && !editButton.classList.contains('d-none');
         if (canEdit && form instanceof HTMLFormElement) { clearMessages(); setEditMode(true); }
     })();
+    // The register opens the drawer for ?SelectedProjectId= (links from the project page and
+    // the Command desk), once every listener above is in place.
+    if (offcanvas.dataset.totOpenOnLoad === 'true' && projectId > 0) openProject(projectId, projectNameLabel?.textContent || '');
 })();
