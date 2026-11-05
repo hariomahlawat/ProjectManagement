@@ -339,9 +339,15 @@ A separate icon rail was considered and rejected: the inspector is narrow and ha
 1. Quick fixes: done (this change). The "N enabled · Manage slides" summary inside the settings is
    gone, so additional slides live only in the Deck tab's Additional slides list; Project brief
    layout is hidden while key points are on (on load and as the switch changes).
-2. The step list: Template picker (renamed from Purpose, "customised"), the numbered steps with
-   live one-line summaries, one open at a time, steps shown by the choices above; the existing
-   groups moved into their steps, wording shortened. Same field names, so saving is unchanged.
+2. The step list: done (this change). The Template picker shows the current template and its
+   summary, or "Started from this template, then customised." with a "customised" badge; the
+   three templates open beneath it. "All settings" is gone: the settings are six numbered steps
+   (`data-pbd-step`: slides, project, sheet, cost, extra, look, handling; Project slides only with
+   project slides, Sheet rows only for update sheets, Cost only for the standard layout), closed
+   by default, one open at a time (remembered per layout), each summary rebuilt from the form on
+   every change, numbers following the visible steps. The existing controls moved into their steps
+   with shorter wording; the field names and saving are unchanged. The library's column is
+   "Template".
 3. Compact controls in every step (segmented buttons, chips, switches), help for the selected
    option only.
 4. Extra slides: summary slides and institution slides together in one step (switch and Edit,

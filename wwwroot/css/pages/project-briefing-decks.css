@@ -4475,7 +4475,7 @@ body.pbd-profile-drawer-open {
     border-radius: .6rem;
 }
 
-/* Deck tab: purpose presets, the save line and every setting under All settings. */
+/* Deck tab: the Template picker, the save line and the settings steps. */
 .pbd-inspector__heading--first {
     margin-top: 0;
 }
@@ -4543,27 +4543,167 @@ body.pbd-profile-drawer-open {
     color: var(--pbd-red);
 }
 
-.pbd-deck-advanced {
-    margin-top: .4rem;
+/* Template: the current template as one row; the three templates open beneath it. */
+.pbd-template-picker {
+    display: grid;
+    gap: .4rem;
+}
+
+.pbd-template-picker__current {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    width: 100%;
+    padding: .6rem .7rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .6rem;
+    background: var(--pm-card, var(--pbd-surface));
+    color: var(--pbd-ink);
+    text-align: left;
+}
+
+.pbd-template-picker__current:hover,
+.pbd-template-picker__current:focus-visible {
+    border-color: var(--pbd-blue);
+}
+
+.pbd-template-picker__text {
+    display: grid;
+    flex: 1 1 auto;
+    gap: .1rem;
+    min-width: 0;
+}
+
+.pbd-template-picker__text strong {
+    font-size: .88rem;
+}
+
+.pbd-template-picker__text small {
+    color: var(--pbd-muted);
+    font-size: .76rem;
+    line-height: 1.35;
+}
+
+.pbd-template-picker__badge {
+    flex: none;
+    padding: .1rem .5rem;
+    border-radius: 999px;
+    background: var(--pbd-blue-soft);
+    color: var(--pbd-blue);
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.pbd-template-picker__badge[hidden] {
+    display: none;
+}
+
+.pbd-template-picker__current > .bi {
+    flex: none;
+    color: var(--pbd-muted);
+    transition: transform .15s ease;
+}
+
+.pbd-template-picker__current[aria-expanded="true"] > .bi {
+    transform: rotate(180deg);
+}
+
+.pbd-template-picker .pbd-presets[hidden] {
+    display: none;
+}
+
+/* Settings steps: numbered rows, one open at a time, each closed row showing a summary. The form
+   itself sits flush with the Template picker. */
+.pbd-inspector__panel .pbd-deck-settings {
+    padding: 0;
+    border-top: 0;
+    background: none;
+}
+
+.pbd-steps {
+    border: 1px solid var(--pbd-border);
+    border-radius: .7rem;
+    overflow: hidden;
+}
+
+.pbd-step + .pbd-step {
     border-top: 1px solid var(--pbd-border);
 }
 
-.pbd-deck-advanced > summary {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: .2rem .6rem;
-    padding: .75rem 0 .5rem;
+.pbd-step[hidden] {
+    display: none;
+}
+
+.pbd-step[open] {
+    background: var(--pbd-blue-soft);
+}
+
+.pbd-step > summary {
+    display: grid;
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .65rem;
+    padding: .7rem .8rem;
     color: var(--pbd-ink);
-    font-size: .86rem;
-    font-weight: 800;
+    list-style: none;
     cursor: pointer;
 }
 
-.pbd-deck-advanced > summary small {
-    color: var(--pbd-muted);
+.pbd-step > summary::-webkit-details-marker {
+    display: none;
+}
+
+.pbd-step > summary:focus-visible {
+    outline: 2px solid var(--pbd-blue);
+    outline-offset: -2px;
+}
+
+.pbd-step__number {
+    display: inline-grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: var(--pbd-border);
+    color: var(--pbd-ink);
     font-size: .74rem;
-    font-weight: 600;
+    font-weight: 700;
+}
+
+.pbd-step[open] .pbd-step__number {
+    background: var(--pbd-blue);
+    color: var(--pm-card, var(--pbd-surface));
+}
+
+.pbd-step__text {
+    display: grid;
+    gap: .1rem;
+    min-width: 0;
+}
+
+.pbd-step__text strong {
+    font-size: .88rem;
+}
+
+.pbd-step__text small {
+    overflow: hidden;
+    color: var(--pbd-muted);
+    font-size: .76rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pbd-step > summary > .bi {
+    color: var(--pbd-muted);
+    transition: transform .15s ease;
+}
+
+.pbd-step[open] > summary > .bi {
+    transform: rotate(180deg);
+}
+
+.pbd-step__body {
+    padding: .2rem .8rem .9rem;
 }
 
 /* The settings form, laid out for the narrow inspector. */
