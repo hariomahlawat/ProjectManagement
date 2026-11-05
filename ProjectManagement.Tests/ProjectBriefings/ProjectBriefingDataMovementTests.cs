@@ -23,7 +23,7 @@ public sealed class ProjectBriefingDataMovementTests
     private static readonly DateOnly RemarkDate = new(2026, 10, 30);
 
     private const ProjectBriefingShownFacts All =
-        ProjectBriefingShownFacts.Stage | ProjectBriefingShownFacts.Status | ProjectBriefingShownFacts.CostRd
+        ProjectBriefingShownFacts.Stage | ProjectBriefingShownFacts.Status | ProjectBriefingShownFacts.CostRd | ProjectBriefingShownFacts.CostRdBasis
         | ProjectBriefingShownFacts.IpaCost | ProjectBriefingShownFacts.ProliferationCost;
 
     [Fact]
@@ -112,10 +112,16 @@ public sealed class ProjectBriefingDataMovementTests
         var after = before with { CostRd = new ProjectBriefingCostValue(100m, ProjectBriefingCostBasis.None, "1.00", "PNC") };
 
         var movement = ProjectBriefingSlideFacts.Compare(
-            Generated(before.ToSlideFact(ProjectBriefingShownFacts.CostRd)),
+            Generated(before.ToSlideFact(ProjectBriefingShownFacts.CostRd | ProjectBriefingShownFacts.CostRdBasis)),
             new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after });
 
         Assert.Equal(1, movement.CostChanges);
+
+        // An update sheet's cost row and the portfolio totals show the amount only.
+        var amountOnly = ProjectBriefingSlideFacts.Compare(
+            Generated(before.ToSlideFact(ProjectBriefingShownFacts.CostRd)),
+            new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after });
+        Assert.Equal(0, amountOnly.CostChanges);
     }
 
     [Fact]
@@ -181,6 +187,25 @@ public sealed class ProjectBriefingDataMovementTests
 
         Assert.Equal(2, movement.StageChanges);
         Assert.Contains("PDC Date: 12 Mar 27", kept.Facts[0].Stage);
+    }
+
+    [Theory]
+    [InlineData(ProjectBriefingNarrativeMode.CapabilityOverview, "Short brief.", true)]
+    [InlineData(ProjectBriefingNarrativeMode.ProjectBrief, "Short brief.", false)]
+    public void Shown_LifecycleFollowsTheSlidesThatDrawTheSubtitle(ProjectBriefingNarrativeMode narrative, string brief, bool lifecycleShown)
+    {
+        var project = new ProjectBriefingPresentationProject { ProjectId = 1, ProjectBrief = brief };
+        var data = new ProjectBriefingPresentationData
+        {
+            Layout = ProjectBriefingLayout.StandardBriefing,
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = narrative,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludePortfolioSummarySlide = false,
+            Projects = new[] { project }
+        };
+
+        Assert.Equal(lifecycleShown, ProjectBriefingSlideFacts.Shown(project, data).HasFlag(ProjectBriefingShownFacts.Lifecycle));
     }
 
     [Fact]

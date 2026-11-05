@@ -36,8 +36,8 @@ last-updated deck, so nobody edits a deck they did not pick.
   unknown or deleted id returns to the library with a one-request notice.
 - **Data moved since last generated** (PR 2). Each generation keeps, per presented project, the
   facts its slides drew and which ones they drew (`LastGeneratedFactsJson`,
-  `ProjectBriefingSlideFacts`): the stage, read as the slides read it (its name where a table row, detail slide or the stage summary shows it; its maturity where it orders two or more projects' slides; its lifecycle for a standard detail slide's subtitle, the portfolio summary's counts and the stage summary's status band; the update sheet's milestone row exactly as `ProjectBriefingUpdateSheetPlanner.DescribeMilestone` draws it: the PDC date in development, else the completion or cancellation), the external status remark (date and a digest of its text) and the costs
-  drawn (the R&D cost with its basis label, the proliferation cost by cost mode, the IPA cost in
+  `ProjectBriefingSlideFacts`): the stage, read as the slides read it (its name where a table row, detail slide or the stage summary shows it; its maturity where it orders two or more projects' slides; its lifecycle for a standard project slide's subtitle (capability slides and brief continuations), the portfolio summary's counts and the stage summary's status band; the update sheet's milestone row exactly as `ProjectBriefingUpdateSheetPlanner.DescribeMilestone` draws it: the PDC date in development, else the completion or cancellation), the external status remark (date and a digest of its text) and the costs
+  drawn (the R&D cost, with its basis label where cost cards or the executive table draw it, the proliferation cost by cost mode, the IPA cost in
   an update sheet's portfolio totals). `ProjectBriefingSlideFacts.Shown` mirrors the composer:
   "Show present stage/status", the update sheet's selected rows, table-row-only projects, the
   summary slides and the cost mode. The library rebuilds today's facts with

@@ -27,7 +27,10 @@ public enum ProjectBriefingShownFacts
     // portfolio summary's counts, and the stage summary's status band and ongoing-stage chart.
     Lifecycle = 64,
     // An update sheet's milestone row: a PDC date in development, else completion or cancellation.
-    Milestone = 128
+    Milestone = 128,
+    // The R&D cost's basis label ("PNC", "L1"): standard cost cards and the executive table draw
+    // it; update-sheet rows and the portfolio totals show the amount only.
+    CostRdBasis = 256
 }
 
 // What a generated deck said about one project, each fact reduced to a short comparable value,
@@ -155,8 +158,14 @@ public static class ProjectBriefingSlideFacts
             shown |= ProjectBriefingShownFacts.StageOrder;
         }
 
+        // A standard project's subtitle ("Ongoing · ...") is drawn on its capability slides and on a
+        // project-brief continuation, not on the first project-brief slide.
+        var drawsSubtitle = hasOwnSlides && !updateSheet
+            && (ProjectBriefingSlideComposer.DrawsCapabilitySlides(data.NarrativeMode)
+                || (ProjectBriefingSlideComposer.DrawsProjectBriefSlides(data.NarrativeMode)
+                    && ProjectBriefingSlideComposer.EstimateProjectBriefSlideCount(project.ProjectBrief) > 1));
         if (data.IncludePortfolioSummarySlide
-            || (hasOwnSlides && !updateSheet)
+            || drawsSubtitle
             || (!updateSheet && data.IncludeStageSummary))
         {
             shown |= ProjectBriefingShownFacts.Lifecycle;
@@ -181,6 +190,10 @@ public static class ProjectBriefingSlideFacts
                 || (hasOwnSlides && (!updateSheet || rows.Contains(ProjectBriefingUpdateSheetRow.ProjectCost)))))
         {
             shown |= ProjectBriefingShownFacts.CostRd;
+            if (inTable || (hasOwnSlides && !updateSheet))
+            {
+                shown |= ProjectBriefingShownFacts.CostRdBasis;
+            }
         }
 
         if (updateSheet && data.IncludePortfolioSummarySlide)
@@ -255,9 +268,10 @@ public static class ProjectBriefingSlideFacts
             !showsCost
                 ? null
                 : string.Join("|",
-                    // The R&D cost is drawn with its basis label ("PNC", "L1", ...).
                     shown.HasFlag(ProjectBriefingShownFacts.CostRd)
-                        ? $"{Amount(costRd)}/{(costRd?.IsAvailable == true ? costRd.BasisDisplay : string.Empty)}"
+                        ? shown.HasFlag(ProjectBriefingShownFacts.CostRdBasis)
+                            ? $"{Amount(costRd)}/{(costRd?.IsAvailable == true ? costRd.BasisDisplay : string.Empty)}"
+                            : Amount(costRd)
                         : string.Empty,
                     shown.HasFlag(ProjectBriefingShownFacts.IpaCost) ? Amount(ipaCost) : string.Empty,
                     shown.HasFlag(ProjectBriefingShownFacts.ProliferationCost) ? Amount(proliferationCost) : string.Empty));
