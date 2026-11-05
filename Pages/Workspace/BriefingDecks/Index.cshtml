@@ -505,7 +505,8 @@
                                     </fieldset>
 
                                     <div class="pbd-standard-detail-options" data-pbd-detailed-settings hidden="@(!standardIncludesDetailedSlides)">
-                                        <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(!standardNeedsProjectBrief)">
+                                        @* The key points layout draws its own brief slide, so the brief layout only matters without key points. *@
+                                        <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(!standardNeedsProjectBrief || deck.StandardSlideOptions.KeyPoints != ProjectBriefingKeyPointPlacement.None)">
                                             <legend>Project Brief layout</legend>
                                             <div class="pbd-choice-cards pbd-choice-cards--three">
                                                 <label class="pbd-choice-card">
@@ -605,19 +606,6 @@
                                 </div>
                                         </div>
                                     </details>
-
-                                    <section class="pbd-settings-section pbd-settings-section--additional-slide" aria-labelledby="pbd-settings-additional-slides-title">
-                                        <h4 id="pbd-settings-additional-slides-title">Additional slides</h4>
-                                        <div class="pbd-settings-additional-summary">
-                                            <span>
-                                                <strong>@enabledAdditionalSlideCount enabled</strong>
-                                                <small>Optional slide content and ordering are maintained in the Presentation Structure workspace.</small>
-                                            </span>
-                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-manage-additional-slides>
-                                                <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i> Manage slides
-                                            </button>
-                                        </div>
-                                    </section>
 
                                     <details class="pbd-settings-section pbd-settings-section--collapsible"
                                              data-pbd-settings-collapsible

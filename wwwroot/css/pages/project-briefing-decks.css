@@ -2180,32 +2180,6 @@ body.pbd-profile-drawer-open {
 }
 
 /* Generic additional-slide library, ordering and Role & Charter editor */
-.pbd-settings-additional-summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: .8rem;
-    padding: .72rem;
-    border: 1px solid var(--pbd-border);
-    border-radius: .62rem;
-    background: #fbfcfe;
-}
-
-.pbd-settings-additional-summary > span {
-    display: grid;
-    gap: .1rem;
-}
-
-.pbd-settings-additional-summary strong {
-    color: var(--pbd-ink);
-    font-size: .75rem;
-}
-
-.pbd-settings-additional-summary small {
-    color: var(--pbd-muted);
-    font-size: .65rem;
-}
-
 .pbd-additional-slide-order-form {
     display: none;
 }
@@ -2532,11 +2506,6 @@ body.pbd-profile-drawer-open {
 }
 
 @media (max-width: 620px) {
-    .pbd-settings-additional-summary {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
     .pbd-slide-library-card {
         grid-template-columns: auto minmax(0, 1fr);
     }
@@ -3276,10 +3245,6 @@ body.pbd-profile-drawer-open {
 
 :where([data-bs-theme="dark"]) .pbd-profile-drawer__footer {
     box-shadow: 0 -.4rem 1rem rgba(0, 0, 0, 0.19);
-}
-
-:where([data-bs-theme="dark"]) .pbd-settings-additional-summary {
-    background: #16181b;
 }
 
 :where([data-bs-theme="dark"]) .pbd-additional-slide-zone-heading {

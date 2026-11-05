@@ -1209,7 +1209,9 @@ if (root) {
     if (projectBriefLayoutSettings) {
       projectBriefLayoutSettings.hidden = updateSheet
         || !includesDetailedSlides()
-        || !includesProjectBrief();
+        || !includesProjectBrief()
+        // The key points layout draws its own brief slide.
+        || Boolean(root.querySelector('[data-pbd-key-points-toggle]')?.checked);
     }
     // The slide choice matters only when the deck draws both project slides.
     const keyPointSlide = root.querySelector('[data-pbd-key-point-slide]');

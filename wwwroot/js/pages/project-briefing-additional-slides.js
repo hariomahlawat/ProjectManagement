@@ -4,20 +4,9 @@ const root = document.querySelector('[data-pbd-root]');
 
 if (root) {
   const additionalSlides = root.querySelector('[data-pbd-additional-slides]');
-  const manageAdditionalSlides = root.querySelector('[data-pbd-manage-additional-slides]');
   const additionalSlideList = root.querySelector('[data-pbd-additional-slide-list]');
   const additionalSlideOrderForm = root.querySelector('[data-pbd-additional-slide-order-form]');
   const additionalSlideOrderInput = root.querySelector('[data-pbd-additional-slide-order]');
-
-  manageAdditionalSlides?.addEventListener('click', () => {
-    const settingsClose = root.querySelector('[data-pbd-settings-close]');
-    if (settingsClose instanceof HTMLButtonElement) settingsClose.click();
-    window.setTimeout(() => {
-      additionalSlides?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      const addButton = additionalSlides?.querySelector('[data-bs-target="#pbd-additional-slide-library-modal"]');
-      if (addButton instanceof HTMLElement) addButton.focus({ preventScroll: true });
-    }, 240);
-  });
 
   root.querySelectorAll('[data-pbd-remove-additional-slide-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {

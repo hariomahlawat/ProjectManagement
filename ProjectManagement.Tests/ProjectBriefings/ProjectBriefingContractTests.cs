@@ -546,6 +546,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("syncInstitutionalPartnershipEditor", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalLayoutSummary", script, StringComparison.Ordinal);
         Assert.Contains("data-pbd-additional-slides", page, StringComparison.Ordinal);
+        // One place for additional slides: the settings no longer carry a "Manage slides" summary.
+        Assert.DoesNotContain("data-pbd-manage-additional-slides", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-profile-open", page, StringComparison.Ordinal);
         Assert.Contains("SaveInstitutionalProfile", profileEditor, StringComparison.Ordinal);
         Assert.Contains("openProfileDrawer", script, StringComparison.Ordinal);

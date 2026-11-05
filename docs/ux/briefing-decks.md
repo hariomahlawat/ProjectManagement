@@ -336,8 +336,9 @@ A separate icon rail was considered and rejected: the inspector is narrow and ha
 
 **PRs**
 
-1. Quick fixes: one place for additional slides; Project brief layout hidden while key points are
-   on.
+1. Quick fixes: done (this change). The "N enabled · Manage slides" summary inside the settings is
+   gone, so additional slides live only in the Deck tab's Additional slides list; Project brief
+   layout is hidden while key points are on (on load and as the switch changes).
 2. The step list: Template picker (renamed from Purpose, "customised"), the numbered steps with
    live one-line summaries, one open at a time, steps shown by the choices above; the existing
    groups moved into their steps, wording shortened. Same field names, so saving is unchanged.
