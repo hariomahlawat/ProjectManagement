@@ -1,0 +1,104 @@
+# Transfer of Technology pages
+
+Transfer of Technology (ToT) records, for each completed project, whether its technology has been
+transferred to production: status, start and completion dates (year, month or day), MET and the
+first production model. This document describes the pages today and the approved plan to turn
+them into one page that serves the HoD, the Comdt and Project Office. The data rules (approval,
+history, who may submit) are in [data-domain.md](../data-domain.md#transfer-of-technology-tracker-modelsprojecttotcs).
+
+## Where it lives
+
+| Concern | Code |
+| --- | --- |
+| Summary page | `Areas/ProjectOfficeReports/Pages/Tot/Summary.cshtml(.cs)` (counts, sentence, lists; `?handler=Yearly` for the chart) |
+| Tracker page | `Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml(.cs)`; partials `_TotFiltersModal`, `_SubmitTotUpdateModal`, `_LatestTotRequestModal` |
+| Project page card and drawer | `Pages/Shared/Components/ProjectTotCommandCard`, `Pages/Projects/_ProjectTotDrawer.cshtml`, `Pages/Projects/Overview.Tot.cs` (`TotDetails`, `Tot`, `TotRemark` handlers) |
+| Shared form fields | `Pages/Shared/Tot/_TotFormFields.cshtml` (tracker submit), `wwwroot/js/projects/tot-form-fields.js` |
+| Reads and writes | `ProjectTotTrackerReadService` (rows, history), `ProjectTotService` (save, submit, decide), `ProjectTotPresentation` (labels, card, date entry), `ProjectTotExportService` + `ProjectTotExcelWorkbookBuilder` |
+| Scripts and styles | `wwwroot/js/projects/overview-tot.js`, `wwwroot/js/pages/project-office-reports/tot.js`, `tot-chart.js`; `wwwroot/css/tot.css`, `wwwroot/css/pages/project-tot-drawer.css` |
+| Links in | Projects menu and dashboard signal (`OpsSignalsService` links the Summary); Command desk completion drill-down (tracker with `CompletedFrom`/`CompletedTo`); Approvals → Pending (ToT requests) |
+
+Anyone signed in may view; Admin, HoD, Project Office (and Alternate) submit for any project and a
+Project Officer for projects they lead; Admin and HoD approve and save directly.
+
+## What the review found (Nov 2026)
+
+Reviewed on the local data (139 projects) at 1536 px and on a phone.
+
+- The module reads as three tools: a Summary, a tracker and the project drawer, with four names
+  for itself and three verbs for one action.
+- The tracker is laid out as a work queue but holds mostly empty data: a start date on 1 project
+  of 139, a MET date on none, a request on one. Half its columns are dashes and every row says
+  "No request".
+- The HoD approves without seeing what changes: the proposed values are in a separate pop-up that
+  repeats the request state six times, never sets current against proposed, and does not show a
+  rejection's reason.
+- Nothing puts first what needs doing; nothing sorts; each row click reloads the page; on a phone
+  the table becomes one unlabeled column and the details start about 1000 px down.
+- Small text (10 px headers, chips and labels); three date styles; duplicate filter buttons; the
+  search box disappears when a search finds nothing.
+- The real backlog is old: 53 projects have not started ToT, 10 of them completed more than ten
+  years ago.
+
+Fixed already: Summary total counted Not-required projects; the yearly chart skipped empty years;
+dates saved before precision was tracked showed blank (#2883).
+
+## Approved redesign
+
+Mockup: Design canvas "ToT redesign mockup" (5 Nov 2026): the HoD page, the drawer's decision,
+the phone view, and the Comdt and Project Office versions.
+
+- **One page**, "Transfer of Technology", in place of Summary plus tracker: Position, a
+  role-specific top section, then the Register. `/ProjectOfficeReports/Tot/Summary` keeps working
+  and opens the page.
+- **Position**: counts that filter the register (Need ToT, Completed with %, In progress, Not
+  started; Not required counted apart), a completed / not-started bar, and the per-year chart.
+- **The top section follows the reader's role** (who opens it: HoD and Comdt to check, Project
+  Office to maintain):
+  - HoD and Admin: *Waiting for your decision*, each request showing its change
+    ("In progress → Completed, Oct 2026"), submitter and age; then *Not started, longest waiting*.
+  - Comdt (and any viewer who cannot submit): *Recently completed* and *Not started, over ten
+    years*. Nothing to act on.
+  - Project Office: *To keep the register right*: not started over ten years (confirm still
+    expected, or propose Not required), missing details (year-only completions, no start date, no
+    MET), and *Sent for approval* with "Waiting for HoD since …".
+- **Register**: inline search, status buttons with counts instead of the filter pop-up, columns
+  that appear only when some listed project has data, a Note column ("3 years after completion",
+  "Waiting 21 years", "Year only"), sorting. Readable sizes (13 px minimum).
+- **One drawer** (the project page's) opens from a register row too, replacing the tracker's
+  detail panel and both pop-ups. It shows the current position, history, and for a pending
+  request a Now → Proposed table of only the changed fields with Approve / Reject (approvers) or
+  "Waiting for HoD since …" (submitter). Its buttons follow the same rules as today.
+- **Phone**: two counts, a "waiting for your decision" bar, search, scrolling status buttons, one
+  card per project.
+- **No withdraw** (owner decision, 5 Nov 2026): a request sent by mistake is rejected by the HoD
+  with a reason, which keeps the history honest.
+- Business facts are resolved once (`ProjectTotRegisterFacts`, PR 2) and reused by the page, the
+  drawer, the export and later the Command desk.
+
+### Delivery plan
+
+Small PRs, each shippable on its own, no database migration. Existing addresses and parameters
+keep working: `/Tot`, `/Tot/Summary`, `SelectedProjectId`, the filter parameters,
+`CompletedFrom`/`CompletedTo` from the Command desk, `/Projects/Tot/Edit/{id}` and the drawer's
+`?tot=open|edit`.
+
+| # | PR | Scope | Status |
+| --- | --- | --- | --- |
+| 1 | Words, dates, sizes | One name ("Transfer of Technology") and one verb per action; one date style everywhere, MET and manufacture dates included; breadcrumbs that agree; one Filters entry; the search box stays when nothing matches; no "No request" on every row; 13 px minimum. | Planned |
+| 2 | Register facts | `ProjectTotRegisterFacts` per project: status, dates at precision, project completion year, years waiting, year-only flag, missing start / MET, the pending request as a list of changed fields, the latest decision and reason; plus the Position counts. Tests. No UI change. | Planned |
+| 3 | Drawer: decide in place | The drawer shows a pending request as Now → Proposed (changed fields only, rejection reason, history) with Approve / Reject for approvers through `ProjectTotService.DecideRequestAsync` (version token and reason rules unchanged), and "Waiting for HoD since …" for others. Project page only. | Planned |
+| 4 | Register opens the drawer | Tracker rows open the shared drawer in place; the detail panel and the request, submit and filter pop-ups go. Approvals → Pending keeps working. | Planned |
+| 5 | One page | Summary's Position and chart join the page; `/Tot/Summary` opens it; menu and dashboard links follow. | Planned |
+| 6 | Role top section | HoD, Comdt and Project Office sections from PR 2's facts; the Command desk links here. | Planned |
+| 7 | Register table | Status buttons with counts, live search, data-driven columns, Note column, sort; filters from links get removable chips. Export follows the visible register. | Planned |
+| 8 | Phone and clean-up | Phone cards and summary bar; unused rules removed from `tot.css`. | Planned |
+
+Open decision: start date and MET are almost never recorded (start on 1 of 65 completed, MET on
+none). Keep asking for them (Project Office's *Missing details*), or drop them from the form and
+the register. The plan keeps them until the owner decides.
+
+### Deployment and rollback
+
+Presentation and read-model changes on existing data; no migration, configuration or new
+dependency. Each PR rolls back by reverting it.
