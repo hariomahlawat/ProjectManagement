@@ -3,7 +3,6 @@ import { prismConfirm } from './project-briefing-confirm.js';
 const root = document.querySelector('[data-pbd-root]');
 
 if (root) {
-  const additionalSlides = root.querySelector('[data-pbd-additional-slides]');
   const additionalSlideList = root.querySelector('[data-pbd-additional-slide-list]');
   const additionalSlideOrderForm = root.querySelector('[data-pbd-additional-slide-order-form]');
   const additionalSlideOrderInput = root.querySelector('[data-pbd-additional-slide-order]');
@@ -18,21 +17,14 @@ if (root) {
         confirmText: 'Remove from deck',
         cancelText: 'Keep slide',
         tone: 'danger',
-        returnFocus: form.querySelector('button[type="submit"]')
+        // The remove button sits in the Extra slides step and reaches this form by its id.
+        returnFocus: root.querySelector(`button[form="${form.id}"]`) || form.querySelector('button[type="submit"]')
       });
       if (!confirmed) return;
       // The page's submit guard skips this form so the two questions never overlap; wait for a
       // pending settings save here instead.
       if (typeof root.pbdSettleSettings === 'function' && !(await root.pbdSettleSettings())) return;
       HTMLFormElement.prototype.submit.call(form);
-    });
-  });
-
-  root.querySelectorAll('[data-pbd-add-slide-disabled-tip]').forEach((element) => {
-    window.bootstrap?.Tooltip?.getOrCreateInstance(element, {
-      container: 'body',
-      placement: 'bottom',
-      trigger: 'hover focus'
     });
   });
 

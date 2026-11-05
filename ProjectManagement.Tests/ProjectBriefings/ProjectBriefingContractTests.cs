@@ -545,7 +545,7 @@ public sealed class ProjectBriefingContractTests
         var mainComposer = Read("ProjectBriefingSlideComposer.cs");
         var dataSource = Read("ProjectBriefingDataService.cs");
 
-        Assert.Contains("Additional slides", page, StringComparison.Ordinal);
+        Assert.Contains("<h5 id=\"pbd-additional-slides-title\">Institution slides</h5>", page, StringComparison.Ordinal);
         Assert.Contains("SDD Institutional Profile", additionalSlideCatalog, StringComparison.Ordinal);
         Assert.Contains("@AdditionalSlideDisplayName(slideType)", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-profile-drawer", profileEditor, StringComparison.Ordinal);
@@ -635,7 +635,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("CanReorder: false", catalog, StringComparison.Ordinal);
         Assert.Contains("Opening slides", page, StringComparison.Ordinal);
         Assert.Contains("Before closing", page, StringComparison.Ordinal);
-        Assert.Contains("pbd-additional-slide-card__placement", page, StringComparison.Ordinal);
+        // A fixed slide shows a pin, not a drag handle.
+        Assert.Contains("title=\"Fixed immediately before the closing slide\"", page, StringComparison.Ordinal);
         Assert.Contains("Each approved slide type can be added once", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-ffc-footprint-open", page, StringComparison.Ordinal);
         Assert.Contains("SaveFfcGlobalFootprint", editor, StringComparison.Ordinal);

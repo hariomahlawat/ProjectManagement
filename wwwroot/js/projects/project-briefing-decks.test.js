@@ -287,17 +287,25 @@ test('briefing workflows use the reusable PRISM confirmation dialog instead of b
   assert.match(viewSource, /data-pbd-confirm-cancel autofocus/);
 });
 
-test('additional-slide workspace explains the exhausted slide-library state', () => {
-  assert.match(viewSource, /data-pbd-add-slide-disabled-tip/);
-  assert.match(viewSource, /All available slide types have been added/);
-  assert.match(additionalSlidesSource, /Tooltip\?\.getOrCreateInstance/);
+test('institution slides live in the Extra slides step; their forms sit outside the settings form', () => {
+  // Add slide is offered only while a slide type is still missing.
+  assert.match(viewSource, /@if \(missingAdditionalSlideTypes\.Length > 0\)\s*\{\s*<button type="button"\s*class="btn btn-sm btn-link"/);
+  assert.doesNotMatch(viewSource, /data-pbd-add-slide-disabled-tip/);
+  const extraStep = viewSource.slice(viewSource.indexOf('data-pbd-step="extra"'), viewSource.indexOf('data-pbd-step="look"'));
+  assert.match(extraStep, /data-pbd-additional-slides/);
+  assert.match(extraStep, /form="pbd-additional-slide-toggle-@slideKey"/);
+  assert.match(extraStep, /form="pbd-additional-slide-remove-@slideKey"/);
+  assert.doesNotMatch(extraStep, /<form /);
+  assert.match(viewSource, /id="pbd-additional-slide-toggle-@slideKey" data-pbd-additional-slide-toggle-form/);
+  assert.match(source, /const form = toggle\.form \|\| toggle\.closest/);
+  assert.match(source, /\.\.\.institutionSlides\(\)\]\),/);
 });
 
 test('FFC Global Footprint is an ERP-backed fixed concluding additional slide', () => {
   assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.FfcGlobalFootprint/);
   assert.match(viewSource, /Opening slides/);
   assert.match(viewSource, /Before closing/);
-  assert.match(viewSource, /pbd-additional-slide-card__placement/);
+  assert.match(viewSource, /title="Fixed immediately before the closing slide"/);
   assert.match(viewSource, /Each approved slide type can be added once/);
   assert.match(viewSource, /data-pbd-ffc-footprint-open/);
   assert.match(ffcEditorSource, /FfcFootprintPreviewSummary/);
