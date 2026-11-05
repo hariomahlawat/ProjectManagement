@@ -75,7 +75,8 @@
     <section class="tot-overview" aria-labelledby="tot-position-heading">
         <h2 class="visually-hidden" id="tot-position-heading">Position</h2>
         <div class="tot-summary__metrics row g-3">
-            <div class="col-6 col-lg">
+            @* Phones show two counts (Completed, Not started); the sentence above gives the rest. *@
+            <div class="col-6 col-lg tot-overview__secondary">
                 <a class="tot-summary__metric-card tot-overview__card" asp-page="./Index" asp-route-RequiresTotOnly="true">
                     <span class="tot-summary__metric-label d-block">Need ToT</span>
                     <span class="tot-summary__metric-value d-block">@position.NeedTot</span>
@@ -89,7 +90,7 @@
                     <span class="tot-overview__card-note">@(position.CompletedPercent is { } pct ? $"{pct}% of {position.NeedTot}" : "—")</span>
                 </a>
             </div>
-            <div class="col-6 col-lg">
+            <div class="col-6 col-lg tot-overview__secondary">
                 <a class="tot-summary__metric-card tot-summary__metric-card--inprogress tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="InProgress">
                     <span class="tot-summary__metric-label d-block">In progress</span>
                     <span class="tot-summary__metric-value d-block">@position.InProgress</span>
@@ -276,6 +277,7 @@
             </div>
         </div>
 
+        @* Not on phones: a year axis that narrow cannot be read (tot.css). *@
         <div class="tot-summary__chart card">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-2">
