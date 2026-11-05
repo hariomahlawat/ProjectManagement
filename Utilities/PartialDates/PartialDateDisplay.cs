@@ -5,12 +5,15 @@ namespace ProjectManagement.Utilities.PartialDates;
 
 public static class PartialDateDisplay
 {
+    /// <summary>
+    /// Formats a stored date at its recorded precision. A date stored without a precision (rows
+    /// saved before precision was tracked) shows as the full date: a stored date is never blank.
+    /// </summary>
     public static string Format(DateOnly value, PartialDatePrecision precision) => precision switch
     {
         PartialDatePrecision.Year => value.Year.ToString(CultureInfo.InvariantCulture),
         PartialDatePrecision.Month => value.ToString("MMM yyyy", CultureInfo.InvariantCulture),
-        PartialDatePrecision.Day => value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture),
-        _ => string.Empty
+        _ => value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
     };
 
     public static string? Format(DateOnly? value, PartialDatePrecision precision) =>

@@ -29,11 +29,11 @@ public static class ProjectTotPresentation
     };
 
     /// <summary>
-    /// Formats a stored ToT date at its precision. Rows saved before precision was tracked
-    /// have none recorded; those show the full date rather than nothing.
+    /// Formats a stored ToT date at its precision; rows saved before precision was tracked show
+    /// the full date (see <see cref="PartialDateDisplay.Format(DateOnly, PartialDatePrecision)"/>).
     /// </summary>
     public static string FormatDate(DateOnly value, PartialDatePrecision precision)
-        => PartialDateDisplay.Format(value, precision == PartialDatePrecision.None ? PartialDatePrecision.Day : precision);
+        => PartialDateDisplay.Format(value, precision);
 
     public static ProjectTotCard BuildCard(
         ProjectTotStatus? status,
