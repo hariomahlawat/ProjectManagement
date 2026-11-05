@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel
+@using ProjectManagement.Areas.ProjectOfficeReports.Application
 
 @using System.Globalization
 @using ProjectManagement.Utilities.PartialDates
@@ -60,6 +61,7 @@
     if (Model.OnlyPending) filterBits.Add("Pending only");
     if (Model.RequiresTotOnly) filterBits.Add("Requires ToT");
     if (Model.MetCompletedOnly) filterBits.Add("MET completed");
+    if (Model.LongWaiting) filterBits.Add("Not started, over five years");
     if (Model.CompletedFrom.HasValue || Model.CompletedTo.HasValue)
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
@@ -202,6 +204,148 @@
             </p>
         }
 
+        @{
+            var role = Model.RoleView;
+            var istLabel = (DateTime? utc) => ProjectManagement.Services.Projects.ProjectTotPresentation.FormatMoment(utc);
+        }
+        <div class="tot-attention" aria-labelledby="tot-attention-heading">
+            <h2 class="tot-register__heading" id="tot-attention-heading">
+                @(role switch
+                {
+                    ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Approver => "Needs attention",
+                    ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Maintainer => "To keep the register right",
+                    _ => "At a glance"
+                })
+            </h2>
+            <div class="tot-attention__grid">
+                @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Approver)
+                {
+                    <section class="tot-attention__card tot-attention__card--decide" aria-labelledby="tot-attention-decide">
+                        <div class="tot-attention__head">
+                            <h3 id="tot-attention-decide">Waiting for your decision</h3>
+                            <span class="tot-attention__count">@Model.WaitingForDecision.Count</span>
+                        </div>
+                        @if (Model.WaitingForDecision.Count == 0)
+                        {
+                            <p class="tot-attention__empty">Nothing is waiting for you.</p>
+                        }
+                        else
+                        {
+                            <ul class="tot-attention__list">
+                                @foreach (var item in Model.WaitingForDecision)
+                                {
+                                    <li>
+                                        <a class="tot-attention__item" asp-page="./Index" asp-route-SelectedProjectId="@item.ProjectId"
+                                           data-tot-open-project-id="@item.ProjectId" data-tot-project-name="@item.ProjectName">
+                                            <span class="tot-attention__name">@item.ProjectName</span>
+                                            <span class="tot-attention__change">@ProjectTotOverview.ChangeSummary(item.Pending!)</span>
+                                            <span class="tot-attention__meta">@item.Pending!.SubmittedBy · @istLabel(item.Pending!.SubmittedOnUtc)</span>
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </section>
+                }
+                @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Viewer)
+                {
+                    <section class="tot-attention__card" aria-labelledby="tot-attention-recent">
+                        <div class="tot-attention__head">
+                            <h3 id="tot-attention-recent">Recently completed</h3>
+                        </div>
+                        @if (Model.RecentlyCompleted.Count == 0)
+                        {
+                            <p class="tot-attention__empty">No ToT completions recorded yet.</p>
+                        }
+                        else
+                        {
+                            <ul class="tot-attention__list">
+                                @foreach (var item in Model.RecentlyCompleted)
+                                {
+                                    <li>
+                                        <a class="tot-attention__item tot-attention__item--row" asp-page="./Index" asp-route-SelectedProjectId="@item.ProjectId"
+                                           data-tot-open-project-id="@item.ProjectId" data-tot-project-name="@item.ProjectName">
+                                            <span class="tot-attention__name">@item.ProjectName</span>
+                                            <span class="tot-attention__meta">@item.Completed</span>
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </section>
+                }
+
+                <section class="tot-attention__card tot-attention__card--waiting" aria-labelledby="tot-attention-long">
+                    <div class="tot-attention__head">
+                        <h3 id="tot-attention-long">Not started, over five years</h3>
+                        <span class="tot-attention__count">@Model.LongWaitingCount</span>
+                    </div>
+                    @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Maintainer)
+                    {
+                        <p class="tot-attention__hint">Record a start, or propose Not required or Not known. Each goes to the HoD.</p>
+                    }
+                    else if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Approver)
+                    {
+                        <p class="tot-attention__hint">Still expected, Not required, or Not known? Project Office proposes; you approve, or update it yourself.</p>
+                    }
+                    @if (Model.LongWaitingCount == 0)
+                    {
+                        <p class="tot-attention__empty">None. Every project completed over five years ago has a ToT position.</p>
+                    }
+                    else
+                    {
+                        <ul class="tot-attention__list">
+                            @foreach (var item in Model.LongWaitingProjects)
+                            {
+                                <li>
+                                    <a class="tot-attention__item tot-attention__item--row" asp-page="./Index" asp-route-SelectedProjectId="@item.ProjectId"
+                                       data-tot-open-project-id="@item.ProjectId" data-tot-project-name="@item.ProjectName">
+                                        <span class="tot-attention__name">@item.ProjectName</span>
+                                        <span class="tot-attention__meta">completed @item.ProjectCompletedYear</span>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                        @if (Model.LongWaitingCount > Model.LongWaitingProjects.Count)
+                        {
+                            <a class="tot-attention__more" asp-page="./Index" asp-route-LongWaiting="true">See all @Model.LongWaitingCount</a>
+                        }
+                    }
+                </section>
+
+                @if (role == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.TotRoleView.Maintainer)
+                {
+                    <section class="tot-attention__card tot-attention__card--decide" aria-labelledby="tot-attention-sent">
+                        <div class="tot-attention__head">
+                            <h3 id="tot-attention-sent">Waiting for the HoD</h3>
+                            <span class="tot-attention__count">@Model.WaitingForDecision.Count</span>
+                        </div>
+                        @if (Model.WaitingForDecision.Count == 0)
+                        {
+                            <p class="tot-attention__empty">No update is waiting for approval.</p>
+                        }
+                        else
+                        {
+                            <ul class="tot-attention__list">
+                                @foreach (var item in Model.WaitingForDecision)
+                                {
+                                    <li>
+                                        <a class="tot-attention__item" asp-page="./Index" asp-route-SelectedProjectId="@item.ProjectId"
+                                           data-tot-open-project-id="@item.ProjectId" data-tot-project-name="@item.ProjectName">
+                                            <span class="tot-attention__name">@item.ProjectName</span>
+                                            <span class="tot-attention__change">Proposed: @ProjectTotOverview.ChangeSummary(item.Pending!)</span>
+                                            <span class="tot-attention__meta">@item.Pending!.SubmittedBy · since @istLabel(item.Pending!.SubmittedOnUtc)</span>
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                            <p class="tot-attention__hint mb-0">Sent by mistake? The HoD can reject it with a reason.</p>
+                        }
+                    </section>
+                }
+            </div>
+        </div>
+
         <div class="tot-summary__chart card">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -254,6 +398,7 @@
                     <input type="hidden" name="OnlyPending" value="@Model.OnlyPending" />
                     <input type="hidden" name="RequiresTotOnly" value="@Model.RequiresTotOnly" />
                     <input type="hidden" name="MetCompletedOnly" value="@Model.MetCompletedOnly" />
+                    <input type="hidden" name="LongWaiting" value="@Model.LongWaiting" />
                     <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
                     <input type="hidden" name="CompletedTo" value="@completedToValue" />
                     <input type="hidden" name="SelectedProjectId" value="@Model.SelectedProjectId" />

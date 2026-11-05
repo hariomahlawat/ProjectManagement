@@ -918,3 +918,102 @@ a.tot-overview__card:focus-visible {
     font-weight: 600;
     margin: 0 0 0.5rem;
 }
+
+/* The role top section: what this reader should look at first. */
+.tot-attention__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 1rem;
+}
+
+.tot-attention__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 0.75rem;
+    background: var(--pm-card);
+}
+
+.tot-attention__card--decide {
+    border-color: var(--pm-info-soft-border);
+}
+
+.tot-attention__card--waiting {
+    border-color: var(--pm-warning-soft-border);
+}
+
+.tot-attention__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.tot-attention__head h3 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.tot-attention__count {
+    font-weight: 700;
+    color: var(--pm-text-strong, var(--pm-text));
+}
+
+.tot-attention__hint,
+.tot-attention__empty,
+.tot-attention__meta {
+    font-size: 0.8125rem;
+    color: var(--pm-text-muted);
+    margin: 0;
+}
+
+.tot-attention__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tot-attention__list li + li {
+    border-top: 1px solid var(--pm-border-subtle);
+}
+
+.tot-attention__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.tot-attention__item--row {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.tot-attention__item:hover .tot-attention__name,
+.tot-attention__item:focus-visible .tot-attention__name {
+    text-decoration: underline;
+}
+
+.tot-attention__name {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.tot-attention__item--row .tot-attention__meta {
+    white-space: nowrap;
+}
+
+.tot-attention__change {
+    font-size: 0.875rem;
+}
+
+.tot-attention__more {
+    font-size: 0.875rem;
+    font-weight: 600;
+}

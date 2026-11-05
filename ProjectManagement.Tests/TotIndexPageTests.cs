@@ -190,6 +190,53 @@ public sealed class TotIndexPageTests
         Assert.Empty(remarks.Created);
     }
 
+    [Theory]
+    [InlineData("hod", "HoD", IndexModel.TotRoleView.Approver)]
+    [InlineData("admin", "Admin", IndexModel.TotRoleView.Approver)]
+    [InlineData("office", "Project Office", IndexModel.TotRoleView.Maintainer)]
+    [InlineData("po-1", "Project Officer", IndexModel.TotRoleView.Maintainer)]
+    [InlineData("comdt", "Comdt", IndexModel.TotRoleView.Viewer)]
+    public async Task TopSection_FollowsTheReadersRole(string userId, string role, IndexModel.TotRoleView expected)
+    {
+        await using var db = await SeedAsync();
+        var page = CreatePage(db, userId, role);
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(expected, page.RoleView);
+    }
+
+    [Fact]
+    public async Task TopSection_Lists_ComeFromTheRegisterFacts()
+    {
+        await using var db = await SeedAsync();
+        await SaveAsync(db, 630, "office", "Project Office", ProjectTotStatus.NotRequired);
+        var page = CreatePage(db, "hod", "HoD");
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        var waiting = Assert.Single(page.WaitingForDecision);
+        Assert.Equal(630, waiting.ProjectId);
+        Assert.Equal("Not started → Not required", ProjectTotOverview.ChangeSummary(waiting.Pending!));
+        // 630 (2015) and 631 (2016) have waited over five years; 632 (2024) has not.
+        Assert.Equal(new[] { 630, 631 }, page.LongWaitingProjects.Select(p => p.ProjectId));
+        Assert.Equal(2, page.LongWaitingCount);
+        Assert.Equal(new[] { 634, 633 }, page.RecentlyCompleted.Select(p => p.ProjectId));
+    }
+
+    [Fact]
+    public async Task LongWaitingFilter_ShowsOnlyThoseProjects()
+    {
+        await using var db = await SeedAsync();
+        var page = CreatePage(db, "comdt", "Comdt");
+        page.LongWaiting = true;
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(new[] { 630, 631 }, page.Projects.Select(p => p.ProjectId).OrderBy(id => id));
+        Assert.Equal(5, page.Position.NeedTot);
+    }
+
     private static async Task<JsonElement> DetailsAsync(ApplicationDbContext db, int projectId, string userId, string role)
     {
         var page = CreatePage(db, userId, role);
@@ -221,7 +268,7 @@ public sealed class TotIndexPageTests
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
-        foreach (var id in new[] { "office", "office-alt", "hod", "po-1", "po-other", "comdt" })
+        foreach (var id in new[] { "office", "office-alt", "hod", "admin", "po-1", "po-other", "comdt" })
         {
             db.Users.Add(new ApplicationUser { Id = id, UserName = id, FullName = id });
         }
@@ -250,6 +297,39 @@ public sealed class TotIndexPageTests
                 LeadPoUserId = "po-1",
                 RowVersion = new byte[] { 1 },
                 Tot = new ProjectTot { ProjectId = 631, Status = ProjectTotStatus.NotStarted, StartDatePrecision = PartialDatePrecision.None }
+            },
+            new Project
+            {
+                Id = 632,
+                Name = "Recent project",
+                CreatedByUserId = "office",
+                CreatedAt = new DateTime(2024, 1, 1),
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CompletedYear = 2024,
+                RowVersion = new byte[] { 1 },
+                Tot = new ProjectTot { ProjectId = 632, Status = ProjectTotStatus.NotStarted }
+            },
+            new Project
+            {
+                Id = 633,
+                Name = "Completed in 2020",
+                CreatedByUserId = "office",
+                CreatedAt = new DateTime(2019, 1, 1),
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CompletedYear = 2019,
+                RowVersion = new byte[] { 1 },
+                Tot = new ProjectTot { ProjectId = 633, Status = ProjectTotStatus.Completed, CompletedOn = new DateOnly(2020, 6, 6), CompletionDatePrecision = PartialDatePrecision.Day }
+            },
+            new Project
+            {
+                Id = 634,
+                Name = "Completed in 2025",
+                CreatedByUserId = "office",
+                CreatedAt = new DateTime(2022, 1, 1),
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CompletedYear = 2022,
+                RowVersion = new byte[] { 1 },
+                Tot = new ProjectTot { ProjectId = 634, Status = ProjectTotStatus.Completed, CompletedOn = new DateOnly(2025, 11, 19), CompletionDatePrecision = PartialDatePrecision.Month }
             });
         await db.SaveChangesAsync();
         return db;

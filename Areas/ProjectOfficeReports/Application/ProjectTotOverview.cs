@@ -86,6 +86,28 @@ public static class ProjectTotOverview
             .ToList();
     }
 
+    /// <summary>
+    /// A request's change in a few words for a list: "In progress → Completed, Oct 2026" when the
+    /// status changes, else the first changed field ("Completed: — → Oct 2026").
+    /// </summary>
+    public static string ChangeSummary(ProjectTotPendingChange pending)
+    {
+        ArgumentNullException.ThrowIfNull(pending);
+
+        var status = pending.Changes.FirstOrDefault(change => change.Field == "Status");
+        if (status is not null)
+        {
+            var date = pending.Changes.FirstOrDefault(change =>
+                change.Field == (pending.ProposedStatus == ProjectTotStatus.Completed ? "Completed" : "Started"));
+            return date is null || date.Proposed == "—"
+                ? $"{status.Now} → {status.Proposed}"
+                : $"{status.Now} → {status.Proposed}, {date.Proposed}";
+        }
+
+        var first = pending.Changes.FirstOrDefault();
+        return first is null ? "No field changes" : $"{first.Field}: {first.Now} → {first.Proposed}";
+    }
+
     private static string Count(int count, string singular, string plural)
         => $"{count.ToString(CultureInfo.InvariantCulture)} {(count == 1 ? singular : plural)}";
 

@@ -23,7 +23,8 @@ public sealed record ProjectTotRegisterFacts(
     string? Completed,
     int? YearsFromProjectToTot,
     ProjectTotPendingChange? Pending,
-    ProjectTotLastDecision? LastDecision);
+    ProjectTotLastDecision? LastDecision,
+    DateOnly? CompletedOn = null);
 
 /// <summary>A request waiting for the HoD: only the fields it changes, now against proposed.</summary>
 public sealed record ProjectTotPendingChange(
@@ -108,7 +109,8 @@ public static class ProjectTotRegisterFactsBuilder
             FormatPartial(row.TotCompletedOn, row.TotCompletionDatePrecision),
             yearsToTot,
             BuildPending(row, status),
-            BuildLastDecision(row));
+            BuildLastDecision(row),
+            status == ProjectTotStatus.Completed ? row.TotCompletedOn : null);
     }
 
     public static ProjectTotPosition BuildPosition(IReadOnlyList<ProjectTotRegisterFacts> projects)
