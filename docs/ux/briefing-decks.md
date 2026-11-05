@@ -34,8 +34,21 @@ last-updated deck, so nobody edits a deck they did not pick.
 - `/Workspace/BriefingDecks/{id}` is the Studio. Its bar has "← Briefing decks" and **Switch
   deck** (each deck's purpose and project count); the old saved-decks side panel is gone. An
   unknown or deleted id returns to the library with a one-request notice.
-- Next (PR 2): "data moved since last generated" on the Continue card, a Data since column and a
-  Needs attention strip, from the briefing desk's what-moved facts.
+- **Data moved since last generated** (PR 2). Each generation keeps, per presented project, the
+  facts its slides drew and which ones they drew (`LastGeneratedFactsJson`,
+  `ProjectBriefingSlideFacts`): the stage, read as the slides read it (its name where a table row, detail slide or the stage summary shows it; its maturity where it orders two or more projects' slides; its lifecycle for a standard project slide's subtitle (capability slides and brief continuations), the portfolio summary's counts and the stage summary's status band; the update sheet's milestone row exactly as `ProjectBriefingUpdateSheetPlanner.DescribeMilestone` draws it: the PDC date in development, else the completion or cancellation), the external status remark (date and a digest of its text) and the costs
+  drawn (the R&D cost, with its basis label where cost cards or the executive table draw it, the proliferation cost by cost mode, the IPA cost in
+  an update sheet's portfolio totals). `ProjectBriefingSlideFacts.Shown` mirrors the composer:
+  "Show present stage/status", the update sheet's selected rows, table-row-only projects, the
+  summary slides and the cost mode. The library rebuilds today's facts with
+  `GetCurrentSlideFactsAsync` (the same cost resolver, external status service and stage rule as
+  generation) and compares only what each project's slides showed, so a hidden fact or a settings
+  change since never counts (a project completing can also revise its cost, by the shared cost
+  rule). Shown as an amber line on the Continue card, a Data since column ("N changes", "Up to
+  date", "Not generated yet", or "—" for decks generated before facts were kept) and a Needs
+  attention strip of up to three other moved decks with the projects that moved. Deleted or
+  archived projects are left out, as generation leaves them out. Content checks are not counted
+  on the library: they would mean composing every deck on each visit.
 
 ## Studio
 

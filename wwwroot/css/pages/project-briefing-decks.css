@@ -4996,7 +4996,7 @@ body.pbd-profile-drawer-open {
 
 .pbd-library__table {
     width: 100%;
-    min-width: 58rem;
+    min-width: 64rem;
     border-collapse: collapse;
     font-size: .9rem;
 }
@@ -5137,4 +5137,103 @@ body.pbd-profile-drawer-open {
 .pbd-library .pbd-segmented .pbd-segmented__option {
     flex: 0 0 auto;
     padding: .3rem .8rem;
+}
+
+/* Deck library: what moved since a deck was last generated. */
+.pbd-continue__moved {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .2rem .9rem;
+    margin: .15rem 0 0;
+    color: var(--pbd-amber);
+    font-size: .9rem;
+}
+
+.pbd-continue__moved-label {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-weight: 600;
+}
+
+.pbd-attention {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: .85rem;
+}
+
+.pbd-attention__card {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid color-mix(in srgb, var(--pbd-amber) 35%, var(--pbd-border));
+    border-radius: .75rem;
+    background: var(--pm-card, var(--pbd-surface));
+}
+
+.pbd-attention__kind {
+    color: var(--pbd-amber);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.pbd-attention__name {
+    color: var(--pbd-ink);
+    font-size: 1rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.pbd-attention__name:hover,
+.pbd-attention__name:focus-visible {
+    color: var(--pbd-blue);
+    text-decoration: underline;
+}
+
+.pbd-attention__summary {
+    margin: 0;
+    color: var(--pbd-muted);
+    font-size: .875rem;
+}
+
+.pbd-attention__projects {
+    display: grid;
+    gap: .2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--pbd-muted);
+    font-size: .85rem;
+}
+
+.pbd-attention__projects strong {
+    color: var(--pbd-ink);
+    font-weight: 600;
+}
+
+.pbd-attention__open {
+    margin-top: auto;
+    color: var(--pbd-blue);
+    font-size: .875rem;
+    font-weight: 600;
+}
+
+.pbd-library__moved {
+    display: inline-block;
+    padding: .15rem .6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--pbd-amber) 14%, var(--pm-card, var(--pbd-surface)));
+    color: var(--pbd-amber);
+    font-size: .8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pbd-library__quiet {
+    color: var(--pbd-muted);
+    font-size: .85rem;
+    white-space: nowrap;
 }

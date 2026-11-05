@@ -168,7 +168,8 @@ public interface IProjectBriefingDeckService
         long deckId,
         string requestingUserId,
         int slideCount,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? slideFactsJson = null);
 }
 
 public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
@@ -209,6 +210,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 deck.LastModifiedByUserId,
                 deck.SelectionRulesJson,
                 deck.LastGeneratedSlideCount,
+                deck.LastGeneratedFactsJson,
+                deck.Layout,
                 ProjectNames = deck.Items.Select(item => item.Project.Name).ToList(),
                 deck.Name,
                 deck.Description,
@@ -248,7 +251,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 IsMine = row.OwnerUserId == userId || row.LastModifiedByUserId == userId,
                 LastEditedByMe = (row.LastModifiedByUserId ?? row.OwnerUserId) == userId,
                 LastGeneratedSlideCount = row.LastGeneratedSlideCount,
-                ProjectNames = row.ProjectNames
+                ProjectNames = row.ProjectNames,
+                Layout = row.Layout,
+                GeneratedFacts = row.LastGeneratedAtUtc is null ? null : ProjectBriefingSlideFacts.Read(row.LastGeneratedFactsJson)
             })
             .ToList();
     }
@@ -1433,7 +1438,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         long deckId,
         string requestingUserId,
         int slideCount,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? slideFactsJson = null)
     {
         var userId = NormalizeUserId(requestingUserId);
         var now = _clock.UtcNow.ToUniversalTime();
@@ -1445,7 +1451,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(deck => deck.LastGeneratedAtUtc, now)
-                    .SetProperty(deck => deck.LastGeneratedSlideCount, slideCount),
+                    .SetProperty(deck => deck.LastGeneratedSlideCount, slideCount)
+                    .SetProperty(deck => deck.LastGeneratedFactsJson, slideFactsJson),
                 cancellationToken);
         if (updated == 0)
         {

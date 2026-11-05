@@ -240,6 +240,10 @@ public sealed class ProjectBriefingDeck
     // Slides in the PowerPoint last generated from this deck, for the deck library.
     public int? LastGeneratedSlideCount { get; set; }
 
+    // What the last generated PowerPoint said about each project (ProjectBriefingSlideFacts), so the
+    // library can tell when the data has moved since. Null for decks generated before it was kept.
+    public string? LastGeneratedFactsJson { get; set; }
+
     // A deleted deck is kept for ProjectBriefingDeckService.DeletedRetentionDays so it can be
     // restored; live queries exclude it. Null for every live deck.
     public DateTimeOffset? DeletedAtUtc { get; set; }

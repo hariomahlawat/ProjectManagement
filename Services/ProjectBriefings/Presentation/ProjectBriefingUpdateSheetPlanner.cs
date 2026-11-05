@@ -707,25 +707,48 @@ public static class ProjectBriefingUpdateSheetPlanner
     }
 
     private static UpdateSheetMilestone ResolveMilestone(UpdateSheetRowSource source)
+        => ResolveMilestone(
+            source.LifecycleStatus,
+            source.PresentStageCode,
+            source.DevelopmentPdcDate,
+            source.CompletionStatusDisplay);
+
+    // The milestone row as drawn ("PDC Date: 12 Mar 27", "Completion Status: Project completed in
+    // 2025", ...), for telling when it has changed since a deck was generated.
+    public static string DescribeMilestone(
+        ProjectLifecycleStatus lifecycleStatus,
+        string? presentStageCode,
+        DateOnly? developmentPdcDate,
+        string? completionStatusDisplay)
     {
-        if (source.LifecycleStatus == ProjectLifecycleStatus.Completed)
+        var milestone = ResolveMilestone(lifecycleStatus, presentStageCode, developmentPdcDate, completionStatusDisplay);
+        return $"{milestone.Label}: {milestone.Value}";
+    }
+
+    private static UpdateSheetMilestone ResolveMilestone(
+        ProjectLifecycleStatus lifecycleStatus,
+        string? presentStageCode,
+        DateOnly? developmentPdcDate,
+        string? completionStatusDisplay)
+    {
+        if (lifecycleStatus == ProjectLifecycleStatus.Completed)
         {
             return new UpdateSheetMilestone(
                 "Completion Status",
-                string.IsNullOrWhiteSpace(source.CompletionStatusDisplay)
+                string.IsNullOrWhiteSpace(completionStatusDisplay)
                     ? "Project completed"
-                    : source.CompletionStatusDisplay,
+                    : completionStatusDisplay,
                 HasRecordedValue: true);
         }
 
-        if (source.LifecycleStatus == ProjectLifecycleStatus.Cancelled)
+        if (lifecycleStatus == ProjectLifecycleStatus.Cancelled)
         {
             return new UpdateSheetMilestone("Project Status", "Project cancelled", HasRecordedValue: true);
         }
 
-        var pdc = string.Equals(source.PresentStageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
-            && source.DevelopmentPdcDate.HasValue
-                ? source.DevelopmentPdcDate.Value.ToString("dd MMM yy", CultureInfo.InvariantCulture)
+        var pdc = string.Equals(presentStageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
+            && developmentPdcDate.HasValue
+                ? developmentPdcDate.Value.ToString("dd MMM yy", CultureInfo.InvariantCulture)
                 : string.Empty;
         return new UpdateSheetMilestone("PDC Date", pdc, !string.IsNullOrWhiteSpace(pdc));
     }

@@ -32,6 +32,20 @@ public interface IProjectBriefingDataService
         long deckId,
         int projectId,
         CancellationToken cancellationToken = default);
+
+    // What each project's slides would show today (stage, external status, costs), from the same
+    // resolvers as generation, for telling when a deck's data moved. Deleted and archived
+    // projects are left out: generation leaves them out too.
+    Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<int>? milestoneProjectIds = null);
+
+    // The decks with DataMovement set wherever their last generation kept slide facts: one pass
+    // over every deck's projects, for the deck library.
+    Task<IReadOnlyList<ProjectBriefingDeckSummaryVm>> WithDataMovementAsync(
+        IReadOnlyList<ProjectBriefingDeckSummaryVm> decks,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ProjectBriefingDataService : IProjectBriefingDataService
@@ -205,6 +219,112 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 ThumbnailUrl = $"/Projects/{projectId}/Photos/{photo.Id}/View/sm?v={photo.Version}"
             })
             .ToArray();
+    }
+
+    public async Task<IReadOnlyList<ProjectBriefingDeckSummaryVm>> WithDataMovementAsync(
+        IReadOnlyList<ProjectBriefingDeckSummaryVm> decks,
+        CancellationToken cancellationToken = default)
+    {
+        var projectIds = decks
+            .Where(deck => deck.GeneratedFacts is { Facts.Count: > 0 })
+            .SelectMany(deck => deck.GeneratedFacts!.Facts.Select(fact => fact.ProjectId))
+            .Distinct()
+            .ToArray();
+        if (projectIds.Length == 0)
+        {
+            return decks
+                .Select(deck => deck.GeneratedFacts is null ? deck : deck with { DataMovement = ProjectBriefingDataMovement.None })
+                .ToList();
+        }
+
+        // The update-sheet facts (PDC date) are resolved only where a generation drew that row.
+        var milestoneProjectIds = decks
+            .Where(deck => deck.GeneratedFacts is not null)
+            .SelectMany(deck => deck.GeneratedFacts!.Facts)
+            .Where(fact => fact.Shown.HasFlag(ProjectBriefingShownFacts.Milestone))
+            .Select(fact => fact.ProjectId)
+            .Distinct()
+            .ToArray();
+        var current = await GetCurrentSlideFactsAsync(projectIds, cancellationToken, milestoneProjectIds);
+        return decks
+            .Select(deck => deck.GeneratedFacts is null
+                ? deck
+                : deck with { DataMovement = ProjectBriefingSlideFacts.Compare(deck.GeneratedFacts, current) })
+            .ToList();
+    }
+
+    public async Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<int>? milestoneProjectIds = null)
+    {
+        var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<int, ProjectBriefingCurrentProjectFacts>();
+        }
+
+        var projects = await _db.Projects
+            .AsNoTracking()
+            .Where(project => ids.Contains(project.Id) && !project.IsDeleted && !project.IsArchived)
+            .Select(project => new
+            {
+                project.Id,
+                project.Name,
+                project.LifecycleStatus,
+                project.WorkflowVersion,
+                project.CompletedOn,
+                project.CompletedYear,
+                project.CompletedMonth
+            })
+            .ToListAsync(cancellationToken);
+        if (projects.Count == 0)
+        {
+            return new Dictionary<int, ProjectBriefingCurrentProjectFacts>();
+        }
+
+        var liveIds = projects.Select(project => project.Id).ToArray();
+        var stagesByProject = (await _db.ProjectStages
+                .AsNoTracking()
+                .Where(stage => liveIds.Contains(stage.ProjectId))
+                .Select(stage => new StageDatabaseSnapshot(stage.ProjectId, stage.StageCode, stage.Status, stage.SortOrder))
+                .ToListAsync(cancellationToken))
+            .GroupBy(stage => stage.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<StageSnapshot>)group
+                    .Select(stage => new StageSnapshot(stage.StageCode, stage.Status, stage.SortOrder))
+                    .OrderBy(stage => stage.SortOrder)
+                    .ToList());
+        var costs = await _costResolver.ResolveCostsAsync(liveIds, cancellationToken);
+        var proliferation = await _costResolver.ResolveProliferationCostAsync(liveIds, cancellationToken);
+        var externalStatuses = await _externalStatusService.GetLatestAsync(liveIds, cancellationToken);
+        var milestoneIds = milestoneProjectIds?.Where(liveIds.Contains).Distinct().ToArray() ?? Array.Empty<int>();
+        var updateSheetFacts = milestoneIds.Length == 0
+            ? new Dictionary<int, ProjectBriefingUpdateSheetFacts>()
+            : await _updateSheetFactsResolver.ResolveAsync(milestoneIds, cancellationToken);
+
+        return projects.ToDictionary(
+            project => project.Id,
+            project =>
+            {
+                var external = externalStatuses.GetValueOrDefault(project.Id);
+                return new ProjectBriefingCurrentProjectFacts(
+                    project.Id,
+                    project.Name,
+                    project.LifecycleStatus,
+                    ResolveStageCode(
+                        project.LifecycleStatus,
+                        project.WorkflowVersion,
+                        stagesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<StageSnapshot>()),
+                    external?.Body,
+                    external?.EventDate,
+                    costs.CostRd.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(),
+                    costs.Ipa.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
+                    proliferation.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+                    updateSheetFacts.GetValueOrDefault(project.Id)?.DevelopmentPdcDate,
+                    BuildCompletionStatusDisplay(project.LifecycleStatus, project.CompletedOn, project.CompletedYear, project.CompletedMonth));
+            });
     }
 
     public async Task<ProjectBriefingPresentationData> BuildPresentationDataAsync(
@@ -734,20 +854,27 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     }
 
     private static string? BuildCompletionStatusDisplay(DeckItemSnapshot item)
+        => BuildCompletionStatusDisplay(item.LifecycleStatus, item.CompletedOn, item.CompletedYear, item.CompletedMonth);
+
+    private static string? BuildCompletionStatusDisplay(
+        ProjectLifecycleStatus lifecycleStatus,
+        DateOnly? completedOn,
+        int? completedYear,
+        short? completedMonth)
     {
-        if (item.LifecycleStatus != ProjectLifecycleStatus.Completed) return null;
+        if (lifecycleStatus != ProjectLifecycleStatus.Completed) return null;
 
         var completion = ProjectCompletionFormatter.Format(
-            item.CompletedOn,
-            item.CompletedYear,
-            item.CompletedMonth,
+            completedOn,
+            completedYear,
+            completedMonth,
             unknownText: string.Empty);
         if (string.IsNullOrWhiteSpace(completion)) return "Project completed";
 
         var precision = ProjectCompletionFormatter.InferPrecision(
-            item.CompletedOn,
-            item.CompletedYear,
-            item.CompletedMonth);
+            completedOn,
+            completedYear,
+            completedMonth);
         return precision == ProjectCompletionPrecision.ExactDate
             ? $"Project completed on {completion}"
             : $"Project completed in {completion}";
@@ -1142,14 +1269,20 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     }
 
     private static string ResolveStageCode(DeckItemSnapshot item)
+        => ResolveStageCode(item.LifecycleStatus, item.WorkflowVersion, item.Stages);
+
+    private static string ResolveStageCode(
+        ProjectLifecycleStatus lifecycleStatus,
+        string workflowVersion,
+        IReadOnlyList<StageSnapshot> stages)
     {
-        if (item.LifecycleStatus == ProjectLifecycleStatus.Completed)
+        if (lifecycleStatus == ProjectLifecycleStatus.Completed)
         {
             return ProjectBriefingStageOrder.CompletedCode;
         }
 
-        var codes = ProcurementWorkflow.StageCodesFor(item.WorkflowVersion);
-        var statusByCode = item.Stages
+        var codes = ProcurementWorkflow.StageCodesFor(workflowVersion);
+        var statusByCode = stages
             .GroupBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,

@@ -402,10 +402,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined)
         {
-            var includeCapabilities = data.NarrativeMode is ProjectBriefingNarrativeMode.CapabilityOverview
-                or ProjectBriefingNarrativeMode.Both;
-            var includeProjectBrief = data.NarrativeMode is ProjectBriefingNarrativeMode.ProjectBrief
-                or ProjectBriefingNarrativeMode.Both;
+            var includeCapabilities = DrawsCapabilitySlides(data.NarrativeMode);
+            var includeProjectBrief = DrawsProjectBriefSlides(data.NarrativeMode);
 
             // A table row only project is listed in a table and gets no slides of its own.
             foreach (var project in orderedProjects.Where(project => !project.TableRowOnly))
@@ -906,6 +904,13 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             || string.Equals(value, "No external status recorded", StringComparison.Ordinal)
                 ? "Not recorded"
                 : value.Trim();
+
+    // Which project slides a narrative draws (shared with ProjectBriefingSlideFacts).
+    public static bool DrawsCapabilitySlides(ProjectBriefingNarrativeMode narrativeMode)
+        => narrativeMode is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
+
+    public static bool DrawsProjectBriefSlides(ProjectBriefingNarrativeMode narrativeMode)
+        => narrativeMode is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
 
     private static void RenderProjectDetail(
         SlideCanvas canvas,
