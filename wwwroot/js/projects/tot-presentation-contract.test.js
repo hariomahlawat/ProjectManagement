@@ -67,3 +67,31 @@ test('the long-waiting scope survives the filter and export dialogs', () => {
   assert.match(search, /Model\.RegisterRouteWith\(\(nameof\(Model\.SearchTerm\), null\)\)/);
   assert.doesNotMatch(search, /value="@\(Model\.\w+ \? "true" : null\)"/);
 });
+
+test('on a phone each register row is a labelled card and empty values drop out', () => {
+  const register = read('Areas/ProjectOfficeReports/Pages/Tot/_TotRegister.cshtml');
+  const css = read('wwwroot/css/tot.css');
+  for (const label of ['ToT status', 'Started', 'ToT completed', 'Project completed', 'MET', 'Request']) {
+    assert.ok(register.includes(`"${label}"`), `a ${label} cell carries its label`);
+  }
+  assert.match(register, /td\.Attributes\["data-label"\] = label/);
+  assert.match(register, /AddCssClass\("is-empty"\)/);
+  // Only the sortable headers stay, as a "sort by" row.
+  assert.equal(register.match(/class="tot-table__plain-head"/g)?.length, 4);
+
+  const phone = css.slice(css.indexOf('@media (max-width: 575.98px)'));
+  assert.ok(phone.length > 0, 'tot.css has the phone rules');
+  assert.match(phone, /td\[data-label\]::before \{\s*content: attr\(data-label\);/);
+  assert.match(phone, /td\.is-empty \{\s*display: none;/);
+  assert.match(phone, /\.tot-status-buttons \{\s*flex-wrap: nowrap;\s*overflow-x: auto;/);
+  assert.match(phone, /\.tot-overview__secondary,\s*\.tot-summary__chart \{\s*display: none;/);
+});
+
+test('the old tracker styles are gone', () => {
+  const site = read('wwwroot/css/site.css');
+  const tot = read('wwwroot/css/tot.css');
+  assert.doesNotMatch(site, /\.tot-/, 'site.css keeps no ToT rules; tot.css owns them');
+  for (const old of ['.tot-list-item', '.tot-row', '.tot-detail-panel', '.tot-summary__card', '.tot-workspace']) {
+    assert.ok(!tot.includes(old), `${old} is removed`);
+  }
+});

@@ -71,6 +71,20 @@
 
     var total = Model.Projects.Count;
 }
+@functions {
+    // A value cell; on a phone each row is a card, labelled from data-label, and empty cells drop out.
+    private Microsoft.AspNetCore.Html.IHtmlContent Cell(string label, string? value)
+    {
+        var td = new Microsoft.AspNetCore.Mvc.Rendering.TagBuilder("td");
+        td.Attributes["data-label"] = label;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            td.AddCssClass("is-empty");
+        }
+        td.InnerHtml.Append(string.IsNullOrWhiteSpace(value) ? "—" : value);
+        return td;
+    }
+}
 <div class="tot-register" data-tot-register data-tot-count="@total">
     <nav class="tot-status-buttons" aria-label="Show projects by ToT status">
         @foreach (var button in buttons)
@@ -111,19 +125,19 @@
                         <th scope="col" aria-sort="@AriaSort("status")"><a href="@SortUrl("status")">ToT status @SortMark("status")</a></th>
                         @if (Model.ShowStartedColumn)
                         {
-                            <th scope="col">Started</th>
+                            <th scope="col" class="tot-table__plain-head">Started</th>
                         }
                         <th scope="col" aria-sort="@AriaSort("tot")"><a href="@SortUrl("tot")">ToT completed @SortMark("tot")</a></th>
                         <th scope="col" aria-sort="@AriaSort("project")"><a href="@SortUrl("project")">Project completed @SortMark("project")</a></th>
                         @if (Model.ShowMetColumn)
                         {
-                            <th scope="col">MET</th>
+                            <th scope="col" class="tot-table__plain-head">MET</th>
                         }
                         @if (Model.ShowRequestColumn)
                         {
-                            <th scope="col">Request</th>
+                            <th scope="col" class="tot-table__plain-head">Request</th>
                         }
-                        <th scope="col">Note</th>
+                        <th scope="col" class="tot-table__plain-head">Note</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -140,27 +154,28 @@
                                     <span class="tot-table__unit">@row.SponsoringUnit</span>
                                 }
                             </th>
-                            <td><span class="chip-sm @ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.StatusChipClass(facts.Status)">@facts.StatusLabel</span></td>
+                            <td data-label="ToT status"><span class="chip-sm @ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.StatusChipClass(facts.Status)">@facts.StatusLabel</span></td>
                             @if (Model.ShowStartedColumn)
                             {
-                                <td>@(facts.Started ?? "—")</td>
+                                @Cell("Started", facts.Started)
                             }
-                            <td>@(facts.Status == ProjectTotStatus.Completed ? facts.Completed ?? "—" : "—")</td>
-                            <td>@(facts.ProjectCompletedYear?.ToString(inv) ?? "—")</td>
+                            @Cell("ToT completed", facts.Status == ProjectTotStatus.Completed ? facts.Completed : null)
+                            @Cell("Project completed", facts.ProjectCompletedYear?.ToString(inv))
                             @if (Model.ShowMetColumn)
                             {
-                                <td>@(ProjectTotPresentation.FormatDay(row.TotMetCompletedOn) ?? "—")</td>
+                                @Cell("MET", ProjectTotPresentation.FormatDay(row.TotMetCompletedOn))
                             }
                             @if (Model.ShowRequestColumn)
                             {
-                                <td>
+                                <td data-label="Request" class="@(row.RequestState is null ? "is-empty" : null)">
                                     @if (row.RequestState is { } rowRequest)
                                     {
                                         <span class="chip-sm @ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.RequestStateChipClass(rowRequest)">@ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.RequestStateLabel(rowRequest)</span>
                                     }
                                 </td>
                             }
-                            <td class="tot-table__note">@ProjectTotOverview.RowNote(facts)</td>
+                            @{ var note = ProjectTotOverview.RowNote(facts); }
+                            <td class="tot-table__note @(note is null ? "is-empty" : null)">@note</td>
                         </tr>
                     }
                 </tbody>

@@ -1,92 +1,4 @@
-/* =========================================================
-   ToT TABLE STYLES (existing, preserved)
-   ========================================================= */
-.tot-table__decision-header,
-.tot-table__decision-cell {
-    width: 16rem;
-}
 
-.tot-table__decision {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-    min-width: 10rem;
-}
-
-    .tot-table__decision .chip {
-        font-size: 0.8125rem;
-        line-height: 1.1;
-    }
-
-.tot-table__decision-meta {
-    font-size: 0.8125rem;
-    line-height: 1.2;
-    color: var(--tot-muted, var(--pm-text-muted));
-    white-space: normal;
-}
-
-@media (max-width: 1200px) {
-    .tot-table__decision-header,
-    .tot-table__decision-cell {
-        width: 100%;
-    }
-
-    .tot-table__decision {
-        min-width: 0;
-    }
-}
-
-/* =========================================================
-   ToT SUMMARY / DASHBOARD
-   ========================================================= */
-
-.tot-page {
-    width: 100%;
-}
-
-/* Outer container */
-.tot-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-/* Header with breadcrumb and action */
-.tot-summary__header {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.tot-summary__breadcrumb {
-    --bs-breadcrumb-item-color: var(--tot-muted, var(--pm-text-muted));
-    --bs-breadcrumb-divider-color: var(--tot-muted, var(--pm-accent-slate));
-    --bs-breadcrumb-item-active-color: var(--pm-text-contrast);
-    font-size: 0.875rem;
-    margin-bottom: 0;
-}
-
-.tot-summary__heading {
-    margin: 0;
-    font-size: clamp(1.4rem, 2.2vw, 1.6rem);
-    font-weight: 700;
-}
-
-.tot-summary__lede {
-    margin: 0;
-    color: var(--tot-muted, var(--pm-text-muted));
-    max-width: 52rem;
-    line-height: 1.4;
-}
-
-.tot-summary__header-main {
-    width: 100%;
-}
-
-.tot-summary__actions {
-    margin-top: 0.25rem;
-}
 
 /* Metrics strip */
 .tot-summary__metrics .tot-summary__metric-card {
@@ -125,158 +37,6 @@
     border-color: var(--pm-warning-soft-border);
 }
 
-/* Grid of cards */
-.tot-summary__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
-}
-
-.tot-summary__card {
-    background: var(--pm-card);
-    border: 1px solid var(--pm-border);
-    border-radius: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    min-height: 240px;
-}
-
-.tot-summary__card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 1rem 0.5rem 1rem;
-    border-bottom: 1px solid var(--pm-border-subtle);
-}
-
-.tot-summary__card-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin: 0;
-}
-
-.tot-summary__card-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 2.25rem;
-    height: 2rem;
-    border-radius: 9999px;
-    background: var(--pm-surface-subtle);
-    color: var(--pm-accent-indigo);
-    font-weight: 600;
-    font-size: 0.85rem;
-}
-
-.tot-summary__card-body {
-    padding: 0.75rem 1rem 1rem 1rem;
-    overflow-y: auto;
-    max-height: 320px;
-}
-
-/* List inside card */
-.tot-summary__list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    gap: 0.5rem;
-}
-
-.tot-summary__list-item {
-    border-radius: 0.5rem;
-}
-
-.tot-summary__list-link {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    text-decoration: none;
-    color: var(--pm-text-contrast);
-    padding: 0.35rem 0.5rem;
-    border-radius: 0.5rem;
-    border: 1px solid transparent;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-    .tot-summary__list-link:hover,
-    .tot-summary__list-link:focus-visible {
-        background: var(--pm-border-subtle);
-        border-color: var(--pm-border);
-        text-decoration: none;
-    }
-
-.tot-summary__list-title {
-    font-weight: 500;
-    font-size: 0.85rem;
-}
-
-.tot-summary__list-meta {
-    font-size: 0.8125rem;
-    color: var(--pm-text-muted);
-}
-
-.tot-summary__subsection {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.tot-summary__subheading {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--pm-text-secondary);
-    margin-bottom: 0.25rem;
-}
-
-/* Empty state */
-.tot-summary__empty {
-    font-size: 0.8125rem;
-    color: var(--pm-accent-slate);
-}
-
-/* State accents */
-.tot-summary__card--completed .tot-summary__card-count {
-    background: var(--pm-success-soft-bg);
-    color: var(--pm-success-strong);
-}
-
-.tot-summary__card--notstarted .tot-summary__card-count {
-    background: var(--pm-danger-soft-bg);
-    color: var(--pm-danger);
-}
-
-/* give a bit more room to the busy column */
-.tot-summary__card--notstarted .tot-summary__card-body {
-    max-height: 360px;
-}
-
-.tot-summary__card--in-progress .tot-summary__card-count {
-    background: var(--pm-info-soft-bg);
-    color: var(--pm-info-strong);
-}
-
-.tot-summary__card--not-required .tot-summary__card-count {
-    background: var(--pm-warning-soft-bg);
-    color: var(--pm-warning-strong);
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .tot-summary__header-main {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .tot-summary__actions {
-        align-self: flex-start;
-        margin-top: 0;
-    }
-}
-
-
-
 .tot-summary__chart-title {
     font-size: .9rem;
     font-weight: 600;
@@ -312,7 +72,6 @@
     font-size: .85rem;
 }
 
-
 .tot-summary__chart-btn {
     border: 1px solid var(--pm-border);
     background: var(--pm-card);
@@ -329,226 +88,6 @@
         font-size: 1rem;
     }
 
-/* make ToT cards a bit taller */
-.tot-summary__card-body {
-    max-height: 500px; /* was 320 */
-}
-
-/* the busiest column gets a bit more */
-.tot-summary__card--notstarted .tot-summary__card-body {
-    max-height: 500px; /* was 360 */
-}
-
-/* single workspace layout */
-.tot-workspace.tot-workspace--single {
-    display: grid;
-    grid-template-columns: minmax(360px, 420px) minmax(320px, 1fr);
-    gap: 1.25rem;
-    align-items: flex-start;
-}
-
-/* left list panel */
-.tot-list-panel {
-    background: var(--pm-card);
-    border: 1px solid var(--pm-border);
-    border-radius: .75rem;
-    display: flex;
-    flex-direction: column;
-    min-height: 420px;
-}
-
-.tot-list-panel__header {
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--pm-border-subtle);
-}
-
-.tot-list-panel__title h2 {
-    font-size: .9rem;
-    font-weight: 600;
-    margin-bottom: .15rem;
-}
-
-.tot-list-panel__meta {
-    font-size: 0.8125rem;
-    color: var(--pm-text-muted);
-    margin-bottom: 0;
-}
-
-.tot-list {
-    overflow-y: auto;
-    max-height: 62vh;
-}
-
-.tot-list__items {
-    list-style: none;
-    margin: 0;
-    padding: 0.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-/* list item */
-.tot-list-item {
-    border: 1px solid transparent;
-    border-radius: .6rem;
-    transition: background-color .12s ease, border-color .12s ease;
-    background: var(--pm-card);
-}
-
-.tot-list-item__body {
-    display: block;
-    padding: .5rem .6rem .55rem .6rem;
-    text-decoration: none;
-    color: inherit;
-}
-
-.tot-list-item:hover {
-    background: var(--pm-surface-soft);
-    border-color: var(--pm-border);
-}
-
-.tot-list-item.is-selected {
-    background: var(--pm-info-soft-bg);
-    border-color: var(--pm-info-soft-border);
-}
-
-.tot-list-item__title-row {
-    display: flex;
-    justify-content: space-between;
-    gap: .5rem;
-    align-items: flex-start;
-}
-
-.tot-list-item__title {
-    font-size: .82rem;
-    font-weight: 600;
-    line-height: 1.3;
-    margin: 0;
-    max-width: 14rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.tot-list-item__chips {
-    display: flex;
-    gap: .35rem;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-}
-
-.tot-list-item__meta-row {
-    display: flex;
-    gap: .5rem;
-    flex-wrap: wrap;
-    margin-top: .3rem;
-}
-
-.tot-list-item__meta {
-    font-size: 0.8125rem;
-    color: var(--pm-text-muted);
-}
-
-/* detail panel */
-.tot-detail-panel {
-    position: sticky;
-    top: 5.5rem; /* tweak to match header */
-    align-self: flex-start;
-}
-
-.tot-detail-panel__empty {
-    background: var(--pm-card);
-    border: 1px solid var(--pm-border);
-    border-radius: .75rem;
-    padding: 1.25rem 1.2rem;
-}
-
-.tot-detail-card {
-    background: var(--pm-card);
-    border: 1px solid var(--pm-border);
-    border-radius: .75rem;
-    padding: 1.1rem 1.1rem 1.25rem 1.1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.tot-detail-card__eyebrow {
-    font-size: 0.8125rem;
-    color: var(--pm-text-muted);
-    margin-bottom: .15rem;
-}
-
-.tot-detail-card__title {
-    font-size: 1.05rem;
-    font-weight: 600;
-    margin-bottom: .15rem;
-}
-
-.tot-detail-card__subtitle {
-    font-size: 0.8125rem;
-    color: var(--pm-text-muted);
-    margin: 0;
-}
-
-.tot-detail-card__chips {
-    display: flex;
-    gap: .45rem;
-    flex-wrap: wrap;
-    margin-top: .4rem;
-}
-
-.tot-detail-card__sections {
-    display: flex;
-    flex-direction: column;
-    gap: .85rem;
-}
-
-.tot-detail-card__section-title {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    margin-bottom: .4rem;
-}
-
-.tot-detail-card__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(8.2rem, 1fr));
-    gap: .4rem .75rem;
-}
-
-    .tot-detail-card__grid dt {
-        font-size: 0.8125rem;
-        color: var(--pm-accent-slate);
-        margin-bottom: .15rem;
-    }
-
-    .tot-detail-card__grid dd {
-        font-size: 0.8125rem;
-        margin-bottom: 0;
-    }
-
-.tot-detail-card__actions {
-    display: flex;
-    gap: .5rem;
-    flex-wrap: wrap;
-}
-
-/* responsive */
-@media (max-width: 992px) {
-    .tot-workspace.tot-workspace--single {
-        grid-template-columns: 1fr;
-    }
-
-    .tot-detail-panel {
-        position: static;
-    }
-
-    .tot-list {
-        max-height: none;
-    }
-}
-
 /* keep ToT modals above any page / sticky / offcanvas layers */
 body .modal {
     z-index: 2050;
@@ -557,8 +96,6 @@ body .modal {
 body .modal-backdrop {
     z-index: 2040;
 }
-
-
 
 /* =========================================================
    ToT layout styles (moved from inline)
@@ -595,135 +132,6 @@ body .modal-backdrop {
             flex-wrap: wrap;
         }
 
-        /* context bar */
-        .tot-context-bar {
-            background: var(--pm-card);
-            border: 1px solid var(--pm-border);
-            border-radius: .75rem;
-            padding: .5rem .75rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: .75rem;
-        }
-
-        .tot-context-left {
-            display: flex;
-            gap: .5rem;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .tot-pill {
-            background: var(--pm-surface-subtle);
-            color: var(--pm-text-contrast);
-            border-radius: 9999px;
-            padding: .25rem .65rem;
-            font-size: 0.8125rem;
-            display: inline-flex;
-            gap: .25rem;
-            align-items: center;
-        }
-
-        .tot-pill-muted {
-            background: var(--pm-border-subtle);
-        }
-
-        /* workspace */
-        .tot-workspace-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); /* ~60/40 */
-            gap: 1rem;
-            align-items: stretch;
-        }
-
-        @media (max-width: 1100px) {
-            .tot-workspace-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* list panel */
-        .tot-list-panel {
-            background: var(--pm-card);
-            border: 1px solid var(--pm-border);
-            border-radius: .75rem;
-            display: flex;
-            flex-direction: column;
-            min-height: 450px;
-        }
-
-        /* inline search bar */
-        .tot-searchbar {
-            padding: .5rem .75rem .1rem .75rem;
-            display: flex;
-            gap: .5rem;
-            flex-wrap: wrap;
-            align-items: center;
-            border-bottom: 1px solid var(--pm-border-subtle);
-        }
-
-            .tot-searchbar .form-control {
-                min-width: 14rem;
-            }
-
-        /* list header + body */
-        .tot-list-head {
-            display: grid;
-            grid-template-columns: minmax(160px, 1.2fr) 110px 90px 90px 90px 115px;
-            gap: .5rem;
-            padding: .4rem .75rem;
-            background: var(--pm-surface-soft);
-            border-bottom: 1px solid var(--pm-border-subtle);
-            font-size: 0.8125rem;
-            color: var(--pm-text-muted);
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
-
-        .tot-list-body {
-            max-height: 580px;
-            overflow-y: auto;
-            position: relative;
-        }
-
-        .tot-row {
-            display: grid;
-            grid-template-columns: minmax(160px, 1.2fr) 110px 90px 90px 90px 115px;
-            gap: .5rem;
-            padding: .55rem .75rem .55rem .5rem;
-            align-items: center;
-            border-bottom: 1px solid var(--pm-border-subtle);
-            text-decoration: none;
-            color: inherit;
-            transition: background .12s ease;
-            border-left: 4px solid transparent;
-        }
-
-            .tot-row:last-child {
-                border-bottom: none;
-            }
-
-            .tot-row:hover {
-                background: var(--pm-surface-soft);
-            }
-
-            .tot-row.is-selected {
-                background: var(--pm-surface-subtle);
-                border-left-color: var(--pm-accent-blue);
-            }
-
-        .tot-row-title {
-            font-weight: 500;
-            font-size: .83rem;
-        }
-
-        .tot-row-sub {
-            font-size: 0.8125rem;
-            color: var(--pm-text-muted);
-        }
-
         /* chips */
         .chip-sm {
             display: inline-flex;
@@ -736,100 +144,7 @@ body .modal-backdrop {
             line-height: 1;
         }
 
-        /* detail panel */
-        .tot-detail-panel {
-            background: var(--pm-card);
-            border: 1px solid var(--pm-border);
-            border-radius: .75rem;
-            padding: .8rem .9rem 1rem;
-            min-height: 450px;
-            display: flex;
-            flex-direction: column;
-            gap: .75rem;
-        }
-
-        .tot-detail-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: .55rem;
-        }
-
-        .tot-detail-block {
-            background: var(--pm-surface-soft);
-            border-radius: .5rem;
-            padding: .45rem .5rem;
-        }
-
-        .tot-detail-label {
-            font-size: 0.8125rem;
-            color: var(--pm-text-muted);
-            margin-bottom: .2rem;
-        }
-
-        .tot-detail-value {
-            font-weight: 500;
-        }
-
-        .tot-actions-inline {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .5rem;
-        }
-
-        /* approval strip */
-        .tot-approval-card {
-            border: 1px solid var(--pm-border);
-            background: var(--pm-surface-soft);
-            border-radius: .5rem;
-            padding: .5rem .6rem .6rem;
-        }
-
-            .tot-approval-card h3 {
-                font-size: 0.8125rem;
-                margin-bottom: .4rem;
-                color: var(--pm-text-secondary);
-            }
-
-        /* request and decision history */
-        .tot-history h3 {
-            font-size: 0.8125rem;
-            margin-bottom: .4rem;
-            color: var(--pm-text-secondary);
-        }
-
-        .tot-history-list {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            gap: .4rem;
-        }
-
-        .tot-history-item {
-            border-left: 2px solid var(--pm-border);
-            padding: .15rem 0 .15rem .6rem;
-            font-size: .82rem;
-        }
-
-        .tot-history-head {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .25rem .5rem;
-            align-items: baseline;
-        }
-
-        .tot-history-values,
-        .tot-history-reason {
-            color: var(--pm-text-secondary);
-            overflow-wrap: anywhere;
-        }
-
         @media (max-width: 700px) {
-            .tot-list-head,
-            .tot-row {
-                grid-template-columns: 1fr;
-            }
 
             .tot-toolbar {
                 flex-direction: column;
@@ -840,18 +155,6 @@ body .modal-backdrop {
                 justify-content: flex-start;
             }
         }
-
-
-/* The selected project is the panel's title: the shared .h6 size (12px) is too small here. */
-.tot-detail-panel h2.h6 {
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-/* The register is one column: rows open the shared ToT drawer instead of a side panel. */
-.tot-workspace-grid--single {
-    grid-template-columns: minmax(0, 1fr);
-}
 
 /* The ToT page's overview: counts that filter the register, a completed / not-started bar, the
    chart, then the register. */
@@ -1209,4 +512,160 @@ a.tot-overview__card:focus-visible {
 
 .tot-table__unit {
     display: block;
+}
+
+/* =========================================================
+   Phones: two counts, no year chart, full-width search, one scrolling row of status buttons,
+   and a card per project (the table's own cells, labelled; empty ones drop out). The sortable
+   headers stay as a small "sort by" row.
+   ========================================================= */
+@media (max-width: 575.98px) {
+    .tot-overview__secondary,
+    .tot-summary__chart {
+        display: none;
+    }
+
+    .tot-register__bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .tot-register__search {
+        flex-wrap: nowrap;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* A zero base width: the box takes what the two buttons leave, never its own natural size. */
+    .tot-register__search .form-control {
+        flex: 1 1 0;
+        width: 0;
+        min-width: 0;
+    }
+
+    .tot-register__search .btn {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
+    .tot-status-buttons {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+        padding-bottom: 0.125rem;
+    }
+
+    .tot-status-buttons::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tot-status-button {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        scroll-snap-align: start;
+    }
+
+    .tot-table-wrap {
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .tot-table,
+    .tot-table thead,
+    .tot-table tbody,
+    .tot-table tbody tr,
+    .tot-table tbody th,
+    .tot-table tbody td {
+        display: block;
+    }
+
+    .tot-table caption {
+        display: none;
+    }
+
+    .tot-table thead tr {
+        display: flex;
+        align-items: baseline;
+        gap: 0.25rem 1rem;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding-bottom: 0.5rem;
+    }
+
+    .tot-table thead tr::before {
+        content: "Sort by";
+        flex: 0 0 auto;
+        font-size: 0.8125rem;
+        color: var(--pm-text-muted);
+    }
+
+    .tot-table thead th {
+        position: static;
+        flex: 0 0 auto;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .tot-table thead th.tot-table__plain-head {
+        display: none;
+    }
+
+    .tot-table tbody tr {
+        margin-bottom: 0.75rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--pm-border);
+        border-radius: 0.75rem;
+        background: var(--pm-card);
+    }
+
+    .tot-table tbody tr:last-child {
+        margin-bottom: 0;
+    }
+
+    .tot-table tbody tr.is-selected {
+        border-color: var(--pm-accent-blue, var(--pm-text-muted));
+        box-shadow: none;
+    }
+
+    .tot-table tbody th {
+        min-width: 0;
+        padding: 0 0 0.5rem;
+        border: 0;
+        font-weight: 600;
+    }
+
+    .tot-table tbody td {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+        padding: 0.2rem 0;
+        border: 0;
+    }
+
+    .tot-table tbody td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        font-size: 0.8125rem;
+        color: var(--pm-text-muted);
+    }
+
+    .tot-table tbody td.is-empty {
+        display: none;
+    }
+
+    .tot-table tbody td.tot-table__note {
+        display: block;
+        margin-top: 0.35rem;
+        padding-top: 0.45rem;
+        border-top: 1px solid var(--pm-border-subtle);
+    }
+
+    .tot-table tbody td.tot-table__note.is-empty {
+        display: none;
+    }
 }
