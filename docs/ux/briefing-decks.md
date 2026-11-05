@@ -22,6 +22,8 @@ agreed plan to turn the builder into a **Briefing Studio**.
 `/Workspace/BriefingDecks` without a deck id is the library (5 Nov 2026); it no longer opens the
 last-updated deck, so nobody edits a deck they did not pick.
 
+- **New deck** asks for a name and a template (or "Set up by hand"), then opens the Studio on
+  Add projects.
 - **Continue**: the deck the person last edited (else the latest), with Open in Studio and
   Generate PowerPoint.
 - **All decks** table: deck and description, purpose (the preset's title, or "Set up by hand"),
@@ -426,11 +428,20 @@ projects missing", Show) and the preview following each settings change.
    (was 389) and 1,034 px at 1920 px (was about 830); the inspector stays beside it down to about
    1100 px. The outline's buttons move under its title instead of breaking, and segmented labels
    are never cut off in the narrower inspector. The drawer was not needed.
-2. **First run.** New deck asks for the name and the template (three cards plus "Set up by hand"),
-   then opens Add projects. One empty state with one action replaces the three messages, and the
-   empty outline shows no slide count. Switching template on a customised deck asks first, and every template
-   switch shows "Template applied · Undo". The created message clears itself; the placeholder note
-   shows only when there are gaps; the browser title says "Briefing decks".
+2. **First run.** Done (this change). New deck asks for the name and the template (the three
+   templates, Monthly command review selected, and "Set up by hand"); `CreateAsync` applies the
+   template the same way as the Studio does, and "Create and add projects" opens the Studio on
+   Add projects (`?start=projects`, removed from the address once used). With no projects the
+   preview shows one empty state ("Add the projects to brief", one sentence, one Add projects
+   button), the outline says "No slides yet." and shows no count, and the status line is empty.
+   Picking a template on a customised deck asks first ("Apply …?", Keep my settings). After any
+   template the page shows "Template applied: … · Undo": `ApplyPresetAsync` returns the settings
+   it replaced (`ProjectBriefingPresetUndo`: format, slides, costs, look, sheet rows, closing, the
+   SDD profile switch and modules, extra-slide order, the template), kept in TempData (protected by
+   data protection) and offered only while the deck is still at the version the template left;
+   `UndoPresetAsync` refuses otherwise, and any other change in the Studio removes the Undo bar.
+   Success messages fade after six seconds; the placeholder note under Generate shows only while a
+   check is open; the browser title is "Briefing decks" (or the deck's name in the Studio).
 3. **Guidance in the Studio.** A progress line in the deck header: Projects 49 · Gaps 5 ·
    Settings: template name · Generate, each part opening its tab. A one-time line explaining the model
    ("Rebuilt from live PRISM data each time. Saved as you go, shared with Comdt and HoDs.") with a

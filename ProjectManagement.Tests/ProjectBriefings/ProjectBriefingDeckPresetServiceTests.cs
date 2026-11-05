@@ -103,6 +103,76 @@ public sealed class ProjectBriefingDeckPresetServiceTests
         Assert.True(prepared.IncludeHistory);
     }
 
+    [Fact]
+    public async Task CreatingWithATemplate_StartsTheDeckFromIt()
+    {
+        await using var db = CreateDb();
+
+        var deckId = await Service(db).CreateAsync(
+            UserId, "Sheets deck", description: null, preset: ProjectBriefingDeckPreset.ProjectUpdateSheets);
+
+        var deck = await db.Set<ProjectBriefingDeck>().SingleAsync(item => item.Id == deckId);
+        Assert.Equal(ProjectBriefingLayout.ProjectUpdateSheet, deck.Layout);
+        Assert.Equal(ProjectBriefingDeckPreset.ProjectUpdateSheets, Configuration(deck).Preset);
+    }
+
+    [Fact]
+    public async Task CreatingWithoutATemplate_IsSetUpByHand()
+    {
+        await using var db = CreateDb();
+
+        var deckId = await Service(db).CreateAsync(UserId, "Hand deck", description: null);
+
+        var deck = await db.Set<ProjectBriefingDeck>().SingleAsync(item => item.Id == deckId);
+        Assert.Null(Configuration(deck).Preset);
+        Assert.Equal(ProjectBriefingLayout.StandardBriefing, deck.Layout);
+    }
+
+    [Fact]
+    public async Task UndoingATemplate_PutsBackTheSettingsItReplaced()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, configurationJson: null);
+        deck.CostMode = ProjectBriefingCostMode.None;
+        deck.PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark;
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var before = Configuration(deck);
+
+        var applied = await service.ApplyPresetAsync(
+            deck.Id, UserId, ProjectBriefingDeckPreset.VisitOrExternalAudience, Version(deck));
+        Assert.True(Configuration(deck).InstitutionalProfileOptions.IncludeSlide);
+        Assert.Equal(Version(deck), applied.Undo.AppliedRowVersion);
+
+        await service.UndoPresetAsync(UserId, applied.Undo);
+
+        var after = Configuration(deck);
+        Assert.Equal(ProjectBriefingCostMode.None, deck.CostMode);
+        Assert.Equal(ProjectBriefingPresentationTheme.GraphiteDark, deck.PresentationTheme);
+        Assert.Null(after.Preset);
+        Assert.False(after.InstitutionalProfileOptions.IncludeSlide);
+        Assert.Equal(before.InstitutionalProfileOptions.Modules, after.InstitutionalProfileOptions.Modules);
+        Assert.Equal(before.AdditionalSlideOrder, after.AdditionalSlideOrder);
+        Assert.Equal(before.ClosingSlideType, after.ClosingSlideType);
+        Assert.Equal(before.UpdateSheetOptions.Rows, after.UpdateSheetOptions.Rows);
+    }
+
+    [Fact]
+    public async Task UndoingATemplate_IsRefusedOnceTheDeckChangedAgain()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, configurationJson: null);
+        var service = Service(db);
+        var applied = await service.ApplyPresetAsync(
+            deck.Id, UserId, ProjectBriefingDeckPreset.ProjectUpdateSheets, Version(deck));
+
+        await service.UpdateSettingsAsync(deck.Id, UserId, RenameCommand(deck, "Changed since"));
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+            service.UndoPresetAsync(UserId, applied.Undo));
+        Assert.Equal(ProjectBriefingLayout.ProjectUpdateSheet, deck.Layout);
+    }
+
     private static ProjectBriefingDeckSettingsCommand RenameCommand(
         ProjectBriefingDeck deck,
         string name,

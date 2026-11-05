@@ -11,7 +11,7 @@ public sealed class ProjectBriefingContractTests
     {
         var page = Read("Index.cshtml");
 
-        Assert.Contains("Project Briefing Deck Builder", page, StringComparison.Ordinal);
+        Assert.Contains("\"Briefing decks | Comdt / HoD Workspace\"", page, StringComparison.Ordinal);
         Assert.Contains("Briefing decks", Read("_CommandWorkspaceRail.cshtml"), StringComparison.Ordinal);
         Assert.Contains("All ongoing projects", page, StringComparison.Ordinal);
         Assert.Contains("Recently completed", page, StringComparison.Ordinal);
@@ -21,7 +21,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Manage individually", page, StringComparison.Ordinal);
         Assert.Contains("Cost (R&amp;D)", page, StringComparison.Ordinal);
         Assert.Contains("Generate PowerPoint", page, StringComparison.Ordinal);
-        Assert.Contains("Project Update Review", page, StringComparison.Ordinal);
+        Assert.Contains("Start from a template", page, StringComparison.Ordinal);
         Assert.Contains("Shared decks", page, StringComparison.Ordinal);
         Assert.Contains("Add projects", page, StringComparison.Ordinal);
         Assert.Contains("recommended chart", page, StringComparison.Ordinal);
@@ -67,6 +67,42 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("data-pbd-settings-collapsible", page, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void FirstRun_ChoosesATemplateThenAddsProjects()
+    {
+        var page = Read("Index.cshtml");
+        var model = Read("Index.cshtml.cs");
+        var script = Read("project-briefing-decks.js");
+        var studio = Read("project-briefing-studio.js");
+
+        // New deck: name and template, then the Studio opens on Add projects.
+        Assert.Contains("<input type=\"radio\" name=\"Template\" value=\"@preset.Preset\"", page, StringComparison.Ordinal);
+        Assert.Contains("<strong>Set up by hand</strong>", page, StringComparison.Ordinal);
+        Assert.Contains("Create and add projects", page, StringComparison.Ordinal);
+        Assert.Contains("return RedirectToPage(new { deckId, start = \"projects\" });", model, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-start=\"@(Model.StartWithAddProjects ? \"projects\" : null)\"", page, StringComparison.Ordinal);
+        Assert.Contains("url.searchParams.delete('start');", script, StringComparison.Ordinal);
+
+        // One empty state with one action, and no slide count while there are no slides.
+        Assert.Contains("'Add the projects to brief'", studio, StringComparison.Ordinal);
+        Assert.Contains("add.dataset.pbdOpenSelector = '';", studio, StringComparison.Ordinal);
+        Assert.Contains("event.target.closest('[data-pbd-open-selector]')", script, StringComparison.Ordinal);
+        Assert.Contains("@(presentedProjects!.Length == 0 ? null : deck.SlideEstimate.TotalSlides)", page, StringComparison.Ordinal);
+
+        // The placeholder note shows only when something is missing.
+        Assert.Contains("<small data-pbd-placeholder-note hidden>", page, StringComparison.Ordinal);
+        Assert.Contains("placeholderNote.hidden = openChecks === 0;", studio, StringComparison.Ordinal);
+
+        // A template asks first on a customised deck and can be undone straight after.
+        Assert.Contains("Keep my settings", script, StringComparison.Ordinal);
+        Assert.Contains("asp-page-handler=\"UndoPreset\"", page, StringComparison.Ordinal);
+        Assert.Contains("OnPostUndoPresetAsync", model, StringComparison.Ordinal);
+        Assert.Contains("root.querySelector('[data-pbd-preset-undo]')?.remove();", script, StringComparison.Ordinal);
+
+        // Success messages clear themselves.
+        Assert.Contains("data-pbd-auto-dismiss", page, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()

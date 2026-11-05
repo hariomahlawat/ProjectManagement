@@ -5,10 +5,12 @@
 @using ProjectManagement.Services.ProjectBriefings
 @using ProjectManagement.ViewModels.Workspace
 @{
-    ViewData["Title"] = "Project Briefing Deck Builder | Comdt / HoD Workspace";
+    var deck = Model.SelectedDeck;
+    ViewData["Title"] = deck is null
+        ? "Briefing decks | Comdt / HoD Workspace"
+        : $"{deck.Name} | Briefing decks";
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "studio";
-    var deck = Model.SelectedDeck;
     var presentedProjects = deck?.Projects.Where(project => project.IsPresented).ToArray();
     var leftOutProjectCount = deck?.Projects.Count(project => project.IsDeletedOrArchived) ?? 0;
     var isUpdateSheet = deck?.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
@@ -182,7 +184,7 @@
 
         @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
         {
-            <div class="alert alert-success pbd-alert" role="status">
+            <div class="alert alert-success pbd-alert" role="status" data-pbd-auto-dismiss>
                 <i class="bi bi-check-circle" aria-hidden="true"></i>
                 <span>@Model.StatusMessage</span>
             </div>
@@ -193,6 +195,17 @@
                 <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                 <span>@Model.ErrorMessage</span>
             </div>
+        }
+        @if (deck is not null && Model.PresetUndoAvailable)
+        {
+            <form method="post" asp-page-handler="UndoPreset" class="alert alert-info pbd-alert pbd-undo" role="status" data-pbd-preset-undo>
+                <input type="hidden" name="deckId" value="@deck.Id" />
+                <i class="bi bi-magic" aria-hidden="true"></i>
+                <span>Template applied: @(deck.Preset is { } applied ? ProjectBriefingDeckPresets.Get(applied).Title : "settings changed").</span>
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Undo
+                </button>
+            </form>
         }
         @if (!string.IsNullOrWhiteSpace(Model.DeckNotFoundMessage))
         {
@@ -264,7 +277,7 @@
                                             <span class="d-none" data-pbd-generate-progress><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generating…</span>
                                         </button>
                                     </form>
-                                    <small data-pbd-placeholder-note>Missing content uses defined placeholders.</small>
+                                    <small data-pbd-placeholder-note hidden>Missing content uses defined placeholders.</small>
                                 </div>
                                 <div class="dropdown">
                                     <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Deck actions">
@@ -305,12 +318,13 @@
                                  data-has-projects="@((presentedProjects!.Length > 0).ToString().ToLowerInvariant())"
                                  data-uses-capability="@((!isUpdateSheet && standardNeedsCapabilities && standardIncludesDetailedSlides).ToString().ToLowerInvariant())"
                                  data-uses-brief="@((isUpdateSheet || (standardNeedsProjectBrief && standardIncludesDetailedSlides)).ToString().ToLowerInvariant())"
-                                 data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
+                                 data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")"
+                                 data-pbd-start="@(Model.StartWithAddProjects ? "projects" : null)">
                             <script type="application/json" data-pbd-studio-data>@Html.Raw(studioDataJson)</script>
 
                             <aside class="pbd-studio__outline" aria-labelledby="pbd-outline-title">
                                 <header class="pbd-outline__header">
-                                    <h3 id="pbd-outline-title">Slides <span data-pbd-studio-count>@deck.SlideEstimate.TotalSlides</span></h3>
+                                    <h3 id="pbd-outline-title">Slides <span data-pbd-studio-count>@(presentedProjects!.Length == 0 ? null : deck.SlideEstimate.TotalSlides)</span></h3>
                                     <div class="pbd-outline__actions">
                                         <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-open-selector>
                                             <i class="bi bi-plus-lg" aria-hidden="true"></i> Projects
@@ -995,26 +1009,44 @@
                 }
             </div>
         }
-    </main>
-</div>
 
-<div class="modal fade" id="pbd-new-deck-modal" tabindex="-1" aria-labelledby="pbd-new-deck-title" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content pbd-modal">
-            <form method="post" asp-page-handler="Create">
-                <div class="modal-header">
-                    <div><span class="pbd-eyebrow">Shared command deck</span><h2 class="modal-title" id="pbd-new-deck-title">Create briefing deck</h2></div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        @* Inside the workspace so it shares the page's colour tokens. *@
+        <div class="modal fade" id="pbd-new-deck-modal" tabindex="-1" aria-labelledby="pbd-new-deck-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content pbd-modal">
+                    <form method="post" asp-page-handler="Create">
+                        <div class="modal-header">
+                            <div><span class="pbd-eyebrow">Shared command deck</span><h2 class="modal-title" id="pbd-new-deck-title">Create briefing deck</h2></div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <label class="form-label"><span>Deck name</span><input class="form-control" name="Name" maxlength="160" minlength="3" required placeholder="For example: Monthly review, November" data-pbd-new-name /></label>
+                            @* The template decides the slides, costs and look; it can be changed or customised later. *@
+                            <fieldset class="pbd-new-templates">
+                                <legend class="form-label">Start from a template</legend>
+                                @foreach (var (preset, index) in ProjectBriefingDeckPresets.All.Select((preset, index) => (preset, index)))
+                                {
+                                    <label class="pbd-preset pbd-preset--choice">
+                                        <input type="radio" name="Template" value="@preset.Preset" checked="@(index == 0)" />
+                                        <strong>@preset.Title</strong>
+                                        <small>@preset.Summary</small>
+                                    </label>
+                                }
+                                <label class="pbd-preset pbd-preset--choice">
+                                    <input type="radio" name="Template" value="" />
+                                    <strong>Set up by hand</strong>
+                                    <small>Start from the standard settings and choose each one yourself.</small>
+                                </label>
+                            </fieldset>
+                            <label class="form-label"><span>Description <small>optional</small></span><textarea class="form-control" name="Description" maxlength="600" rows="2" placeholder="Purpose, audience or review context"></textarea></label>
+                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Shared with every Comdt and HoD workspace user. The slides are rebuilt from current PRISM data each time; next you choose the projects.</p>
+                        </div>
+                        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create and add projects</button></div>
+                    </form>
                 </div>
-                <div class="modal-body">
-                    <label class="form-label"><span>Deck name</span><input class="form-control" name="Name" maxlength="160" required placeholder="Project Update Review" data-pbd-new-name /></label>
-                    <label class="form-label"><span>Description <small>optional</small></span><textarea class="form-control" name="Description" maxlength="600" rows="3" placeholder="Purpose, audience or review context"></textarea></label>
-                    <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> The deck is visible to all authorised Comdt/HoD workspace users. Project membership is saved; current stage, cost and latest external status are refreshed when PowerPoint is generated.</p>
-                </div>
-                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create deck</button></div>
-            </form>
+            </div>
         </div>
-    </div>
+    </main>
 </div>
 
 @if (deck is not null)

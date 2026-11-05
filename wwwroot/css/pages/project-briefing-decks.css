@@ -5252,3 +5252,105 @@ span.pbd-additional-slide-row__handle {
     font-size: .85rem;
     white-space: nowrap;
 }
+
+/* First run: the New deck dialog's template choice, the Studio's empty state and Undo after a
+   template. */
+.pbd-new-templates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+    margin: .35rem 0 .9rem;
+    padding: 0;
+    border: 0;
+}
+
+.pbd-new-templates legend {
+    grid-column: 1 / -1;
+    float: none;
+    margin-bottom: .1rem;
+}
+
+.pbd-preset--choice {
+    position: relative;
+    margin: 0;
+    padding-left: 2.1rem;
+    cursor: pointer;
+}
+
+.pbd-preset--choice input {
+    position: absolute;
+    top: .72rem;
+    left: .75rem;
+    margin: 0;
+    accent-color: var(--pbd-blue);
+}
+
+.pbd-preset--choice:has(input:checked) {
+    border-color: var(--pbd-blue);
+    background: var(--pbd-blue-soft);
+    box-shadow: inset 3px 0 0 var(--pbd-blue);
+}
+
+.pbd-preset--choice:has(input:focus-visible) {
+    outline: 2px solid var(--pbd-blue);
+    outline-offset: 1px;
+}
+
+@media (max-width: 575.98px) {
+    .pbd-new-templates {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.pbd-stage__start {
+    display: grid;
+    justify-items: center;
+    gap: .45rem;
+    max-width: 26rem;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 2.75rem;
+    text-align: center;
+}
+
+.pbd-stage__start-icon {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: .8rem;
+    background: var(--pbd-blue-soft);
+    color: var(--pbd-blue);
+    font-size: 1.35rem;
+}
+
+.pbd-stage__start h4 {
+    margin: .3rem 0 0;
+    color: var(--pbd-ink);
+    font-size: 1.02rem;
+    font-weight: 800;
+}
+
+.pbd-stage__start p {
+    margin: 0 0 .4rem;
+    color: var(--pbd-muted);
+    font-size: .85rem;
+    line-height: 1.45;
+}
+
+.pbd-undo span {
+    flex: 1 1 auto;
+}
+
+.pbd-alert[data-pbd-auto-dismiss] {
+    transition: opacity .3s ease;
+}
+
+.pbd-alert[data-pbd-auto-dismiss].is-leaving {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pbd-alert[data-pbd-auto-dismiss] {
+        transition: none;
+    }
+}
