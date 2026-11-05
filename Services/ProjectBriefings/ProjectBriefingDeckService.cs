@@ -197,7 +197,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        _ = NormalizeUserId(requestingUserId);
+        var userId = NormalizeUserId(requestingUserId);
         var rows = await _db.Set<ProjectBriefingDeck>().Live()
             .AsNoTracking()
             .OrderByDescending(deck => deck.UpdatedAtUtc)
@@ -205,6 +205,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             .Select(deck => new
             {
                 deck.Id,
+                deck.OwnerUserId,
+                deck.LastModifiedByUserId,
+                deck.SelectionRulesJson,
+                deck.LastGeneratedSlideCount,
+                ProjectNames = deck.Items.Select(item => item.Project.Name).ToList(),
                 deck.Name,
                 deck.Description,
                 deck.PresentationMode,
@@ -237,8 +242,24 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 row.LastGeneratedAtUtc,
                 row.CreatedByDisplay,
                 row.LastModifiedByDisplay,
-                Encode(row.RowVersion)))
+                Encode(row.RowVersion))
+            {
+                Purpose = DescribePurpose(row.SelectionRulesJson),
+                IsMine = row.OwnerUserId == userId || row.LastModifiedByUserId == userId,
+                LastEditedByMe = (row.LastModifiedByUserId ?? row.OwnerUserId) == userId,
+                LastGeneratedSlideCount = row.LastGeneratedSlideCount,
+                ProjectNames = row.ProjectNames
+            })
             .ToList();
+    }
+
+    // The purpose preset the deck was last set from, or how it was set up.
+    private static string DescribePurpose(string? selectionRulesJson)
+    {
+        var preset = ProjectBriefingDeckConfigurationCodec.Read(selectionRulesJson).Preset;
+        return preset is { } value && ProjectBriefingDeckPresets.IsDefined(value)
+            ? ProjectBriefingDeckPresets.Get(value).Title
+            : "Set up by hand";
     }
 
     public Task<ProjectBriefingDeck?> GetEntityAsync(
@@ -1422,7 +1443,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var updated = await _db.Set<ProjectBriefingDeck>().Live()
             .Where(deck => deck.Id == deckId)
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(deck => deck.LastGeneratedAtUtc, now),
+                setters => setters
+                    .SetProperty(deck => deck.LastGeneratedAtUtc, now)
+                    .SetProperty(deck => deck.LastGeneratedSlideCount, slideCount),
                 cancellationToken);
         if (updated == 0)
         {

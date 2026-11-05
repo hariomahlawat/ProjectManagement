@@ -237,6 +237,9 @@ public sealed class ProjectBriefingDeck
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public DateTimeOffset? LastGeneratedAtUtc { get; set; }
 
+    // Slides in the PowerPoint last generated from this deck, for the deck library.
+    public int? LastGeneratedSlideCount { get; set; }
+
     // A deleted deck is kept for ProjectBriefingDeckService.DeletedRetentionDays so it can be
     // restored; live queries exclude it. Null for every live deck.
     public DateTimeOffset? DeletedAtUtc { get; set; }

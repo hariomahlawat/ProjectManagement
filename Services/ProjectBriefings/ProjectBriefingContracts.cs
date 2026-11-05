@@ -49,7 +49,14 @@ public sealed record ProjectBriefingDeckSummaryVm(
     DateTimeOffset? LastGeneratedAtUtc,
     string CreatedByDisplay,
     string LastModifiedByDisplay,
-    string RowVersion);
+    string RowVersion)
+{
+    public string Purpose { get; init; } = "Set up by hand";
+    public bool IsMine { get; init; }
+    public bool LastEditedByMe { get; init; }
+    public int? LastGeneratedSlideCount { get; init; }
+    public IReadOnlyList<string> ProjectNames { get; init; } = Array.Empty<string>();
+}
 
 public sealed record ProjectBriefingDeletedDeckVm(
     long Id,

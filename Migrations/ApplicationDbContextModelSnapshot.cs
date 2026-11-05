@@ -5866,6 +5866,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset?>("LastGeneratedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("LastGeneratedSlideCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Layout")
                         .IsRequired()
                         .HasMaxLength(32)

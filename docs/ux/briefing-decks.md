@@ -8,14 +8,34 @@ agreed plan to turn the builder into a **Briefing Studio**.
 
 | Concern | Code |
 | --- | --- |
-| Page | `Pages/Workspace/BriefingDecks/Index.cshtml(.cs)`; editors `_InstitutionalProfileEditor`, `_RoleCharterEditor`, `_FfcGlobalFootprintEditor` |
+| Page | `Pages/Workspace/BriefingDecks/Index.cshtml(.cs)`; library `_DeckLibrary`, `_DeletedDecks`; editors `_InstitutionalProfileEditor`, `_RoleCharterEditor`, `_FfcGlobalFootprintEditor` |
 | Deck persistence | `Services/ProjectBriefings/ProjectBriefingDeckService.cs`; options in `SelectionRulesJson` via `ProjectBriefingDeckConfigurationCodec` |
 | Page data, readiness, slide estimate | `Services/ProjectBriefings/ProjectBriefingDataService.cs` |
 | Slide generation | `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer*.cs`, `ProjectBriefingPowerPointExportService.cs` (`ComposeAsync` builds the deck; `GenerateAsync` also records the generation), `ProjectBriefingPresentationIntegrityValidator.cs` |
 | Studio | `ProjectBriefingSlidePreviewRenderer.cs` (composed PowerPoint → positioned HTML); slide roles from `ProjectBriefingSlideComposer.ComposeWithOutline`; content gaps from `ProjectBriefingContentGaps`; page handler `OnGetPreviewAsync`; `wwwroot/js/pages/project-briefing-studio.js` |
-| Scripts and styles | `wwwroot/js/pages/project-briefing-decks.js`, `project-briefing-additional-slides.js`, `project-briefing-studio.js`; `wwwroot/css/pages/project-briefing-decks.css` |
+| Scripts and styles | `wwwroot/js/pages/project-briefing-decks.js`, `project-briefing-library.js`, `project-briefing-additional-slides.js`, `project-briefing-studio.js`; `wwwroot/css/pages/project-briefing-decks.css` |
 | Access | `Policies.ProjectBriefingDecks.Manage` (Comdt, HoD); every deck is shared |
-| Tests | `ProjectManagement.Tests/ProjectBriefings/*`, `wwwroot/js/projects/project-briefing-decks.test.js` |
+| Tests | `ProjectManagement.Tests/ProjectBriefings/*`, `wwwroot/js/projects/project-briefing-*.test.js` |
+
+## Deck library (landing page)
+
+`/Workspace/BriefingDecks` without a deck id is the library (5 Nov 2026); it no longer opens the
+last-updated deck, so nobody edits a deck they did not pick.
+
+- **Continue**: the deck the person last edited (else the latest), with Open in Studio and
+  Generate PowerPoint.
+- **All decks** table: deck and description, purpose (the preset's title, or "Set up by hand"),
+  projects, slides in the last generated PowerPoint (`LastGeneratedSlideCount`, recorded on each
+  generation; "—" until then), owner, last edited, last generated, and a ⋯ menu (Open, Generate,
+  Duplicate, Delete through the Studio confirmation dialog). **Mine** keeps decks the person owns
+  or last edited; search also matches the names of projects in a deck; sort by last edited, last
+  generated or name. Filtering runs in the page (`project-briefing-library.js`).
+- **Recently deleted** below the table.
+- `/Workspace/BriefingDecks/{id}` is the Studio. Its bar has "← Briefing decks" and **Switch
+  deck** (each deck's purpose and project count); the old saved-decks side panel is gone. An
+  unknown or deleted id returns to the library with a one-request notice.
+- Next (PR 2): "data moved since last generated" on the Continue card, a Data since column and a
+  Needs attention strip, from the briefing desk's what-moved facts.
 
 ## Studio
 
@@ -190,4 +210,4 @@ The Studio must use wide monitors, not just fit them:
   capped so forms never stretch.
 - **1200–1599px**: the inspector becomes a drawer over the preview.
 - **< 1200px**: one column; outline and inspector open as sheets.
-- The deck library grid adds columns as width grows (card minimum about 320px).
+- The deck library is a table; it scrolls sideways inside its card on narrow screens.
