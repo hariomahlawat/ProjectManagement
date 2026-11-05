@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using ProjectManagement.Models;
 using ProjectManagement.Utilities.PartialDates;
 
@@ -34,6 +35,16 @@ public static class ProjectTotPresentation
     /// </summary>
     public static string FormatDate(DateOnly value, PartialDatePrecision precision)
         => PartialDateDisplay.Format(value, precision);
+
+    /// <summary>A full ToT date (MET, first production model), in the module's one style: "14 Mar 2026".</summary>
+    public static string? FormatDay(DateOnly? value)
+        => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>A UTC moment shown in IST, in the module's one style: "14 Mar 2026, 10:30".</summary>
+    public static string? FormatMoment(DateTime? utc)
+        => utc is { } value
+            ? ProjectManagement.Infrastructure.IstClock.ToIst(DateTime.SpecifyKind(value, DateTimeKind.Utc)).ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture)
+            : null;
 
     public static ProjectTotCard BuildCard(
         ProjectTotStatus? status,

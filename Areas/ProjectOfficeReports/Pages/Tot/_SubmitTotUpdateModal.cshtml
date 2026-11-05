@@ -21,6 +21,7 @@
     <input type="hidden" name="CompletedFrom" value="@Model.CompletedFrom?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
     <input type="hidden" name="CompletedTo" value="@Model.CompletedTo?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
     <input type="hidden" asp-for="ViewMode" />
+    <p class="text-muted mb-3">Your update goes to the HoD for approval. The current position stays as it is until it is approved.</p>
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     @{
         var statusOptions = Enum.GetValues<ProjectTotStatus>()

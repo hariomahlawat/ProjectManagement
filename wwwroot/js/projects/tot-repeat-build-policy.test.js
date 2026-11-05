@@ -112,7 +112,7 @@ test('Repeat Build project surfaces never claim historical ToT retention or offe
   for (const source of [commandCard, summaryVm, drawer, overviewTot]) {
     assert.doesNotMatch(source, /legacy ToT|historical ToT|legacy data retained|BuildLegacyRepeatBuildSummaryPayload/i);
   }
-  assert.match(drawer, /@if \(tot\.IsApplicable\)[\s\S]{0,500}Open tracker/);
+  assert.match(drawer, /@if \(tot\.IsApplicable\)[\s\S]{0,500}Open register/);
 });
 
 test('approval queue does not surface ToT requests belonging to Repeat Build projects', () => {

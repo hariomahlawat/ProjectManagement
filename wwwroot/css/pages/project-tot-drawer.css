@@ -43,10 +43,8 @@
     display: block;
     margin-bottom: .15rem;
     color: var(--pm-text-muted, #64748b);
-    font-size: .69rem;
+    font-size: 0.8125rem;
     font-weight: 750;
-    letter-spacing: .06em;
-    text-transform: uppercase;
 }
 
 .project-tot-status-card strong {
@@ -84,7 +82,7 @@
 .project-tot-fact span {
     margin-bottom: .12rem;
     color: var(--pm-text-muted, #64748b);
-    font-size: .7rem;
+    font-size: 0.8125rem;
 }
 
 .project-tot-fact strong {
@@ -112,12 +110,12 @@
 
 .project-tot-editor .form-label {
     margin-bottom: .35rem;
-    font-size: .8rem;
+    font-size: 0.8125rem;
     font-weight: 650;
 }
 
 .project-tot-editor .form-text {
-    font-size: .72rem;
+    font-size: 0.8125rem;
 }
 
 .project-tot-drawer__footer {

@@ -93,7 +93,7 @@ keep working: `/Tot`, `/Tot/Summary`, `SelectedProjectId`, the filter parameters
 
 | # | PR | Scope | Status |
 | --- | --- | --- | --- |
-| 1 | Words, dates, sizes | One name ("Transfer of Technology") and one verb per action; one date style everywhere, MET and manufacture dates included; breadcrumbs that agree; one Filters entry; the search box stays when nothing matches; no "No request" on every row; 13 px minimum. | Planned |
+| 1 | Words, dates, sizes | One name ("Transfer of Technology") and one verb per action; one date style everywhere, MET and manufacture dates included; breadcrumbs that agree; one Filters entry; the search box stays when nothing matches; no "No request" on every row; 13 px minimum. | In review |
 | 2 | Register facts | `ProjectTotRegisterFacts` per project: status, dates at precision, project completion year, years waiting, long-waiting flag, the pending request as a list of changed fields, the latest decision and reason; plus the Position counts. Tests. No UI change. | Planned |
 | 3 | Not known: read everywhere | `ProjectTotStatus.NotKnown` (stored as text "NotKnown"; the column is text, max 32, no check constraint, so no migration). Every reader handles it: labels, Position counts, filters, export, the Summary and chart, Command desk and completed-portfolio counts, Approvals → Pending, applicability rules. Nothing offers it yet, so no row can hold it. | Planned |
 | 4 | Not known: can be recorded | The form and the register's status buttons offer Not known. Ships only after PR 3 is deployed everywhere, because code before PR 3 cannot read the value. | Planned |

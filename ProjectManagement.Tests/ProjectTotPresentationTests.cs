@@ -97,4 +97,19 @@ public sealed class ProjectTotPresentationTests
         Assert.Null(result.StartedOn);
         Assert.Null(result.CompletedOn);
     }
+
+    [Fact]
+    public void FormatDay_UsesTheModuleDateStyle()
+    {
+        Assert.Equal("04 Mar 2026", ProjectTotPresentation.FormatDay(new DateOnly(2026, 3, 4)));
+        Assert.Null(ProjectTotPresentation.FormatDay(null));
+    }
+
+    [Fact]
+    public void FormatMoment_ShowsUtcInIst()
+    {
+        // 05:00 UTC is 10:30 IST.
+        Assert.Equal("04 Mar 2026, 10:30", ProjectTotPresentation.FormatMoment(new DateTime(2026, 3, 4, 5, 0, 0, DateTimeKind.Utc)));
+        Assert.Null(ProjectTotPresentation.FormatMoment(null));
+    }
 }
