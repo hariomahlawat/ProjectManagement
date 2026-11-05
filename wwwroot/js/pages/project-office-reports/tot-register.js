@@ -19,6 +19,25 @@
         return params;
     }
 
+    // The More filters and Export dialogs sit outside the register; keep their search in step.
+    function carrySearch(term) {
+        document.querySelectorAll('form[data-tot-carries-search]').forEach((other) => {
+            let field = other.querySelector('input[type="hidden"][name="SearchTerm"]');
+            if (!term) {
+                if (field && other.method.toLowerCase() === 'get') field.remove();
+                else if (field) field.value = '';
+                return;
+            }
+            if (!field) {
+                field = document.createElement('input');
+                field.type = 'hidden';
+                field.name = 'SearchTerm';
+                other.prepend(field);
+            }
+            field.value = term;
+        });
+    }
+
     async function refresh() {
         const params = query();
         const current = ++sequence;
@@ -39,6 +58,7 @@
             const existing = document.querySelector('[data-tot-register]');
             if (!next || !existing) throw new Error('No register in the response.');
             existing.replaceWith(next);
+            carrySearch(params.get('SearchTerm') ?? '');
             const search = params.toString();
             window.history.replaceState(window.history.state, '', search ? `${window.location.pathname}?${search}` : window.location.pathname);
         } catch {

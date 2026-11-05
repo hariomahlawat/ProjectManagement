@@ -13,7 +13,7 @@
             </div>
 
             <div class="modal-body">
-                <form id="tot-filter-form" method="get" class="d-flex flex-column gap-4">
+                <form id="tot-filter-form" method="get" class="d-flex flex-column gap-4" data-tot-carries-search>
                     @* Only the filters in use are carried, so the address stays short. *@
                     @foreach (var (name, value) in Model.RegisterRouteWith(
                         (nameof(Model.RequestStateFilter), null),

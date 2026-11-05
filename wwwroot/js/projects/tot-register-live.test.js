@@ -12,7 +12,9 @@ const page = `
     <input type="hidden" name="LongWaiting" value="" />
     <input name="SearchTerm" data-tot-live-search />
   </form>
-  <div data-tot-register><span class="count">139 projects</span></div>`;
+  <div data-tot-register><span class="count">139 projects</span></div>
+  <form id="tot-filter-form" method="get" data-tot-carries-search><input type="hidden" name="Sort" value="project" /></form>
+  <form id="export" method="post" data-tot-carries-search><input type="hidden" name="SearchTerm" value="" /></form>`;
 
 function run(respond) {
   const dom = new JSDOM(`<!doctype html><body>${page}</body>`, {
@@ -69,4 +71,23 @@ test('an answer for an older search never replaces a newer one', async () => {
   await wait(10);
 
   assert.equal(window.document.querySelector('.count').textContent, 'newer');
+});
+
+test('the More filters and Export dialogs follow the live search', async () => {
+  const { window } = run(() => ok(html('3 projects')));
+  const doc = window.document;
+  const input = doc.querySelector('[data-tot-live-search]');
+  const term = (id) => doc.querySelector(`#${id} input[name="SearchTerm"]`)?.value ?? null;
+
+  input.value = 'drona';
+  input.dispatchEvent(new window.Event('input'));
+  await wait(350);
+  assert.equal(term('tot-filter-form'), 'drona');
+  assert.equal(term('export'), 'drona');
+
+  input.value = '';
+  input.dispatchEvent(new window.Event('input'));
+  await wait(350);
+  assert.equal(term('tot-filter-form'), null, 'a cleared search leaves the filter address');
+  assert.equal(term('export'), '');
 });
