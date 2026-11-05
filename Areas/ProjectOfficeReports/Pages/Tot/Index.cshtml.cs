@@ -138,12 +138,14 @@ public sealed class IndexModel : PageModel
     /// <summary>The listed projects' facts, for the Project completed and Note columns.</summary>
     public IReadOnlyDictionary<int, ProjectTotRegisterFacts> RowFacts { get; private set; } = new Dictionary<int, ProjectTotRegisterFacts>();
 
-    /// <summary>Optional columns appear only when some listed project has data for them.</summary>
+    /// <summary>
+    /// Started matters only while ToT is under way, so it appears when an In progress project is
+    /// listed (a column of dashes otherwise). The latest request is told in the Note.
+    /// </summary>
     public bool ShowStartedColumn { get; private set; }
 
+    /// <summary>MET appears only when some listed project has a MET date.</summary>
     public bool ShowMetColumn { get; private set; }
-
-    public bool ShowRequestColumn { get; private set; }
 
     /// <summary>Counts for the status buttons: every filter except the status ones (search included).</summary>
     public ProjectTotPosition StatusCounts { get; private set; } = ProjectTotPosition.Empty;
@@ -535,9 +537,8 @@ public sealed class IndexModel : PageModel
         var today = DateOnly.FromDateTime(ProjectManagement.Infrastructure.IstClock.ToIst(_clock.UtcNow.UtcDateTime));
         var rowFacts = Projects.ToDictionary(row => row.ProjectId, row => ProjectTotRegisterFactsBuilder.BuildFacts(row, today));
         RowFacts = rowFacts;
-        ShowStartedColumn = Projects.Any(row => row.TotStartedOn.HasValue);
+        ShowStartedColumn = rowFacts.Values.Any(f => f.Status == ProjectTotStatus.InProgress);
         ShowMetColumn = Projects.Any(row => row.TotMetCompletedOn.HasValue);
-        ShowRequestColumn = Projects.Any(row => row.RequestState is not null);
         Projects = OrderRows(Projects, rowFacts);
 
         // Each count describes the page its button opens. Waiting for decision drops any
@@ -575,13 +576,6 @@ public sealed class IndexModel : PageModel
         _ => state.ToString()
     };
 
-    public static string RequestStateChipClass(ProjectTotRequestDecisionState state) => state switch
-    {
-        ProjectTotRequestDecisionState.Pending => "chip-decision-pending",
-        ProjectTotRequestDecisionState.Approved => "chip-decision-approved",
-        ProjectTotRequestDecisionState.Rejected => "chip-decision-rejected",
-        _ => "chip-decision-pending"
-    };
 
     private IReadOnlyList<ProjectTotTrackerRow> OrderRows(
         IReadOnlyList<ProjectTotTrackerRow> rows,

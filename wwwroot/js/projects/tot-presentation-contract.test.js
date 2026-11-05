@@ -71,13 +71,15 @@ test('the long-waiting scope survives the filter and export dialogs', () => {
 test('on a phone each register row is a labelled card and empty values drop out', () => {
   const register = read('Areas/ProjectOfficeReports/Pages/Tot/_TotRegister.cshtml');
   const css = read('wwwroot/css/tot.css');
-  for (const label of ['ToT status', 'Started', 'ToT completed', 'Project completed', 'MET', 'Request']) {
+  for (const label of ['ToT status', 'Started', 'ToT completed', 'Project completed', 'MET']) {
     assert.ok(register.includes(`"${label}"`), `a ${label} cell carries its label`);
   }
   assert.match(register, /td\.Attributes\["data-label"\] = label/);
   assert.match(register, /AddCssClass\("is-empty"\)/);
   // Only the sortable headers stay, as a "sort by" row.
-  assert.equal(register.match(/class="tot-table__plain-head"/g)?.length, 4);
+  assert.equal(register.match(/class="tot-table__plain-head"/g)?.length, 3);
+  // The latest request is told in the Note, not a column of its own.
+  assert.doesNotMatch(register, />Request<\/th>/);
 
   const phone = css.slice(css.indexOf('@media (max-width: 575.98px)'));
   assert.ok(phone.length > 0, 'tot.css has the phone rules');
@@ -94,4 +96,27 @@ test('the old tracker styles are gone', () => {
   for (const old of ['.tot-list-item', '.tot-row', '.tot-detail-panel', '.tot-summary__card', '.tot-workspace']) {
     assert.ok(!tot.includes(old), `${old} is removed`);
   }
+});
+
+test('final polish: empty attention cards, zero counts, sort arrow and short bars', () => {
+  const index = read('Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml');
+  const register = read('Areas/ProjectOfficeReports/Pages/Tot/_TotRegister.cshtml');
+  const chart = read('wwwroot/js/pages/project-office-reports/tot-chart.js');
+
+  // An empty attention card is one line above the grid, never a blank box beside a full one.
+  assert.match(index, /class="tot-attention__clear"/);
+  assert.doesNotMatch(index, /tot-attention__empty/);
+  assert.match(index, /Nothing is waiting for your decision\./);
+
+  // A zero count stays plain.
+  for (const [count, tint] of [['Completed', 'completed'], ['InProgress', 'inprogress'], ['NotStarted', 'notstarted']]) {
+    assert.ok(index.includes(`position.${count} > 0 ? "tot-summary__metric-card--${tint}" : null`), `${tint} is tinted only above zero`);
+  }
+
+  // The sort mark is the app's icon, not a text arrow.
+  assert.match(register, /bi-arrow-up/);
+  assert.doesNotMatch(register, /[↑↓]/);
+
+  // Short bars sit square on the axis.
+  assert.match(chart, /borderSkipped: "start"/);
 });

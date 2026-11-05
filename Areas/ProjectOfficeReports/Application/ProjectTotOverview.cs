@@ -121,6 +121,15 @@ public static class ProjectTotOverview
             return "Waiting for a decision";
         }
 
+        // A rejected request is worth knowing until another one is sent; an approved one is
+        // already the record, so it needs no note.
+        if (facts.LastDecision is { State: ProjectTotRequestDecisionState.Rejected } rejected)
+        {
+            return rejected.DecidedOnUtc is { } on
+                ? $"Request rejected {ProjectManagement.Infrastructure.IstClock.ToIst(DateTime.SpecifyKind(on, DateTimeKind.Utc)).ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}"
+                : "Request rejected";
+        }
+
         if (facts.IsLongWaiting && facts.YearsSinceProjectCompleted is { } waited)
         {
             return $"Waiting {waited.ToString(CultureInfo.InvariantCulture)} years";

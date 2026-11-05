@@ -53,7 +53,11 @@ function render() {
             datasets: [{
                 label: "ToT completed",
                 data: rows.map(row => row.count),
-                backgroundColor: chartTokens().primary
+                backgroundColor: chartTokens().primary,
+                // Many years have one or two completions; fully rounded short bars read as dots.
+                // Square at the axis, lightly rounded on top, so a bar of 1 still reads as a bar.
+                borderSkipped: "start",
+                borderRadius: { topLeft: 3, topRight: 3, bottomLeft: 0, bottomRight: 0 }
             }]
         },
         options: {

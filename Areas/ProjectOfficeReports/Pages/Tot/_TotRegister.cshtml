@@ -67,7 +67,10 @@
             (nameof(Model.Sort), key == "name" ? null : key),
             (nameof(Model.Dir), Model.SortKey == key && !Model.SortDescending ? "desc" : null))) ?? "#";
     string? AriaSort(string key) => Model.SortKey == key ? (Model.SortDescending ? "descending" : "ascending") : null;
-    string SortMark(string key) => Model.SortKey == key ? (Model.SortDescending ? "↓" : "↑") : string.Empty;
+    // The app's own arrow icon; the order itself is announced by aria-sort.
+    Microsoft.AspNetCore.Html.IHtmlContent SortMark(string key) => Model.SortKey == key
+        ? Html.Raw($"<i class=\"bi {(Model.SortDescending ? "bi-arrow-down" : "bi-arrow-up")} tot-table__sort\" aria-hidden=\"true\"></i>")
+        : Microsoft.AspNetCore.Html.HtmlString.Empty;
 
     var total = Model.Projects.Count;
 }
@@ -133,10 +136,6 @@
                         {
                             <th scope="col" class="tot-table__plain-head">MET</th>
                         }
-                        @if (Model.ShowRequestColumn)
-                        {
-                            <th scope="col" class="tot-table__plain-head">Request</th>
-                        }
                         <th scope="col" class="tot-table__plain-head">Note</th>
                     </tr>
                 </thead>
@@ -164,15 +163,6 @@
                             @if (Model.ShowMetColumn)
                             {
                                 @Cell("MET", ProjectTotPresentation.FormatDay(row.TotMetCompletedOn))
-                            }
-                            @if (Model.ShowRequestColumn)
-                            {
-                                <td data-label="Request" class="@(row.RequestState is null ? "is-empty" : null)">
-                                    @if (row.RequestState is { } rowRequest)
-                                    {
-                                        <span class="chip-sm @ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.RequestStateChipClass(rowRequest)">@ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.RequestStateLabel(rowRequest)</span>
-                                    }
-                                </td>
                             }
                             @{ var note = ProjectTotOverview.RowNote(facts); }
                             <td class="tot-table__note @(note is null ? "is-empty" : null)">@note</td>
