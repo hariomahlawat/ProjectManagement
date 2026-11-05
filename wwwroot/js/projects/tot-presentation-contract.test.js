@@ -28,15 +28,15 @@ test('ToT pages use one date style', () => {
   }
 });
 
-test('ToT pages share one name and a working Dashboard link', () => {
+test('ToT is one page with one name and a working Dashboard link', () => {
   const index = read('Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml');
-  const summary = read('Areas/ProjectOfficeReports/Pages/Tot/Summary.cshtml');
-  for (const page of [index, summary]) {
-    assert.match(page, /asp-area="" asp-page="\/Dashboard\/Index">Dashboard<\/a>/);
-    assert.doesNotMatch(page, /ToT tracker dashboard|ToT records|Transfer of Technology summary|Transfer of Technology tracker/);
-  }
-  assert.match(index, /<h1 class="mb-0">Transfer of Technology register<\/h1>/);
-  assert.match(summary, /<h1 class="tot-summary__heading mb-2">Transfer of Technology<\/h1>/);
+  assert.match(index, /asp-area="" asp-page="\/Dashboard\/Index">Dashboard<\/a>/);
+  assert.doesNotMatch(index, /ToT tracker dashboard|ToT records|Transfer of Technology summary|Transfer of Technology tracker|asp-page="Summary"/);
+  assert.match(index, /<h1 class="mb-1">Transfer of Technology<\/h1>/);
+  // The old summary address only redirects to the one page.
+  const summaryModel = read('Areas/ProjectOfficeReports/Pages/Tot/Summary.cshtml.cs');
+  assert.match(summaryModel, /RedirectToPage\("\/Tot\/Index"/);
+  assert.doesNotMatch(summaryModel, /TrackerReadService|ApplicationDbContext/);
 });
 
 test('the register keeps its search box when nothing matches', () => {

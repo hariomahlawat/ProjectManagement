@@ -13,7 +13,7 @@
 }
 
 @{
-    ViewData["Title"] = "Transfer of Technology register";
+    ViewData["Title"] = "Transfer of Technology";
 
     string StatusLabel(ProjectTotStatus status) => ProjectManagement.Services.Projects.ProjectTotPresentation.StatusLabel(status);
 
@@ -83,11 +83,8 @@
             <li class="breadcrumb-item">
                 <a asp-area="" asp-page="/Dashboard/Index">Dashboard</a>
             </li>
-            <li class="breadcrumb-item">
-                <a asp-page="Summary">Transfer of Technology</a>
-            </li>
             <li class="breadcrumb-item active" aria-current="page">
-                Register
+                Transfer of Technology
             </li>
         </ol>
     </nav>
@@ -95,7 +92,8 @@
     <!-- top toolbar -->
     <div class="tot-toolbar">
         <div class="tot-toolbar-title">
-            <h1 class="mb-0">Transfer of Technology register</h1>
+            <h1 class="mb-1">Transfer of Technology</h1>
+            <p class="tot-overview__lede mb-0">@Model.Narrative</p>
         </div>
         <div class="tot-toolbar-actions">
             @if (Model.Projects.Any())
@@ -117,11 +115,6 @@
                 </button>
             }
 
-            <a class="btn btn-outline-secondary d-flex align-items-center gap-2"
-               asp-page="Summary">
-                <i class="bi bi-card-list" aria-hidden="true"></i>
-                <span>Overview</span>
-            </a>
         </div>
     </div>
 
@@ -140,6 +133,99 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
+
+    @{
+        var position = Model.Position;
+        string Share(int count) => position.NeedTot == 0
+            ? "0"
+            : (count * 100m / position.NeedTot).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    }
+    <section class="tot-overview" aria-labelledby="tot-position-heading">
+        <h2 class="visually-hidden" id="tot-position-heading">Position</h2>
+        <div class="tot-summary__metrics row g-3">
+            <div class="col-6 col-lg">
+                <a class="tot-summary__metric-card tot-overview__card" asp-page="./Index" asp-route-RequiresTotOnly="true">
+                    <span class="tot-summary__metric-label d-block">Need ToT</span>
+                    <span class="tot-summary__metric-value d-block">@position.NeedTot</span>
+                    <span class="tot-overview__card-note">completed projects</span>
+                </a>
+            </div>
+            <div class="col-6 col-lg">
+                <a class="tot-summary__metric-card tot-summary__metric-card--completed tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="Completed">
+                    <span class="tot-summary__metric-label d-block">ToT completed</span>
+                    <span class="tot-summary__metric-value d-block">@position.Completed</span>
+                    <span class="tot-overview__card-note">@(position.CompletedPercent is { } pct ? $"{pct}% of {position.NeedTot}" : "—")</span>
+                </a>
+            </div>
+            <div class="col-6 col-lg">
+                <a class="tot-summary__metric-card tot-summary__metric-card--inprogress tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="InProgress">
+                    <span class="tot-summary__metric-label d-block">In progress</span>
+                    <span class="tot-summary__metric-value d-block">@position.InProgress</span>
+                </a>
+            </div>
+            <div class="col-6 col-lg">
+                <a class="tot-summary__metric-card tot-summary__metric-card--notstarted tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="NotStarted">
+                    <span class="tot-summary__metric-label d-block">Not started</span>
+                    <span class="tot-summary__metric-value d-block">@position.NotStarted</span>
+                    @if (position.LongWaiting > 0)
+                    {
+                        <span class="tot-overview__card-note">@position.LongWaiting over five years</span>
+                    }
+                </a>
+            </div>
+            @if (position.NotKnown > 0)
+            {
+                <div class="col-6 col-lg">
+                    <a class="tot-summary__metric-card tot-overview__card" asp-page="./Index" asp-route-TotStatusFilter="NotKnown">
+                        <span class="tot-summary__metric-label d-block">Not known</span>
+                        <span class="tot-summary__metric-value d-block">@position.NotKnown</span>
+                    </a>
+                </div>
+            }
+        </div>
+
+        @if (position.NeedTot > 0)
+        {
+            <div class="tot-overview__bar" role="img"
+                 aria-label="@($"{position.Completed} completed, {position.InProgress} in progress, {position.NotStarted} not started, {position.NotKnown} not known")">
+                <span class="tot-overview__bar-part tot-overview__bar-part--completed" style="width: @Share(position.Completed)%"></span>
+                <span class="tot-overview__bar-part tot-overview__bar-part--inprogress" style="width: @Share(position.InProgress)%"></span>
+                <span class="tot-overview__bar-part tot-overview__bar-part--notstarted" style="width: @Share(position.NotStarted)%"></span>
+                <span class="tot-overview__bar-part tot-overview__bar-part--notknown" style="width: @Share(position.NotKnown)%"></span>
+            </div>
+        }
+        @if (position.NotRequired > 0)
+        {
+            <p class="tot-overview__note">
+                @position.NotRequired @(position.NotRequired == 1 ? "project does" : "projects do") not require ToT and @(position.NotRequired == 1 ? "is" : "are") not counted.
+                <a asp-page="./Index" asp-route-TotStatusFilter="NotRequired">Show @(position.NotRequired == 1 ? "it" : "them")</a>
+            </p>
+        }
+
+        <div class="tot-summary__chart card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h2 class="tot-summary__chart-title mb-1">ToT completed per year</h2>
+                        <p class="tot-summary__chart-caption mb-0">How many projects completed ToT in each year.</p>
+                    </div>
+                    <button type="button"
+                            id="tot-chart-download"
+                            class="btn btn-light btn-sm tot-summary__chart-btn"
+                            title="Download chart"
+                            aria-label="Download chart as PNG">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="tot-summary__chart-host" id="tot-yearly-chart-host">
+                    <canvas id="tot-yearly-chart" aria-label="ToT completed per year" role="img"></canvas>
+                </div>
+                <p class="tot-summary__chart-message text-muted mb-0" id="tot-yearly-chart-message" role="status" hidden></p>
+            </div>
+        </div>
+    </section>
+
+    <h2 class="tot-register__heading" id="tot-register-heading">Register</h2>
 
     <!-- context bar -->
     <div class="tot-context-bar" aria-label="Current ToT view summary">
@@ -331,4 +417,6 @@
 {
     <script type="module" src="~/js/pages/project-office-reports/tot.js" asp-append-version="true"></script>
     <script src="~/js/projects/overview-tot.js" asp-append-version="true"></script>
+    <script src="~/lib/chart.js/chart.umd.js"></script>
+    <script type="module" src="~/js/pages/project-office-reports/tot-chart.js" asp-append-version="true"></script>
 }

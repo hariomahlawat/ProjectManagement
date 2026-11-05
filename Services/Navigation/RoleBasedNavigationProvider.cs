@@ -256,7 +256,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "ToT tracker",
                 Area = "ProjectOfficeReports",
-                Page = "/Tot/Summary",
+                Page = "/Tot/Index",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTotTracker,
                 Icon = "bi-diagram-3"
             },
