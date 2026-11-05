@@ -3,11 +3,17 @@
 
     if (typeof bootstrap === 'undefined') return;
 
+    // The shared ToT drawer (Pages/Projects/_ProjectTotDrawer.cshtml). It talks to the hosting
+    // page's handlers at data-tot-endpoint; the project page also has a ToT card to keep current.
     const offcanvas = document.getElementById('offcanvasTot');
+    if (!offcanvas) return;
     const card = document.getElementById('project-tot-card');
-    if (!offcanvas || !card) return;
 
     const projectId = Number.parseInt(offcanvas.dataset.projectId || '0', 10);
+    const endpoint = offcanvas.dataset.totEndpoint || window.location.pathname;
+    function handlerUrl(handler) {
+        return `${endpoint}?handler=${encodeURIComponent(handler)}&id=${encodeURIComponent(projectId)}`;
+    }
     const root = offcanvas.querySelector('[data-tot-root]');
     const loading = root?.querySelector('[data-tot-loading]');
     const content = root?.querySelector('[data-tot-content]');
@@ -48,6 +54,7 @@
     const decideButtons = root ? [...root.querySelectorAll('[data-tot-decide]')] : [];
     const historyWrap = root?.querySelector('[data-tot-history-wrap]');
     const historyList = root?.querySelector('[data-tot-history]');
+    const openProjectLink = root?.querySelector('[data-tot-open-project]');
 
     let loaded = false;
     let editing = false;
@@ -229,8 +236,17 @@
     function setDecideBusy(value) {
         decideButtons.forEach((button) => { if (button instanceof HTMLButtonElement) button.disabled = value; });
     }
+    // Point every form and link at the project whose details are shown.
+    function pointAtProject(payload) {
+        if (form instanceof HTMLFormElement) form.action = handlerUrl('Tot');
+        if (remarkForm instanceof HTMLFormElement) remarkForm.action = handlerUrl('TotRemark');
+        if (decideForm instanceof HTMLFormElement) decideForm.action = handlerUrl('TotDecide');
+        root?.querySelectorAll('[data-tot-project-field]').forEach((field) => { field.value = String(projectId); });
+        if (openProjectLink instanceof HTMLAnchorElement) openProjectLink.href = `/Projects/Overview/${encodeURIComponent(projectId)}`;
+        toggle(addRemarkButton, !payload?.canManage);
+    }
     function updateCard(payload) {
-        if (!payload) return;
+        if (!payload || !card) return;
         const title = card.querySelector('[data-tot-card-title]');
         const summary = card.querySelector('[data-tot-card-summary]');
         const tone = cardTones.includes(payload.tone)
@@ -246,10 +262,10 @@
         if (loaded && !force) return;
         setLoading(true); clearMessages();
         try {
-            const response = await fetch(`${window.location.pathname}?handler=TotDetails&id=${encodeURIComponent(projectId)}`, { credentials:'same-origin', headers:{ Accept:'application/json','X-Requested-With':'XMLHttpRequest' } });
+            const response = await fetch(handlerUrl('TotDetails'), { credentials:'same-origin', headers:{ Accept:'application/json','X-Requested-With':'XMLHttpRequest' } });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to load Transfer of Technology details.');
-            populateForm(payload.input); renderSummary(payload); updateCard(payload.card);
+            populateForm(payload.input); renderSummary(payload); updateCard(payload.card); pointAtProject(payload);
             if (editButton instanceof HTMLButtonElement) toggle(editButton, !payload.canManage || payload.pendingApproval);
             loaded = true;
         } catch (error) {

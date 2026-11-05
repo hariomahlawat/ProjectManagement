@@ -125,6 +125,7 @@
          data-bs-backdrop="static"
          data-bs-keyboard="false"
          data-project-id="@Model.Project.Id"
+         data-tot-endpoint="@Model.TotDrawerView.Endpoint"
          data-can-manage="@Model.CanManageTot.ToString().ToLowerInvariant()">
         <div class="offcanvas-header">
             <div>
@@ -134,7 +135,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body p-0">
-            <partial name="_ProjectTotDrawer" model="Model" />
+            <partial name="_ProjectTotDrawer" model="Model.TotDrawerView" />
         </div>
     </div>
 }
