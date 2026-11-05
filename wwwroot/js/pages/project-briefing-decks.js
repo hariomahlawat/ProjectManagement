@@ -806,7 +806,8 @@ if (root) {
 
   root.querySelectorAll('[data-pbd-additional-slide-toggle]').forEach((toggle) => {
     toggle.addEventListener('change', () => {
-      const form = toggle.closest('[data-pbd-additional-slide-toggle-form]');
+      // The switch sits in the Extra slides step; its form is outside the settings form.
+      const form = toggle.form || toggle.closest('[data-pbd-additional-slide-toggle-form]');
       const enabledInput = form?.querySelector('[data-pbd-additional-slide-enabled]');
       if (enabledInput instanceof HTMLInputElement) enabledInput.value = String(toggle.checked);
       // requestSubmit, so the page's submit guard waits for a pending settings save first.
@@ -871,6 +872,10 @@ if (root) {
     const text = parts.filter(Boolean).join(', ');
     return text ? text.charAt(0).toUpperCase() + text.slice(1) : 'None';
   };
+  // The institution slides switched on, by name, for the Extra slides summary.
+  const institutionSlides = () => [...root.querySelectorAll('[data-pbd-additional-slide-card]')]
+    .filter((card) => card.querySelector('[data-pbd-additional-slide-toggle]')?.checked)
+    .map((card) => card.dataset.slideName || '');
   const stepSummaries = () => {
     const sheet = isUpdateSheet();
     const mode = settingsValue('PresentationMode');
@@ -900,11 +905,12 @@ if (root) {
       sheet: `${rows} ${rows === 1 ? 'row' : 'rows'}${settingsChecked('HideEmptyUpdateSheetValues') ? ' · empty rows hidden' : ''}`,
       cost: { CostRdOnly: 'Cost (R&D)', ProliferationOnly: 'Proliferation cost', Both: 'Both costs', None: 'No cost' }[settingsValue('CostMode')] || '',
       extra: sheet
-        ? sentence([settingsChecked('IncludeCoverSlide') && 'cover', settingsChecked('IncludePortfolioSummarySlide') && 'portfolio summary'])
+        ? sentence([settingsChecked('IncludeCoverSlide') && 'cover', settingsChecked('IncludePortfolioSummarySlide') && 'portfolio summary', ...institutionSlides()])
         : sentence([
           settingsChecked('IncludeStageSummary') && (settingsChecked('IncludeStageDistributionTable') ? 'stage summary with table' : 'stage summary'),
           settingsChecked('IncludeProjectCategorySummary') && 'category summary',
-          settingsChecked('IncludeTechnicalCategorySummary') && 'technical summary']),
+          settingsChecked('IncludeTechnicalCategorySummary') && 'technical summary',
+          ...institutionSlides()]),
       look: [settingsValueLabel('PresentationTheme'), insignia, settingsValueLabel('ClosingSlideType')].filter(Boolean).join(' · '),
       handling: marking ? `Marked ${marking}` : 'No marking'
     };

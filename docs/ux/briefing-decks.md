@@ -354,7 +354,13 @@ A separate icon rail was considered and rejected: the inspector is narrow and ha
    switch; the themes are two small swatches. The radios and checkboxes stay real, focusable
    inputs with the same names. The open step stays open when other settings change (the
    remembered step is restored only when the layout changes).
-4. Extra slides: summary slides and institution slides together in one step (switch and Edit,
-   opening the existing editors); the separate Additional slides section goes.
+4. Extra slides: done (this change). The Extra slides step holds the summary slides (each note on
+   its own line) and the institution slides, one compact row each: drag handle (a pin for the FFC
+   footprint, fixed before closing), a switch with the name and position, Edit (the existing
+   editors) and remove (asks first). "Add slide" shows only while a slide type is missing. The
+   rows' toggle, remove and order forms sit outside the settings form (forms cannot nest); the
+   switch and remove button reach theirs through the `form` attribute. The separate Additional
+   slides section and its card styles are gone; the step's summary lists the enabled institution
+   slides. The Deck tab is about 700 px tall with every step closed (it was about 3,100 px).
 5. Preview follows the change: after a change the preview shows a slide it affects (for example the
    first project slide after key points are switched on).
