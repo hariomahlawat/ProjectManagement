@@ -442,13 +442,23 @@ projects missing", Show) and the preview following each settings change.
    `UndoPresetAsync` refuses otherwise, and any other change in the Studio removes the Undo bar.
    Success messages fade after six seconds; the placeholder note under Generate shows only while a
    check is open; the browser title is "Briefing decks" (or the deck's name in the Studio).
-3. **Guidance in the Studio.** A progress line in the deck header: Projects 49 · Gaps 5 ·
-   Settings: template name · Generate, each part opening its tab. A one-time line explaining the model
-   ("Rebuilt from live PRISM data each time. Saved as you go, shared with Comdt and HoDs.") with a
-   dismiss, and "Saved · shared" next to the title. Gap actions say their scope: "Fix in project"
-   or "This deck only". Selecting a slide opens This slide; each gap shows in one place; the
-   outline numbers get a tooltip and an accessible label. Add projects marks a quick add as
-   "Added" and closes on Escape. The library shows the slide count from the last build.
+3. **Guidance in the Studio.** Done (this change). Under the deck header a numbered progress line
+   reads Projects (count, or Add) · Checks (n to review, or All recorded) · Settings (template
+   name, ", customised") · Generate; Projects opens Add projects, Checks and Settings open their
+   inspector tabs, Generate goes to the button. The Studio updates the figures after every
+   rebuild. A note says once how the deck works (rebuilt from live PRISM data; saves as you go;
+   shared with every Comdt and HoD workspace user) until "Got it" (remembered per browser), and
+   "Saved · shared" by the title turns to "Saving…" or "Not saved" while in-place changes run.
+   The gaps moved from the card under the preview into This slide ("Missing · n", at the top),
+   so each shows once; the Present status and Capability overview sections are left out there
+   while their gap is listed. Each fix says where it lands: "Fix in project" (opens the project;
+   every deck and page shows the change) or "This deck only" (text kept with the deck). Picking
+   a slide in the outline or the All slides grid opens This slide. The outline's orange number
+   explains itself on hover and to screen readers. In Add projects a quick add turns to
+   "Added" (fresh again each time the dialog opens), focus returns to the button after saving,
+   and Escape closes the dialog even when focus has left it. The library's Slides column keeps
+   "—" until the first PowerPoint, now with a tooltip: the preview count is not stored, and
+   storing it would need a new column for little gain.
 4. **Present.** Full screen (Fullscreen API, falling back to the dialog), the slide as large as the
    screen allows, filmstrip hidden until asked for, and an optional notes view showing the
    project's speaker notes. It starts at the selected slide, with "From the start" beside it.

@@ -189,6 +189,9 @@
     <None Include="..\Pages\Workspace\BriefingDecks\Index.cshtml.cs"
           Link="TestData\ProjectBriefing\Index.cshtml.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Pages\Workspace\BriefingDecks\_DeckLibrary.cshtml"
+          Link="TestData\ProjectBriefing\_DeckLibrary.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Pages\Workspace\BriefingDecks\_InstitutionalProfileEditor.cshtml"
           Link="TestData\ProjectBriefing\_InstitutionalProfileEditor.cshtml"
           CopyToOutputDirectory="PreserveNewest" />

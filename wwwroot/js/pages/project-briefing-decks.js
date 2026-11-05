@@ -63,11 +63,41 @@ if (root) {
   // Every in-place change to the deck sends its row version, so they run one at a time: each
   // starts after the previous one has finished and picked up the version the server returned.
   let deckMutationTail = Promise.resolve();
+  // "Saved · shared" by the deck title says what the last change did: saving, saved, or not saved.
+  const savedChip = root.querySelector('[data-pbd-saved-chip]');
+  const savedChipText = savedChip?.querySelector('[data-pbd-saved-chip-text]');
+  let savesRunning = 0;
+  const showSaveState = (state) => {
+    if (!savedChip) return;
+    savedChip.classList.toggle('is-saving', state === 'saving');
+    savedChip.classList.toggle('is-error', state === 'error');
+    if (savedChipText) {
+      savedChipText.textContent = state === 'saving' ? 'Saving…' : state === 'error' ? 'Not saved' : 'Saved · shared';
+    }
+  };
   const runDeckMutation = (mutate) => {
+    savesRunning += 1;
+    showSaveState('saving');
     const run = deckMutationTail.then(() => mutate());
     deckMutationTail = run.catch(() => {});
+    run.then(
+      () => { savesRunning -= 1; if (!savesRunning) showSaveState('saved'); },
+      () => { savesRunning -= 1; showSaveState('error'); });
     return run;
   };
+
+  // How the deck works, said once: dismissed for good on this browser.
+  const modelNote = root.querySelector('[data-pbd-model-note]');
+  const modelNoteKey = 'prism.briefingDecks.modelNoteSeen';
+  if (modelNote) {
+    let seen = false;
+    try { seen = window.localStorage.getItem(modelNoteKey) === '1'; } catch { /* storage refused: show it */ }
+    modelNote.hidden = seen;
+    modelNote.querySelector('[data-pbd-model-note-dismiss]')?.addEventListener('click', () => {
+      try { window.localStorage.setItem(modelNoteKey, '1'); } catch { /* shown again next time */ }
+      modelNote.remove();
+    });
+  }
 
   // Deck settings: the form in the Studio's Deck tab, saved in place as it changes.
   const settingsForm = root.querySelector('[data-pbd-settings-form]');
@@ -983,6 +1013,10 @@ if (root) {
     const known = Boolean(deck.preset && presetTitles[deck.preset]);
     if (templateCurrent) templateCurrent.textContent = known ? presetTitles[deck.preset] : 'Set up by hand';
     if (templateCustomised) templateCustomised.hidden = !(known && deck.presetAdjusted);
+    const progressTemplate = root.querySelector('[data-pbd-progress-template]');
+    if (progressTemplate) {
+      progressTemplate.textContent = `${known ? presetTitles[deck.preset] : 'Set up by hand'}${known && deck.presetAdjusted ? ', customised' : ''}`;
+    }
     if (presetStatus) {
       presetStatus.textContent = !known
         ? 'Choose a template to apply its settings; you can still change any of them.'
@@ -1330,10 +1364,24 @@ if (root) {
     ? window.bootstrap.Modal.getOrCreateInstance(addProjectsModalElement)
     : null;
   const addProjectsStatus = addProjectsModalElement?.querySelector('[data-pbd-add-projects-status]');
+  const quickAddButtons = () => [...(addProjectsModalElement?.querySelectorAll('.pbd-quick-card button[type="submit"]') || [])];
   const openAddProjects = () => {
     setState(addProjectsStatus, '');
+    quickAddButtons().forEach((button) => {
+      button.classList.remove('is-added');
+      button.textContent = 'Add';
+    });
     addProjectsModal?.show();
   };
+  // Focus can leave the dialog (a button disabled while saving drops it to the page); Escape
+  // still closes it.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (!addProjectsModalElement?.classList.contains('show')) return;
+    if (addProjectsModalElement.contains(event.target instanceof Node ? event.target : null)) return;
+    if (document.querySelector('dialog[open]')) return;
+    addProjectsModal?.hide();
+  });
   root.addEventListener('click', (event) => {
     if (event.target instanceof Element && event.target.closest('[data-pbd-open-selector]')) openAddProjects();
   });
@@ -1538,10 +1586,18 @@ if (root) {
       applyEditorState(payload?.deck);
       setState(addProjectsStatus, payload?.message || 'Deck updated.', 'saved');
       setState(membershipStatus, payload?.message || 'Deck updated.', 'saved');
+      if (button && form.classList.contains('pbd-quick-card')) {
+        button.classList.add('is-added');
+        button.replaceChildren(Object.assign(document.createElement('i'), { className: 'bi bi-check-lg' }), document.createTextNode(' Added'));
+        button.firstChild.setAttribute('aria-hidden', 'true');
+      }
     } catch (error) {
       setState(addProjectsStatus, error.message || 'Projects could not be added.', 'error');
     } finally {
       button?.removeAttribute('disabled');
+      // Disabling the button dropped focus to the page; put it back so the keyboard carries on.
+      // (Bootstrap's focus trap may have caught it on the dialog itself.)
+      if (button && [document.body, addProjectsModalElement].includes(document.activeElement)) button.focus();
     }
   });
 

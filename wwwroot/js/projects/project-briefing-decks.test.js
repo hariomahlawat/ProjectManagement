@@ -405,7 +405,7 @@ test('projects without slides of their own are listed against the table page tha
   assert.match(build, /\(item\.listedProjectIds \|\| \[\]\)\.forEach\(\(projectId\) => \{\s*if \(byProject\.has\(projectId\)\) return;/);
   assert.doesNotMatch(build, /if \(!result\.some\(\(entry\) => entry\.section === 'project'\)\)/);
   // The row the person chose stays selected while several projects share one slide.
-  assert.match(studioSource, /row\.addEventListener\('click', \(\) => selectEntry\(entry\)\);/);
+  assert.match(studioSource, /row\.addEventListener\('click', \(\) => selectEntry\(entry, \{ openSlideTab: true \}\)\);/);
   assert.match(studioSource, /selectIndex\(entry\.indices\[0\], \{ from: 'outline', key: entry\.key \}\);/);
 });
 

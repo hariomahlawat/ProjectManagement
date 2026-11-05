@@ -105,6 +105,41 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Studio_GuidesTheWorkAndSaysHowTheDeckBehaves()
+    {
+        var page = Read("Index.cshtml");
+        var library = Read("_DeckLibrary.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var studio = Read("project-briefing-studio.js");
+
+        // The progress line: projects, checks, settings, generate, each opening where it is done.
+        Assert.Contains("<nav class=\"pbd-progress\" aria-label=\"Deck progress\" data-pbd-progress>", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-progress-tab=\"checks\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-progress-tab=\"deck\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-progress-generate", page, StringComparison.Ordinal);
+        Assert.Contains("const renderProgress = (presented, openChecks) =>", studio, StringComparison.Ordinal);
+        Assert.Contains("progressTemplate.textContent", script, StringComparison.Ordinal);
+
+        // How the deck behaves, said once, and the save state by the title.
+        Assert.Contains("data-pbd-model-note hidden", page, StringComparison.Ordinal);
+        Assert.Contains("'prism.briefingDecks.modelNoteSeen'", script, StringComparison.Ordinal);
+        Assert.Contains("<span data-pbd-saved-chip-text>Saved · shared</span>", page, StringComparison.Ordinal);
+        Assert.Contains("showSaveState('saving');", script, StringComparison.Ordinal);
+
+        // Gaps live in This slide only, each fix saying where it lands.
+        Assert.DoesNotContain("data-pbd-stage-checks", page, StringComparison.Ordinal);
+        Assert.Contains("const FIX_IN_PROJECT = 'Fix in project';", studio, StringComparison.Ordinal);
+        Assert.Contains("const THIS_DECK_ONLY = 'This deck only';", studio, StringComparison.Ordinal);
+
+        // Add projects: a quick add says it is done; Escape closes even when focus left the dialog.
+        Assert.Contains("document.createTextNode(' Added')", script, StringComparison.Ordinal);
+        Assert.Contains("addProjectsModal?.hide();", script, StringComparison.Ordinal);
+
+        // The library explains the empty slide count.
+        Assert.Contains("Counted when the PowerPoint is first generated.", library, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()
     {
         var page = Read("Index.cshtml");

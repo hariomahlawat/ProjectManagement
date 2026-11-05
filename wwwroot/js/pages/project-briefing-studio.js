@@ -16,7 +16,6 @@ if (root) {
   const stageMeta = root.querySelector('[data-pbd-stage-meta]');
   const stageTitle = root.querySelector('[data-pbd-stage-title]');
   const slideBox = root.querySelector('[data-pbd-stage-slide]');
-  const checksBox = root.querySelector('[data-pbd-stage-checks]');
   const gridBox = root.querySelector('[data-pbd-stage-grid]');
   const viewButtons = [...root.querySelectorAll('[data-pbd-stage-view]')];
   const prevButton = root.querySelector('[data-pbd-stage-prev]');
@@ -116,16 +115,20 @@ if (root) {
     { key: 'closing', label: 'Closing' },
     { key: 'leftout', label: 'Not in the PowerPoint' }
   ];
+  // Each fix says where the change lands: "Fix in project" changes the project record (every deck
+  // and page shows it); "This deck only" writes text kept with this deck.
   const GAPS = {
-    status: { label: 'Status remark', missing: 'No external status remark yet', fix: 'Add in project', href: (p) => p.openUrl },
-    costRd: { label: 'Cost (R&D)', missing: 'Not recorded', fix: 'Record in project', href: (p) => p.openUrl },
-    proliferationCost: { label: 'Proliferation cost', missing: 'Not recorded', fix: 'Record in project', href: (p) => p.openUrl },
-    photo: { label: 'Photograph', missing: 'No usable cover photo', fix: 'Choose in Photos', href: (p) => `/Projects/${p.projectId}/Photos` },
-    capabilityOverview: { label: 'Capability overview', missing: 'Not recorded', fix: 'Write for this deck', describe: true },
-    projectBrief: { label: 'Project brief', missing: 'Not recorded', fix: 'Write in project', href: (p) => `${p.openUrl}?content=brief#content-brief` },
-    keyPoints: { label: 'Key points', missing: 'None recorded', fix: 'Write in project', href: (p) => `${p.openUrl}?content=keypoints#content-keypoints` },
-    updateSheetFacts: { label: 'Update-sheet facts', missing: 'Some selected rows are empty', fix: 'Open project', href: (p) => p.openUrl }
+    status: { label: 'Status remark', missing: 'No external status remark yet', href: (p) => p.openUrl },
+    costRd: { label: 'Cost (R&D)', missing: 'Not recorded', href: (p) => p.openUrl },
+    proliferationCost: { label: 'Proliferation cost', missing: 'Not recorded', href: (p) => p.openUrl },
+    photo: { label: 'Photograph', missing: 'No usable cover photo', href: (p) => `/Projects/${p.projectId}/Photos` },
+    capabilityOverview: { label: 'Capability overview', missing: 'Not recorded in the project', describe: true },
+    projectBrief: { label: 'Project brief', missing: 'Not recorded', href: (p) => `${p.openUrl}?content=brief#content-brief` },
+    keyPoints: { label: 'Key points', missing: 'None recorded', href: (p) => `${p.openUrl}?content=keypoints#content-keypoints` },
+    updateSheetFacts: { label: 'Update-sheet facts', missing: 'Some selected rows are empty', href: (p) => p.openUrl }
   };
+  const FIX_IN_PROJECT = 'Fix in project';
+  const THIS_DECK_ONLY = 'This deck only';
 
   let slides = [];
   let images = {};
@@ -643,12 +646,15 @@ if (root) {
           if (tag) row.append(el('span', 'pbd-outline__tag', tag));
           const missing = project?.isPresented ? gapsFor(entry.projectId) : [];
           if (missing.length) {
-            const badge = el('span', 'pbd-outline__gaps', String(missing.length));
-            badge.title = `Missing: ${missing.map((key) => GAPS[key]?.label.toLowerCase() || key).join(', ')}`;
-            badge.setAttribute('aria-label', `${plural(missing.length, 'item')} missing`);
+            const names = missing.map((key) => GAPS[key]?.label.toLowerCase() || key).join(', ');
+            const badge = el('span', 'pbd-outline__gaps');
+            const count = el('span', null, String(missing.length));
+            count.setAttribute('aria-hidden', 'true');
+            badge.append(count, el('span', 'visually-hidden', `, ${plural(missing.length, 'item')} missing: ${names}`));
+            badge.title = `${plural(missing.length, 'item')} missing: ${names}. The PowerPoint shows a placeholder; select the slide to fix it.`;
             row.append(badge);
           }
-          row.addEventListener('click', () => selectEntry(entry));
+          row.addEventListener('click', () => selectEntry(entry, { openSlideTab: true }));
           item.append(row);
           list.append(item);
         });
@@ -732,32 +738,41 @@ if (root) {
     return button;
   };
 
-  const renderChecks = (entry) => {
-    if (!checksBox) return;
-    const project = entry?.projectId ? projects.get(entry.projectId) : null;
-    if (!project || view !== 'slide') {
-      checksBox.replaceChildren();
-      checksBox.hidden = true;
-      return;
-    }
-    const missing = gapsFor(project.projectId);
-    checksBox.hidden = false;
+  // What the project's slides lack, at the top of This slide: the one place each gap shows, with
+  // the fix and where it lands.
+  const gapsSection = (project) => {
+    const missing = project.isPresented ? gapsFor(project.projectId) : [];
     if (missing.length === 0) {
-      const done = el('p', 'pbd-stage__check is-ready');
-      done.append(icon('bi-check-circle'), el('span', null, 'Everything this deck shows for the project is recorded.'));
-      checksBox.replaceChildren(done);
-      return;
+      const done = el('p', 'pbd-stage__check is-ready pbd-inspector__ready');
+      done.append(icon('bi-check-circle'), el('span', null, 'Everything these slides show is recorded.'));
+      return done;
     }
-    checksBox.replaceChildren(...missing.map((key) => {
-      const gap = GAPS[key] || { label: key, missing: 'Missing', fix: 'Open project', href: (p) => p.openUrl };
-      const card = el('div', 'pbd-stage__check');
-      const text = el('span', 'pbd-stage__check-text');
-      text.append(el('strong', null, gap.label), el('small', null, key === 'photo' && project.coverPhotoReadinessReason ? project.coverPhotoReadinessReason : gap.missing));
-      card.append(icon('bi-exclamation-circle'), text);
-      if (gap.describe && usesCapability) card.append(describeButton(project, gap.fix));
-      else if (gap.href) card.append(actionLink(gap.fix, gap.href(project), project.projectId));
-      return card;
-    }));
+    const section = el('section', 'pbd-inspector__gaps');
+    section.setAttribute('aria-label', 'Missing on these slides');
+    section.append(el('h5', 'pbd-inspector__heading', `Missing · ${missing.length}`));
+    const list = el('ul');
+    missing.forEach((key) => {
+      const gap = GAPS[key] || { label: key, missing: 'Missing', href: (p) => p.openUrl };
+      const item = el('li');
+      const text = el('span', 'pbd-inspector__gap-text');
+      text.append(el('strong', null, gap.label),
+        el('small', null, key === 'photo' && project.coverPhotoReadinessReason ? project.coverPhotoReadinessReason : gap.missing));
+      item.append(text);
+      if (gap.describe && usesCapability) {
+        const write = describeButton(project, THIS_DECK_ONLY);
+        write.title = 'Write the text for this deck. The project’s own record is unchanged.';
+        write.prepend(icon('bi-pencil'), document.createTextNode(' '));
+        item.append(write);
+      } else if (gap.href) {
+        const fix = actionLink(FIX_IN_PROJECT, gap.href(project), project.projectId);
+        fix.title = 'Opens the project. The change shows in every deck and page.';
+        fix.append(document.createTextNode(' '), icon('bi-box-arrow-up-right'));
+        item.append(fix);
+      }
+      list.append(item);
+    });
+    section.append(list, el('p', 'pbd-inspector__note', 'Until then the PowerPoint shows a placeholder.'));
+    return section;
   };
 
   const renderSlideInspector = (entry) => {
@@ -780,6 +795,8 @@ if (root) {
       nodes.push(el('span', 'pbd-eyebrow', `Project · ${project.presentStage || 'Stage not recorded'}`));
       nodes.push(el('h4', 'pbd-inspector__title', project.projectName));
       nodes.push(el('p', 'pbd-inspector__meta', [project.lifecycleDisplay, project.projectCategory, project.technicalCategory].filter(Boolean).join(' · ')));
+      const missing = project.isPresented ? gapsFor(project.projectId) : [];
+      if (project.isPresented) nodes.push(gapsSection(project));
       const facts = el('dl', 'pbd-inspector__facts');
       const fact = (label, value, note) => {
         const row = el('div');
@@ -798,17 +815,21 @@ if (root) {
       if (usesPhoto(project)) nodes.push(photoSection(project));
       if (hasOwnSlides(project)) nodes.push(notesSection(project));
 
-      nodes.push(el('h5', 'pbd-inspector__heading', 'Present status'));
-      nodes.push(project.externalStatus
-        ? el('blockquote', 'pbd-inspector__quote', project.externalStatus)
-        : el('p', 'pbd-inspector__note', 'No external status remark recorded. The slides show the placeholder.'));
+      if (!missing.includes('status')) {
+        nodes.push(el('h5', 'pbd-inspector__heading', 'Present status'));
+        nodes.push(project.externalStatus
+          ? el('blockquote', 'pbd-inspector__quote', project.externalStatus)
+          : el('p', 'pbd-inspector__note', 'No external status remark recorded. The slides show the placeholder.'));
+      }
 
-      if (usesCapability) {
+      if (usesCapability && !missing.includes('capabilityOverview')) {
         nodes.push(el('h5', 'pbd-inspector__heading', 'Capability overview'));
         nodes.push(el('p', 'pbd-inspector__note', project.briefDescriptionOverride
           ? 'Written for this deck. The project’s own statements are unchanged.'
           : (project.capabilityStatements?.length ? `From the project: ${plural(project.capabilityStatements.length, 'statement')}.` : 'Not recorded in the project.')));
-        nodes.push(describeButton(project, project.briefDescriptionOverride ? 'Edit the text for this deck' : 'Write for this deck'));
+        const write = describeButton(project, project.briefDescriptionOverride ? 'Edit the text for this deck' : 'Write for this deck only');
+        write.title = 'Text kept with this deck. The project’s own record is unchanged.';
+        nodes.push(write);
       }
 
       const actions = el('div', 'pbd-inspector__actions');
@@ -835,6 +856,26 @@ if (root) {
     panel.replaceChildren(...nodes);
   };
 
+  // The progress line under the deck header: projects, checks, settings, generate.
+  const progress = document.querySelector('[data-pbd-progress]');
+  const progressStep = (name) => progress?.querySelector(`[data-pbd-progress-step="${name}"]`);
+  const setStepState = (name, state) => {
+    const step = progressStep(name);
+    if (!step) return;
+    step.classList.remove('is-done', 'is-next', 'is-open', 'is-ready');
+    if (state) step.classList.add(state);
+  };
+  const renderProgress = (presented, openChecks) => {
+    if (!progress) return;
+    const projectsValue = progress.querySelector('[data-pbd-progress-projects]');
+    if (projectsValue) projectsValue.textContent = projects.size ? String(projects.size) : 'Add';
+    setStepState('projects', projects.size ? 'is-done' : 'is-next');
+    const checksValue = progress.querySelector('[data-pbd-progress-checks]');
+    if (checksValue) checksValue.textContent = presented === 0 ? '–' : (openChecks ? `${openChecks} to review` : 'All recorded');
+    setStepState('checks', presented === 0 ? '' : (openChecks ? 'is-open' : 'is-done'));
+    setStepState('generate', presented ? 'is-ready' : '');
+  };
+
   const renderChecksPanel = () => {
     const panel = panels.checks;
     if (!panel) return;
@@ -857,6 +898,7 @@ if (root) {
       checksBadge.title = `${plural(openChecks, 'check')} to review`;
       checksBadge.setAttribute('aria-label', `${plural(openChecks, 'check')} to review`);
     }
+    renderProgress(total, openChecks);
     if (total === 0) {
       panel.replaceChildren(el('p', 'pbd-inspector__empty', 'Add projects to check the deck.'));
       return;
@@ -904,6 +946,7 @@ if (root) {
       caption.append(el('b', null, String(slide.number)), el('span', null, slide.title));
       button.append(buildFrame(slide), caption);
       button.addEventListener('click', () => {
+        setTab('slide');
         setView('slide');
         selectIndex(index);
       });
@@ -927,7 +970,6 @@ if (root) {
           ? 'This project is deleted or archived, so the PowerPoint leaves it out. Remove it from the deck, or restore the project.'
           : 'This project is left out of the PowerPoint. Choose Own slides or Table row only in the inspector to bring it back.'));
       }
-      renderChecks(null);
       renderSlideInspector(entry);
       return;
     }
@@ -935,7 +977,6 @@ if (root) {
       if (stageMeta) stageMeta.textContent = 'Slide preview';
       releaseFrames(slideBox);
       slideBox?.replaceChildren();
-      renderChecks(null);
       renderSlideInspector(null);
       return;
     }
@@ -946,12 +987,12 @@ if (root) {
       releaseFrames(slideBox);
       slideBox.replaceChildren(buildFrame(slide));
     }
-    renderChecks(entry);
     renderSlideInspector(entry);
     gridBox?.querySelectorAll('.pbd-stage__thumb').forEach((thumb, index) => thumb.classList.toggle('is-selected', index === current));
   };
 
-  const selectEntry = (entry) => {
+  const selectEntry = (entry, { openSlideTab = false } = {}) => {
+    if (openSlideTab) setTab('slide');
     if (entry.indices.length) {
       selectIndex(entry.indices[0], { from: 'outline', key: entry.key });
       return;
@@ -1203,6 +1244,17 @@ if (root) {
   nextButton?.addEventListener('click', () => selectIndex(current + 1));
   viewButtons.forEach((button) => button.addEventListener('click', () => setView(button.dataset.pbdStageView)));
   tabs.forEach((tab) => tab.addEventListener('click', () => setTab(tab.dataset.pbdInspectorTab)));
+  progress?.querySelectorAll('[data-pbd-progress-tab]').forEach((button) => button.addEventListener('click', () => {
+    const name = button.dataset.pbdProgressTab;
+    if (name === 'deck') showDeckSettings();
+    else setTab(name, { focus: true });
+    root.querySelector('.pbd-studio__inspector')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }));
+  progress?.querySelector('[data-pbd-progress-generate]')?.addEventListener('click', () => {
+    const generate = document.querySelector('[data-pbd-generate]');
+    generate?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    generate?.focus();
+  });
   tabs.forEach((tab, index) => tab.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();

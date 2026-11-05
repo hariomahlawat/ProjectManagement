@@ -161,7 +161,14 @@
                         </td>
                         <td>@deck.Purpose</td>
                         <td class="is-number">@deck.ProjectCount</td>
-                        <td class="is-number">@(deck.LastGeneratedSlideCount?.ToString() ?? "—")</td>
+                        @if (deck.LastGeneratedSlideCount is int slideCount)
+                        {
+                            <td class="is-number">@slideCount</td>
+                        }
+                        else
+                        {
+                            <td class="is-number"><span class="pbd-library__quiet" title="Counted when the PowerPoint is first generated. The Studio shows the count as you build.">—</span></td>
+                        }
                         <td>@deck.CreatedByDisplay</td>
                         <td title="by @deck.LastModifiedByDisplay">@When(deck.UpdatedAtUtc)</td>
                         <td>@(deck.LastGeneratedAtUtc is { } generated ? When(generated) : "Not yet")</td>

@@ -3502,12 +3502,6 @@ body.pbd-profile-drawer-open {
     box-shadow: 0 1px 2px color-mix(in srgb, var(--pbd-ink) 8%, transparent), 0 .6rem 1.6rem color-mix(in srgb, var(--pbd-ink) 10%, transparent);
 }
 
-.pbd-stage__checks {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: .5rem;
-}
-
 .pbd-stage__check {
     display: flex;
     align-items: center;
@@ -5353,4 +5347,211 @@ span.pbd-additional-slide-row__handle {
     .pbd-alert[data-pbd-auto-dismiss] {
         transition: none;
     }
+}
+
+/* Guidance in the Studio (Studio usability PR 3): saved state, the progress line, the one-time
+   note on how the deck works, gaps in This slide, and quick adds that say they are done. */
+.pbd-deck-title {
+    flex-wrap: wrap;
+}
+
+.pbd-saved-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    margin-left: .25rem;
+    padding: .1rem .5rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: 999px;
+    color: var(--pbd-muted);
+    font-size: .7rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pbd-saved-chip > i {
+    color: var(--pbd-green);
+}
+
+.pbd-saved-chip.is-saving > i {
+    color: var(--pbd-muted);
+}
+
+.pbd-saved-chip.is-error {
+    border-color: color-mix(in srgb, var(--pbd-red) 40%, var(--pbd-border));
+    color: var(--pbd-red);
+}
+
+.pbd-saved-chip.is-error > i {
+    color: var(--pbd-red);
+}
+
+.pbd-progress {
+    margin: 0 0 .6rem;
+}
+
+.pbd-progress ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: pbd-progress;
+}
+
+.pbd-progress li {
+    counter-increment: pbd-progress;
+}
+
+.pbd-progress button {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .28rem .7rem .28rem .35rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: 999px;
+    background: var(--pbd-surface);
+    color: var(--pbd-ink);
+    font-size: .76rem;
+    line-height: 1.2;
+}
+
+.pbd-progress button::before {
+    display: grid;
+    width: 1.3rem;
+    height: 1.3rem;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--pbd-canvas);
+    color: var(--pbd-muted);
+    content: counter(pbd-progress);
+    font-size: .68rem;
+    font-weight: 800;
+}
+
+.pbd-progress button:hover,
+.pbd-progress button:focus-visible {
+    border-color: var(--pbd-blue);
+}
+
+.pbd-progress__label {
+    color: var(--pbd-muted);
+}
+
+.pbd-progress__value {
+    font-weight: 700;
+}
+
+.pbd-progress .is-done button::before {
+    background: color-mix(in srgb, var(--pbd-green) 14%, transparent);
+    color: var(--pbd-green);
+    content: "\2713";
+}
+
+.pbd-progress .is-next button,
+.pbd-progress .is-ready button {
+    border-color: color-mix(in srgb, var(--pbd-blue) 45%, var(--pbd-border));
+}
+
+.pbd-progress .is-next button::before,
+.pbd-progress .is-ready button::before {
+    background: var(--pbd-blue-soft);
+    color: var(--pbd-blue);
+}
+
+.pbd-progress .is-open button::before {
+    background: color-mix(in srgb, var(--pbd-amber) 14%, transparent);
+    color: var(--pbd-amber);
+}
+
+.pbd-progress .is-open .pbd-progress__value {
+    color: var(--pbd-amber);
+}
+
+.pbd-model-note {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin: 0 0 .7rem;
+    padding: .5rem .75rem;
+    border: 1px solid color-mix(in srgb, var(--pbd-blue) 25%, var(--pbd-border));
+    border-radius: .55rem;
+    background: var(--pbd-blue-soft);
+    color: var(--pbd-ink);
+    font-size: .8rem;
+}
+
+.pbd-model-note[hidden] {
+    display: none;
+}
+
+.pbd-model-note > i {
+    color: var(--pbd-blue);
+}
+
+.pbd-model-note p {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+.pbd-inspector__ready {
+    margin-bottom: .7rem;
+}
+
+.pbd-inspector__gaps {
+    margin: 0 0 .8rem;
+    padding: .55rem .65rem;
+    border: 1px solid color-mix(in srgb, var(--pbd-amber) 35%, var(--pbd-border));
+    border-radius: .55rem;
+    background: color-mix(in srgb, var(--pbd-amber) 6%, var(--pm-card, var(--pbd-surface)));
+}
+
+.pbd-inspector__gaps .pbd-inspector__heading {
+    margin-top: 0;
+    color: var(--pbd-amber);
+}
+
+.pbd-inspector__gaps ul {
+    display: grid;
+    gap: .45rem;
+    margin: 0 0 .4rem;
+    padding: 0;
+    list-style: none;
+}
+
+.pbd-inspector__gaps li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .35rem .6rem;
+    font-size: .82rem;
+}
+
+.pbd-inspector__gap-text {
+    flex: 1 1 8rem;
+    min-width: 0;
+}
+
+.pbd-inspector__gap-text strong,
+.pbd-inspector__gap-text small {
+    display: block;
+}
+
+.pbd-inspector__gap-text small {
+    color: var(--pbd-muted);
+}
+
+.pbd-inspector__gaps .btn {
+    white-space: nowrap;
+}
+
+.pbd-inspector__gaps .pbd-inspector__note {
+    margin: 0;
+}
+
+.pbd-quick-card .btn.is-added {
+    border-color: var(--pbd-green);
+    color: var(--pbd-green);
 }
