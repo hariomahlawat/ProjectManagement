@@ -40,9 +40,11 @@ public sealed class ProjectBriefingDataMovementTests
             7, "Counter-UAS", "DEVP", null, null,
             Cost(1_250_000m), ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA), Cost(300_000m));
 
+        var data = new ProjectBriefingPresentationData { Layout = ProjectBriefingLayout.StandardBriefing, CostMode = ProjectBriefingCostMode.Both };
+
         Assert.Equal(
-            ProjectBriefingSlideFacts.FromPresentation(presented),
-            current.ToSlideFact(ProjectBriefingLayout.StandardBriefing));
+            ProjectBriefingSlideFacts.FromPresentation(presented, data),
+            current.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both));
     }
 
     [Fact]
@@ -63,7 +65,7 @@ public sealed class ProjectBriefingDataMovementTests
             [4] = Current(4, "DEVP", "Unchanged", 400m)
         };
 
-        var movement = ProjectBriefingSlideFacts.Compare(generated, ProjectBriefingLayout.StandardBriefing, current);
+        var movement = ProjectBriefingSlideFacts.Compare(generated, ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, current);
 
         Assert.Equal(1, movement.StageChanges);
         Assert.Equal(1, movement.StatusChanges);
@@ -80,7 +82,7 @@ public sealed class ProjectBriefingDataMovementTests
     {
         var generated = new[]
         {
-            ProjectBriefingSlideFacts.Create(1, "DEVP", "x", RemarkDate, Cost(100m), Cost(0m), ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation)),
+            ProjectBriefingSlideFacts.Create(1, "DEVP", "x", RemarkDate, Cost(100m), Cost(0m), ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation), ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingCostMode.Both),
             Fact(9, "DEVP", "deleted since", 1m)
         };
         var current = new Dictionary<int, ProjectBriefingCurrentProjectFacts>
@@ -88,9 +90,41 @@ public sealed class ProjectBriefingDataMovementTests
             [1] = new(1, "One", "DEVP", "x", RemarkDate, Cost(100m), Cost(0m), Cost(999m))
         };
 
-        var movement = ProjectBriefingSlideFacts.Compare(generated, ProjectBriefingLayout.ProjectUpdateSheet, current);
+        var movement = ProjectBriefingSlideFacts.Compare(generated, ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingCostMode.Both, current);
 
         Assert.False(movement.HasMoved);
+    }
+
+    [Fact]
+    public void Compare_IgnoresCostsTheDeckDoesNotShow()
+    {
+        var before = Current(1, "DEVP", "x", 100m) with { IpaCost = Cost(10m), ProliferationCost = Cost(20m) };
+        var after = before with { CostRd = Cost(500m), IpaCost = Cost(11m), ProliferationCost = Cost(21m) };
+        var current = new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after };
+
+        // No costs on the slides: nothing moved.
+        var noCosts = before.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None);
+        Assert.False(ProjectBriefingSlideFacts.Compare(new[] { noCosts }, ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.None, current).HasMoved);
+
+        // Proliferation only: the R&D and IPA revisions are not drawn, the proliferation one is.
+        var proliferationOnly = (before with { CostRd = after.CostRd, IpaCost = after.IpaCost })
+            .ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.ProliferationOnly);
+        Assert.Equal(1, ProjectBriefingSlideFacts.Compare(new[] { proliferationOnly }, ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.ProliferationOnly, current).CostChanges);
+    }
+
+    [Fact]
+    public void Compare_CountsAChangeOfCostBasisAtTheSameAmount()
+    {
+        var before = Current(1, "DEVP", "x", 100m) with { CostRd = new ProjectBriefingCostValue(100m, ProjectBriefingCostBasis.None, "1.00", "L1") };
+        var after = before with { CostRd = new ProjectBriefingCostValue(100m, ProjectBriefingCostBasis.None, "1.00", "PNC") };
+
+        var movement = ProjectBriefingSlideFacts.Compare(
+            new[] { before.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly) },
+            ProjectBriefingLayout.StandardBriefing,
+            ProjectBriefingCostMode.CostRdOnly,
+            new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = after });
+
+        Assert.Equal(1, movement.CostChanges);
     }
 
     [Theory]
@@ -127,9 +161,9 @@ public sealed class ProjectBriefingDataMovementTests
 
         // What a generation would have kept, today.
         var kept = (await service.GetCurrentSlideFactsAsync(new[] { 1, 2 }))
-            .Values.Select(facts => facts.ToSlideFact(ProjectBriefingLayout.StandardBriefing))
+            .Values.Select(facts => facts.ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.CostRdOnly))
             .ToList();
-        var generatedDeck = Summary(1, "Monthly review") with { LastGeneratedAtUtc = DateTimeOffset.UtcNow, GeneratedFacts = kept };
+        var generatedDeck = Summary(1, "Monthly review", ProjectBriefingCostMode.CostRdOnly) with { LastGeneratedAtUtc = DateTimeOffset.UtcNow, GeneratedFacts = kept };
         var oldDeck = Summary(2, "Generated before tracking") with { LastGeneratedAtUtc = DateTimeOffset.UtcNow };
         var neverGenerated = Summary(3, "Never generated");
 
@@ -181,7 +215,7 @@ public sealed class ProjectBriefingDataMovementTests
     }
 
     private static ProjectBriefingSlideFact Fact(int id, string stage, string? status, decimal cost)
-        => Current(id, stage, status, cost).ToSlideFact(ProjectBriefingLayout.StandardBriefing);
+        => Current(id, stage, status, cost).ToSlideFact(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both);
 
     private static ProjectBriefingCurrentProjectFacts Current(int id, string stage, string? status, decimal cost)
         => new(id, $"Project {id}", stage, status, status is null ? null : RemarkDate,
@@ -191,8 +225,8 @@ public sealed class ProjectBriefingDataMovementTests
     private static ProjectBriefingCostValue Cost(decimal rupees)
         => new(rupees, ProjectBriefingCostBasis.None, rupees.ToString(), string.Empty);
 
-    private static ProjectBriefingDeckSummaryVm Summary(long id, string name)
-        => new(id, name, null, default, default, 2, DateTimeOffset.UtcNow, null, "U", "U", string.Empty);
+    private static ProjectBriefingDeckSummaryVm Summary(long id, string name, ProjectBriefingCostMode costMode = ProjectBriefingCostMode.Both)
+        => new(id, name, null, default, costMode, 2, DateTimeOffset.UtcNow, null, "U", "U", string.Empty);
 
     private static ApplicationDbContext CreateDb()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()

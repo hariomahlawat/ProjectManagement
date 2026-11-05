@@ -240,7 +240,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         return decks
             .Select(deck => deck.GeneratedFacts is null
                 ? deck
-                : deck with { DataMovement = ProjectBriefingSlideFacts.Compare(deck.GeneratedFacts, deck.Layout, current) })
+                : deck with { DataMovement = ProjectBriefingSlideFacts.Compare(deck.GeneratedFacts, deck.Layout, deck.CostMode, current) })
             .ToList();
     }
 

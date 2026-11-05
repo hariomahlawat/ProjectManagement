@@ -28,8 +28,7 @@ public sealed record ProjectBriefingCurrentProjectFacts(
     ProjectBriefingCostValue IpaCost,
     ProjectBriefingCostValue ProliferationCost)
 {
-    // The update sheet never shows a proliferation cost (the data service does not resolve one).
-    public ProjectBriefingSlideFact ToSlideFact(ProjectBriefingLayout layout)
+    public ProjectBriefingSlideFact ToSlideFact(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode)
         => ProjectBriefingSlideFacts.Create(
             ProjectId,
             StageCode,
@@ -37,9 +36,9 @@ public sealed record ProjectBriefingCurrentProjectFacts(
             ExternalStatusDate,
             CostRd,
             IpaCost,
-            layout == ProjectBriefingLayout.ProjectUpdateSheet
-                ? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation)
-                : ProliferationCost);
+            ProliferationCost,
+            layout,
+            costMode);
 }
 
 public sealed record ProjectBriefingMovedProject(int ProjectId, string ProjectName, bool Stage, bool Status, bool Cost);
@@ -83,6 +82,17 @@ public static class ProjectBriefingSlideFacts
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
 
+    // Which costs a deck draws, by the composer's rules (cost cards, cost table columns and the
+    // portfolio cost metrics): the update sheet always shows the R&D cost (with its basis) and
+    // totals the IPA cost; a standard briefing shows the R&D cost and/or the proliferation cost by
+    // its cost mode, and never the IPA cost.
+    public static (bool CostRd, bool Ipa, bool Proliferation) ShownCosts(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode)
+        => layout == ProjectBriefingLayout.ProjectUpdateSheet
+            ? (true, true, false)
+            : (costMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both,
+                false,
+                costMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both);
+
     public static ProjectBriefingSlideFact Create(
         int projectId,
         string? stageCode,
@@ -90,8 +100,11 @@ public static class ProjectBriefingSlideFacts
         DateOnly? externalStatusDate,
         ProjectBriefingCostValue? costRd,
         ProjectBriefingCostValue? ipaCost,
-        ProjectBriefingCostValue? proliferationCost)
+        ProjectBriefingCostValue? proliferationCost,
+        ProjectBriefingLayout layout,
+        ProjectBriefingCostMode costMode)
     {
+        var shown = ShownCosts(layout, costMode);
         var status = externalStatus?.Trim() ?? string.Empty;
         if (string.Equals(status, NoExternalStatus, StringComparison.Ordinal))
         {
@@ -104,10 +117,13 @@ public static class ProjectBriefingSlideFacts
             status.Length == 0 && externalStatusDate is null
                 ? string.Empty
                 : $"{externalStatusDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}|{Hash(status)}",
-            $"{Amount(costRd)}|{Amount(ipaCost)}|{Amount(proliferationCost)}");
+            string.Join("|",
+                shown.CostRd ? $"{Amount(costRd)}/{(costRd?.IsAvailable == true ? costRd.BasisDisplay : string.Empty)}" : string.Empty,
+                shown.Ipa ? Amount(ipaCost) : string.Empty,
+                shown.Proliferation ? Amount(proliferationCost) : string.Empty));
     }
 
-    public static ProjectBriefingSlideFact FromPresentation(ProjectBriefingPresentationProject project)
+    public static ProjectBriefingSlideFact FromPresentation(ProjectBriefingPresentationProject project, ProjectBriefingPresentationData data)
         => Create(
             project.ProjectId,
             project.PresentStageCode,
@@ -115,7 +131,9 @@ public static class ProjectBriefingSlideFacts
             project.ExternalStatusDate,
             project.CostRd,
             project.IpaCost,
-            project.ProliferationCost);
+            project.ProliferationCost,
+            data.Layout,
+            data.CostMode);
 
     public static string Write(IEnumerable<ProjectBriefingSlideFact> facts)
         => JsonSerializer.Serialize(facts.OrderBy(fact => fact.ProjectId).ToArray(), JsonOptions);
@@ -144,6 +162,7 @@ public static class ProjectBriefingSlideFacts
     public static ProjectBriefingDataMovement Compare(
         IReadOnlyList<ProjectBriefingSlideFact> generated,
         ProjectBriefingLayout layout,
+        ProjectBriefingCostMode costMode,
         IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts> current)
     {
         var moved = new List<ProjectBriefingMovedProject>();
@@ -154,7 +173,7 @@ public static class ProjectBriefingSlideFacts
                 continue;
             }
 
-            var now = facts.ToSlideFact(layout);
+            var now = facts.ToSlideFact(layout, costMode);
             var stage = !string.Equals(before.Stage, now.Stage, StringComparison.Ordinal);
             var status = !string.Equals(before.Status, now.Status, StringComparison.Ordinal);
             var cost = !string.Equals(before.Costs, now.Costs, StringComparison.Ordinal);
