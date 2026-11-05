@@ -46,18 +46,17 @@ Material that still has current engineering or operational value was moved into 
 - Search V2 verification helper → `tools/Verify-SearchV2.ps1`
 - Compendium cover-slot acceptance checks → `docs/manual-tests/compendium-cover-slots.md`
 
-## Explicitly retained because it is still operationally wired
+## `ReadyToReplace/` and its workflow — retired
 
-### `ReadyToReplace/`
+`ReadyToReplace/` is no longer in the repository. Its last consumer,
+`.github/workflows/build-project-tot-v3-zip.yml` (a manual/path-triggered job with contents-write
+permission that built and committed a Project ToT v3 replacement ZIP), could no longer run: its
+generator was gone, its last runs (July 2026) failed, and the October 2026 cold review recorded it
+as finding F13. The workflow was removed in November 2026. The ToT module is now developed in
+place, not shipped as a replacement package.
 
-Retain for now.
-
-Current evidence:
-
-- `ProjectManagement.csproj` explicitly excludes `ReadyToReplace/**` from application source/content discovery.
-- `.github/workflows/build-project-tot-v3-zip.yml` actively reads from `ReadyToReplace/Project-Tot-Precision-and-UX-v3/**`, runs its package builder and commits a generated ZIP.
-
-This is distribution material rather than application source, but it is still consumed by current automation. Removing it requires first retiring or redesigning that workflow.
+`ProjectManagement.csproj` still excludes `ReadyToReplace/**` from compilation and content; the
+exclusion is harmless and keeps a stray local copy out of the build.
 
 ## Ongoing rule
 

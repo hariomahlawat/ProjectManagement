@@ -2,9 +2,9 @@
 
 See [housekeeping-inventory.md](housekeeping-inventory.md) for the current root inventory, deletions already made, retained live dependencies and next cleanup candidates.
 
-PRISM has accumulated a large amount of historical delivery material in the repository root. The root currently contains hundreds of entries, including phase READMEs, patch files, changed-file manifests, replacement instructions, validation transcripts and temporary packaging material.
+PRISM had accumulated a large amount of historical delivery material in the repository root: hundreds of entries, including phase READMEs, patch files, changed-file manifests, replacement instructions, validation transcripts and temporary packaging material. Three cleanup passes (October 2026) removed it; the root now holds only current entry points, build/configuration files and source/tooling directories (see the inventory). Git history is the archive.
 
-This material can be useful as historical evidence, but its current placement makes navigation harder for developers and code agents and creates a risk that obsolete instructions are mistaken for current guidance.
+Such material can be useful as historical evidence, but in the root it makes navigation harder for developers and code agents and creates a risk that obsolete instructions are mistaken for current guidance. The policy below keeps it from returning.
 
 ## Objectives
 
