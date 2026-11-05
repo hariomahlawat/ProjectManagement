@@ -539,6 +539,34 @@
                                             </div>
                                             <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> These choices apply to Capability Overview and Project Brief slides. Cost remains controlled independently under Financial information.</p>
                                         </fieldset>
+
+                                        @{
+                                            var keyPointPlacement = deck.StandardSlideOptions.KeyPoints;
+                                            var keyPointsOn = keyPointPlacement != ProjectBriefingKeyPointPlacement.None;
+                                            var keyPointsOnCapability = keyPointPlacement == ProjectBriefingKeyPointPlacement.CapabilitySlide
+                                                && deck.NarrativeMode == ProjectBriefingNarrativeMode.Both;
+                                        }
+                                        <fieldset class="pbd-choice-group" data-pbd-key-point-settings>
+                                            <legend>Key points</legend>
+                                            <div class="pbd-checks pbd-checks--inline">
+                                                <label>
+                                                    <input type="checkbox" name="ShowKeyPoints" value="true" checked="@keyPointsOn" data-pbd-key-points-toggle />
+                                                    <input type="hidden" name="ShowKeyPoints" value="false" />
+                                                    Show key points
+                                                </label>
+                                            </div>
+                                            <div class="pbd-checks pbd-checks--inline" role="radiogroup" aria-label="Slide that shows the key points" data-pbd-key-point-slide hidden="@(!keyPointsOn || deck.NarrativeMode != ProjectBriefingNarrativeMode.Both)">
+                                                <label>
+                                                    <input type="radio" name="KeyPointSlide" value="ProjectBriefSlide" checked="@(!keyPointsOnCapability)" />
+                                                    On the project brief slide
+                                                </label>
+                                                <label>
+                                                    <input type="radio" name="KeyPointSlide" value="CapabilitySlide" checked="@keyPointsOnCapability" />
+                                                    On the capability slide
+                                                </label>
+                                            </div>
+                                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Each project's key points (Training gap, Op necessity, Training realism, Ease of learning, Proliferation potential) from its Key points tab, in a band at the foot of the slide. With key points on, project slides use a larger photograph, and stage and cost move to one line under the title.</p>
+                                        </fieldset>
                                     </div>
                                 </div>
                                 <div class="pbd-update-sheet-composition" data-pbd-update-settings hidden="@(!isUpdateSheet)">

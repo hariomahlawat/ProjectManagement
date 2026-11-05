@@ -66,7 +66,8 @@ public sealed record ProjectBriefingStandardSlideOptions(
     ProjectBriefingProjectBriefLayout ProjectBriefLayout,
     bool ShowPresentStage,
     bool ShowPresentStatus,
-    bool IncludeStageDistributionTable)
+    bool IncludeStageDistributionTable,
+    ProjectBriefingKeyPointPlacement KeyPoints = ProjectBriefingKeyPointPlacement.None)
 {
     public static ProjectBriefingStandardSlideOptions Default { get; } =
         new(
@@ -79,14 +80,16 @@ public sealed record ProjectBriefingStandardSlideOptions(
         ProjectBriefingProjectBriefLayout projectBriefLayout,
         bool showPresentStage,
         bool showPresentStatus,
-        bool includeStageDistributionTable)
+        bool includeStageDistributionTable,
+        ProjectBriefingKeyPointPlacement keyPoints = ProjectBriefingKeyPointPlacement.None)
         => new(
             Enum.IsDefined(projectBriefLayout)
                 ? projectBriefLayout
                 : ProjectBriefingProjectBriefLayout.Automatic,
             showPresentStage,
             showPresentStatus,
-            includeStageDistributionTable);
+            includeStageDistributionTable,
+            Enum.IsDefined(keyPoints) ? keyPoints : ProjectBriefingKeyPointPlacement.None);
 }
 
 public sealed record ProjectBriefingInstitutionalHistoryMilestone(int Year, string Text);
@@ -594,7 +597,8 @@ public static class ProjectBriefingDeckConfigurationCodec
             ReadEnum(standard?["projectBriefLayout"], ProjectBriefingProjectBriefLayout.Automatic),
             ReadBoolean(standard?["showPresentStage"]) ?? true,
             ReadBoolean(standard?["showPresentStatus"]) ?? true,
-            ReadBoolean(standard?["includeStageDistributionTable"]) ?? false);
+            ReadBoolean(standard?["includeStageDistributionTable"]) ?? false,
+            ReadEnum(standard?["keyPoints"], ProjectBriefingKeyPointPlacement.None));
 
     private static ProjectBriefingClosingSlideType ReadClosingSlideType(JsonNode? node)
         => ReadEnum(node, ProjectBriefingClosingSlideType.JaiHind);
@@ -772,7 +776,8 @@ public static class ProjectBriefingDeckConfigurationCodec
             configuration.StandardSlideOptions.ProjectBriefLayout,
             configuration.StandardSlideOptions.ShowPresentStage,
             configuration.StandardSlideOptions.ShowPresentStatus,
-            configuration.StandardSlideOptions.IncludeStageDistributionTable);
+            configuration.StandardSlideOptions.IncludeStageDistributionTable,
+            configuration.StandardSlideOptions.KeyPoints);
         var normalizedClosingSlideType = Enum.IsDefined(configuration.ClosingSlideType)
             ? configuration.ClosingSlideType
             : ProjectBriefingClosingSlideType.JaiHind;
@@ -823,7 +828,9 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ["projectBriefLayout"] = normalizedStandard.ProjectBriefLayout.ToString(),
                 ["showPresentStage"] = normalizedStandard.ShowPresentStage,
                 ["showPresentStatus"] = normalizedStandard.ShowPresentStatus,
-                ["includeStageDistributionTable"] = normalizedStandard.IncludeStageDistributionTable
+                ["includeStageDistributionTable"] = normalizedStandard.IncludeStageDistributionTable,
+                // Older builds ignore the key, so a rolled-back build shows decks without key points.
+                ["keyPoints"] = normalizedStandard.KeyPoints.ToString()
             },
             ["closingSlide"] = normalizedClosingSlideType.ToString(),
             ["institutionalProfile"] = new JsonObject

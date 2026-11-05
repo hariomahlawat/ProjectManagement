@@ -1454,6 +1454,179 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
     }
 
+    // Key points layout (docs/ux/briefing-decks.md, Plan: Project key points).
+    private static ProjectBriefingPresentationProject KeyPointProject(bool withKeyPoints = true)
+        => new()
+        {
+            ProjectId = 901,
+            ProjectName = "ATGM CREW PROCEDURAL TRAINER",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.DEVP,
+            PresentStage = "Development",
+            PresentStageOrder = ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.DEVP),
+            ExternalStatus = "Field trials with two units under way; trial report due Dec 2026.",
+            BriefDescription = "- Replica launcher console\n- Day and night scenarios\n- Instructor station",
+            ProjectBrief = "A procedural trainer for anti-tank guided missile crews.\n\nDeveloped with a JDP partner.",
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            CostRd = new ProjectBriefingCostValue(42_000_000m, ProjectBriefingCostBasis.AoN, "₹4.20 Cr", "AoN"),
+            ProliferationCost = new ProjectBriefingCostValue(11_000_000m, ProjectBriefingCostBasis.Proliferation, "₹1.10 Cr", "Proliferation"),
+            KeyPoints = withKeyPoints
+                ? new[]
+                {
+                    new ProjectBriefingKeyPoint("Training gap", "No live ATGM firing in peacetime."),
+                    new ProjectBriefingKeyPoint("Op necessity", "Every detachment must qualify before induction.")
+                }
+                : Array.Empty<ProjectBriefingKeyPoint>(),
+            SortOrder = 1
+        };
+
+    private static ProjectBriefingPresentationData KeyPointDeck(
+        ProjectBriefingNarrativeMode narrative,
+        ProjectBriefingKeyPointPlacement placement,
+        bool showStatus,
+        ProjectBriefingPresentationProject project)
+        => new()
+        {
+            DeckId = 901,
+            DeckName = "Key points",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = narrative,
+            CostMode = ProjectBriefingCostMode.Both,
+            StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.Automatic,
+                ShowPresentStage: true,
+                ShowPresentStatus: showStatus,
+                IncludeStageDistributionTable: false,
+                placement),
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 11, 5, 8, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+    private static IReadOnlyDictionary<ProjectBriefingSlideRole, SlidePart> ProjectSlidesByRole(
+        ProjectBriefingComposition composition,
+        PresentationDocument document)
+    {
+        var part = document.PresentationPart!;
+        var ordered = part.Presentation.SlideIdList!.Elements<P.SlideId>()
+            .Select(id => (SlidePart)part.GetPartById(id.RelationshipId!))
+            .ToArray();
+        return composition.Outline
+            .Where(item => item.ProjectId.HasValue)
+            .GroupBy(item => item.Role)
+            .ToDictionary(group => group.Key, group => ordered[group.First().Number - 1]);
+    }
+
+    private static bool HasShape(SlidePart slide, string name)
+        => slide.Slide.Descendants<P.Shape>().Any(shape => string.Equals(
+            shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
+            name,
+            StringComparison.Ordinal));
+
+    private static ProjectBriefingComposition ComposeKeyPointDeck(ProjectBriefingPresentationData data)
+        => new ProjectBriefingSlideComposer(new TestEnvironment(
+                Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot")))
+            .ComposeWithOutline(data);
+
+    [Fact]
+    public void Compose_KeyPointDeck_BriefSlideHasStageAndCostLinePhotoAndBand()
+    {
+        var composition = ComposeKeyPointDeck(KeyPointDeck(
+            ProjectBriefingNarrativeMode.ProjectBrief,
+            ProjectBriefingKeyPointPlacement.ProjectBriefSlide,
+            showStatus: true,
+            KeyPointProject()));
+
+        using var stream = new MemoryStream(composition.Content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = ProjectSlidesByRole(composition, document)[ProjectBriefingSlideRole.ProjectBrief];
+        var text = SlideText(slide);
+
+        var meta = string.Concat(ShapeByName(slide, "Stage and cost").Descendants<A.Text>().Select(node => node.Text));
+        Assert.Contains("Development", meta, StringComparison.Ordinal);
+        Assert.Contains("Cost (R&D) ₹4.20 Cr AoN", meta, StringComparison.Ordinal);
+        Assert.Contains("Proliferation ₹1.10 Cr", meta, StringComparison.Ordinal);
+        Assert.DoesNotContain("PROLIFERATION COST", text, StringComparison.Ordinal);
+
+        Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
+        Assert.Contains("KEY POINTS", text, StringComparison.Ordinal);
+        Assert.Contains("No live ATGM firing in peacetime.", text, StringComparison.Ordinal);
+        Assert.Contains("Every detachment must qualify before induction.", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ease of learning", text, StringComparison.Ordinal);
+
+        // The photograph frame is 16:9 inside its .10 in margin, so the picture fills it.
+        var frame = ShapeByName(slide, "Project brief photograph frame");
+        var innerWidth = (ShapeWidth(frame) / 914400d) - .20;
+        var innerHeight = (ShapeHeight(frame) / 914400d) - .20;
+        Assert.InRange(innerWidth / innerHeight, (16d / 9d) - .02, (16d / 9d) + .02);
+
+        var band = ShapeByName(slide, "Status and key points band");
+        Assert.True(ShapeY(band) > ShapeY(frame) + ShapeHeight(frame), "The band sits below the photograph and text.");
+    }
+
+    [Fact]
+    public void Compose_KeyPointDeckWithBothSlides_PutsThePointsOnTheChosenSlideOnly()
+    {
+        var composition = ComposeKeyPointDeck(KeyPointDeck(
+            ProjectBriefingNarrativeMode.Both,
+            ProjectBriefingKeyPointPlacement.CapabilitySlide,
+            showStatus: true,
+            KeyPointProject()));
+
+        using var stream = new MemoryStream(composition.Content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = ProjectSlidesByRole(composition, document);
+        var capability = SlideText(slides[ProjectBriefingSlideRole.ProjectCapability]);
+        var brief = SlideText(slides[ProjectBriefingSlideRole.ProjectBrief]);
+
+        Assert.Contains("KEY POINTS", capability, StringComparison.Ordinal);
+        Assert.Contains("CAPABILITY OVERVIEW", capability, StringComparison.Ordinal);
+        Assert.DoesNotContain("KEY POINTS", brief, StringComparison.Ordinal);
+        // Both slides use the layout: the status remark sits in the band on each.
+        Assert.Contains("PRESENT STATUS", brief, StringComparison.Ordinal);
+        Assert.True(HasShape(slides[ProjectBriefingSlideRole.ProjectBrief], "Stage and cost"));
+    }
+
+    [Fact]
+    public void Compose_KeyPointDeck_WithNothingForTheBand_GivesTheSlideToPhotoAndText()
+    {
+        var composition = ComposeKeyPointDeck(KeyPointDeck(
+            ProjectBriefingNarrativeMode.ProjectBrief,
+            ProjectBriefingKeyPointPlacement.ProjectBriefSlide,
+            showStatus: false,
+            KeyPointProject(withKeyPoints: false)));
+
+        using var stream = new MemoryStream(composition.Content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = ProjectSlidesByRole(composition, document)[ProjectBriefingSlideRole.ProjectBrief];
+
+        Assert.False(HasShape(slide, "Status and key points band"));
+        Assert.InRange(ShapeHeight(ShapeByName(slide, "Project brief panel")) / 914400d, 5.40, 5.44);
+    }
+
+    [Fact]
+    public void Compose_DeckWithoutKeyPoints_KeepsTheEstablishedBriefLayout()
+    {
+        var composition = ComposeKeyPointDeck(KeyPointDeck(
+            ProjectBriefingNarrativeMode.ProjectBrief,
+            ProjectBriefingKeyPointPlacement.None,
+            showStatus: true,
+            KeyPointProject()));
+
+        using var stream = new MemoryStream(composition.Content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = ProjectSlidesByRole(composition, document)[ProjectBriefingSlideRole.ProjectBrief];
+        var text = SlideText(slide);
+
+        Assert.DoesNotContain("KEY POINTS", text, StringComparison.Ordinal);
+        Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
+        Assert.False(HasShape(slide, "Stage and cost"));
+    }
+
     [Fact]
     public void Compose_ProjectBriefStandard_CanShowStatusWithoutPresentStage()
     {

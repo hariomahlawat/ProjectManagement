@@ -409,7 +409,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.ProjectBriefLayout,
             command.ShowPresentStage,
             command.ShowPresentStatus,
-            command.IncludeStageDistributionTable);
+            command.IncludeStageDistributionTable,
+            command.KeyPoints);
         var institutionalProfileOptions = NormalizeProfile(command.InstitutionalProfileOptions);
 
         // Only check the SDD profile when this save changes it. A deck-tab save (name, theme, cost
@@ -491,7 +492,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             configuration.StandardSlideOptions.ProjectBriefLayout,
             target.ShowPresentStage,
             target.ShowPresentStatus,
-            configuration.StandardSlideOptions.IncludeStageDistributionTable);
+            configuration.StandardSlideOptions.IncludeStageDistributionTable,
+            // Presets leave key points as the deck had them.
+            configuration.StandardSlideOptions.KeyPoints);
         var updateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
             target.UpdateSheetRows,
             target.HideEmptyUpdateSheetValues);
@@ -1539,7 +1542,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ["HideEmptyUpdateSheetValues"] = updateSheetOptions.HideEmptyValues.ToString(),
             ["ProjectBriefLayout"] = standardSlideOptions.ProjectBriefLayout.ToString(),
             ["ShowPresentStage"] = standardSlideOptions.ShowPresentStage.ToString(),
-            ["ShowPresentStatus"] = standardSlideOptions.ShowPresentStatus.ToString()
+            ["ShowPresentStatus"] = standardSlideOptions.ShowPresentStatus.ToString(),
+            ["KeyPoints"] = standardSlideOptions.KeyPoints.ToString()
         };
         if (extra is not null)
         {

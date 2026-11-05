@@ -70,6 +70,7 @@ if (root) {
     photo: { label: 'Photograph', missing: 'No usable cover photo', fix: 'Choose in Photos', href: (p) => `/Projects/${p.projectId}/Photos` },
     capabilityOverview: { label: 'Capability overview', missing: 'Not recorded', fix: 'Write for this deck', describe: true },
     projectBrief: { label: 'Project brief', missing: 'Not recorded', fix: 'Write in project', href: (p) => `${p.openUrl}?content=brief#content-brief` },
+    keyPoints: { label: 'Key points', missing: 'None recorded', fix: 'Write in project', href: (p) => `${p.openUrl}?content=keypoints#content-keypoints` },
     updateSheetFacts: { label: 'Update-sheet facts', missing: 'Some selected rows are empty', fix: 'Open project', href: (p) => p.openUrl }
   };
 

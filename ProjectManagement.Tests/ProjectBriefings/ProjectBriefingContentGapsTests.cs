@@ -28,6 +28,32 @@ public sealed class ProjectBriefingContentGapsTests
     }
 
     [Fact]
+    public void DeckWithKeyPoints_ListsProjectsWithNoneRecorded()
+    {
+        var settings = Settings(ProjectBriefingPresentationMode.DetailedProjects, ProjectBriefingCostMode.None, ProjectBriefingNarrativeMode.ProjectBrief)
+            with
+            {
+                StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default
+                    with { KeyPoints = ProjectBriefingKeyPointPlacement.ProjectBriefSlide }
+            };
+        var withOnePoint = CompleteProject(2);
+        withOnePoint = new ProjectBriefingProjectVm
+        {
+            ProjectId = withOnePoint.ProjectId,
+            ProjectName = withOnePoint.ProjectName,
+            ExternalStatus = withOnePoint.ExternalStatus,
+            HasCoverPhoto = true,
+            ProjectBrief = withOnePoint.ProjectBrief,
+            KeyPoints = new[] { new ProjectBriefingKeyPoint("Op necessity", "Crews must qualify.") }
+        };
+
+        var gaps = ProjectBriefingContentGaps.Resolve(new[] { CompleteProject(1), withOnePoint }, settings);
+
+        Assert.Equal(new[] { ProjectBriefingContentGaps.KeyPoints }, gaps[1]);
+        Assert.Empty(gaps[2]);
+    }
+
+    [Fact]
     public void ExecutiveTableOnly_IgnoresPhotosAndNarrative()
     {
         var gaps = ProjectBriefingContentGaps.Resolve(

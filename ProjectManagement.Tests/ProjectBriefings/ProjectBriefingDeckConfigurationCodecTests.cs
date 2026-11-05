@@ -125,6 +125,24 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     }
 
     [Fact]
+    public void KeyPoints_RoundTripAndDefaultToNoneForDecksSavedWithoutThem()
+    {
+        var encoded = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(
+            null,
+            ProjectBriefingStandardSlideOptions.Default with { KeyPoints = ProjectBriefingKeyPointPlacement.CapabilitySlide });
+
+        Assert.Contains("\"keyPoints\":\"CapabilitySlide\"", encoded, StringComparison.Ordinal);
+        Assert.Equal(
+            ProjectBriefingKeyPointPlacement.CapabilitySlide,
+            ProjectBriefingDeckConfigurationCodec.Read(encoded).StandardSlideOptions.KeyPoints);
+
+        var older = encoded.Replace(",\"keyPoints\":\"CapabilitySlide\"", string.Empty, StringComparison.Ordinal);
+        Assert.Equal(
+            ProjectBriefingKeyPointPlacement.None,
+            ProjectBriefingDeckConfigurationCodec.Read(older).StandardSlideOptions.KeyPoints);
+    }
+
+    [Fact]
     public void WithSelectionRules_PreservesStandardSlidePreferences()
     {
         var initial = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(

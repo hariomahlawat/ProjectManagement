@@ -67,6 +67,15 @@ public enum ProjectBriefingProjectBriefLayout
     PhotoEmphasis = 3
 }
 
+// Whether a Standard Briefing deck shows the projects' key points, and on which project slide when
+// it draws both. Any value but None also switches the project slides to the key points layout.
+public enum ProjectBriefingKeyPointPlacement
+{
+    None = 0,
+    CapabilitySlide = 1,
+    ProjectBriefSlide = 2
+}
+
 public enum ProjectBriefingBrandingScope
 {
     None = 0,

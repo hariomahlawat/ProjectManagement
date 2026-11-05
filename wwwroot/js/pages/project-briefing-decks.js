@@ -1211,6 +1211,12 @@ if (root) {
         || !includesDetailedSlides()
         || !includesProjectBrief();
     }
+    // The slide choice matters only when the deck draws both project slides.
+    const keyPointSlide = root.querySelector('[data-pbd-key-point-slide]');
+    if (keyPointSlide) {
+      keyPointSlide.hidden = !root.querySelector('[data-pbd-key-points-toggle]')?.checked
+        || narrativeMode() !== 'Both';
+    }
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
     root.querySelectorAll('[data-pbd-theme-preview]').forEach((preview) => {
       preview.classList.toggle('is-update-sheet', updateSheet);
@@ -1218,7 +1224,7 @@ if (root) {
     restoreSettingsSectionState();
     validateUpdateSheetRows();
   };
-  root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
+  root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"], [data-pbd-key-points-toggle]')
     .forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
   stageSummaryToggle?.addEventListener('change', () => {
     syncStageSummaryOptions();

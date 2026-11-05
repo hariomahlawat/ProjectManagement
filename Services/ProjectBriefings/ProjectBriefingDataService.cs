@@ -365,6 +365,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 BriefDescription = project.BriefDescription,
                 ProjectBrief = project.ProjectBrief,
                 CapabilityStatements = project.CapabilityStatements,
+                KeyPoints = project.KeyPoints,
                 ArppReference = project.ArppReference,
                 ArppPppNumberApplicable = project.ArppPppNumberApplicable,
                 Fund = project.Fund,
@@ -579,6 +580,25 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     .Select(statement => statement.Statement)
                     .ToList());
 
+        // Key points in catalogue order (the kind's value is its order).
+        var keyPointRows = await _db.ProjectKeyPoints
+            .AsNoTracking()
+            .Where(point => projectIds.Contains(point.ProjectId))
+            .OrderBy(point => point.ProjectId)
+            .ThenBy(point => point.Kind)
+            .Select(point => new { point.ProjectId, point.Kind, point.Text })
+            .ToListAsync(cancellationToken);
+        var keyPointsByProject = keyPointRows
+            .GroupBy(point => point.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<ProjectBriefingKeyPoint>)group
+                    .OrderBy(point => point.Kind)
+                    .Select(point => new ProjectBriefingKeyPoint(
+                        ProjectKeyPointCatalog.Heading(point.Kind),
+                        point.Text))
+                    .ToList());
+
         var stageRows = await _db.ProjectStages
             .AsNoTracking()
             .Where(stage => projectIds.Contains(stage.ProjectId))
@@ -642,6 +662,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.TechnicalCategory,
                 item.CoverPhotoId,
                 capabilitiesByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<string>(),
+                keyPointsByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<ProjectBriefingKeyPoint>(),
                 stagesByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<StageSnapshot>(),
                 photosByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<PhotoSnapshot>()))
             .ToList();
@@ -766,6 +787,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                             : "Capability overview not recorded.")),
                     ProjectBrief = ProjectBriefingTextNormalizer.NormalizeProjectBrief(item.ProjectBrief),
                     CapabilityStatements = item.CapabilityStatements,
+                    KeyPoints = item.KeyPoints,
                     BriefDescriptionOverride = item.BriefDescriptionOverride,
                     ArppReference = updateFacts?.ArppReference,
                     ArppPppNumberApplicable = updateFacts?.IsDelistedArppPosition != true,
@@ -1396,6 +1418,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? TechnicalCategory,
         int? CoverPhotoId,
         IReadOnlyList<string> CapabilityStatements,
+        IReadOnlyList<ProjectBriefingKeyPoint> KeyPoints,
         IReadOnlyList<StageSnapshot> Stages,
         IReadOnlyList<PhotoSnapshot> Photos);
 
