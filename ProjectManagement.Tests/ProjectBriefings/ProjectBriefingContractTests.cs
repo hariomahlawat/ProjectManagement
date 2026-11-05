@@ -75,14 +75,25 @@ public sealed class ProjectBriefingContractTests
         var script = Read("project-briefing-decks.js");
         var css = Read("project-briefing-decks.css");
 
-        // The drawer is gone: every setting sits under All settings in the Deck tab and saves itself.
+        // The drawer is gone: every setting sits in the Deck tab's numbered steps and saves itself.
         Assert.DoesNotContain("data-pbd-settings-drawer", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Save settings", page, StringComparison.Ordinal);
         var deckPanel = page.IndexOf("data-pbd-inspector-panel=\"deck\"", StringComparison.Ordinal);
         var form = page.IndexOf("data-pbd-settings-form", StringComparison.Ordinal);
         var checksPanel = page.IndexOf("data-pbd-inspector-panel=\"checks\"", StringComparison.Ordinal);
         Assert.True(deckPanel >= 0 && deckPanel < form && form < checksPanel, "The settings form belongs to the Deck tab.");
-        Assert.Contains("data-pbd-deck-advanced", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-pbd-deck-advanced", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-steps", page, StringComparison.Ordinal);
+        foreach (var step in new[] { "slides", "project", "sheet", "cost", "extra", "look", "handling" })
+        {
+            Assert.Contains($"data-pbd-step=\"{step}\"", page, StringComparison.Ordinal);
+        }
+
+        // Template picker (Plan: Deck settings): the presets under one compact row, "customised" after changes.
+        Assert.Contains("data-pbd-template-toggle", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-template-customised", page, StringComparison.Ordinal);
+        Assert.Contains("Started from this template, then customised.", script, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Purpose</h4>", page, StringComparison.Ordinal);
         Assert.Contains("serializeSettings", script, StringComparison.Ordinal);
         Assert.Contains("beforeunload", script, StringComparison.Ordinal);
         Assert.Contains("saveSettingsNow", script, StringComparison.Ordinal);
@@ -168,13 +179,13 @@ public sealed class ProjectBriefingContractTests
         var composer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
         var planner = Read("ProjectBriefingUpdateSheetPlanner.cs");
 
-        Assert.Contains("Project Update Sheets", page, StringComparison.Ordinal);
+        Assert.Contains("<strong>Update sheets</strong>", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProjectUpdateSheet\"", page, StringComparison.Ordinal);
-        Assert.Contains("Information shown on each project sheet", page, StringComparison.Ordinal);
-        Assert.Contains("Project name remains the slide title", page, StringComparison.Ordinal);
-        Assert.Contains("Hide fields with no recorded value", page, StringComparison.Ordinal);
-        Assert.Contains("Include cover slide", page, StringComparison.Ordinal);
-        Assert.Contains("Include portfolio-summary slide", page, StringComparison.Ordinal);
+        Assert.Contains("<strong>Rows on each sheet</strong>", page, StringComparison.Ordinal);
+        Assert.Contains("The project name stays the title", page, StringComparison.Ordinal);
+        Assert.Contains("Hide rows with nothing recorded", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"IncludeCoverSlide\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"IncludePortfolioSummarySlide\"", page, StringComparison.Ordinal);
 
         var formalFacts = Read("ProjectFormalUpdateFactsResolver.cs");
 
@@ -348,7 +359,7 @@ public sealed class ProjectBriefingContractTests
         var dataSource = Read("ProjectBriefingDataService.cs");
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("Project content", page, StringComparison.Ordinal);
+        Assert.Contains("<legend>Each project gets</legend>", page, StringComparison.Ordinal);
         Assert.Contains("value=\"CapabilityOverview\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProjectBrief\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);
@@ -372,7 +383,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("name=\"ProjectBriefLayout\" value=\"PhotoEmphasis\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ShowPresentStage\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ShowPresentStatus\"", page, StringComparison.Ordinal);
-        Assert.Contains("Financial information", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-step=\"cost\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"CostRdOnly\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProliferationOnly\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);
@@ -398,7 +409,7 @@ public sealed class ProjectBriefingContractTests
 
         Assert.Contains("name=\"ClosingSlideType\" value=\"JaiHind\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ClosingSlideType\" value=\"ThankYou\"", page, StringComparison.Ordinal);
-        Assert.Contains("One ceremonial closing slide is always appended", page, StringComparison.Ordinal);
+        Assert.Contains("<legend>Closing slide</legend>", page, StringComparison.Ordinal);
         Assert.Contains("SlidePlanKind.Closing", composer, StringComparison.Ordinal);
         Assert.Contains("RenderClosingSlide", composer, StringComparison.Ordinal);
         Assert.Contains("HeaderVariant.Closing", composer, StringComparison.Ordinal);
@@ -478,7 +489,7 @@ public sealed class ProjectBriefingContractTests
 
         Assert.Contains("Editorial Light", page, StringComparison.Ordinal);
         Assert.Contains("Graphite Dark", page, StringComparison.Ordinal);
-        Assert.Contains("Presentation branding", page, StringComparison.Ordinal);
+        Assert.Contains("<legend>Insignia</legend>", page, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingThemeCatalog.Resolve", composer, StringComparison.Ordinal);
         Assert.Contains("AddBrandingImages", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("SIMULATOR DEVELOPMENT DIVISION · PRISM ERP", composer, StringComparison.Ordinal);

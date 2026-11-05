@@ -72,14 +72,14 @@ if (root) {
   // Deck settings: the form in the Studio's Deck tab, saved in place as it changes.
   const settingsForm = root.querySelector('[data-pbd-settings-form]');
   const settingsStatus = root.querySelector('[data-pbd-settings-status]');
-  const settingsSummaryText = root.querySelector('[data-pbd-settings-summary-text]');
   const settingsCollapsibleSections = settingsForm
     ? [...settingsForm.querySelectorAll('[data-pbd-settings-collapsible]')]
     : [];
   let restoringSettingsSections = false;
   const currentSettingsLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
   const settingsSectionStorageKey = () => `${storagePrefix}settingsSections:${currentSettingsLayout()}`;
-  const defaultOpenSettingsSections = () => new Set(['content']);
+  // The steps open closed, so the summaries read as an overview of the deck.
+  const defaultOpenSettingsSections = () => new Set();
 
   const persistSettingsSectionState = () => {
     if (restoringSettingsSections) return;
@@ -110,7 +110,15 @@ if (root) {
     restoringSettingsSections = false;
   };
 
-  settingsCollapsibleSections.forEach((section) => section.addEventListener('toggle', persistSettingsSectionState));
+  // One step open at a time: opening a step closes the others.
+  settingsCollapsibleSections.forEach((section) => section.addEventListener('toggle', () => {
+    if (!restoringSettingsSections && section.open) {
+      settingsCollapsibleSections.forEach((other) => {
+        if (other !== section && other.open) other.open = false;
+      });
+    }
+    persistSettingsSectionState();
+  }));
 
   const updateRowList = root.querySelector('[data-pbd-update-row-list]');
   const updateRowOrderInput = root.querySelector('[data-pbd-update-row-order]');
@@ -843,22 +851,88 @@ if (root) {
     window.location.reload();
   });
 
+  // Each step's one-line summary, read from the form as it stands.
+  const settingsValue = (name) => settingsForm?.querySelector(`input[name="${name}"]:checked`)?.value || '';
+  const settingsChecked = (name) => Boolean(settingsForm?.querySelector(`input[type="checkbox"][name="${name}"]`)?.checked);
   const settingsValueLabel = (name) => {
     const input = settingsForm?.querySelector(`input[name="${name}"]:checked`);
     return input?.closest('label')?.querySelector('strong')?.textContent?.trim() || '';
   };
+  const sentence = (parts) => {
+    const text = parts.filter(Boolean).join(', ');
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : 'None';
+  };
+  const stepSummaries = () => {
+    const sheet = isUpdateSheet();
+    const mode = settingsValue('PresentationMode');
+    const narrative = settingsValue('NarrativeMode');
+    const detailed = mode === 'DetailedProjects' || mode === 'Combined';
+    const stage = settingsChecked('ShowPresentStage');
+    const status = settingsChecked('ShowPresentStatus');
+    const keyPoints = settingsChecked('ShowKeyPoints');
+    const project = [stage && status ? 'Stage and status' : stage ? 'Stage' : status ? 'Status remark' : 'No stage or status'];
+    if (keyPoints) {
+      project.push(narrative === 'Both'
+        ? `key points on the ${settingsValue('KeyPointSlide') === 'CapabilitySlide' ? 'capability' : 'brief'} slide`
+        : 'key points');
+    } else if (narrative !== 'CapabilityOverview') {
+      project.push(`${settingsValueLabel('ProjectBriefLayout').toLowerCase()} brief layout`);
+    }
+    const rows = settingsForm?.querySelectorAll('input[name="UpdateSheetRows"]:checked').length || 0;
+    const marking = (settingsForm?.querySelector('input[name="HandlingMarking"]')?.value || '').trim();
+    const insignia = { None: 'no insignia', CoverAndSummary: 'insignia on cover and summary', AllSlides: 'insignia on all slides' }[settingsValue('BrandingScope')] || '';
+    return {
+      slides: sheet
+        ? 'Update sheets'
+        : [{ ExecutiveTable: 'Status table', DetailedProjects: 'Project slides', Combined: 'Table and project slides' }[mode],
+          detailed ? { CapabilityOverview: 'capability overview', ProjectBrief: 'project brief', Both: 'capability and brief' }[narrative] : '']
+          .filter(Boolean).join(' · '),
+      project: project.join(' · '),
+      sheet: `${rows} ${rows === 1 ? 'row' : 'rows'}${settingsChecked('HideEmptyUpdateSheetValues') ? ' · empty rows hidden' : ''}`,
+      cost: { CostRdOnly: 'Cost (R&D)', ProliferationOnly: 'Proliferation cost', Both: 'Both costs', None: 'No cost' }[settingsValue('CostMode')] || '',
+      extra: sheet
+        ? sentence([settingsChecked('IncludeCoverSlide') && 'cover', settingsChecked('IncludePortfolioSummarySlide') && 'portfolio summary'])
+        : sentence([
+          settingsChecked('IncludeStageSummary') && (settingsChecked('IncludeStageDistributionTable') ? 'stage summary with table' : 'stage summary'),
+          settingsChecked('IncludeProjectCategorySummary') && 'category summary',
+          settingsChecked('IncludeTechnicalCategorySummary') && 'technical summary']),
+      look: [settingsValueLabel('PresentationTheme'), insignia, settingsValueLabel('ClosingSlideType')].filter(Boolean).join(' · '),
+      handling: marking ? `Marked ${marking}` : 'No marking'
+    };
+  };
   const refreshSettingsSummary = () => {
-    if (!settingsSummaryText) return;
-    const parts = isUpdateSheet()
-      ? [settingsValueLabel('Layout'), settingsValueLabel('PresentationTheme'), settingsValueLabel('ClosingSlideType')]
-      : [settingsValueLabel('PresentationMode'), settingsValueLabel('NarrativeMode'), settingsValueLabel('CostMode'), settingsValueLabel('PresentationTheme'), settingsValueLabel('ClosingSlideType')];
-    settingsSummaryText.textContent = parts.filter(Boolean).join(' · ');
+    if (!settingsForm) return;
+    const summaries = stepSummaries();
+    let number = 0;
+    settingsForm.querySelectorAll('[data-pbd-step]').forEach((step) => {
+      const summary = step.querySelector('[data-pbd-step-summary]');
+      if (summary) summary.textContent = summaries[step.dataset.pbdStep] || '';
+      const stepNumber = step.querySelector('[data-pbd-step-number]');
+      if (!step.hidden) number += 1;
+      if (stepNumber) stepNumber.textContent = String(number);
+    });
   };
 
-  // The deck's identity and preset line follow every save.
+  // The deck's identity and its template line follow every save.
   const presetStatus = root.querySelector('[data-pbd-preset-status]');
+  const templateCurrent = root.querySelector('[data-pbd-template-current]');
+  const templateCustomised = root.querySelector('[data-pbd-template-customised]');
+  const templateToggle = root.querySelector('[data-pbd-template-toggle]');
+  const templateList = root.querySelector('[data-pbd-template-list]');
   const presetTitles = Object.fromEntries([...root.querySelectorAll('[data-pbd-preset]')]
     .map((button) => [button.dataset.pbdPreset, button.querySelector('strong')?.textContent?.trim() || '']));
+  const presetSummaries = Object.fromEntries([...root.querySelectorAll('[data-pbd-preset]')]
+    .map((button) => [button.dataset.pbdPreset, button.querySelector('small')?.textContent?.trim() || '']));
+  const setTemplateListOpen = (open) => {
+    if (templateList) templateList.hidden = !open;
+    templateToggle?.setAttribute('aria-expanded', String(open));
+  };
+  templateToggle?.addEventListener('click', () => setTemplateListOpen(Boolean(templateList?.hidden)));
+  templateList?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    setTemplateListOpen(false);
+    templateToggle?.focus();
+  });
   const applySettingsDeck = (deck) => {
     if (!deck) return;
     const name = root.querySelector('[data-pbd-deck-name]');
@@ -873,10 +947,15 @@ if (root) {
       button.classList.toggle('is-current', current);
       button.setAttribute('aria-pressed', String(current));
     });
+    const known = Boolean(deck.preset && presetTitles[deck.preset]);
+    if (templateCurrent) templateCurrent.textContent = known ? presetTitles[deck.preset] : 'Set up by hand';
+    if (templateCustomised) templateCustomised.hidden = !(known && deck.presetAdjusted);
     if (presetStatus) {
-      presetStatus.textContent = deck.preset && presetTitles[deck.preset]
-        ? `Set from ${presetTitles[deck.preset]}${deck.presetAdjusted ? ', adjusted' : ''}.`
-        : 'Set up by hand. Choosing a purpose applies its settings; you can still change any of them.';
+      presetStatus.textContent = !known
+        ? 'Choose a template to apply its settings; you can still change any of them.'
+        : deck.presetAdjusted
+          ? 'Started from this template, then customised.'
+          : presetSummaries[deck.preset];
     }
   };
 
@@ -999,7 +1078,10 @@ if (root) {
     }, delay);
   };
 
-  settingsForm?.addEventListener('change', () => refreshSettingsDirtyState(400));
+  settingsForm?.addEventListener('change', () => {
+    refreshSettingsSummary();
+    refreshSettingsDirtyState(400);
+  });
   settingsForm?.addEventListener('input', (event) => {
     if (event.target instanceof HTMLInputElement && event.target.type === 'text') refreshSettingsDirtyState(1200);
   });
@@ -1018,7 +1100,7 @@ if (root) {
   root.querySelectorAll('[data-pbd-preset]').forEach((button) => button.addEventListener('click', async () => {
     if (settingsPending() && !(await saveSettingsNow())) return;
     root.querySelectorAll('[data-pbd-preset]').forEach((other) => { other.disabled = true; });
-    setState(settingsStatus, 'Applying the preset…', 'saving');
+    setState(settingsStatus, 'Applying the template…', 'saving');
     try {
       await runDeckMutation(() => requestJson(root.dataset.presetUrl, {
         method: 'POST',
@@ -1027,7 +1109,7 @@ if (root) {
       window.location.reload();
     } catch (error) {
       if (error instanceof RequestError && error.status === 409) showConflict(error.message);
-      setState(settingsStatus, error.message || 'The preset could not be applied.', 'error');
+      setState(settingsStatus, error.message || 'The template could not be applied.', 'error');
       root.querySelectorAll('[data-pbd-preset]').forEach((other) => { other.disabled = false; });
     }
   }));
@@ -1205,6 +1287,11 @@ if (root) {
 
     const detailedSettings = root.querySelector('[data-pbd-detailed-settings]');
     if (detailedSettings) detailedSettings.hidden = updateSheet || !includesDetailedSlides();
+    // Steps and choices that only apply to slides for each project.
+    const projectSlidesStep = root.querySelector('[data-pbd-project-slides-step]');
+    if (projectSlidesStep) projectSlidesStep.hidden = updateSheet || !includesDetailedSlides();
+    const projectContent = root.querySelector('[data-pbd-project-content-settings]');
+    if (projectContent) projectContent.hidden = updateSheet || !includesDetailedSlides();
     const projectBriefLayoutSettings = root.querySelector('[data-pbd-project-brief-layout-settings]');
     if (projectBriefLayoutSettings) {
       projectBriefLayoutSettings.hidden = updateSheet
@@ -1225,6 +1312,7 @@ if (root) {
     });
     restoreSettingsSectionState();
     validateUpdateSheetRows();
+    refreshSettingsSummary();
   };
   root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"], [data-pbd-key-points-toggle]')
     .forEach((choice) => choice.addEventListener('change', syncTemplateSettings));

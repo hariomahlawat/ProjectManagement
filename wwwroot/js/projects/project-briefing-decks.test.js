@@ -101,7 +101,7 @@ test('deck settings save themselves in place, one save at a time', () => {
   assert.match(save, /applyEditorState\(payload\?\.deck\);/);
   // A collision with someone else's change shows the one conflict banner.
   assert.match(save, /if \(response\.status === 409\) \{\s*showConflict\(payload\?\.message\);/);
-  assert.match(source, /settingsForm\?\.addEventListener\('change', \(\) => refreshSettingsDirtyState\(400\)\);/);
+  assert.match(source, /settingsForm\?\.addEventListener\('change', \(\) => \{\s*refreshSettingsSummary\(\);\s*refreshSettingsDirtyState\(400\);\s*\}\);/);
   assert.doesNotMatch(source, /data-pbd-settings-drawer|openSettingsDrawer|closeSettingsDrawer/);
   assert.doesNotMatch(viewSource, /data-pbd-settings-drawer|data-pbd-settings-save/);
 });
@@ -114,9 +114,16 @@ test('deck settings hide standard-only sections for update sheets and persist co
   assert.match(source, /defaultOpenSettingsSections/);
 });
 
-test('settings drawer keeps a consistent appearance section and compact default state', () => {
+test('settings are numbered steps: closed by default, one open at a time, each with a summary', () => {
   assert.doesNotMatch(source, /appearanceTitle\.textContent/);
-  assert.match(source, /defaultOpenSettingsSections = \(\) => new Set\(\['content'\]\)/);
+  assert.match(source, /defaultOpenSettingsSections = \(\) => new Set\(\);/);
+  // Opening a step closes the others.
+  assert.match(source, /if \(!restoringSettingsSections && section\.open\) \{\s*settingsCollapsibleSections\.forEach\(\(other\) => \{\s*if \(other !== section && other\.open\) other\.open = false;/);
+  // Visible steps are numbered in order; hidden steps take no number.
+  assert.match(source, /if \(!step\.hidden\) number \+= 1;/);
+  assert.match(viewSource, /data-pbd-step-summary/);
+  // Project slides only when the deck draws them; the brief layout and key points live there.
+  assert.match(source, /projectSlidesStep\.hidden = updateSheet \|\| !includesDetailedSlides\(\);/);
 });
 
 test('pending settings saves finish before navigation, posts and generation', () => {
@@ -162,12 +169,14 @@ test('removing an additional slide asks first, then waits for a pending settings
   assert.match(additionalSlidesSource, /if \(!confirmed\) return;[\s\S]*?if \(typeof root\.pbdSettleSettings === 'function' && !\(await root\.pbdSettleSettings\(\)\)\) return;\s*HTMLFormElement\.prototype\.submit\.call\(form\);/);
 });
 
-test('purpose presets apply on the server and the deck tab shows the current one', () => {
+test('templates apply on the server and the picker shows the current one', () => {
   assert.match(viewSource, /@foreach \(var preset in ProjectBriefingDeckPresets\.All\)/);
   assert.match(viewSource, /data-pbd-preset="@preset\.Preset"/);
   assert.match(viewSource, /data-preset-url=/);
   assert.match(source, /body: JSON\.stringify\(\{ deckId, preset: button\.dataset\.pbdPreset, rowVersion: currentRowVersion\(\) \}\)/);
-  assert.match(source, /\$\{deck\.presetAdjusted \? ', adjusted' : ''\}/);
+  assert.match(source, /deck\.presetAdjusted\s*\?\s*'Started from this template, then customised\.'/);
+  assert.match(source, /if \(templateCustomised\) templateCustomised\.hidden = !\(known && deck\.presetAdjusted\);/);
+  assert.match(viewSource, /data-pbd-template-toggle/);
 });
 
 test('the deck name and description are edited in the header and saved with the settings', () => {

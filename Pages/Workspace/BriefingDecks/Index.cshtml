@@ -12,48 +12,6 @@
     var presentedProjects = deck?.Projects.Where(project => project.IsPresented).ToArray();
     var leftOutProjectCount = deck?.Projects.Count(project => project.IsDeletedOrArchived) ?? 0;
     var isUpdateSheet = deck?.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
-    var layoutLabel = isUpdateSheet ? "Project Update Sheets" : "Standard PRISM Briefing";
-    var presentationModeLabel = deck?.PresentationMode switch
-    {
-        ProjectBriefingPresentationMode.ExecutiveTable => "Executive table deck",
-        ProjectBriefingPresentationMode.DetailedProjects => "Detailed project deck",
-        ProjectBriefingPresentationMode.Combined => "Combined deck",
-        _ => "Deck format"
-    };
-    var costModeLabel = deck?.CostMode switch
-    {
-        ProjectBriefingCostMode.CostRdOnly => "Cost (R&D) only",
-        ProjectBriefingCostMode.ProliferationOnly => "Proliferation cost only",
-        ProjectBriefingCostMode.Both => "Both costs",
-        ProjectBriefingCostMode.None => "No cost",
-        _ => "Cost setting"
-    };
-    var narrativeModeLabel = deck?.NarrativeMode switch
-    {
-        ProjectBriefingNarrativeMode.CapabilityOverview => "Capability overview",
-        ProjectBriefingNarrativeMode.ProjectBrief => "Project brief",
-        ProjectBriefingNarrativeMode.Both => "Capabilities and project brief",
-        _ => "Project content"
-    };
-    var themeLabel = deck?.PresentationTheme switch
-    {
-        ProjectBriefingPresentationTheme.EditorialLight => "Editorial Light",
-        ProjectBriefingPresentationTheme.GraphiteDark => "Graphite Dark",
-        _ => "Presentation theme"
-    };
-    var closingSlideLabel = deck?.ClosingSlideType switch
-    {
-        ProjectBriefingClosingSlideType.JaiHind => "Jai Hind closing",
-        ProjectBriefingClosingSlideType.ThankYou => "Thank You closing",
-        _ => "Closing slide"
-    };
-    var projectBriefLayoutLabel = deck?.StandardSlideOptions.ProjectBriefLayout switch
-    {
-        ProjectBriefingProjectBriefLayout.Automatic => "Automatic brief layout",
-        ProjectBriefingProjectBriefLayout.Standard => "Standard brief layout",
-        ProjectBriefingProjectBriefLayout.PhotoEmphasis => "Photo-emphasis brief layout",
-        _ => "Project brief layout"
-    };
     var selectedUpdateSheetRows = (deck?.UpdateSheetOptions.Rows ?? ProjectBriefingUpdateSheetOptions.RecommendedRows).ToHashSet();
     var orderedUpdateSheetRows = (deck?.UpdateSheetOptions.Rows ?? ProjectBriefingUpdateSheetOptions.RecommendedRows)
         .Concat(ProjectBriefingUpdateSheetOptions.AllRows)
@@ -106,7 +64,6 @@
         ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => ffcGlobalFootprint.IncludeSlide,
         _ => false
     };
-    var enabledAdditionalSlideCount = additionalSlideOrder.Count(AdditionalSlideIsEnabled);
     ProjectBriefingAdditionalSlideDefinition AdditionalSlideDefinition(ProjectBriefingAdditionalSlideType type)
         => ProjectBriefingAdditionalSlideCatalog.Get(type);
     string AdditionalSlideDisplayName(ProjectBriefingAdditionalSlideType type)
@@ -121,18 +78,16 @@
         is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
     var standardNeedsProjectBrief = deck?.NarrativeMode
         is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
-    var additionalSlidesSummary = enabledAdditionalSlideCount > 0
-        ? $" · {enabledAdditionalSlideCount} additional slide{(enabledAdditionalSlideCount == 1 ? string.Empty : "s")}"
-        : string.Empty;
+    // The Template picker: the preset the deck started from, and whether it was changed since.
+    var templateTitle = deck?.Preset is { } titlePreset
+        ? ProjectBriefingDeckPresets.Get(titlePreset).Title
+        : "Set up by hand";
+    var templateCustomised = deck?.Preset is not null && deck.PresetAdjusted;
     var presetStatus = deck?.Preset is { } currentPreset
-        ? $"Set from {ProjectBriefingDeckPresets.Get(currentPreset).Title}{(deck.PresetAdjusted ? ", adjusted" : string.Empty)}."
-        : "Set up by hand. Choosing a purpose applies its settings; you can still change any of them.";
-    var settingsSummaryLabel = isUpdateSheet
-        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows{additionalSlidesSummary} · {themeLabel} · R&D cost · {closingSlideLabel}"
-        : $"{layoutLabel} · {presentationModeLabel} · {narrativeModeLabel}"
-          + (standardNeedsProjectBrief ? $" · {projectBriefLayoutLabel}" : string.Empty)
-          + additionalSlidesSummary
-          + $" · {themeLabel} · {costModeLabel} · {closingSlideLabel}";
+        ? deck.PresetAdjusted
+            ? "Started from this template, then customised."
+            : ProjectBriefingDeckPresets.Get(currentPreset).Summary
+        : "Choose a template to apply its settings; you can still change any of them.";
     // Projects and their content gaps for the Studio outline and inspector, in the same shape the
     // membership endpoint returns, so in-place edits can refresh it.
     var studioDataJson = deck is null
@@ -419,126 +374,120 @@
                                 </div>
 
                                 <div id="pbd-inspector-deck" role="tabpanel" aria-labelledby="pbd-inspector-tab-deck" class="pbd-inspector__panel" data-pbd-inspector-panel="deck" hidden>
-                                    <h4 class="pbd-inspector__heading pbd-inspector__heading--first">Purpose</h4>
-                                    <p class="pbd-inspector__note" data-pbd-preset-status>@presetStatus</p>
-                                    <div class="pbd-presets" role="group" aria-label="Purpose presets">
-                                        @foreach (var preset in ProjectBriefingDeckPresets.All)
-                                        {
-                                            var isCurrent = deck.Preset == preset.Preset;
-                                            <button type="button" class="pbd-preset @(isCurrent ? "is-current" : null)" data-pbd-preset="@preset.Preset" aria-pressed="@(isCurrent ? "true" : "false")">
-                                                <strong>@preset.Title</strong>
-                                                <small>@preset.Summary</small>
-                                            </button>
-                                        }
+                                    @* Template: the purpose presets, as one compact picker (docs/ux/briefing-decks.md, Plan: Deck settings). *@
+                                    <h4 class="pbd-inspector__heading pbd-inspector__heading--first" id="pbd-template-heading">Template</h4>
+                                    <div class="pbd-template-picker" data-pbd-template-picker>
+                                        <button type="button" class="pbd-template-picker__current" aria-expanded="false" aria-controls="pbd-template-list" data-pbd-template-toggle>
+                                            <span class="pbd-template-picker__text">
+                                                <strong data-pbd-template-current>@templateTitle</strong>
+                                                <small data-pbd-preset-status>@presetStatus</small>
+                                            </span>
+                                            <span class="pbd-template-picker__badge" data-pbd-template-customised hidden="@(!templateCustomised)">customised</span>
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </button>
+                                        <div class="pbd-presets" id="pbd-template-list" role="group" aria-labelledby="pbd-template-heading" data-pbd-template-list hidden>
+                                            @foreach (var preset in ProjectBriefingDeckPresets.All)
+                                            {
+                                                var isCurrent = deck.Preset == preset.Preset;
+                                                <button type="button" class="pbd-preset @(isCurrent ? "is-current" : null)" data-pbd-preset="@preset.Preset" aria-pressed="@(isCurrent ? "true" : "false")">
+                                                    <strong>@preset.Title</strong>
+                                                    <small>@preset.Summary</small>
+                                                </button>
+                                            }
+                                        </div>
                                     </div>
                                     <p class="pbd-settings-save-status" data-pbd-settings-status aria-live="polite">Changes save as you make them.</p>
-                                    <details class="pbd-deck-advanced" data-pbd-deck-advanced>
-                                        <summary>All settings <small data-pbd-settings-summary-text>@settingsSummaryLabel</small></summary>
                                     <form method="post" asp-page-handler="SaveSettings" id="pbd-settings-form" class="pbd-settings__form pbd-deck-settings" data-pbd-settings-form>
                                         <input type="hidden" name="DeckId" value="@deck.Id" />
                                         <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-                                    <section class="pbd-settings-section" aria-labelledby="pbd-settings-general-title">
-                                        <h4 id="pbd-settings-general-title">Template</h4>
+                                        <input type="hidden" name="Name" value="@deck.Name" data-pbd-settings-name />
+                                        <input type="hidden" name="Description" value="@deck.Description" data-pbd-settings-description />
 
-                                <input type="hidden" name="Name" value="@deck.Name" data-pbd-settings-name />
-                                <input type="hidden" name="Description" value="@deck.Description" data-pbd-settings-description />
-
+                                    @* Settings as numbered steps, one open at a time. A closed step shows a one-line summary
+                                       of its choices; a step that does not apply to the earlier choices is hidden. *@
+                                    <div class="pbd-steps" data-pbd-steps>
+                                    <details class="pbd-step" data-pbd-step="slides" data-pbd-settings-collapsible data-pbd-settings-section="slides">
+                                        <summary>
+                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">1</span>
+                                            <span class="pbd-step__text"><strong>Slides</strong><small data-pbd-step-summary></small></span>
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </summary>
+                                        <div class="pbd-step__body">
                                 <fieldset class="pbd-choice-group">
-                                    <legend>Presentation template</legend>
+                                    <legend>Layout</legend>
                                     <div class="pbd-choice-cards pbd-choice-cards--two">
                                         <label class="pbd-choice-card pbd-choice-card--template">
                                             <input type="radio" name="Layout" value="StandardBriefing" checked="@(deck.Layout == ProjectBriefingLayout.StandardBriefing)" data-pbd-layout-choice />
-                                            <span><i class="bi bi-columns-gap" aria-hidden="true"></i><strong>Standard PRISM Briefing</strong><small>Executive tables, summaries and configurable project slides.</small></span>
+                                            <span><i class="bi bi-columns-gap" aria-hidden="true"></i><strong>Standard briefing</strong><small>Status table, summaries and slides for each project.</small></span>
                                         </label>
                                         <label class="pbd-choice-card pbd-choice-card--template">
                                             <input type="radio" name="Layout" value="ProjectUpdateSheet" checked="@(deck.Layout == ProjectBriefingLayout.ProjectUpdateSheet)" data-pbd-layout-choice />
-                                            <span><i class="bi bi-card-heading" aria-hidden="true"></i><strong>Project Update Sheets</strong><small>Formal 16:9 project sheets with configurable facts, project brief and photograph.</small></span>
+                                            <span><i class="bi bi-card-heading" aria-hidden="true"></i><strong>Update sheets</strong><small>One formal sheet per project: facts, brief and photograph.</small></span>
                                         </label>
                                     </div>
                                 </fieldset>
-                                    </section>
-
-                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
-                                             data-pbd-settings-collapsible
-                                             data-pbd-settings-section="content"
-                                             open>
-                                        <summary id="pbd-settings-content-title">
-                                            <span>Content and layout</span>
-                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                                        </summary>
-                                        <div class="pbd-settings-section__body">
                                 <div data-pbd-standard-settings hidden="@isUpdateSheet">
                                     <fieldset class="pbd-choice-group">
-                                        <legend>Deck format</legend>
+                                        <legend>What the deck shows</legend>
                                         <div class="pbd-choice-cards pbd-choice-cards--three">
                                             <label class="pbd-choice-card">
                                                 <input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
-                                                <span><i class="bi bi-table" aria-hidden="true"></i><strong>Executive table deck</strong><small>Summary and editable project tables</small></span>
+                                                <span><i class="bi bi-table" aria-hidden="true"></i><strong>Status table</strong><small>One table of projects; no slides per project.</small></span>
                                             </label>
                                             <label class="pbd-choice-card">
                                                 <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
-                                                <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Detailed project deck</strong><small>Project slides based on the selected content; continuation slides are added when required</small></span>
+                                                <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Project slides</strong><small>Slides for each project; no status table.</small></span>
                                             </label>
                                             <label class="pbd-choice-card">
                                                 <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
-                                                <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Combined deck</strong><small>Executive table followed by project slides</small></span>
+                                                <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Table and project slides</strong><small>The status table first, then slides for each project.</small></span>
                                             </label>
                                         </div>
                                     </fieldset>
 
-                                    <fieldset class="pbd-choice-group">
-                                        <legend>Project content</legend>
+                                    <fieldset class="pbd-choice-group" data-pbd-project-content-settings hidden="@(!standardIncludesDetailedSlides)">
+                                        <legend>Each project gets</legend>
                                         <div class="pbd-choice-cards pbd-choice-cards--three">
                                             <label class="pbd-choice-card">
                                                 <input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" />
-                                                <span><i class="bi bi-list-check" aria-hidden="true"></i><strong>Capability overview</strong><small>5–8 concise capability statements on the main project slide</small></span>
+                                                <span><i class="bi bi-list-check" aria-hidden="true"></i><strong>Capability overview</strong><small>One slide of capability statements.</small></span>
                                             </label>
                                             <label class="pbd-choice-card">
                                                 <input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" />
-                                                <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i><strong>Project brief</strong><small>Dedicated narrative slide for each project</small></span>
+                                                <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i><strong>Project brief</strong><small>One narrative slide.</small></span>
                                             </label>
                                             <label class="pbd-choice-card">
                                                 <input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" />
-                                                <span><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i><strong>Both</strong><small>Capability slide followed by a project brief slide</small></span>
+                                                <span><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i><strong>Both</strong><small>A capability slide, then a brief slide.</small></span>
                                             </label>
                                         </div>
                                     </fieldset>
+                                </div>
+                                        </div>
+                                    </details>
 
+                                    <details class="pbd-step" data-pbd-step="project" data-pbd-settings-collapsible data-pbd-settings-section="project" data-pbd-project-slides-step hidden="@(isUpdateSheet || !standardIncludesDetailedSlides)">
+                                        <summary>
+                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">2</span>
+                                            <span class="pbd-step__text"><strong>Project slides</strong><small data-pbd-step-summary></small></span>
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </summary>
+                                        <div class="pbd-step__body">
                                     <div class="pbd-standard-detail-options" data-pbd-detailed-settings hidden="@(!standardIncludesDetailedSlides)">
-                                        @* The key points layout draws its own brief slide, so the brief layout only matters without key points. *@
-                                        <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(!standardNeedsProjectBrief || deck.StandardSlideOptions.KeyPoints != ProjectBriefingKeyPointPlacement.None)">
-                                            <legend>Project Brief layout</legend>
-                                            <div class="pbd-choice-cards pbd-choice-cards--three">
-                                                <label class="pbd-choice-card">
-                                                    <input type="radio" name="ProjectBriefLayout" value="Automatic" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Automatic)" />
-                                                    <span><i class="bi bi-magic" aria-hidden="true"></i><strong>Automatic</strong><small>Recommended. Uses photo emphasis when the photograph and content are suitable; otherwise uses the standard design.</small></span>
-                                                </label>
-                                                <label class="pbd-choice-card">
-                                                    <input type="radio" name="ProjectBriefLayout" value="Standard" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Standard)" />
-                                                    <span><i class="bi bi-layout-sidebar" aria-hidden="true"></i><strong>Standard</strong><small>Compact photograph and context rail with a wide narrative panel.</small></span>
-                                                </label>
-                                                <label class="pbd-choice-card">
-                                                    <input type="radio" name="ProjectBriefLayout" value="PhotoEmphasis" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)" />
-                                                    <span><i class="bi bi-image" aria-hidden="true"></i><strong>Photo emphasis</strong><small>Large photograph on approximately half the slide with brief and context alongside.</small></span>
-                                                </label>
-                                            </div>
-                                        </fieldset>
-
                                         <fieldset class="pbd-choice-group">
-                                            <legend>Project context on detailed slides</legend>
+                                            <legend>Show on each project slide</legend>
                                             <div class="pbd-checks pbd-checks--inline">
                                                 <label>
                                                     <input type="checkbox" name="ShowPresentStage" value="true" checked="@deck.StandardSlideOptions.ShowPresentStage" />
                                                     <input type="hidden" name="ShowPresentStage" value="false" />
-                                                    Show present stage
+                                                    Present stage
                                                 </label>
                                                 <label>
                                                     <input type="checkbox" name="ShowPresentStatus" value="true" checked="@deck.StandardSlideOptions.ShowPresentStatus" />
                                                     <input type="hidden" name="ShowPresentStatus" value="false" />
-                                                    Show present status
+                                                    Status remark
                                                 </label>
                                             </div>
-                                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> These choices apply to Capability Overview and Project Brief slides. Cost remains controlled independently under Financial information.</p>
                                         </fieldset>
 
                                         @{
@@ -566,15 +515,43 @@
                                                     On the capability slide
                                                 </label>
                                             </div>
-                                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Each project's key points (Training gap, Op necessity, Training realism, Ease of learning, Proliferation potential) from its Key points tab, in a band at the foot of the slide. With key points on, project slides use a larger photograph, and stage and cost move to one line under the title.</p>
+                                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Five short points per project, from its Key points tab, in a band at the foot of the slide. Project slides then use a larger photograph, with stage and cost on one line under the title.</p>
+                                        </fieldset>
+
+                                        @* The key points layout draws its own brief slide, so the brief layout only matters without key points. *@
+                                        <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(!standardNeedsProjectBrief || deck.StandardSlideOptions.KeyPoints != ProjectBriefingKeyPointPlacement.None)">
+                                            <legend>Project Brief layout</legend>
+                                            <div class="pbd-choice-cards pbd-choice-cards--three">
+                                                <label class="pbd-choice-card">
+                                                    <input type="radio" name="ProjectBriefLayout" value="Automatic" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Automatic)" />
+                                                    <span><i class="bi bi-magic" aria-hidden="true"></i><strong>Automatic</strong><small>Photo emphasis when the photograph and brief suit it, otherwise standard.</small></span>
+                                                </label>
+                                                <label class="pbd-choice-card">
+                                                    <input type="radio" name="ProjectBriefLayout" value="Standard" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Standard)" />
+                                                    <span><i class="bi bi-layout-sidebar" aria-hidden="true"></i><strong>Standard</strong><small>A compact photograph beside a wide brief.</small></span>
+                                                </label>
+                                                <label class="pbd-choice-card">
+                                                    <input type="radio" name="ProjectBriefLayout" value="PhotoEmphasis" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)" />
+                                                    <span><i class="bi bi-image" aria-hidden="true"></i><strong>Photo emphasis</strong><small>The photograph takes about half the slide.</small></span>
+                                                </label>
+                                            </div>
                                         </fieldset>
                                     </div>
-                                </div>
-                                <div class="pbd-update-sheet-composition" data-pbd-update-settings hidden="@(!isUpdateSheet)">
+                                        </div>
+                                    </details>
+
+                                    <details class="pbd-step" data-pbd-step="sheet" data-pbd-settings-collapsible data-pbd-settings-section="sheet" data-pbd-update-settings hidden="@(!isUpdateSheet)">
+                                        <summary>
+                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">2</span>
+                                            <span class="pbd-step__text"><strong>Sheet rows</strong><small data-pbd-step-summary></small></span>
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </summary>
+                                        <div class="pbd-step__body">
+                                <div class="pbd-update-sheet-composition">
                                     <div class="pbd-update-sheet-composition__intro">
                                         <div>
-                                            <strong>Information shown on each project sheet</strong>
-                                            <small>Project name remains the slide title. Select and order the editable table rows; the photograph and brief areas adapt automatically.</small>
+                                            <strong>Rows on each sheet</strong>
+                                            <small>Tick and order the rows. The project name stays the title; the photograph and brief fit around the table.</small>
                                         </div>
                                         <div class="pbd-update-sheet-composition__actions">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-update-rows-select-all>Select all</button>
@@ -600,21 +577,76 @@
                                     </div>
                                     <label class="pbd-update-sheet-hide-empty">
                                         <input type="checkbox" name="HideEmptyUpdateSheetValues" value="true" checked="@deck.UpdateSheetOptions.HideEmptyValues" />
-                                        <span><strong>Hide fields with no recorded value</strong><small>The PDC/completion row remains available as an intentional editable cell.</small></span>
+                                        <span><strong>Hide rows with nothing recorded</strong><small>The PDC or completion row stays, as a cell to fill in.</small></span>
                                     </label>
                                     <p class="pbd-update-sheet-composition__validation" data-pbd-update-rows-validation hidden>Select at least one information row.</p>
                                 </div>
                                         </div>
                                     </details>
 
-                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
-                                             data-pbd-settings-collapsible
-                                             data-pbd-settings-section="appearance">
-                                        <summary id="pbd-settings-appearance-title">
-                                            <span data-pbd-settings-appearance-title>Appearance</span>
+                                    <details class="pbd-step" data-pbd-step="cost" data-pbd-settings-collapsible data-pbd-settings-section="cost" data-pbd-standard-section hidden="@isUpdateSheet">
+                                        <summary>
+                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">3</span>
+                                            <span class="pbd-step__text"><strong>Cost</strong><small data-pbd-step-summary></small></span>
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </summary>
-                                        <div class="pbd-settings-section__body">
+                                        <div class="pbd-step__body">
+                                <fieldset class="pbd-choice-group">
+                                    <legend>Cost shown on slides</legend>
+                                    <div class="pbd-choice-cards pbd-choice-cards--four">
+                                        <label class="pbd-choice-card pbd-choice-card--compact">
+                                            <input type="radio" name="CostMode" value="CostRdOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.CostRdOnly)" />
+                                            <span><strong>Cost (R&amp;D)</strong><small>With its basis: PNC, L1, AoN or IPA.</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card pbd-choice-card--compact">
+                                            <input type="radio" name="CostMode" value="ProliferationOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.ProliferationOnly)" />
+                                            <span><strong>Proliferation cost</strong><small>The latest indicative cost.</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card pbd-choice-card--compact">
+                                            <input type="radio" name="CostMode" value="Both" checked="@(deck.CostMode == ProjectBriefingCostMode.Both)" />
+                                            <span><strong>Both costs</strong><small>Shown separately.</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card pbd-choice-card--compact">
+                                            <input type="radio" name="CostMode" value="None" checked="@(deck.CostMode == ProjectBriefingCostMode.None)" />
+                                            <span><strong>No cost</strong><small>No cost anywhere in the deck.</small></span>
+                                        </label>
+                                    </div>
+                                </fieldset>
+                                        </div>
+                                    </details>
+
+                                    <details class="pbd-step" data-pbd-step="extra" data-pbd-settings-collapsible data-pbd-settings-section="extra">
+                                        <summary>
+                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">4</span>
+                                            <span class="pbd-step__text"><strong>Extra slides</strong><small data-pbd-step-summary></small></span>
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </summary>
+                                        <div class="pbd-step__body">
+                                <fieldset class="pbd-choice-group pbd-update-sheet-options" data-pbd-update-settings hidden="@(!isUpdateSheet)">
+                                    <legend>Opening slides</legend>
+                                    <div class="pbd-checks pbd-checks--inline">
+                                        <label><input type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" /> Cover slide</label>
+                                        <label><input type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" /> Portfolio summary</label>
+                                    </div>
+                                </fieldset>
+                                    <fieldset class="pbd-checks" data-pbd-standard-settings hidden="@isUpdateSheet">
+                                        <legend>Summary slides</legend>
+                                        <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle /> Stage-wise summary <small>recommended chart</small></label>
+                                        <label class="pbd-summary-dependent-option" data-pbd-stage-table-option><input type="checkbox" name="IncludeStageDistributionTable" value="true" checked="@deck.StandardSlideOptions.IncludeStageDistributionTable" data-pbd-stage-table-toggle /> Stage-wise distribution table <small>optional supporting slide</small></label>
+                                        <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary <small>left out when every project shares one category</small></label>
+                                        <label><input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" /> Technical-category summary <small>left out when every project shares one category</small></label>
+                                    </fieldset>
+                                    <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Institution slides (SDD profile, Role &amp; Charter, FFC footprint) are under Additional slides below.</p>
+                                        </div>
+                                    </details>
+
+                                    <details class="pbd-step" data-pbd-step="look" data-pbd-settings-collapsible data-pbd-settings-section="look">
+                                        <summary>
+                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">5</span>
+                                            <span class="pbd-step__text"><strong data-pbd-settings-appearance-title>Look</strong><small data-pbd-step-summary></small></span>
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </summary>
+                                        <div class="pbd-step__body">
                                 <div class="pbd-presentation-design @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-presentation-design>
                                     <fieldset class="pbd-choice-group">
                                         <legend>Presentation theme</legend>
@@ -633,7 +665,7 @@
                                                     </span>
                                                     <span>
                                                         <strong>Editorial Light</strong>
-                                                        <small>Clean, restrained and suitable for circulation or print.</small>
+                                                        <small>For circulation and print.</small>
                                                     </span>
                                                 </span>
                                             </label>
@@ -651,9 +683,27 @@
                                                     </span>
                                                     <span>
                                                         <strong>Graphite Dark</strong>
-                                                        <small>Designed for command briefings, large displays and projection.</small>
+                                                        <small>For large displays and projection.</small>
                                                     </span>
                                                 </span>
+                                            </label>
+                                        </div>
+                                    </fieldset>
+
+                                    <fieldset class="pbd-choice-group">
+                                        <legend>Insignia</legend>
+                                        <div class="pbd-branding-options">
+                                            <label>
+                                                <input type="radio" name="BrandingScope" value="None" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.None)" />
+                                                <span><strong>None</strong><small>No insignia on any slide.</small></span>
+                                            </label>
+                                            <label>
+                                                <input type="radio" name="BrandingScope" value="CoverAndSummary" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.CoverAndSummary)" />
+                                                <span><strong>Cover and summary</strong><small>Cover, summary and closing slides.</small></span>
+                                            </label>
+                                            <label>
+                                                <input type="radio" name="BrandingScope" value="AllSlides" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.AllSlides)" />
+                                                <span><strong>All slides</strong><small>A compact insignia on every slide.</small></span>
                                             </label>
                                         </div>
                                     </fieldset>
@@ -666,7 +716,7 @@
                                                 <span>
                                                     <i class="bi bi-shield-check" aria-hidden="true"></i>
                                                     <strong>Jai Hind</strong>
-                                                    <small>Recommended for command and internal military briefings.</small>
+                                                    <small>For command and internal briefings.</small>
                                                 </span>
                                             </label>
                                             <label class="pbd-choice-card pbd-choice-card--closing">
@@ -674,27 +724,8 @@
                                                 <span>
                                                     <i class="bi bi-stars" aria-hidden="true"></i>
                                                     <strong>Thank You</strong>
-                                                    <small>Suitable for industry, academic and external audiences.</small>
+                                                    <small>For industry, academic and external audiences.</small>
                                                 </span>
-                                            </label>
-                                        </div>
-                                        <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> One ceremonial closing slide is always appended as the final slide of the presentation.</p>
-                                    </fieldset>
-
-                                    <fieldset class="pbd-choice-group">
-                                        <legend>Presentation branding</legend>
-                                        <div class="pbd-branding-options">
-                                            <label>
-                                                <input type="radio" name="BrandingScope" value="None" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.None)" />
-                                                <span><strong>None</strong><small>No insignia in slide headers or on the closing slide</small></span>
-                                            </label>
-                                            <label>
-                                                <input type="radio" name="BrandingScope" value="CoverAndSummary" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.CoverAndSummary)" />
-                                                <span><strong>Cover and summary</strong><small>Brand cover, summary and closing slides</small></span>
-                                            </label>
-                                            <label>
-                                                <input type="radio" name="BrandingScope" value="AllSlides" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.AllSlides)" />
-                                                <span><strong>All slides</strong><small>Compact insignia throughout the presentation</small></span>
                                             </label>
                                         </div>
                                     </fieldset>
@@ -702,76 +733,22 @@
                                         </div>
                                     </details>
 
-                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
-                                             data-pbd-settings-collapsible
-                                             data-pbd-settings-section="financial"
-                                             data-pbd-standard-section
-                                             hidden="@isUpdateSheet">
-                                        <summary id="pbd-settings-financial-title">
-                                            <span>Financial information</span>
+                                    <details class="pbd-step" data-pbd-step="handling" data-pbd-settings-collapsible data-pbd-settings-section="handling">
+                                        <summary>
+                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">6</span>
+                                            <span class="pbd-step__text"><strong>Handling</strong><small data-pbd-step-summary></small></span>
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </summary>
-                                        <div class="pbd-settings-section__body">
-                                <fieldset class="pbd-choice-group">
-                                    <legend>Cost information</legend>
-                                    <div class="pbd-choice-cards pbd-choice-cards--four">
-                                        <label class="pbd-choice-card pbd-choice-card--compact">
-                                            <input type="radio" name="CostMode" value="CostRdOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.CostRdOnly)" />
-                                            <span><strong>Cost (R&amp;D) only</strong><small>PNC → L1 → AoN → IPA (completed: PNC → L1 → recorded)</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card pbd-choice-card--compact">
-                                            <input type="radio" name="CostMode" value="ProliferationOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.ProliferationOnly)" />
-                                            <span><strong>Proliferation cost only</strong><small>Latest indicative cost</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card pbd-choice-card--compact">
-                                            <input type="radio" name="CostMode" value="Both" checked="@(deck.CostMode == ProjectBriefingCostMode.Both)" />
-                                            <span><strong>Both costs</strong><small>Shown separately</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card pbd-choice-card--compact">
-                                            <input type="radio" name="CostMode" value="None" checked="@(deck.CostMode == ProjectBriefingCostMode.None)" />
-                                            <span><strong>Do not include cost</strong><small>Hide cost from slides</small></span>
-                                        </label>
-                                    </div>
-                                </fieldset>
-                                        </div>
-                                    </details>
-
-                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
-                                             data-pbd-settings-collapsible
-                                             data-pbd-settings-section="summary">
-                                        <summary id="pbd-settings-summary-title">
-                                            <span>Summary and handling</span>
-                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                                        </summary>
-                                        <div class="pbd-settings-section__body">
-                                <fieldset class="pbd-choice-group pbd-update-sheet-options" data-pbd-update-settings hidden="@(!isUpdateSheet)">
-                                    <legend>Project Update Sheet options</legend>
-                                    <div class="pbd-update-sheet-note">
-                                        <i class="bi bi-info-circle" aria-hidden="true"></i>
-                                        <span>Each project is generated as one editable 16:9 sheet. Project brief and photograph remain structural; selected information rows determine the facts-table composition.</span>
-                                    </div>
-                                    <div class="pbd-checks pbd-checks--inline">
-                                        <label><input type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" /> Include cover slide</label>
-                                        <label><input type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" /> Include portfolio-summary slide</label>
-                                    </div>
-                                </fieldset>
-                                <div class="pbd-settings__bottom">
-                                    <fieldset class="pbd-checks" data-pbd-standard-settings hidden="@isUpdateSheet">
-                                        <legend>Summary slides</legend>
-                                        <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle /> Stage-wise summary <small>recommended chart</small></label>
-                                        <label class="pbd-summary-dependent-option" data-pbd-stage-table-option><input type="checkbox" name="IncludeStageDistributionTable" value="true" checked="@deck.StandardSlideOptions.IncludeStageDistributionTable" data-pbd-stage-table-toggle /> Stage-wise distribution table <small>optional supporting slide</small></label>
-                                        <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary <small>automatically omitted when only one category is represented</small></label>
-                                        <label><input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" /> Technical-category summary <small>automatically omitted when all selected projects share one category</small></label>
-                                    </fieldset>
+                                        <div class="pbd-step__body">
                                     <label class="form-label pbd-marking">
                                         <span>Classification marking <small>optional</small></span>
                                         <input class="form-control" name="HandlingMarking" value="@deck.HandlingMarking" maxlength="80" placeholder="e.g. OFFICIAL" />
                                     </label>
-                                </div>
+                                    <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Printed in the footer of every slide.</p>
                                         </div>
                                     </details>
+                                    </div>
                                     </form>
-                                    </details>
 
                         <section class="pbd-additional-slides" id="pbd-additional-slides" aria-labelledby="pbd-additional-slides-title" data-pbd-additional-slides>
                             <header class="pbd-section-header pbd-section-header--additional-slides">
