@@ -39,6 +39,15 @@ public interface IProjectContentService
         string userId,
         string userDisplay,
         CancellationToken cancellationToken = default);
+
+    // One value per ProjectKeyPointCatalog heading, in catalogue order; blank removes that point.
+    Task<ProjectContentSaveResult> SaveKeyPointsAsync(
+        int projectId,
+        IReadOnlyList<string?> points,
+        string rowVersion,
+        string userId,
+        string userDisplay,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record ProjectContentSaveResult(
@@ -98,6 +107,20 @@ public static partial class ProjectContentRules
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value!)
             .ToList();
+
+    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex WhitespaceRunRegex();
+
+    // A key point is one plain line: line breaks and runs of whitespace become single spaces.
+    public static string? NormalizeKeyPoint(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return WhitespaceRunRegex().Replace(value, " ").Trim();
+    }
 
     public static IReadOnlyList<string> NormalizeTechnicalSpecifications(IEnumerable<string?> values) =>
         values
@@ -450,6 +473,99 @@ public sealed class ProjectContentService : IProjectContentService
             {
                 ["CharacterCount"] = (normalized?.Length ?? 0).ToString(),
                 ["WordCount"] = ProjectContentRules.CountWords(normalized).ToString()
+            });
+
+        return ProjectContentSaveResult.Success();
+    }
+
+    public async Task<ProjectContentSaveResult> SaveKeyPointsAsync(
+        int projectId,
+        IReadOnlyList<string?> points,
+        string rowVersion,
+        string userId,
+        string userDisplay,
+        CancellationToken cancellationToken = default)
+    {
+        var definitions = ProjectKeyPointCatalog.All;
+        if (points.Count > definitions.Count)
+        {
+            return ProjectContentSaveResult.Invalid(
+                $"A project has {definitions.Count} key points; the form sent {points.Count}. Reload the page and try again.");
+        }
+
+        var normalized = new Dictionary<ProjectKeyPointKind, string>();
+        for (var index = 0; index < points.Count; index++)
+        {
+            var text = ProjectContentRules.NormalizeKeyPoint(points[index]);
+            if (text is null)
+            {
+                continue;
+            }
+
+            if (text.Length > ProjectFieldLimits.KeyPointMaxLength)
+            {
+                return ProjectContentSaveResult.Invalid(
+                    $"{definitions[index].Heading} is {text.Length} characters. Keep each key point to {ProjectFieldLimits.KeyPointMaxLength} characters or fewer.");
+            }
+
+            normalized[definitions[index].Kind] = text;
+        }
+
+        if (!TryDecodeRowVersion(rowVersion, out var originalRowVersion))
+        {
+            return ProjectContentSaveResult.Invalid("The project version is invalid. Reload the page and try again.");
+        }
+
+        var project = await LoadTrackedProjectAsync(projectId, originalRowVersion, cancellationToken);
+        if (project is null)
+        {
+            return ProjectContentSaveResult.Missing();
+        }
+
+        var existing = await _db.ProjectKeyPoints
+            .Where(point => point.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var point in existing)
+        {
+            if (normalized.TryGetValue(point.Kind, out var text))
+            {
+                point.Text = text;
+            }
+            else
+            {
+                _db.ProjectKeyPoints.Remove(point);
+            }
+        }
+
+        foreach (var (kind, text) in normalized)
+        {
+            if (existing.All(point => point.Kind != kind))
+            {
+                _db.ProjectKeyPoints.Add(new ProjectKeyPoint
+                {
+                    ProjectId = projectId,
+                    Kind = kind,
+                    Text = text
+                });
+            }
+        }
+
+        Stamp(project, userId);
+        var saveResult = await SaveAsync(cancellationToken);
+        if (!saveResult.Succeeded)
+        {
+            return saveResult;
+        }
+
+        QueueAudit(
+            "Project.Content.KeyPointsUpdated",
+            project,
+            userId,
+            userDisplay,
+            new Dictionary<string, string?>
+            {
+                ["RecordedCount"] = normalized.Count.ToString()
             });
 
         return ProjectContentSaveResult.Success();

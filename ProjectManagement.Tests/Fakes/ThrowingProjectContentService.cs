@@ -47,4 +47,13 @@ public sealed class ThrowingProjectContentService : IProjectContentService
         string userDisplay,
         CancellationToken cancellationToken = default)
         => throw new InvalidOperationException(UnexpectedCallMessage);
+
+    public Task<ProjectContentSaveResult> SaveKeyPointsAsync(
+        int projectId,
+        IReadOnlyList<string?> points,
+        string rowVersion,
+        string userId,
+        string userDisplay,
+        CancellationToken cancellationToken = default)
+        => throw new InvalidOperationException(UnexpectedCallMessage);
 }

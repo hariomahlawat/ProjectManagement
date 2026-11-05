@@ -221,6 +221,68 @@
     line-height: 1.5;
 }
 
+/* Key points: heading beside its answer, as on the briefing slide; stacks on narrow screens. */
+.project-content__key-points {
+    display: grid;
+    max-width: 110ch;
+    margin: 0;
+}
+
+.project-content__key-point {
+    display: grid;
+    grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr);
+    gap: .25rem 1rem;
+    padding: .55rem 0;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.project-content__key-point:last-child {
+    border-bottom: 0;
+}
+
+.project-content__key-point dt {
+    color: var(--bs-secondary-color);
+    font-weight: 600;
+}
+
+.project-content__key-point dd {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.project-content__key-point.is-empty dd {
+    color: var(--bs-secondary-color);
+    font-style: italic;
+}
+
+.project-content__key-point-fields {
+    display: grid;
+    gap: 1rem;
+    max-width: 80ch;
+}
+
+.project-content__key-point-field .form-label {
+    margin-bottom: .3rem;
+}
+
+.project-content__key-point-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: .3rem;
+}
+
+.project-content__key-point-meta [data-key-point-count] {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 575.98px) {
+    .project-content__key-point {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .project-content__advisory {
     width: fit-content;
     margin-top: .8rem;

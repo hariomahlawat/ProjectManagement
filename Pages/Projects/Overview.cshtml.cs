@@ -327,7 +327,11 @@ namespace ProjectManagement.Pages.Projects
                 .OrderBy(item => item.DisplayOrder)
                 .ThenBy(item => item.Id)
                 .ToListAsync(ct);
-            InitializeProjectContentEditor(project);
+            var keyPoints = await _db.ProjectKeyPoints
+                .AsNoTracking()
+                .Where(point => point.ProjectId == project.Id)
+                .ToListAsync(ct);
+            InitializeProjectContentEditor(project, keyPoints);
 
             // SECTION: Load only the media needed by the overview. Full libraries are
             // available from the dedicated Documents, Photos and Videos pages.

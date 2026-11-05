@@ -360,6 +360,74 @@ public sealed class ProjectOverviewLifecycleTests
     }
 
     [Fact]
+    public async Task SaveProjectKeyPoints_AllowsTheAssignedProjectOfficer()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 25, hodUserId: "hod-25", poUserId: "po-25");
+        var content = new RecordingProjectContentService();
+        var overview = CreateOverviewPage(db, new FixedClock(DateTimeOffset.UtcNow), content);
+        overview.KeyPointInput = new ProjectsOverviewModel.ProjectKeyPointsContentInput
+        {
+            ProjectId = 25,
+            Points = new List<string?> { "No live firing in peacetime.", null },
+            RowVersion = "Aw=="
+        };
+        ConfigurePageContext(overview, CreateUser("po-25", "Project Officer"));
+
+        var result = await overview.OnPostSaveProjectKeyPointsAsync(25, CancellationToken.None);
+
+        Assert.IsNotType<ForbidResult>(result);
+        Assert.Equal(new[] { "keypoints:25:No live firing in peacetime.|" }, content.Calls);
+    }
+
+    [Fact]
+    public async Task SaveProjectKeyPoints_ForbidsAProjectOfficerOfAnotherProject()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 26, hodUserId: "hod-26", poUserId: "po-26");
+        var content = new RecordingProjectContentService();
+        var overview = CreateOverviewPage(db, new FixedClock(DateTimeOffset.UtcNow), content);
+        overview.KeyPointInput = new ProjectsOverviewModel.ProjectKeyPointsContentInput
+        {
+            ProjectId = 26,
+            Points = new List<string?> { "Not my project." },
+            RowVersion = "Aw=="
+        };
+        ConfigurePageContext(overview, CreateUser("po-other", "Project Officer"));
+
+        var result = await overview.OnPostSaveProjectKeyPointsAsync(26, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+        Assert.Empty(content.Calls);
+    }
+
+    [Fact]
+    public async Task Overview_ListsEveryKeyPointHeadingWithTheProjectsPoints()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 27, hodUserId: "hod-27", poUserId: "po-27");
+        db.ProjectKeyPoints.Add(new ProjectKeyPoint
+        {
+            ProjectId = 27,
+            Kind = ProjectKeyPointKind.OpNecessity,
+            Text = "Crews must qualify before induction."
+        });
+        await db.SaveChangesAsync();
+
+        var overview = CreateOverviewPage(db, new FixedClock(DateTimeOffset.UtcNow));
+        ConfigurePageContext(overview, CreateUser("po-27", "Project Officer"));
+        Assert.IsType<PageResult>(await overview.OnGetAsync(27, CancellationToken.None));
+
+        Assert.Equal(5, overview.KeyPoints.Count);
+        Assert.Equal(1, overview.KeyPointCount);
+        Assert.Equal("Crews must qualify before induction.", overview.KeyPoints[1].Text);
+        Assert.Null(overview.KeyPoints[0].Text);
+        Assert.Equal(
+            new string?[] { null, "Crews must qualify before induction.", null, null, null },
+            overview.KeyPointInput.Points);
+    }
+
+    [Fact]
     public async Task SaveProjectDescription_StillForbidsTheAssignedProjectOfficer()
     {
         await using var db = CreateContext();
@@ -423,6 +491,12 @@ public sealed class ProjectOverviewLifecycleTests
         public Task<ProjectContentSaveResult> SaveDescriptionAsync(int projectId, string? description, string rowVersion, string userId, string userDisplay, CancellationToken cancellationToken = default)
         {
             Calls.Add($"description:{projectId}");
+            return Task.FromResult(ProjectContentSaveResult.Success());
+        }
+
+        public Task<ProjectContentSaveResult> SaveKeyPointsAsync(int projectId, IReadOnlyList<string?> points, string rowVersion, string userId, string userDisplay, CancellationToken cancellationToken = default)
+        {
+            Calls.Add($"keypoints:{projectId}:{string.Join("|", points)}");
             return Task.FromResult(ProjectContentSaveResult.Success());
         }
     }

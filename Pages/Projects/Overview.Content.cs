@@ -11,8 +11,20 @@ public partial class OverviewModel
 {
     private static readonly HashSet<string> ValidContentTabs = new(StringComparer.OrdinalIgnoreCase)
     {
-        "brief", "capabilities", "technical", "description"
+        "brief", "capabilities", "keypoints", "technical", "description"
     };
+
+    public sealed record ProjectKeyPointView(
+        ProjectKeyPointKind Kind,
+        string Heading,
+        string Hint,
+        string? Text);
+
+    // Every heading in catalogue order, with the project's point where it has one.
+    public IReadOnlyList<ProjectKeyPointView> KeyPoints { get; private set; }
+        = Array.Empty<ProjectKeyPointView>();
+
+    public int KeyPointCount => KeyPoints.Count(point => point.Text is not null);
 
     public IReadOnlyList<ProjectCapabilityStatement> CapabilityStatements { get; private set; }
         = Array.Empty<ProjectCapabilityStatement>();
@@ -47,6 +59,20 @@ public partial class OverviewModel
 
     [BindProperty]
     public ProjectDescriptionContentInput ContentDescriptionInput { get; set; } = new();
+
+    [BindProperty]
+    public ProjectKeyPointsContentInput KeyPointInput { get; set; } = new();
+
+    public sealed class ProjectKeyPointsContentInput
+    {
+        public int ProjectId { get; set; }
+
+        // One value per ProjectKeyPointCatalog heading, in catalogue order.
+        public List<string?> Points { get; set; } = new();
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+    }
 
     public sealed class ProjectBriefContentInput
     {
@@ -136,6 +162,31 @@ public partial class OverviewModel
         return ProjectContentResult(result, id, "capabilities", "Capability overview saved.");
     }
 
+    // Key points are written by whoever may write the brief, the assigned Project Officer included.
+    public async Task<IActionResult> OnPostSaveProjectKeyPointsAsync(int id, CancellationToken ct)
+    {
+        if (!CanCurrentUserEditProjectContent() && !await IsCurrentUserAssignedProjectOfficerAsync(id, ct))
+        {
+            return Forbid();
+        }
+
+        if (KeyPointInput.ProjectId != id)
+        {
+            return BadRequest();
+        }
+
+        var (userId, userDisplay) = await GetContentEditorIdentityAsync();
+        var result = await _projectContentService.SaveKeyPointsAsync(
+            id,
+            KeyPointInput.Points,
+            KeyPointInput.RowVersion,
+            userId,
+            userDisplay,
+            ct);
+
+        return ProjectContentResult(result, id, "keypoints", "Key points saved.");
+    }
+
     public async Task<IActionResult> OnPostSaveProjectTechnicalSpecificationsAsync(int id, CancellationToken ct)
     {
         if (!CanCurrentUserEditProjectContent())
@@ -214,8 +265,16 @@ public partial class OverviewModel
         });
     }
 
-    private void InitializeProjectContentEditor(Project project)
+    private void InitializeProjectContentEditor(Project project, IReadOnlyCollection<ProjectKeyPoint> keyPoints)
     {
+        KeyPoints = ProjectKeyPointCatalog.All
+            .Select(definition => new ProjectKeyPointView(
+                definition.Kind,
+                definition.Heading,
+                definition.Hint,
+                keyPoints.FirstOrDefault(point => point.Kind == definition.Kind)?.Text))
+            .ToList();
+
         ProjectBriefWordCount = ProjectContentRules.CountWords(project.ProjectBrief);
         DescriptionWordCount = ProjectContentRules.CountWords(project.Description);
         DescriptionShouldCollapse = DescriptionWordCount > ProjectFieldLimits.DescriptionPreviewCollapseWords;
@@ -229,9 +288,11 @@ public partial class OverviewModel
                 ? "brief"
                 : CapabilityStatements.Count > 0
                     ? "capabilities"
-                    : TechnicalSpecificationItems.Count > 0
-                        ? "technical"
-                        : "description";
+                    : KeyPointCount > 0
+                        ? "keypoints"
+                        : TechnicalSpecificationItems.Count > 0
+                            ? "technical"
+                            : "description";
         }
         else
         {
@@ -260,6 +321,12 @@ public partial class OverviewModel
         {
             ProjectId = project.Id,
             Description = project.Description,
+            RowVersion = ProjectContentRowVersion
+        };
+        KeyPointInput = new ProjectKeyPointsContentInput
+        {
+            ProjectId = project.Id,
+            Points = KeyPoints.Select(point => point.Text).ToList(),
             RowVersion = ProjectContentRowVersion
         };
     }

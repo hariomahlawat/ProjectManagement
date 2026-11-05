@@ -275,9 +275,12 @@ Owner decisions (5 Nov 2026):
 
 **PRs**
 
-1. Key points on the project: five nullable columns (additive migration), the Project Overview
-   editor beside the brief with a counter and a one-line hint per heading, server validation,
-   tests.
+1. Key points on the project: done (this change). Table `ProjectKeyPoints` (project, kind, text;
+   one row per recorded point, additive migration), headings and hints in
+   `ProjectKeyPointCatalog`, a **Key points** tab in Project content after Capability overview,
+   written by Admin, HoD and the project's own Project Officer (as the brief). Each field shows a
+   hint and a character count; Enter is ignored and line breaks become spaces; the server
+   collapses whitespace and rejects a point over 130 characters.
 2. Option B on the capability and project brief slides, with the deck switch and the slide
    choice; slide preview, slide estimate, content checks (a missing point is listed, never
    prompted) and the integrity check follow.

@@ -6860,6 +6860,27 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectKeyPoint", b =>
+                {
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<short>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(130)
+                        .HasColumnType("character varying(130)");
+
+                    b.HasKey("ProjectId", "Kind");
+
+                    b.ToTable("ProjectKeyPoints", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProjectKeyPoints_Kind_Positive", "\"Kind\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectLegacyImport", b =>
                 {
                     b.Property<long>("Id")
@@ -10038,6 +10059,17 @@ namespace ProjectManagement.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectKeyPoint", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany("KeyPoints")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectLegacyImport", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ProjectCategory", "ProjectCategory")
@@ -10639,6 +10671,8 @@ namespace ProjectManagement.Migrations
                     b.Navigation("TechnicalSpecificationItems");
 
                     b.Navigation("Documents");
+
+                    b.Navigation("KeyPoints");
 
                     b.Navigation("Photos");
 
