@@ -212,6 +212,11 @@ test('key points: a deck switch, and the slide choice only when the deck draws b
   assert.match(source, /keyPointSlide\.hidden = !root\.querySelector\('\[data-pbd-key-points-toggle\]'\)\?\.checked\s*\|\| narrativeMode\(\) !== 'Both'/);
 });
 
+test('the project brief layout hides while key points are on (the key points layout draws its own)', () => {
+  assert.match(viewSource, /data-pbd-project-brief-layout-settings hidden="@\(!standardNeedsProjectBrief \|\| deck\.StandardSlideOptions\.KeyPoints != ProjectBriefingKeyPointPlacement\.None\)"/);
+  assert.match(source, /\|\| Boolean\(root\.querySelector\('\[data-pbd-key-points-toggle\]'\)\?\.checked\);/);
+});
+
 
 
 test('settings initialization does not call institutional functions before declaration', () => {
