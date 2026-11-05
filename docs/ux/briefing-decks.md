@@ -362,5 +362,10 @@ A separate icon rail was considered and rejected: the inspector is narrow and ha
    switch and remove button reach theirs through the `form` attribute. The separate Additional
    slides section and its card styles are gone; the step's summary lists the enabled institution
    slides. The Deck tab is about 700 px tall with every step closed (it was about 3,100 px).
-5. Preview follows the change: after a change the preview shows a slide it affects (for example the
-   first project slide after key points are switched on).
+5. Preview follows the change: done (this change). A successful settings save names the settings
+   that changed (`pbd:settings-saved`); after the rebuild the Studio shows the first slide of the
+   roles the latest change affects (`SETTING_SLIDES`: a project setting shows the project in view
+   when it has that slide, else the first; the key points switch and slide follow the chosen slide;
+   stage and category summaries, cover, portfolio summary and closing show their slide). Theme
+   and marking keep the slide in view. Every rebuild now also keeps the kind of slide in view for
+   its project (a brief stays a brief), not only the project.
