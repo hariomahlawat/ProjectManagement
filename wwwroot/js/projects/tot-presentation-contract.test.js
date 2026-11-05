@@ -56,7 +56,10 @@ test('the register keeps its search box when nothing matches', () => {
 test('the long-waiting scope survives the filter and export dialogs', () => {
   const filters = read('Areas/ProjectOfficeReports/Pages/Tot/_TotFiltersModal.cshtml');
   const index = read('Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml');
-  assert.match(filters, /<input type="hidden" asp-for="LongWaiting" \/>/);
+  // The dialog carries the register's own route (filters in use, scope and sort), dropping only
+  // what it edits itself.
+  assert.match(filters, /Model\.RegisterRouteWith\(/);
+  assert.doesNotMatch(filters, /nameof\(Model\.LongWaiting\), null/);
   const exportForm = index.slice(index.indexOf('asp-page-handler="Export"'));
   assert.match(exportForm, /<input type="hidden" asp-for="LongWaiting" \/>/);
   assert.match(index, /<input type="hidden" name="LongWaiting" value="@\(Model\.LongWaiting \? "true" : null\)" \/>/);
