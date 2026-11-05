@@ -23,8 +23,8 @@ public enum ProjectBriefingShownFacts
     CostRd = 8,
     IpaCost = 16,
     ProliferationCost = 32,
-    // The lifecycle (ongoing, completed, cancelled): a standard detail slide's subtitle, and the
-    // portfolio summary's counts.
+    // The lifecycle (ongoing, completed, cancelled): a standard detail slide's subtitle, the
+    // portfolio summary's counts, and the stage summary's status band and ongoing-stage chart.
     Lifecycle = 64,
     // An update sheet's milestone row: a PDC date in development, else completion or cancellation.
     Milestone = 128
@@ -155,7 +155,9 @@ public static class ProjectBriefingSlideFacts
             shown |= ProjectBriefingShownFacts.StageOrder;
         }
 
-        if (data.IncludePortfolioSummarySlide || (hasOwnSlides && !updateSheet))
+        if (data.IncludePortfolioSummarySlide
+            || (hasOwnSlides && !updateSheet)
+            || (!updateSheet && data.IncludeStageSummary))
         {
             shown |= ProjectBriefingShownFacts.Lifecycle;
         }

@@ -218,6 +218,19 @@ public sealed class ProjectBriefingDataMovementTests
             Projects = standard.Projects
         }));
         Assert.Equal(ProjectBriefingShownFacts.Milestone, ProjectBriefingSlideFacts.Shown(project, sheet));
+
+        // The stage summary's status band and ongoing chart count lifecycle too, so cancelling a
+        // project in an executive-table deck counts.
+        var tableWithStageSummary = ProjectBriefingSlideFacts.Shown(project, new ProjectBriefingPresentationData
+        {
+            Layout = ProjectBriefingLayout.StandardBriefing,
+            PresentationMode = ProjectBriefingPresentationMode.ExecutiveTable,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludePortfolioSummarySlide = false,
+            IncludeStageSummary = true,
+            Projects = new[] { project }
+        });
+        Assert.True(tableWithStageSummary.HasFlag(ProjectBriefingShownFacts.Lifecycle));
     }
 
     // Where the composer draws each fact (ProjectBriefingSlideFacts.Shown).
