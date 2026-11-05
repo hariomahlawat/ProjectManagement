@@ -129,6 +129,82 @@ test('a slow answer for the project opened earlier never fills the drawer', asyn
   assert.equal(window.document.querySelector('[data-tot-project-field]').value, '631');
 });
 
+test('when the next project fails to load, nothing of the previous one stays or can be posted', async () => {
+  const withActions = `
+    <div id="offcanvasTot" data-project-id="" data-tot-endpoint="/ProjectOfficeReports/Tot">
+      <p data-tot-project-name></p>
+      <div data-tot-root>
+        <div data-tot-loading class="d-none"></div>
+        <div data-tot-content>
+          <div data-tot-global-error class="d-none"></div>
+          <div data-tot-success class="d-none"></div>
+          <section data-tot-summary-view>
+            <strong data-tot-status-label></strong>
+            <button type="button" data-tot-add-remark>Add remark</button>
+            <section class="d-none" data-tot-pending>
+              <h6 data-tot-pending-title></h6><span data-tot-pending-meta></span>
+              <table><tbody data-tot-changes></tbody></table>
+              <form class="d-none" data-tot-decide-form action="/ProjectOfficeReports/Tot?handler=TotDecide">
+                <input type="hidden" name="rowVersion" data-tot-decide-version />
+                <textarea name="reason" data-tot-decide-reason></textarea>
+                <div class="d-none" data-tot-decide-error></div>
+                <button type="button" data-tot-decide="true">Approve</button>
+              </form>
+            </section>
+            <form class="d-none" data-tot-remark-form action="/ProjectOfficeReports/Tot?handler=TotRemark">
+              <input type="hidden" name="projectId" data-tot-project-field />
+              <textarea name="body" data-tot-remark-body></textarea>
+              <div class="d-none" data-tot-remark-error></div>
+            </form>
+          </section>
+          <div data-tot-summary-footer><button type="button" class="d-none" data-tot-edit-button>Update details</button></div>
+        </div>
+      </div>
+    </div>`;
+  const dom = new JSDOM(`<!doctype html><body>${withActions}</body>`, { url: 'http://localhost/ProjectOfficeReports/Tot', runScripts: 'outside-only' });
+  const { window } = dom;
+  const posts = [];
+  window.fetch = (url, options = {}) => {
+    const id = Number(new URL(String(url), 'http://localhost').searchParams.get('id'));
+    if (options.method === 'POST') { posts.push(String(url)); return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) }); }
+    if (id === 2) return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Project not found.' }) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({
+      success: true, projectId: 1, projectName: 'Project 1', canManage: true, pendingApproval: true,
+      pending: { canDecide: true, changes: [{ field: 'Status', now: 'In progress', proposed: 'Completed' }], rowVersion: 'djE=' },
+      input: { status: 'InProgress' }, summary: { statusLabel: 'In progress', facts: [] }
+    }) });
+  };
+  let offcanvasEl;
+  window.bootstrap = { Offcanvas: { getOrCreateInstance: (element) => { offcanvasEl = element; return { show: () => element.dispatchEvent(new window.Event('show.bs.offcanvas')) }; } } };
+  window.eval(script);
+  const $ = (selector) => window.document.querySelector(selector);
+  const opener = (id) => { const a = window.document.createElement('a'); a.href = '#'; a.setAttribute('data-tot-open-project-id', String(id)); window.document.body.appendChild(a); return a; };
+
+  opener(1).click();
+  await settle(); await settle();
+  assert.equal($('[data-tot-status-label]').textContent, 'In progress');
+  assert.equal($('[data-tot-decide-form]').classList.contains('d-none'), false);
+
+  opener(2).click();
+  await settle(); await settle();
+
+  assert.equal($('[data-tot-global-error]').textContent, 'Project not found.');
+  assert.equal($('[data-tot-status-label]').textContent, '', 'project 1 is no longer shown');
+  assert.equal($('[data-tot-pending]').classList.contains('d-none'), true);
+  assert.equal($('[data-tot-decide-form]').classList.contains('d-none'), true);
+  assert.equal($('[data-tot-add-remark]').classList.contains('d-none'), true);
+  assert.equal($('[data-tot-edit-button]').classList.contains('d-none'), true);
+  assert.equal($('[data-tot-project-field]').value, '');
+  assert.equal($('[data-tot-decide-version]').value, '');
+
+  $('[data-tot-decide="true"]').click();
+  $('[data-tot-remark-body]').value = 'This must not reach project 1.';
+  $('[data-tot-remark-form]').dispatchEvent(new window.Event('submit', { cancelable: true }));
+  await settle();
+  assert.deepEqual(posts, [], 'nothing is posted while no project is loaded');
+  assert.ok(offcanvasEl);
+});
+
 test('a selected project in the address opens on load', async () => {
   const { calls, shown } = run({ openOnLoad: true, projectId: 631 });
   await settle();

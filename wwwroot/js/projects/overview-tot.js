@@ -250,6 +250,22 @@
         toggle(addRemarkButton, !payload?.canManage);
         if (projectNameLabel && payload?.projectName) projectNameLabel.textContent = payload.projectName;
     }
+    // Forget the project shown so far: its text, history, pending request and every action. Used
+    // when switching projects and when a load fails, so nothing can be posted against a project
+    // other than the one whose details are on screen.
+    function clearShownProject() {
+        loaded = false;
+        toggle(editButton, true);
+        toggle(addRemarkButton, true);
+        if (remarking) setRemarkMode(false);
+        renderPending(null);
+        renderHistory([]);
+        renderFacts([]);
+        ['[data-tot-status-label]', '[data-tot-summary-text]', '[data-tot-status-badge]', '[data-tot-latest-remark]', '[data-tot-latest-remark-meta]']
+            .forEach((selector) => { const el = root?.querySelector(selector); if (el) el.textContent = ''; });
+        root?.querySelectorAll('[data-tot-project-field]').forEach((field) => { field.value = ''; });
+        if (decideVersion) decideVersion.value = '';
+    }
     function updateCard(payload) {
         if (!payload || !card) return;
         const title = card.querySelector('[data-tot-card-title]');
@@ -285,9 +301,8 @@
         } catch (error) {
             if (!isCurrent()) return;
             // The form was not filled from the server, so editing it could overwrite the
-            // stored details with defaults. Hide Edit until a later load succeeds.
-            loaded = false;
-            toggle(editButton, true);
+            // stored details with defaults. Nothing may be posted until a later load succeeds.
+            clearShownProject();
             message(globalError, error instanceof Error ? error.message : 'Unable to load Transfer of Technology details.');
         }
         finally { if (isCurrent()) setLoading(false); }
@@ -298,7 +313,7 @@
     editButton?.addEventListener('click', () => { clearMessages(); setEditMode(true); });
     cancelButton?.addEventListener('click', () => { clearMessages(); setEditMode(false); loadDetails(true); });
     saveButton?.addEventListener('click', async () => {
-        if (!(form instanceof HTMLFormElement)) return;
+        if (!(form instanceof HTMLFormElement) || !loaded) return;
         clearMessages(); updateConditionalFields();
         if (!form.checkValidity()) { form.reportValidity(); return; }
         setBusy(true);
@@ -313,7 +328,7 @@
     });
 
     decideButtons.forEach((button) => button.addEventListener('click', async () => {
-        if (!(decideForm instanceof HTMLFormElement)) return;
+        if (!(decideForm instanceof HTMLFormElement) || !loaded) return;
         const approve = button.getAttribute('data-tot-decide') === 'true';
         const reason = decideReason?.value?.trim() || '';
         if (!approve && !reason) {
@@ -346,7 +361,7 @@
     cancelRemarkButton?.addEventListener('click', () => setRemarkMode(false));
     remarkForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (!(remarkForm instanceof HTMLFormElement)) return;
+        if (!(remarkForm instanceof HTMLFormElement) || !loaded) return;
         const body = remarkBody?.value?.trim() || '';
         if (body.length < 4) { message(remarkError, 'Remarks must be at least 4 characters long.'); return; }
         try {
@@ -373,10 +388,9 @@
         if (!Number.isInteger(id) || id <= 0) return;
         if (id !== projectId) {
             projectId = id;
-            loaded = false;
             offcanvas.dataset.projectId = String(id);
-            // Nothing from the previous project may be saved against this one.
-            toggle(editButton, true);
+            // Nothing from the previous project may be shown or posted against this one.
+            clearShownProject();
         }
         if (projectNameLabel) projectNameLabel.textContent = name || '';
         bootstrap.Offcanvas.getOrCreateInstance(offcanvas).show();
