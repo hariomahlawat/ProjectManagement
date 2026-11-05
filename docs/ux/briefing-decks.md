@@ -207,10 +207,13 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
      update sheets' brief splitter. The slide estimate counts both. Owner decisions (4 Nov 2026):
      continue Role & Charter below 10 pt, reversing the August single-slide rule; briefs as photo
      slide plus full-width text.
-7. **Library and lifecycle**: deck cards (purpose, owner, last generated and presented, search,
-   pin, archive); Draft, Finalised (locked, PowerPoint kept on the LAN store), Presented; a
-   "What changed since the last briefing" slide reusing the PO desk's What-moved facts;
-   organisation content (SDD profile, Role & Charter) kept once instead of per deck.
+7. **Library and lifecycle**: the library is done (#2881: table with purpose, owner, slides, last
+   edited and generated, search, Mine/All, sort; #2882 and #2886: "data moved since last
+   generated"). The rest is **parked** (owner, 5 Nov 2026): Draft/Finalised/Presented with the
+   PowerPoint kept on the LAN store, pin and archive, a "What changed since the last briefing"
+   slide, and organisation content (SDD profile, Role & Charter) kept once. Nobody needs to look
+   back at exactly what was briefed, so a kept record has no user yet. Revisit if old briefings
+   start being queried or the number of decks grows.
 
 ### Wide screens
 
