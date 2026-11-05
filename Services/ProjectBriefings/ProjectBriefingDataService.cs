@@ -32,6 +32,19 @@ public interface IProjectBriefingDataService
         long deckId,
         int projectId,
         CancellationToken cancellationToken = default);
+
+    // What each project's slides would show today (stage, external status, costs), from the same
+    // resolvers as generation, for telling when a deck's data moved. Deleted and archived
+    // projects are left out: generation leaves them out too.
+    Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken = default);
+
+    // The decks with DataMovement set wherever their last generation kept slide facts: one pass
+    // over every deck's projects, for the deck library.
+    Task<IReadOnlyList<ProjectBriefingDeckSummaryVm>> WithDataMovementAsync(
+        IReadOnlyList<ProjectBriefingDeckSummaryVm> decks,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ProjectBriefingDataService : IProjectBriefingDataService
@@ -205,6 +218,87 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 ThumbnailUrl = $"/Projects/{projectId}/Photos/{photo.Id}/View/sm?v={photo.Version}"
             })
             .ToArray();
+    }
+
+    public async Task<IReadOnlyList<ProjectBriefingDeckSummaryVm>> WithDataMovementAsync(
+        IReadOnlyList<ProjectBriefingDeckSummaryVm> decks,
+        CancellationToken cancellationToken = default)
+    {
+        var projectIds = decks
+            .Where(deck => deck.GeneratedFacts is { Count: > 0 })
+            .SelectMany(deck => deck.GeneratedFacts!.Select(fact => fact.ProjectId))
+            .Distinct()
+            .ToArray();
+        if (projectIds.Length == 0)
+        {
+            return decks
+                .Select(deck => deck.GeneratedFacts is null ? deck : deck with { DataMovement = ProjectBriefingDataMovement.None })
+                .ToList();
+        }
+
+        var current = await GetCurrentSlideFactsAsync(projectIds, cancellationToken);
+        return decks
+            .Select(deck => deck.GeneratedFacts is null
+                ? deck
+                : deck with { DataMovement = ProjectBriefingSlideFacts.Compare(deck.GeneratedFacts, deck.Layout, current) })
+            .ToList();
+    }
+
+    public async Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<int, ProjectBriefingCurrentProjectFacts>();
+        }
+
+        var projects = await _db.Projects
+            .AsNoTracking()
+            .Where(project => ids.Contains(project.Id) && !project.IsDeleted && !project.IsArchived)
+            .Select(project => new { project.Id, project.Name, project.LifecycleStatus, project.WorkflowVersion })
+            .ToListAsync(cancellationToken);
+        if (projects.Count == 0)
+        {
+            return new Dictionary<int, ProjectBriefingCurrentProjectFacts>();
+        }
+
+        var liveIds = projects.Select(project => project.Id).ToArray();
+        var stagesByProject = (await _db.ProjectStages
+                .AsNoTracking()
+                .Where(stage => liveIds.Contains(stage.ProjectId))
+                .Select(stage => new StageDatabaseSnapshot(stage.ProjectId, stage.StageCode, stage.Status, stage.SortOrder))
+                .ToListAsync(cancellationToken))
+            .GroupBy(stage => stage.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<StageSnapshot>)group
+                    .Select(stage => new StageSnapshot(stage.StageCode, stage.Status, stage.SortOrder))
+                    .OrderBy(stage => stage.SortOrder)
+                    .ToList());
+        var costs = await _costResolver.ResolveCostsAsync(liveIds, cancellationToken);
+        var proliferation = await _costResolver.ResolveProliferationCostAsync(liveIds, cancellationToken);
+        var externalStatuses = await _externalStatusService.GetLatestAsync(liveIds, cancellationToken);
+
+        return projects.ToDictionary(
+            project => project.Id,
+            project =>
+            {
+                var external = externalStatuses.GetValueOrDefault(project.Id);
+                return new ProjectBriefingCurrentProjectFacts(
+                    project.Id,
+                    project.Name,
+                    ResolveStageCode(
+                        project.LifecycleStatus,
+                        project.WorkflowVersion,
+                        stagesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<StageSnapshot>()),
+                    external?.Body,
+                    external?.EventDate,
+                    costs.CostRd.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(),
+                    costs.Ipa.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
+                    proliferation.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation));
+            });
     }
 
     public async Task<ProjectBriefingPresentationData> BuildPresentationDataAsync(
@@ -1142,14 +1236,20 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     }
 
     private static string ResolveStageCode(DeckItemSnapshot item)
+        => ResolveStageCode(item.LifecycleStatus, item.WorkflowVersion, item.Stages);
+
+    private static string ResolveStageCode(
+        ProjectLifecycleStatus lifecycleStatus,
+        string workflowVersion,
+        IReadOnlyList<StageSnapshot> stages)
     {
-        if (item.LifecycleStatus == ProjectLifecycleStatus.Completed)
+        if (lifecycleStatus == ProjectLifecycleStatus.Completed)
         {
             return ProjectBriefingStageOrder.CompletedCode;
         }
 
-        var codes = ProcurementWorkflow.StageCodesFor(item.WorkflowVersion);
-        var statusByCode = item.Stages
+        var codes = ProcurementWorkflow.StageCodesFor(workflowVersion);
+        var statusByCode = stages
             .GroupBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,

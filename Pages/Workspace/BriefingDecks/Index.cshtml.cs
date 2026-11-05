@@ -57,6 +57,9 @@ public sealed class IndexModel : PageModel
 
     // The library's "Continue" deck: the one this user edited last, else the latest edited.
     public ProjectBriefingDeckSummaryVm? ContinueDeck { get; private set; }
+
+    // Other decks whose data moved since they were last generated, most changes first.
+    public IReadOnlyList<ProjectBriefingDeckSummaryVm> MovedDecks { get; private set; } = Array.Empty<ProjectBriefingDeckSummaryVm>();
     public ProjectBriefingSelectionOptionsVm SelectionOptions { get; private set; } = new();
     public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { HasCommandAccess = true, ActiveLens = "command", ActiveItem = "command-briefing-decks" };
     public FfcFootprintSummary FfcFootprintPreviewSummary { get; private set; } = new(0, 0, 0, 0, 0, 0);
@@ -1220,7 +1223,14 @@ public sealed class IndexModel : PageModel
 
         if (SelectedDeck is null)
         {
+            Decks = await _dataService.WithDataMovementAsync(Decks, cancellationToken);
             ContinueDeck = Decks.FirstOrDefault(deck => deck.LastEditedByMe) ?? Decks.FirstOrDefault();
+            MovedDecks = Decks
+                .Where(deck => deck.Id != ContinueDeck?.Id && deck.DataMovement is { HasMoved: true })
+                .OrderByDescending(deck => deck.DataMovement!.Total)
+                .ThenByDescending(deck => deck.LastGeneratedAtUtc)
+                .Take(3)
+                .ToList();
         }
         else
         {

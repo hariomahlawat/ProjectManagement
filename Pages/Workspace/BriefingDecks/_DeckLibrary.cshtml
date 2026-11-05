@@ -16,6 +16,14 @@
     // Mid-sentence, "Today" reads as "today"; months keep their capital.
     string WhenInline(DateTimeOffset value) => When(value).Replace("Today", "today");
     string Projects(int count) => $"{count} {(count == 1 ? "project" : "projects")}";
+    string Day(DateTimeOffset value) => IstClock.ToIst(value).ToString("dd MMM");
+    // What moved for one project: "stage, status remark".
+    string MovedFacts(ProjectBriefingMovedProject project) => string.Join(", ", new[]
+    {
+        project.Stage ? "stage" : null,
+        project.Status ? "status remark" : null,
+        project.Cost ? "cost" : null
+    }.Where(part => part is not null));
 }
 
 @if (continueDeck is not null)
@@ -43,6 +51,16 @@
                         · edited @WhenInline(continueDeck.UpdatedAtUtc) by @continueDeck.LastModifiedByDisplay
                         · @(continueDeck.LastGeneratedAtUtc is { } generated ? $"last generated {WhenInline(generated)}" : "not generated yet")
                     </p>
+                    @if (continueDeck.DataMovement is { HasMoved: true } moved && continueDeck.LastGeneratedAtUtc is { } movedSince)
+                    {
+                        <p class="pbd-continue__moved">
+                            <span class="pbd-continue__moved-label"><i class="bi bi-arrow-up-circle" aria-hidden="true"></i> Moved since @Day(movedSince):</span>
+                            @foreach (var part in moved.Describe())
+                            {
+                                <span>@part</span>
+                            }
+                        </p>
+                    }
                 </div>
             </div>
             <div class="pbd-continue__actions">
@@ -51,6 +69,35 @@
                     <button type="submit" class="btn btn-outline-secondary" disabled="@(continueDeck.ProjectCount == 0)">Generate PowerPoint</button>
                 </form>
             </div>
+        </div>
+    </section>
+}
+
+@if (Model.MovedDecks.Count > 0)
+{
+    <section class="pbd-library__section" aria-labelledby="pbd-attention-title">
+        <h2 class="pbd-library__heading" id="pbd-attention-title">Needs attention</h2>
+        <div class="pbd-attention">
+            @foreach (var deck in Model.MovedDecks)
+            {
+                var movement = deck.DataMovement!;
+                <article class="pbd-attention__card">
+                    <span class="pbd-attention__kind">Data moved since last generated</span>
+                    <a class="pbd-attention__name" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">@deck.Name</a>
+                    <p class="pbd-attention__summary">Generated @Day(deck.LastGeneratedAtUtc!.Value). Since then: @string.Join(" · ", movement.Describe()).</p>
+                    <ul class="pbd-attention__projects">
+                        @foreach (var project in movement.Projects.Take(3))
+                        {
+                            <li><strong>@project.ProjectName</strong> — @MovedFacts(project)</li>
+                        }
+                        @if (movement.Projects.Count > 3)
+                        {
+                            <li class="pbd-attention__more">and @(movement.Projects.Count - 3) more</li>
+                        }
+                    </ul>
+                    <a class="pbd-attention__open" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">Open in Studio</a>
+                </article>
+            }
         </div>
     </section>
 }
@@ -90,6 +137,7 @@
                     <th scope="col">Owner</th>
                     <th scope="col">Last edited</th>
                     <th scope="col">Last generated</th>
+                    <th scope="col">Data since</th>
                     <th scope="col"><span class="visually-hidden">Actions</span></th>
                 </tr>
             </thead>
@@ -116,6 +164,24 @@
                         <td>@deck.CreatedByDisplay</td>
                         <td title="by @deck.LastModifiedByDisplay">@When(deck.UpdatedAtUtc)</td>
                         <td>@(deck.LastGeneratedAtUtc is { } generated ? When(generated) : "Not yet")</td>
+                        <td>
+                            @if (deck.LastGeneratedAtUtc is null)
+                            {
+                                <span class="pbd-library__quiet">Not generated yet</span>
+                            }
+                            else if (deck.DataMovement is null)
+                            {
+                                <span class="pbd-library__quiet" title="This deck was generated before changes were tracked. Generate it again to start.">—</span>
+                            }
+                            else if (deck.DataMovement.HasMoved)
+                            {
+                                <span class="pbd-library__moved" title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes")</span>
+                            }
+                            else
+                            {
+                                <span class="pbd-library__quiet">Up to date</span>
+                            }
+                        </td>
                         <td class="is-actions">
                             <div class="dropdown">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for @deck.Name">

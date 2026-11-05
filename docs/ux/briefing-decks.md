@@ -34,8 +34,17 @@ last-updated deck, so nobody edits a deck they did not pick.
 - `/Workspace/BriefingDecks/{id}` is the Studio. Its bar has "← Briefing decks" and **Switch
   deck** (each deck's purpose and project count); the old saved-decks side panel is gone. An
   unknown or deleted id returns to the library with a one-request notice.
-- Next (PR 2): "data moved since last generated" on the Continue card, a Data since column and a
-  Needs attention strip, from the briefing desk's what-moved facts.
+- **Data moved since last generated** (PR 2). Each generation keeps, per presented project, what
+  the slides said: stage code, external status remark (date and a digest of its text) and the
+  costs on the slide (`LastGeneratedFactsJson`, `ProjectBriefingSlideFacts`). The library
+  compares them with `GetCurrentSlideFactsAsync`, which uses the same cost resolver, external
+  status service and stage rule as generation, so a fact that would change a slide counts and
+  nothing else does (a project completing can also revise its cost, by the shared cost rule).
+  Shown as an amber line on the Continue card, a Data since column ("N changes", "Up to date",
+  "Not generated yet", or "—" for decks generated before facts were kept) and a Needs attention
+  strip of up to three other moved decks with the projects that moved. Deleted or archived
+  projects are left out, as generation leaves them out. Content checks are not counted on the
+  library: they would mean composing every deck on each visit.
 
 ## Studio
 

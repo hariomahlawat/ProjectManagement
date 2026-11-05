@@ -35,7 +35,9 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
     {
         var (data, content, slideCount, _) = await ComposeAsync(deckId, requestingUserId, cancellationToken);
 
-        await _deckService.MarkGeneratedAsync(deckId, requestingUserId, slideCount, cancellationToken);
+        // What these slides say about each project, so the library can tell when the data moves.
+        var slideFacts = ProjectBriefingSlideFacts.Write(data.Projects.Select(ProjectBriefingSlideFacts.FromPresentation));
+        await _deckService.MarkGeneratedAsync(deckId, requestingUserId, slideCount, cancellationToken, slideFacts);
 
         var date = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst()).ToString("yyyyMMdd");
         var safeName = FileNameSanitizer().Replace(data.DeckName, "_").Trim('_');

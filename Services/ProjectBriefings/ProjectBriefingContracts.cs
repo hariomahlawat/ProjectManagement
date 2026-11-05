@@ -56,6 +56,14 @@ public sealed record ProjectBriefingDeckSummaryVm(
     public bool LastEditedByMe { get; init; }
     public int? LastGeneratedSlideCount { get; init; }
     public IReadOnlyList<string> ProjectNames { get; init; } = Array.Empty<string>();
+    public ProjectBriefingLayout Layout { get; init; }
+
+    // What the last generated PowerPoint said about each project; null when the deck was never
+    // generated, or was generated before these facts were kept.
+    public IReadOnlyList<ProjectBriefingSlideFact>? GeneratedFacts { get; init; }
+
+    // How the data moved since then (set by the data service); null when it cannot be told.
+    public ProjectBriefingDataMovement? DataMovement { get; init; }
 }
 
 public sealed record ProjectBriefingDeletedDeckVm(
