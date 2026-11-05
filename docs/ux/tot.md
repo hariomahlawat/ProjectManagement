@@ -2,8 +2,8 @@
 
 Transfer of Technology (ToT) records, for each completed project, whether its technology has been
 transferred to production: status, start and completion dates (year, month or day), MET and the
-first production model. This document describes the pages today and the approved plan to turn
-them into one page that serves the HoD, the Comdt and Project Office. The data rules (approval,
+first production model. This document describes the page and how it was redesigned into one page
+that serves the HoD, the Comdt and Project Office (all ten PRs merged by 5 Nov 2026). The data rules (approval,
 history, who may submit) are in [data-domain.md](../data-domain.md#transfer-of-technology-tracker-modelsprojecttotcs).
 
 ## Where it lives
@@ -86,7 +86,7 @@ the phone view, and the Comdt and Project Office versions.
 
 ### Delivery plan
 
-Small PRs, each shippable on its own, no database migration. Existing addresses and parameters
+Complete: every PR below is merged (#2884–#2903). Small PRs, each shippable on its own, no database migration. Existing addresses and parameters
 keep working: `/Tot`, `/Tot/Summary`, `SelectedProjectId`, the filter parameters,
 `CompletedFrom`/`CompletedTo` from the Command desk, `/Projects/Tot/Edit/{id}` and the drawer's
 `?tot=open|edit`.
@@ -103,7 +103,7 @@ keep working: `/Tot`, `/Tot/Summary`, `SelectedProjectId`, the filter parameters
 | 7 | One page | The register opens with the overview: the sentence (`ProjectTotOverview.Narrative`), counts that filter the register (Need ToT, Completed with %, In progress, Not started with how many are over five years, Not known when any), the completed / not-started bar, Not required named apart, and the per-year chart (`?handler=Yearly`). `/Tot/Summary` redirects to the page; the menu and the dashboard signal link to it. Counts come from PR 2's facts over every project, whatever the register's filters. | Merged (#2896) |
 | 8 | Role top section | Between the overview and the chart, from PR 2's facts (`IndexModel.RoleView`): HoD and Admin get *Waiting for your decision* (oldest first, each with its change, sender and time) and *Not started, over five years*; Project Office and Project Officers get the five-year list and *Waiting for the HoD* (every request waiting: the register knows the sender's name, not their account); the Comdt and other viewers get *Recently completed* and the five-year list. Items open the drawer; "See all" filters the register (`LongWaiting=true`). The Command desk already links the page. | Merged (#2898) |
 | 9 | Register table | `_TotRegister` partial: status buttons with counts (All, Need ToT, Completed, In progress, Not started, Not known when any, Waiting for decision, Not required; counted over the other filters, search included); every filter in use as a removable chip with Clear all; a table with sortable Project, ToT status, ToT completed and Project completed columns, Started / MET / Request only when some listed project has data, and a Note ("3 years after completion", "Waiting 21 years", "Waiting for a decision"). Live search refreshes the partial in place (`?handler=Register`, `tot-register.js`). The filter pop-up keeps only the rarer filters (latest request Approved / Rejected, MET completed) as *More filters*. Export already carries every filter. The search and More filters / Export dialogs follow the live search; Waiting for decision never combines with a latest-request filter. | Merged (#2900) |
-| 10 | Phone and clean-up | Below 576 px: two counts (Completed, Not started; the sentence gives the rest), no per-year chart (a year axis that narrow cannot be read), a full-width search, one scrolling row of status buttons, and a card per project built from the same table cells (`data-label`; empty values drop out; the sortable headers become a "sort by" row). The old tracker, detail panel, summary page and workspace styles are removed: `tot.css` keeps only what the page uses, and `site.css` no longer has any `.tot-` rules (its old `.tot-table` rules were leaking into the new table). | In review |
+| 10 | Phone and clean-up | Below 576 px: two counts (Completed, Not started; the sentence gives the rest), no per-year chart (a year axis that narrow cannot be read), a full-width search, one scrolling row of status buttons, and a card per project built from the same table cells (`data-label`; empty values drop out; the sortable headers become a "sort by" row). The old tracker, detail panel, summary page and workspace styles are removed: `tot.css` keeps only what the page uses, and `site.css` no longer has any `.tot-` rules (its old `.tot-table` rules were leaking into the new table). | Merged (#2903) |
 
 ### Register facts (`Areas/ProjectOfficeReports/Application/ProjectTotRegisterFacts.cs`)
 
