@@ -113,6 +113,13 @@ public static class ProjectTotRegisterFactsBuilder
             status == ProjectTotStatus.Completed ? row.TotCompletedOn : null);
     }
 
+    /// <summary>The rows whose project is long waiting (see <see cref="ProjectTotRegisterFacts.IsLongWaiting"/>).</summary>
+    public static IReadOnlyList<ProjectTotTrackerRow> KeepLongWaiting(IReadOnlyList<ProjectTotTrackerRow> rows, DateOnly today)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        return rows.Where(row => BuildFacts(row, today).IsLongWaiting).ToList();
+    }
+
     public static ProjectTotPosition BuildPosition(IReadOnlyList<ProjectTotRegisterFacts> projects)
     {
         if (projects.Count == 0)

@@ -279,7 +279,8 @@ public sealed class IndexModel : PageModel
             RequestStateFilter,
             OnlyPending,
             RequiresTotOnly,
-            MetCompletedOnly);
+            MetCompletedOnly,
+            LongWaiting);
 
         var result = await _exportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
@@ -430,6 +431,7 @@ public sealed class IndexModel : PageModel
 
         if (LongWaiting)
         {
+            // The same rule the export applies (ProjectTotRegisterFactsBuilder.KeepLongWaiting).
             var ids = longWaiting.Select(p => p.ProjectId).ToHashSet();
             Projects = Projects.Where(p => ids.Contains(p.ProjectId)).ToList();
             Summary = TotTrackerSummary.FromProjects(Projects);

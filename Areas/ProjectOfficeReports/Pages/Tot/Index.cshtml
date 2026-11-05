@@ -518,6 +518,7 @@
                     <input type="hidden" asp-for="OnlyPending" />
                     <input type="hidden" asp-for="RequiresTotOnly" />
                     <input type="hidden" asp-for="MetCompletedOnly" />
+                    <input type="hidden" asp-for="LongWaiting" />
                     @* The export reads its own window (Export.*), prefilled from the page's in OnGet. *@
                     <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
                     <input type="hidden" name="CompletedTo" value="@completedToValue" />

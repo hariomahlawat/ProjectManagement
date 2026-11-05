@@ -216,6 +216,31 @@ public sealed class ProjectTotExportServiceTests
         Assert.Equal(20, row.ProjectId);
     }
 
+    [Fact]
+    public async Task ExportAsync_LongWaitingOnly_KeepsTheSameProjectsAsTheRegister()
+    {
+        await using var context = CreateContext();
+        context.Projects.AddRange(
+            new Project { Id = 30, Name = "Completed 1998, not started", LifecycleStatus = ProjectLifecycleStatus.Completed, CompletedYear = 1998, Tot = new ProjectTot { ProjectId = 30, Status = ProjectTotStatus.NotStarted } },
+            new Project { Id = 31, Name = "Completed 2024, not started", LifecycleStatus = ProjectLifecycleStatus.Completed, CompletedYear = 2024, Tot = new ProjectTot { ProjectId = 31, Status = ProjectTotStatus.NotStarted } },
+            new Project { Id = 32, Name = "Completed 2005, ToT done", LifecycleStatus = ProjectLifecycleStatus.Completed, CompletedYear = 2005, Tot = new ProjectTot { ProjectId = 32, Status = ProjectTotStatus.Completed, CompletedOn = new DateOnly(2006, 1, 1), CompletionDatePrecision = PartialDatePrecision.Year } });
+        await context.SaveChangesAsync();
+
+        var workbookBuilder = new RecordingProjectTotWorkbookBuilder();
+        var service = new ProjectTotExportService(
+            new ProjectTotTrackerReadService(context),
+            workbookBuilder,
+            FakeClock.AtUtc(new DateTimeOffset(2026, 11, 5, 8, 0, 0, TimeSpan.Zero)));
+
+        var result = await service.ExportAsync(
+            new ProjectTotExportRequest(null, null, null, null, null, null, "export-user", LongWaitingOnly: true),
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.True(workbookBuilder.Context!.Filter.LongWaitingOnly);
+        Assert.Equal(30, Assert.Single(workbookBuilder.Context.Rows).ProjectId);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

@@ -41,6 +41,12 @@ public sealed class ProjectTotExportService : IProjectTotExportService
         var filter = validation.Filter!;
         var rows = await _trackerService.GetAsync(filter, cancellationToken);
         var generatedAt = _clock.UtcNow;
+        if (filter.LongWaitingOnly)
+        {
+            // The same rule as the register's "See all" (today in IST).
+            rows = ProjectTotRegisterFactsBuilder.KeepLongWaiting(
+                rows, DateOnly.FromDateTime(ProjectManagement.Infrastructure.IstClock.ToIst(generatedAt.UtcDateTime)));
+        }
 
         var content = _workbookBuilder.Build(new ProjectTotExcelWorkbookContext(rows, generatedAt, filter));
         var fileName = BuildFileName(generatedAt);
@@ -87,6 +93,7 @@ public sealed class ProjectTotExportService : IProjectTotExportService
             OnlyPendingRequests = request.OnlyPendingRequests,
             RequiresTotOnly = request.RequiresTotOnly,
             MetCompletedOnly = request.MetCompletedOnly,
+            LongWaitingOnly = request.LongWaitingOnly,
             SearchTerm = normalizedSearchTerm,
             StartedFrom = request.StartedFrom,
             StartedTo = request.StartedTo,
@@ -116,7 +123,8 @@ public sealed record ProjectTotExportRequest(
     ProjectTotRequestDecisionState? RequestState = null,
     bool OnlyPendingRequests = false,
     bool RequiresTotOnly = false,
-    bool MetCompletedOnly = false);
+    bool MetCompletedOnly = false,
+    bool LongWaitingOnly = false);
 
 public sealed record ProjectTotExportFile(string FileName, byte[] Content, string ContentType)
 {
