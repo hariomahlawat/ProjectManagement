@@ -12,6 +12,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services;
 using ProjectManagement.Services.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings.Presentation;
 using Xunit;
 
 namespace ProjectManagement.Tests.ProjectBriefings;
@@ -206,6 +207,33 @@ public sealed class ProjectBriefingDataMovementTests
         };
 
         Assert.Equal(lifecycleShown, ProjectBriefingSlideFacts.Shown(project, data).HasFlag(ProjectBriefingShownFacts.Lifecycle));
+    }
+
+    [Fact]
+    public void Shown_LifecycleUsesTheDecksOwnBriefPagination()
+    {
+        // Fits the standard brief panel, but continues in the narrower photo-emphasis panel, whose
+        // continuation slide draws the lifecycle subtitle.
+        var brief = string.Concat(Enumerable.Repeat("alpha ", 300)).Trim();
+        var project = new ProjectBriefingPresentationProject { ProjectId = 1, ProjectBrief = brief, ExternalStatus = "Short." };
+        var data = new ProjectBriefingPresentationData
+        {
+            Layout = ProjectBriefingLayout.StandardBriefing,
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludePortfolioSummarySlide = false,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with
+            {
+                ProjectBriefLayout = ProjectBriefingProjectBriefLayout.PhotoEmphasis,
+                ShowPresentStage = false
+            },
+            Projects = new[] { project }
+        };
+
+        Assert.Equal(1, ProjectBriefingSlideComposer.EstimateProjectBriefSlideCount(brief));
+        Assert.True(ProjectBriefingSlideComposer.ProjectBriefSlideCount(data, project) > 1);
+        Assert.True(ProjectBriefingSlideFacts.Shown(project, data).HasFlag(ProjectBriefingShownFacts.Lifecycle));
     }
 
     [Fact]
