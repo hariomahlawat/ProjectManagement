@@ -57,6 +57,11 @@
                                    value="@ProjectTotStatus.Completed"
                                    @(Model.TotStatusFilter == ProjectTotStatus.Completed ? "checked" : null)>
                             <label class="btn btn-outline-secondary" for="tot-status-completed">Completed</label>
+
+                            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-known"
+                                   value="@ProjectTotStatus.NotKnown"
+                                   @(Model.TotStatusFilter == ProjectTotStatus.NotKnown ? "checked" : null)>
+                            <label class="btn btn-outline-secondary" for="tot-status-not-known">Not known</label>
                         </div>
                     </div>
 

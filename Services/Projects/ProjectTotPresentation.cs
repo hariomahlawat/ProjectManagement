@@ -27,13 +27,14 @@ public static class ProjectTotPresentation
         (ProjectTotStatus.NotRequired, StatusLabel(ProjectTotStatus.NotRequired)),
         (ProjectTotStatus.NotStarted, StatusLabel(ProjectTotStatus.NotStarted)),
         (ProjectTotStatus.InProgress, StatusLabel(ProjectTotStatus.InProgress)),
-        (ProjectTotStatus.Completed, StatusLabel(ProjectTotStatus.Completed))
+        (ProjectTotStatus.Completed, StatusLabel(ProjectTotStatus.Completed)),
+        (ProjectTotStatus.NotKnown, StatusLabel(ProjectTotStatus.NotKnown))
     };
 
     /// <summary>
     /// Whether a status may be saved: only the ones the forms offer (<see cref="StatusOptions"/>).
-    /// Not known is read everywhere but is not offered yet, so no row can hold it before every
-    /// running instance can read it.
+    /// A status is added here only after every running instance can read it (Not known: read
+    /// from redesign PR 3, offered from PR 4; docs/ux/tot.md).
     /// </summary>
     public static bool IsRecordable(ProjectTotStatus status)
     {

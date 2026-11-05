@@ -97,10 +97,10 @@
                     <div class="mb-3">
                         <label class="form-label" for="tot-status">ToT status</label>
                         <select class="form-select" id="tot-status" name="Status" data-tot-status>
-                            <option value="NotRequired">Not required</option>
-                            <option value="NotStarted">Not started</option>
-                            <option value="InProgress">In progress</option>
-                            <option value="Completed">Completed</option>
+                            @foreach (var option in ProjectManagement.Services.Projects.ProjectTotPresentation.StatusOptions)
+                            {
+                                <option value="@option.Status">@option.Label</option>
+                            }
                         </select>
                         <div class="form-text" data-tot-status-guidance></div>
                     </div>
