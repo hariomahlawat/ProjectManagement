@@ -282,6 +282,14 @@ Owner decisions (5 Nov 2026):
    hint and a character count; Enter is ignored and line breaks become spaces; the server
    collapses whitespace and rejects a point over 130 characters.
 2. Option B on the capability and project brief slides, with the deck switch and the slide
-   choice; slide preview, slide estimate, content checks (a missing point is listed, never
-   prompted) and the integrity check follow.
+   choice: done (this change). The Deck tab's **Key points** setting (`keyPoints` in the deck
+   configuration's `standardBriefing`; older builds ignore it) shows "On the project brief slide"
+   or "On the capability slide" only when the deck draws both. `ProjectBriefingSlideComposer.KeyPoints`
+   draws both slide kinds: stage and cost on one line under the title (the capability slide keeps
+   its lifecycle and category line when neither is shown); a 16:9 photograph beside the text,
+   which narrows (5.7, 5.0, then 4.4 in) before the text continues on another slide; the band
+   with the status remark and, on the chosen slide, the recorded key points. The capability and
+   brief pagination follow the smaller text panel; the preview reads the composed PowerPoint, so
+   it is exact. The Checks tab lists projects with no key points as "Key points" (a project with
+   some is complete). The slide estimate still assumes the established layouts.
 3. "Data since": a changed key point counts as data moved, for decks that show key points.

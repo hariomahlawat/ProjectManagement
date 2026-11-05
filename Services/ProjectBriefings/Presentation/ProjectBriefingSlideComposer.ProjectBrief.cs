@@ -37,6 +37,11 @@ public sealed partial class ProjectBriefingSlideComposer
         ProjectBriefingPresentationData data,
         ProjectBriefingPresentationProject project)
     {
+        if (UsesKeyPointLayout(data))
+        {
+            return PaginateKeyPointProjectBrief(data, project);
+        }
+
         var brief = ProjectBriefingUpdateSheetPlanner.NormalizeBrief(project.ProjectBrief);
         var panelWidth = ResolveProjectBriefLayout(data, project) == ProjectBriefingProjectBriefLayout.PhotoEmphasis
             ? BriefPhotoEmphasisPanelWidth

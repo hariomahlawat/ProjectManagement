@@ -404,6 +404,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         {
             var includeCapabilities = DrawsCapabilitySlides(data.NarrativeMode);
             var includeProjectBrief = DrawsProjectBriefSlides(data.NarrativeMode);
+            // Decks that show key points draw both project slides in the key points layout.
+            var keyPointLayout = UsesKeyPointLayout(data);
 
             // A table row only project is listed in a table and gets no slides of its own.
             foreach (var project in orderedProjects.Where(project => !project.TableRowOnly))
@@ -411,10 +413,21 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 var capturedProject = project;
                 if (includeCapabilities)
                 {
-                    var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
+                    var capability = keyPointLayout
+                        ? PaginateKeyPointCapability(data, project)
+                        : ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
                     var primaryPage = capability.Pages[0];
                     plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                        RenderProjectDetail(canvas, data, capturedProject, primaryPage),
+                        {
+                            if (keyPointLayout)
+                            {
+                                RenderKeyPointCapabilitySlide(canvas, data, capturedProject, primaryPage);
+                            }
+                            else
+                            {
+                                RenderProjectDetail(canvas, data, capturedProject, primaryPage);
+                            }
+                        },
                         ProjectBriefingSlideRole.ProjectCapability,
                         capturedProject.ProjectId));
 
@@ -440,7 +453,16 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     var briefPages = PaginateProjectBrief(data, capturedProject);
                     var firstBriefPage = briefPages[0];
                     plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                        RenderProjectBrief(canvas, data, capturedProject, firstBriefPage),
+                        {
+                            if (keyPointLayout)
+                            {
+                                RenderKeyPointProjectBriefSlide(canvas, data, capturedProject, firstBriefPage);
+                            }
+                            else
+                            {
+                                RenderProjectBrief(canvas, data, capturedProject, firstBriefPage);
+                            }
+                        },
                         ProjectBriefingSlideRole.ProjectBrief,
                         capturedProject.ProjectId));
 

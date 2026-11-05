@@ -166,6 +166,8 @@ public sealed class ProjectBriefingProjectVm
     public string BriefDescription { get; init; } = string.Empty;
     public string ProjectBrief { get; init; } = string.Empty;
     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
+    // The project's recorded key points, in ProjectKeyPointCatalog order.
+    public IReadOnlyList<ProjectBriefingKeyPoint> KeyPoints { get; init; } = Array.Empty<ProjectBriefingKeyPoint>();
     public string? BriefDescriptionOverride { get; init; }
     public string? ArppReference { get; init; }
     public bool ArppPppNumberApplicable { get; init; } = true;
@@ -301,6 +303,7 @@ public sealed class ProjectBriefingDeckSettingsCommand
     public bool ShowPresentStage { get; init; } = true;
     public bool ShowPresentStatus { get; init; } = true;
     public bool IncludeStageDistributionTable { get; init; }
+    public ProjectBriefingKeyPointPlacement KeyPoints { get; init; }
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
         = ProjectBriefingClosingSlideType.JaiHind;
@@ -460,6 +463,8 @@ public sealed class ProjectBriefingPresentationProject
     public string BriefDescription { get; init; } = string.Empty;
     public string ProjectBrief { get; init; } = string.Empty;
     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
+    // The project's recorded key points, in ProjectKeyPointCatalog order.
+    public IReadOnlyList<ProjectBriefingKeyPoint> KeyPoints { get; init; } = Array.Empty<ProjectBriefingKeyPoint>();
     public string? ArppReference { get; init; }
     public bool ArppPppNumberApplicable { get; init; } = true;
     public string? Fund { get; init; }
@@ -481,6 +486,9 @@ public sealed class ProjectBriefingPresentationProject
     public byte[]? CoverPhoto { get; set; }
     public string? CoverPhotoContentType { get; set; }
 }
+
+// One recorded key point: its fixed heading and the project's answer.
+public sealed record ProjectBriefingKeyPoint(string Heading, string Text);
 
 public sealed class ProjectBriefingPresentationSummary
 {

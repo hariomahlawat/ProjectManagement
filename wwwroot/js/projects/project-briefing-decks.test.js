@@ -204,6 +204,14 @@ test('Standard detailed slides expose project-brief design and independent conte
   assert.match(source, /includesProjectBrief\(\)/);
 });
 
+test('key points: a deck switch, and the slide choice only when the deck draws both project slides', () => {
+  assert.match(viewSource, /name="ShowKeyPoints"/);
+  assert.match(viewSource, /name="KeyPointSlide" value="ProjectBriefSlide"/);
+  assert.match(viewSource, /name="KeyPointSlide" value="CapabilitySlide"/);
+  assert.match(source, /\[data-pbd-key-points-toggle\]/);
+  assert.match(source, /keyPointSlide\.hidden = !root\.querySelector\('\[data-pbd-key-points-toggle\]'\)\?\.checked\s*\|\| narrativeMode\(\) !== 'Both'/);
+});
+
 
 
 test('settings initialization does not call institutional functions before declaration', () => {

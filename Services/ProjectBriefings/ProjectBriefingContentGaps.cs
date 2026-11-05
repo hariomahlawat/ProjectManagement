@@ -16,10 +16,13 @@ public static class ProjectBriefingContentGaps
     public const string CapabilityOverview = "capabilityOverview";
     public const string ProjectBrief = "projectBrief";
     public const string UpdateSheetFacts = "updateSheetFacts";
+    // A deck that shows key points lists projects with none recorded; a project with some is
+    // complete (every point is optional).
+    public const string KeyPoints = "keyPoints";
 
     public static IReadOnlyList<string> AllKeys { get; } = new[]
     {
-        Status, CostRd, ProliferationCost, Photo, CapabilityOverview, ProjectBrief, UpdateSheetFacts
+        Status, CostRd, ProliferationCost, Photo, CapabilityOverview, ProjectBrief, KeyPoints, UpdateSheetFacts
     };
 
     public static IReadOnlyDictionary<int, IReadOnlyList<string>> Resolve(
@@ -46,6 +49,7 @@ public static class ProjectBriefingContentGaps
         if (uses.Photo && !project.HasCoverPhoto) gaps.Add(Photo);
         if (uses.CapabilityOverview && !HasCapabilityOverview(project.BriefDescription)) gaps.Add(CapabilityOverview);
         if (uses.ProjectBrief && !HasProjectBrief(project.ProjectBrief)) gaps.Add(ProjectBrief);
+        if (uses.KeyPoints && project.KeyPoints.Count == 0) gaps.Add(KeyPoints);
         if (uses.UpdateSheetFacts && !project.IsUpdateSheetCoreFactsReady) gaps.Add(UpdateSheetFacts);
         return gaps;
     }
@@ -76,7 +80,8 @@ public static class ProjectBriefingContentGaps
         bool Photo,
         bool CapabilityOverview,
         bool ProjectBrief,
-        bool UpdateSheetFacts)
+        bool UpdateSheetFacts,
+        bool KeyPoints = false)
     {
         // A table row shows the present stage, the status remark and the deck's costs. An
         // update-sheet deck's table shows the R&D cost whatever cost choice is stored (the
@@ -124,7 +129,8 @@ public static class ProjectBriefingContentGaps
                     is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both,
                 ProjectBrief: detailed && settings.NarrativeMode
                     is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both,
-                UpdateSheetFacts: false);
+                UpdateSheetFacts: false,
+                KeyPoints: detailed && settings.StandardSlideOptions.KeyPoints != ProjectBriefingKeyPointPlacement.None);
         }
     }
 }

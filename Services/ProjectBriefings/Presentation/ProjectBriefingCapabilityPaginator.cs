@@ -13,10 +13,24 @@ public static class ProjectBriefingCapabilityPaginator
         CharactersPerLine: 118);
 
     public static ProjectBriefingCapabilityPagination Paginate(string? value)
-        => PaginateBlocks(ProjectBriefingRichTextParser.Parse(value));
+        => PaginateBlocks(ProjectBriefingRichTextParser.Parse(value), PrimaryProfile);
+
+    /// <summary>
+    /// Pages for a first slide whose capability panel has the given text height (inches) and line
+    /// length (characters at the base size), as on the key points layout. Continuation slides are
+    /// unchanged.
+    /// </summary>
+    public static ProjectBriefingCapabilityPagination Paginate(
+        string? value,
+        double firstPageHeight,
+        int firstPageCharactersPerLine)
+        => PaginateBlocks(
+            ProjectBriefingRichTextParser.Parse(value),
+            new LayoutProfile(Math.Max(.40, firstPageHeight), Math.Max(24, firstPageCharactersPerLine)));
 
     private static ProjectBriefingCapabilityPagination PaginateBlocks(
-        IReadOnlyList<ProjectBriefingCapabilityBlock> sourceBlocks)
+        IReadOnlyList<ProjectBriefingCapabilityBlock> sourceBlocks,
+        LayoutProfile primaryProfile)
     {
         ArgumentNullException.ThrowIfNull(sourceBlocks);
 
@@ -31,7 +45,7 @@ public static class ProjectBriefingCapabilityPaginator
 
         while (pending.First is not null)
         {
-            var profile = pageNumber == 1 ? PrimaryProfile : ContinuationProfile;
+            var profile = pageNumber == 1 ? primaryProfile : ContinuationProfile;
             var rendered = new List<ProjectBriefingCapabilityLayoutBlock>();
             var remaining = profile.AvailableHeight;
 

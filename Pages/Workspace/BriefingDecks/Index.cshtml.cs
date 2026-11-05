@@ -239,6 +239,7 @@ public sealed class IndexModel : PageModel
                     ShowPresentStage = input.ShowPresentStage,
                     ShowPresentStatus = input.ShowPresentStatus,
                     IncludeStageDistributionTable = input.IncludeStageDistributionTable,
+                    KeyPoints = ResolveKeyPointPlacement(input),
                     PresentationTheme = input.PresentationTheme,
                     ClosingSlideType = input.ClosingSlideType,
                     InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions,
@@ -1471,6 +1472,24 @@ public sealed class IndexModel : PageModel
         public bool IncludeCountryWiseBreakdown { get; set; }
     }
 
+    // Key points go on the only project slide the content draws; with both, on the chosen one.
+    internal static ProjectBriefingKeyPointPlacement ResolveKeyPointPlacement(SaveDeckSettingsInput input)
+    {
+        if (!input.ShowKeyPoints)
+        {
+            return ProjectBriefingKeyPointPlacement.None;
+        }
+
+        return input.NarrativeMode switch
+        {
+            ProjectBriefingNarrativeMode.CapabilityOverview => ProjectBriefingKeyPointPlacement.CapabilitySlide,
+            ProjectBriefingNarrativeMode.ProjectBrief => ProjectBriefingKeyPointPlacement.ProjectBriefSlide,
+            _ => input.KeyPointSlide == ProjectBriefingKeyPointPlacement.CapabilitySlide
+                ? ProjectBriefingKeyPointPlacement.CapabilitySlide
+                : ProjectBriefingKeyPointPlacement.ProjectBriefSlide
+        };
+    }
+
     public sealed class SaveDeckSettingsInput
     {
         [Required]
@@ -1501,6 +1520,11 @@ public sealed class IndexModel : PageModel
         public bool ShowPresentStage { get; set; } = true;
         public bool ShowPresentStatus { get; set; } = true;
         public bool IncludeStageDistributionTable { get; set; }
+
+        // Show key points, and the slide they go on when the deck draws both project slides.
+        public bool ShowKeyPoints { get; set; }
+        public ProjectBriefingKeyPointPlacement KeyPointSlide { get; set; }
+            = ProjectBriefingKeyPointPlacement.ProjectBriefSlide;
 
         [Required]
         public ProjectBriefingPresentationTheme PresentationTheme { get; set; }
