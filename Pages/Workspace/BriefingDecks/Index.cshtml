@@ -415,52 +415,31 @@
                                         <div class="pbd-step__body">
                                 <fieldset class="pbd-choice-group">
                                     <legend>Layout</legend>
-                                    <div class="pbd-choice-cards pbd-choice-cards--two">
-                                        <label class="pbd-choice-card pbd-choice-card--template">
-                                            <input type="radio" name="Layout" value="StandardBriefing" checked="@(deck.Layout == ProjectBriefingLayout.StandardBriefing)" data-pbd-layout-choice />
-                                            <span><i class="bi bi-columns-gap" aria-hidden="true"></i><strong>Standard briefing</strong><small>Status table, summaries and slides for each project.</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card pbd-choice-card--template">
-                                            <input type="radio" name="Layout" value="ProjectUpdateSheet" checked="@(deck.Layout == ProjectBriefingLayout.ProjectUpdateSheet)" data-pbd-layout-choice />
-                                            <span><i class="bi bi-card-heading" aria-hidden="true"></i><strong>Update sheets</strong><small>One formal sheet per project: facts, brief and photograph.</small></span>
-                                        </label>
-                                    </div>
+                                            <div class="pbd-seg">
+                                                <label class="pbd-seg__option"><input type="radio" name="Layout" value="StandardBriefing" checked="@(deck.Layout == ProjectBriefingLayout.StandardBriefing)" data-help="Status table, summaries and slides for each project." data-pbd-layout-choice /><span>Standard briefing</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="Layout" value="ProjectUpdateSheet" checked="@(deck.Layout == ProjectBriefingLayout.ProjectUpdateSheet)" data-help="One formal sheet per project: facts, brief and photograph." data-pbd-layout-choice /><span>Update sheets</span></label>
+                                            </div>
+                                            <p class="pbd-seg-help" data-pbd-seg-help="Layout"></p>
                                 </fieldset>
                                 <div data-pbd-standard-settings hidden="@isUpdateSheet">
                                     <fieldset class="pbd-choice-group">
                                         <legend>What the deck shows</legend>
-                                        <div class="pbd-choice-cards pbd-choice-cards--three">
-                                            <label class="pbd-choice-card">
-                                                <input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
-                                                <span><i class="bi bi-table" aria-hidden="true"></i><strong>Status table</strong><small>One table of projects; no slides per project.</small></span>
-                                            </label>
-                                            <label class="pbd-choice-card">
-                                                <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
-                                                <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Project slides</strong><small>Slides for each project; no status table.</small></span>
-                                            </label>
-                                            <label class="pbd-choice-card">
-                                                <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
-                                                <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Table and project slides</strong><small>The status table first, then slides for each project.</small></span>
-                                            </label>
-                                        </div>
+                                            <div class="pbd-seg">
+                                                <label class="pbd-seg__option"><input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" data-help="One status table of projects; no slides per project." /><span>Table</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" data-help="Slides for each project; no status table." /><span>Project slides</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" data-help="The status table first, then slides for each project." /><span>Both</span></label>
+                                            </div>
+                                            <p class="pbd-seg-help" data-pbd-seg-help="PresentationMode"></p>
                                     </fieldset>
 
                                     <fieldset class="pbd-choice-group" data-pbd-project-content-settings hidden="@(!standardIncludesDetailedSlides)">
                                         <legend>Each project gets</legend>
-                                        <div class="pbd-choice-cards pbd-choice-cards--three">
-                                            <label class="pbd-choice-card">
-                                                <input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" />
-                                                <span><i class="bi bi-list-check" aria-hidden="true"></i><strong>Capability overview</strong><small>One slide of capability statements.</small></span>
-                                            </label>
-                                            <label class="pbd-choice-card">
-                                                <input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" />
-                                                <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i><strong>Project brief</strong><small>One narrative slide.</small></span>
-                                            </label>
-                                            <label class="pbd-choice-card">
-                                                <input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" />
-                                                <span><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i><strong>Both</strong><small>A capability slide, then a brief slide.</small></span>
-                                            </label>
-                                        </div>
+                                            <div class="pbd-seg">
+                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" data-help="One slide of capability statements per project." /><span>Capability</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" data-help="One narrative slide per project." /><span>Brief</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" data-help="A capability slide, then a brief slide, per project." /><span>Both</span></label>
+                                            </div>
+                                            <p class="pbd-seg-help" data-pbd-seg-help="NarrativeMode"></p>
                                     </fieldset>
                                 </div>
                                         </div>
@@ -476,16 +455,16 @@
                                     <div class="pbd-standard-detail-options" data-pbd-detailed-settings hidden="@(!standardIncludesDetailedSlides)">
                                         <fieldset class="pbd-choice-group">
                                             <legend>Show on each project slide</legend>
-                                            <div class="pbd-checks pbd-checks--inline">
-                                                <label>
+                                            <div class="pbd-chips">
+                                                <label class="pbd-chip">
                                                     <input type="checkbox" name="ShowPresentStage" value="true" checked="@deck.StandardSlideOptions.ShowPresentStage" />
+                                                    <span>Present stage</span>
                                                     <input type="hidden" name="ShowPresentStage" value="false" />
-                                                    Present stage
                                                 </label>
-                                                <label>
+                                                <label class="pbd-chip">
                                                     <input type="checkbox" name="ShowPresentStatus" value="true" checked="@deck.StandardSlideOptions.ShowPresentStatus" />
+                                                    <span>Status remark</span>
                                                     <input type="hidden" name="ShowPresentStatus" value="false" />
-                                                    Status remark
                                                 </label>
                                             </div>
                                         </fieldset>
@@ -497,44 +476,28 @@
                                                 && deck.NarrativeMode == ProjectBriefingNarrativeMode.Both;
                                         }
                                         <fieldset class="pbd-choice-group" data-pbd-key-point-settings>
-                                            <legend>Key points</legend>
-                                            <div class="pbd-checks pbd-checks--inline">
-                                                <label>
-                                                    <input type="checkbox" name="ShowKeyPoints" value="true" checked="@keyPointsOn" data-pbd-key-points-toggle />
-                                                    <input type="hidden" name="ShowKeyPoints" value="false" />
-                                                    Show key points
-                                                </label>
+                                            <legend class="visually-hidden">Key points</legend>
+                                            <label class="pbd-switch">
+                                                <input type="checkbox" role="switch" name="ShowKeyPoints" value="true" checked="@keyPointsOn" data-pbd-key-points-toggle />
+                                                <span class="pbd-switch__track" aria-hidden="true"></span>
+                                                <span class="pbd-switch__text"><strong>Key points</strong><small>Five short points per project, in a band at the foot of the slide, with a larger photograph.</small></span>
+                                                <input type="hidden" name="ShowKeyPoints" value="false" />
+                                            </label>
+                                            <div class="pbd-seg pbd-key-point-slide" role="radiogroup" aria-label="Slide that shows the key points" data-pbd-key-point-slide hidden="@(!keyPointsOn || deck.NarrativeMode != ProjectBriefingNarrativeMode.Both)">
+                                                <label class="pbd-seg__option"><input type="radio" name="KeyPointSlide" value="ProjectBriefSlide" checked="@(!keyPointsOnCapability)" /><span>On the brief slide</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="KeyPointSlide" value="CapabilitySlide" checked="@keyPointsOnCapability" /><span>On the capability slide</span></label>
                                             </div>
-                                            <div class="pbd-checks pbd-checks--inline" role="radiogroup" aria-label="Slide that shows the key points" data-pbd-key-point-slide hidden="@(!keyPointsOn || deck.NarrativeMode != ProjectBriefingNarrativeMode.Both)">
-                                                <label>
-                                                    <input type="radio" name="KeyPointSlide" value="ProjectBriefSlide" checked="@(!keyPointsOnCapability)" />
-                                                    On the project brief slide
-                                                </label>
-                                                <label>
-                                                    <input type="radio" name="KeyPointSlide" value="CapabilitySlide" checked="@keyPointsOnCapability" />
-                                                    On the capability slide
-                                                </label>
-                                            </div>
-                                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Five short points per project, from its Key points tab, in a band at the foot of the slide. Project slides then use a larger photograph, with stage and cost on one line under the title.</p>
                                         </fieldset>
 
                                         @* The key points layout draws its own brief slide, so the brief layout only matters without key points. *@
                                         <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(!standardNeedsProjectBrief || deck.StandardSlideOptions.KeyPoints != ProjectBriefingKeyPointPlacement.None)">
                                             <legend>Project Brief layout</legend>
-                                            <div class="pbd-choice-cards pbd-choice-cards--three">
-                                                <label class="pbd-choice-card">
-                                                    <input type="radio" name="ProjectBriefLayout" value="Automatic" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Automatic)" />
-                                                    <span><i class="bi bi-magic" aria-hidden="true"></i><strong>Automatic</strong><small>Photo emphasis when the photograph and brief suit it, otherwise standard.</small></span>
-                                                </label>
-                                                <label class="pbd-choice-card">
-                                                    <input type="radio" name="ProjectBriefLayout" value="Standard" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Standard)" />
-                                                    <span><i class="bi bi-layout-sidebar" aria-hidden="true"></i><strong>Standard</strong><small>A compact photograph beside a wide brief.</small></span>
-                                                </label>
-                                                <label class="pbd-choice-card">
-                                                    <input type="radio" name="ProjectBriefLayout" value="PhotoEmphasis" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)" />
-                                                    <span><i class="bi bi-image" aria-hidden="true"></i><strong>Photo emphasis</strong><small>The photograph takes about half the slide.</small></span>
-                                                </label>
+                                            <div class="pbd-seg">
+                                                <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="Automatic" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Automatic)" data-help="Photo emphasis when the photograph and brief suit it, otherwise standard." data-label="Automatic" /><span>Automatic</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="Standard" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Standard)" data-help="A compact photograph beside a wide brief." data-label="Standard" /><span>Standard</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="PhotoEmphasis" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)" data-help="The photograph takes about half the slide." data-label="Photo emphasis" /><span>Photo</span></label>
                                             </div>
+                                            <p class="pbd-seg-help" data-pbd-seg-help="ProjectBriefLayout"></p>
                                         </fieldset>
                                     </div>
                                         </div>
@@ -593,24 +556,13 @@
                                         <div class="pbd-step__body">
                                 <fieldset class="pbd-choice-group">
                                     <legend>Cost shown on slides</legend>
-                                    <div class="pbd-choice-cards pbd-choice-cards--four">
-                                        <label class="pbd-choice-card pbd-choice-card--compact">
-                                            <input type="radio" name="CostMode" value="CostRdOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.CostRdOnly)" />
-                                            <span><strong>Cost (R&amp;D)</strong><small>With its basis: PNC, L1, AoN or IPA.</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card pbd-choice-card--compact">
-                                            <input type="radio" name="CostMode" value="ProliferationOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.ProliferationOnly)" />
-                                            <span><strong>Proliferation cost</strong><small>The latest indicative cost.</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card pbd-choice-card--compact">
-                                            <input type="radio" name="CostMode" value="Both" checked="@(deck.CostMode == ProjectBriefingCostMode.Both)" />
-                                            <span><strong>Both costs</strong><small>Shown separately.</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card pbd-choice-card--compact">
-                                            <input type="radio" name="CostMode" value="None" checked="@(deck.CostMode == ProjectBriefingCostMode.None)" />
-                                            <span><strong>No cost</strong><small>No cost anywhere in the deck.</small></span>
-                                        </label>
-                                    </div>
+                                            <div class="pbd-seg pbd-seg--grid">
+                                                <label class="pbd-seg__option"><input type="radio" name="CostMode" value="CostRdOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.CostRdOnly)" data-help="The R&amp;D cost with its basis: PNC, L1, AoN or IPA." /><span>Cost (R&amp;D)</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="CostMode" value="ProliferationOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.ProliferationOnly)" data-help="The latest indicative proliferation cost." /><span>Proliferation</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="CostMode" value="Both" checked="@(deck.CostMode == ProjectBriefingCostMode.Both)" data-help="R&amp;D and proliferation cost, shown separately." /><span>Both</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="CostMode" value="None" checked="@(deck.CostMode == ProjectBriefingCostMode.None)" data-help="No cost anywhere in the deck." /><span>None</span></label>
+                                            </div>
+                                            <p class="pbd-seg-help" data-pbd-seg-help="CostMode"></p>
                                 </fieldset>
                                         </div>
                                     </details>
@@ -652,7 +604,7 @@
                                         <legend>Presentation theme</legend>
                                         <div class="pbd-theme-cards">
                                             <label class="pbd-theme-card">
-                                                <input type="radio" name="PresentationTheme" value="EditorialLight" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.EditorialLight)" />
+                                                <input type="radio" name="PresentationTheme" value="EditorialLight" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.EditorialLight)" data-label="Editorial Light" />
                                                 <span class="pbd-theme-card__body">
                                                     <span class="pbd-theme-preview pbd-theme-preview--light @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-theme-preview aria-hidden="true">
                                                         <span class="pbd-theme-preview__header"></span>
@@ -670,7 +622,7 @@
                                                 </span>
                                             </label>
                                             <label class="pbd-theme-card">
-                                                <input type="radio" name="PresentationTheme" value="GraphiteDark" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.GraphiteDark)" />
+                                                <input type="radio" name="PresentationTheme" value="GraphiteDark" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.GraphiteDark)" data-label="Graphite Dark" />
                                                 <span class="pbd-theme-card__body">
                                                     <span class="pbd-theme-preview pbd-theme-preview--dark @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-theme-preview aria-hidden="true">
                                                         <span class="pbd-theme-preview__header"></span>
@@ -692,42 +644,21 @@
 
                                     <fieldset class="pbd-choice-group">
                                         <legend>Insignia</legend>
-                                        <div class="pbd-branding-options">
-                                            <label>
-                                                <input type="radio" name="BrandingScope" value="None" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.None)" />
-                                                <span><strong>None</strong><small>No insignia on any slide.</small></span>
-                                            </label>
-                                            <label>
-                                                <input type="radio" name="BrandingScope" value="CoverAndSummary" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.CoverAndSummary)" />
-                                                <span><strong>Cover and summary</strong><small>Cover, summary and closing slides.</small></span>
-                                            </label>
-                                            <label>
-                                                <input type="radio" name="BrandingScope" value="AllSlides" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.AllSlides)" />
-                                                <span><strong>All slides</strong><small>A compact insignia on every slide.</small></span>
-                                            </label>
-                                        </div>
+                                            <div class="pbd-seg">
+                                                <label class="pbd-seg__option"><input type="radio" name="BrandingScope" value="None" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.None)" data-help="No insignia on any slide." /><span>None</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="BrandingScope" value="CoverAndSummary" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.CoverAndSummary)" data-help="On the cover, summary and closing slides." /><span>Cover</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="BrandingScope" value="AllSlides" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.AllSlides)" data-help="A compact insignia on every slide." /><span>All slides</span></label>
+                                            </div>
+                                            <p class="pbd-seg-help" data-pbd-seg-help="BrandingScope"></p>
                                     </fieldset>
 
                                     <fieldset class="pbd-choice-group">
                                         <legend>Closing slide</legend>
-                                        <div class="pbd-choice-cards pbd-choice-cards--two">
-                                            <label class="pbd-choice-card pbd-choice-card--closing">
-                                                <input type="radio" name="ClosingSlideType" value="JaiHind" checked="@(deck.ClosingSlideType == ProjectBriefingClosingSlideType.JaiHind)" />
-                                                <span>
-                                                    <i class="bi bi-shield-check" aria-hidden="true"></i>
-                                                    <strong>Jai Hind</strong>
-                                                    <small>For command and internal briefings.</small>
-                                                </span>
-                                            </label>
-                                            <label class="pbd-choice-card pbd-choice-card--closing">
-                                                <input type="radio" name="ClosingSlideType" value="ThankYou" checked="@(deck.ClosingSlideType == ProjectBriefingClosingSlideType.ThankYou)" />
-                                                <span>
-                                                    <i class="bi bi-stars" aria-hidden="true"></i>
-                                                    <strong>Thank You</strong>
-                                                    <small>For industry, academic and external audiences.</small>
-                                                </span>
-                                            </label>
-                                        </div>
+                                            <div class="pbd-seg">
+                                                <label class="pbd-seg__option"><input type="radio" name="ClosingSlideType" value="JaiHind" checked="@(deck.ClosingSlideType == ProjectBriefingClosingSlideType.JaiHind)" data-help="For command and internal briefings." data-label="Jai Hind" /><span>Jai Hind</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="ClosingSlideType" value="ThankYou" checked="@(deck.ClosingSlideType == ProjectBriefingClosingSlideType.ThankYou)" data-help="For industry, academic and external audiences." data-label="Thank You" /><span>Thank You</span></label>
+                                            </div>
+                                            <p class="pbd-seg-help" data-pbd-seg-help="ClosingSlideType"></p>
                                     </fieldset>
                                 </div>
                                         </div>

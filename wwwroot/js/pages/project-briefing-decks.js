@@ -76,6 +76,8 @@ if (root) {
     ? [...settingsForm.querySelectorAll('[data-pbd-settings-collapsible]')]
     : [];
   let restoringSettingsSections = false;
+  // The layout whose remembered open step is showing; other changes leave the open step alone.
+  let restoredSettingsLayout = null;
   const currentSettingsLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
   const settingsSectionStorageKey = () => `${storagePrefix}settingsSections:${currentSettingsLayout()}`;
   // The steps open closed, so the summaries read as an overview of the deck.
@@ -856,7 +858,14 @@ if (root) {
   const settingsChecked = (name) => Boolean(settingsForm?.querySelector(`input[type="checkbox"][name="${name}"]`)?.checked);
   const settingsValueLabel = (name) => {
     const input = settingsForm?.querySelector(`input[name="${name}"]:checked`);
-    return input?.closest('label')?.querySelector('strong')?.textContent?.trim() || '';
+    return input?.dataset.label || input?.closest('label')?.querySelector('strong, span')?.textContent?.trim() || '';
+  };
+  // A segmented choice explains only the option that is selected.
+  const refreshSegmentHelp = () => {
+    settingsForm?.querySelectorAll('[data-pbd-seg-help]').forEach((help) => {
+      const name = help.dataset.pbdSegHelp;
+      help.textContent = settingsForm.querySelector(`input[name="${name}"]:checked`)?.dataset.help || '';
+    });
   };
   const sentence = (parts) => {
     const text = parts.filter(Boolean).join(', ');
@@ -902,6 +911,7 @@ if (root) {
   };
   const refreshSettingsSummary = () => {
     if (!settingsForm) return;
+    refreshSegmentHelp();
     const summaries = stepSummaries();
     let number = 0;
     settingsForm.querySelectorAll('[data-pbd-step]').forEach((step) => {
@@ -1310,7 +1320,10 @@ if (root) {
     root.querySelectorAll('[data-pbd-theme-preview]').forEach((preview) => {
       preview.classList.toggle('is-update-sheet', updateSheet);
     });
-    restoreSettingsSectionState();
+    if (restoredSettingsLayout !== currentSettingsLayout()) {
+      restoredSettingsLayout = currentSettingsLayout();
+      restoreSettingsSectionState();
+    }
     validateUpdateSheetRows();
     refreshSettingsSummary();
   };

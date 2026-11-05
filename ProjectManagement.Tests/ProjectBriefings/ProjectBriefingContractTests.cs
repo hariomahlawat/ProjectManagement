@@ -179,7 +179,7 @@ public sealed class ProjectBriefingContractTests
         var composer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
         var planner = Read("ProjectBriefingUpdateSheetPlanner.cs");
 
-        Assert.Contains("<strong>Update sheets</strong>", page, StringComparison.Ordinal);
+        Assert.Contains("<span>Update sheets</span>", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProjectUpdateSheet\"", page, StringComparison.Ordinal);
         Assert.Contains("<strong>Rows on each sheet</strong>", page, StringComparison.Ordinal);
         Assert.Contains("The project name stays the title", page, StringComparison.Ordinal);
@@ -384,6 +384,13 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("name=\"ShowPresentStage\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ShowPresentStatus\"", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-step=\"cost\"", page, StringComparison.Ordinal);
+        // Compact controls (Plan: Deck settings, PR 3): segmented choices explain only the selected option.
+        foreach (var name in new[] { "Layout", "PresentationMode", "NarrativeMode", "ProjectBriefLayout", "CostMode", "BrandingScope", "ClosingSlideType" })
+        {
+            Assert.Contains($"data-pbd-seg-help=\"{name}\"", page, StringComparison.Ordinal);
+        }
+        Assert.Contains("class=\"pbd-chip\"", page, StringComparison.Ordinal);
+        Assert.Contains("role=\"switch\" name=\"ShowKeyPoints\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"CostRdOnly\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProliferationOnly\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);

@@ -4706,6 +4706,196 @@ body.pbd-profile-drawer-open {
     padding: .2rem .8rem .9rem;
 }
 
+/* Compact controls in the steps: segmented choices, chips and a switch. Each radio and checkbox
+   stays a real, focusable input; only its look changes. */
+.pbd-seg {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: 2px;
+    padding: 3px;
+    border-radius: .55rem;
+    background: var(--pbd-canvas);
+}
+
+.pbd-seg[hidden] {
+    display: none;
+}
+
+.pbd-seg--grid {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pbd-seg__option {
+    position: relative;
+    display: block;
+    margin: 0;
+    cursor: pointer;
+}
+
+.pbd-seg__option input,
+.pbd-chip input[type="checkbox"],
+.pbd-switch input[type="checkbox"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.pbd-seg__option span {
+    display: block;
+    overflow: hidden;
+    padding: .38rem .3rem;
+    border-radius: .42rem;
+    color: var(--pbd-ink);
+    font-size: .78rem;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pbd-seg__option input:checked + span {
+    background: var(--pbd-surface);
+    box-shadow: 0 0 0 1px var(--pbd-border);
+    color: var(--pbd-blue);
+    font-weight: 700;
+}
+
+.pbd-seg__option input:focus-visible + span,
+.pbd-chip input:focus-visible ~ span:first-of-type,
+.pbd-switch input:focus-visible ~ .pbd-switch__track {
+    outline: 2px solid var(--pbd-blue);
+    outline-offset: 1px;
+}
+
+.pbd-seg-help {
+    min-height: 1rem;
+    margin: .35rem 0 0;
+    color: var(--pbd-muted);
+    font-size: .74rem;
+    line-height: 1.35;
+}
+
+.pbd-seg-help:empty {
+    display: none;
+}
+
+.pbd-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+
+.pbd-chip {
+    position: relative;
+    margin: 0;
+    cursor: pointer;
+}
+
+.pbd-chip span {
+    display: inline-block;
+    padding: .3rem .7rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: 999px;
+    background: var(--pbd-surface);
+    color: var(--pbd-ink);
+    font-size: .78rem;
+}
+
+.pbd-chip input:checked ~ span {
+    border-color: var(--pbd-blue);
+    background: var(--pbd-blue-soft);
+    color: var(--pbd-blue);
+    font-weight: 700;
+}
+
+.pbd-switch {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: .6rem;
+    margin: 0 0 .4rem;
+    cursor: pointer;
+}
+
+.pbd-switch__track {
+    position: relative;
+    flex: none;
+    width: 2.1rem;
+    height: 1.2rem;
+    margin-top: .1rem;
+    border-radius: 999px;
+    background: var(--pbd-border);
+    transition: background .15s ease;
+}
+
+.pbd-switch__track::after {
+    position: absolute;
+    top: .15rem;
+    left: .15rem;
+    width: .9rem;
+    height: .9rem;
+    border-radius: 50%;
+    background: var(--pbd-surface);
+    content: "";
+    transition: transform .15s ease;
+}
+
+.pbd-switch input:checked ~ .pbd-switch__track {
+    background: var(--pbd-blue);
+}
+
+.pbd-switch input:checked ~ .pbd-switch__track::after {
+    transform: translateX(.9rem);
+}
+
+.pbd-switch__text {
+    display: grid;
+    gap: .1rem;
+}
+
+.pbd-switch__text strong {
+    color: var(--pbd-ink);
+    font-size: .8rem;
+}
+
+.pbd-switch__text small {
+    color: var(--pbd-muted);
+    font-size: .74rem;
+    line-height: 1.35;
+}
+
+/* Themes: two small swatches side by side, without their descriptions. */
+.pbd-deck-settings .pbd-step .pbd-theme-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pbd-deck-settings .pbd-step .pbd-theme-card small {
+    display: none;
+}
+
+/* In the narrow step the swatch sits above its name. */
+.pbd-deck-settings .pbd-step .pbd-theme-card__body {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: .35rem;
+    min-height: 0;
+    padding: .45rem;
+    text-align: center;
+}
+
+.pbd-deck-settings .pbd-step .pbd-theme-preview {
+    width: 100%;
+    max-width: 7.35rem;
+    height: auto;
+    aspect-ratio: 16 / 9;
+}
+
+.pbd-deck-settings .pbd-step .pbd-theme-card strong {
+    font-size: .78rem;
+}
+
 /* The settings form, laid out for the narrow inspector. */
 .pbd-deck-settings .pbd-settings-section {
     margin: 0 0 .6rem;
