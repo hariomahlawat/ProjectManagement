@@ -227,3 +227,58 @@ The Studio must use wide monitors, not just fit them:
 - **1200–1599px**: the inspector becomes a drawer over the preview.
 - **< 1200px**: one column; outline and inspector open as sheets.
 - The deck library is a table; it scrolls sideways inside its card on narrow screens.
+
+## Plan: Project key points
+
+Agreed with the owner on 5 Nov 2026 from the Design canvas "Project slide key points mockup"
+(today's brief slide, a first layout, and the approved Option B with the status remark off and
+on).
+
+**What they are.** Five short points that say why a project matters, separate from the
+capability overview (what the system does) and the project brief (the narrative):
+
+| Heading | Answers |
+|---|---|
+| Training gap | What cannot be trained today |
+| Op necessity | Why the product is operationally required |
+| Training realism | How close it is to the real thing |
+| Ease of learning | How quickly a trainee picks it up |
+| Proliferation potential | Who else could use it |
+
+Owner decisions (5 Nov 2026):
+
+- The headings are fixed: names and order are the same for every project and deck, defined in one
+  place. A wording change applies everywhere; a heading's meaning never changes. No per-project or
+  per-deck headings. A second heading set by technical category is a later option, only if
+  non-training projects need one.
+- Each point is optional, plain text, one or two lines on the slide: at most 130 characters, no
+  line breaks, enforced on the server. A project shows only the points it has; none, no band.
+- Points live on the project (written once, beside the project brief on the Project Overview) and
+  every deck reuses them. The project brief is not capped or shortened: the Brochure and
+  Compendium use it too, and the full brief fits in Option B.
+- A deck switch, **Show key points**, off by default. With Project content "Both" the author picks
+  the capability slide or the project brief slide; otherwise the points go on the only project
+  slide. Update sheets are unchanged.
+- **Option B** is used only by decks with key points switched on, for every project in the deck
+  (a project without points has no band). Existing decks generate exactly as before.
+
+**Option B layout** (both project slide kinds):
+
+- Stage and cost on one line under the title ("Development | Cost (R&D) ₹4.20 Cr AoN |
+  Proliferation ₹1.10 Cr"); the cost cards and context card go. Hidden stage or cost drops out
+  of the line.
+- Top row: the photograph at 16:9 and the brief or capability text, the same height.
+- A full-width band at the bottom: the present status remark as its first row when "Show present
+  status" is on, then the key points (heading column about 2 in, text beside it).
+- Whatever is switched off gives its space to the top row. A brief that still does not fit
+  continues on "Project brief — continued" slides as today.
+
+**PRs**
+
+1. Key points on the project: five nullable columns (additive migration), the Project Overview
+   editor beside the brief with a counter and a one-line hint per heading, server validation,
+   tests.
+2. Option B on the capability and project brief slides, with the deck switch and the slide
+   choice; slide preview, slide estimate, content checks (a missing point is listed, never
+   prompted) and the integrity check follow.
+3. "Data since": a changed key point counts as data moved, for decks that show key points.
