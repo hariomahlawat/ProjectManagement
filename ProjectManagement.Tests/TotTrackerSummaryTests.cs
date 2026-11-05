@@ -92,6 +92,29 @@ public sealed class TotTrackerSummaryTests
             ProjectTotOverview.Narrative(new ProjectTotPosition(0, 0, 0, 0, 1, 0, 0)));
     }
 
+    [Theory]
+    [InlineData(2022, 2025, "3 years after completion")]
+    [InlineData(2024, 2025, "1 year after completion")]
+    [InlineData(2025, 2025, "Same year as completion")]
+    [InlineData(2025, 2024, "Before project completion")]
+    public void RowNote_SaysHowLongAfterTheProjectToTWasCompleted(int projectYear, int totYear, string expected)
+    {
+        var facts = ProjectTotRegisterFactsBuilder.BuildFacts(
+            CreateRow(1, ProjectTotStatus.Completed, null, projectCompletedYear: projectYear, totCompletedOn: new DateOnly(totYear, 6, 1)),
+            new DateOnly(2026, 11, 5));
+
+        Assert.Equal(expected, ProjectTotOverview.RowNote(facts));
+    }
+
+    [Fact]
+    public void RowNote_ForWaitingProjects()
+    {
+        var today = new DateOnly(2026, 11, 5);
+        Assert.Equal("Waiting 28 years", ProjectTotOverview.RowNote(ProjectTotRegisterFactsBuilder.BuildFacts(CreateRow(1, ProjectTotStatus.NotStarted, null, projectCompletedYear: 1998), today)));
+        Assert.Null(ProjectTotOverview.RowNote(ProjectTotRegisterFactsBuilder.BuildFacts(CreateRow(2, ProjectTotStatus.NotStarted, null, projectCompletedYear: 2024), today)));
+        Assert.Equal("Waiting for a decision", ProjectTotOverview.RowNote(ProjectTotRegisterFactsBuilder.BuildFacts(CreateRow(3, ProjectTotStatus.NotStarted, ProjectTotRequestDecisionState.Pending, projectCompletedYear: 1998), today)));
+    }
+
     [Fact]
     public void BuildYearlyCompletions_ShowsYearsWithoutCompletionsAsZero()
     {

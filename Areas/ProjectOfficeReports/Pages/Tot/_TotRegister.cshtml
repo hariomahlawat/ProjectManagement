@@ -1,0 +1,168 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel
+@using System.Globalization
+@using ProjectManagement.Areas.ProjectOfficeReports.Application
+@using ProjectManagement.Models
+@using ProjectManagement.Services.Projects
+@using ProjectManagement.Utilities.PartialDates
+@{
+    // The register: status buttons, the filters in use, the count and the table. The live search
+    // asks for this partial alone (?handler=Register) and swaps it in place.
+    var counts = Model.StatusCounts;
+    var noStatus = Model.TotStatusFilter is null && !Model.RequiresTotOnly && !Model.OnlyPending && !Model.LongWaiting;
+    var inv = CultureInfo.InvariantCulture;
+
+    string StatusUrl(ProjectTotStatus? status = null, bool needTot = false, bool waiting = false)
+        => Url.Page("./Index", Model.RegisterRouteWith(
+            (nameof(Model.TotStatusFilter), status?.ToString()),
+            (nameof(Model.RequiresTotOnly), needTot ? "true" : null),
+            (nameof(Model.OnlyPending), waiting ? "true" : null),
+            (nameof(Model.LongWaiting), null))) ?? "#";
+
+    var buttons = new List<(string Label, int Count, string Url, bool Active)>
+    {
+        ("All", Model.StatusCountAll, StatusUrl(), noStatus),
+        ("Need ToT", counts.NeedTot, StatusUrl(needTot: true), Model.RequiresTotOnly && Model.TotStatusFilter is null && !Model.OnlyPending && !Model.LongWaiting),
+        ("Completed", counts.Completed, StatusUrl(ProjectTotStatus.Completed), Model.TotStatusFilter == ProjectTotStatus.Completed),
+        ("In progress", counts.InProgress, StatusUrl(ProjectTotStatus.InProgress), Model.TotStatusFilter == ProjectTotStatus.InProgress),
+        ("Not started", counts.NotStarted, StatusUrl(ProjectTotStatus.NotStarted), Model.TotStatusFilter == ProjectTotStatus.NotStarted)
+    };
+    if (counts.NotKnown > 0 || Model.TotStatusFilter == ProjectTotStatus.NotKnown)
+    {
+        buttons.Add(("Not known", counts.NotKnown, StatusUrl(ProjectTotStatus.NotKnown), Model.TotStatusFilter == ProjectTotStatus.NotKnown));
+    }
+    buttons.Add(("Waiting for decision", counts.WaitingForDecision, StatusUrl(waiting: true), Model.OnlyPending));
+    buttons.Add(("Not required", counts.NotRequired, StatusUrl(ProjectTotStatus.NotRequired), Model.TotStatusFilter == ProjectTotStatus.NotRequired));
+
+    // Every filter in use, each removable on its own.
+    var chips = new List<(string Label, string Url)>();
+    string Without(params string[] keys)
+        => Url.Page("./Index", Model.RegisterRouteWith(keys.Select(key => (key, (object?)null)).ToArray())) ?? "#";
+    if (Model.SearchTerm is { } term) chips.Add(($"Search: “{term}”", Without(nameof(Model.SearchTerm))));
+    if (Model.TotStatusFilter is { } status) chips.Add(($"Status: {ProjectTotPresentation.StatusLabel(status)}", Without(nameof(Model.TotStatusFilter))));
+    if (Model.RequiresTotOnly) chips.Add(("Need ToT", Without(nameof(Model.RequiresTotOnly))));
+    if (Model.OnlyPending) chips.Add(("Waiting for decision", Without(nameof(Model.OnlyPending))));
+    if (!Model.OnlyPending && Model.RequestStateFilter is { } requestState) chips.Add(($"Request: {ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.RequestStateLabel(requestState)}", Without(nameof(Model.RequestStateFilter))));
+    if (Model.MetCompletedOnly) chips.Add(("MET completed", Without(nameof(Model.MetCompletedOnly))));
+    if (Model.LongWaiting) chips.Add(("Not started, over five years", Without(nameof(Model.LongWaiting))));
+    if (Model.CompletedFrom.HasValue || Model.CompletedTo.HasValue)
+    {
+        var window = (Model.CompletedFrom, Model.CompletedTo) switch
+        {
+            ({ } from, { } to) => $"ToT completed {from.ToString("dd MMM yyyy", inv)} – {to.ToString("dd MMM yyyy", inv)}",
+            ({ } from, null) => $"ToT completed from {from.ToString("dd MMM yyyy", inv)}",
+            (null, { } to) => $"ToT completed to {to.ToString("dd MMM yyyy", inv)}",
+            _ => string.Empty
+        };
+        chips.Add((window, Without(nameof(Model.CompletedFrom), nameof(Model.CompletedTo))));
+    }
+    var clearAll = Url.Page("./Index", Model.SortKey == "name" && !Model.SortDescending
+        ? new Dictionary<string, object?>()
+        : new Dictionary<string, object?> { [nameof(Model.Sort)] = Model.SortKey, [nameof(Model.Dir)] = Model.SortDescending ? "desc" : null });
+
+    // Header links: a first click sorts ascending, a second on the same column descending.
+    string SortUrl(string key)
+        => Url.Page("./Index", Model.RegisterRouteWith(
+            (nameof(Model.Sort), key == "name" ? null : key),
+            (nameof(Model.Dir), Model.SortKey == key && !Model.SortDescending ? "desc" : null))) ?? "#";
+    string? AriaSort(string key) => Model.SortKey == key ? (Model.SortDescending ? "descending" : "ascending") : null;
+    string SortMark(string key) => Model.SortKey == key ? (Model.SortDescending ? "↓" : "↑") : string.Empty;
+
+    var total = Model.Projects.Count;
+}
+<div class="tot-register" data-tot-register>
+    <nav class="tot-status-buttons" aria-label="Show projects by ToT status">
+        @foreach (var button in buttons)
+        {
+            <a class="tot-status-button @(button.Active ? "is-active" : string.Empty)" href="@button.Url"
+               aria-current="@(button.Active ? "true" : null)">
+                @button.Label <span class="tot-status-button__count">@button.Count</span>
+            </a>
+        }
+    </nav>
+
+    <div class="tot-register__summary">
+        <span class="tot-register__count" role="status">@(total switch { 0 => "No projects", 1 => "1 project", _ => $"{total} projects" })</span>
+        @foreach (var chip in chips)
+        {
+            <a class="tot-chip" href="@chip.Url" aria-label="Remove filter: @chip.Label">
+                @chip.Label <span aria-hidden="true">×</span>
+            </a>
+        }
+        @if (chips.Count > 1)
+        {
+            <a class="tot-chip-clear" href="@clearAll">Clear all</a>
+        }
+    </div>
+
+    @if (total == 0)
+    {
+        <p class="tot-register__empty">No projects match the current search and filters.</p>
+    }
+    else
+    {
+        <div class="tot-table-wrap">
+            <table class="tot-table">
+                <caption class="visually-hidden">Transfer of Technology register</caption>
+                <thead>
+                    <tr>
+                        <th scope="col" aria-sort="@AriaSort("name")"><a href="@SortUrl("name")">Project @SortMark("name")</a></th>
+                        <th scope="col" aria-sort="@AriaSort("status")"><a href="@SortUrl("status")">ToT status @SortMark("status")</a></th>
+                        @if (Model.ShowStartedColumn)
+                        {
+                            <th scope="col">Started</th>
+                        }
+                        <th scope="col" aria-sort="@AriaSort("tot")"><a href="@SortUrl("tot")">ToT completed @SortMark("tot")</a></th>
+                        <th scope="col" aria-sort="@AriaSort("project")"><a href="@SortUrl("project")">Project completed @SortMark("project")</a></th>
+                        @if (Model.ShowMetColumn)
+                        {
+                            <th scope="col">MET</th>
+                        }
+                        @if (Model.ShowRequestColumn)
+                        {
+                            <th scope="col">Request</th>
+                        }
+                        <th scope="col">Note</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Projects)
+                    {
+                        var facts = Model.RowFacts[row.ProjectId];
+                        var selected = Model.SelectedProjectId == row.ProjectId;
+                        <tr class="@(selected ? "is-selected" : null)">
+                            <th scope="row">
+                                <a class="tot-table__project" href="@Url.Page("./Index", Model.RegisterRouteWith((nameof(Model.SelectedProjectId), row.ProjectId)))"
+                                   data-tot-open-project-id="@row.ProjectId" data-tot-project-name="@row.ProjectName">@row.ProjectName</a>
+                                @if (!string.IsNullOrWhiteSpace(row.SponsoringUnit))
+                                {
+                                    <span class="tot-table__unit">@row.SponsoringUnit</span>
+                                }
+                            </th>
+                            <td><span class="chip-sm @ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.StatusChipClass(facts.Status)">@facts.StatusLabel</span></td>
+                            @if (Model.ShowStartedColumn)
+                            {
+                                <td>@(facts.Started ?? "—")</td>
+                            }
+                            <td>@(facts.Status == ProjectTotStatus.Completed ? facts.Completed ?? "—" : "—")</td>
+                            <td>@(facts.ProjectCompletedYear?.ToString(inv) ?? "—")</td>
+                            @if (Model.ShowMetColumn)
+                            {
+                                <td>@(ProjectTotPresentation.FormatDay(row.TotMetCompletedOn) ?? "—")</td>
+                            }
+                            @if (Model.ShowRequestColumn)
+                            {
+                                <td>
+                                    @if (row.RequestState is { } rowRequest)
+                                    {
+                                        <span class="chip-sm @ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.RequestStateChipClass(rowRequest)">@ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.RequestStateLabel(rowRequest)</span>
+                                    }
+                                </td>
+                            }
+                            <td class="tot-table__note">@ProjectTotOverview.RowNote(facts)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

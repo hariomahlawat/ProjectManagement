@@ -41,11 +41,16 @@ test('ToT is one page with one name and a working Dashboard link', () => {
 
 test('the register keeps its search box when nothing matches', () => {
   const index = read('Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml');
-  const search = index.indexOf('class="tot-searchbar"');
-  const empty = index.indexOf('@if (!Model.Projects.Any())');
-  assert.ok(search > 0 && empty > search, 'the search form comes before the empty-result branch');
-  assert.doesNotMatch(index, /No request/);
-  assert.doesNotMatch(index, /More filters/);
+  const register = read('Areas/ProjectOfficeReports/Pages/Tot/_TotRegister.cshtml');
+  // The search form is outside the swapped register, so it stays (and keeps focus) whatever matches.
+  const search = index.indexOf('data-tot-search');
+  const partial = index.indexOf('<partial name="_TotRegister"');
+  assert.ok(search > 0 && partial > search, 'the search form comes before the register');
+  assert.doesNotMatch(register, /data-tot-search/);
+  assert.match(register, /No projects match the current search and filters\./);
+  assert.doesNotMatch(register, /No request/);
+  // One way into the rarer filters.
+  assert.equal(index.match(/data-bs-target="#tot-filter-modal"/g)?.length, 1);
 });
 
 test('the long-waiting scope survives the filter and export dialogs', () => {
@@ -54,5 +59,5 @@ test('the long-waiting scope survives the filter and export dialogs', () => {
   assert.match(filters, /<input type="hidden" asp-for="LongWaiting" \/>/);
   const exportForm = index.slice(index.indexOf('asp-page-handler="Export"'));
   assert.match(exportForm, /<input type="hidden" asp-for="LongWaiting" \/>/);
-  assert.match(index, /<input type="hidden" name="LongWaiting" value="@Model.LongWaiting" \/>/);
+  assert.match(index, /<input type="hidden" name="LongWaiting" value="@\(Model\.LongWaiting \? "true" : null\)" \/>/);
 });

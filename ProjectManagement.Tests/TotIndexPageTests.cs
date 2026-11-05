@@ -237,6 +237,56 @@ public sealed class TotIndexPageTests
         Assert.Equal(5, page.Position.NeedTot);
     }
 
+    [Theory]
+    [InlineData(null, null, new[] { 630, 633, 634, 631, 632 })]          // name: "Another…", "Completed in 2020", "Completed in 2025", "Own project", "Recent project"
+    [InlineData("project", "desc", new[] { 632, 634, 633, 631, 630 })]  // project completed 2024, 2022, 2019, 2016, 2015
+    [InlineData("tot", "desc", new[] { 634, 633, 630, 631, 632 })]      // ToT completed first, the rest last by name
+    [InlineData("status", null, new[] { 633, 634, 630, 631, 632 })]     // Completed before Not started
+    public async Task Register_SortsByTheChosenColumn(string? sort, string? dir, int[] expected)
+    {
+        await using var db = await SeedAsync();
+        var page = CreatePage(db, "comdt", "Comdt");
+        page.Sort = sort;
+        page.Dir = dir;
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(expected, page.Projects.Select(p => p.ProjectId));
+    }
+
+    [Fact]
+    public async Task Register_ShowsOptionalColumnsOnlyWithData_AndCountsStatusesBeyondTheChosenOne()
+    {
+        await using var db = await SeedAsync();
+        var page = CreatePage(db, "comdt", "Comdt");
+        page.TotStatusFilter = ProjectTotStatus.Completed;
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(new[] { 633, 634 }, page.Projects.Select(p => p.ProjectId).OrderBy(id => id));
+        Assert.False(page.ShowStartedColumn);
+        Assert.False(page.ShowMetColumn);
+        Assert.False(page.ShowRequestColumn);
+        // The status buttons still count every status for the other filters.
+        Assert.Equal(5, page.StatusCountAll);
+        Assert.Equal(2, page.StatusCounts.Completed);
+        Assert.Equal(3, page.StatusCounts.NotStarted);
+        Assert.Equal("3 years after completion", ProjectTotOverview.RowNote(page.RowFacts[634]));
+    }
+
+    [Fact]
+    public async Task RegisterHandler_ReturnsJustTheRegister()
+    {
+        await using var db = await SeedAsync();
+        var page = CreatePage(db, "comdt", "Comdt");
+        page.SearchTerm = "Own";
+
+        var result = Assert.IsType<PartialViewResult>(await page.OnGetRegisterAsync(CancellationToken.None));
+
+        Assert.Equal("_TotRegister", result.ViewName);
+        Assert.Equal(631, Assert.Single(page.Projects).ProjectId);
+    }
+
     private static async Task<JsonElement> DetailsAsync(ApplicationDbContext db, int projectId, string userId, string role)
     {
         var page = CreatePage(db, userId, role);
@@ -355,6 +405,7 @@ public sealed class TotIndexPageTests
         {
             ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         };
+        page.MetadataProvider = new EmptyModelMetadataProvider();
         return page;
     }
 
