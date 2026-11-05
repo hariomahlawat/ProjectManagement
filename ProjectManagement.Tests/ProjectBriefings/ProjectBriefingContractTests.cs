@@ -69,6 +69,30 @@ public sealed class ProjectBriefingContractTests
 
 
     [Fact]
+    public void Studio_GivesTheSlideTheRoomOnLaptops()
+    {
+        var page = Read("Index.cshtml");
+        var css = Read("project-briefing-decks.css").Replace("\r\n", "\n");
+        var rail = Read("command-workspace.js");
+
+        // The Studio opens with the workspace navigation folded and remembers its own choice.
+        Assert.Contains("@(deck is null ? \"is-nav-expanded\" : null)", page, StringComparison.Ordinal);
+        Assert.Contains("data-workspace-nav-scope=\"@(deck is null ? null : \"studio\")\"", page, StringComparison.Ordinal);
+        Assert.Contains("prism.workspace.navigationExpanded.${navigationScope}", rail, StringComparison.Ordinal);
+        Assert.Contains("const expandedByDefault = !navigationScope;", rail, StringComparison.Ordinal);
+
+        // The panes follow the Studio's own width, not the window's.
+        Assert.Contains("<div class=\"pbd-studio-frame\">", page, StringComparison.Ordinal);
+        Assert.Contains("container: pbd-studio / inline-size;", css, StringComparison.Ordinal);
+        Assert.Contains("@container pbd-studio (max-width: 1399.98px)", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: 13.5rem minmax(0, 1fr) 20rem;", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("@media (max-width: 1399.98px) {\n    .pbd-studio {", css, StringComparison.Ordinal);
+
+        // A long segmented label takes the room it needs instead of an ellipsis.
+        Assert.Contains("grid-auto-columns: minmax(min-content, 1fr);", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Builder_KeepsSettingsInTheDeckTabSavedInPlace()
     {
         var page = Read("Index.cshtml");

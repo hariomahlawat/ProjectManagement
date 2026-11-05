@@ -3,15 +3,20 @@
     const workspaceRail = document.querySelector('[data-workspace-rail]');
     const workspaceRailToggle = workspaceRail?.querySelector('[data-workspace-rail-toggle]');
     const desktopNavigation = window.matchMedia('(min-width: 992px)');
-    const navigationPreferenceKey = 'prism.workspace.navigationExpanded';
+    // A page can keep its own choice (the Briefing Studio starts folded so the slide gets the room).
+    const navigationScope = commandWorkspace?.dataset.workspaceNavScope || '';
+    const navigationPreferenceKey = navigationScope
+        ? `prism.workspace.navigationExpanded.${navigationScope}`
+        : 'prism.workspace.navigationExpanded';
+    const expandedByDefault = !navigationScope;
 
     const readNavigationPreference = () => {
         if (!desktopNavigation.matches) return false;
         try {
             const stored = window.localStorage.getItem(navigationPreferenceKey);
-            return stored === null ? true : stored === 'true';
+            return stored === null ? expandedByDefault : stored === 'true';
         } catch {
-            return true;
+            return expandedByDefault;
         }
     };
 

@@ -220,12 +220,22 @@ detailed settings under Advanced; Finalise comes with the lifecycle step.
 The Studio must use wide monitors, not just fit them:
 
 - The page uses the `studio` shell (done with the preview): page and top bar take the full window, less the desk gutter, instead of the 1840px desk cap.
-- **≥ 1600px**: three panes — outline (about 280px), preview (fluid, 16:9), inspector (about 380px).
-- **≥ 2200px**: the preview shows the selected slide large with a filmstrip, or two slides side by
-  side; the outline can show thumbnails instead of titles. Line length in the inspector stays
-  capped so forms never stretch.
-- **1200–1599px**: the inspector becomes a drawer over the preview.
-- **< 1200px**: one column; outline and inspector open as sheets.
+- The Studio opens with the workspace navigation folded to its icon rail; expanding it is
+  remembered for the Studio alone (`prism.workspace.navigationExpanded.studio`), apart from the
+  other workspace pages.
+- The panes follow the Studio's own width (`.pbd-studio-frame` is the `pbd-studio` size
+  container), not the window, so an open navigation narrows them correctly:
+  - **≥ 2050px**: outline 20rem, preview, inspector 26rem.
+  - **1400–2049px**: outline 18rem, preview, inspector 23rem.
+  - **1100–1399px**: outline 13.5rem, preview, inspector 20rem (laptops: 1366px gives a 633px
+    preview, 1440px 705px).
+  - **940–1099px**: outline 13rem, preview, inspector 19rem.
+  - **700–939px**: outline and preview; the inspector moves beneath.
+  - **< 700px**: one column.
+- Segmented controls keep whole labels: an option grows to fit its label rather than showing an
+  ellipsis.
+- Not built: a filmstrip or two slides side by side on very wide screens, and the inspector as a
+  drawer.
 - The deck library is a table; it scrolls sideways inside its card on narrow screens.
 
 ## Plan: Project key points
@@ -410,10 +420,12 @@ projects missing", Show) and the preview following each settings change.
 
 **PRs**
 
-1. **Room for the preview.** The Studio folds the workspace navigation to its icon rail. Pane
-   widths follow the Studio's own width (container queries), not the window. From about 1200 px
-   the inspector stays beside the preview, or opens as a drawer over it, never below the fold.
-   Target: a slide of at least 640 px at 1366 px. The "Wide screens" section is updated to match.
+1. **Room for the preview.** Done (this change). The Studio opens with the workspace navigation
+   folded (its own remembered choice) and the panes follow the Studio's width through container
+   queries; see "Wide screens". The preview pane is 633 px at 1366 px with the inspector beside it (before, the inspector sat beneath, out of sight), 705 px at 1440 px
+   (was 389) and 1,034 px at 1920 px (was about 830); the inspector stays beside it down to about
+   1100 px. The outline's buttons move under its title instead of breaking, and segmented labels
+   are never cut off in the narrower inspector. The drawer was not needed.
 2. **First run.** New deck asks for the name and the template (three cards plus "Set up by hand"),
    then opens Add projects. One empty state with one action replaces the three messages, and the
    empty outline shows no slide count. Switching template on a customised deck asks first, and every template
