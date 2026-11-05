@@ -135,6 +135,40 @@ public sealed class ProjectTotRegisterFactsTests
     }
 
     [Fact]
+    public void PendingChange_ForOneProject_MatchesTheRegistersComparison()
+    {
+        var current = new ProjectTot
+        {
+            Status = ProjectTotStatus.InProgress,
+            StartedOn = new DateOnly(2026, 9, 1),
+            StartDatePrecision = PartialDatePrecision.Day
+        };
+        var request = new ProjectTotRequest
+        {
+            ProposedStatus = ProjectTotStatus.Completed,
+            ProposedStartedOn = new DateOnly(2026, 9, 1),
+            ProposedStartDatePrecision = PartialDatePrecision.Day,
+            ProposedCompletedOn = new DateOnly(2026, 10, 31),
+            ProposedCompletionDatePrecision = PartialDatePrecision.Month,
+            SubmittedOnUtc = new DateTime(2026, 11, 3, 5, 10, 0, DateTimeKind.Utc)
+        };
+
+        var change = ProjectTotRegisterFactsBuilder.BuildPendingChange(current, request, "K Srinath");
+
+        Assert.Equal(
+            new[]
+            {
+                new ProjectTotFieldChange("Status", "In progress", "Completed"),
+                new ProjectTotFieldChange("Completed", "—", "Oct 2026")
+            },
+            change.Changes);
+        Assert.Equal("K Srinath", change.SubmittedBy);
+
+        var noRecord = ProjectTotRegisterFactsBuilder.BuildPendingChange(null, request, null);
+        Assert.Equal(new ProjectTotFieldChange("Status", "Not started", "Completed"), noRecord.Changes[0]);
+    }
+
+    [Fact]
     public void DecidedRequest_IsTheLastDecisionNotAPendingChange()
     {
         var decidedOn = new DateTime(2026, 10, 26, 1, 51, 0, DateTimeKind.Utc);

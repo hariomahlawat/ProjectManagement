@@ -37,6 +37,17 @@
     const cancelRemarkButton = root?.querySelector('[data-tot-remark-cancel]');
     const remarkBody = root?.querySelector('[data-tot-remark-body]');
     const remarkError = root?.querySelector('[data-tot-remark-error]');
+    const pendingBox = root?.querySelector('[data-tot-pending]');
+    const pendingTitle = root?.querySelector('[data-tot-pending-title]');
+    const pendingMeta = root?.querySelector('[data-tot-pending-meta]');
+    const changesBody = root?.querySelector('[data-tot-changes]');
+    const decideForm = root?.querySelector('[data-tot-decide-form]');
+    const decideVersion = root?.querySelector('[data-tot-decide-version]');
+    const decideReason = root?.querySelector('[data-tot-decide-reason]');
+    const decideError = root?.querySelector('[data-tot-decide-error]');
+    const decideButtons = root ? [...root.querySelectorAll('[data-tot-decide]')] : [];
+    const historyWrap = root?.querySelector('[data-tot-history-wrap]');
+    const historyList = root?.querySelector('[data-tot-history]');
 
     let loaded = false;
     let editing = false;
@@ -154,18 +165,69 @@
             if (statusBadge) { statusBadge.textContent = summary.statusLabel || 'Not recorded'; statusBadge.className = `badge rounded-pill ${badgeClass(payload.input?.status)}`; }
             renderFacts(summary.facts);
         }
-        const pendingBox = root?.querySelector('[data-tot-pending]');
-        if (pendingBox) {
-            if (payload.pendingApproval && payload.pending) {
-                pendingBox.innerHTML = `<strong class="d-block">Pending approval</strong><span>Proposed status: ${payload.pending.proposedStatusLabel}</span>`;
-                toggle(pendingBox, false);
-            } else toggle(pendingBox, true);
-        }
+        renderPending(payload?.pendingApproval ? payload.pending : null);
+        renderHistory(payload?.history);
         const latest = payload?.latestRemark;
         const latestBody = root?.querySelector('[data-tot-latest-remark]');
         const latestMeta = root?.querySelector('[data-tot-latest-remark-meta]');
         if (latestBody) latestBody.textContent = latest?.body || 'No ToT remark recorded.';
         if (latestMeta) latestMeta.textContent = latest?.meta || '';
+    }
+    // A request waiting for the HoD: only the fields it changes, now against proposed. Approvers
+    // also get the decision form; everyone else sees who sent it and when.
+    function renderPending(pending) {
+        if (!pendingBox) return;
+        if (!pending) {
+            toggle(pendingBox, true);
+            toggle(decideForm, true);
+            return;
+        }
+        const canDecide = !!pending.canDecide && decideForm instanceof HTMLFormElement;
+        if (pendingTitle) pendingTitle.textContent = canDecide ? 'Waiting for your decision' : 'Waiting for HoD approval';
+        if (pendingMeta) pendingMeta.textContent = [pending.submittedBy, pending.submittedOn].filter(Boolean).join(' · ');
+        if (changesBody) {
+            const changes = Array.isArray(pending.changes) ? pending.changes : [];
+            const rows = changes.map((change) => {
+                const row = document.createElement('tr');
+                const field = document.createElement('th'); field.scope = 'row'; field.textContent = change.field || '';
+                const now = document.createElement('td'); now.textContent = change.now || '—';
+                const proposed = document.createElement('td');
+                const strong = document.createElement('strong'); strong.textContent = change.proposed || '—';
+                proposed.appendChild(strong);
+                row.append(field, now, proposed);
+                return row;
+            });
+            if (rows.length === 0) {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td'); cell.colSpan = 3; cell.textContent = 'No field changes.';
+                row.appendChild(cell); rows.push(row);
+            }
+            changesBody.replaceChildren(...rows);
+        }
+        if (decideForm) {
+            toggle(decideForm, !canDecide);
+            if (decideVersion) decideVersion.value = pending.rowVersion || '';
+            message(decideError, '');
+        }
+        toggle(pendingBox, false);
+    }
+    function renderHistory(entries) {
+        if (!historyList) return;
+        const items = (Array.isArray(entries) ? entries : []).map((entry) => {
+            const item = document.createElement('li'); item.className = 'project-tot-history__item';
+            const head = document.createElement('div'); head.className = 'project-tot-history__head';
+            const label = document.createElement('strong'); label.textContent = entry.label || '';
+            const meta = document.createElement('span'); meta.textContent = [entry.by, entry.on].filter(Boolean).join(' · ');
+            head.append(label, meta); item.appendChild(head);
+            if (entry.values) { const values = document.createElement('div'); values.textContent = entry.values; item.appendChild(values); }
+            if (entry.reason) { const reason = document.createElement('div'); reason.className = 'project-tot-history__reason'; reason.textContent = `Reason: ${entry.reason}`; item.appendChild(reason); }
+            return item;
+        });
+        historyList.replaceChildren(...items);
+        toggle(historyWrap, items.length === 0);
+    }
+    function setDecideBusy(value) {
+        decideButtons.forEach((button) => { if (button instanceof HTMLButtonElement) button.disabled = value; });
     }
     function updateCard(payload) {
         if (!payload) return;
@@ -217,6 +279,35 @@
         } catch (error) { message(errorBox, error instanceof Error ? error.message : 'Unable to save Transfer of Technology details.'); }
         finally { setBusy(false); }
     });
+
+    decideButtons.forEach((button) => button.addEventListener('click', async () => {
+        if (!(decideForm instanceof HTMLFormElement)) return;
+        const approve = button.getAttribute('data-tot-decide') === 'true';
+        const reason = decideReason?.value?.trim() || '';
+        if (!approve && !reason) {
+            message(decideError, 'Give a reason to reject the update.');
+            decideReason?.focus();
+            return;
+        }
+        message(decideError, '');
+        setDecideBusy(true);
+        try {
+            const body = new FormData(decideForm);
+            body.set('approve', approve ? 'true' : 'false');
+            const response = await fetch(decideForm.action, { method:'POST', body, credentials:'same-origin', headers:{ Accept:'application/json','X-Requested-With':'XMLHttpRequest' } });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to record the decision.');
+            if (decideReason) decideReason.value = '';
+            updateCard(payload.card);
+            loaded = false;
+            await loadDetails(true);
+            message(successBox, payload.message || 'Decision recorded.');
+        } catch (error) {
+            message(decideError, error instanceof Error ? error.message : 'Unable to record the decision.');
+        } finally {
+            setDecideBusy(false);
+        }
+    }));
 
     addRemarkButton?.addEventListener('click', () => setRemarkMode(true));
     cancelRemarkButton?.addEventListener('click', () => setRemarkMode(false));

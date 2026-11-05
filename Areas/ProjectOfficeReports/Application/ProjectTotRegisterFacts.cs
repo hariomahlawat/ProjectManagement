@@ -130,6 +130,32 @@ public static class ProjectTotRegisterFactsBuilder
             NotKnown: projects.Count(p => p.Status == ProjectTotStatus.NotKnown));
     }
 
+    /// <summary>
+    /// A pending request against the stored ToT, for one project (the project page's drawer).
+    /// Uses the same comparison as the register.
+    /// </summary>
+    public static ProjectTotPendingChange BuildPendingChange(ProjectTot? current, ProjectTotRequest request, string? submittedBy)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var now = current is null
+            ? new TotValues(ProjectTotStatus.NotStarted, null, PartialDatePrecision.None, null, PartialDatePrecision.None, null, null, null, null)
+            : new TotValues(
+                current.Status,
+                current.StartedOn, current.StartDatePrecision,
+                current.CompletedOn, current.CompletionDatePrecision,
+                current.MetDetails, current.MetCompletedOn,
+                current.FirstProductionModelManufactured, current.FirstProductionModelManufacturedOn);
+        var proposed = new TotValues(
+            request.ProposedStatus,
+            request.ProposedStartedOn, request.ProposedStartDatePrecision,
+            request.ProposedCompletedOn, request.ProposedCompletionDatePrecision,
+            request.ProposedMetDetails, request.ProposedMetCompletedOn,
+            request.ProposedFirstProductionModelManufactured, request.ProposedFirstProductionModelManufacturedOn);
+
+        return new ProjectTotPendingChange(request.ProposedStatus, Compare(now, proposed), submittedBy, request.SubmittedOnUtc);
+    }
+
     private static ProjectTotPendingChange? BuildPending(ProjectTotTrackerRow row, ProjectTotStatus status)
     {
         if (row.RequestState != ProjectTotRequestDecisionState.Pending)
@@ -138,37 +164,57 @@ public static class ProjectTotRegisterFactsBuilder
         }
 
         var proposedStatus = row.RequestedStatus ?? status;
+        var now = new TotValues(
+            status,
+            row.TotStartedOn, row.TotStartDatePrecision,
+            row.TotCompletedOn, row.TotCompletionDatePrecision,
+            row.TotMetDetails, row.TotMetCompletedOn,
+            row.TotFirstProductionModelManufactured, row.TotFirstProductionModelManufacturedOn);
+        var proposed = new TotValues(
+            proposedStatus,
+            row.RequestedStartedOn, row.RequestedStartDatePrecision,
+            row.RequestedCompletedOn, row.RequestedCompletionDatePrecision,
+            row.RequestedMetDetails, row.RequestedMetCompletedOn,
+            row.RequestedFirstProductionModelManufactured, row.RequestedFirstProductionModelManufacturedOn);
+
+        return new ProjectTotPendingChange(proposedStatus, Compare(now, proposed), row.RequestedBy, row.RequestedOnUtc);
+    }
+
+    private sealed record TotValues(
+        ProjectTotStatus Status,
+        DateOnly? StartedOn,
+        PartialDatePrecision StartPrecision,
+        DateOnly? CompletedOn,
+        PartialDatePrecision CompletionPrecision,
+        string? MetDetails,
+        DateOnly? MetCompletedOn,
+        bool? FirstProductionModel,
+        DateOnly? FirstProductionModelOn);
+
+    // Only the fields that differ, as the reader sees them ("—" for nothing recorded).
+    private static IReadOnlyList<ProjectTotFieldChange> Compare(TotValues now, TotValues proposed)
+    {
         var changes = new List<ProjectTotFieldChange>();
 
-        void Compare(string field, string? now, string? proposed)
+        void Add(string field, string? nowValue, string? proposedValue)
         {
-            var nowText = now ?? "—";
-            var proposedText = proposed ?? "—";
+            var nowText = nowValue ?? "—";
+            var proposedText = proposedValue ?? "—";
             if (!string.Equals(nowText, proposedText, StringComparison.Ordinal))
             {
                 changes.Add(new ProjectTotFieldChange(field, nowText, proposedText));
             }
         }
 
-        Compare("Status", ProjectTotPresentation.StatusLabel(status), ProjectTotPresentation.StatusLabel(proposedStatus));
-        Compare("Started",
-            FormatPartial(row.TotStartedOn, row.TotStartDatePrecision),
-            FormatPartial(row.RequestedStartedOn, row.RequestedStartDatePrecision));
-        Compare("Completed",
-            FormatPartial(row.TotCompletedOn, row.TotCompletionDatePrecision),
-            FormatPartial(row.RequestedCompletedOn, row.RequestedCompletionDatePrecision));
-        Compare("MET details", Blank(row.TotMetDetails), Blank(row.RequestedMetDetails));
-        Compare("MET completed",
-            ProjectTotPresentation.FormatDay(row.TotMetCompletedOn),
-            ProjectTotPresentation.FormatDay(row.RequestedMetCompletedOn));
-        Compare("First production model",
-            YesNo(row.TotFirstProductionModelManufactured),
-            YesNo(row.RequestedFirstProductionModelManufactured));
-        Compare("Manufactured on",
-            ProjectTotPresentation.FormatDay(row.TotFirstProductionModelManufacturedOn),
-            ProjectTotPresentation.FormatDay(row.RequestedFirstProductionModelManufacturedOn));
+        Add("Status", ProjectTotPresentation.StatusLabel(now.Status), ProjectTotPresentation.StatusLabel(proposed.Status));
+        Add("Started", FormatPartial(now.StartedOn, now.StartPrecision), FormatPartial(proposed.StartedOn, proposed.StartPrecision));
+        Add("Completed", FormatPartial(now.CompletedOn, now.CompletionPrecision), FormatPartial(proposed.CompletedOn, proposed.CompletionPrecision));
+        Add("MET details", Blank(now.MetDetails), Blank(proposed.MetDetails));
+        Add("MET completed", ProjectTotPresentation.FormatDay(now.MetCompletedOn), ProjectTotPresentation.FormatDay(proposed.MetCompletedOn));
+        Add("First production model", YesNo(now.FirstProductionModel), YesNo(proposed.FirstProductionModel));
+        Add("Manufactured on", ProjectTotPresentation.FormatDay(now.FirstProductionModelOn), ProjectTotPresentation.FormatDay(proposed.FirstProductionModelOn));
 
-        return new ProjectTotPendingChange(proposedStatus, changes, row.RequestedBy, row.RequestedOnUtc);
+        return changes;
     }
 
     private static ProjectTotLastDecision? BuildLastDecision(ProjectTotTrackerRow row)

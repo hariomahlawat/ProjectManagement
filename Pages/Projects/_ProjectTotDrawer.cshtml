@@ -4,6 +4,8 @@
     var tot = Model.TotSummary;
     var pending = tot.PendingRequest is { State: ProjectTotRequestDecisionState.Pending };
     var saveLabel = Model.TotSaveNeedsApproval ? "Submit for approval" : "Save details";
+    // The decision form is rendered for approvers only; the server checks again on post.
+    var canDecide = ProjectManagement.Services.Authorization.ApprovalAuthorization.CanApproveProjectChanges(User);
 }
 <div class="project-tot-drawer" data-tot-root>
     <div class="project-tot-drawer__loading" data-tot-loading>
@@ -27,13 +29,41 @@
 
             <div class="project-tot-facts" data-tot-facts></div>
 
-            <div class="alert alert-info mb-0 @(pending ? string.Empty : "d-none")" data-tot-pending>
-                @if (pending && tot.PendingRequest is { } request)
+            <section class="project-tot-pending d-none" data-tot-pending aria-labelledby="tot-pending-heading">
+                <div class="project-tot-pending__head">
+                    <h6 class="mb-0" id="tot-pending-heading" data-tot-pending-title>Waiting for HoD approval</h6>
+                    <span class="project-tot-pending__meta" data-tot-pending-meta></span>
+                </div>
+                <table class="table table-sm mb-0 project-tot-changes">
+                    <thead>
+                        <tr>
+                            <th scope="col">Field</th>
+                            <th scope="col">Now</th>
+                            <th scope="col">Proposed</th>
+                        </tr>
+                    </thead>
+                    <tbody data-tot-changes></tbody>
+                </table>
+                @if (canDecide)
                 {
-                    <strong class="d-block">Pending approval</strong>
-                    <span>Proposed status: @request.ProposedStatusLabel</span>
+                    <form method="post"
+                          asp-page-handler="TotDecide"
+                          asp-route-id="@Model.Project.Id"
+                          class="project-tot-decide d-none"
+                          data-tot-decide-form
+                          novalidate>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="rowVersion" data-tot-decide-version />
+                        <label class="form-label" for="tot-decide-reason">Reason <span class="text-muted fw-normal">(needed to reject)</span></label>
+                        <textarea class="form-control" id="tot-decide-reason" name="reason" rows="2" maxlength="512" data-tot-decide-reason></textarea>
+                        <div class="alert alert-danger d-none mt-2 mb-0" role="alert" data-tot-decide-error></div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="button" class="btn btn-primary" data-tot-decide="true">Approve</button>
+                            <button type="button" class="btn btn-outline-danger" data-tot-decide="false">Reject</button>
+                        </div>
+                    </form>
                 }
-            </div>
+            </section>
 
             @if (tot.IsApplicable)
             {
@@ -53,6 +83,11 @@
                         }
                     </small>
                 </div>
+
+                <section class="project-tot-history d-none" data-tot-history-wrap aria-labelledby="tot-history-heading">
+                    <h6 class="mb-2" id="tot-history-heading">History</h6>
+                    <ol class="project-tot-history__list" data-tot-history></ol>
+                </section>
 
                 @if (Model.CanManageTot)
                 {
@@ -76,7 +111,7 @@
             }
         </section>
 
-        @if (Model.CanManageTot && !pending)
+        @if (Model.CanManageTot)
         {
             <section class="project-tot-editor d-none" data-tot-edit-view>
                 <form method="post"
@@ -168,12 +203,13 @@
                    asp-page="/Tot/Index"
                    asp-route-selectedProjectId="@Model.Project.Id">Open register</a>
             }
-            @if (Model.CanManageTot && !pending)
+            @if (Model.CanManageTot)
             {
-                <button type="button" class="btn btn-primary" data-tot-edit-button>Update details</button>
+                @* Hidden while a request is pending; the drawer script shows it again once the request is decided. *@
+                <button type="button" class="btn btn-primary @(pending ? "d-none" : string.Empty)" data-tot-edit-button>Update details</button>
             }
         </div>
-        @if (Model.CanManageTot && !pending)
+        @if (Model.CanManageTot)
         {
             <div class="project-tot-footer-group d-none" data-tot-edit-footer>
                 <button type="button" class="btn btn-outline-secondary" data-tot-cancel-button>Cancel</button>

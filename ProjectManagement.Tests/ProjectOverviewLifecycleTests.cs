@@ -577,6 +577,16 @@ public sealed class ProjectOverviewLifecycleTests
         await db.SaveChangesAsync();
     }
 
+    // Used by ProjectOverviewTotDecisionTests (the ToT drawer's handlers).
+    internal static ApplicationDbContext CreateContextForTot() => CreateContext();
+
+    internal static ProjectsOverviewModel CreateTotOverviewPage(ApplicationDbContext db, DateTimeOffset now, string userId, string role)
+    {
+        var page = CreateOverviewPage(db, new FixedClock(now));
+        ConfigurePageContext(page, CreateUser(userId, role));
+        return page;
+    }
+
     private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock, IProjectContentService? content = null)
     {
         var procure = new ProjectProcurementReadService(db);
