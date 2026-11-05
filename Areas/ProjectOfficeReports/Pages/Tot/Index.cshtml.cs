@@ -474,6 +474,13 @@ public sealed class IndexModel : PageModel
     {
         await PopulatePermissionsAsync();
 
+        // Waiting for decision already means "latest request pending"; a latest-request filter
+        // carried alongside it is ignored, so drop it rather than carry it to the next click.
+        if (OnlyPending)
+        {
+            RequestStateFilter = null;
+        }
+
         var filter = new ProjectTotTrackerFilter
         {
             TotStatus = TotStatusFilter,
@@ -533,12 +540,20 @@ public sealed class IndexModel : PageModel
         ShowRequestColumn = Projects.Any(row => row.RequestState is not null);
         Projects = OrderRows(Projects, rowFacts);
 
-        var statusFree = TotStatusFilter is null && !RequiresTotOnly && !OnlyPending && !LongWaiting;
+        // Each count describes the page its button opens. Waiting for decision drops any
+        // latest-request filter, so it is counted without one; the other buttons keep it.
+        var statusFree = TotStatusFilter is null && !RequiresTotOnly && !OnlyPending && !LongWaiting && RequestStateFilter is null;
         var countRows = statusFree
             ? Projects
-            : await _trackerService.GetAsync(filter with { TotStatus = null, RequiresTotOnly = false, OnlyPendingRequests = false }, cancellationToken);
-        var counted = ProjectTotRegisterFactsBuilder.Build(countRows, today);
-        StatusCounts = counted.Position;
+            : await _trackerService.GetAsync(filter with { TotStatus = null, RequiresTotOnly = false, OnlyPendingRequests = false, RequestState = null }, cancellationToken);
+        var requestRows = RequestStateFilter is { } requestState
+            ? countRows.Where(row => row.RequestState == requestState).ToList()
+            : countRows;
+        var counted = ProjectTotRegisterFactsBuilder.Build(requestRows, today);
+        var waiting = ReferenceEquals(requestRows, countRows)
+            ? counted.Position.WaitingForDecision
+            : ProjectTotRegisterFactsBuilder.Build(countRows, today).Position.WaitingForDecision;
+        StatusCounts = counted.Position with { WaitingForDecision = waiting };
         StatusCountAll = counted.Projects.Count;
     }
 

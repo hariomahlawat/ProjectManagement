@@ -313,16 +313,11 @@
         <div class="tot-register__bar">
             <h2 class="tot-register__heading mb-0" id="tot-register-heading">Register</h2>
             <form method="get" class="tot-register__search" role="search" data-tot-search>
-                <input type="hidden" name="TotStatusFilter" value="@Model.TotStatusFilter" />
-                <input type="hidden" name="RequestStateFilter" value="@Model.RequestStateFilter" />
-                <input type="hidden" name="OnlyPending" value="@(Model.OnlyPending ? "true" : null)" />
-                <input type="hidden" name="RequiresTotOnly" value="@(Model.RequiresTotOnly ? "true" : null)" />
-                <input type="hidden" name="MetCompletedOnly" value="@(Model.MetCompletedOnly ? "true" : null)" />
-                <input type="hidden" name="LongWaiting" value="@(Model.LongWaiting ? "true" : null)" />
-                <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
-                <input type="hidden" name="CompletedTo" value="@completedToValue" />
-                <input type="hidden" name="Sort" value="@(Model.SortKey == "name" ? null : Model.SortKey)" />
-                <input type="hidden" name="Dir" value="@(Model.SortDescending ? "desc" : null)" />
+                @* Only the filters in use, so no empty value is ever sent for a yes/no filter. *@
+                @foreach (var (name, value) in Model.RegisterRouteWith((nameof(Model.SearchTerm), null)))
+                {
+                    <input type="hidden" name="@name" value="@value" />
+                }
                 <label class="visually-hidden" for="tot-register-search">Search projects or units</label>
                 <input id="tot-register-search"
                        name="SearchTerm"

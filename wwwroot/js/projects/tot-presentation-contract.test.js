@@ -62,5 +62,8 @@ test('the long-waiting scope survives the filter and export dialogs', () => {
   assert.doesNotMatch(filters, /nameof\(Model\.LongWaiting\), null/);
   const exportForm = index.slice(index.indexOf('asp-page-handler="Export"'));
   assert.match(exportForm, /<input type="hidden" asp-for="LongWaiting" \/>/);
-  assert.match(index, /<input type="hidden" name="LongWaiting" value="@\(Model\.LongWaiting \? "true" : null\)" \/>/);
+  // The search form carries the register's route too (LongWaiting included), never empty booleans.
+  const search = index.slice(index.indexOf('data-tot-search'), index.indexOf('data-tot-live-search'));
+  assert.match(search, /Model\.RegisterRouteWith\(\(nameof\(Model\.SearchTerm\), null\)\)/);
+  assert.doesNotMatch(search, /value="@\(Model\.\w+ \? "true" : null\)"/);
 });

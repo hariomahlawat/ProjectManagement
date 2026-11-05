@@ -16,6 +16,8 @@
             (nameof(Model.TotStatusFilter), status?.ToString()),
             (nameof(Model.RequiresTotOnly), needTot ? "true" : null),
             (nameof(Model.OnlyPending), waiting ? "true" : null),
+            // Waiting for decision and a latest-request filter never combine (see PopulateAsync).
+            (nameof(Model.RequestStateFilter), waiting ? null : Model.RequestStateFilter?.ToString()),
             (nameof(Model.LongWaiting), null))) ?? "#";
 
     var buttons = new List<(string Label, int Count, string Url, bool Active)>

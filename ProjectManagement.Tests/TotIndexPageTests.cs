@@ -275,6 +275,31 @@ public sealed class TotIndexPageTests
     }
 
     [Fact]
+    public async Task WaitingForDecision_IsCountedAndShownWithoutTheLatestRequestFilter()
+    {
+        await using var db = await SeedAsync();
+        await SaveAsync(db, 631, "po-1", "Project Officer", ProjectTotStatus.NotRequired);
+
+        // With "Latest request: Approved", the Waiting button still counts the pending request it opens.
+        var approved = CreatePage(db, "comdt", "Comdt");
+        approved.RequestStateFilter = ProjectTotRequestDecisionState.Approved;
+        await approved.OnGetAsync(CancellationToken.None);
+        Assert.Empty(approved.Projects);
+        Assert.Equal(1, approved.StatusCounts.WaitingForDecision);
+        Assert.Equal(0, approved.StatusCountAll);
+
+        // On the Waiting page the request filter is dropped, so no other button brings it back.
+        var waiting = CreatePage(db, "comdt", "Comdt");
+        waiting.OnlyPending = true;
+        waiting.RequestStateFilter = ProjectTotRequestDecisionState.Approved;
+        await waiting.OnGetAsync(CancellationToken.None);
+        Assert.Null(waiting.RequestStateFilter);
+        Assert.False(waiting.RegisterRoute().ContainsKey(nameof(waiting.RequestStateFilter)));
+        Assert.Equal(631, Assert.Single(waiting.Projects).ProjectId);
+        Assert.Equal(5, waiting.StatusCountAll);
+    }
+
+    [Fact]
     public async Task RegisterHandler_ReturnsJustTheRegister()
     {
         await using var db = await SeedAsync();
