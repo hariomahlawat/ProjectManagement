@@ -10,13 +10,13 @@ history, who may submit) are in [data-domain.md](../data-domain.md#transfer-of-t
 
 | Concern | Code |
 | --- | --- |
-| Summary page | `Areas/ProjectOfficeReports/Pages/Tot/Summary.cshtml(.cs)` (counts, sentence, lists; `?handler=Yearly` for the chart) |
+| Summary address | `Areas/ProjectOfficeReports/Pages/Tot/Summary.cshtml(.cs)`: redirects to the ToT page (the overview is its top section, `ProjectTotOverview`) |
 | Tracker page | `Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml(.cs)` (rows open the shared drawer; handlers `TotDetails`, `Tot`, `TotDecide`, `TotRemark`); partial `_TotFiltersModal` |
 | Project page card and drawer | `Pages/Shared/Components/ProjectTotCommandCard`, `Pages/Projects/_ProjectTotDrawer.cshtml`, `Pages/Projects/Overview.Tot.cs` (`TotDetails`, `Tot`, `TotRemark` handlers) |
 | Shared drawer | `Areas/ProjectOfficeReports/Application/ProjectTotDrawerService.cs` (details, save, decide, remark; the host page passes `ProjectTotDrawerAccess`), `ViewModels/ProjectTotDrawerViewModel.cs` |
 | Reads and writes | `ProjectTotTrackerReadService` (rows, history), `ProjectTotService` (save, submit, decide), `ProjectTotPresentation` (labels, card, date entry), `ProjectTotExportService` + `ProjectTotExcelWorkbookBuilder` |
 | Scripts and styles | `wwwroot/js/projects/overview-tot.js`, `wwwroot/js/pages/project-office-reports/tot.js`, `tot-chart.js`; `wwwroot/css/tot.css`, `wwwroot/css/pages/project-tot-drawer.css` |
-| Links in | Projects menu and dashboard signal (`OpsSignalsService` links the Summary); Command desk completion drill-down (tracker with `CompletedFrom`/`CompletedTo`); Approvals → Pending (ToT requests) |
+| Links in | Projects menu and dashboard signal (`OpsSignalsService`) link the ToT page; Command desk completion drill-down (tracker with `CompletedFrom`/`CompletedTo`); Approvals → Pending (ToT requests) |
 
 Anyone signed in may view; Admin, HoD, Project Office (and Alternate) submit for any project and a
 Project Officer for projects they lead; Admin and HoD approve and save directly.
@@ -99,8 +99,8 @@ keep working: `/Tot`, `/Tot/Summary`, `SelectedProjectId`, the filter parameters
 | 4 | Not known: can be recorded | The form and the register's status buttons offer Not known. Ships only after PR 3 is deployed everywhere, because code before PR 3 cannot read the value. The drawer's status list now comes from `StatusOptions` too. | Merged (#2888) |
 | 5 | Drawer: decide in place | The drawer shows a pending request as Now → Proposed (changed fields only, rejection reason, history) with Approve / Reject for approvers through `ProjectTotService.DecideRequestAsync` (version token and reason rules unchanged), and "Waiting for HoD approval" with the sender and time for others; the drawer also shows the ToT history. Project page only (`OnPostTotDecideAsync`; Now → Proposed from `ProjectTotRegisterFactsBuilder.BuildPendingChange`). | Merged (#2891) |
 | 6a | Shared drawer | `ProjectTotDrawerService` does the drawer's work (details, save, decide, remark) for any hosting page, which passes its own access rule (`ProjectTotDrawerAccess`); the project page's handlers are thin calls. The drawer partial takes `ProjectTotDrawerViewModel` and the script talks to `data-tot-endpoint`, so another page can host it. No visible change. | Merged (#2892) |
-| 6b | Register opens the drawer | Register rows open the shared drawer in place with the register's access rules (Project Office and HoD/Admin for any project, a PO for projects they lead); the detail panel and the request and submit pop-ups go (the filter pop-up stays until PR 9). Approvals → Pending keeps working. The shared form fields that only the submit pop-up used are removed, so the drawer's form is the only ToT form. | In review |
-| 7 | One page | Summary's Position and chart join the page; `/Tot/Summary` opens it; menu and dashboard links follow. | Planned |
+| 6b | Register opens the drawer | Register rows open the shared drawer in place with the register's access rules (Project Office and HoD/Admin for any project, a PO for projects they lead); the detail panel and the request and submit pop-ups go (the filter pop-up stays until PR 9). Approvals → Pending keeps working. The shared form fields that only the submit pop-up used are removed, so the drawer's form is the only ToT form. | Merged (#2893) |
+| 7 | One page | The register opens with the overview: the sentence (`ProjectTotOverview.Narrative`), counts that filter the register (Need ToT, Completed with %, In progress, Not started with how many are over five years, Not known when any), the completed / not-started bar, Not required named apart, and the per-year chart (`?handler=Yearly`). `/Tot/Summary` redirects to the page; the menu and the dashboard signal link to it. Counts come from PR 2's facts over every project, whatever the register's filters. | In review |
 | 8 | Role top section | HoD, Comdt and Project Office sections from PR 2's facts; the Command desk links here. | Planned |
 | 9 | Register table | Status buttons with counts, live search, data-driven columns, Note column, sort; filters from links get removable chips. Export follows the visible register. | Planned |
 | 10 | Phone and clean-up | Phone cards and summary bar; unused rules removed from `tot.css`. | Planned |

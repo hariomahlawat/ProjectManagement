@@ -100,6 +100,11 @@ public sealed class IndexModel : PageModel
 
     public TotTrackerSummary Summary { get; private set; } = TotTrackerSummary.Empty;
 
+    /// <summary>The overview over every ToT project, whatever the register's filters.</summary>
+    public ProjectTotPosition Position { get; private set; } = ProjectTotPosition.Empty;
+
+    public string Narrative { get; private set; } = string.Empty;
+
     public bool CanSubmit { get; private set; }
 
     public bool CanApprove { get; private set; }
@@ -272,6 +277,15 @@ public sealed class IndexModel : PageModel
         return File(result.File.Content, result.File.ContentType, result.File.FileName);
     }
 
+    // GET ?handler=Yearly: [{ "year": 2021, "count": 4 }, ...] for the "completed per year" chart.
+    public async Task<JsonResult> OnGetYearlyAsync(CancellationToken cancellationToken)
+    {
+        var projects = await _trackerService.GetAsync(new ProjectTotTrackerFilter(), cancellationToken);
+        return new JsonResult(ProjectTotOverview.BuildYearlyCompletions(projects)
+            .Select(point => new { year = point.Year, count = point.Count })
+            .ToList());
+    }
+
     // SECTION: The shared ToT drawer, with the register's access rule.
 
     public async Task<IActionResult> OnGetTotDetailsAsync(int id, CancellationToken ct)
@@ -361,6 +375,11 @@ public sealed class IndexModel : PageModel
 
         Projects = await _trackerService.GetAsync(filter, cancellationToken);
         Summary = TotTrackerSummary.FromProjects(Projects);
+
+        var register = await new ProjectTotRegisterFactsService(_trackerService, _clock)
+            .GetAsync(new ProjectTotTrackerFilter(), cancellationToken);
+        Position = register.Position;
+        Narrative = ProjectTotOverview.Narrative(Position);
     }
 
     private IActionResult PermissionDenied(string actionDescription, string policy, int? projectId)

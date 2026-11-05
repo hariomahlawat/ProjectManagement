@@ -100,9 +100,9 @@ test('project overview manage permission is gated by the canonical ToT applicabi
   );
 });
 
-test('ToT summary labels the denominator as ToT-applicable projects', () => {
-  const summaryView = read('Areas/ProjectOfficeReports/Pages/Tot/Summary.cshtml');
-  assert.match(summaryView, /tot-summary__metric-label">ToT-applicable projects</);
+test('the ToT overview labels the denominator as the projects that need ToT', () => {
+  const indexView = read('Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml');
+  assert.match(indexView, /tot-summary__metric-label d-block">Need ToT</);
 });
 
 

@@ -320,7 +320,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     DeltaLabel = totLabel,
                     DeltaBasis = Basis(totPct, totLabel, deltaBasis),
                     DeltaPeriods = deltaPeriods,
-                    LinkUrl = "/ProjectOfficeReports/Tot/Summary",
+                    LinkUrl = "/ProjectOfficeReports/Tot",
                     Icon = "bi-arrow-left-right"
                 },
                 new()

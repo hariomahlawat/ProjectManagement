@@ -187,23 +187,21 @@ public sealed class ProjectTotNotKnownTests
     }
 
     [Fact]
-    public void Summary_CountsNotKnownAsApplicableAndListsItApart()
+    public void Overview_CountsNotKnownAsApplicableAndNamesIt()
     {
-        var rows = new List<ProjectTotTrackerRow>
-        {
-            Row(1, ProjectTotStatus.Completed),
-            Row(2, ProjectTotStatus.NotStarted),
-            Row(3, ProjectTotStatus.NotKnown),
-            Row(4, ProjectTotStatus.NotRequired)
-        };
+        var register = ProjectTotRegisterFactsBuilder.Build(
+            new[]
+            {
+                Row(1, ProjectTotStatus.Completed),
+                Row(2, ProjectTotStatus.NotStarted),
+                Row(3, ProjectTotStatus.NotKnown),
+                Row(4, ProjectTotStatus.NotRequired)
+            },
+            new DateOnly(2026, 11, 5));
 
-        var summary = SummaryModel.TotSummaryViewModel.FromProjects(rows);
-
-        Assert.Equal(3, summary.TotalProjects);
-        Assert.Equal(1, summary.NotKnownCount);
-        Assert.Equal(3, Assert.Single(summary.NotKnownProjects).ProjectId);
-        Assert.Equal(0, summary.InProgressCount);
-        Assert.Contains("for 1 project it is not known whether Transfer of Technology took place", summary.Narrative);
+        Assert.Equal(3, register.Position.NeedTot);
+        Assert.Equal(1, register.Position.NotKnown);
+        Assert.Contains("for 1 it is not known", ProjectTotOverview.Narrative(register.Position));
     }
 
     [Fact]

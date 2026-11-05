@@ -109,19 +109,20 @@
     line-height: 1.1;
 }
 
-.tot-summary__metric-card--completed {
+.tot-summary__metrics .tot-summary__metric-card--completed {
     background: var(--pm-success-soft-bg);
     border-color: var(--pm-success-soft-border);
 }
 
-.tot-summary__metric-card--inprogress {
+.tot-summary__metrics .tot-summary__metric-card--inprogress {
     background: var(--pm-info-soft-bg);
     border-color: var(--pm-info-soft-border);
 }
 
-.tot-summary__metric-card--notstarted {
-    background: var(--pm-danger-soft-bg);
-    border-color: var(--pm-danger-soft-bg);
+/* Not started is a status, not an alarm: amber, not red. */
+.tot-summary__metrics .tot-summary__metric-card--notstarted {
+    background: var(--pm-warning-soft-bg);
+    border-color: var(--pm-warning-soft-border);
 }
 
 /* Grid of cards */
@@ -850,4 +851,70 @@ body .modal-backdrop {
 /* The register is one column: rows open the shared ToT drawer instead of a side panel. */
 .tot-workspace-grid--single {
     grid-template-columns: minmax(0, 1fr);
+}
+
+/* The ToT page's overview: counts that filter the register, a completed / not-started bar, the
+   chart, then the register. */
+.tot-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1rem 0 1.5rem;
+}
+
+.tot-overview__lede {
+    color: var(--pm-text-muted);
+    max-width: 52rem;
+}
+
+a.tot-overview__card {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+a.tot-overview__card:hover,
+a.tot-overview__card:focus-visible {
+    border-color: var(--pm-accent-blue, var(--pm-border));
+}
+
+.tot-overview__card-note,
+.tot-overview__note {
+    display: block;
+    font-size: 0.8125rem;
+    color: var(--pm-text-muted);
+}
+
+.tot-overview__note {
+    margin: 0;
+}
+
+.tot-overview__bar {
+    display: flex;
+    height: 0.6rem;
+    border-radius: 0.4rem;
+    overflow: hidden;
+    background: var(--pm-border-subtle);
+}
+
+.tot-overview__bar-part--completed {
+    background: var(--pm-success);
+}
+
+.tot-overview__bar-part--inprogress {
+    background: var(--pm-info);
+}
+
+.tot-overview__bar-part--notstarted {
+    background: var(--pm-warning);
+}
+
+.tot-overview__bar-part--notknown {
+    background: var(--pm-text-muted);
+}
+
+.tot-register__heading {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
 }

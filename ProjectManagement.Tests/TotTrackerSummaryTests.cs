@@ -61,93 +61,35 @@ public sealed class TotTrackerSummaryTests
     }
 
     [Fact]
-    public void TotSummaryViewModel_PreservesCompletionMetadata()
+    public void Narrative_CountsOnlyApplicableProjects_AndNamesNotRequiredApart()
     {
-        var rows = new List<ProjectTotTrackerRow>
-        {
-            CreateRow(
-                projectId: 1,
-                totStatus: ProjectTotStatus.Completed,
-                requestState: ProjectTotRequestDecisionState.Approved,
-                projectCompletedOn: new DateOnly(2024, 1, 15)),
-            CreateRow(
-                projectId: 2,
-                totStatus: ProjectTotStatus.InProgress,
-                requestState: ProjectTotRequestDecisionState.Pending,
-                projectCompletedYear: 2022,
-                totMetCompletedOn: new DateOnly(2024, 2, 1)),
-            CreateRow(
-                projectId: 3,
-                totStatus: ProjectTotStatus.InProgress,
-                requestState: null,
-                projectCompletedOn: new DateOnly(2024, 3, 1)),
-            CreateRow(
-                projectId: 4,
-                totStatus: ProjectTotStatus.NotStarted,
-                requestState: null,
-                projectCompletedOn: new DateOnly(2023, 12, 1)),
-            CreateRow(
-                projectId: 5,
-                totStatus: ProjectTotStatus.NotRequired,
-                requestState: null,
-                projectCompletedYear: 2019)
-        };
+        var position = new ProjectTotPosition(
+            NeedTot: 118, Completed: 65, InProgress: 0, NotStarted: 53, NotRequired: 21,
+            WaitingForDecision: 0, LongWaiting: 23);
 
-        var summary = SummaryModel.TotSummaryViewModel.FromProjects(rows);
-
-        // "Not required" is listed but is not ToT-applicable, so it is not in the total.
-        Assert.Equal(4, summary.TotalProjects);
-        Assert.Equal(1, summary.CompletedCount);
-        Assert.Equal(1, summary.NotStartedCount);
-        Assert.Equal(2, summary.InProgressCount);
-        Assert.Equal(1, summary.InProgressMetCompleteCount);
-        Assert.Equal(1, summary.InProgressMetIncompleteCount);
-        Assert.Equal(1, summary.NotRequiredCount);
-
-        var completed = Assert.Single(summary.Completed);
-        Assert.Equal(1, completed.ProjectId);
-        Assert.Equal(new DateOnly(2024, 1, 15), completed.ProjectCompletedOn);
-        Assert.Null(completed.ProjectCompletedYear);
-
-        var notStarted = Assert.Single(summary.NotStarted);
-        Assert.Equal(4, notStarted.ProjectId);
-        Assert.Equal(new DateOnly(2023, 12, 1), notStarted.ProjectCompletedOn);
-
-        var metComplete = Assert.Single(summary.InProgressMetComplete);
-        Assert.Equal(2, metComplete.ProjectId);
-        Assert.Null(metComplete.ProjectCompletedOn);
-        Assert.Equal(2022, metComplete.ProjectCompletedYear);
-
-        var metIncomplete = Assert.Single(summary.InProgressMetIncomplete);
-        Assert.Equal(3, metIncomplete.ProjectId);
-        Assert.Equal(new DateOnly(2024, 3, 1), metIncomplete.ProjectCompletedOn);
-
-        var notRequired = Assert.Single(summary.NotRequired);
-        Assert.Equal(5, notRequired.ProjectId);
-        Assert.Equal(2019, notRequired.ProjectCompletedYear);
-
-        Assert.Equal("2024", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(completed));
-        Assert.Equal("2022", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(metComplete));
+        Assert.Equal(
+            "65 of 118 completed projects have completed Transfer of Technology (55%). 53 have not started. A further 21 projects do not require it.",
+            ProjectTotOverview.Narrative(position));
     }
 
     [Fact]
-    public void TotSummaryViewModel_NarrativeCountsOnlyApplicableProjects()
+    public void Narrative_ListsEveryOpenState()
     {
-        var rows = new List<ProjectTotTrackerRow>
-        {
-            CreateRow(1, ProjectTotStatus.Completed, null),
-            CreateRow(2, ProjectTotStatus.Completed, null),
-            CreateRow(3, ProjectTotStatus.NotStarted, null),
-            CreateRow(4, ProjectTotStatus.NotRequired, null),
-            CreateRow(5, ProjectTotStatus.NotRequired, null)
-        };
+        var position = new ProjectTotPosition(
+            NeedTot: 10, Completed: 1, InProgress: 2, NotStarted: 3, NotRequired: 0,
+            WaitingForDecision: 0, LongWaiting: 0, NotKnown: 4);
 
-        var summary = SummaryModel.TotSummaryViewModel.FromProjects(rows);
-
-        Assert.Equal(3, summary.TotalProjects);
         Assert.Equal(
-            "Across 3 ToT-applicable completed projects, 2 projects have completed Transfer of Technology and 1 project has not yet started Transfer of Technology work. A further 2 projects do not require Transfer of Technology.",
-            summary.Narrative);
+            "1 of 10 completed projects has completed Transfer of Technology (10%). 2 are in progress, 3 have not started and for 4 it is not known.",
+            ProjectTotOverview.Narrative(position));
+    }
+
+    [Fact]
+    public void Narrative_WhenNothingNeedsToT()
+    {
+        Assert.Equal(
+            "No completed project needs Transfer of Technology yet. A further 1 project does not require it.",
+            ProjectTotOverview.Narrative(new ProjectTotPosition(0, 0, 0, 0, 1, 0, 0)));
     }
 
     [Fact]
@@ -163,10 +105,19 @@ public sealed class TotTrackerSummaryTests
             CreateRow(5, ProjectTotStatus.Completed, null)
         };
 
-        var points = SummaryModel.BuildYearlyCompletions(rows);
+        var points = ProjectTotOverview.BuildYearlyCompletions(rows);
 
         Assert.Equal(new[] { (2009, 1), (2010, 0), (2011, 0), (2012, 2) }, points);
-        Assert.Empty(SummaryModel.BuildYearlyCompletions(Array.Empty<ProjectTotTrackerRow>()));
+        Assert.Empty(ProjectTotOverview.BuildYearlyCompletions(Array.Empty<ProjectTotTrackerRow>()));
+    }
+
+    [Fact]
+    public void OldSummaryAddress_OpensTheOneToTPage()
+    {
+        var result = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToPageResult>(new SummaryModel().OnGet());
+
+        Assert.Equal("/Tot/Index", result.PageName);
+        Assert.Equal("ProjectOfficeReports", result.RouteValues?["area"]);
     }
 
     private static ProjectTotTrackerRow CreateRow(
