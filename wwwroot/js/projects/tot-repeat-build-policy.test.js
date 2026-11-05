@@ -26,11 +26,14 @@ test('tracker and new project creation honor ToT applicability', () => {
   assert.match(create, /project\.Tot = new ProjectTot/);
 });
 
-test('ToT writes and the overview drawer reject repeat builds', () => {
+test('ToT writes and the shared drawer reject repeat builds', () => {
   const service = read('Services/Projects/ProjectTotService.cs');
+  // The drawer's work is shared by every page that hosts it (redesign PR 6a).
+  const drawerService = read('Areas/ProjectOfficeReports/Application/ProjectTotDrawerService.cs');
   const overview = read('Pages/Projects/Overview.Tot.cs');
   assert.match(service, /ProjectTotApplicabilityPolicy\.GetIneligibilityReason/);
-  assert.match(overview, /ProjectTotApplicabilityPolicy\.GetIneligibilityReason/);
+  assert.match(drawerService, /ProjectTotApplicabilityPolicy\.GetIneligibilityReason/);
+  assert.match(overview, /ProjectTotDrawerService/);
 });
 
 test('the old standalone ToT editor only redirects to the overview drawer', () => {
@@ -109,10 +112,11 @@ test('Repeat Build project surfaces never claim historical ToT retention or offe
   const summaryVm = read('ViewModels/ProjectTotSummaryViewModel.cs');
   const drawer = read('Pages/Projects/_ProjectTotDrawer.cshtml');
   const overviewTot = read('Pages/Projects/Overview.Tot.cs');
-  for (const source of [commandCard, summaryVm, drawer, overviewTot]) {
+  const drawerService = read('Areas/ProjectOfficeReports/Application/ProjectTotDrawerService.cs');
+  for (const source of [commandCard, summaryVm, drawer, overviewTot, drawerService]) {
     assert.doesNotMatch(source, /legacy ToT|historical ToT|legacy data retained|BuildLegacyRepeatBuildSummaryPayload/i);
   }
-  assert.match(drawer, /@if \(tot\.IsApplicable\)[\s\S]{0,500}Open register/);
+  assert.match(drawer, /@if \(Model\.IsApplicable && Model\.RegisterUrl[\s\S]{0,300}Open register/);
 });
 
 test('approval queue does not surface ToT requests belonging to Repeat Build projects', () => {
