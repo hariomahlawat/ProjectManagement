@@ -104,7 +104,8 @@
             InProgress: 'Start date is required. Completion date is not applicable until ToT is completed.',
             Completed: 'Completion date is required. Start date is optional.',
             NotStarted: 'Start and completion dates are not applicable.',
-            NotRequired: 'ToT dates and milestones are not applicable.'
+            NotRequired: 'ToT dates and milestones are not applicable.',
+            NotKnown: 'Use when nobody knows whether ToT took place. Dates and milestones are not applicable.'
         }[status] || '';
         if (startHelp) startHelp.textContent = status === 'Completed'
             ? 'Optional. Enter the best information available.'

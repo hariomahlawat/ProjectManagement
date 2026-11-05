@@ -519,7 +519,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         var summary = string.Format(
             CultureInfo.InvariantCulture,
             "Transfer of Technology status update to {0}.",
-            row.ProposedStatus);
+            ProjectTotPresentation.StatusLabel(row.ProposedStatus));
 
         var item = new ApprovalQueueItemVm(
             ApprovalQueueType.TotRequest,
@@ -1353,7 +1353,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             request.SubmittedByUserId,
             ResolveUserDisplayName(requester.FullName, requester.UserName, requester.Email),
             request.SubmittedOnUtc,
-            $"Transfer of Technology status update to {request.ProposedStatus}.",
+            $"Transfer of Technology status update to {ProjectTotPresentation.StatusLabel(request.ProposedStatus)}.",
             ApprovalQueueModule.ProjectOfficeReports,
             request.DecisionState.ToString(),
             null,

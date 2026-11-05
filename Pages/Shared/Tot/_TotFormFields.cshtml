@@ -19,9 +19,9 @@
     else
     {
         <select asp-for="Status" class="form-select" data-tot-shared-status>
-            @foreach (ProjectTotStatus status in Enum.GetValues<ProjectTotStatus>())
+            @foreach (var option in ProjectManagement.Services.Projects.ProjectTotPresentation.StatusOptions)
             {
-                <option value="@status">@status</option>
+                <option value="@option.Status">@option.Label</option>
             }
         </select>
     }

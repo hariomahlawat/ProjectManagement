@@ -24,8 +24,9 @@
     <p class="text-muted mb-3">Your update goes to the HoD for approval. The current position stays as it is until it is approved.</p>
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     @{
-        var statusOptions = Enum.GetValues<ProjectTotStatus>()
-            .Select(status => new SelectListItem(StatusLabel(status), status.ToString(), Model.SubmitInput.Status == status))
+        // Only the statuses that may be recorded (Not known is not offered yet).
+        var statusOptions = ProjectManagement.Services.Projects.ProjectTotPresentation.StatusOptions
+            .Select(option => new SelectListItem(option.Label, option.Status.ToString(), Model.SubmitInput.Status == option.Status))
             .ToList();
         var totFormViewData = new ViewDataDictionary(ViewData)
         {

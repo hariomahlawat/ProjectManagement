@@ -51,7 +51,8 @@ public sealed record ProjectTotPosition(
     int NotStarted,
     int NotRequired,
     int WaitingForDecision,
-    int LongWaiting)
+    int LongWaiting,
+    int NotKnown = 0)
 {
     public static ProjectTotPosition Empty { get; } = new(0, 0, 0, 0, 0, 0, 0);
 
@@ -125,7 +126,8 @@ public static class ProjectTotRegisterFactsBuilder
             NotStarted: projects.Count(p => p.Status == ProjectTotStatus.NotStarted),
             NotRequired: notRequired,
             WaitingForDecision: projects.Count(p => p.Pending is not null),
-            LongWaiting: projects.Count(p => p.IsLongWaiting));
+            LongWaiting: projects.Count(p => p.IsLongWaiting),
+            NotKnown: projects.Count(p => p.Status == ProjectTotStatus.NotKnown));
     }
 
     private static ProjectTotPendingChange? BuildPending(ProjectTotTrackerRow row, ProjectTotStatus status)

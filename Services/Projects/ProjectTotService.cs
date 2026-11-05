@@ -347,6 +347,12 @@ public sealed class ProjectTotService
         DateOnly todayLocal,
         out ProjectTotUpdateRequest normalizedRequest)
     {
+        if (!ProjectTotPresentation.IsRecordable(request.Status))
+        {
+            normalizedRequest = request;
+            return ProjectTotUpdateResult.ValidationFailed("That Transfer of Technology status cannot be recorded.");
+        }
+
         var trimmedMetDetails = string.IsNullOrWhiteSpace(request.MetDetails)
             ? null
             : request.MetDetails.Trim();
@@ -429,6 +435,7 @@ public sealed class ProjectTotService
                 break;
             }
             case ProjectTotStatus.NotStarted:
+            case ProjectTotStatus.NotKnown:
             {
                 normalizedRequest = normalizedRequest with
                 {
@@ -581,6 +588,7 @@ public sealed class ProjectTotService
         {
             case ProjectTotStatus.NotRequired:
             case ProjectTotStatus.NotStarted:
+            case ProjectTotStatus.NotKnown:
                 tot.StartedOn = null;
                 tot.StartDatePrecision = PartialDatePrecision.None;
                 tot.CompletedOn = null;

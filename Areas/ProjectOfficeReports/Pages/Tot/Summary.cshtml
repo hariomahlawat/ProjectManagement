@@ -219,6 +219,35 @@
             </div>
         </section>
 
+        @if (summary.NotKnownCount > 0)
+        {
+            <section class="tot-summary__card tot-summary__card--not-required">
+                <header class="tot-summary__card-header">
+                    <h2 class="tot-summary__card-title">Not known</h2>
+                    <span class="tot-summary__card-count">@summary.NotKnownCount</span>
+                </header>
+                <div class="tot-summary__card-body">
+                    <ul class="tot-summary__list">
+                        @foreach (var project in summary.NotKnownProjects)
+                        {
+                            var completion = SummaryModel.TotSummaryViewModel.FormatCompletionLabel(project);
+                            <li class="tot-summary__list-item">
+                                <a asp-page="/Projects/Overview"
+                                   asp-route-id="@project.ProjectId"
+                                   class="tot-summary__list-link">
+                                    <span class="tot-summary__list-title">@project.ProjectName</span>
+                                    @if (!string.IsNullOrEmpty(completion))
+                                    {
+                                        <span class="tot-summary__list-meta">@completion</span>
+                                    }
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </section>
+        }
+
         <section class="tot-summary__card tot-summary__card--not-required">
             <header class="tot-summary__card-header">
                 <h2 class="tot-summary__card-title">Not required</h2>

@@ -219,6 +219,7 @@ public static class CompletedProjectPortfolioPolicy
             ProjectTotStatus.InProgress => "In progress",
             ProjectTotStatus.NotStarted => "Not started",
             ProjectTotStatus.NotRequired => "Not required",
+            ProjectTotStatus.NotKnown => "Not known",
             _ => "Not assessed"
         };
     }

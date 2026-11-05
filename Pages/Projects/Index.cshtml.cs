@@ -1318,14 +1318,7 @@ namespace ProjectManagement.Pages.Projects
 
         private static string GetTotStatusLabel(ProjectTotStatus status)
         {
-            return status switch
-            {
-                ProjectTotStatus.NotRequired => "Not required",
-                ProjectTotStatus.NotStarted => "Not started",
-                ProjectTotStatus.InProgress => "In progress",
-                ProjectTotStatus.Completed => "Completed",
-                _ => status.ToString()
-            };
+            return ProjectManagement.Services.Projects.ProjectTotPresentation.StatusLabel(status);
         }
 
         public string? FormatTotStatusShort(Project project)
@@ -1346,6 +1339,7 @@ namespace ProjectManagement.Pages.Projects
                 ProjectTotStatus.NotStarted => "ToT not started",
                 ProjectTotStatus.InProgress => "ToT in progress",
                 ProjectTotStatus.Completed => "ToT completed",
+                ProjectTotStatus.NotKnown => "ToT not known",
                 _ => null
             };
         }
