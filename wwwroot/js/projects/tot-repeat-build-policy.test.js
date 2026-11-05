@@ -26,13 +26,17 @@ test('tracker and new project creation honor ToT applicability', () => {
   assert.match(create, /project\.Tot = new ProjectTot/);
 });
 
-test('ToT writes, overview and standalone editor reject repeat builds', () => {
+test('ToT writes and the overview drawer reject repeat builds', () => {
   const service = read('Services/Projects/ProjectTotService.cs');
   const overview = read('Pages/Projects/Overview.Tot.cs');
-  const edit = read('Pages/Projects/Tot/Edit.cshtml.cs');
   assert.match(service, /ProjectTotApplicabilityPolicy\.GetIneligibilityReason/);
   assert.match(overview, /ProjectTotApplicabilityPolicy\.GetIneligibilityReason/);
-  assert.match(edit, /ProjectTotApplicabilityPolicy\.GetIneligibilityReason/);
+});
+
+test('the old standalone ToT editor only redirects to the overview drawer', () => {
+  const edit = read('Pages/Projects/Tot/Edit.cshtml.cs');
+  assert.match(edit, /RedirectToPage\("\/Projects\/Overview", new \{ id, tot = "edit" \}\)/);
+  assert.doesNotMatch(edit, /ProjectTotService|ApplicationDbContext/);
 });
 
 test('ToT summary and tracker contain no Repeat Build legacy-review subsystem', () => {
