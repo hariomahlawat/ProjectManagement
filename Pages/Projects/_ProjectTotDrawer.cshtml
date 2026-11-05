@@ -111,7 +111,7 @@
             }
         </section>
 
-        @if (Model.CanManageTot && !pending)
+        @if (Model.CanManageTot)
         {
             <section class="project-tot-editor d-none" data-tot-edit-view>
                 <form method="post"
@@ -203,12 +203,13 @@
                    asp-page="/Tot/Index"
                    asp-route-selectedProjectId="@Model.Project.Id">Open register</a>
             }
-            @if (Model.CanManageTot && !pending)
+            @if (Model.CanManageTot)
             {
-                <button type="button" class="btn btn-primary" data-tot-edit-button>Update details</button>
+                @* Hidden while a request is pending; the drawer script shows it again once the request is decided. *@
+                <button type="button" class="btn btn-primary @(pending ? "d-none" : string.Empty)" data-tot-edit-button>Update details</button>
             }
         </div>
-        @if (Model.CanManageTot && !pending)
+        @if (Model.CanManageTot)
         {
             <div class="project-tot-footer-group d-none" data-tot-edit-footer>
                 <button type="button" class="btn btn-outline-secondary" data-tot-cancel-button>Cancel</button>

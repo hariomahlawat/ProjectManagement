@@ -30,6 +30,7 @@ const markup = `
           </section>
           <section class="d-none" data-tot-history-wrap><ol data-tot-history></ol></section>
         </section>
+        <div data-tot-summary-footer><button type="button" class="d-none" data-tot-edit-button>Update details</button></div>
       </div>
     </div>
   </div>`;
@@ -153,6 +154,13 @@ test('approving posts the version token and reloads the drawer', async () => {
   assert.equal(hidden(window, '[data-tot-pending]'), true, 'no longer pending after the reload');
   assert.equal($(window, '[data-tot-success]').textContent, 'Transfer of Technology update approved.');
   assert.equal($(window, '[data-tot-card-title]').textContent, 'ToT completed');
+  assert.equal(hidden(window, '[data-tot-edit-button]'), false, 'Update details is available again once decided');
+});
+
+test('the drawer always renders the editor for managers, hidden while a request is pending', () => {
+  const drawer = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'Pages', 'Projects', '_ProjectTotDrawer.cshtml'), 'utf8');
+  assert.doesNotMatch(drawer, /CanManageTot && !pending/, 'the editor must exist so a decision in place can unblock it');
+  assert.match(drawer, /btn btn-primary @\(pending \? "d-none" : string\.Empty\)" data-tot-edit-button/);
 });
 
 test('a refused decision keeps the request and shows why', async () => {
