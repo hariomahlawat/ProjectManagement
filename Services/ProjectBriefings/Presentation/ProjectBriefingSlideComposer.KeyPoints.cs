@@ -60,6 +60,35 @@ public sealed partial class ProjectBriefingSlideComposer
         };
     }
 
+    /// <summary>
+    /// Whether the project's slides draw the lifecycle subtitle ("Ongoing · category"): capability
+    /// slides and continuations do; in the key points layout a first capability slide does only when
+    /// it has no stage and cost line.
+    /// </summary>
+    public static bool DrawsLifecycleSubtitle(
+        ProjectBriefingPresentationData data,
+        ProjectBriefingPresentationProject project)
+    {
+        var briefContinues = DrawsProjectBriefSlides(data.NarrativeMode)
+            && ProjectBriefSlideCount(data, project) > 1;
+        if (!DrawsCapabilitySlides(data.NarrativeMode))
+        {
+            return briefContinues;
+        }
+
+        if (!UsesKeyPointLayout(data))
+        {
+            return true;
+        }
+
+        var hasMetaLine = data.CostMode != ProjectBriefingCostMode.None
+            || (data.StandardSlideOptions.ShowPresentStage
+                && !string.IsNullOrWhiteSpace(NormalizePresentationText(project.PresentStage)));
+        return !hasMetaLine
+            || PaginateKeyPointCapability(data, project).Pages.Count > 1
+            || briefContinues;
+    }
+
     private sealed record KeyPointBandRow(string Label, string Text, bool IsStatus, double Height);
 
     private sealed record KeyPointSlideLayout(

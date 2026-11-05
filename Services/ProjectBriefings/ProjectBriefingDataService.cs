@@ -299,6 +299,19 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var costs = await _costResolver.ResolveCostsAsync(liveIds, cancellationToken);
         var proliferation = await _costResolver.ResolveProliferationCostAsync(liveIds, cancellationToken);
         var externalStatuses = await _externalStatusService.GetLatestAsync(liveIds, cancellationToken);
+        var keyPointRows = await _db.ProjectKeyPoints
+            .AsNoTracking()
+            .Where(point => liveIds.Contains(point.ProjectId))
+            .Select(point => new { point.ProjectId, point.Kind, point.Text })
+            .ToListAsync(cancellationToken);
+        var keyPointsByProject = keyPointRows
+            .GroupBy(point => point.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<ProjectBriefingKeyPoint>)group
+                    .OrderBy(point => point.Kind)
+                    .Select(point => new ProjectBriefingKeyPoint(ProjectKeyPointCatalog.Heading(point.Kind), point.Text))
+                    .ToList());
         var milestoneIds = milestoneProjectIds?.Where(liveIds.Contains).Distinct().ToArray() ?? Array.Empty<int>();
         var updateSheetFacts = milestoneIds.Length == 0
             ? new Dictionary<int, ProjectBriefingUpdateSheetFacts>()
@@ -323,7 +336,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     costs.Ipa.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
                     proliferation.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
                     updateSheetFacts.GetValueOrDefault(project.Id)?.DevelopmentPdcDate,
-                    BuildCompletionStatusDisplay(project.LifecycleStatus, project.CompletedOn, project.CompletedYear, project.CompletedMonth));
+                    BuildCompletionStatusDisplay(project.LifecycleStatus, project.CompletedOn, project.CompletedYear, project.CompletedMonth),
+                    keyPointsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<ProjectBriefingKeyPoint>());
             });
     }
 

@@ -447,6 +447,121 @@ public sealed class ProjectBriefingDataMovementTests
         Assert.Equal(ProjectBriefingSlideFacts.Read(facts)!.Facts, listed.GeneratedFacts!.Facts);
     }
 
+    // Key points (docs/ux/briefing-decks.md, Plan: Project key points, PR 3).
+    private static readonly ProjectBriefingKeyPoint[] PointsBefore =
+    {
+        new("Training gap", "No live firing in peacetime."),
+        new("Op necessity", "Crews must qualify before induction.")
+    };
+
+    [Fact]
+    public void Compare_CountsEditedKeyPointsOnDecksThatShowedThem()
+    {
+        var before = Current(1, "DEVP", "x", 1m) with { KeyPoints = PointsBefore };
+        var edited = before with
+        {
+            KeyPoints = new[] { PointsBefore[0], new ProjectBriefingKeyPoint("Op necessity", "Every detachment must qualify.") }
+        };
+        var shown = All | ProjectBriefingShownFacts.KeyPoints;
+
+        var movement = ProjectBriefingSlideFacts.Compare(
+            Generated(before.ToSlideFact(shown)),
+            new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = edited });
+
+        Assert.Equal(1, movement.KeyPointChanges);
+        Assert.Equal(1, movement.Total);
+        Assert.True(Assert.Single(movement.Projects).KeyPoints);
+        Assert.Contains("key points edited on 1 project", movement.Describe());
+    }
+
+    [Fact]
+    public void Compare_IgnoresKeyPointsTheDeckDidNotShowAndFactsKeptBeforeThem()
+    {
+        var before = Current(1, "DEVP", "x", 1m) with { KeyPoints = PointsBefore };
+        var edited = before with { KeyPoints = Array.Empty<ProjectBriefingKeyPoint>() };
+        var current = new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = edited };
+
+        // A deck without key points.
+        Assert.False(ProjectBriefingSlideFacts.Compare(Generated(before.ToSlideFact(All)), current).HasMoved);
+
+        // Facts written before key points existed have no "k" and read back as not shown.
+        var older = ProjectBriefingSlideFacts.Read(
+            ProjectBriefingSlideFacts.Write(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, new[] { before.ToSlideFact(All) }));
+        Assert.Null(Assert.Single(older!.Facts).KeyPoints);
+        Assert.False(ProjectBriefingSlideFacts.Compare(older, current).HasMoved);
+    }
+
+    [Fact]
+    public void Compare_AddingTheFirstKeyPointCounts()
+    {
+        var before = Current(1, "DEVP", "x", 1m);
+        var now = before with { KeyPoints = PointsBefore };
+        var shown = All | ProjectBriefingShownFacts.KeyPoints;
+
+        var generatedFact = before.ToSlideFact(shown);
+        Assert.Equal(string.Empty, generatedFact.KeyPoints);
+        Assert.Equal(1, ProjectBriefingSlideFacts.Compare(
+            Generated(generatedFact),
+            new Dictionary<int, ProjectBriefingCurrentProjectFacts> { [1] = now }).KeyPointChanges);
+    }
+
+    [Fact]
+    public void Shown_TracksKeyPointsOnlyForProjectsWithSlidesInDecksThatShowThem()
+    {
+        var project = new ProjectBriefingPresentationProject { ProjectId = 1, ProjectName = "One", KeyPoints = PointsBefore };
+        var tableRow = new ProjectBriefingPresentationProject { ProjectId = 2, ProjectName = "Two", TableRowOnly = true };
+        var withKeyPoints = DetailedData(
+            ProjectBriefingNarrativeMode.ProjectBrief,
+            ProjectBriefingStandardSlideOptions.Default with { KeyPoints = ProjectBriefingKeyPointPlacement.ProjectBriefSlide },
+            project,
+            tableRow);
+        var without = DetailedData(
+            ProjectBriefingNarrativeMode.ProjectBrief,
+            ProjectBriefingStandardSlideOptions.Default,
+            project,
+            tableRow);
+
+        Assert.True(ProjectBriefingSlideFacts.Shown(project, withKeyPoints).HasFlag(ProjectBriefingShownFacts.KeyPoints));
+        Assert.False(ProjectBriefingSlideFacts.Shown(tableRow, withKeyPoints).HasFlag(ProjectBriefingShownFacts.KeyPoints));
+        Assert.False(ProjectBriefingSlideFacts.Shown(project, without).HasFlag(ProjectBriefingShownFacts.KeyPoints));
+    }
+
+    [Fact]
+    public void Shown_KeyPointCapabilitySlideWithAStageAndCostLine_DoesNotDrawTheLifecycleSubtitle()
+    {
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 1,
+            ProjectName = "One",
+            PresentStage = "Development",
+            BriefDescription = "- One short capability"
+        };
+        var options = ProjectBriefingStandardSlideOptions.Default with { KeyPoints = ProjectBriefingKeyPointPlacement.CapabilitySlide };
+        var data = DetailedData(ProjectBriefingNarrativeMode.CapabilityOverview, options, project);
+        var withoutLine = DetailedData(
+            ProjectBriefingNarrativeMode.CapabilityOverview,
+            options with { ShowPresentStage = false },
+            project);
+
+        Assert.False(ProjectBriefingSlideFacts.Shown(project, data).HasFlag(ProjectBriefingShownFacts.Lifecycle));
+        Assert.True(ProjectBriefingSlideFacts.Shown(project, withoutLine).HasFlag(ProjectBriefingShownFacts.Lifecycle));
+    }
+
+    private static ProjectBriefingPresentationData DetailedData(
+        ProjectBriefingNarrativeMode narrative,
+        ProjectBriefingStandardSlideOptions options,
+        params ProjectBriefingPresentationProject[] projects)
+        => new()
+        {
+            Layout = ProjectBriefingLayout.StandardBriefing,
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.None,
+            NarrativeMode = narrative,
+            IncludePortfolioSummarySlide = false,
+            StandardSlideOptions = options,
+            Projects = projects
+        };
+
     private static ProjectBriefingGeneratedFacts Generated(params ProjectBriefingSlideFact[] facts)
         => new(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, facts);
 

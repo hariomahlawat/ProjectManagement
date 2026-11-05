@@ -30,7 +30,9 @@ public enum ProjectBriefingShownFacts
     Milestone = 128,
     // The R&D cost's basis label ("PNC", "L1"): standard cost cards and the executive table draw
     // it; update-sheet rows and the portfolio totals show the amount only.
-    CostRdBasis = 256
+    CostRdBasis = 256,
+    // The project's key points, on the slide a deck that shows key points chose.
+    KeyPoints = 512
 }
 
 // What a generated deck said about one project, each fact reduced to a short comparable value,
@@ -42,7 +44,10 @@ public sealed record ProjectBriefingSlideFact(
     [property: JsonPropertyName("v")] ProjectBriefingShownFacts Shown,
     [property: JsonPropertyName("s")] string? Stage,
     [property: JsonPropertyName("r")] string? Status,
-    [property: JsonPropertyName("c")] string? Costs);
+    [property: JsonPropertyName("c")] string? Costs,
+    // A digest of the key points drawn (empty when none were recorded); null when not shown, and in
+    // facts kept before key points existed.
+    [property: JsonPropertyName("k")] string? KeyPoints = null);
 
 // The facts a slide would show for a project today.
 public sealed record ProjectBriefingCurrentProjectFacts(
@@ -57,7 +62,9 @@ public sealed record ProjectBriefingCurrentProjectFacts(
     ProjectBriefingCostValue ProliferationCost,
     // For an update sheet's milestone row (resolved only where a generation showed that row).
     DateOnly? DevelopmentPdcDate = null,
-    string? CompletionStatusDisplay = null)
+    string? CompletionStatusDisplay = null,
+    // The project's recorded key points, in catalogue order.
+    IReadOnlyList<ProjectBriefingKeyPoint>? KeyPoints = null)
 {
     // Today's facts, reduced the way a generation that showed `shown` reduced them.
     public ProjectBriefingSlideFact ToSlideFact(ProjectBriefingShownFacts shown)
@@ -73,7 +80,8 @@ public sealed record ProjectBriefingCurrentProjectFacts(
             IpaCost,
             ProliferationCost,
             DevelopmentPdcDate,
-            CompletionStatusDisplay);
+            CompletionStatusDisplay,
+            KeyPoints);
 }
 
 // The facts a generation kept, with the layout and cost mode it was drawn with.
@@ -82,14 +90,19 @@ public sealed record ProjectBriefingGeneratedFacts(
     [property: JsonPropertyName("m")] ProjectBriefingCostMode CostMode,
     [property: JsonPropertyName("f")] IReadOnlyList<ProjectBriefingSlideFact> Facts);
 
-public sealed record ProjectBriefingMovedProject(int ProjectId, string ProjectName, bool Stage, bool Status, bool Cost);
+public sealed record ProjectBriefingMovedProject(int ProjectId, string ProjectName, bool Stage, bool Status, bool Cost, bool KeyPoints = false);
 
 // How the data behind a deck's projects moved since its last generation.
-public sealed record ProjectBriefingDataMovement(int StageChanges, int StatusChanges, int CostChanges, IReadOnlyList<ProjectBriefingMovedProject> Projects)
+public sealed record ProjectBriefingDataMovement(
+    int StageChanges,
+    int StatusChanges,
+    int CostChanges,
+    IReadOnlyList<ProjectBriefingMovedProject> Projects,
+    int KeyPointChanges = 0)
 {
     public static ProjectBriefingDataMovement None { get; } = new(0, 0, 0, Array.Empty<ProjectBriefingMovedProject>());
 
-    public int Total => StageChanges + StatusChanges + CostChanges;
+    public int Total => StageChanges + StatusChanges + CostChanges + KeyPointChanges;
 
     public bool HasMoved => Total > 0;
 
@@ -112,6 +125,11 @@ public sealed record ProjectBriefingDataMovement(int StageChanges, int StatusCha
             parts.Add(CostChanges == 1 ? "1 cost revised" : $"{CostChanges} costs revised");
         }
 
+        if (KeyPointChanges > 0)
+        {
+            parts.Add(KeyPointChanges == 1 ? "key points edited on 1 project" : $"key points edited on {KeyPointChanges} projects");
+        }
+
         return parts;
     }
 }
@@ -131,6 +149,7 @@ public static class ProjectBriefingSlideFacts
     // - an update sheet draws its selected rows: cost, status, and the milestone row (a PDC date in
     //   development, else the completion or cancellation; never the stage name);
     // - a standard detail slide's subtitle draws the lifecycle ("Ongoing", "Cancelled", ...);
+    // - a deck that shows key points draws them on the slide it chose (ProjectBriefingSlideComposer.KeyPointSlide);
     // - the stage summary draws every project's stage; the portfolio summary counts lifecycle
     //   (ongoing, completed, cancelled) and totals the costs (the IPA cost only on update sheets);
     // - with two or more projects on slides of their own, stage maturity orders the slides.
@@ -158,12 +177,11 @@ public static class ProjectBriefingSlideFacts
             shown |= ProjectBriefingShownFacts.StageOrder;
         }
 
-        // A standard project's subtitle ("Ongoing · ...") is drawn on its capability slides and on a
-        // project-brief continuation, not on the first project-brief slide.
+        // A standard project's subtitle ("Ongoing · ...") is drawn on its capability slides and on
+        // continuations (in the key points layout, on a first capability slide only when it has no
+        // stage and cost line), not on the first project-brief slide.
         var drawsSubtitle = hasOwnSlides && !updateSheet
-            && (ProjectBriefingSlideComposer.DrawsCapabilitySlides(data.NarrativeMode)
-                || (ProjectBriefingSlideComposer.DrawsProjectBriefSlides(data.NarrativeMode)
-                    && ProjectBriefingSlideComposer.ProjectBriefSlideCount(data, project) > 1));
+            && ProjectBriefingSlideComposer.DrawsLifecycleSubtitle(data, project);
         if (data.IncludePortfolioSummarySlide
             || drawsSubtitle
             || (!updateSheet && data.IncludeStageSummary))
@@ -206,6 +224,11 @@ public static class ProjectBriefingSlideFacts
             shown |= ProjectBriefingShownFacts.ProliferationCost;
         }
 
+        if (hasOwnSlides && !updateSheet && ProjectBriefingSlideComposer.KeyPointSlide(data) is not null)
+        {
+            shown |= ProjectBriefingShownFacts.KeyPoints;
+        }
+
         return shown;
     }
 
@@ -221,7 +244,8 @@ public static class ProjectBriefingSlideFacts
         ProjectBriefingCostValue? ipaCost,
         ProjectBriefingCostValue? proliferationCost,
         DateOnly? developmentPdcDate = null,
-        string? completionStatusDisplay = null)
+        string? completionStatusDisplay = null,
+        IReadOnlyList<ProjectBriefingKeyPoint>? keyPoints = null)
     {
         var status = externalStatus?.Trim() ?? string.Empty;
         if (string.Equals(status, NoExternalStatus, StringComparison.Ordinal))
@@ -274,7 +298,18 @@ public static class ProjectBriefingSlideFacts
                             : Amount(costRd)
                         : string.Empty,
                     shown.HasFlag(ProjectBriefingShownFacts.IpaCost) ? Amount(ipaCost) : string.Empty,
-                    shown.HasFlag(ProjectBriefingShownFacts.ProliferationCost) ? Amount(proliferationCost) : string.Empty));
+                    shown.HasFlag(ProjectBriefingShownFacts.ProliferationCost) ? Amount(proliferationCost) : string.Empty),
+            shown.HasFlag(ProjectBriefingShownFacts.KeyPoints) ? KeyPointDigest(keyPoints) : null);
+    }
+
+    // Every drawn point under its heading; empty when the project has none.
+    private static string KeyPointDigest(IReadOnlyList<ProjectBriefingKeyPoint>? keyPoints)
+    {
+        var points = (keyPoints ?? Array.Empty<ProjectBriefingKeyPoint>())
+            .Where(point => !string.IsNullOrWhiteSpace(point.Text))
+            .Select(point => $"{point.Heading}={point.Text.Trim()}")
+            .ToArray();
+        return points.Length == 0 ? string.Empty : Hash(string.Join("\n", points));
     }
 
     public static ProjectBriefingSlideFact FromPresentation(ProjectBriefingPresentationProject project, ProjectBriefingPresentationData data)
@@ -290,7 +325,8 @@ public static class ProjectBriefingSlideFacts
             project.IpaCost,
             project.ProliferationCost,
             project.DevelopmentPdcDate,
-            project.CompletionStatusDisplay);
+            project.CompletionStatusDisplay,
+            project.KeyPoints);
 
     public static string Write(ProjectBriefingPresentationData data)
         => Write(data.Layout, data.CostMode, data.Projects.Select(project => FromPresentation(project, data)));
@@ -340,9 +376,10 @@ public static class ProjectBriefingSlideFacts
             var stage = !string.Equals(before.Stage, now.Stage, StringComparison.Ordinal);
             var status = !string.Equals(before.Status, now.Status, StringComparison.Ordinal);
             var cost = !string.Equals(before.Costs, now.Costs, StringComparison.Ordinal);
-            if (stage || status || cost)
+            var keyPoints = !string.Equals(before.KeyPoints, now.KeyPoints, StringComparison.Ordinal);
+            if (stage || status || cost || keyPoints)
             {
-                moved.Add(new ProjectBriefingMovedProject(before.ProjectId, facts.ProjectName, stage, status, cost));
+                moved.Add(new ProjectBriefingMovedProject(before.ProjectId, facts.ProjectName, stage, status, cost, keyPoints));
             }
         }
 
@@ -352,7 +389,8 @@ public static class ProjectBriefingSlideFacts
                 moved.Count(project => project.Stage),
                 moved.Count(project => project.Status),
                 moved.Count(project => project.Cost),
-                moved);
+                moved,
+                moved.Count(project => project.KeyPoints));
     }
 
     private static string Amount(ProjectBriefingCostValue? value)

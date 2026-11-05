@@ -22,7 +22,8 @@
     {
         project.Stage ? "stage" : null,
         project.Status ? "status remark" : null,
-        project.Cost ? "cost" : null
+        project.Cost ? "cost" : null,
+        project.KeyPoints ? "key points" : null
     }.Where(part => part is not null));
 }
 
