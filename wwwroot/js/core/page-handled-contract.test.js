@@ -56,6 +56,11 @@ const registry = {
     selector: '[data-at-update-delete-form]',
     hosts: ['Pages/ActionTasks/Details.cshtml', 'Pages/ActionTasks/Index.cshtml'],
   },
+  'Pages/Workspace/BriefingDecks/_DeckLibrary.cshtml': {
+    script: 'wwwroot/js/pages/project-briefing-library.js',
+    selector: 'form[data-pbd-library-delete]',
+    hosts: ['Pages/Workspace/BriefingDecks/Index.cshtml'],
+  },
   'Pages/Approvals/Pending/Index.cshtml': {
     script: 'wwwroot/js/pages/approvals-pending.js',
     selector: '[data-auto-submit]',

@@ -868,8 +868,6 @@ if (root) {
       description.textContent = deck.description || '';
       description.hidden = !deck.description;
     }
-    const savedCardName = root.querySelector('.pbd-saved-card.is-active strong');
-    if (savedCardName) savedCardName.textContent = deck.name || '';
     root.querySelectorAll('[data-pbd-preset]').forEach((button) => {
       const current = button.dataset.pbdPreset === deck.preset;
       button.classList.toggle('is-current', current);
@@ -1135,47 +1133,6 @@ if (root) {
   window.addEventListener('pagehide', () => storage.set(`${storagePrefix}scroll`, String(window.scrollY)));
   restoreScroll();
 
-  // The shared-deck list folds away at every width so the Studio keeps its three panes; it
-  // stays open only when the person opened it in this session.
-  const deckWorkspace = root.querySelector('.pbd-workspace');
-  const savedDecksPanel = root.querySelector('[data-pbd-saved-decks]');
-  const savedDecksToggle = root.querySelector('[data-pbd-decks-toggle]');
-  const savedDecksMedia = window.matchMedia('(min-width: 0px)');
-  const savedDecksStorageKey = `${storagePrefix}savedDecksOpen`;
-
-  const setSavedDecksOpen = (open, persist = true) => {
-    if (!deckWorkspace || !savedDecksPanel || !savedDecksToggle) return;
-    const effectiveOpen = savedDecksMedia.matches ? open : true;
-    deckWorkspace.classList.toggle('is-decks-collapsed', !effectiveOpen);
-    savedDecksToggle.setAttribute('aria-expanded', String(effectiveOpen));
-    const activeDeckName = savedDecksToggle.dataset.pbdActiveDeckName || 'current deck';
-    savedDecksToggle.title = effectiveOpen ? 'Hide shared decks' : `Show shared decks — ${activeDeckName}`;
-    savedDecksToggle.setAttribute('aria-label', effectiveOpen
-      ? `Hide shared decks. Current deck: ${activeDeckName}`
-      : `Show shared decks. Current deck: ${activeDeckName}`);
-    const label = savedDecksToggle.querySelector('span');
-    if (label) label.textContent = effectiveOpen ? 'Hide decks' : 'Shared decks';
-    if (persist && savedDecksMedia.matches) {
-      storage.set(savedDecksStorageKey, effectiveOpen ? 'true' : 'false');
-    }
-  };
-
-  const syncSavedDecksForViewport = () => {
-    if (!savedDecksMedia.matches) {
-      setSavedDecksOpen(true, false);
-      return;
-    }
-    const saved = storage.get(savedDecksStorageKey);
-    setSavedDecksOpen(saved === 'true', false);
-  };
-
-  savedDecksToggle?.addEventListener('click', () => {
-    const currentlyOpen = savedDecksToggle.getAttribute('aria-expanded') === 'true';
-    setSavedDecksOpen(!currentlyOpen);
-  });
-  savedDecksMedia.addEventListener?.('change', syncSavedDecksForViewport);
-  syncSavedDecksForViewport();
-
   // Selection method tabs.
   const tabs = [...root.querySelectorAll('[data-pbd-selector-tab]')];
   const panels = [...root.querySelectorAll('[data-pbd-selector-panel]')];
@@ -1228,7 +1185,6 @@ if (root) {
   });
 
   const generateButton = root.querySelector('[data-pbd-generate]');
-  const activeSavedCard = root.querySelector('.pbd-saved-card.is-active small');
   const membershipStatus = root.querySelector('[data-pbd-membership-status]');
 
   const selectedLayout = currentSettingsLayout;
@@ -1305,9 +1261,6 @@ if (root) {
     updateRowVersion(deck.rowVersion);
     updateLeftOutNotice(projects);
     if (generateButton) generateButton.disabled = presented === 0;
-    if (activeSavedCard) {
-      activeSavedCard.textContent = `${projects.length} ${projects.length === 1 ? 'project' : 'projects'} · updated just now`;
-    }
     announceDeckChange({ hasProjects: presented > 0, deck });
   };
 

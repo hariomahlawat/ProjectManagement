@@ -81,13 +81,6 @@ test('membership changes refresh the studio from the returned deck', () => {
   assert.match(source, /announceDeckChange\(\{ hasProjects: presented > 0, deck \}\);/);
 });
 
-test('briefing deck shell folds the shared-deck list at every width to make room for the Studio', () => {
-  assert.match(source, /matchMedia\('\(min-width: 0px\)'\)/);
-  assert.match(source, /is-decks-collapsed/);
-  assert.match(source, /savedDecksOpen/);
-  assert.match(source, /aria-expanded/);
-});
-
 test('add projects opens as a dialog whose selections save in place', () => {
   assert.match(source, /addProjectsModal\?\.show\(\);/);
   assert.match(viewSource, /id="pbd-add-projects-modal"/);

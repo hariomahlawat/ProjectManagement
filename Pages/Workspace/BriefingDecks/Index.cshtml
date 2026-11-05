@@ -11,7 +11,6 @@
     var deck = Model.SelectedDeck;
     var presentedProjects = deck?.Projects.Where(project => project.IsPresented).ToArray();
     var leftOutProjectCount = deck?.Projects.Count(project => project.IsDeletedOrArchived) ?? 0;
-    var activeDeckName = deck?.Name ?? "No deck selected";
     var isUpdateSheet = deck?.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
     var layoutLabel = isUpdateSheet ? "Project Update Sheets" : "Standard PRISM Briefing";
     var presentationModeLabel = deck?.PresentationMode switch
@@ -169,31 +168,59 @@
             @Html.AntiForgeryToken()
         </form>
 
-        <header class="pbd-page-header">
-            <div>
-                <span class="pbd-eyebrow">Project monitoring</span>
-                <h1>Project Briefing Deck Builder</h1>
-                <p>Select projects, maintain shared command decks and generate professional editable PowerPoint presentations.</p>
-            </div>
-            <div class="pbd-page-header__actions">
-                @if (Model.Decks.Count > 0)
-                {
-                    <button type="button" class="btn btn-outline-secondary pbd-decks-toggle"
-                            data-pbd-decks-toggle
-                            data-pbd-active-deck-name="@activeDeckName"
-                            aria-controls="pbd-saved-decks"
-                            aria-expanded="true"
-                            aria-label="Shared decks. Current deck: @activeDeckName">
-                        <i class="bi bi-collection" aria-hidden="true"></i>
-                        <span>Shared decks</span>
+        @if (deck is null)
+        {
+            <header class="pbd-page-header">
+                <div>
+                    <span class="pbd-eyebrow">Command workspace</span>
+                    <h1>Briefing decks</h1>
+                    <p>Shared decks for the Comdt and HoDs, built from current PRISM data each time they are generated.</p>
+                </div>
+                <div class="pbd-page-header__actions">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                        New deck
                     </button>
-                }
-                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
-                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                    New deck
-                </button>
-            </div>
-        </header>
+                </div>
+            </header>
+        }
+        else
+        {
+            <nav class="pbd-studio-nav" aria-label="Briefing decks">
+                <a class="pbd-studio-nav__back" href="@Url.Content("~/Workspace/BriefingDecks")">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                    Briefing decks
+                </a>
+                <div class="pbd-studio-nav__actions">
+                    @if (Model.Decks.Count > 1)
+                    {
+                        <div class="dropdown">
+                            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-collection" aria-hidden="true"></i>
+                                Switch deck
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end pbd-studio-nav__decks">
+                                @foreach (var saved in Model.Decks)
+                                {
+                                    var isCurrent = saved.Id == deck.Id;
+                                    <li>
+                                        <a class="dropdown-item @(isCurrent ? "active" : null)" aria-current="@(isCurrent ? "page" : null)"
+                                           asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@saved.Id">
+                                            <strong>@saved.Name</strong>
+                                            <small>@saved.Purpose · @saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects")</small>
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                        New deck
+                    </button>
+                </div>
+            </nav>
+        }
 
         @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
         {
@@ -209,8 +236,15 @@
                 <span>@Model.ErrorMessage</span>
             </div>
         }
+        @if (!string.IsNullOrWhiteSpace(Model.DeckNotFoundMessage))
+        {
+            <div class="alert alert-warning pbd-alert" role="alert">
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <span>@Model.DeckNotFoundMessage</span>
+            </div>
+        }
 
-        @if (Model.Decks.Count == 0)
+        @if (deck is null && Model.Decks.Count == 0)
         {
             <section class="pbd-first-use" aria-labelledby="pbd-first-use-title">
                 <span class="pbd-first-use__icon" aria-hidden="true"><i class="bi bi-file-earmark-slides"></i></span>
@@ -225,38 +259,15 @@
             </section>
             <partial name="_DeletedDecks" model="Model.DeletedDecks" />
         }
+        else if (deck is null)
+        {
+            <div class="pbd-library">
+                <partial name="_DeckLibrary" model="Model" />
+            </div>
+        }
         else
         {
             <div class="pbd-workspace">
-                <aside class="pbd-saved" id="pbd-saved-decks" data-pbd-saved-decks aria-label="Shared command decks">
-                    <div class="pbd-saved__header">
-                        <div>
-                            <span class="pbd-eyebrow">Command workspace</span>
-                            <h2>Shared decks</h2>
-                        </div>
-                        <span class="pbd-count">@Model.Decks.Count</span>
-                    </div>
-                    <nav class="pbd-saved__list">
-                        @foreach (var saved in Model.Decks)
-                        {
-                            var isActive = deck?.Id == saved.Id;
-                            var savedUpdatedAtIst = IstClock.ToIst(saved.UpdatedAtUtc);
-                            var savedUpdatedTitle = $"Updated {savedUpdatedAtIst:dd MMM yyyy, HH:mm} by {saved.LastModifiedByDisplay}";
-                            <a asp-page="/Workspace/BriefingDecks/Index"
-                               asp-route-deckId="@saved.Id"
-                               class="pbd-saved-card @(isActive ? "is-active" : null)"
-                               aria-current="@(isActive ? "page" : null)">
-                                <span class="pbd-saved-card__icon" aria-hidden="true"><i class="bi bi-file-earmark-slides"></i></span>
-                                <span class="pbd-saved-card__body">
-                                    <strong>@saved.Name</strong>
-                                    <small title="@savedUpdatedTitle">@saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects") · @savedUpdatedAtIst.ToString("dd MMM")</small>
-                                </span>
-                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                            </a>
-                        }
-                    </nav>
-                    <partial name="_DeletedDecks" model="Model.DeletedDecks" />
-                </aside>
 
                 @if (deck is not null)
                 {
@@ -265,7 +276,7 @@
                             <div class="pbd-deck-header__identity">
                                 <span class="pbd-deck-header__mark" aria-hidden="true"><i class="bi bi-easel2"></i></span>
                                 <div>
-                                    <span class="pbd-eyebrow">Saved briefing deck</span>
+                                    <span class="pbd-eyebrow">Briefing deck</span>
                                     <div class="pbd-deck-title" data-pbd-deck-title-view>
                                         <h2 id="pbd-deck-title" data-pbd-deck-name>@deck.Name</h2>
                                         <button type="button" class="btn btn-sm btn-link pbd-deck-title__edit" data-pbd-rename aria-label="Rename the deck or edit its description" title="Rename or edit description">
@@ -1197,4 +1208,5 @@
     <script type="module" src="~/js/pages/project-briefing-decks.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/project-briefing-additional-slides.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/project-briefing-studio.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/pages/project-briefing-library.js" asp-append-version="true"></script>
 }

@@ -1,0 +1,156 @@
+@model ProjectManagement.Pages.Workspace.BriefingDecks.IndexModel
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.Services.ProjectBriefings
+@*
+    The deck library: where a deck is chosen, started or resumed. Nothing here builds slides;
+    a deck opens in the Studio only when the person picks it.
+*@
+@{
+    var continueDeck = Model.ContinueDeck;
+    var todayIst = IstClock.ToIst(DateTimeOffset.UtcNow).Date;
+    string When(DateTimeOffset value)
+    {
+        var ist = IstClock.ToIst(value);
+        return ist.Date == todayIst ? $"Today, {ist:HH:mm}" : ist.ToString("dd MMM yyyy");
+    }
+    // Mid-sentence, "Today" reads as "today"; months keep their capital.
+    string WhenInline(DateTimeOffset value) => When(value).Replace("Today", "today");
+    string Projects(int count) => $"{count} {(count == 1 ? "project" : "projects")}";
+}
+
+@if (continueDeck is not null)
+{
+    <section class="pbd-library__section" aria-labelledby="pbd-continue-title">
+        <h2 class="pbd-library__heading" id="pbd-continue-title">Continue</h2>
+        <div class="pbd-continue">
+            <div class="pbd-continue__identity">
+                <span class="pbd-continue__mark" aria-hidden="true"><i class="bi bi-easel2"></i></span>
+                <div class="pbd-continue__body">
+                    <div class="pbd-continue__title">
+                        <a asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id">@continueDeck.Name</a>
+                        <span class="pbd-library__purpose">@continueDeck.Purpose</span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(continueDeck.Description))
+                    {
+                        <p class="pbd-continue__description">@continueDeck.Description</p>
+                    }
+                    <p class="pbd-continue__meta">
+                        @Projects(continueDeck.ProjectCount)
+                        @if (continueDeck.LastGeneratedSlideCount is int slides)
+                        {
+                            <text> · @slides slides</text>
+                        }
+                        · edited @WhenInline(continueDeck.UpdatedAtUtc) by @continueDeck.LastModifiedByDisplay
+                        · @(continueDeck.LastGeneratedAtUtc is { } generated ? $"last generated {WhenInline(generated)}" : "not generated yet")
+                    </p>
+                </div>
+            </div>
+            <div class="pbd-continue__actions">
+                <a class="btn btn-primary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id">Open in Studio</a>
+                <form method="post" asp-page-handler="Generate" asp-route-deckId="@continueDeck.Id">
+                    <button type="submit" class="btn btn-outline-secondary" disabled="@(continueDeck.ProjectCount == 0)">Generate PowerPoint</button>
+                </form>
+            </div>
+        </div>
+    </section>
+}
+
+<section class="pbd-library__section" aria-labelledby="pbd-all-decks-title" data-pbd-library>
+    <div class="pbd-library__toolbar">
+        <h2 class="pbd-library__heading" id="pbd-all-decks-title">All decks · <span data-pbd-library-count>@Model.Decks.Count</span></h2>
+        <div class="pbd-library__controls">
+            <div class="pbd-segmented" role="group" aria-label="Show decks">
+                <button type="button" class="pbd-segmented__option" aria-pressed="false" data-pbd-library-scope="mine">Mine</button>
+                <button type="button" class="pbd-segmented__option is-active" aria-pressed="true" data-pbd-library-scope="all">All</button>
+            </div>
+            <label class="pbd-library__search">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <span class="visually-hidden">Find a deck or project</span>
+                <input type="search" class="form-control" placeholder="Find a deck or project" autocomplete="off" data-pbd-library-search />
+            </label>
+            <label class="pbd-library__sort">
+                <span>Sort</span>
+                <select class="form-select" data-pbd-library-sort>
+                    <option value="edited">Last edited</option>
+                    <option value="generated">Last generated</option>
+                    <option value="name">Name</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <div class="pbd-library__table-wrap">
+        <table class="pbd-library__table">
+            <thead>
+                <tr>
+                    <th scope="col">Deck</th>
+                    <th scope="col">Purpose</th>
+                    <th scope="col" class="is-number">Projects</th>
+                    <th scope="col" class="is-number">Slides</th>
+                    <th scope="col">Owner</th>
+                    <th scope="col">Last edited</th>
+                    <th scope="col">Last generated</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody data-pbd-library-rows>
+                @foreach (var deck in Model.Decks)
+                {
+                    var searchText = string.Join(" ", new[] { deck.Name, deck.Description ?? string.Empty }.Concat(deck.ProjectNames)).ToLowerInvariant();
+                    <tr data-pbd-library-row
+                        data-search="@searchText"
+                        data-mine="@(deck.IsMine ? "true" : "false")"
+                        data-name="@deck.Name"
+                        data-edited="@deck.UpdatedAtUtc.ToUnixTimeSeconds()"
+                        data-generated="@(deck.LastGeneratedAtUtc?.ToUnixTimeSeconds() ?? 0)">
+                        <td>
+                            <a class="pbd-library__name" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">@deck.Name</a>
+                            @if (!string.IsNullOrWhiteSpace(deck.Description))
+                            {
+                                <small class="pbd-library__description">@deck.Description</small>
+                            }
+                        </td>
+                        <td>@deck.Purpose</td>
+                        <td class="is-number">@deck.ProjectCount</td>
+                        <td class="is-number">@(deck.LastGeneratedSlideCount?.ToString() ?? "—")</td>
+                        <td>@deck.CreatedByDisplay</td>
+                        <td title="by @deck.LastModifiedByDisplay">@When(deck.UpdatedAtUtc)</td>
+                        <td>@(deck.LastGeneratedAtUtc is { } generated ? When(generated) : "Not yet")</td>
+                        <td class="is-actions">
+                            <div class="dropdown">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for @deck.Name">
+                                    <i class="bi bi-three-dots" aria-hidden="true"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"><i class="bi bi-easel2" aria-hidden="true"></i> Open in Studio</a></li>
+                                    <li>
+                                        <form method="post" asp-page-handler="Generate" asp-route-deckId="@deck.Id">
+                                            <button type="submit" class="dropdown-item" disabled="@(deck.ProjectCount == 0)"><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Generate PowerPoint</button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="post" asp-page-handler="Duplicate">
+                                            <input type="hidden" name="deckId" value="@deck.Id" />
+                                            <button type="submit" class="dropdown-item"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate</button>
+                                        </form>
+                                    </li>
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
+                                        <form method="post" asp-page-handler="Delete" data-pbd-library-delete data-deck-name="@deck.Name" data-confirm-detail="It moves to Recently deleted and can be restored for @ProjectBriefingDeckService.DeletedRetentionDays days." data-page-handled data-confirm="Delete “@deck.Name”? It moves to Recently deleted and can be restored for @ProjectBriefingDeckService.DeletedRetentionDays days.">
+                                            <input type="hidden" name="deckId" value="@deck.Id" />
+                                            <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                            <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete</button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="pbd-library__empty" data-pbd-library-empty hidden>No decks match. Clear the search or show all decks.</p>
+    </div>
+</section>
+
+<partial name="_DeletedDecks" model="Model.DeletedDecks" />

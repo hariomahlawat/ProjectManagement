@@ -54,6 +54,9 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<ProjectBriefingDeletedDeckVm> DeletedDecks { get; private set; }
         = Array.Empty<ProjectBriefingDeletedDeckVm>();
     public ProjectBriefingDeckVm? SelectedDeck { get; private set; }
+
+    // The library's "Continue" deck: the one this user edited last, else the latest edited.
+    public ProjectBriefingDeckSummaryVm? ContinueDeck { get; private set; }
     public ProjectBriefingSelectionOptionsVm SelectionOptions { get; private set; } = new();
     public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { HasCommandAccess = true, ActiveLens = "command", ActiveItem = "command-briefing-decks" };
     public FfcFootprintSummary FfcFootprintPreviewSummary { get; private set; } = new(0, 0, 0, 0, 0, 0);
@@ -63,6 +66,10 @@ public sealed class IndexModel : PageModel
 
     [TempData]
     public string? ErrorMessage { get; set; }
+
+    // Shown for this request only: unlike the TempData messages it must not follow the person
+    // back to the library on their next visit.
+    public string? DeckNotFoundMessage { get; private set; }
 
     [TempData]
     public bool ReopenInstitutionalProfile { get; set; }
@@ -1199,19 +1206,25 @@ public sealed class IndexModel : PageModel
     {
         Decks = await _deckService.ListAsync(userId, cancellationToken);
         DeletedDecks = await _deckService.ListDeletedAsync(userId, cancellationToken);
-        var deckId = requestedDeckId ?? Decks.FirstOrDefault()?.Id;
-        if (deckId.HasValue)
+
+        // No deck in the address: the library, where a deck is chosen. A deck is never opened
+        // (and so never edited) without the person picking it.
+        if (requestedDeckId.HasValue)
         {
-            SelectedDeck = await _dataService.GetDeckAsync(deckId.Value, userId, cancellationToken, includeFfcFootprintSummary: true);
-            if (SelectedDeck is null && Decks.Count > 0)
+            SelectedDeck = await _dataService.GetDeckAsync(requestedDeckId.Value, userId, cancellationToken, includeFfcFootprintSummary: true);
+            if (SelectedDeck is null && string.IsNullOrWhiteSpace(ErrorMessage))
             {
-                SelectedDeck = await _dataService.GetDeckAsync(Decks[0].Id, userId, cancellationToken, includeFfcFootprintSummary: true);
+                DeckNotFoundMessage = "That deck was not found. It may have been deleted; deleted decks can be restored from Recently deleted.";
             }
         }
 
-        SelectionOptions = await _selectionService.GetOptionsAsync(cancellationToken);
-        if (SelectedDeck is not null)
+        if (SelectedDeck is null)
         {
+            ContinueDeck = Decks.FirstOrDefault(deck => deck.LastEditedByMe) ?? Decks.FirstOrDefault();
+        }
+        else
+        {
+            SelectionOptions = await _selectionService.GetOptionsAsync(cancellationToken);
             FfcFootprintPreviewSummary = SelectedDeck.FfcFootprintPreviewSummary;
         }
 
