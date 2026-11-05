@@ -56,6 +56,54 @@ if (root) {
     FfcCountryBreakdown: { section: 'closing', label: 'FFC country breakdown', fold: true, editor: '[data-pbd-ffc-footprint-open]', about: 'Country-wise detail behind the FFC footprint.' },
     Closing: { section: 'closing', label: 'Closing', about: 'The closing slide. Choose Jai Hind or Thank You in the deck settings.' }
   };
+  // After a settings change the preview shows a slide it affects: the first of these roles the
+  // rebuilt deck has (on the project already in view when it has one). Settings that change
+  // every slide (theme, marking) keep the slide in view.
+  const projectRoles = () => (root.querySelector('input[name="KeyPointSlide"]:checked')?.value === 'CapabilitySlide'
+    ? ['ProjectCapability', 'ProjectBrief', 'ProjectUpdateSheet']
+    : ['ProjectBrief', 'ProjectCapability', 'ProjectUpdateSheet']);
+  const SETTING_SLIDES = {
+    Layout: () => ['ProjectUpdateSheet', 'ProjectCapability', 'ProjectBrief', 'StatusTable'],
+    PresentationMode: () => ['ProjectCapability', 'ProjectBrief', 'StatusTable'],
+    NarrativeMode: () => ['ProjectCapability', 'ProjectBrief'],
+    ShowPresentStage: () => ['ProjectCapability', 'ProjectBrief'],
+    ShowPresentStatus: () => ['ProjectCapability', 'ProjectBrief'],
+    ShowKeyPoints: projectRoles,
+    KeyPointSlide: projectRoles,
+    ProjectBriefLayout: () => ['ProjectBrief'],
+    CostMode: () => ['ProjectCapability', 'ProjectBrief', 'StatusTable', 'PortfolioSummary'],
+    UpdateSheetRows: () => ['ProjectUpdateSheet'],
+    UpdateSheetRowOrder: () => ['ProjectUpdateSheet'],
+    HideEmptyUpdateSheetValues: () => ['ProjectUpdateSheet'],
+    IncludeStageSummary: () => ['StageSummary'],
+    IncludeStageDistributionTable: () => ['StageDistributionTable', 'StageSummary'],
+    IncludeProjectCategorySummary: () => ['CategorySummary'],
+    IncludeTechnicalCategorySummary: () => ['CategorySummary'],
+    IncludeCoverSlide: () => ['Cover'],
+    IncludePortfolioSummarySlide: () => ['PortfolioSummary'],
+    BrandingScope: () => ['Cover'],
+    ClosingSlideType: () => ['Closing']
+  };
+  // The roles to look for after the next rebuild, from the latest change that names any.
+  let followRoles = null;
+  let outlineItems = [];
+  const followChange = () => {
+    const roles = followRoles;
+    followRoles = null;
+    if (!roles?.length || !outlineItems.length) return false;
+    const inView = entryForIndex(current)?.projectId;
+    for (const role of roles) {
+      const matches = outlineItems
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => item.role === role);
+      if (!matches.length) continue;
+      const chosen = matches.find(({ item }) => inView && item.projectId === inView) || matches[0];
+      selectIndex(chosen.index, { key: entryForIndex(chosen.index)?.key || '' });
+      return true;
+    }
+    return false;
+  };
+
   const SECTIONS = [
     { key: 'opening', label: 'Opening' },
     { key: 'portfolio', label: 'Portfolio' },
@@ -997,6 +1045,8 @@ if (root) {
     const keepEntry = slides.length ? entryForIndex(current) : null;
     const keepProject = slides.length ? keepEntry?.projectId : savedPlace.projectId;
     const keepNumber = slides.length ? slides[current]?.number : savedPlace.number;
+    // The kind of slide in view (a project's brief, say), kept for that project after the rebuild.
+    const keepRole = slides.length ? outlineItems[current]?.role : '';
     root.classList.add('is-busy');
     if (status) status.textContent = slides.length ? 'Updating the slides…' : 'Building the slides from current PRISM data…';
     if (refreshButton) refreshButton.disabled = true;
@@ -1020,18 +1070,26 @@ if (root) {
       if (Array.isArray(payload.projects)) {
         readStudioData({ projects: payload.projects, contentGaps: payload.contentGaps });
       }
-      entries = buildEntries(Array.isArray(payload.outline) ? payload.outline : []);
+      outlineItems = Array.isArray(payload.outline) ? payload.outline : [];
+      entries = buildEntries(outlineItems);
       // Keep the same project (or slide number) selected across rebuilds.
       const sameProject = keepProject ? entries.find((entry) => entry.projectId === keepProject) : null;
-      current = sameProject?.indices.length
-        ? sameProject.indices[0]
-        : Math.min(Math.max(0, (keepNumber || 1) - 1), Math.max(0, slides.length - 1));
+      const sameSlide = keepProject && keepRole
+        ? outlineItems.findIndex((item) => item.projectId === keepProject && item.role === keepRole)
+        : -1;
+      current = sameSlide >= 0
+        ? sameSlide
+        : sameProject?.indices.length
+          ? sameProject.indices[0]
+          : Math.min(Math.max(0, (keepNumber || 1) - 1), Math.max(0, slides.length - 1));
       selectedKey = sameProject ? sameProject.key : '';
       updateCounts(payload);
       renderOutline();
       if (view === 'grid') renderGrid();
       renderStage();
       renderChecksPanel();
+      // A settings change shows a slide it affects instead.
+      followChange();
       if (presentButton) presentButton.disabled = slides.length === 0;
       if (viewer?.open) {
         if (slides.length === 0) viewer.close();
@@ -1176,6 +1234,17 @@ if (root) {
     renderOutline();
     renderStage();
     renderChecksPanel();
+  });
+
+  document.addEventListener('pbd:settings-saved', (event) => {
+    const changed = Array.isArray(event.detail?.changed) ? event.detail.changed : [];
+    for (const name of [...changed].reverse()) {
+      const roles = SETTING_SLIDES[name]?.();
+      if (roles) {
+        followRoles = roles;
+        return;
+      }
+    }
   });
 
   // The builder announces in-place edits (membership, order, overrides); rebuild shortly after.

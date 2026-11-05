@@ -236,3 +236,57 @@ test('a rebuild tells the server which images it already holds and keeps them', 
     document.querySelector('[data-pbd-stage-slide] [data-pbd-preview-image]').getAttribute('src'),
     'data:image/png;base64,AAAA');
 });
+
+// Preview follows the change (Plan: Deck settings, PR 5).
+const briefPayload = () => payload({
+  slideCount: 7,
+  slides: [slide(1, 'Cover'), slide(2, 'Stage summary'), slide(3, 'Alpha simulator'), slide(4, 'Alpha simulator brief'),
+    slide(5, 'Bravo trainer'), slide(6, 'Bravo trainer brief'), slide(7, 'Closing')],
+  outline: [
+    { number: 1, role: 'Cover', projectId: null, listedProjectIds: [] },
+    { number: 2, role: 'StageSummary', projectId: null, listedProjectIds: [] },
+    { number: 3, role: 'ProjectCapability', projectId: 1, listedProjectIds: [] },
+    { number: 4, role: 'ProjectBrief', projectId: 1, listedProjectIds: [] },
+    { number: 5, role: 'ProjectCapability', projectId: 2, listedProjectIds: [] },
+    { number: 6, role: 'ProjectBrief', projectId: 2, listedProjectIds: [] },
+    { number: 7, role: 'Closing', projectId: null, listedProjectIds: [] }
+  ]
+});
+
+const saveSettings = async (window, document, changed) => {
+  document.dispatchEvent(new window.CustomEvent('pbd:deck-changed', { detail: {} }));
+  document.dispatchEvent(new window.CustomEvent('pbd:settings-saved', { detail: { changed } }));
+  await new Promise((resolve) => window.setTimeout(resolve, 950));
+};
+
+test('after a settings change the preview shows a slide the change affects', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(briefPayload());
+  await settle(window);
+  assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 1 of 7/);
+
+  await saveSettings(window, document, ['IncludeStageSummary']);
+  requests[1].answer(briefPayload());
+  await settle(window);
+
+  assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 2 of 7 · Stage summary/);
+});
+
+test('a project-slide change stays on the project in view, and a theme change keeps the slide', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(briefPayload());
+  await settle(window);
+  outlineRow(document, 'Bravo trainer').click();
+  await settle(window);
+
+  await saveSettings(window, document, ['ProjectBriefLayout']);
+  requests[1].answer(briefPayload());
+  await settle(window);
+  // The Bravo trainer's brief slide (the project's label names its first slide).
+  assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 6 of 7/);
+
+  await saveSettings(window, document, ['PresentationTheme']);
+  requests[2].answer(briefPayload());
+  await settle(window);
+  assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 6 of 7/);
+});

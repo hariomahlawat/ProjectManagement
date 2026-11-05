@@ -829,6 +829,8 @@ if (root) {
   };
 
   const serializeSettings = () => serializeForm(settingsForm);
+  // Settings changed since the last save, latest last.
+  const changedSettings = new Set();
 
   // Deck settings live in the Studio's Deck tab and save themselves: a change is posted in place
   // a moment after the last edit, saves never overlap, and the Studio rebuilds from the saved deck.
@@ -1011,7 +1013,11 @@ if (root) {
       }
       if (!response.ok) throw new Error(payload?.message || `The settings could not be saved (${response.status}).`);
       settingsSavedState = state;
+      const changed = [...changedSettings];
+      changedSettings.clear();
       applyEditorState(payload?.deck);
+      // The Studio shows a slide the change affects once it has rebuilt the slides.
+      if (changed.length) document.dispatchEvent(new CustomEvent('pbd:settings-saved', { detail: { changed } }));
       applySettingsDeck(payload?.deck);
       refreshSettingsSummary();
       setState(settingsStatus, 'All changes saved.', 'saved');
@@ -1094,7 +1100,13 @@ if (root) {
     }, delay);
   };
 
-  settingsForm?.addEventListener('change', () => {
+  settingsForm?.addEventListener('change', (event) => {
+    // Remember what changed, so the preview can show a slide it affects once saved.
+    const name = event.target instanceof HTMLInputElement ? event.target.name : '';
+    if (name && event.target.form === settingsForm) {
+      changedSettings.delete(name);
+      changedSettings.add(name);
+    }
     refreshSettingsSummary();
     refreshSettingsDirtyState(400);
   });

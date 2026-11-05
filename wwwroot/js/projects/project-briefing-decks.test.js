@@ -101,7 +101,7 @@ test('deck settings save themselves in place, one save at a time', () => {
   assert.match(save, /applyEditorState\(payload\?\.deck\);/);
   // A collision with someone else's change shows the one conflict banner.
   assert.match(save, /if \(response\.status === 409\) \{\s*showConflict\(payload\?\.message\);/);
-  assert.match(source, /settingsForm\?\.addEventListener\('change', \(\) => \{\s*refreshSettingsSummary\(\);\s*refreshSettingsDirtyState\(400\);\s*\}\);/);
+  assert.match(source, /settingsForm\?\.addEventListener\('change', \(event\) => \{[\s\S]*?refreshSettingsSummary\(\);\s*refreshSettingsDirtyState\(400\);\s*\}\);/);
   assert.doesNotMatch(source, /data-pbd-settings-drawer|openSettingsDrawer|closeSettingsDrawer/);
   assert.doesNotMatch(viewSource, /data-pbd-settings-drawer|data-pbd-settings-save/);
 });
@@ -497,4 +497,9 @@ test('step summaries read each choice by its label, not its description', () => 
   assert.match(source, /return input\?\.dataset\.label \|\| /);
   assert.match(viewSource, /name="PresentationTheme" value="EditorialLight"[^>]*data-label="Editorial Light"/);
   assert.match(viewSource, /name="PresentationTheme" value="GraphiteDark"[^>]*data-label="Graphite Dark"/);
+});
+
+test('a settings save names the settings that changed, for the preview to follow', () => {
+  assert.match(source, /if \(name && event\.target\.form === settingsForm\) \{\s*changedSettings\.delete\(name\);\s*changedSettings\.add\(name\);/);
+  assert.match(source, /if \(changed\.length\) document\.dispatchEvent\(new CustomEvent\('pbd:settings-saved', \{ detail: \{ changed \} \}\)\);/);
 });
