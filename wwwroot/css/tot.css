@@ -15,12 +15,12 @@
 }
 
     .tot-table__decision .chip {
-        font-size: 0.8rem;
+        font-size: 0.8125rem;
         line-height: 1.1;
     }
 
 .tot-table__decision-meta {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     line-height: 1.2;
     color: var(--tot-muted, var(--pm-text-muted));
     white-space: normal;
@@ -98,9 +98,7 @@
 }
 
 .tot-summary__metric-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
+    font-size: 0.8125rem;
     color: var(--pm-text-muted);
     margin-bottom: 0.25rem;
 }
@@ -213,7 +211,7 @@
 }
 
 .tot-summary__list-meta {
-    font-size: 0.7rem;
+    font-size: 0.8125rem;
     color: var(--pm-text-muted);
 }
 
@@ -224,7 +222,7 @@
 }
 
 .tot-summary__subheading {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--pm-text-secondary);
     margin-bottom: 0.25rem;
@@ -232,7 +230,7 @@
 
 /* Empty state */
 .tot-summary__empty {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     color: var(--pm-accent-slate);
 }
 
@@ -285,7 +283,7 @@
 }
 
 .tot-summary__chart-caption {
-    font-size: .7rem;
+    font-size: 0.8125rem;
     color: var(--pm-text-muted);
     margin-bottom: .75rem;
 }
@@ -370,7 +368,7 @@
 }
 
 .tot-list-panel__meta {
-    font-size: .7rem;
+    font-size: 0.8125rem;
     color: var(--pm-text-muted);
     margin-bottom: 0;
 }
@@ -447,7 +445,7 @@
 }
 
 .tot-list-item__meta {
-    font-size: .68rem;
+    font-size: 0.8125rem;
     color: var(--pm-text-muted);
 }
 
@@ -476,9 +474,7 @@
 }
 
 .tot-detail-card__eyebrow {
-    font-size: .65rem;
-    text-transform: uppercase;
-    letter-spacing: .02em;
+    font-size: 0.8125rem;
     color: var(--pm-text-muted);
     margin-bottom: .15rem;
 }
@@ -490,7 +486,7 @@
 }
 
 .tot-detail-card__subtitle {
-    font-size: .75rem;
+    font-size: 0.8125rem;
     color: var(--pm-text-muted);
     margin: 0;
 }
@@ -509,7 +505,7 @@
 }
 
 .tot-detail-card__section-title {
-    font-size: .75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     margin-bottom: .4rem;
 }
@@ -521,14 +517,13 @@
 }
 
     .tot-detail-card__grid dt {
-        font-size: .6rem;
-        text-transform: uppercase;
+        font-size: 0.8125rem;
         color: var(--pm-accent-slate);
         margin-bottom: .15rem;
     }
 
     .tot-detail-card__grid dd {
-        font-size: .75rem;
+        font-size: 0.8125rem;
         margin-bottom: 0;
     }
 
@@ -590,7 +585,7 @@ body .modal-backdrop {
         .tot-toolbar-title p {
             margin: 0;
             color: var(--pm-text-muted);
-            font-size: .75rem;
+            font-size: 0.8125rem;
         }
 
         .tot-toolbar-actions {
@@ -623,7 +618,7 @@ body .modal-backdrop {
             color: var(--pm-text-contrast);
             border-radius: 9999px;
             padding: .25rem .65rem;
-            font-size: .7rem;
+            font-size: 0.8125rem;
             display: inline-flex;
             gap: .25rem;
             align-items: center;
@@ -679,9 +674,7 @@ body .modal-backdrop {
             padding: .4rem .75rem;
             background: var(--pm-surface-soft);
             border-bottom: 1px solid var(--pm-border-subtle);
-            font-size: .63rem;
-            text-transform: uppercase;
-            letter-spacing: .03em;
+            font-size: 0.8125rem;
             color: var(--pm-text-muted);
             position: sticky;
             top: 0;
@@ -726,7 +719,7 @@ body .modal-backdrop {
         }
 
         .tot-row-sub {
-            font-size: .65rem;
+            font-size: 0.8125rem;
             color: var(--pm-text-muted);
         }
 
@@ -737,7 +730,7 @@ body .modal-backdrop {
             height: 1.35rem;
             border-radius: 9999px;
             padding: 0 .55rem;
-            font-size: .64rem;
+            font-size: 0.8125rem;
             gap: .25rem;
             line-height: 1;
         }
@@ -767,9 +760,7 @@ body .modal-backdrop {
         }
 
         .tot-detail-label {
-            font-size: .63rem;
-            text-transform: uppercase;
-            letter-spacing: .02em;
+            font-size: 0.8125rem;
             color: var(--pm-text-muted);
             margin-bottom: .2rem;
         }
@@ -793,18 +784,14 @@ body .modal-backdrop {
         }
 
             .tot-approval-card h3 {
-                font-size: .7rem;
-                text-transform: uppercase;
-                letter-spacing: .03em;
+                font-size: 0.8125rem;
                 margin-bottom: .4rem;
                 color: var(--pm-text-secondary);
             }
 
         /* request and decision history */
         .tot-history h3 {
-            font-size: .7rem;
-            text-transform: uppercase;
-            letter-spacing: .03em;
+            font-size: 0.8125rem;
             margin-bottom: .4rem;
             color: var(--pm-text-secondary);
         }
@@ -853,3 +840,9 @@ body .modal-backdrop {
             }
         }
 
+
+/* The selected project is the panel's title: the shared .h6 size (12px) is too small here. */
+.tot-detail-panel h2.h6 {
+    font-size: 1rem;
+    font-weight: 600;
+}

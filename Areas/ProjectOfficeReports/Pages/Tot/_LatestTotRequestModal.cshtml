@@ -43,20 +43,8 @@
         _ => "—"
     };
 
-    var istZone = TimeZoneHelper.GetIst();
-    DateTime? ToIst(DateTime? value) => value.HasValue
-        ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
-        : null;
-
-    string? FormatTimestamp(DateTime? utcValue)
-    {
-        var dt = ToIst(utcValue);
-        return dt.HasValue
-            ? dt.Value.ToString("dd/MM/yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
-            : null;
-    }
-
-    string? FormatDate(DateOnly? value) => value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+    string? FormatTimestamp(DateTime? utcValue) => ProjectManagement.Services.Projects.ProjectTotPresentation.FormatMoment(utcValue);
+    string? FormatDate(DateOnly? value) => ProjectManagement.Services.Projects.ProjectTotPresentation.FormatDay(value);
 
     var requestState = Model.RequestState.Value;
     var stateAccentClass = RequestStateAccentClass(requestState);
@@ -81,7 +69,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="me-3">
-                    <h2 class="modal-title h5 mb-0" id="tot-request-modal-label">Latest ToT request</h2>
+                    <h2 class="modal-title h5 mb-0" id="tot-request-modal-label">Latest request</h2>
                     <p class="text-muted mb-0">@Model.ProjectName</p>
                 </div>
                 <div class="d-flex align-items-center gap-3">

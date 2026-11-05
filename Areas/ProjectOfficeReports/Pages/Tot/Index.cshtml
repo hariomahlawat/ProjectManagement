@@ -12,7 +12,7 @@
 }
 
 @{
-    ViewData["Title"] = "Transfer of Technology tracker";
+    ViewData["Title"] = "Transfer of Technology register";
 
     string StatusLabel(ProjectTotStatus status) => ProjectManagement.Services.Projects.ProjectTotPresentation.StatusLabel(status);
 
@@ -78,21 +78,21 @@
     }
     var completedFromValue = Model.CompletedFrom?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var completedToValue = Model.CompletedTo?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var filterSummary = filterBits.Any() ? string.Join(" · ", filterBits) : "No filters";
+    var filterSummary = filterBits.Any() ? string.Join(" · ", filterBits) : null;
+    string FormatDay(DateOnly? value) => ProjectManagement.Services.Projects.ProjectTotPresentation.FormatDay(value) ?? "—";
 }
 
 <div class="tot-shell">
-    <!-- breadcrumb -->
     <nav aria-label="Breadcrumb" class="mb-2">
         <ol class="breadcrumb small mb-0">
             <li class="breadcrumb-item">
-                <a asp-page="/Index">Dashboard</a>
+                <a asp-area="" asp-page="/Dashboard/Index">Dashboard</a>
             </li>
             <li class="breadcrumb-item">
-                <a asp-page="Summary">ToT tracker dashboard</a>
+                <a asp-page="Summary">Transfer of Technology</a>
             </li>
             <li class="breadcrumb-item active" aria-current="page">
-                ToT records
+                Register
             </li>
         </ol>
     </nav>
@@ -100,7 +100,7 @@
     <!-- top toolbar -->
     <div class="tot-toolbar">
         <div class="tot-toolbar-title">
-            <h1 class="mb-0">Transfer of Technology tracker</h1>
+            <h1 class="mb-0">Transfer of Technology register</h1>
         </div>
         <div class="tot-toolbar-actions">
             @if (Model.Projects.Any())
@@ -125,16 +125,8 @@
             <a class="btn btn-outline-secondary d-flex align-items-center gap-2"
                asp-page="Summary">
                 <i class="bi bi-card-list" aria-hidden="true"></i>
-                <span>Summary view</span>
+                <span>Overview</span>
             </a>
-
-            <button type="button"
-                    class="btn btn-light d-flex align-items-center gap-2"
-                    data-bs-toggle="modal"
-                    data-bs-target="#tot-filter-modal">
-                <i class="bi bi-filter" aria-hidden="true"></i>
-                <span>More filters</span>
-            </button>
         </div>
     </div>
 
@@ -158,26 +150,23 @@
     <div class="tot-context-bar" aria-label="Current ToT view summary">
         <div class="tot-context-left">
             <span class="tot-pill"><strong>@resultCountText</strong></span>
-            <span class="tot-pill tot-pill-muted">@filterSummary</span>
+            @if (filterSummary is not null)
+            {
+                <span class="tot-pill tot-pill-muted">@filterSummary</span>
+            }
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <span class="tot-pill">
-                Pending approvals: <strong>@summary.PendingApprovals</strong>
-            </span>
-        </div>
+        @if (summary.PendingApprovals > 0)
+        {
+            <a class="tot-pill" asp-page="./Index" asp-route-OnlyPending="true">
+                Waiting for approval: <strong>@summary.PendingApprovals</strong>
+            </a>
+        }
     </div>
 
     <!-- main workspace -->
     <div class="tot-workspace-grid">
         <!-- left: list -->
-        <div class="tot-list-panel" aria-label="ToT records">
-            @if (!Model.Projects.Any())
-            {
-                <div class="p-4 text-center text-muted">No projects match the current filters.</div>
-            }
-            else
-            {
-                <!-- inline search -->
+        <div class="tot-list-panel" aria-label="Register">
                 <form method="get" class="tot-searchbar" role="search">
                     <input type="hidden" name="TotStatusFilter" value="@Model.TotStatusFilter" />
                     <input type="hidden" name="RequestStateFilter" value="@Model.RequestStateFilter" />
@@ -207,6 +196,12 @@
                     </button>
                 </form>
 
+            @if (!Model.Projects.Any())
+            {
+                <div class="p-4 text-center text-muted">No projects match the current search and filters.</div>
+            }
+            else
+            {
                 <div class="tot-list-body">
                     <div class="tot-list-head">
                         <div>Project</div>
@@ -243,16 +238,16 @@
                                     @StatusLabel(row.TotStatus ?? ProjectTotStatus.NotStarted)
                                 </span>
                             </div>
-                            <div class="small">
+                            <div>
                                 @(PartialDateDisplay.Format(row.TotStartedOn, row.TotStartDatePrecision) ?? "—")
                             </div>
-                            <div class="small">
+                            <div>
                                 @(PartialDateDisplay.Format(row.TotCompletedOn, row.TotCompletionDatePrecision) ?? "—")
                             </div>
-                            <div class="small">
-                                @(row.TotMetCompletedOn?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—")
+                            <div>
+                                @FormatDay(row.TotMetCompletedOn)
                             </div>
-                            <div class="small">
+                            <div>
                                 @if (row.RequestState is { } rstate)
                                 {
                                     <span class="chip-sm @RequestStateChipClass(rstate)">
@@ -261,12 +256,8 @@
                                     @* extra visibility for approvers *@
                                     @if (Model.CanApprove && rstate == ProjectTotRequestDecisionState.Pending)
                                     {
-                                        <span class="text-danger small d-block">Needs decision</span>
+                                        <span class="tot-row-sub d-block">Needs your decision</span>
                                     }
-                                }
-                                else
-                                {
-                                    <span class="text-muted small">No request</span>
                                 }
                             </div>
                         </a>
@@ -328,7 +319,7 @@
                     <div class="tot-detail-block">
                         <div class="tot-detail-label">MET completed</div>
                         <div class="tot-detail-value">
-                            @(selected.TotMetCompletedOn?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—")
+                            @FormatDay(selected.TotMetCompletedOn)
                         </div>
                     </div>
                     <div class="tot-detail-block">
@@ -340,7 +331,7 @@
                     <div class="tot-detail-block">
                         <div class="tot-detail-label">Manufactured on</div>
                         <div class="tot-detail-value">
-                            @(selected.TotFirstProductionModelManufacturedOn?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—")
+                            @FormatDay(selected.TotFirstProductionModelManufacturedOn)
                         </div>
                     </div>
                 </div>
@@ -353,7 +344,7 @@
                                 class="btn btn-primary"
                                 data-bs-toggle="modal"
                                 data-bs-target="#tot-submit-modal">
-                            Submit update
+                            Update details
                         </button>
                     }
 
@@ -369,7 +360,7 @@
                                 class="btn btn-light"
                                 data-bs-toggle="modal"
                                 data-bs-target="#tot-request-modal">
-                            Latest ToT request
+                            Latest request
                         </button>
                     }
                 </div>
@@ -378,7 +369,7 @@
                 @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending)
                 {
                     <div class="tot-approval-card mt-2">
-                        <h3>HoD decision</h3>
+                        <h3>Decision</h3>
                         <form method="post" asp-page-handler="Decide">
                             <input asp-for="DecideInput.ProjectId" type="hidden" />
                             <input asp-for="DecideInput.RowVersion" type="hidden" />
@@ -502,7 +493,7 @@
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2 class="modal-title fs-5" id="tot-submit-modal-label">Submit update for HoD approval</h2>
+                    <h2 class="modal-title fs-5" id="tot-submit-modal-label">Update details</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">

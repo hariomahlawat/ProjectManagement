@@ -43,10 +43,8 @@
     display: block;
     margin-bottom: .15rem;
     color: var(--pm-text-muted, #64748b);
-    font-size: .69rem;
+    font-size: 0.8125rem;
     font-weight: 750;
-    letter-spacing: .06em;
-    text-transform: uppercase;
 }
 
 .project-tot-status-card strong {
@@ -84,7 +82,7 @@
 .project-tot-fact span {
     margin-bottom: .12rem;
     color: var(--pm-text-muted, #64748b);
-    font-size: .7rem;
+    font-size: 0.8125rem;
 }
 
 .project-tot-fact strong {
@@ -112,12 +110,12 @@
 
 .project-tot-editor .form-label {
     margin-bottom: .35rem;
-    font-size: .8rem;
+    font-size: 0.8125rem;
     font-weight: 650;
 }
 
 .project-tot-editor .form-text {
-    font-size: .72rem;
+    font-size: 0.8125rem;
 }
 
 .project-tot-drawer__footer {
@@ -152,3 +150,14 @@
 }
 
 .project-tot-footer-group{display:flex;justify-content:flex-end;gap:.5rem;width:100%;flex-wrap:wrap}.project-tot-remark-editor{border-top:1px solid var(--bs-border-color);padding-top:1rem}.project-tot-additional>summary{cursor:pointer;font-weight:600}.project-tot-drawer [data-tot-success],.project-tot-drawer [data-tot-global-error]{position:sticky;top:0;z-index:2}
+
+/* Readable sizes (13px minimum): the project name under the title, the status badge and section headings. */
+#offcanvasTot .offcanvas-header p.text-muted,
+.project-tot-drawer .badge {
+    font-size: 0.8125rem;
+}
+
+.project-tot-drawer h6 {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
