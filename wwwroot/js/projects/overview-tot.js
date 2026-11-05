@@ -265,6 +265,10 @@
             .forEach((selector) => { const el = root?.querySelector(selector); if (el) el.textContent = ''; });
         root?.querySelectorAll('[data-tot-project-field]').forEach((field) => { field.value = ''; });
         if (decideVersion) decideVersion.value = '';
+        // Typed text belongs to the project it was typed for.
+        if (decideReason) decideReason.value = '';
+        message(decideError, '');
+        if (remarkBody) remarkBody.value = '';
     }
     function updateCard(payload) {
         if (!payload || !card) return;

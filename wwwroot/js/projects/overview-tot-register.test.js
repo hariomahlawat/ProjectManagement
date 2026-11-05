@@ -185,9 +185,11 @@ test('when the next project fails to load, nothing of the previous one stays or 
   assert.equal($('[data-tot-status-label]').textContent, 'In progress');
   assert.equal($('[data-tot-decide-form]').classList.contains('d-none'), false);
 
+  $('[data-tot-decide-reason]').value = 'Reason written for project 1.';
   opener(2).click();
   await settle(); await settle();
 
+  assert.equal($('[data-tot-decide-reason]').value, '', 'a reason typed for project 1 is not carried over');
   assert.equal($('[data-tot-global-error]').textContent, 'Project not found.');
   assert.equal($('[data-tot-status-label]').textContent, '', 'project 1 is no longer shown');
   assert.equal($('[data-tot-pending]').classList.contains('d-none'), true);
