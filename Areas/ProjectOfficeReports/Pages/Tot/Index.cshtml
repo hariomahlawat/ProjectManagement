@@ -8,6 +8,7 @@
 @section Styles
 {
     <link rel="stylesheet" href="~/css/tot.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/project-tot-drawer.css" asp-append-version="true" />
     
 }
 
@@ -42,15 +43,8 @@
         _ => "chip-decision-pending"
     };
 
-    string FoPmLabel(bool? value) => value switch
-    {
-        true => "Yes",
-        false => "No",
-        _ => "—"
-    };
 
     var summary = Model.Summary;
-    var selected = Model.SelectedProject;
 
     var totalCount = Model.Projects.Count;
     var resultCountText = totalCount == 0
@@ -165,7 +159,7 @@
     </div>
 
     <!-- main workspace -->
-    <div class="tot-workspace-grid">
+    <div class="tot-workspace-grid tot-workspace-grid--single">
         <!-- left: list -->
         <div class="tot-list-panel" aria-label="Register">
                 <form method="get" class="tot-searchbar" role="search">
@@ -217,6 +211,8 @@
                     {
                         var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
                         <a class="tot-row @(isSelected ? "is-selected" : "")"
+                           data-tot-open-project-id="@row.ProjectId"
+                           data-tot-project-name="@row.ProjectName"
                            asp-page="./Index"
                            asp-route-TotStatusFilter="@Model.TotStatusFilter"
                            asp-route-RequestStateFilter="@Model.RequestStateFilter"
@@ -267,178 +263,6 @@
             }
         </div>
 
-        <!-- right: detail -->
-        <div class="tot-detail-panel" aria-label="Selected project details">
-            @if (selected is null)
-            {
-                <div class="text-muted pm-util-mt-025">
-                    Select a project from the list to view its milestones, latest request and actions.
-                </div>
-            }
-            else
-            {
-                <div class="d-flex justify-content-between align-items-start gap-2">
-                    <div>
-                        <h2 class="h6 mb-1">@selected.ProjectName</h2>
-                        @if (!string.IsNullOrWhiteSpace(selected.SponsoringUnit))
-                        {
-                            <div class="text-muted small">@selected.SponsoringUnit</div>
-                        }
-                    </div>
-                    <div class="d-flex gap-2 flex-wrap">
-                        <span class="chip-sm @TotStatusChipClass(selected.TotStatus ?? ProjectTotStatus.NotStarted)">
-                            @StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted)
-                        </span>
-                        @if (selected.RequestState is { } sstate)
-                        {
-                            <span class="chip-sm @RequestStateChipClass(sstate)">
-                                @RequestStateLabel(sstate)
-                            </span>
-                        }
-                    </div>
-                </div>
-
-                <div class="tot-detail-grid">
-                    <div class="tot-detail-block">
-                        <div class="tot-detail-label">Started on</div>
-                        <div class="tot-detail-value">
-                            @(PartialDateDisplay.Format(selected.TotStartedOn, selected.TotStartDatePrecision) ?? "—")
-                        </div>
-                    </div>
-                    <div class="tot-detail-block">
-                        <div class="tot-detail-label">Completed on</div>
-                        <div class="tot-detail-value">
-                            @(PartialDateDisplay.Format(selected.TotCompletedOn, selected.TotCompletionDatePrecision) ?? "—")
-                        </div>
-                    </div>
-                    <div class="tot-detail-block">
-                        <div class="tot-detail-label">MET details</div>
-                        <div class="tot-detail-value">
-                            @(string.IsNullOrWhiteSpace(selected.TotMetDetails) ? "—" : selected.TotMetDetails)
-                        </div>
-                    </div>
-                    <div class="tot-detail-block">
-                        <div class="tot-detail-label">MET completed</div>
-                        <div class="tot-detail-value">
-                            @FormatDay(selected.TotMetCompletedOn)
-                        </div>
-                    </div>
-                    <div class="tot-detail-block">
-                        <div class="tot-detail-label">First production model</div>
-                        <div class="tot-detail-value">
-                            @FoPmLabel(selected.TotFirstProductionModelManufactured)
-                        </div>
-                    </div>
-                    <div class="tot-detail-block">
-                        <div class="tot-detail-label">Manufactured on</div>
-                        <div class="tot-detail-value">
-                            @FormatDay(selected.TotFirstProductionModelManufacturedOn)
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tot-actions-inline">
-                    @* IMPORTANT: HoD / approver should not see the submit modal, they should see the approval block below *@
-                    @if (!Model.CanApprove && Model.CanSubmitSelected)
-                    {
-                        <button type="button"
-                                class="btn btn-primary"
-                                data-bs-toggle="modal"
-                                data-bs-target="#tot-submit-modal">
-                            Update details
-                        </button>
-                    }
-
-                    <a class="btn btn-outline-secondary"
-                       asp-page="/Projects/Overview"
-                       asp-route-id="@selected.ProjectId">
-                        Open project
-                    </a>
-
-                    @if (selected.RequestState is not null)
-                    {
-                        <button type="button"
-                                class="btn btn-light"
-                                data-bs-toggle="modal"
-                                data-bs-target="#tot-request-modal">
-                            Latest request
-                        </button>
-                    }
-                </div>
-
-                @* APPROVAL CARD – this is what we had lost *@
-                @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending)
-                {
-                    <div class="tot-approval-card mt-2">
-                        <h3>Decision</h3>
-                        <form method="post" asp-page-handler="Decide">
-                            <input asp-for="DecideInput.ProjectId" type="hidden" />
-                            <input asp-for="DecideInput.RowVersion" type="hidden" />
-                            @* The register state, as the submit modal carries it, so the decision's redirect keeps the filters and a Command desk completion window. *@
-                            <input type="hidden" asp-for="TotStatusFilter" />
-                            <input type="hidden" asp-for="RequestStateFilter" />
-                            <input type="hidden" asp-for="SearchTerm" />
-                            <input type="hidden" asp-for="OnlyPending" />
-                            <input type="hidden" asp-for="RequiresTotOnly" />
-                            <input type="hidden" asp-for="MetCompletedOnly" />
-                            <input type="hidden" asp-for="ViewMode" />
-                            <input type="hidden" name="CompletedFrom" value="@completedFromValue" />
-                            <input type="hidden" name="CompletedTo" value="@completedToValue" />
-
-                            <div class="mb-2">
-                                <label asp-for="DecideContextBody" class="form-label small mb-1">Reason <span class="text-muted fw-normal">(required to reject)</span></label>
-                                <textarea asp-for="DecideContextBody" rows="2" class="form-control form-control-sm"></textarea>
-                                <span asp-validation-for="DecideContextBody" class="text-danger small"></span>
-                            </div>
-
-                            <div class="btn-group btn-group-sm" role="group" aria-label="Approve or reject ToT update">
-                                <button type="submit"
-                                        name="DecideInput.Approve"
-                                        value="true"
-                                        class="btn btn-success">
-                                    Approve
-                                </button>
-                                <button type="submit"
-                                        name="DecideInput.Approve"
-                                        value="false"
-                                        class="btn btn-outline-danger">
-                                    Reject
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                }
-
-                @if (Model.SelectedHistory.Count > 0)
-                {
-                    <section class="tot-history" aria-labelledby="tot-history-heading">
-                        <h3 id="tot-history-heading">History</h3>
-                        <ol class="tot-history-list">
-                            @foreach (var entry in Model.SelectedHistory)
-                            {
-                                var performedIst = TimeZoneInfo.ConvertTime(entry.PerformedAt, ProjectManagement.Utilities.TimeZoneHelper.GetIst());
-                                <li class="tot-history-item">
-                                    <div class="tot-history-head">
-                                        <strong>@entry.ActionLabel</strong>
-                                        <span class="text-muted">@entry.PerformedBy · @performedIst.ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture)</span>
-                                    </div>
-                                    @if (entry.Values is { } values)
-                                    {
-                                        <div class="tot-history-values">
-                                            @values.StatusLabel@(values.Started is { } started ? $" · started {started}" : null)@(values.Completed is { } completed ? $" · completed {completed}" : null)
-                                        </div>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(entry.Reason))
-                                    {
-                                        <div class="tot-history-reason">Reason: @entry.Reason</div>
-                                    }
-                                </li>
-                            }
-                        </ol>
-                    </section>
-                }
-            }
-        </div>
     </div>
 </div>
 
@@ -481,32 +305,30 @@
     </div>
 </div>
 
-<!-- latest request modal -->
-@if (selected is { } selectedWithRequest && selectedWithRequest.RequestState is not null)
-{
-    <partial name="_LatestTotRequestModal" model="selectedWithRequest" />
-}
-
-<!-- submit modal -->
-@if (Model.CanSubmitSelected)
-{
-    <div class="modal fade" id="tot-submit-modal" tabindex="-1" aria-labelledby="tot-submit-modal-label" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title fs-5" id="tot-submit-modal-label">Update details</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <partial name="_SubmitTotUpdateModal" model="Model" />
-                </div>
-            </div>
+<!-- the shared ToT drawer: rows open it in place -->
+<div class="offcanvas offcanvas-end project-tot-offcanvas"
+     tabindex="-1"
+     id="offcanvasTot"
+     aria-labelledby="offcanvasTotLabel"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false"
+     data-project-id="@Model.TotDrawerView.ProjectId"
+     data-tot-endpoint="@Model.TotDrawerView.Endpoint"
+     data-tot-open-on-load="@(Model.SelectedProjectId.HasValue ? "true" : "false")">
+    <div class="offcanvas-header">
+        <div>
+            <h2 id="offcanvasTotLabel" class="h5 mb-0">Transfer of Technology</h2>
+            <p class="text-muted small mb-0 mt-1" data-tot-project-name>@Model.Projects.FirstOrDefault(p => p.ProjectId == Model.SelectedProjectId)?.ProjectName</p>
         </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-}
+    <div class="offcanvas-body p-0">
+        <partial name="~/Pages/Projects/_ProjectTotDrawer.cshtml" model="Model.TotDrawerView" />
+    </div>
+</div>
 
 @section Scripts
 {
     <script type="module" src="~/js/pages/project-office-reports/tot.js" asp-append-version="true"></script>
-    <script src="~/js/projects/tot-form-fields.js" asp-append-version="true"></script>
+    <script src="~/js/projects/overview-tot.js" asp-append-version="true"></script>
 }

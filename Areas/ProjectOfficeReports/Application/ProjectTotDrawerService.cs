@@ -11,6 +11,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Remarks;
 using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.PartialDates;
 
@@ -362,11 +363,18 @@ public sealed class ProjectTotDrawerService
         });
     }
 
+    /// <summary>
+    /// Adds a ToT remark through <see cref="IRemarkService"/>, so it gets the remark's creation
+    /// audit and notifications. The author's remark role follows the user's roles: the lead
+    /// Project Officer counts as Project Officer for this project only; Project Office remarks
+    /// are external, everyone else's internal.
+    /// </summary>
     public async Task<ProjectTotDrawerResponse> AddRemarkAsync(
         int projectId,
         int postedProjectId,
         string? body,
-        RemarkActorRole role,
+        IEnumerable<string> userRoleNames,
+        IRemarkService remarks,
         ProjectTotDrawerAccess access,
         CancellationToken ct)
     {
@@ -404,21 +412,66 @@ public sealed class ProjectTotDrawerService
             return ProjectTotDrawerResponse.Error(StatusCodes.Status403Forbidden, "Sign in again to add a remark.");
         }
 
-        _db.Remarks.Add(new Remark
+        var actor = ResolveRemarkActor(access.UserId, userRoleNames, project.LeadPoUserId);
+        if (actor is null)
         {
-            ProjectId = projectId,
-            AuthorUserId = access.UserId,
-            AuthorRole = role,
-            Type = RemarkType.Internal,
-            Scope = RemarkScope.TransferOfTechnology,
-            Body = normalized,
-            EventDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst())),
-            CreatedAtUtc = _clock.UtcNow.UtcDateTime,
-            RowVersion = Guid.NewGuid().ToByteArray()
-        });
-        await _db.SaveChangesAsync(ct);
+            return ProjectTotDrawerResponse.Error(StatusCodes.Status403Forbidden, "You do not have permission to add remarks.");
+        }
+
+        try
+        {
+            await remarks.CreateRemarkAsync(
+                new CreateRemarkRequest(
+                    projectId,
+                    actor,
+                    actor.ActorRole is RemarkActorRole.ProjectOffice or RemarkActorRole.MainOffice ? RemarkType.External : RemarkType.Internal,
+                    RemarkScope.TransferOfTechnology,
+                    normalized,
+                    DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst())),
+                    null,
+                    null,
+                    null),
+                ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ProjectTotDrawerResponse.Error(StatusCodes.Status400BadRequest, ex.Message);
+        }
 
         return ProjectTotDrawerResponse.Ok(new { success = true, message = "Transfer of Technology remark added." });
+    }
+
+    internal static RemarkActorContext? ResolveRemarkActor(string userId, IEnumerable<string> userRoleNames, string? leadPoUserId)
+    {
+        var roles = userRoleNames
+            .Select(name => RemarkActorRoleExtensions.TryParse(name, out var parsed) ? parsed : RemarkActorRole.Unknown)
+            .Where(role => role != RemarkActorRole.Unknown)
+            .ToHashSet();
+
+        if (!string.IsNullOrEmpty(leadPoUserId) && string.Equals(leadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
+        {
+            roles.Add(RemarkActorRole.ProjectOfficer);
+        }
+        else
+        {
+            roles.Remove(RemarkActorRole.ProjectOfficer);
+        }
+
+        if (roles.Count == 0)
+        {
+            return null;
+        }
+
+        var primary = new[]
+            {
+                RemarkActorRole.Administrator,
+                RemarkActorRole.HeadOfDepartment,
+                RemarkActorRole.ProjectOffice,
+                RemarkActorRole.MainOffice,
+                RemarkActorRole.ProjectOfficer
+            }
+            .FirstOrDefault(roles.Contains, roles.First());
+        return new RemarkActorContext(userId, primary, roles.ToList());
     }
 
     private static object BuildPendingPayload(ProjectTot? current, ProjectTotRequest pending, string? submittedBy, bool canDecide)

@@ -45,7 +45,7 @@ public sealed class ProjectTotDrawerServiceTests
         var input = new ProjectTotDrawerInput { ProjectId = 901, Status = ProjectTotStatus.NotRequired };
 
         var save = await service.SaveAsync(901, input, Access(canManage: false), CancellationToken.None);
-        var remark = await service.AddRemarkAsync(901, 901, "Checked with the user unit.", RemarkActorRole.ProjectOffice, Access(canManage: false), CancellationToken.None);
+        var remark = await service.AddRemarkAsync(901, 901, "Checked with the user unit.", new[] { "Project Office" }, new NoRemarkService(), Access(canManage: false), CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status403Forbidden, save.StatusCode);
         Assert.Equal(StatusCodes.Status403Forbidden, remark.StatusCode);
@@ -105,6 +105,25 @@ public sealed class ProjectTotDrawerServiceTests
         });
         await db.SaveChangesAsync();
         return db;
+    }
+
+    // Must never be reached: the access check refuses first.
+    private sealed class NoRemarkService : ProjectManagement.Services.Remarks.IRemarkService
+    {
+        public Task<Remark> CreateRemarkAsync(ProjectManagement.Services.Remarks.CreateRemarkRequest request, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("not expected");
+
+        public Task<ProjectManagement.Services.Remarks.RemarkListResult> ListRemarksAsync(ProjectManagement.Services.Remarks.ListRemarksRequest request, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("not expected");
+
+        public Task<Remark?> EditRemarkAsync(int remarkId, ProjectManagement.Services.Remarks.EditRemarkRequest request, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("not expected");
+
+        public Task<bool> SoftDeleteRemarkAsync(int remarkId, ProjectManagement.Services.Remarks.SoftDeleteRemarkRequest request, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("not expected");
+
+        public Task<System.Collections.Generic.IReadOnlyList<RemarkAudit>> GetRemarkAuditAsync(int remarkId, ProjectManagement.Services.Remarks.RemarkActorContext actor, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("not expected");
     }
 
     private sealed class FixedClock : IClock

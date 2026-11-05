@@ -9,7 +9,9 @@
     if (!offcanvas) return;
     const card = document.getElementById('project-tot-card');
 
-    const projectId = Number.parseInt(offcanvas.dataset.projectId || '0', 10);
+    // The register shows one project at a time and switches between them; the project page has one.
+    let projectId = Number.parseInt(offcanvas.dataset.projectId || '0', 10);
+    const projectNameLabel = offcanvas.querySelector('[data-tot-project-name]');
     const endpoint = offcanvas.dataset.totEndpoint || window.location.pathname;
     function handlerUrl(handler) {
         return `${endpoint}?handler=${encodeURIComponent(handler)}&id=${encodeURIComponent(projectId)}`;
@@ -57,6 +59,8 @@
     const openProjectLink = root?.querySelector('[data-tot-open-project]');
 
     let loaded = false;
+    // A save, decision or remark made in the register leaves its rows out of date until reload.
+    let changed = false;
     let editing = false;
     let remarking = false;
     let initialFormFingerprint = '';
@@ -244,6 +248,27 @@
         root?.querySelectorAll('[data-tot-project-field]').forEach((field) => { field.value = String(projectId); });
         if (openProjectLink instanceof HTMLAnchorElement) openProjectLink.href = `/Projects/Overview/${encodeURIComponent(projectId)}`;
         toggle(addRemarkButton, !payload?.canManage);
+        if (projectNameLabel && payload?.projectName) projectNameLabel.textContent = payload.projectName;
+    }
+    // Forget the project shown so far: its text, history, pending request and every action. Used
+    // when switching projects and when a load fails, so nothing can be posted against a project
+    // other than the one whose details are on screen.
+    function clearShownProject() {
+        loaded = false;
+        toggle(editButton, true);
+        toggle(addRemarkButton, true);
+        if (remarking) setRemarkMode(false);
+        renderPending(null);
+        renderHistory([]);
+        renderFacts([]);
+        ['[data-tot-status-label]', '[data-tot-summary-text]', '[data-tot-status-badge]', '[data-tot-latest-remark]', '[data-tot-latest-remark-meta]']
+            .forEach((selector) => { const el = root?.querySelector(selector); if (el) el.textContent = ''; });
+        root?.querySelectorAll('[data-tot-project-field]').forEach((field) => { field.value = ''; });
+        if (decideVersion) decideVersion.value = '';
+        // Typed text belongs to the project it was typed for.
+        if (decideReason) decideReason.value = '';
+        message(decideError, '');
+        if (remarkBody) remarkBody.value = '';
     }
     function updateCard(payload) {
         if (!payload || !card) return;
@@ -258,24 +283,33 @@
         card.classList.add(`project-intelligence-card--tone-${tone}`);
         card.dataset.totCardTone = tone;
     }
+    // Each load is numbered: only the latest load for the project now shown may fill the drawer.
+    // Otherwise a slow answer for a project opened earlier could show its values while the
+    // forms point at the project opened since, and a save would write them to the wrong project.
+    let loadSequence = 0;
     async function loadDetails(force = false) {
         if (loaded && !force) return;
+        const requestedProjectId = projectId;
+        const sequence = ++loadSequence;
+        const isCurrent = () => sequence === loadSequence && requestedProjectId === projectId;
         setLoading(true); clearMessages();
         try {
             const response = await fetch(handlerUrl('TotDetails'), { credentials:'same-origin', headers:{ Accept:'application/json','X-Requested-With':'XMLHttpRequest' } });
             const payload = await response.json().catch(() => null);
+            if (!isCurrent()) return;
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to load Transfer of Technology details.');
+            if (payload.projectId != null && Number(payload.projectId) !== requestedProjectId) throw new Error('Unable to load Transfer of Technology details.');
             populateForm(payload.input); renderSummary(payload); updateCard(payload.card); pointAtProject(payload);
             if (editButton instanceof HTMLButtonElement) toggle(editButton, !payload.canManage || payload.pendingApproval);
             loaded = true;
         } catch (error) {
+            if (!isCurrent()) return;
             // The form was not filled from the server, so editing it could overwrite the
-            // stored details with defaults. Hide Edit until a later load succeeds.
-            loaded = false;
-            toggle(editButton, true);
+            // stored details with defaults. Nothing may be posted until a later load succeeds.
+            clearShownProject();
             message(globalError, error instanceof Error ? error.message : 'Unable to load Transfer of Technology details.');
         }
-        finally { setLoading(false); }
+        finally { if (isCurrent()) setLoading(false); }
     }
 
     statusInput?.addEventListener('change', updateConditionalFields);
@@ -283,7 +317,7 @@
     editButton?.addEventListener('click', () => { clearMessages(); setEditMode(true); });
     cancelButton?.addEventListener('click', () => { clearMessages(); setEditMode(false); loadDetails(true); });
     saveButton?.addEventListener('click', async () => {
-        if (!(form instanceof HTMLFormElement)) return;
+        if (!(form instanceof HTMLFormElement) || !loaded) return;
         clearMessages(); updateConditionalFields();
         if (!form.checkValidity()) { form.reportValidity(); return; }
         setBusy(true);
@@ -291,13 +325,14 @@
             const response = await fetch(form.action, { method:'POST', body:new FormData(form), credentials:'same-origin', headers:{ Accept:'application/json','X-Requested-With':'XMLHttpRequest' } });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to save Transfer of Technology details.');
+            changed = true;
             updateCard(payload.card); loaded = false; await loadDetails(true); setEditMode(false); message(successBox, payload.message || 'Transfer of Technology details updated.');
         } catch (error) { message(errorBox, error instanceof Error ? error.message : 'Unable to save Transfer of Technology details.'); }
         finally { setBusy(false); }
     });
 
     decideButtons.forEach((button) => button.addEventListener('click', async () => {
-        if (!(decideForm instanceof HTMLFormElement)) return;
+        if (!(decideForm instanceof HTMLFormElement) || !loaded) return;
         const approve = button.getAttribute('data-tot-decide') === 'true';
         const reason = decideReason?.value?.trim() || '';
         if (!approve && !reason) {
@@ -314,6 +349,7 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to record the decision.');
             if (decideReason) decideReason.value = '';
+            changed = true;
             updateCard(payload.card);
             loaded = false;
             await loadDetails(true);
@@ -329,7 +365,7 @@
     cancelRemarkButton?.addEventListener('click', () => setRemarkMode(false));
     remarkForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (!(remarkForm instanceof HTMLFormElement)) return;
+        if (!(remarkForm instanceof HTMLFormElement) || !loaded) return;
         const body = remarkBody?.value?.trim() || '';
         if (body.length < 4) { message(remarkError, 'Remarks must be at least 4 characters long.'); return; }
         try {
@@ -337,6 +373,7 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to save the remark.');
             setRemarkMode(false);
+            changed = true;
             loaded = false;
             await loadDetails(true);
             message(successBox, payload.message || 'ToT remark added.');
@@ -344,6 +381,31 @@
     });
 
     let lastLoad = Promise.resolve();
+    // The register (no project card) shows its rows again with the change once the drawer closes.
+    offcanvas.addEventListener('hidden.bs.offcanvas', () => {
+        if (changed && !card) window.location.reload();
+    });
+
+    // Register rows open the drawer in place; their link (with SelectedProjectId) still works
+    // without the script, or when opened in a new tab.
+    function openProject(id, name) {
+        if (!Number.isInteger(id) || id <= 0) return;
+        if (id !== projectId) {
+            projectId = id;
+            offcanvas.dataset.projectId = String(id);
+            // Nothing from the previous project may be shown or posted against this one.
+            clearShownProject();
+        }
+        if (projectNameLabel) projectNameLabel.textContent = name || '';
+        bootstrap.Offcanvas.getOrCreateInstance(offcanvas).show();
+    }
+    document.addEventListener('click', (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const trigger = event.target instanceof Element ? event.target.closest('[data-tot-open-project-id]') : null;
+        if (!trigger) return;
+        event.preventDefault();
+        openProject(Number.parseInt(trigger.getAttribute('data-tot-open-project-id') || '0', 10), trigger.getAttribute('data-tot-project-name') || '');
+    });
     offcanvas.addEventListener('show.bs.offcanvas', () => { setRemarkMode(false); setEditMode(false); lastLoad = loadDetails(); });
     offcanvas.addEventListener('hide.bs.offcanvas', (event) => {
         const hasRemarkDraft = remarking && (remarkBody?.value?.trim()?.length || 0) > 0;
@@ -374,4 +436,7 @@
         const canEdit = editButton instanceof HTMLButtonElement && !editButton.classList.contains('d-none');
         if (canEdit && form instanceof HTMLFormElement) { clearMessages(); setEditMode(true); }
     })();
+    // The register opens the drawer for ?SelectedProjectId= (links from the project page and
+    // the Command desk), once every listener above is in place.
+    if (offcanvas.dataset.totOpenOnLoad === 'true' && projectId > 0) openProject(projectId, projectNameLabel?.textContent || '');
 })();

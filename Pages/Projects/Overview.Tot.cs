@@ -1,11 +1,13 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
-using ProjectManagement.Models.Remarks;
+using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Authorization;
 using ProjectManagement.ViewModels;
 
@@ -62,12 +64,11 @@ public partial class OverviewModel
         [FromForm] string? body,
         CancellationToken ct)
     {
-        var role = User.IsInRole("Admin")
-            ? RemarkActorRole.Administrator
-            : User.IsInRole("HoD")
-                ? RemarkActorRole.HeadOfDepartment
-                : RemarkActorRole.ProjectOfficer;
-        return ToJson(await TotDrawer().AddRemarkAsync(id, projectId, body, role, TotDrawerAccess(), ct));
+        // Through the remark service, like the project page's Remarks panel: creation audit and
+        // notifications included. Resolved per request so the page's constructor stays as it is.
+        var remarks = HttpContext.RequestServices.GetRequiredService<IRemarkService>();
+        var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value);
+        return ToJson(await TotDrawer().AddRemarkAsync(id, projectId, body, roles, remarks, TotDrawerAccess(), ct));
     }
 
     /// <summary>The shared drawer, as this page shows it: one project, with a link to the register.</summary>

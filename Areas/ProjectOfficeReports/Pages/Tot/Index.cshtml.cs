@@ -8,51 +8,53 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
-using ProjectManagement.Services.Projects;
+using ProjectManagement.Services;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.ViewModels;
-using ProjectManagement.Utilities.PartialDates;
-using System.ComponentModel.DataAnnotations;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot;
 
+/// <summary>
+/// The ToT register. Rows open the shared ToT drawer (<see cref="ProjectTotDrawerService"/>) with
+/// the register's access rule: Project Office, HoD and Admin for any project, a Project Officer
+/// for projects they lead; HoD and Admin save directly and decide requests, others submit for
+/// approval.
+/// </summary>
 [Authorize(Policy = ProjectOfficeReportsPolicies.ViewTotTracker)]
 public sealed class IndexModel : PageModel
 {
     private readonly ApplicationDbContext _db;
     private readonly ProjectTotTrackerReadService _trackerService;
-    private readonly ProjectTotService _totService;
     private readonly IProjectTotExportService _exportService;
     private readonly IAuthorizationService _authorizationService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IClock _clock;
     private readonly IRemarkService _remarkService;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
         ApplicationDbContext db,
         ProjectTotTrackerReadService trackerService,
-        ProjectTotService totService,
         IProjectTotExportService exportService,
         IAuthorizationService authorizationService,
         UserManager<ApplicationUser> userManager,
+        IClock clock,
         IRemarkService remarkService,
         ILogger<IndexModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _trackerService = trackerService ?? throw new ArgumentNullException(nameof(trackerService));
-        _totService = totService ?? throw new ArgumentNullException(nameof(totService));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _remarkService = remarkService ?? throw new ArgumentNullException(nameof(remarkService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -98,108 +100,23 @@ public sealed class IndexModel : PageModel
 
     public TotTrackerSummary Summary { get; private set; } = TotTrackerSummary.Empty;
 
-    public ProjectTotTrackerRow? SelectedProject { get; private set; }
-
     public bool CanSubmit { get; private set; }
 
     public bool CanApprove { get; private set; }
 
-    // Whether the signed-in user may submit for the selected project: Project Office, HoD and
-    // Admin for any project, a Project Officer only for a project they lead.
-    public bool CanSubmitSelected { get; private set; }
-
-    public IReadOnlyList<ProjectTotHistoryEntry> SelectedHistory { get; private set; } = Array.Empty<ProjectTotHistoryEntry>();
-
-    public bool ShowSubmitModal { get; private set; }
-
-    public bool HighlightDecisionCard { get; private set; }
-
-    public string? DecisionAlertMessage { get; private set; }
-
-    [BindProperty]
-    public SubmitRequestInput SubmitInput { get; set; } = new();
-
-    [BindProperty]
-    public DecideRequestInput DecideInput { get; set; } = new();
-
-    [BindProperty]
-    public string? SubmitContextBody { get; set; }
-
-    [BindProperty]
-    public string? DecideContextBody { get; set; }
-
     [BindProperty]
     public ExportRequestInput Export { get; set; } = new();
 
-    public sealed class SubmitRequestInput : ITotStatusMilestoneFields
+    /// <summary>The shared drawer as the register hosts it; a selected project opens on load.</summary>
+    public ProjectTotDrawerViewModel TotDrawerView => new()
     {
-        [HiddenInput]
-        public int ProjectId { get; set; }
-
-        public ProjectTotStatus Status { get; set; } = ProjectTotStatus.NotStarted;
-
-        [BindNever]
-        public DateOnly? StartedOn { get; set; }
-
-        [BindNever]
-        public PartialDatePrecision StartDatePrecision { get; set; }
-
-        [BindNever]
-        public DateOnly? CompletedOn { get; set; }
-
-        [BindNever]
-        public PartialDatePrecision CompletionDatePrecision { get; set; }
-
-        [Range(1900, 2100)]
-        public int? StartYear { get; set; }
-
-        [Range(1, 12)]
-        public int? StartMonth { get; set; }
-
-        [Range(1, 31)]
-        public int? StartDay { get; set; }
-
-        [Range(1900, 2100)]
-        public int? CompletionYear { get; set; }
-
-        [Range(1, 12)]
-        public int? CompletionMonth { get; set; }
-
-        [Range(1, 31)]
-        public int? CompletionDay { get; set; }
-
-        public string? MetDetails { get; set; }
-
-        public DateOnly? MetCompletedOn { get; set; }
-
-        public bool? FirstProductionModelManufactured { get; set; }
-
-        public DateOnly? FirstProductionModelManufacturedOn { get; set; }
-
-        public PartialDateInput GetStartPartial() => new()
-        {
-            Year = StartYear,
-            Month = StartMonth,
-            Day = StartDay
-        };
-
-        public PartialDateInput GetCompletionPartial() => new()
-        {
-            Year = CompletionYear,
-            Month = CompletionMonth,
-            Day = CompletionDay
-        };
-    }
-
-    public sealed class DecideRequestInput
-    {
-        [HiddenInput]
-        public int ProjectId { get; set; }
-
-        public bool Approve { get; set; }
-
-        public string? RowVersion { get; set; }
-    }
+        Endpoint = Url.Page("/Tot/Index", new { area = "ProjectOfficeReports" }) ?? "/ProjectOfficeReports/Tot",
+        ProjectId = SelectedProjectId,
+        CanManage = CanSubmit,
+        SaveNeedsApproval = !CanApprove,
+        CanDecide = CanApprove,
+        LinkToProject = true
+    };
 
     public sealed class ExportRequestInput
     {
@@ -293,172 +210,6 @@ public sealed class IndexModel : PageModel
         };
     }
 
-    public async Task<IActionResult> OnPostSubmitAsync(CancellationToken cancellationToken)
-    {
-        await PopulatePermissionsAsync();
-        if (!CanSubmit)
-        {
-            SelectedProjectId = SubmitInput.ProjectId;
-            return PermissionDenied(
-                "submit a Transfer of Technology update",
-                ProjectOfficeReportsPolicies.ManageTotTracker,
-                SubmitInput.ProjectId);
-        }
-
-        SelectedProjectId = SubmitInput.ProjectId;
-
-        var submitter = await LoadProjectAssignmentsAsync(SubmitInput.ProjectId, cancellationToken);
-        if (submitter is null)
-        {
-            return NotFound();
-        }
-
-        if (!ProjectOfficeReportsPolicies.CanSubmitTotFor(User, CurrentUserId(), submitter.LeadProjectOfficerUserId))
-        {
-            _logger.LogWarning(
-                "Blocked ToT submit for project {ProjectId}: user {UserId} is not its lead Project Officer.",
-                SubmitInput.ProjectId,
-                CurrentUserId());
-            TempData["ToastError"] = "You can submit Transfer of Technology updates only for projects you lead.";
-            return RedirectToPage(new
-            {
-                TotStatusFilter,
-                RequestStateFilter,
-                SearchTerm,
-                OnlyPending,
-                RequiresTotOnly,
-                MetCompletedOnly,
-                CompletedFrom = DayValue(CompletedFrom),
-                CompletedTo = DayValue(CompletedTo),
-                SelectedProjectId = SubmitInput.ProjectId,
-                ViewMode
-            });
-        }
-
-        var submitContext = NormalizeRemarkBody(SubmitContextBody);
-        if (!ValidateRemarkBody(submitContext, nameof(SubmitContextBody)))
-        {
-            var preservedInput = SubmitInput;
-            await PopulateAsync(cancellationToken);
-            SubmitInput = preservedInput;
-            SubmitContextBody = submitContext ?? SubmitContextBody;
-            ShowSubmitModal = true;
-            return Page();
-        }
-
-        ValidatePartialDates(SubmitInput);
-
-        if (!ModelState.IsValid)
-        {
-            var preservedInput = SubmitInput;
-            await PopulateAsync(cancellationToken);
-            SubmitInput = preservedInput;
-            SubmitContextBody = submitContext;
-            ShowSubmitModal = true;
-            return Page();
-        }
-
-        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? _userManager.GetUserId(User);
-        if (string.IsNullOrWhiteSpace(currentUserId))
-        {
-            TempData["ToastError"] = "You are not signed in or your session has expired. Please sign in again.";
-            _logger.LogWarning(
-                "Blocked Transfer of Technology submit for project {ProjectId} because the user is not authenticated.",
-                SubmitInput.ProjectId);
-            return Challenge();
-        }
-
-        // SECTION: Authorization context
-        var isAdmin = User.IsInRole("Admin");
-        var isHoD = User.IsInRole("HoD");
-
-        _logger.LogInformation(
-            "Transfer of Technology submit requested for project {ProjectId} by user {UserId}.",
-            SubmitInput.ProjectId,
-            currentUserId);
-
-        var request = new ProjectTotUpdateRequest(
-            SubmitInput.Status,
-            SubmitInput.StartedOn,
-            SubmitInput.StartDatePrecision,
-            SubmitInput.CompletedOn,
-            SubmitInput.CompletionDatePrecision,
-            SubmitInput.MetDetails,
-            SubmitInput.MetCompletedOn,
-            SubmitInput.FirstProductionModelManufactured,
-            SubmitInput.FirstProductionModelManufacturedOn);
-
-        var result = await _totService.SubmitRequestAsync(
-            SubmitInput.ProjectId,
-            request,
-            currentUserId,
-            cancellationToken);
-
-        if (result.Status == ProjectTotRequestActionStatus.NotFound)
-        {
-            return NotFound();
-        }
-
-        if (result.Status == ProjectTotRequestActionStatus.Conflict)
-        {
-            var message = result.ErrorMessage ?? "An update is already pending approval for this project.";
-            TempData["ToastError"] = message;
-
-            await PopulateAsync(cancellationToken);
-
-            ShowSubmitModal = false;
-            HighlightDecisionCard = true;
-            DecisionAlertMessage = message;
-
-            _logger.LogInformation(
-                "Blocked duplicate ToT submit for project {ProjectId} by user {UserId}.",
-                SubmitInput.ProjectId,
-                currentUserId);
-
-            return Page();
-        }
-
-        if (!result.IsSuccess)
-        {
-            // Keep everything the user entered, including the year/month/day fields the form
-            // renders, so the modal reopens with their values rather than the stored record.
-            var preservedInput = SubmitInput;
-            var message = result.ErrorMessage ?? "Unable to submit the Transfer of Technology update.";
-            ModelState.AddModelError(string.Empty, message);
-            TempData["ToastError"] = message;
-            await PopulateAsync(cancellationToken);
-            SubmitInput = preservedInput;
-            SubmitContextBody = submitContext;
-            ShowSubmitModal = true;
-            return Page();
-        }
-
-        var (remarkSuccess, remarkError) = await TryCreateTotRemarkAsync(SubmitInput.ProjectId, submitContext, cancellationToken);
-        var toast = "Transfer of Technology update submitted for approval.";
-        if (!remarkSuccess)
-        {
-            toast += remarkError is { Length: > 0 }
-                ? $" However, the remark could not be saved: {remarkError}"
-                : " However, the remark could not be saved.";
-        }
-
-        TempData["Toast"] = toast;
-        return RedirectToPage(new
-        {
-            TotStatusFilter,
-            RequestStateFilter,
-            SearchTerm,
-            OnlyPending,
-            RequiresTotOnly,
-            MetCompletedOnly,
-            CompletedFrom = DayValue(CompletedFrom),
-            CompletedTo = DayValue(CompletedTo),
-            SelectedProjectId = SubmitInput.ProjectId,
-            ViewMode
-        });
-    }
-
     public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
     {
         await PopulatePermissionsAsync();
@@ -521,157 +272,80 @@ public sealed class IndexModel : PageModel
         return File(result.File.Content, result.File.ContentType, result.File.FileName);
     }
 
-    public async Task<IActionResult> OnPostDecideAsync(CancellationToken cancellationToken)
+    // SECTION: The shared ToT drawer, with the register's access rule.
+
+    public async Task<IActionResult> OnGetTotDetailsAsync(int id, CancellationToken ct)
+        => ToJson(await TotDrawer().GetDetailsAsync(id, await DrawerAccessAsync(), ct));
+
+    public async Task<IActionResult> OnPostTotAsync(int id, [FromForm] ProjectTotDrawerInput? input, CancellationToken ct)
+    {
+        var response = await TotDrawer().SaveAsync(id, input, await DrawerAccessAsync(), ct);
+        if (response.StatusCode == 200)
+        {
+            _logger.LogInformation(
+                "Project ToT saved from the register. ProjectId={ProjectId}, UserId={UserId}, Status={Status}",
+                id,
+                CurrentUserId(),
+                input?.Status);
+        }
+
+        return ToJson(response);
+    }
+
+    public async Task<IActionResult> OnPostTotDecideAsync(
+        int id,
+        [FromForm] bool approve,
+        [FromForm] string? rowVersion,
+        [FromForm] string? reason,
+        CancellationToken ct)
+    {
+        var response = await TotDrawer().DecideAsync(id, approve, rowVersion, reason, await DrawerAccessAsync(), ct);
+        if (response.StatusCode == 200)
+        {
+            _logger.LogInformation(
+                "Project ToT request {Decision} from the register. ProjectId={ProjectId}, UserId={UserId}",
+                approve ? "approved" : "rejected",
+                id,
+                CurrentUserId());
+        }
+
+        return ToJson(response);
+    }
+
+    public async Task<IActionResult> OnPostTotRemarkAsync(
+        int id,
+        [FromForm] int projectId,
+        [FromForm] string? body,
+        CancellationToken ct)
+    {
+        var roles = User.FindAll(ClaimTypes.Role).Select(claim => claim.Value);
+        return ToJson(await TotDrawer().AddRemarkAsync(id, projectId, body, roles, _remarkService, await DrawerAccessAsync(), ct));
+    }
+
+    private ProjectTotDrawerService TotDrawer() => new(_db, _clock);
+
+    private async Task<ProjectTotDrawerAccess> DrawerAccessAsync()
     {
         await PopulatePermissionsAsync();
-        if (!CanApprove)
-        {
-            SelectedProjectId = DecideInput.ProjectId;
-            return PermissionDenied(
-                "record a Transfer of Technology decision",
-                ProjectOfficeReportsPolicies.ApproveTotTracker,
-                DecideInput.ProjectId);
-        }
-
-        SelectedProjectId = DecideInput.ProjectId;
-
-        var decisionContext = NormalizeRemarkBody(DecideContextBody);
-        if (!ValidateRemarkBody(decisionContext, nameof(DecideContextBody)))
-        {
-            await PopulateAsync(cancellationToken);
-            DecideContextBody = decisionContext ?? DecideContextBody;
-            return Page();
-        }
-
-        if (!ModelState.IsValid)
-        {
-            await PopulateAsync(cancellationToken);
-            DecideContextBody = decisionContext;
-            return Page();
-        }
-
-        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? _userManager.GetUserId(User);
-        if (string.IsNullOrWhiteSpace(currentUserId))
-        {
-            TempData["ToastError"] = "You are not signed in or your session has expired. Please sign in again.";
-            _logger.LogWarning(
-                "Blocked Transfer of Technology decision for project {ProjectId} because the user is not authenticated.",
-                DecideInput.ProjectId);
-            return Challenge();
-        }
-
-        // SECTION: Authorization context
-        var isAdmin = User.IsInRole("Admin");
-        var isHoD = User.IsInRole("HoD");
-
-        byte[]? rowVersion = null;
-        var hasRowVersionField = Request is { HasFormContentType: true } && Request.Form.ContainsKey("DecideInput.RowVersion");
-
-        if (!hasRowVersionField)
-        {
-            ModelState.AddModelError(string.Empty, "Select a Transfer of Technology request before approving or rejecting.");
-            TempData["ToastError"] = "Select the project again to refresh the approval form.";
-            await PopulateAsync(cancellationToken);
-            HighlightDecisionCard = true;
-            DecisionAlertMessage = "Select the project again to refresh the approval form.";
-            DecideContextBody = decisionContext;
-            return Page();
-        }
-
-        if (!string.IsNullOrEmpty(DecideInput.RowVersion))
-        {
-            try
-            {
-                rowVersion = Convert.FromBase64String(DecideInput.RowVersion);
-            }
-            catch (FormatException)
-            {
-                ModelState.AddModelError(string.Empty, "The approval request could not be processed because the version token was invalid.");
-                TempData["ToastError"] = "Select the project again to refresh the approval form.";
-                await PopulateAsync(cancellationToken);
-                HighlightDecisionCard = true;
-                DecisionAlertMessage = "Select the project again to refresh the approval form.";
-                DecideContextBody = decisionContext;
-                return Page();
-            }
-        }
-
-        var result = await _totService.DecideRequestAsync(
-            DecideInput.ProjectId,
-            DecideInput.Approve,
-            currentUserId,
-            isAdmin,
-            isHoD,
-            rowVersion,
-            decisionContext,
-            cancellationToken);
-
-        if (result.Status == ProjectTotRequestActionStatus.NotFound)
-        {
-            return NotFound();
-        }
-
-        if (result.Status == ProjectTotRequestActionStatus.Forbidden)
-        {
-            TempData["ToastError"] = result.ErrorMessage ?? "You are not authorised to approve Transfer of Technology updates.";
-            return Forbid();
-        }
-
-        if (!result.IsSuccess)
-        {
-            var message = result.ErrorMessage ?? "Unable to complete the Transfer of Technology decision.";
-            ModelState.AddModelError(string.Empty, message);
-            TempData["ToastError"] = message;
-            var approveChoice = DecideInput.Approve;
-            await PopulateAsync(cancellationToken);
-            DecideInput.Approve = approveChoice;
-            DecideContextBody = decisionContext;
-
-            if (result.Status is ProjectTotRequestActionStatus.Conflict or ProjectTotRequestActionStatus.ValidationFailed)
-            {
-                HighlightDecisionCard = true;
-                DecisionAlertMessage = message;
-            }
-
-            return Page();
-        }
-
-        var (remarkSuccess, remarkError) = await TryCreateTotRemarkAsync(DecideInput.ProjectId, decisionContext, cancellationToken);
-        var toast = DecideInput.Approve
-            ? "Transfer of Technology update approved."
-            : "Transfer of Technology update rejected.";
-
-        if (!remarkSuccess)
-        {
-            toast += remarkError is { Length: > 0 }
-                ? $" However, the remark could not be saved: {remarkError}"
-                : " However, the remark could not be saved.";
-        }
-
-        TempData["Toast"] = toast;
-
-        return RedirectToPage(new
-        {
-            TotStatusFilter,
-            RequestStateFilter,
-            SearchTerm,
-            OnlyPending,
-            RequiresTotOnly,
-            MetCompletedOnly,
-            CompletedFrom = DayValue(CompletedFrom),
-            CompletedTo = DayValue(CompletedTo),
-            SelectedProjectId = DecideInput.ProjectId,
-            ViewMode
-        });
+        var userId = CurrentUserId();
+        var canSubmit = CanSubmit;
+        return new ProjectTotDrawerAccess(
+            userId,
+            (project, _) => Task.FromResult(
+                canSubmit
+                && !project.IsArchived
+                && ProjectOfficeReportsPolicies.CanSubmitTotFor(User, userId, project.LeadPoUserId)),
+            CanApprove,
+            User.IsInRole(RoleNames.Admin),
+            User.IsInRole(RoleNames.HoD));
     }
+
+    private static JsonResult ToJson(ProjectTotDrawerResponse response)
+        => new(response.Body) { StatusCode = response.StatusCode };
 
     private async Task PopulateAsync(CancellationToken cancellationToken)
     {
         await PopulatePermissionsAsync();
-
-        HighlightDecisionCard = false;
-        DecisionAlertMessage = null;
 
         var filter = new ProjectTotTrackerFilter
         {
@@ -687,98 +361,7 @@ public sealed class IndexModel : PageModel
 
         Projects = await _trackerService.GetAsync(filter, cancellationToken);
         Summary = TotTrackerSummary.FromProjects(Projects);
-
-        SelectedProject = SelectedProjectId.HasValue
-            ? Projects.FirstOrDefault(p => p.ProjectId == SelectedProjectId.Value)
-            : null;
-
-        CanSubmitSelected = false;
-        SelectedHistory = Array.Empty<ProjectTotHistoryEntry>();
-
-        if (SelectedProject is { } selected)
-        {
-            CanSubmitSelected = CanSubmit
-                && ProjectOfficeReportsPolicies.CanSubmitTotFor(User, CurrentUserId(), selected.LeadPoUserId);
-            SelectedHistory = await _trackerService.GetHistoryAsync(selected.ProjectId, cancellationToken: cancellationToken);
-            SubmitInput = BuildSubmitInput(selected);
-
-            DecideInput = new DecideRequestInput
-            {
-                ProjectId = selected.ProjectId,
-                Approve = true,
-                RowVersion = selected.RequestRowVersion is { Length: > 0 }
-                    ? Convert.ToBase64String(selected.RequestRowVersion)
-                    : null
-            };
-
-            SubmitContextBody = null;
-            DecideContextBody = null;
-        }
-        else
-        {
-            SubmitInput = new SubmitRequestInput();
-            DecideInput = new DecideRequestInput();
-            SubmitContextBody = null;
-            DecideContextBody = null;
-        }
     }
-
-    // The submit form starts from the approved ToT record. Only a still-pending proposal is
-    // carried forward; an approved or rejected request is history, not the current position.
-    // Each date keeps its stored precision, so "2024" is not resubmitted as "31 Dec 2024".
-    internal static SubmitRequestInput BuildSubmitInput(ProjectTotTrackerRow row)
-    {
-        var input = row.RequestState == ProjectTotRequestDecisionState.Pending
-            ? new SubmitRequestInput
-            {
-                ProjectId = row.ProjectId,
-                Status = row.RequestedStatus ?? row.TotStatus ?? ProjectTotStatus.NotStarted,
-                StartedOn = row.RequestedStartedOn,
-                StartDatePrecision = row.RequestedStartedOn.HasValue ? row.RequestedStartDatePrecision : PartialDatePrecision.None,
-                CompletedOn = row.RequestedCompletedOn,
-                CompletionDatePrecision = row.RequestedCompletedOn.HasValue ? row.RequestedCompletionDatePrecision : PartialDatePrecision.None,
-                MetDetails = row.RequestedMetDetails,
-                MetCompletedOn = row.RequestedMetCompletedOn,
-                FirstProductionModelManufactured = row.RequestedFirstProductionModelManufactured,
-                FirstProductionModelManufacturedOn = row.RequestedFirstProductionModelManufacturedOn
-            }
-            : new SubmitRequestInput
-            {
-                ProjectId = row.ProjectId,
-                Status = row.TotStatus ?? ProjectTotStatus.NotStarted,
-                StartedOn = row.TotStartedOn,
-                StartDatePrecision = row.TotStartedOn.HasValue ? row.TotStartDatePrecision : PartialDatePrecision.None,
-                CompletedOn = row.TotCompletedOn,
-                CompletionDatePrecision = row.TotCompletedOn.HasValue ? row.TotCompletionDatePrecision : PartialDatePrecision.None,
-                MetDetails = row.TotMetDetails,
-                MetCompletedOn = row.TotMetCompletedOn,
-                FirstProductionModelManufactured = row.TotFirstProductionModelManufactured,
-                FirstProductionModelManufacturedOn = row.TotFirstProductionModelManufacturedOn
-            };
-
-        if (input.StartedOn is { } start)
-        {
-            var precision = EffectivePrecision(input.StartDatePrecision);
-            input.StartYear = start.Year;
-            input.StartMonth = precision >= PartialDatePrecision.Month ? start.Month : null;
-            input.StartDay = precision == PartialDatePrecision.Day ? start.Day : null;
-        }
-
-        if (input.CompletedOn is { } completion)
-        {
-            var precision = EffectivePrecision(input.CompletionDatePrecision);
-            input.CompletionYear = completion.Year;
-            input.CompletionMonth = precision >= PartialDatePrecision.Month ? completion.Month : null;
-            input.CompletionDay = precision == PartialDatePrecision.Day ? completion.Day : null;
-        }
-
-        return input;
-    }
-
-    // A date stored before precision was tracked has no precision recorded; show it in full
-    // rather than dropping the month and day the user originally entered.
-    private static PartialDatePrecision EffectivePrecision(PartialDatePrecision precision)
-        => precision == PartialDatePrecision.None ? PartialDatePrecision.Day : precision;
 
     private IActionResult PermissionDenied(string actionDescription, string policy, int? projectId)
     {
@@ -823,175 +406,6 @@ public sealed class IndexModel : PageModel
         CanApprove = approveResult.Succeeded;
     }
 
-    private async Task<(bool Success, string? ErrorMessage)> TryCreateTotRemarkAsync(int projectId, string? body, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(body))
-        {
-            return (true, null);
-        }
-
-        var (actor, remarkType, errorMessage) = await BuildRemarkActorContextAsync(projectId, cancellationToken);
-        if (actor is null || remarkType is null)
-        {
-            return (false, errorMessage);
-        }
-
-        var request = new CreateRemarkRequest(
-            projectId,
-            actor,
-            remarkType.Value,
-            RemarkScope.TransferOfTechnology,
-            body,
-            DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow)),
-            null,
-            null,
-            null);
-
-        try
-        {
-            await _remarkService.CreateRemarkAsync(request, cancellationToken);
-            return (true, null);
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Failed to create ToT remark for project {ProjectId}.", projectId);
-            return (false, ex.Message);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error while creating ToT remark for project {ProjectId}.", projectId);
-            return (false, "Unable to save the Transfer of Technology remark.");
-        }
-    }
-
-    private async Task<(RemarkActorContext? Actor, RemarkType? Type, string? ErrorMessage)> BuildRemarkActorContextAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var user = await _userManager.GetUserAsync(User);
-        if (user is null)
-        {
-            return (null, null, "User context is required to add a remark.");
-        }
-
-        var project = await LoadProjectAssignmentsAsync(projectId, cancellationToken);
-        if (project is null)
-        {
-            return (null, null, "Project not found.");
-        }
-
-        var persistedRoles = await _userManager.GetRolesAsync(user);
-        var principalRoles = User
-            .FindAll(ClaimTypes.Role)
-            .Select(claim => claim.Value);
-
-        var remarkRoles = persistedRoles
-            .Concat(principalRoles)
-            .Select(name => RemarkActorRoleExtensions.TryParse(name, out var parsed) ? parsed : RemarkActorRole.Unknown)
-            .Where(role => role != RemarkActorRole.Unknown)
-            .ToHashSet();
-
-        if (!string.IsNullOrEmpty(project.LeadProjectOfficerUserId)
-            && string.Equals(project.LeadProjectOfficerUserId, user.Id, StringComparison.OrdinalIgnoreCase))
-        {
-            remarkRoles.Add(RemarkActorRole.ProjectOfficer);
-        }
-        else
-        {
-            remarkRoles.Remove(RemarkActorRole.ProjectOfficer);
-        }
-
-        if (remarkRoles.Count == 0)
-        {
-            return (null, null, "You do not have permission to add remarks.");
-        }
-
-        var primaryRole = SelectPrimaryRole(remarkRoles);
-        var actor = new RemarkActorContext(user.Id, primaryRole, remarkRoles.ToList());
-        var remarkType = ResolveRemarkType(primaryRole);
-        return (actor, remarkType, null);
-    }
-
     private string? CurrentUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? _userManager.GetUserId(User);
-
-    private async Task<ProjectAssignmentInfo?> LoadProjectAssignmentsAsync(int projectId, CancellationToken cancellationToken)
-        => await _db.Projects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .Select(p => new ProjectAssignmentInfo(p.Id, p.LeadPoUserId))
-            .FirstOrDefaultAsync(cancellationToken);
-
-    private static string? NormalizeRemarkBody(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
-    }
-
-    private void ValidatePartialDates(ITotStatusMilestoneFields input)
-    {
-        // SECTION: Partial date validation
-        var dates = ProjectTotDateInput.Resolve(input.Status, new PartialDateInput { Year = input.StartYear, Month = input.StartMonth, Day = input.StartDay }, new PartialDateInput { Year = input.CompletionYear, Month = input.CompletionMonth, Day = input.CompletionDay });
-        input.StartedOn = dates.StartedOn;
-        input.StartDatePrecision = dates.StartDatePrecision;
-        input.CompletedOn = dates.CompletedOn;
-        input.CompletionDatePrecision = dates.CompletionDatePrecision;
-
-        foreach (var error in dates.Errors)
-        {
-            ModelState.AddModelError(error.Field, error.Message);
-        }
-    }
-
-    private bool ValidateRemarkBody(string? body, string modelStateKey)
-    {
-        if (string.IsNullOrEmpty(body))
-        {
-            return true;
-        }
-
-        if (body.Length < 4)
-        {
-            ModelState.AddModelError(modelStateKey, "Remarks must be at least 4 characters long.");
-            return false;
-        }
-
-        if (body.Length > 2000)
-        {
-            ModelState.AddModelError(modelStateKey, "Remarks must be 2000 characters or fewer.");
-            return false;
-        }
-
-        return true;
-    }
-
-    private static RemarkActorRole SelectPrimaryRole(IReadOnlyCollection<RemarkActorRole> roles)
-    {
-        foreach (var role in new[]
-                 {
-                     RemarkActorRole.Administrator,
-                     RemarkActorRole.HeadOfDepartment,
-                     RemarkActorRole.ProjectOffice,
-                     RemarkActorRole.MainOffice,
-                     RemarkActorRole.ProjectOfficer
-                 })
-        {
-            if (roles.Contains(role))
-            {
-                return role;
-            }
-        }
-
-        return roles.First();
-    }
-
-    private static RemarkType ResolveRemarkType(RemarkActorRole role)
-        => role is RemarkActorRole.ProjectOffice or RemarkActorRole.MainOffice
-            ? RemarkType.External
-            : RemarkType.Internal;
-
-    private sealed record ProjectAssignmentInfo(int ProjectId, string? LeadProjectOfficerUserId);
 }
