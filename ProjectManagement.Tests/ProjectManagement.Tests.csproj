@@ -213,6 +213,9 @@
     <None Include="..\wwwroot\js\pages\project-briefing-confirm.js"
           Link="TestData\ProjectBriefing\project-briefing-confirm.js"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\js\pages\command-workspace.js"
+          Link="TestData\ProjectBriefing\command-workspace.js"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\wwwroot\css\pages\project-briefing-decks.css"
           Link="TestData\ProjectBriefing\project-briefing-decks.css"
           CopyToOutputDirectory="PreserveNewest" />

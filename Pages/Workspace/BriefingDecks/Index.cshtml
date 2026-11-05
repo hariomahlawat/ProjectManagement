@@ -106,7 +106,10 @@
     <link rel="stylesheet" href="~/css/pages/project-briefing-decks.css" asp-append-version="true" />
 }
 
-<div class="command-workspace is-nav-expanded command-workspace--briefing-decks" data-command-workspace>
+@* The Studio starts with the workspace navigation folded, so the slide gets the room; it keeps
+   its own remembered choice, apart from the other workspace pages. *@
+<div class="command-workspace @(deck is null ? "is-nav-expanded" : null) command-workspace--briefing-decks" data-command-workspace
+     data-workspace-nav-scope="@(deck is null ? null : "studio")">
     @await Html.PartialAsync("/Pages/Workspace/_CommandWorkspaceRail.cshtml", Model.CommandRail)
 
     <main class="cw-workspace-content pbd-shell" data-pbd-root
@@ -292,6 +295,8 @@
                             <button type="button" class="btn btn-sm btn-warning" data-pbd-conflict-reload>Reload</button>
                         </div>
 
+                        @* The frame is the size container the Studio's columns follow. *@
+                        <div class="pbd-studio-frame">
                         <section class="pbd-studio" aria-label="Briefing studio" data-pbd-studio
                                  data-preview-url="@Url.Page("/Workspace/BriefingDecks/Index", "Preview", new { deckId = deck.Id })"
                                  data-estimated-slides="@deck.SlideEstimate.TotalSlides"
@@ -791,6 +796,7 @@
                                 </div>
                             </aside>
                         </section>
+                        </div>
 
                         <dialog class="pbd-viewer" data-pbd-viewer aria-labelledby="pbd-viewer-title">
                             <div class="pbd-viewer__surface">
