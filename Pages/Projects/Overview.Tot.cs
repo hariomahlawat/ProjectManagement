@@ -463,6 +463,7 @@ public partial class OverviewModel
             ProjectTotStatus.NotStarted => "Transfer of Technology has not started.",
             ProjectTotStatus.InProgress => "Transfer of Technology is in progress.",
             ProjectTotStatus.Completed => "Transfer of Technology is completed.",
+            ProjectTotStatus.NotKnown => "It is not known whether Transfer of Technology took place.",
             _ => "Transfer of Technology details are unavailable."
         };
         return new { hasRecord = true, statusLabel = TotStatusLabel(tot.Status), summary, facts };

@@ -164,6 +164,7 @@ public sealed class DetailsModel : PageModel
         {
             "NotStarted" => "Not started",
             "InProgress" => "In progress",
+            "NotKnown" => "Not known",
             "PendingApproval" => "Pending approval",
             _ => string.Concat(value.Select((character, index) => index > 0 && char.IsUpper(character) ? $" {character}" : character.ToString()))
         };

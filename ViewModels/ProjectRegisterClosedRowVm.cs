@@ -79,6 +79,7 @@ public sealed record ProjectRegisterClosedRowVm(
             ProjectTotStatus.InProgress => ("In progress", "accent"),
             ProjectTotStatus.NotStarted => ("Not started", "late"),
             ProjectTotStatus.NotRequired => ("Not required", "none"),
+            ProjectTotStatus.NotKnown => ("Not known", "none"),
             _ => ("Not recorded", "none")
         };
     }

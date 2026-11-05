@@ -18,6 +18,7 @@ public static class ProjectTotPresentation
         ProjectTotStatus.NotStarted => "Not started",
         ProjectTotStatus.InProgress => "In progress",
         ProjectTotStatus.Completed => "Completed",
+        ProjectTotStatus.NotKnown => "Not known",
         _ => status.ToString()
     };
 
@@ -28,6 +29,24 @@ public static class ProjectTotPresentation
         (ProjectTotStatus.InProgress, StatusLabel(ProjectTotStatus.InProgress)),
         (ProjectTotStatus.Completed, StatusLabel(ProjectTotStatus.Completed))
     };
+
+    /// <summary>
+    /// Whether a status may be saved: only the ones the forms offer (<see cref="StatusOptions"/>).
+    /// Not known is read everywhere but is not offered yet, so no row can hold it before every
+    /// running instance can read it.
+    /// </summary>
+    public static bool IsRecordable(ProjectTotStatus status)
+    {
+        foreach (var option in StatusOptions)
+        {
+            if (option.Status == status)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Formats a stored ToT date at its precision; rows saved before precision was tracked show
@@ -74,6 +93,7 @@ public static class ProjectTotPresentation
             ProjectTotStatus.InProgress => "ToT is in progress",
             ProjectTotStatus.Completed when completedOn.HasValue => $"Completed {FormatDate(completedOn.Value, completionPrecision)}",
             ProjectTotStatus.Completed => "ToT marked completed",
+            ProjectTotStatus.NotKnown => "Not known whether ToT took place",
             _ => "Record ToT position"
         };
         var tone = status.Value switch
@@ -81,6 +101,7 @@ public static class ProjectTotPresentation
             ProjectTotStatus.Completed => "positive",
             ProjectTotStatus.InProgress => "info",
             ProjectTotStatus.NotRequired => "neutral",
+            ProjectTotStatus.NotKnown => "neutral",
             _ => "warning"
         };
 
@@ -155,14 +176,15 @@ public static class ProjectTotDateInput
 
             case ProjectTotStatus.NotStarted:
             case ProjectTotStatus.NotRequired:
+            case ProjectTotStatus.NotKnown:
                 if (startPrecision != PartialDatePrecision.None)
                 {
-                    errors.Add(new(StartField, "Start date must be empty when ToT is not started or not required."));
+                    errors.Add(new(StartField, "Start date must be empty unless ToT has started."));
                 }
 
                 if (completionPrecision != PartialDatePrecision.None)
                 {
-                    errors.Add(new(CompletionField, "Completion date must be empty when ToT is not started or not required."));
+                    errors.Add(new(CompletionField, "Completion date must be empty unless ToT is completed."));
                 }
 
                 break;

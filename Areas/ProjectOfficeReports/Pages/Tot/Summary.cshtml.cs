@@ -72,7 +72,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
             IReadOnlyList<TotSummaryEntry> InProgressMetComplete,
             IReadOnlyList<TotSummaryEntry> InProgressMetIncomplete,
             IReadOnlyList<TotSummaryEntry> NotRequired,
-            int TotalProjects)
+            int TotalProjects,
+            IReadOnlyList<TotSummaryEntry>? NotKnown = null)
         {
             public static TotSummaryViewModel Empty { get; } = new(
                 string.Empty,
@@ -89,6 +90,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
             public int InProgressMetIncompleteCount => InProgressMetIncomplete.Count;
             public int InProgressCount => InProgressMetCompleteCount + InProgressMetIncompleteCount;
             public int NotRequiredCount => NotRequired.Count;
+            public IReadOnlyList<TotSummaryEntry> NotKnownProjects => NotKnown ?? Array.Empty<TotSummaryEntry>();
+            public int NotKnownCount => NotKnownProjects.Count;
 
             public static TotSummaryViewModel FromProjects(IReadOnlyList<ProjectTotTrackerRow>? projects)
             {
@@ -99,6 +102,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                 var inProgressMetComplete = new List<TotSummaryEntry>();
                 var inProgressMetIncomplete = new List<TotSummaryEntry>();
                 var notRequired = new List<TotSummaryEntry>();
+                var notKnown = new List<TotSummaryEntry>();
 
                 foreach (var row in items)
                 {
@@ -120,6 +124,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                             break;
                         case ProjectTotStatus.NotRequired:
                             notRequired.Add(entry);
+                            break;
+                        case ProjectTotStatus.NotKnown:
+                            notKnown.Add(entry);
                             break;
                         case ProjectTotStatus.InProgress:
                         default:
@@ -144,7 +151,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                     notStarted.Count,
                     inProgressMetComplete.Count,
                     inProgressMetIncomplete.Count,
-                    notRequired.Count);
+                    notRequired.Count,
+                    notKnown.Count);
 
                 return new TotSummaryViewModel(
                     narrative,
@@ -153,7 +161,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                     inProgressMetComplete,
                     inProgressMetIncomplete,
                     notRequired,
-                    applicable);
+                    applicable,
+                    notKnown);
             }
 
             public static string? FormatCompletionLabel(TotSummaryEntry entry)
@@ -190,7 +199,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                 int notStarted,
                 int inProgressMetComplete,
                 int inProgressMetIncomplete,
-                int notRequired)
+                int notRequired,
+                int notKnown = 0)
             {
                 var notRequiredNote = notRequired switch
                 {
@@ -231,6 +241,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                 if (inProgressSegments.Count > 0)
                 {
                     segments.Add(string.Join(" and ", inProgressSegments));
+                }
+
+                if (notKnown > 0)
+                {
+                    segments.Add(notKnown == 1
+                        ? "for 1 project it is not known whether Transfer of Technology took place"
+                        : $"for {notKnown} projects it is not known whether Transfer of Technology took place");
                 }
 
                 var prefix = total == 1

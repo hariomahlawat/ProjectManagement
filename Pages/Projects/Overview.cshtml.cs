@@ -1954,6 +1954,7 @@ namespace ProjectManagement.Pages.Projects
                 ProjectTotStatus.Completed when tot.CompletedOn.HasValue
                     => string.Format(CultureInfo.InvariantCulture, "Transfer of Technology completed {0}.", PartialDateDisplay.Format(tot.CompletedOn.Value, tot.CompletionDatePrecision)),
                 ProjectTotStatus.Completed => "Transfer of Technology is marked as completed.",
+                ProjectTotStatus.NotKnown => "It is not known whether Transfer of Technology took place.",
                 _ => "Transfer of Technology details are unavailable."
             };
 

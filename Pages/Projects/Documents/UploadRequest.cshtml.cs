@@ -86,6 +86,7 @@ public class UploadRequestModel : PageModel
             ProjectTotStatus.NotStarted => "Not started",
             ProjectTotStatus.InProgress => "In progress",
             ProjectTotStatus.Completed => "Completed",
+            ProjectTotStatus.NotKnown => "Not known",
             _ => "Unknown"
         };
 
