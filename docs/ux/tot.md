@@ -56,12 +56,20 @@ the phone view, and the Comdt and Project Office versions.
 - **The top section follows the reader's role** (who opens it: HoD and Comdt to check, Project
   Office to maintain):
   - HoD and Admin: *Waiting for your decision*, each request showing its change
-    ("In progress → Completed, Oct 2026"), submitter and age; then *Not started, longest waiting*.
-  - Comdt (and any viewer who cannot submit): *Recently completed* and *Not started, over ten
-    years*. Nothing to act on.
-  - Project Office: *To keep the register right*: not started over ten years (confirm still
-    expected, or propose Not required), missing details (year-only completions, no start date, no
-    MET), and *Sent for approval* with "Waiting for HoD since …".
+    ("In progress → Completed, Oct 2026"), submitter and age; then *Not started, over five years*.
+  - Comdt (and any viewer who cannot submit): *Recently completed* and *Not started, over five
+    years* (read-only). Nothing to act on.
+  - Project Office: *Not started, over five years*, each with Update (record a start, propose Not
+    required, or propose **Not known**), and *Sent for approval* with "Waiting for HoD since …".
+- **Optional details are never prompted for** (owner decision, 5 Nov 2026): record whatever is
+  known. A year-only date, no start date, no MET and no production model are normal, not gaps,
+  and some do not apply to every project. Start date and MET stay as optional fields.
+- **Not known** (owner decision, 5 Nov 2026): a fifth status for a project where nobody knows
+  whether ToT happened, typically one completed long ago. It is a real answer: it leaves the
+  long-waiting list, counts as applicable but not completed, and shows as its own count and filter.
+  Like any status it goes to the HoD for approval when Project Office proposes it.
+- **Long waiting** means *Not started* with the project completed more than five years ago (23 in
+  the local data).
 - **Register**: inline search, status buttons with counts instead of the filter pop-up, columns
   that appear only when some listed project has data, a Note column ("3 years after completion",
   "Waiting 21 years", "Year only"), sorting. Readable sizes (13 px minimum).
@@ -86,19 +94,20 @@ keep working: `/Tot`, `/Tot/Summary`, `SelectedProjectId`, the filter parameters
 | # | PR | Scope | Status |
 | --- | --- | --- | --- |
 | 1 | Words, dates, sizes | One name ("Transfer of Technology") and one verb per action; one date style everywhere, MET and manufacture dates included; breadcrumbs that agree; one Filters entry; the search box stays when nothing matches; no "No request" on every row; 13 px minimum. | Planned |
-| 2 | Register facts | `ProjectTotRegisterFacts` per project: status, dates at precision, project completion year, years waiting, year-only flag, missing start / MET, the pending request as a list of changed fields, the latest decision and reason; plus the Position counts. Tests. No UI change. | Planned |
-| 3 | Drawer: decide in place | The drawer shows a pending request as Now → Proposed (changed fields only, rejection reason, history) with Approve / Reject for approvers through `ProjectTotService.DecideRequestAsync` (version token and reason rules unchanged), and "Waiting for HoD since …" for others. Project page only. | Planned |
-| 4 | Register opens the drawer | Tracker rows open the shared drawer in place; the detail panel and the request, submit and filter pop-ups go. Approvals → Pending keeps working. | Planned |
-| 5 | One page | Summary's Position and chart join the page; `/Tot/Summary` opens it; menu and dashboard links follow. | Planned |
-| 6 | Role top section | HoD, Comdt and Project Office sections from PR 2's facts; the Command desk links here. | Planned |
-| 7 | Register table | Status buttons with counts, live search, data-driven columns, Note column, sort; filters from links get removable chips. Export follows the visible register. | Planned |
-| 8 | Phone and clean-up | Phone cards and summary bar; unused rules removed from `tot.css`. | Planned |
-
-Open decision: start date and MET are almost never recorded (start on 1 of 65 completed, MET on
-none). Keep asking for them (Project Office's *Missing details*), or drop them from the form and
-the register. The plan keeps them until the owner decides.
+| 2 | Register facts | `ProjectTotRegisterFacts` per project: status, dates at precision, project completion year, years waiting, long-waiting flag, the pending request as a list of changed fields, the latest decision and reason; plus the Position counts. Tests. No UI change. | Planned |
+| 3 | Not known: read everywhere | `ProjectTotStatus.NotKnown` (stored as text "NotKnown"; the column is text, max 32, no check constraint, so no migration). Every reader handles it: labels, Position counts, filters, export, the Summary and chart, Command desk and completed-portfolio counts, Approvals → Pending, applicability rules. Nothing offers it yet, so no row can hold it. | Planned |
+| 4 | Not known: can be recorded | The form and the register's status buttons offer Not known. Ships only after PR 3 is deployed everywhere, because code before PR 3 cannot read the value. | Planned |
+| 5 | Drawer: decide in place | The drawer shows a pending request as Now → Proposed (changed fields only, rejection reason, history) with Approve / Reject for approvers through `ProjectTotService.DecideRequestAsync` (version token and reason rules unchanged), and "Waiting for HoD since …" for others. Project page only. | Planned |
+| 6 | Register opens the drawer | Tracker rows open the shared drawer in place; the detail panel and the request, submit and filter pop-ups go. Approvals → Pending keeps working. | Planned |
+| 7 | One page | Summary's Position and chart join the page; `/Tot/Summary` opens it; menu and dashboard links follow. | Planned |
+| 8 | Role top section | HoD, Comdt and Project Office sections from PR 2's facts; the Command desk links here. | Planned |
+| 9 | Register table | Status buttons with counts, live search, data-driven columns, Note column, sort; filters from links get removable chips. Export follows the visible register. | Planned |
+| 10 | Phone and clean-up | Phone cards and summary bar; unused rules removed from `tot.css`. | Planned |
 
 ### Deployment and rollback
 
 Presentation and read-model changes on existing data; no migration, configuration or new
-dependency. Each PR rolls back by reverting it.
+dependency. Each PR rolls back by reverting it, with one exception: once PR 4 is live and a
+project holds Not known, reverting PR 3 would leave code that cannot read that row. Before
+reverting PR 3, set those projects back to Not started (and note why in a ToT remark). Reverting
+PR 4 alone is always safe: PR 3 still reads the value.
