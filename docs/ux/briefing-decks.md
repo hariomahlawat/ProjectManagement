@@ -297,3 +297,53 @@ Owner decisions (5 Nov 2026):
    count). Adding, editing or removing a point then shows on the library as "key points edited
    on N projects" and, per project, "key points". The lifecycle subtitle is tracked as the key
    points layout draws it: on a first capability slide only when it has no stage and cost line.
+
+## Plan: Deck settings
+
+Agreed with the owner on 5 Nov 2026 from the Design canvas "Deck settings redesign" (a clickable
+Deck tab).
+
+**Review findings.** The Deck tab is a 366 px column about 3,100 px tall: 43 controls under 21
+headings, every choice a large card stacked one per row. Groups follow the code, not the decision
+(cost under "Financial information" near the bottom; "Summary and handling" mixes summary slides
+with the marking). Additional slides appear twice (a "2 enabled · Manage slides" line in the
+settings and the full list below them). Options that do nothing stay visible (Project brief layout
+while key points are on). There is no overview of how a deck is set up without opening everything.
+A separate icon rail was considered and rejected: the inspector is narrow and has few steps.
+
+**Owner decisions (5 Nov 2026).**
+
+- The purpose presets are called **Template** (Monthly command review, Visit or external audience,
+  Project update sheets), shown as one compact picker at the top; after any change it reads
+  "customised" ("Started from this template, then customised").
+- The Standard briefing / Update sheets choice is called **Layout**, inside the Slides step.
+- Settings become numbered steps, one open at a time, each closed step showing a one-line summary
+  of its choices. Steps that do not apply are not shown:
+
+| Step | Holds | Shown when |
+|---|---|---|
+| Slides | Layout; what the deck shows (Table / Project slides / Both); what each project gets (Capability / Brief / Both) | always (the last two for the standard layout; the last only with project slides) |
+| Project slides | present stage and status remark (chips); key points (switch, and the slide when the deck draws both); project brief layout (only while key points are off and briefs are drawn) | standard layout with project slides |
+| Sheet rows | rows to show, in order; hide rows with nothing recorded | update sheets |
+| Cost | Cost (R&D) / Proliferation / Both / None | standard layout |
+| Extra slides | summary slides (stage-wise, with its distribution table; category summaries) or, for update sheets, cover and portfolio summary; institution slides (SDD profile, Role & Charter, FFC footprint) with a switch and Edit each | always |
+| Look | theme, insignia, closing slide | always |
+| Handling | classification marking | always |
+
+- Compact controls: segmented buttons, chips and switches replace the choice cards; one line of
+  help for the selected option only.
+- Changes keep saving as they are made; the form fields and the server stay as they are.
+
+**PRs**
+
+1. Quick fixes: one place for additional slides; Project brief layout hidden while key points are
+   on.
+2. The step list: Template picker (renamed from Purpose, "customised"), the numbered steps with
+   live one-line summaries, one open at a time, steps shown by the choices above; the existing
+   groups moved into their steps, wording shortened. Same field names, so saving is unchanged.
+3. Compact controls in every step (segmented buttons, chips, switches), help for the selected
+   option only.
+4. Extra slides: summary slides and institution slides together in one step (switch and Edit,
+   opening the existing editors); the separate Additional slides section goes.
+5. Preview follows the change: after a change the preview shows a slide it affects (for example the
+   first project slide after key points are switched on).
