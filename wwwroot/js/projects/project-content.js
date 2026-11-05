@@ -701,6 +701,47 @@
         renumber();
     };
 
+    // Key points are one plain line each: Enter is ignored, pasted line breaks become spaces, and
+    // each field shows its own character count (the server applies the same rules).
+    const updateKeyPointCount = (textarea) => {
+        const host = textarea.closest('.project-content__key-point-field')
+            ?.querySelector('[data-key-point-count]');
+        if (!host) {
+            return;
+        }
+
+        const maximum = parsePositiveInt(textarea.getAttribute('maxlength'), 0);
+        const current = textarea.value.length;
+        host.textContent = maximum > 0 ? `${current} / ${maximum}` : String(current);
+        host.classList.toggle('text-danger', maximum > 0 && current >= maximum);
+    };
+
+    const initializeKeyPointEditor = (form) => {
+        const fields = [...form.querySelectorAll('[data-key-point]')];
+
+        fields.forEach((textarea) => {
+            updateKeyPointCount(textarea);
+
+            textarea.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                }
+            });
+
+            textarea.addEventListener('input', () => {
+                if (/[\r\n]/.test(textarea.value)) {
+                    const caret = textarea.selectionStart;
+                    textarea.value = textarea.value.replace(/\r\n|[\r\n]/g, ' ');
+                    textarea.setSelectionRange(caret, caret);
+                }
+
+                updateKeyPointCount(textarea);
+            });
+        });
+
+        dynamicResetters.set(form, () => fields.forEach(updateKeyPointCount));
+    };
+
     const initializeDescriptionEditor = (form) => {
         const textarea = form.querySelector('[data-character-counter]');
         const trigger = form.querySelector('[data-description-preview-trigger]');
@@ -836,6 +877,7 @@
     root.querySelectorAll('[data-capability-editor]').forEach(initializeCapabilityEditor);
     root.querySelectorAll('[data-technical-editor]').forEach(initializeTechnicalSpecificationEditor);
     root.querySelectorAll('[data-description-editor]').forEach(initializeDescriptionEditor);
+    root.querySelectorAll('[data-key-point-editor]').forEach(initializeKeyPointEditor);
 
     root.querySelectorAll('[data-bs-toggle="tab"]').forEach((tab) => {
         tab.addEventListener('show.bs.tab', (event) => {

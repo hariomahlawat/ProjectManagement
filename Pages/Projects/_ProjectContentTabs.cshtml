@@ -9,6 +9,8 @@
     var canEditBrief = Model.CanEditProjectBrief;
     var briefIsActive = string.Equals(activeTab, "brief", StringComparison.OrdinalIgnoreCase);
     var capabilitiesAreActive = string.Equals(activeTab, "capabilities", StringComparison.OrdinalIgnoreCase);
+    var keyPointsAreActive = string.Equals(activeTab, "keypoints", StringComparison.OrdinalIgnoreCase);
+    var keyPointTotal = Model.KeyPoints.Count;
     var technicalIsActive = string.Equals(activeTab, "technical", StringComparison.OrdinalIgnoreCase);
     var descriptionIsActive = string.Equals(activeTab, "description", StringComparison.OrdinalIgnoreCase);
     var capabilityEditorCount = Math.Max(1, Model.CapabilityInput.Statements.Count);
@@ -105,6 +107,23 @@
                 @if (Model.CapabilityStatements.Count > 0)
                 {
                     <span class="project-content__count">@Model.CapabilityStatements.Count</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(keyPointsAreActive ? "active" : null)"
+                    id="content-keypoints-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#content-keypoints"
+                    type="button"
+                    role="tab"
+                    aria-controls="content-keypoints"
+                    aria-selected="@(keyPointsAreActive.ToString().ToLowerInvariant())"
+                    data-content-tab="keypoints">
+                Key points
+                @if (Model.KeyPointCount > 0)
+                {
+                    <span class="project-content__count">@Model.KeyPointCount of @keyPointTotal</span>
                 }
             </button>
         </li>
@@ -358,6 +377,100 @@
                         <button class="btn btn-sm btn-primary" type="submit" data-content-save>
                             <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
                             <span data-content-save-label>Save capabilities</span>
+                        </button>
+                    </div>
+                </form>
+            }
+        </div>
+
+        <div class="tab-pane fade @(keyPointsAreActive ? "show active" : null)"
+             id="content-keypoints"
+             role="tabpanel"
+             aria-labelledby="content-keypoints-tab"
+             tabindex="0">
+            <div class="project-content__view" data-content-view>
+                <div class="project-content__toolbar">
+                    @if (canEditBrief)
+                    {
+                        <div class="project-content__guidance">
+                            Short answers on why the project matters, for briefing decks. Up to @ProjectFieldLimits.KeyPointMaxLength characters each; leave out any that do not apply.
+                        </div>
+                    }
+                    <div class="project-content__toolbar-actions">
+                        @if (canEditBrief)
+                        {
+                            <span class="project-content__status @(Model.KeyPointCount == keyPointTotal ? "is-ready" : "is-neutral")">
+                                @(Model.KeyPointCount > 0 ? $"{Model.KeyPointCount} of {keyPointTotal} recorded" : "Not recorded")
+                            </span>
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
+                                <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                                Edit key points
+                            </button>
+                        }
+                    </div>
+                </div>
+                @if (Model.KeyPointCount > 0)
+                {
+                    <dl class="project-content__key-points">
+                        @foreach (var point in Model.KeyPoints)
+                        {
+                            <div class="project-content__key-point @(point.Text is null ? "is-empty" : null)">
+                                <dt>@point.Heading</dt>
+                                <dd>@(point.Text ?? "Not recorded")</dd>
+                            </div>
+                        }
+                    </dl>
+                }
+                else
+                {
+                    <div class="project-content__empty">
+                        <i class="bi bi-bullseye" aria-hidden="true"></i>
+                        <div>
+                            <strong>Key points not recorded</strong>
+                            <span>Five short points on why the project matters: training gap, op necessity, training realism, ease of learning and proliferation potential.</span>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (canEditBrief)
+            {
+                <form method="post"
+                      asp-page-handler="SaveProjectKeyPoints"
+                      asp-route-id="@Model.Project.Id"
+                      class="project-content__editor d-none"
+                      data-content-form
+                      data-content-kind="keypoints"
+                      data-key-point-editor>
+                    <input asp-for="KeyPointInput.ProjectId" type="hidden" />
+                    <input asp-for="KeyPointInput.RowVersion" type="hidden" />
+                    <div class="project-content__key-point-fields">
+                        @for (var index = 0; index < Model.KeyPoints.Count; index++)
+                        {
+                            var point = Model.KeyPoints[index];
+                            var value = index < Model.KeyPointInput.Points.Count ? Model.KeyPointInput.Points[index] : null;
+                            var fieldId = $"key-point-{point.Kind.ToString().ToLowerInvariant()}";
+                            <div class="project-content__key-point-field">
+                                <label class="form-label fw-semibold" for="@fieldId">@point.Heading</label>
+                                <textarea class="form-control"
+                                          id="@fieldId"
+                                          name="KeyPointInput.Points"
+                                          rows="2"
+                                          maxlength="@ProjectFieldLimits.KeyPointMaxLength"
+                                          data-key-point
+                                          aria-describedby="@(fieldId)-hint @(fieldId)-count">@value</textarea>
+                                <div class="project-content__key-point-meta">
+                                    <span class="form-text mt-0" id="@(fieldId)-hint">@point.Hint</span>
+                                    <span class="form-text mt-0" id="@(fieldId)-count" data-key-point-count>@(value?.Length ?? 0) / @ProjectFieldLimits.KeyPointMaxLength</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="invalid-feedback d-block d-none" role="alert" aria-live="polite" data-content-error></div>
+                    <div class="project-content__actions">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
+                        <button class="btn btn-sm btn-primary" type="submit" data-content-save>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
+                            <span data-content-save-label>Save key points</span>
                         </button>
                     </div>
                 </form>

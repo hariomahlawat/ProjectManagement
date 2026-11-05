@@ -144,6 +144,7 @@ namespace ProjectManagement.Models
         private ICollection<ProjectDocument> _documents = new List<ProjectDocument>();
         private ICollection<ProjectCapabilityStatement> _capabilityStatements = new List<ProjectCapabilityStatement>();
         private ICollection<ProjectTechnicalSpecificationItem> _technicalSpecificationItems = new List<ProjectTechnicalSpecificationItem>();
+        private ICollection<ProjectKeyPoint> _keyPoints = new List<ProjectKeyPoint>();
 
         public ICollection<ProjectStage> ProjectStages
         {
@@ -193,6 +194,12 @@ namespace ProjectManagement.Models
         {
             get => _technicalSpecificationItems;
             set => _technicalSpecificationItems = value ?? new List<ProjectTechnicalSpecificationItem>();
+        }
+
+        public ICollection<ProjectKeyPoint> KeyPoints
+        {
+            get => _keyPoints;
+            set => _keyPoints = value ?? new List<ProjectKeyPoint>();
         }
 
         public int? CoverPhotoId { get; set; }

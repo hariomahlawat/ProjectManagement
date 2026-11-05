@@ -24,6 +24,17 @@ public sealed class ProjectContentRulesTests
         Assert.Equal(new[] { "First capability", "Second capability" }, result);
     }
 
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("   ", null)]
+    [InlineData("  One line  ", "One line")]
+    [InlineData("Two\r\nlines\nand\ttabs", "Two lines and tabs")]
+    [InlineData("Wide    gaps", "Wide gaps")]
+    public void NormalizeKeyPoint_KeepsOnePlainLine(string? value, string? expected)
+    {
+        Assert.Equal(expected, ProjectContentRules.NormalizeKeyPoint(value));
+    }
+
     [Fact]
     public void NormalizeNarrative_UsesConsistentNewlinesAndTrimsOuterWhitespace()
     {

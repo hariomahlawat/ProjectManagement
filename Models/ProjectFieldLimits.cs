@@ -24,6 +24,11 @@ namespace ProjectManagement.Models
         public const int CapabilityRecommendedMinimumCount = 5;
         public const int CapabilityMaximumCount = 8;
 
+        // SECTION: Key points
+        // Five fixed, optional points on why a project matters. 130 characters is two lines beside
+        // the heading column on a briefing slide.
+        public const int KeyPointMaxLength = 130;
+
         // SECTION: Hardware requirement / technical specification
         // Compendium-facing structured bullets. The publication supports 1-6 items and
         // dynamically chooses single/two/three-column treatment from rendered text pressure.

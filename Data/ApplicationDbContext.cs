@@ -42,6 +42,7 @@ namespace ProjectManagement.Data
 
         public DbSet<Project> Projects { get; set; } = default!;
         public DbSet<ProjectCapabilityStatement> ProjectCapabilityStatements => Set<ProjectCapabilityStatement>();
+        public DbSet<ProjectKeyPoint> ProjectKeyPoints => Set<ProjectKeyPoint>();
         public DbSet<ProjectTechnicalSpecificationItem> ProjectTechnicalSpecificationItems => Set<ProjectTechnicalSpecificationItem>();
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
@@ -893,6 +894,24 @@ namespace ProjectManagement.Data
                 entity.HasOne(statement => statement.Project)
                     .WithMany(project => project.CapabilityStatements)
                     .HasForeignKey(statement => statement.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectKeyPoint>(entity =>
+            {
+                entity.ToTable("ProjectKeyPoints", table =>
+                    table.HasCheckConstraint(
+                        "CK_ProjectKeyPoints_Kind_Positive",
+                        "\"Kind\" >= 1"));
+                entity.HasKey(point => new { point.ProjectId, point.Kind });
+                entity.Property(point => point.Kind)
+                    .HasConversion<short>();
+                entity.Property(point => point.Text)
+                    .HasMaxLength(ProjectFieldLimits.KeyPointMaxLength)
+                    .IsRequired();
+                entity.HasOne(point => point.Project)
+                    .WithMany(project => project.KeyPoints)
+                    .HasForeignKey(point => point.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

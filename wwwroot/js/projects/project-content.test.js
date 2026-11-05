@@ -292,3 +292,62 @@ test('save implementation no longer navigates to the already-current URL', () =>
     assert.doesNotMatch(scriptContent, /window\.location\.(?:replace|assign)\(/);
     assert.match(scriptContent, /projectcontent:reload-requested/);
 });
+
+function createKeyPointDom() {
+    const dom = new JSDOM(`<!doctype html><html><body>
+        <section data-project-content>
+            <div class="tab-pane" id="content-keypoints">
+                <div data-content-view></div>
+                <form action="/Projects/Overview/208?handler=SaveProjectKeyPoints"
+                      data-content-form data-content-kind="keypoints" data-key-point-editor>
+                    <div class="project-content__key-point-field">
+                        <textarea name="KeyPointInput.Points" maxlength="130" data-key-point>Gap</textarea>
+                        <span data-key-point-count></span>
+                    </div>
+                    <div class="project-content__key-point-field">
+                        <textarea name="KeyPointInput.Points" maxlength="130" data-key-point></textarea>
+                        <span data-key-point-count></span>
+                    </div>
+                    <div class="d-none" data-content-error></div>
+                    <button type="button" data-content-cancel>Cancel</button>
+                    <button type="submit" data-content-save><span data-content-save-label>Save key points</span></button>
+                </form>
+            </div>
+        </section>
+    </body></html>`, {
+        url: 'https://example.test/Projects/Overview/208?content=keypoints',
+        runScripts: 'dangerously'
+    });
+
+    appendScript(dom.window.document);
+    return dom;
+}
+
+test('key points count characters per field and stay on one line', () => {
+    const dom = createKeyPointDom();
+    const { document, Event, KeyboardEvent } = dom.window;
+    const [first, second] = document.querySelectorAll('[data-key-point]');
+    const [firstCount, secondCount] = document.querySelectorAll('[data-key-point-count]');
+
+    assert.equal(firstCount.textContent, '3 / 130');
+    assert.equal(secondCount.textContent, '0 / 130');
+
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true });
+    second.dispatchEvent(enter);
+    assert.equal(enter.defaultPrevented, true);
+
+    second.value = 'Pasted\r\nacross\nlines';
+    second.dispatchEvent(new Event('input', { bubbles: true }));
+    assert.equal(second.value, 'Pasted across lines');
+    assert.equal(secondCount.textContent, '19 / 130');
+
+    second.value = 'x'.repeat(130);
+    second.dispatchEvent(new Event('input', { bubbles: true }));
+    assert.equal(secondCount.classList.contains('text-danger'), true);
+
+    dom.window.confirm = () => true;
+    document.querySelector('[data-content-cancel]').click();
+    assert.equal(second.value, '');
+    assert.equal(secondCount.textContent, '0 / 130');
+    assert.equal(first.value, 'Gap');
+});
