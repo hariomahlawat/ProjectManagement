@@ -112,10 +112,9 @@ public sealed class AdminHomeService : IAdminHomeService
             .Where(item => CanOpen(item.NavigationKey))
             .ToArray();
 
-        var restorable = dashboard.Metrics.TrashedProjects
-            + dashboard.Metrics.DeletedDocuments
-            + dashboard.Metrics.DeletedEvents
-            + (CanOpen(AdminNavigationKeys.RepositoryTrash) ? dashboard.Metrics.DeletedRepositoryDocuments : 0);
+        // Only what the tile's page (Restore deleted items) lets the administrator restore today.
+        // Document Repository trash joins the count when that page shows it (PR 5).
+        var restorable = dashboard.Metrics.RecoveryQueue;
 
         var tiles = AdminHomeRules.BuildTiles(dashboard.Metrics, restorable, health, lists, jobs, FormatWhen)
             .Where(tile => CanOpen(tile.NavigationKey))

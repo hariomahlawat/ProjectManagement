@@ -84,7 +84,6 @@ public sealed class AdminHomeTests
             TrashedProjects = 5,
             DeletedDocuments = 7,
             DeletedEvents = 2,
-            DeletedRepositoryDocuments = 1,
             WarningEventsLast24Hours = 9,
             FailedLoginsLast7Days = 12
         };
@@ -180,6 +179,21 @@ public sealed class AdminHomeTests
         Assert.Empty(snapshot.LookAt);
         Assert.Equal(AdminHomeTone.Calm, snapshot.Status.Tone);
         Assert.Equal(0, health.CheckRuns);
+    }
+
+    [Fact]
+    public async Task Service_RestoreTileCountsWhatItsPageCanRestore()
+    {
+        var service = CreateService(
+            new LatestOnlyHealth(null),
+            new AdminDashboardMetrics { TrashedProjects = 2, DeletedDocuments = 3, DeletedEvents = 1 },
+            AdminNavigationCatalog.Entries.Select(entry => entry.Key).ToArray());
+
+        var snapshot = await service.GetAsync(new ClaimsPrincipal(new ClaimsIdentity()));
+
+        Assert.Equal(
+            "6 deleted items can be restored",
+            snapshot.Tiles.Single(tile => tile.NavigationKey == AdminNavigationKeys.RecoveryCentre).Fact);
     }
 
     [Fact]

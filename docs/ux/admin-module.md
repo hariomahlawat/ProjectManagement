@@ -144,8 +144,8 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
 - **Six task tiles**, each with one live figure:
   - Add or manage users
   - Check sign-ins and the audit log
-  - Restore something deleted (now also counts Document Repository trash for viewers who can
-    open it)
+  - Restore something deleted (projects, project documents and calendar events: what its page
+    can restore today; Document Repository trash joins with PR 5)
   - Edit the lists used in forms
   - Check that PRISM is healthy
   - Run a data job

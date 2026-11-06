@@ -23,12 +23,11 @@ public sealed class AdminDashboardMetrics
     public int TrashedProjects { get; init; }
     public int DeletedDocuments { get; init; }
     public int DeletedEvents { get; init; }
-    public int DeletedRepositoryDocuments { get; init; }
 
     public int RestrictedUsers =>
         DisabledUsers + LockedUsers + PendingDeletionUsers + MustChangePasswordUsers;
 
-    public int RecoveryQueue => TrashedProjects + DeletedDocuments + DeletedEvents + DeletedRepositoryDocuments;
+    public int RecoveryQueue => TrashedProjects + DeletedDocuments + DeletedEvents;
 }
 
 public enum AdminAttentionSeverity
@@ -152,9 +151,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             DeletedDocuments = await _db.ProjectDocuments.AsNoTracking()
                 .CountAsync(document => document.Status == ProjectDocumentStatus.SoftDeleted, cancellationToken),
             DeletedEvents = await _db.Events.AsNoTracking()
-                .CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken),
-            DeletedRepositoryDocuments = await _db.Documents.AsNoTracking()
-                .CountAsync(document => document.IsDeleted, cancellationToken)
+                .CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken)
         };
 
         var recentActions = await _db.AuditLogs.AsNoTracking()
