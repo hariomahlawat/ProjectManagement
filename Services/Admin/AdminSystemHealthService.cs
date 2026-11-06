@@ -3,6 +3,7 @@ using System.Reflection;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.SearchV2.Indexing;
 using ProjectManagement.Services.Storage;
 
@@ -66,6 +67,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     private readonly IConfiguration _configuration;
     private readonly IAdminWorkerStatusRegistry _workers;
     private readonly ISearchIndexStore _searchIndex;
+    private readonly IOptions<SearchV2Options> _searchOptions;
     private readonly IMemoryCache _cache;
     private readonly ILogger<AdminSystemHealthService> _logger;
 
@@ -77,6 +79,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         IConfiguration configuration,
         IAdminWorkerStatusRegistry workers,
         ISearchIndexStore searchIndex,
+        IOptions<SearchV2Options> searchOptions,
         IMemoryCache cache,
         ILogger<AdminSystemHealthService> logger)
     {
@@ -87,6 +90,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _workers = workers ?? throw new ArgumentNullException(nameof(workers));
         _searchIndex = searchIndex ?? throw new ArgumentNullException(nameof(searchIndex));
+        _searchOptions = searchOptions ?? throw new ArgumentNullException(nameof(searchOptions));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -478,13 +482,24 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckSearchIndexAsync(CancellationToken cancellationToken)
     {
         var index = await _searchIndex.GetHealthAsync(cancellationToken);
-        return SearchIndexResult(index);
+        return SearchIndexResult(index, _searchOptions.Value.ProjectionVersion);
     }
 
+    // Search answers only from an index built for this version of PRISM (SearchEngine rejects any
+    // other version), so a version mismatch is "not ready" even when nothing has failed.
     internal static (AdminHealthStatus Status, string Summary, string? Detail) SearchIndexResult(
-        ProjectManagement.Services.SearchV2.Models.SearchIndexHealth index)
+        ProjectManagement.Services.SearchV2.Models.SearchIndexHealth index,
+        int requiredProjectionVersion)
     {
         var detail = $"{index.EntryCount:N0} items searchable · {index.PendingItems:N0} waiting to be indexed.";
+        if (index.IsReady && index.IndexVersion != requiredProjectionVersion)
+        {
+            return (
+                AdminHealthStatus.Warning,
+                "The search index was built for a different version of PRISM, so search shows no results until it is rebuilt.",
+                $"Index version {index.IndexVersion}; this version of PRISM needs {requiredProjectionVersion}. " + detail);
+        }
+
         if (!index.IsReady)
         {
             return (AdminHealthStatus.Warning, "The search index is not ready yet, so search shows few or no results.", detail);
