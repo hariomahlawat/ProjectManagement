@@ -16,6 +16,11 @@ if (library) {
   const scopeButtons = [...library.querySelectorAll('[data-pbd-library-scope]')];
   const count = library.querySelector('[data-pbd-library-count]');
   const empty = library.querySelector('[data-pbd-library-empty]');
+  const emptyText = library.querySelector('[data-pbd-library-empty-text]');
+  const resetButton = library.querySelector('[data-pbd-library-reset]');
+  const title = library.querySelector('[data-pbd-library-title]');
+  // Search, filter and sort are kept for this browser tab, so coming back finds the same view.
+  const viewKey = 'prism.briefingDecks.libraryView';
   let scope = 'all';
 
   const comparers = {
@@ -46,7 +51,31 @@ if (library) {
         : '';
     });
     if (count) count.textContent = String(shown);
+    if (title) title.textContent = scope === 'mine' ? 'My decks' : 'All decks';
     if (empty) empty.hidden = shown > 0;
+    // Say why the list is empty, and offer the way out.
+    if (emptyText && shown === 0) {
+      emptyText.textContent = terms.length
+        ? `No ${scope === 'mine' ? 'deck of yours' : 'deck'} matches “${search.value.trim()}”.`
+        : 'You have not created or edited a deck yet. "Mine" shows decks you own or last edited.';
+    }
+    if (resetButton) resetButton.textContent = terms.length && scope === 'all' ? 'Clear search' : 'Show all decks';
+    remember();
+  };
+
+  const remember = () => {
+    try {
+      window.sessionStorage.setItem(viewKey, JSON.stringify({ scope, query: search?.value || '', sort: sort?.value || 'edited' }));
+    } catch { /* not remembered */ }
+  };
+
+  const setScope = (next) => {
+    scope = next;
+    scopeButtons.forEach((other) => {
+      const active = other.dataset.pbdLibraryScope === scope;
+      other.classList.toggle('is-active', active);
+      other.setAttribute('aria-pressed', String(active));
+    });
   };
 
   const order = () => {
@@ -81,16 +110,29 @@ if (library) {
   });
 
   search?.addEventListener('input', apply);
-  sort?.addEventListener('change', order);
+  sort?.addEventListener('change', () => { order(); remember(); });
   scopeButtons.forEach((button) => {
     button.addEventListener('click', () => {
-      scope = button.dataset.pbdLibraryScope;
-      scopeButtons.forEach((other) => {
-        const active = other === button;
-        other.classList.toggle('is-active', active);
-        other.setAttribute('aria-pressed', String(active));
-      });
+      setScope(button.dataset.pbdLibraryScope);
       apply();
     });
   });
+  resetButton?.addEventListener('click', () => {
+    if (search) search.value = '';
+    setScope('all');
+    apply();
+    search?.focus();
+  });
+
+  // Back to the view this tab last had.
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(viewKey) || 'null');
+    if (saved) {
+      if (saved.scope === 'mine') setScope('mine');
+      if (search && typeof saved.query === 'string') search.value = saved.query;
+      if (sort && ['edited', 'generated', 'name'].includes(saved.sort)) sort.value = saved.sort;
+      order();
+      apply();
+    }
+  } catch { /* start fresh */ }
 }
