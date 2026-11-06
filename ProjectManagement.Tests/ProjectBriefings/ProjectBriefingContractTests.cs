@@ -125,6 +125,12 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("'prism.briefingDecks.modelNoteSeen'", script, StringComparison.Ordinal);
         Assert.Contains("<span data-pbd-saved-chip-text>Saved · shared</span>", page, StringComparison.Ordinal);
         Assert.Contains("showSaveState('saving');", script, StringComparison.Ordinal);
+        // A refused settings save fails inside the queue, before the chip says "Saved".
+        var settingsSave = script[script.IndexOf("const saveSettingsOnce", StringComparison.Ordinal)..];
+        Assert.True(
+            settingsSave.IndexOf("if (!reply.ok) throw", StringComparison.Ordinal)
+                < settingsSave.IndexOf("return { response: reply, payload: replyPayload };", StringComparison.Ordinal),
+            "The settings save must throw on a refused reply inside runDeckMutation.");
 
         // Gaps live in This slide only, each fix saying where it lands.
         Assert.DoesNotContain("data-pbd-stage-checks", page, StringComparison.Ordinal);

@@ -1043,7 +1043,7 @@ if (root) {
 
     setState(settingsStatus, 'Saving…', 'saving');
     try {
-      const { response, payload } = await runDeckMutation(async () => {
+      const { payload } = await runDeckMutation(async () => {
         const body = new FormData(settingsForm);
         body.set('RowVersion', currentRowVersion());
         const reply = await fetch(settingsForm.action, {
@@ -1053,14 +1053,15 @@ if (root) {
           headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
         });
         const replyPayload = await reply.json().catch(() => null);
-        if (reply.ok) updateRowVersion(replyPayload?.deck?.rowVersion);
+        // A refused save fails inside the queue, so "Saved · shared" never reports it as saved.
+        if (reply.status === 409) {
+          showConflict(replyPayload?.message);
+          throw new Error('Not saved: someone else changed this deck.');
+        }
+        if (!reply.ok) throw new Error(replyPayload?.message || `The settings could not be saved (${reply.status}).`);
+        updateRowVersion(replyPayload?.deck?.rowVersion);
         return { response: reply, payload: replyPayload };
       });
-      if (response.status === 409) {
-        showConflict(payload?.message);
-        throw new Error('Not saved: someone else changed this deck.');
-      }
-      if (!response.ok) throw new Error(payload?.message || `The settings could not be saved (${response.status}).`);
       // Every setting whose saved value moved, including ones set by script (row order, Select
       // all), the latest edit last so the preview follows it.
       const moved = movedSettings(settingsSavedState, state);
