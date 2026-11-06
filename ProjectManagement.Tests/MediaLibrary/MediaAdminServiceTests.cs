@@ -237,6 +237,62 @@ public sealed class MediaAdminServiceTests
         AvailabilityStatus = MediaAvailabilityStatus.Available
     };
 
+    // Testing a typed path makes the server reach out to that folder or LAN share and report
+    // what it finds. It used to need only View; it now needs Configure and is audited.
+    [Fact]
+    public async Task TestingATypedPath_NeedsConfigure_AndIsAudited()
+    {
+        await using var mediaDb = CreateMediaDb();
+        var now = new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero);
+        var input = new MediaSourceAdminInput { RootPath = Path.GetTempPath(), AllowedExtensions = ".jpg" };
+
+        var viewOnlyAudit = new RecordingAdminAuditService();
+        var viewOnly = CreateSourceService(mediaDb, now, new PolicyAccess(ProjectManagement.Configuration.AdminPolicies.MediaView), viewOnlyAudit);
+        var refused = await viewOnly.TestAsync(null, null, input, CancellationToken.None);
+
+        var configureAudit = new RecordingAdminAuditService();
+        var configure = CreateSourceService(
+            mediaDb,
+            now,
+            new PolicyAccess(ProjectManagement.Configuration.AdminPolicies.MediaView, ProjectManagement.Configuration.AdminPolicies.MediaConfigure),
+            configureAudit);
+        var allowed = await configure.TestAsync(null, null, input, CancellationToken.None);
+
+        Assert.Equal(MediaAdminErrorCodes.Forbidden, refused.ErrorCode);
+        Assert.Empty(viewOnlyAudit.Entries);
+        Assert.True(allowed.Succeeded, allowed.UserMessage);
+        Assert.Equal("MediaSourcePathTested", Assert.Single(configureAudit.Entries).Action);
+    }
+
+    private static MediaSourceAdminService CreateSourceService(
+        MediaLibraryDbContext mediaDb,
+        DateTimeOffset now,
+        IMediaAdminAccessService access,
+        IAdminAuditService audit) =>
+        new(
+            mediaDb,
+            Options.Create(new MediaLibraryOptions
+            {
+                Enabled = true,
+                Catalogue = new MediaCatalogueOptions { Enabled = true },
+                ExternalSources = new ExternalMediaSourcesOptions { Enabled = true }
+            }),
+            new HealthySourceProbe(now),
+            new PassThroughPathResolver(),
+            access,
+            audit,
+            new AdminTimeService(new FixedClock(now.AddMinutes(1))),
+            CreateHttpContextAccessor(),
+            NullLogger<MediaSourceAdminService>.Instance);
+
+    private sealed class PolicyAccess : IMediaAdminAccessService
+    {
+        private readonly HashSet<string> _granted;
+        public PolicyAccess(params string[] granted) => _granted = new HashSet<string>(granted, StringComparer.Ordinal);
+        public Task<bool> IsAuthorizedAsync(string policy, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_granted.Contains(policy));
+    }
+
     private static HttpContextAccessor CreateHttpContextAccessor()
     {
         var context = new DefaultHttpContext { TraceIdentifier = "media-admin-test" };
