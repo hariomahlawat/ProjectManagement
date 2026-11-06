@@ -40,6 +40,18 @@ public sealed class AdminPlainWordsTests
         });
     }
 
+    [Fact]
+    public void HowDoI_NeverPromisesAFixedUndoTime()
+    {
+        // The chat undo window is configurable (Chat:Attachments:UndoHours); the answer points to
+        // the deadline the storage page shows instead of naming a period.
+        var chat = IndexModel.Questions.Single(item => item.NavigationKey == AdminNavigationKeys.ChatStorage);
+
+        Assert.DoesNotContain("day", chat.Answer, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hour", chat.Answer, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Recent clean-ups", chat.Answer, StringComparison.Ordinal);
+    }
+
     // Words the UX review found on admin pages that explain nothing to a new administrator.
     private static readonly string[] Jargon =
     {

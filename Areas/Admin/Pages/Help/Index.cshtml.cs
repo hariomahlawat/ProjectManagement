@@ -43,7 +43,7 @@ public sealed class IndexModel : PageModel
         ("Add a holiday", "Holidays › Add holiday entry. Stage dates skip office holidays.", AdminNavigationKeys.Holidays),
         ("Check that PRISM is working", "System health › Run checks again. Each row says what to do if something is wrong.", AdminNavigationKeys.DatabaseHealth),
         ("Fix search results that are missing", "Search index › Retry all failed, or Rebuild search index if many results are wrong.", AdminNavigationKeys.SearchIndex),
-        ("Free up space used by chat files", "Chat file storage › Remove chat files › Preview › Remove. You can undo it for a day.", AdminNavigationKeys.ChatStorage)
+        ("Free up space used by chat files", "Chat file storage › Remove chat files › Preview › Remove. To change your mind, use Undo under Recent clean-ups before the time it shows; after that the files are gone.", AdminNavigationKeys.ChatStorage)
     };
 
     public async Task OnGetAsync()
