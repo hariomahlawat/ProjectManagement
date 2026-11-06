@@ -1072,6 +1072,21 @@
     calendar && calendar.refetchEvents();
   });
   function showUndo(msg, handler) {
+    // The shared glass toast with a real Undo (docs/ux/toasts.md); the Bootstrap toast is the fallback.
+    if (window.PrismToast) {
+      window.PrismToast.show({
+        tone: 'success',
+        text: msg,
+        action: {
+          label: 'Undo',
+          run: async () => {
+            if (handler) await handler();
+            calendar && calendar.refetchEvents();
+          }
+        }
+      });
+      return;
+    }
     if (!undoToast || !undoMessageEl) return;
     undoHandler = handler;
     undoMessageEl.textContent = msg;

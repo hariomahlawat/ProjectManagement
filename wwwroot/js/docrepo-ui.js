@@ -796,8 +796,9 @@
 
     // SECTION: Messages
     function toast(message, tone = "info") {
-        if (typeof window.showToast === "function") {
-            window.showToast(message, tone);
+        // The shared glass toast (docs/ux/toasts.md); the alert below is the fallback.
+        if (window.PrismToast) {
+            window.PrismToast.show({ tone, text: message });
             return;
         }
         const live = document.createElement("div");

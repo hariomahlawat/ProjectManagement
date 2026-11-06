@@ -15,6 +15,7 @@
 //   action    optional { label, run } or { label, href }: one button (Undo, View, Retry)
 //   life      milliseconds before it fades (default 4500, 7000 with an action); errors stay
 //             until dismissed
+//   sticky    true: no timer, it stays until dismissed or its action is used
 //
 // Returns { element, dismiss }.
 // =============================
@@ -141,7 +142,7 @@
                 action.run();
             });
         }
-        if (el.dataset.tone !== "danger") {
+        if (el.dataset.tone !== "danger" && el.dataset.life !== "0") {
             const life = Number(el.dataset.life) || 4500;
             el.style.setProperty("--life", `${life}ms`);
             startTimer(el, life);
@@ -155,7 +156,7 @@
         el.dataset.prismToast = "";
         el.dataset.tone = tone;
         el.setAttribute("role", tone === "danger" ? "alert" : "status");
-        const life = Number(options.life) || (options.action ? 7000 : 4500);
+        const life = options.sticky ? 0 : Number(options.life) || (options.action ? 7000 : 4500);
         el.dataset.life = String(life);
 
         const icon = document.createElement("span");
@@ -204,7 +205,7 @@
         close.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
         el.appendChild(close);
 
-        if (tone !== "danger") {
+        if (tone !== "danger" && life > 0) {
             const timer = document.createElement("span");
             timer.className = "prism-toast__timer";
             timer.setAttribute("aria-hidden", "true");

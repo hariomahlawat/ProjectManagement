@@ -406,7 +406,7 @@
     }
 
     function notify(message) {
-        if (typeof window.showToast === "function") window.showToast(message, "info");
+        if (window.PrismToast) window.PrismToast.show({ tone: "info", text: message });
         else total.textContent = message;
     }
 

@@ -9,6 +9,18 @@ export function initNotebookToastRegion(root = document.querySelector('[data-not
 const MAX_VISIBLE_TOASTS = 3;
 
 export function showNotebookToast({ message, tone = 'neutral', actionText = '', onAction = null, duration = 3500 } = {}) {
+  // The shared glass toast (docs/ux/toasts.md) when it is on the page; the Notebook's own below.
+  if (typeof window !== 'undefined' && window.PrismToast && message) {
+    const prismTone = { success: 'success', error: 'danger', danger: 'danger', warning: 'warning' }[tone] || 'info';
+    const handle = window.PrismToast.show({
+      tone: prismTone,
+      text: message,
+      sticky: !(duration > 0),
+      life: duration > 0 ? duration : undefined,
+      action: actionText && typeof onAction === 'function' ? { label: actionText, run: () => onAction() } : undefined
+    });
+    return { id: handle.element.id || '', close: handle.dismiss };
+  }
   if (!region || !message) return null;
   // The same error raised twice (for example by a retried action) is shown once.
   const duplicate = [...region.querySelectorAll('.notebook-toast')]

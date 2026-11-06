@@ -3922,6 +3922,17 @@ function initNotebookToastRegion(root = document.querySelector("[data-notebook-t
   return { show: showNotebookToast, clear: clearNotebookToasts };
 }
 function showNotebookToast({ message, tone = "neutral", actionText = "", onAction = null, duration = 3500 } = {}) {
+  if (typeof window !== "undefined" && window.PrismToast && message) {
+    const prismTone = { success: "success", error: "danger", danger: "danger", warning: "warning" }[tone] || "info";
+    const handle = window.PrismToast.show({
+      tone: prismTone,
+      text: message,
+      sticky: !(duration > 0),
+      life: duration > 0 ? duration : void 0,
+      action: actionText && typeof onAction === "function" ? { label: actionText, run: () => onAction() } : void 0
+    });
+    return { id: handle.element.id || "", close: handle.dismiss };
+  }
   if (!region || !message) return null;
   const duplicate = [...region.querySelectorAll(".notebook-toast")].find((existing) => existing.dataset.tone === tone && existing.firstElementChild?.textContent === message);
   if (duplicate && tone === "error") return { id: duplicate.id, close: () => removeToast(duplicate) };

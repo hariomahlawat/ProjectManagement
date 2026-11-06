@@ -98,6 +98,11 @@
     }
 
     function showToast(message, level) {
+        // The shared glass toast (docs/ux/toasts.md); the code below is the fallback.
+        if (window.PrismToast && message) {
+            window.PrismToast.show({ tone: ({ success: 'success', danger: 'danger', error: 'danger', warning: 'warning' }[String(level || '').toLowerCase()] || 'info'), text: message });
+            return;
+        }
         const container = toastContainer();
         const toast = document.createElement('div');
         toast.className = 'toast show app-toast app-toast-' + level;

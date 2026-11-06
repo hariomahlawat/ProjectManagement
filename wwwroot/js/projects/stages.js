@@ -130,6 +130,11 @@
   }
 
   function showToast(message, variant) {
+    // The shared glass toast (docs/ux/toasts.md); the code below is the fallback.
+    if (window.PrismToast && message) {
+        window.PrismToast.show({ tone: ({ success: 'success', danger: 'danger', error: 'danger', warning: 'warning' }[String(variant || '').toLowerCase()] || 'info'), text: message });
+        return;
+    }
     const container = ensureToastContainer();
     const toastEl = document.createElement('div');
     toastEl.className = `toast align-items-center text-bg-${variant} border-0`;
