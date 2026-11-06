@@ -566,7 +566,13 @@ the Studio.
   repeated in the facts). Present and Generate first say "Present/Generate with gaps?" (n kinds
   still open, placeholders such as "Not recorded"; *Present anyway* / *Review gaps*, which opens
   the Gaps tab), once per deck per browser session.
-- **D. Phone.** Header actions stacked, the slide first, the library as cards.
+- **D. Phone.** Done (this change). Below 576 px the Studio header gives Generate its own
+  full-width row (Switch deck and the deck menu beneath); the deck icon, the "Updated" line and
+  the note under Generate give way (the Gaps step says it), so the progress line takes the full
+  width. The header went from 384 px to 237 px tall at 375 px. The library table becomes a list of
+  cards: the deck name on top with its ⋯ menu, then each value with its label (Template,
+  Projects, Slides, Owner, Edited, Generated, Changed since; `data-label` on each cell); no
+  sideways scroll. Desktop is unchanged.
 - **E. Wording and accessibility.** Done (this change). The progress line is three steps
   (Projects, Gaps, Settings) with dots instead of numbers, so only the Deck tab's settings steps
   are numbered (the owner's numbered steps stay); Generate is the button beside it. The deck name

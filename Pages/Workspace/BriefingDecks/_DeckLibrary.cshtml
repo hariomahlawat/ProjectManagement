@@ -169,20 +169,21 @@
                             }
                             <small class="pbd-library__match" data-pbd-library-match hidden></small>
                         </td>
-                        <td class="is-date">@deck.Purpose</td>
-                        <td class="is-number">@deck.ProjectCount</td>
+                        @* data-label: on a phone the table becomes cards, and each value carries its label. *@
+                        <td class="is-date" data-label="Template">@deck.Purpose</td>
+                        <td class="is-number" data-label="Projects">@deck.ProjectCount</td>
                         @if (deck.LastGeneratedSlideCount is int slideCount)
                         {
-                            <td class="is-number">@slideCount</td>
+                            <td class="is-number" data-label="Slides">@slideCount</td>
                         }
                         else
                         {
-                            <td class="is-number"><span class="pbd-library__quiet" title="Counted when the PowerPoint is first generated. The Studio shows the count as you build.">—</span></td>
+                            <td class="is-number" data-label="Slides"><span class="pbd-library__quiet" title="Counted when the PowerPoint is first generated. The Studio shows the count as you build.">—</span></td>
                         }
-                        <td class="is-owner" title="@deck.CreatedByDisplay">@deck.CreatedByDisplay</td>
-                        <td class="is-date" title="@WhenFull(deck.UpdatedAtUtc) by @deck.LastModifiedByDisplay">@WhenShort(deck.UpdatedAtUtc)</td>
-                        <td class="is-date" title="@(deck.LastGeneratedAtUtc is { } generatedAt ? WhenFull(generatedAt) : null)">@(deck.LastGeneratedAtUtc is { } generated ? WhenShort(generated) : "Not yet")</td>
-                        <td>
+                        <td class="is-owner" title="@deck.CreatedByDisplay" data-label="Owner">@deck.CreatedByDisplay</td>
+                        <td class="is-date" title="@WhenFull(deck.UpdatedAtUtc) by @deck.LastModifiedByDisplay" data-label="Edited">@WhenShort(deck.UpdatedAtUtc)</td>
+                        <td class="is-date" title="@(deck.LastGeneratedAtUtc is { } generatedAt ? WhenFull(generatedAt) : null)" data-label="Generated">@(deck.LastGeneratedAtUtc is { } generated ? WhenShort(generated) : "Not yet")</td>
+                        <td class="is-changes" data-label="Changed since">
                             @if (deck.LastGeneratedAtUtc is null)
                             {
                                 @* "Last generated" already says Not yet; this column only adds a dash. *@
