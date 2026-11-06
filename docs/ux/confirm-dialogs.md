@@ -43,6 +43,30 @@ It resolves `false` on Cancel, the close button, Esc or a click outside the shee
 second confirmation cancels the first. Inside an open Bootstrap modal or offcanvas the dialog
 is moved into it for the time it is open, so focus trapping keeps working.
 
+### Without writing script: `data-confirm`
+
+A form, a submit button or a link can ask in the same dialog with attributes alone
+(`wwwroot/js/core/declarative-actions.js`):
+
+```html
+<form method="post" asp-page-handler="Delete"
+      data-confirm="Delete this visit to SDD? The record and all its photos will be removed. This cannot be undone.">
+```
+
+- `data-confirm` is "Question? Consequence.": the text up to the first `?` becomes the title
+  and the rest the message. One question with nothing after it is a title alone.
+- The tone follows the wording: delete, remove, purge, clear, discard or "cannot be undone" is
+  `danger`; withdraw, disconnect, archive, deactivate, unlink, merge, retry or rebuild is
+  `warning`; anything else is `primary`.
+- The button is the title without "this / the / your" ("Delete this task?" gives "Delete
+  task"), or just its verb when that would be longer than 32 characters.
+- Override any of it on the same element: `data-confirm-title`, `data-confirm-detail`,
+  `data-confirm-action` (button label) and `data-confirm-tone`.
+- The submit (or link) is held while the dialog is open and replayed once on confirm, with
+  the button that was pressed, so form listeners such as disable-on-submit run only then.
+- If the dialog script failed to load, the browser's own box still guards the action.
+- An element with `data-page-handled` is left to its page script.
+
 The server still decides. A confirmation is a courtesy to the user, never an authorization
 check: every action it guards must be validated and authorized server-side.
 
@@ -75,7 +99,9 @@ check: every action it guards must be validated and authorized server-side.
 
 ## Conversion plan
 
-Surveyed 6 Nov 2026. PR 1 (this page, the glass dialog on every page) is done; the rest move
+Surveyed 6 Nov 2026. PR 1 (the glass dialog on every page, #2926) and PR 2 (`data-confirm`)
+are done; the 8 `data-confirm` elements marked `data-page-handled` follow their page scripts
+in the PRs below. The rest move
 one area at a time so each change stays testable. The browser `confirm()` returns
 synchronously and the dialog does not, so each call site has to wait for the answer rather
 than simply swap the function.

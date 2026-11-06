@@ -101,7 +101,8 @@
                                         <button type="submit" class="btn btn-sm btn-outline-primary">Restore</button>
                                     </form>
                                     <form method="post" asp-page-handler="Purge" asp-route-id="@item.Id"
-                                          data-confirm="Delete “@item.Subject” for good? Its file is removed from storage and this cannot be undone.">
+                                          data-confirm="Delete “@item.Subject” for good? Its file is removed from storage and this cannot be undone."
+                                          data-confirm-action="Delete for good">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">Delete for good</button>
                                     </form>
                                 </td>

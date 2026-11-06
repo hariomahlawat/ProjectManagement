@@ -494,7 +494,8 @@
                                             <button type="submit" class="btn btn-sm btn-outline-danger">Remove assignment</button>
                                         </form>
                                         <form method="post" asp-page-handler="SuppressFace" class="person-remove-form person-remove-form--static"
-                                              data-confirm="Mark this detection as not a valid face? Its embedding and active assignment will be retired.">
+                                              data-confirm="Mark this detection as not a valid face? Its embedding and active assignment will be retired."
+                                              data-confirm-action="Not a face">
                                             <input type="hidden" name="id" value="@Model.Person.Id" />
                                             <input type="hidden" name="faceId" value="@photo.FaceId" />
                                             <label for="suppress-reason-@photo.FaceId">Not a valid face</label>
