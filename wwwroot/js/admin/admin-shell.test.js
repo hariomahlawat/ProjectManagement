@@ -213,3 +213,71 @@ test('"/" ignores a search box hidden with visibility:hidden', () => {
 
   assert.equal(event.defaultPrevented, false);
 });
+
+// Mirrors Areas/Admin/Pages/Index.cshtml: Home's "Find a page or setting".
+const homeFind = `
+<section data-admin-home-find>
+  <input data-admin-home-search>
+  <p data-admin-home-find-status></p>
+  <ul data-admin-home-find-results hidden>
+    <li id="h-users" hidden data-admin-home-find-entry data-title="users" data-keywords="add user, password, locked out, unlock" data-label="users add user, password, locked out, unlock create accounts, reset a password or clear a lockout."><a href="/Admin/Users">Users</a></li>
+    <li id="h-logins" hidden data-admin-home-find-entry data-title="sign-in activity" data-keywords="login, failed login" data-label="sign-in activity login, failed login who signed in, when, and every failed or locked out attempt."><a href="/Admin/Logins">Sign-in activity</a></li>
+    <li id="h-restore" hidden data-admin-home-find-entry data-title="restore deleted items" data-keywords="trash, recycle bin" data-label="restore deleted items trash, recycle bin bring back deleted projects."><a href="/Admin/Recovery">Restore deleted items</a></li>
+  </ul>
+  <p data-admin-home-find-empty hidden>Nothing matches.</p>
+  <button type="button" data-admin-home-try="trash">trash</button>
+</section>`;
+
+test('Home search: results appear only while typing, best match first', () => {
+  const window = createDom(sidebar + homeFind);
+  const results = window.document.querySelector('[data-admin-home-find-results]');
+  assert.equal(results.hidden, true);
+
+  type(window, 'locked out', '[data-admin-home-search]');
+
+  // "locked out" is a search word for Users (scores 2 per word) and only in the description of
+  // Sign-in activity (1 per word), so Users comes first.
+  const shown = Array.from(results.querySelectorAll('li:not([hidden])')).map((li) => li.id);
+  assert.deepEqual(shown, ['h-users', 'h-logins']);
+  assert.equal(results.hidden, false);
+  assert.equal(window.document.querySelector('[data-admin-home-find-status]').textContent, '2 pages found.');
+
+  type(window, '', '[data-admin-home-search]');
+  assert.equal(results.hidden, true);
+});
+
+test('Home search: Enter opens the best match; no match says so', () => {
+  const window = createDom(sidebar + homeFind);
+  let opened = null;
+  window.document.querySelectorAll('[data-admin-home-find-results] a').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      opened = event.currentTarget.getAttribute('href');
+    });
+  });
+  const input = window.document.querySelector('[data-admin-home-search]');
+
+  type(window, 'recycle', '[data-admin-home-search]');
+  press(window, input, 'Enter');
+  assert.equal(opened, '/Admin/Recovery');
+
+  type(window, 'zzz', '[data-admin-home-search]');
+  assert.equal(window.document.querySelector('[data-admin-home-find-empty]').hidden, false);
+});
+
+test('Home search: the example words fill the box and show results', () => {
+  const window = createDom(sidebar + homeFind);
+
+  window.document.querySelector('[data-admin-home-try]').click();
+
+  assert.equal(window.document.querySelector('[data-admin-home-search]').value, 'trash');
+  assert.equal(window.document.getElementById('h-restore').hidden, false);
+});
+
+test('"/" on Home goes to the Home search box first', () => {
+  const window = createDom(sidebar + homeFind);
+
+  press(window, window.document.getElementById('outside'), '/');
+
+  assert.equal(window.document.activeElement, window.document.querySelector('[data-admin-home-search]'));
+});

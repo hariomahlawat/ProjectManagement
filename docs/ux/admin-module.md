@@ -119,6 +119,42 @@ equal to its catalogue name and every catalogue route resolvable.
 
 The 19-tile "Administrative areas" grid and the duplicated metric cards go.
 
+**Shipped in PR 4** (`AdminHomeService`, rules in `AdminHomeRules`):
+- **Find a page or setting** lists every page the viewer can open, best match first: a word
+  in the page name counts most, then its search words, then its description. Example words
+  ("locked out", "trash", "dropdown", "holiday", "pdf") fill the box, and a test keeps each one
+  finding a page. `/` on Home goes to this box.
+- **Status line.** Home never runs the system checks itself. It shows the last result
+  (`IAdminSystemHealthService.GetLatest`, kept for a day), so opening Home never waits on
+  storage or database checks.
+  - Green "Running normally": the last checks passed.
+  - Amber "Running, with warnings": a check has a warning.
+  - Red "Needs attention": a check failed.
+  - Grey "Not checked yet": the checks have not run since PRISM started.
+  - The line also says how many things are listed to look at.
+- **To look at** only lists what an administrator has to act on:
+  - a failed system check (red) or a check with a warning;
+  - locked accounts;
+  - accounts waiting to be deleted;
+  - errors in the audit log in the last 24 hours;
+  - critical Data checks findings.
+
+  Not listed, because they are normal: pending password changes, disabled accounts, items in
+  the bins, audit warnings and failed sign-ins. These show as neutral figures on the tiles.
+- **Six task tiles**, each with one live figure:
+  - Add or manage users
+  - Check sign-ins and the audit log
+  - Restore something deleted (now also counts Document Repository trash for viewers who can
+    open it)
+  - Edit the lists used in forms
+  - Check that PRISM is healthy
+  - Run a data job
+
+  A tile appears only if the viewer can open its page. A figure that cannot be read leaves the
+  tile without a number instead of breaking Home.
+- **Recent changes by administrators** is folded away, with a link to the audit log.
+- Purges that are due will join "To look at" with the Restore deleted items page (PR 5).
+
 ### Merged pages
 
 - **Restore deleted items** (on the Recovery centre route): tabs for Projects, Project

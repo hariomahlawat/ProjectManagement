@@ -10,7 +10,7 @@ namespace ProjectManagement.Tests;
 public sealed class AdminDashboardServiceTests
 {
     [Fact]
-    public async Task GetAsync_ClassifiesUserStatesAndPrioritisesCriticalAttention()
+    public async Task GetAsync_ClassifiesUserStatesAndListsOnlyWhatNeedsAnAdministrator()
     {
         var now = new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -46,7 +46,17 @@ public sealed class AdminDashboardServiceTests
         Assert.Equal(1, result.Metrics.DisabledUsers);
         Assert.Equal(1, result.Metrics.LockedUsers);
         Assert.Equal(1, result.Metrics.PendingDeletionUsers);
-        Assert.Equal(AdminAttentionSeverity.Critical, result.AttentionItems[0].Severity);
+        // Only what an administrator must act on: the locked and pending accounts and the error.
+        // The pending password change and the disabled account are normal and are not listed.
+        Assert.Equal(
+            new[]
+            {
+                "1 account is locked after failed sign-ins",
+                "1 account is waiting to be deleted",
+                "1 error in the audit log in the last 24 hours"
+            },
+            result.AttentionItems.Select(item => item.Title).ToArray());
+        Assert.All(result.AttentionItems, item => Assert.Equal(AdminAttentionSeverity.Warning, item.Severity));
         Assert.Equal("administrator", result.RecentActions[0].Actor);
     }
 

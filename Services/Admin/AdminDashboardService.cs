@@ -23,11 +23,12 @@ public sealed class AdminDashboardMetrics
     public int TrashedProjects { get; init; }
     public int DeletedDocuments { get; init; }
     public int DeletedEvents { get; init; }
+    public int DeletedRepositoryDocuments { get; init; }
 
     public int RestrictedUsers =>
         DisabledUsers + LockedUsers + PendingDeletionUsers + MustChangePasswordUsers;
 
-    public int RecoveryQueue => TrashedProjects + DeletedDocuments + DeletedEvents;
+    public int RecoveryQueue => TrashedProjects + DeletedDocuments + DeletedEvents + DeletedRepositoryDocuments;
 }
 
 public enum AdminAttentionSeverity
@@ -151,7 +152,9 @@ public sealed class AdminDashboardService : IAdminDashboardService
             DeletedDocuments = await _db.ProjectDocuments.AsNoTracking()
                 .CountAsync(document => document.Status == ProjectDocumentStatus.SoftDeleted, cancellationToken),
             DeletedEvents = await _db.Events.AsNoTracking()
-                .CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken)
+                .CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken),
+            DeletedRepositoryDocuments = await _db.Documents.AsNoTracking()
+                .CountAsync(document => document.IsDeleted, cancellationToken)
         };
 
         var recentActions = await _db.AuditLogs.AsNoTracking()
@@ -187,98 +190,52 @@ public sealed class AdminDashboardService : IAdminDashboardService
             BuildAttention(metrics));
     }
 
-    private static IReadOnlyList<AdminDashboardAttention> BuildAttention(AdminDashboardMetrics metrics)
+    // Only what an administrator has to act on (docs/ux/admin-module.md, rule 5 "Colour means
+    // something"). A pending password change, a disabled account or items in a bin are normal and
+    // show as neutral figures on Home's task tiles instead.
+    internal static IReadOnlyList<AdminDashboardAttention> BuildAttention(AdminDashboardMetrics metrics)
     {
         var items = new List<AdminDashboardAttention>();
 
-        if (metrics.ErrorEventsLast24Hours > 0)
+        if (metrics.LockedUsers > 0)
         {
             items.Add(new(
-                AdminAttentionSeverity.Critical,
-                "Audit errors require review",
-                $"{metrics.ErrorEventsLast24Hours:N0} error event(s) were recorded during the last 24 hours.",
-                "Investigate",
-                AdminNavigationKeys.Logs,
-                new Dictionary<string, object?> { ["Level"] = "Error" }));
+                AdminAttentionSeverity.Warning,
+                metrics.LockedUsers == 1
+                    ? "1 account is locked after failed sign-ins"
+                    : $"{metrics.LockedUsers:N0} accounts are locked after failed sign-ins",
+                "The lock lifts by itself; clear it sooner from the person's account if they need in now.",
+                "Review",
+                AdminNavigationKeys.Users,
+                new Dictionary<string, object?> { ["Status"] = "locked" }));
         }
 
         if (metrics.PendingDeletionUsers > 0)
         {
             items.Add(new(
                 AdminAttentionSeverity.Warning,
-                "Accounts pending deletion",
-                $"{metrics.PendingDeletionUsers:N0} account(s) are awaiting lifecycle review.",
-                "Review accounts",
+                metrics.PendingDeletionUsers == 1
+                    ? "1 account is waiting to be deleted"
+                    : $"{metrics.PendingDeletionUsers:N0} accounts are waiting to be deleted",
+                "Confirm the deletion or restore the account.",
+                "Review",
                 AdminNavigationKeys.Users,
                 new Dictionary<string, object?> { ["Status"] = "pending-deletion" }));
         }
 
-        if (metrics.MustChangePasswordUsers > 0)
+        if (metrics.ErrorEventsLast24Hours > 0)
         {
             items.Add(new(
                 AdminAttentionSeverity.Warning,
-                "Password change required",
-                $"{metrics.MustChangePasswordUsers:N0} user(s) must change their password at next sign-in.",
-                "View users",
-                AdminNavigationKeys.Users,
-                new Dictionary<string, object?> { ["Status"] = "must-change-password" }));
+                metrics.ErrorEventsLast24Hours == 1
+                    ? "1 error in the audit log in the last 24 hours"
+                    : $"{metrics.ErrorEventsLast24Hours:N0} errors in the audit log in the last 24 hours",
+                "Something failed while people were working. Check what it was.",
+                "Review",
+                AdminNavigationKeys.Logs,
+                new Dictionary<string, object?> { ["Level"] = "Error" }));
         }
 
-        if (metrics.LockedUsers > 0)
-        {
-            items.Add(new(
-                AdminAttentionSeverity.Warning,
-                "Temporarily locked accounts",
-                $"{metrics.LockedUsers:N0} account(s) are currently locked.",
-                "Review users",
-                AdminNavigationKeys.Users,
-                new Dictionary<string, object?> { ["Status"] = "locked" }));
-        }
-
-        if (metrics.DisabledUsers > 0)
-        {
-            items.Add(new(
-                AdminAttentionSeverity.Information,
-                "Disabled accounts",
-                $"{metrics.DisabledUsers:N0} user account(s) are disabled.",
-                "Manage users",
-                AdminNavigationKeys.Users,
-                new Dictionary<string, object?> { ["Status"] = "disabled" }));
-        }
-
-        if (metrics.TrashedProjects > 0)
-        {
-            items.Add(new(
-                AdminAttentionSeverity.Information,
-                "Projects in trash",
-                $"{metrics.TrashedProjects:N0} project(s) are available for restore or permanent deletion.",
-                "Review trash",
-                AdminNavigationKeys.ProjectTrash));
-        }
-
-        if (metrics.DeletedDocuments > 0)
-        {
-            items.Add(new(
-                AdminAttentionSeverity.Information,
-                "Documents in recycle bin",
-                $"{metrics.DeletedDocuments:N0} document(s) are awaiting recovery review.",
-                "Open recycle bin",
-                AdminNavigationKeys.DocumentRecycle));
-        }
-
-        if (metrics.DeletedEvents > 0)
-        {
-            items.Add(new(
-                AdminAttentionSeverity.Information,
-                "Deleted calendar events",
-                $"{metrics.DeletedEvents:N0} event(s) can be restored.",
-                "Recover events",
-                AdminNavigationKeys.DeletedEvents));
-        }
-
-        return items
-            .OrderByDescending(item => item.Severity)
-            .ThenBy(item => item.Title, StringComparer.Ordinal)
-            .ToArray();
+        return items;
     }
 }

@@ -1,173 +1,148 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.AdminIndexModel
-@using ProjectManagement.Areas.Admin.Models
-@using ProjectManagement.Services.Navigation.ModuleNav
 @{
     ViewData["Title"] = "Administration";
 }
 
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-<section class="admin-operational-status admin-operational-status--@Model.OperationalTone"
-         aria-labelledby="admin-operational-status-title">
-    <div class="admin-operational-status__indicator" aria-hidden="true">
-        <i class="bi @Model.OperationalIcon"></i>
-    </div>
-    <div class="admin-operational-status__copy">
-        <div class="admin-operational-status__eyebrow">Operational oversight</div>
-        <div class="admin-operational-status__title-row">
-            <h2 id="admin-operational-status-title">@Model.OperationalLabel</h2>
-            <span class="admin-status-pill admin-status-pill--@Model.OperationalTone">Current</span>
+<div class="admin-home">
+    @* 1. Find a page or setting: every page the viewer can open, by name, purpose or everyday word. *@
+    <section class="admin-home-find" data-admin-home-find aria-label="Find a page or setting">
+        <div class="admin-home-find__box">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <label class="visually-hidden" for="admin-home-find-input">Find a page or setting</label>
+            <input id="admin-home-find-input"
+                   type="search"
+                   placeholder="Find a page or setting, such as locked out, trash, holiday or sponsoring unit"
+                   autocomplete="off"
+                   aria-describedby="admin-home-find-hint"
+                   aria-controls="admin-home-find-results"
+                   aria-keyshortcuts="/"
+                   data-admin-home-search />
+            <kbd class="admin-home-find__key" aria-hidden="true">/</kbd>
         </div>
-        <p>@Model.OperationalSummary</p>
-    </div>
-    <a class="admin-operational-status__action"
-       href="@Model.OperationalActionHref">
-        @Model.OperationalActionText
-        <i class="bi bi-arrow-right" aria-hidden="true"></i>
-    </a>
-</section>
+        <p id="admin-home-find-hint" class="visually-hidden">Results appear below as you type. Press Enter to open the first one; the arrow keys move through them.</p>
+        <p class="visually-hidden" role="status" aria-live="polite" data-admin-home-find-status></p>
 
-<section aria-labelledby="admin-overview-title" class="admin-dashboard-section">
-    <div class="admin-section-heading">
-        <div>
-            <h2 id="admin-overview-title">Overview</h2>
-            <p>Current access, authentication, audit and recovery indicators.</p>
-        </div>
-    </div>
-
-    <div class="admin-metrics-grid">
-        @foreach (var metric in Model.MetricCards)
-        {
-            <partial name="~/Areas/Admin/Pages/Shared/_AdminMetricCard.cshtml" model="metric" />
-        }
-    </div>
-</section>
-
-<div class="admin-dashboard-primary-grid">
-    <section class="admin-panel" aria-labelledby="admin-attention-title">
-        <header class="admin-panel__header">
-            <div>
-                <div class="admin-panel__eyebrow">Prioritised queue</div>
-                <h2 id="admin-attention-title">Needs attention</h2>
-            </div>
-            @if (Model.AttentionItems.Count > 0)
+        <ul id="admin-home-find-results" class="admin-home-find__results" data-admin-home-find-results hidden>
+            @foreach (var entry in Model.SearchEntries)
             {
-                <span class="admin-panel__count">@Model.AttentionItems.Count</span>
+                <li hidden
+                    data-admin-home-find-entry
+                    data-title="@entry.Text.ToLowerInvariant()"
+                    data-keywords="@entry.Keywords.ToLowerInvariant()"
+                    data-label="@entry.SearchLabel">
+                    <a href="@entry.Href">
+                        <strong>@entry.Text</strong>
+                        <span class="admin-home-find__group">@entry.Group</span>
+                        <span class="admin-home-find__why">@entry.Description</span>
+                    </a>
+                </li>
             }
-        </header>
+        </ul>
+        <p class="admin-home-find__empty" data-admin-home-find-empty hidden>
+            Nothing matches. Try another word@if (Model.AllPagesHref is not null)
+            {<text>, or open <a href="@Model.AllPagesHref">Every admin page</a></text>}.
+        </p>
 
-        @if (Model.AttentionItems.Count > 0)
+        <div class="admin-home-find__try">
+            <span>Try:</span>
+            @foreach (var example in ProjectManagement.Areas.Admin.Pages.AdminIndexModel.ExampleSearches)
+            {
+                <button type="button" data-admin-home-try="@example">@example</button>
+            }
+        </div>
+    </section>
+
+    @* 2. One status line: calm unless something needs an administrator. *@
+    <section class="admin-home-status admin-home-status--@Model.StatusCss" aria-labelledby="admin-home-status-label">
+        <span id="admin-home-status-label" class="admin-home-status__pill">@Model.Status.Label</span>
+        <p>@Model.Status.Summary</p>
+        @if (Model.HealthHref is not null)
         {
-            <div class="admin-attention-list">
-                @foreach (var item in Model.AttentionItems)
-                {
-                    <article class="admin-attention-item admin-attention-item--@item.Tone">
-                        <span class="admin-attention-item__icon" aria-hidden="true">
-                            <i class="bi @item.Icon"></i>
-                        </span>
-                        <div class="admin-attention-item__copy">
-                            <h3>@item.Title</h3>
-                            <p>@item.Detail</p>
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(item.Href))
-                        {
-                            <a class="admin-attention-item__action" href="@item.Href">
-                                @item.LinkText
-                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                            </a>
-                        }
-                    </article>
-                }
-            </div>
-        }
-        else
-        {
-            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
-                     model="Model.NoAttentionEmptyState" />
+            <a href="@Model.HealthHref">System health <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         }
     </section>
 
-    <section class="admin-panel" aria-labelledby="admin-recent-actions-title">
-        <header class="admin-panel__header">
-            <div>
-                <div class="admin-panel__eyebrow">Audit trail</div>
-                <h2 id="admin-recent-actions-title">Recent activity</h2>
-            </div>
-            <a class="admin-panel__header-link" href="@Model.NavigationHref(AdminNavigationKeys.Logs)">
-                View all
-            </a>
-        </header>
+    @* 3. To look at: only shown when something needs an administrator. *@
+    @if (Model.LookAt.Count > 0)
+    {
+        <section class="admin-panel admin-home-lookat" aria-labelledby="admin-home-lookat-title">
+            <header class="admin-home-lookat__header">
+                <h2 id="admin-home-lookat-title">To look at</h2>
+                <small>Only shown when something needs you</small>
+            </header>
+            <ul class="admin-home-lookat__list">
+                @foreach (var item in Model.LookAt)
+                {
+                    <li class="admin-home-lookat__item@(item.Urgent ? " admin-home-lookat__item--urgent" : string.Empty)">
+                        <span class="admin-home-lookat__mark" aria-hidden="true"></span>
+                        <div>
+                            <strong>@item.Title</strong>
+                            <span>@item.Detail</span>
+                        </div>
+                        @if (item.Href is not null)
+                        {
+                            <a href="@item.Href">@item.LinkText<span class="visually-hidden">: @item.Title</span></a>
+                        }
+                    </li>
+                }
+            </ul>
+        </section>
+    }
 
-        @if (Model.RecentAdminActions.Count > 0)
+    @* 4. What do you want to do? Six tasks, each with one live figure. *@
+    @if (Model.Tiles.Count > 0)
+    {
+        <section class="admin-home-tasks" aria-labelledby="admin-home-tasks-title">
+            <h2 id="admin-home-tasks-title">What do you want to do?</h2>
+            <div class="admin-home-tasks__grid">
+                @foreach (var tile in Model.Tiles)
+                {
+                    <a class="admin-home-task" href="@tile.Href">
+                        <span class="admin-home-task__icon" aria-hidden="true"><i class="bi @tile.Icon"></i></span>
+                        <h3>@tile.Title</h3>
+                        <p>@tile.Body</p>
+                        @if (!string.IsNullOrEmpty(tile.Fact))
+                        {
+                            <span class="admin-home-task__fact">@tile.Fact</span>
+                        }
+                    </a>
+                }
+            </div>
+        </section>
+    }
+
+    @* 5. Recent changes by administrators, folded away. *@
+    <details class="admin-home-recent">
+        <summary>Recent changes by administrators</summary>
+        @if (Model.RecentActions.Count > 0)
         {
-            <div class="admin-activity-list">
-                @foreach (var action in Model.RecentAdminActions)
+            <ul>
+                @foreach (var action in Model.RecentActions)
                 {
                     var presentation = Model.ActionPresentation(action);
-                    <article class="admin-activity-item">
-                        <span class="admin-activity-item__level admin-activity-item__level--@presentation.Tone"
-                              aria-label="@action.Level">
-                            <i class="bi @presentation.Icon" aria-hidden="true"></i>
-                        </span>
-                        <div class="admin-activity-item__copy">
-                            <h3>@presentation.Label</h3>
+                    <li>
+                        <span>
+                            <strong>@presentation.Label</strong>
                             @if (!string.Equals(action.Message, action.Action, StringComparison.OrdinalIgnoreCase))
                             {
-                                <p>@action.Message</p>
+                                <span> · @action.Message</span>
                             }
-                            <div class="admin-activity-item__meta">
-                                <span><i class="bi bi-person" aria-hidden="true"></i>@action.Actor</span>
-                                <time>@action.WhenLocal</time>
-                            </div>
-                        </div>
-                    </article>
+                        </span>
+                        <span class="admin-home-recent__meta"><time>@action.WhenLocal</time> · @action.Actor</span>
+                    </li>
                 }
-            </div>
+            </ul>
         }
         else
         {
-            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
-                     model="Model.NoRecentActivityEmptyState" />
+            <p class="admin-home-recent__empty">No changes by administrators yet.</p>
         }
-    </section>
-</div>
-
-<section class="admin-dashboard-section" aria-labelledby="admin-areas-title">
-    <div class="admin-section-heading">
-        <div>
-            <h2 id="admin-areas-title">Administrative areas</h2>
-            <p>Direct access to monitoring, recovery, maintenance and controlled master data.</p>
-        </div>
-    </div>
-
-    <div class="admin-link-group-grid">
-        @foreach (var group in Model.LinkGroups)
+        @if (Model.AuditLogHref is not null)
         {
-            <article class="admin-link-group">
-                <header class="admin-link-group__header">
-                    <span class="admin-link-group__icon" aria-hidden="true">
-                        <i class="bi @group.Icon"></i>
-                    </span>
-                    <div>
-                        <h3>@group.Title</h3>
-                        <p>@group.Description</p>
-                    </div>
-                </header>
-
-                <div class="admin-link-group__links">
-                    @foreach (var link in group.Links)
-                    {
-                        <a href="@link.Href" class="admin-link-tile">
-                            <span class="admin-link-tile__icon" aria-hidden="true">
-                                <i class="bi @(link.Icon ?? "bi-arrow-right-circle")"></i>
-                            </span>
-                            <span>@link.Text</span>
-                            <i class="bi bi-chevron-right admin-link-tile__arrow" aria-hidden="true"></i>
-                        </a>
-                    }
-                </div>
-            </article>
+            <p class="admin-home-recent__more"><a href="@Model.AuditLogHref">Open the audit log <i class="bi bi-arrow-right" aria-hidden="true"></i></a></p>
         }
-    </div>
-</section>
+    </details>
+</div>
