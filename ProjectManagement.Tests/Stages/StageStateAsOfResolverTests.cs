@@ -150,6 +150,70 @@ public sealed class StageStateAsOfResolverTests
         Assert.Equal(StageCodes.AON, position.StageCode);
     }
 
+    [Fact]
+    public void AStageReopenedAfterTheDate_KeepsItsEarlierCompletion()
+    {
+        // Completed on 10 Feb, reopened on 15 May (the reopen clears the stage's own date).
+        var states = Resolve(
+            new[] { Fact(StageCodes.FS, StageStatus.InProgress, start: new(2026, 1, 5)) },
+            new[]
+            {
+                new StageLogFact(StageCodes.FS, "Completed", new(2026, 2, 10), FromStatus: "InProgress", ToCompletedOn: new(2026, 2, 10)),
+                new StageLogFact(StageCodes.FS, "InProgress", new(2026, 5, 15), FromStatus: "Completed", FromCompletedOn: new(2026, 2, 10))
+            });
+
+        Assert.Equal(StageStateAsOf.Finished, states[StageCodes.FS]);
+    }
+
+    [Fact]
+    public void AReopenRecordedOnlyAfterTheDate_StillShowsTheCompletionItCleared()
+    {
+        // No change recorded before the date; the reopen afterwards says it had been completed on 10 Feb.
+        var states = Resolve(
+            new[] { Fact(StageCodes.FS, StageStatus.NotStarted) },
+            new[] { new StageLogFact(StageCodes.FS, "NotStarted", new(2026, 5, 15), FromStatus: "Completed", FromCompletedOn: new(2026, 2, 10)) });
+
+        Assert.Equal(StageStateAsOf.Finished, states[StageCodes.FS]);
+    }
+
+    [Fact]
+    public void TheLastChangeRecordedBeforeTheDate_IsTheStatusOnIt()
+    {
+        // Undated today; recorded In progress on 1 Mar and completed (undated) on 20 Apr.
+        var states = Resolve(
+            new[] { Fact(StageCodes.FS, StageStatus.Completed) },
+            new[]
+            {
+                new StageLogFact(StageCodes.FS, "InProgress", new(2026, 3, 1)),
+                new StageLogFact(StageCodes.FS, "Completed", new(2026, 4, 20))
+            });
+
+        Assert.Equal(StageStateAsOf.InProgress, states[StageCodes.FS]);
+    }
+
+    [Fact]
+    public void ParallelStages_GiveTheRangeEitherWayRound()
+    {
+        // TEC not started on the date, BM completed undated: either could be the stage then.
+        var facts = new[]
+        {
+            Fact(StageCodes.FS, StageStatus.Completed, completedOn: new(2025, 6, 1)),
+            Fact(StageCodes.SOW, StageStatus.Completed, completedOn: new(2025, 7, 1)),
+            Fact(StageCodes.IPA, StageStatus.Completed, completedOn: new(2025, 8, 1)),
+            Fact(StageCodes.AON, StageStatus.Completed, completedOn: new(2025, 9, 1)),
+            Fact(StageCodes.BID, StageStatus.Completed, completedOn: new(2025, 10, 1)),
+            Fact(StageCodes.TEC, StageStatus.NotStarted),
+            Fact(StageCodes.BM, StageStatus.Completed)
+        };
+        var states = Resolve(facts);
+        Assert.Equal(StageStateAsOf.Unknown, states[StageCodes.BM]);
+
+        var position = StageStateAsOfResolver.ResolvePosition(Snapshots(facts), states);
+
+        Assert.False(position.IsKnown);
+        Assert.Equal(new[] { StageCodes.TEC, StageCodes.BM }, position.Candidates.Select(stage => stage.Code).ToArray());
+    }
+
     [Theory]
     [InlineData(ProjectLifecycleStatus.Completed, "2026-02-10", null, null, null, LifecycleAsOf.Completed)]
     [InlineData(ProjectLifecycleStatus.Completed, "2026-04-10", null, null, null, LifecycleAsOf.Active)]

@@ -49,6 +49,9 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
 {
     private static readonly TimeSpan Ist = TimeSpan.FromHours(5.5);
 
+    // Change-log entries that record a request or its outcome without changing the stage: never history.
+    private static readonly string[] NotApplied = { "Requested", "Submitted", "Superseded", "Rejected", "Withdrawn", "CreatedAsReplacement" };
+
     private readonly ApplicationDbContext _db;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IWorkflowStageMetadataProvider _workflowStages;
@@ -97,14 +100,20 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
             .ToDictionary(group => group.Key, group => group.ToList());
         var logs = (await _db.StageChangeLogs
                 .AsNoTracking()
-                .Where(log => ids.Contains(log.ProjectId))
-                .Select(log => new { log.ProjectId, log.StageCode, log.ToStatus, log.At })
+                .Where(log => ids.Contains(log.ProjectId) && !NotApplied.Contains(log.Action))
+                .Select(log => new { log.ProjectId, log.StageCode, log.ToStatus, log.FromStatus, log.FromCompletedOn, log.ToCompletedOn, log.At })
                 .ToListAsync(cancellationToken))
             .GroupBy(log => log.ProjectId)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<StageLogFact>)group
-                    .Select(log => new StageLogFact(log.StageCode, log.ToStatus, DateOnly.FromDateTime(log.At.ToOffset(Ist).DateTime)))
+                    .Select(log => new StageLogFact(
+                        log.StageCode,
+                        log.ToStatus,
+                        DateOnly.FromDateTime(log.At.ToOffset(Ist).DateTime),
+                        log.FromStatus,
+                        log.FromCompletedOn,
+                        log.ToCompletedOn))
                     .ToList());
         var supplyOrderDates = (await _db.ProjectSupplyOrderFacts
                 .AsNoTracking()

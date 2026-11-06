@@ -20,8 +20,17 @@ public enum StageStateAsOf
 /// <summary>One stage as stored today.</summary>
 public sealed record StageFactNow(string Code, StageStatus Status, DateOnly? ActualStart, DateOnly? CompletedOn);
 
-/// <summary>One stage change-log entry: the status it was set to and the day it was recorded (IST).</summary>
-public sealed record StageLogFact(string Code, string? ToStatus, DateOnly RecordedOn);
+/// <summary>
+/// One applied stage change (not a request): the status before and after, the completion dates it
+/// carried, and the day it was recorded (IST).
+/// </summary>
+public sealed record StageLogFact(
+    string Code,
+    string? ToStatus,
+    DateOnly RecordedOn,
+    string? FromStatus = null,
+    DateOnly? FromCompletedOn = null,
+    DateOnly? ToCompletedOn = null);
 
 /// <summary>A project's stage on a past date: one stage, or the range it lies in when dates are missing.</summary>
 public sealed record StagePositionAsOf(
@@ -40,8 +49,10 @@ public sealed record StagePositionAsOf(
 /// <list type="number">
 /// <item>a stage's own dates (a completion on or before D is finished; after D, not);</item>
 /// <item>its required predecessors: a stage cannot be finished while one of them was not;</item>
-/// <item>the stage change log: a completion recorded on or before D was finished by then, and a stage
-/// (or one of its predecessors) recorded In progress on or after D was not finished on D;</item>
+/// <item>the stage change log (applied changes only): the last change recorded on or before D is the
+/// stage's status on D; a completion date the log carries decides as a recorded date does (so a stage
+/// reopened after D keeps its earlier completion); and a stage, or one of its predecessors, recorded In
+/// progress on or after D was not finished on D;</item>
 /// <item>the stages after it: one that had started or finished by D means this one was finished; and,
 /// since stages run back to back, a stage whose only undated predecessor is this one started the day
 /// after this one ended;</item>
@@ -114,6 +125,44 @@ public static class StageStateAsOfResolver
 
         StageStateAsOf OwnState(StageFactNow fact)
         {
+            // A completion date recorded on the stage today decides.
+            if (fact.Status == StageStatus.Completed && fact.CompletedOn is { } completedOn)
+            {
+                return completedOn <= asOf
+                    ? StageStateAsOf.Finished
+                    : StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
+            }
+
+            // The last applied change recorded on or before the date is the stage's status on it.
+            if (logsByCode.TryGetValue(fact.Code, out var history)
+                && history.Where(log => log.RecordedOn <= asOf).OrderBy(log => log.RecordedOn).LastOrDefault() is { } last
+                && Enum.TryParse<StageStatus>(last.ToStatus, ignoreCase: true, out var then))
+            {
+                return then switch
+                {
+                    StageStatus.Completed => StageStateAsOf.Finished,
+                    StageStatus.Skipped => StageStateAsOf.Skipped,
+                    StageStatus.InProgress or StageStatus.Blocked => StageStateAsOf.InProgress,
+                    _ => StageStateAsOf.NotStarted
+                };
+            }
+
+            // A completion date the history carries (a stage reopened later keeps it).
+            if (history is not null
+                && history
+                    .Select(log => string.Equals(log.ToStatus, nameof(StageStatus.Completed), StringComparison.OrdinalIgnoreCase) ? log.ToCompletedOn
+                        : string.Equals(log.FromStatus, nameof(StageStatus.Completed), StringComparison.OrdinalIgnoreCase) ? log.FromCompletedOn
+                        : null)
+                    .Where(date => date.HasValue)
+                    .Select(date => date!.Value)
+                    .DefaultIfEmpty()
+                    .Min() is { } historical && historical != default)
+            {
+                return historical <= asOf
+                    ? StageStateAsOf.Finished
+                    : StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
+            }
+
             switch (fact.Status)
             {
                 case StageStatus.Skipped:
@@ -121,15 +170,8 @@ public static class StageStateAsOfResolver
                 case StageStatus.Completed:
                     break;
                 default:
-                    // Not finished today, so not finished then.
+                    // Not finished today, and nothing says it was finished then.
                     return StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
-            }
-
-            if (fact.CompletedOn is { } completedOn)
-            {
-                return completedOn <= asOf
-                    ? StageStateAsOf.Finished
-                    : StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
             }
 
             if (RecordedOpenAfter(fact.Code))
@@ -256,8 +298,10 @@ public static class StageStateAsOfResolver
             return new StagePositionAsOf(true, from.Code, from.Name, new[] { from }, false);
         }
 
-        var low = from?.SortOrder ?? int.MinValue;
-        var high = to?.SortOrder ?? int.MaxValue;
+        // The resolver takes an in-progress stage first, so with parallel stages (TEC and BM) the two runs
+        // can land either way round: the candidates are everything between them.
+        var low = from is null || to is null ? from?.SortOrder ?? int.MinValue : Math.Min(from.SortOrder, to.SortOrder);
+        var high = from is null || to is null ? to?.SortOrder ?? int.MaxValue : Math.Max(from.SortOrder, to.SortOrder);
         var candidates = workflowStages
             .Where(stage => stage.SortOrder >= low && stage.SortOrder <= high)
             .OrderBy(stage => stage.SortOrder)
