@@ -310,6 +310,14 @@ public sealed class MediaSourceAdminService : IMediaSourceAdminService
             }
             else
             {
+                // Testing a typed path makes the server reach out to that location (a local
+                // folder or a UNC share on the LAN) and report what it finds, so it needs the
+                // same permission as saving a source there, not just View. It is audited below.
+                if (!await _access.IsAuthorizedAsync(AdminPolicies.MediaConfigure, cancellationToken))
+                {
+                    return Forbidden<MediaSourceTestResult>();
+                }
+
                 input ??= new MediaSourceAdminInput();
                 var validation = ValidateAndNormalize(input, validateName: false);
                 if (validation.Count > 0)
@@ -342,6 +350,17 @@ public sealed class MediaSourceAdminService : IMediaSourceAdminService
                     After: Snapshot(source),
                     Outcome: health.IsReachable ? "Succeeded" : "Unavailable",
                     Message: health.IsReachable ? "Media source connection test succeeded." : "Media source connection test reported unavailable.",
+                    Origin: "/Admin/MediaSources"), cancellationToken);
+            }
+            else if (source is null)
+            {
+                await AuditBestEffortAsync(new AdminAuditEntry(
+                    "MediaSourcePathTested",
+                    "MediaLibrarySource",
+                    null,
+                    After: new { Path = path, IncludeSubfolders = includeSubfolders, health.IsReachable, health.PathKind },
+                    Outcome: health.IsReachable ? "Succeeded" : "Unavailable",
+                    Message: health.IsReachable ? "Media folder path test succeeded." : "Media folder path test reported unavailable.",
                     Origin: "/Admin/MediaSources"), cancellationToken);
             }
 

@@ -607,8 +607,10 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, "Could not resolve upload path for storage key {StorageKey}.", storageKey);
-            return storageKey;
+            // The key resolved outside the upload root (or was malformed). Treat the file as
+            // missing; opening the raw key used to read it relative to the working directory.
+            _logger.LogWarning(exception, "Could not resolve upload path for storage key {StorageKey}; treated as missing.", storageKey);
+            return string.Empty;
         }
     }
 

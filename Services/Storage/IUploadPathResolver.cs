@@ -39,7 +39,7 @@ public sealed class UploadPathResolver : IUploadPathResolver
         var combined = Path.Combine(_uploadRootProvider.RootPath, normalized);
         var fullPath = Path.GetFullPath(combined);
 
-        if (!fullPath.StartsWith(_uploadRootProvider.RootPath, StringComparison.OrdinalIgnoreCase))
+        if (!IsUnderRoot(fullPath))
         {
             throw new InvalidOperationException("Storage key resolved outside of the configured upload root.");
         }
@@ -56,12 +56,23 @@ public sealed class UploadPathResolver : IUploadPathResolver
 
         var fullPath = Path.GetFullPath(absolutePath);
 
-        if (!fullPath.StartsWith(_uploadRootProvider.RootPath, StringComparison.OrdinalIgnoreCase))
+        if (!IsUnderRoot(fullPath))
         {
             return fullPath;
         }
 
         var relative = Path.GetRelativePath(_uploadRootProvider.RootPath, fullPath);
         return relative.Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    // A plain StartsWith(root) also accepted sibling folders that share the root's name as a
+    // prefix: with a root of C:\uploads, a key of "..\uploads-x\file" resolved to
+    // C:\uploads-x\file and passed. Only the root itself or paths inside it count.
+    private bool IsUnderRoot(string fullPath)
+    {
+        var root = Path.GetFullPath(_uploadRootProvider.RootPath);
+        var prefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+        return fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fullPath, Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase);
     }
 }
