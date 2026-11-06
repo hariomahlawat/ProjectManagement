@@ -33,7 +33,8 @@ public sealed record ProjectRecoveryRow(
     int DocumentCount,
     int PhotoCount,
     int VideoCount,
-    long StoredBytes);
+    long StoredBytes,
+    bool IsPurgeDueSoon = false);
 
 public sealed record ArchivedProjectRow(
     int ProjectId,
@@ -209,7 +210,11 @@ public sealed class ProjectRecoveryQueryService : IProjectRecoveryQueryService
                 row.DocumentCount,
                 row.PhotoCount,
                 row.VideoCount,
-                row.StoredBytes);
+                row.StoredBytes,
+                // Same rule as the "Due soon" filter and the Recovery centre count
+                // (AdminRecovery:DueSoonDays), not a fixed number of days.
+                purgeAt.HasValue && purgeAt.Value > now
+                    && row.DeletedAt.HasValue && row.DeletedAt.Value <= dueSoonCutoff);
         }).ToArray();
 
         return new ProjectRecoveryPage<ProjectRecoveryRow>(items, totalCount, page, pageSize);
