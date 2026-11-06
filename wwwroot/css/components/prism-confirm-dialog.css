@@ -524,9 +524,13 @@ body:has(.modal.prism-confirm-modal.show) .modal-backdrop.show {
     max-width: min(30rem, calc(100vw - 2rem));
 }
 
+/* Only the closed state is offset; Bootstrap keeps .fade on an open modal. */
 .modal.prism-confirm-modal.fade .modal-dialog {
-    transform: translateY(10px) scale(0.955);
     transition: transform 0.45s var(--pcd-ease);
+}
+
+.modal.prism-confirm-modal.fade:not(.show) .modal-dialog {
+    transform: translateY(10px) scale(0.955);
 }
 
 .modal.prism-confirm-modal.show .modal-dialog {
@@ -668,7 +672,7 @@ body:has(.modal.prism-confirm-modal.show) .modal-backdrop.show {
         margin: 0.25rem auto;
     }
 
-    .modal.prism-confirm-modal.fade .modal-dialog {
+    .modal.prism-confirm-modal.fade:not(.show) .modal-dialog {
         transform: translateY(105%);
     }
 
