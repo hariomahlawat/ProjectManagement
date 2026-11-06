@@ -164,13 +164,15 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
 
         var before = Snapshot(category);
         SetOriginalRowVersion(category, command.RowVersion);
-        var parentChanged = category.ParentId != command.ParentId;
+        var previousParentId = category.ParentId;
+        var parentChanged = previousParentId != command.ParentId;
 
         category.Name = name;
         category.ParentId = command.ParentId;
         category.IsActive = command.IsActive;
         if (parentChanged)
         {
+            await CompactProjectCategorySiblingsAsync(previousParentId, category.Id, cancellationToken);
             category.SortOrder = await NextProjectCategorySortOrderAsync(command.ParentId, category.Id, cancellationToken);
         }
 
@@ -300,13 +302,15 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
 
         var before = Snapshot(category);
         SetOriginalRowVersion(category, command.RowVersion);
-        var parentChanged = category.ParentId != command.ParentId;
+        var previousParentId = category.ParentId;
+        var parentChanged = previousParentId != command.ParentId;
 
         category.Name = name;
         category.ParentId = command.ParentId;
         category.IsActive = command.IsActive;
         if (parentChanged)
         {
+            await CompactTechnicalCategorySiblingsAsync(previousParentId, category.Id, cancellationToken);
             category.SortOrder = await NextTechnicalCategorySortOrderAsync(command.ParentId, category.Id, cancellationToken);
         }
 
@@ -507,6 +511,7 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
             SetOriginalRowVersion(category, rowVersion);
             var before = Snapshot(category);
             _db.TechnicalCategories.Remove(category);
+            await CompactTechnicalCategorySiblingsAsync(category.ParentId, category.Id, cancellationToken);
 
             return await SaveDeleteAsync("MasterData.TechnicalCategoryDeleted", "TechnicalCategory", category.Id, category.Name, before, cancellationToken);
         }
@@ -535,6 +540,7 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         SetOriginalRowVersion(projectCategory, rowVersion);
         var projectBefore = Snapshot(projectCategory);
         _db.ProjectCategories.Remove(projectCategory);
+        await CompactProjectCategorySiblingsAsync(projectCategory.ParentId, projectCategory.Id, cancellationToken);
         return await SaveDeleteAsync("MasterData.ProjectCategoryDeleted", "ProjectCategory", projectCategory.Id, projectCategory.Name, projectBefore, cancellationToken);
     }
 
@@ -1014,6 +1020,41 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         return await _db.TechnicalCategories.AsNoTracking().AnyAsync(
             item => item.ParentId == parentId && (!excludeId.HasValue || item.Id != excludeId.Value) && item.Name.ToUpper() == canonical,
             cancellationToken);
+    }
+
+    // Moving a category to another parent, or deleting it, left a gap in its old sibling
+    // group (orders 0, 2, 3), which the directory showed and the integrity check then
+    // reported. The remaining siblings are renumbered 0..n-1 in the same save.
+    private async Task CompactProjectCategorySiblingsAsync(int? parentId, int excludeId, CancellationToken cancellationToken)
+    {
+        var siblings = await _db.ProjectCategories
+            .Where(item => item.ParentId == parentId && item.Id != excludeId)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Id)
+            .ToListAsync(cancellationToken);
+        for (var index = 0; index < siblings.Count; index++)
+        {
+            if (siblings[index].SortOrder != index)
+            {
+                siblings[index].SortOrder = index;
+            }
+        }
+    }
+
+    private async Task CompactTechnicalCategorySiblingsAsync(int? parentId, int excludeId, CancellationToken cancellationToken)
+    {
+        var siblings = await _db.TechnicalCategories
+            .Where(item => item.ParentId == parentId && item.Id != excludeId)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Id)
+            .ToListAsync(cancellationToken);
+        for (var index = 0; index < siblings.Count; index++)
+        {
+            if (siblings[index].SortOrder != index)
+            {
+                siblings[index].SortOrder = index;
+            }
+        }
     }
 
     private async Task<int> NextProjectCategorySortOrderAsync(int? parentId, int? excludeId, CancellationToken cancellationToken) =>

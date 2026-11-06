@@ -30,7 +30,8 @@ public sealed record MasterDataDomainSummary(
     int Active,
     int Inactive,
     int InUse,
-    string Policy);
+    string Policy,
+    bool TracksUsage = true);
 
 public sealed record MasterDataRecentChange(
     long AuditId,
@@ -272,11 +273,13 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         var holidayEnd = holidayStart.AddYears(1);
         var holidayTotal = await _db.Holidays.AsNoTracking()
             .CountAsync(item => item.Date >= holidayStart && item.Date < holidayEnd, cancellationToken);
-        var holidays = new CountSnapshot(holidayTotal, holidayTotal, 0, holidayTotal);
+        // Holidays and celebrations are not referenced by other records, so "in use" does
+        // not apply; they used to report every row as in use and inflate the total.
+        var holidays = new CountSnapshot(holidayTotal, holidayTotal, 0, 0);
 
         var celebrationsTotal = await _db.Celebrations.AsNoTracking()
             .CountAsync(item => item.DeletedUtc == null, cancellationToken);
-        var celebrations = new CountSnapshot(celebrationsTotal, celebrationsTotal, 0, celebrationsTotal);
+        var celebrations = new CountSnapshot(celebrationsTotal, celebrationsTotal, 0, 0);
 
         var domains = new[]
         {
@@ -287,8 +290,8 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             Domain("line-directorates", "Line directorates", "Line directorates associated with project sponsorship.", "bi-diagram-2", "Admin", "/Lookups/LineDirectorates/Index", lineDirectorates, AdminPolicies.MasterDataManage),
             Domain("activity-types", "Activity types", "Controlled activity classifications used across planning and reporting.", "bi-list-task", "Admin", "/ActivityTypes/Index", activityTypes, AdminPolicies.ActivityTypesManage),
             Domain("arpp-reference-data", "ARPP reference data", "Controlled CFA, Fund and DFPDS values used for faster and consistent ARPP entry.", "bi-list-check", "Admin", "/MasterData/ArppReferences/Index", arppReferenceData, AdminPolicies.MasterDataManage),
-            Domain("holidays", $"Holidays · {holidayYear}", "Gazetted Holidays, Restricted Holidays and office-observance decisions used by the shared calendar and schedule calculations.", "bi-calendar-week", string.Empty, "/Settings/Holidays/Index", holidays, AdminPolicies.HolidaysManage),
-            Domain("celebrations", "Celebrations", "Birthdays and anniversaries shown in the shared calendar.", "bi-stars", string.Empty, "/Celebrations/Index", celebrations, Policies.Calendar.ManageCelebrations)
+            Domain("holidays", $"Holidays · {holidayYear}", "Gazetted Holidays, Restricted Holidays and office-observance decisions used by the shared calendar and schedule calculations.", "bi-calendar-week", string.Empty, "/Settings/Holidays/Index", holidays, AdminPolicies.HolidaysManage, tracksUsage: false),
+            Domain("celebrations", "Celebrations", "Birthdays and anniversaries shown in the shared calendar.", "bi-stars", string.Empty, "/Celebrations/Index", celebrations, Policies.Calendar.ManageCelebrations, tracksUsage: false)
         };
 
         var auditRows = await _db.AuditLogs.AsNoTracking()
@@ -332,7 +335,7 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             domains.Sum(item => item.Total),
             domains.Sum(item => item.Active),
             domains.Sum(item => item.Inactive),
-            domains.Sum(item => item.InUse));
+            domains.Where(item => item.TracksUsage).Sum(item => item.InUse));
     }
 
     public async Task<CategoryDirectoryResult> GetCategoriesAsync(
@@ -712,7 +715,8 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         string area,
         string page,
         CountSnapshot counts,
-        string policy) => new(
+        string policy,
+        bool tracksUsage = true) => new(
             key,
             title,
             description,
@@ -723,7 +727,8 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             counts.Active,
             counts.Total - counts.Active,
             counts.InUse,
-            policy);
+            policy,
+            tracksUsage);
 
     private static IQueryable<T> ApplyStatus<T>(
         IQueryable<T> query,

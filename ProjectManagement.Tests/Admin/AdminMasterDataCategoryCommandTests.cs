@@ -201,6 +201,77 @@ public sealed class AdminMasterDataCategoryCommandTests : IAsyncLifetime
         Assert.Equal(typeId, (await verify.Projects.SingleAsync()).ProjectTypeId);
     }
 
+    // Deleting a category, or moving it under another parent, left a gap in its old sibling
+    // group (0, 2, 3) that the directory showed and the integrity check reported.
+    [Fact]
+    public async Task DeleteAndMove_CloseTheGapInTheOldSiblingGroup()
+    {
+        int firstId, secondId, thirdId, fourthId, otherParentId;
+        await using (var seed = new ApplicationDbContext(_options))
+        {
+            var categories = new[] { "First", "Second", "Third", "Fourth", "Other parent" }
+                .Select((name, index) => new TechnicalCategory { Name = name, CreatedByUserId = Admin, IsActive = true, SortOrder = index })
+                .ToArray();
+            seed.TechnicalCategories.AddRange(categories);
+            await seed.SaveChangesAsync();
+            (firstId, secondId, thirdId, fourthId, otherParentId) =
+                (categories[0].Id, categories[1].Id, categories[2].Id, categories[3].Id, categories[4].Id);
+        }
+
+        await using (var db = new ApplicationDbContext(_options))
+        {
+            var second = await db.TechnicalCategories.AsNoTracking().SingleAsync(item => item.Id == secondId);
+            Assert.True((await CreateService(db).DeleteTechnicalCategoryAsync(secondId, second.RowVersion)).Succeeded);
+        }
+
+        await using (var db = new ApplicationDbContext(_options))
+        {
+            var third = await db.TechnicalCategories.AsNoTracking().SingleAsync(item => item.Id == thirdId);
+            var moved = await CreateService(db).UpdateTechnicalCategoryAsync(
+                new CategoryUpdateCommand(thirdId, third.Name, otherParentId, true, third.RowVersion));
+            Assert.True(moved.Succeeded, moved.UserMessage);
+        }
+
+        await using var verify = new ApplicationDbContext(_options);
+        var roots = await verify.TechnicalCategories.AsNoTracking()
+            .Where(item => item.ParentId == null)
+            .OrderBy(item => item.SortOrder)
+            .Select(item => new { item.Id, item.SortOrder })
+            .ToListAsync();
+        Assert.Equal(new[] { firstId, fourthId, otherParentId }, roots.Select(item => item.Id));
+        Assert.Equal(new[] { 0, 1, 2 }, roots.Select(item => item.SortOrder));
+    }
+
+    [Fact]
+    public async Task Overview_DoesNotCountHolidaysAndCelebrationsAsInUse()
+    {
+        await using (var seed = new ApplicationDbContext(_options))
+        {
+            seed.Celebrations.Add(new ProjectManagement.Models.Celebration
+            {
+                Id = Guid.NewGuid(),
+                Name = "Founding day",
+                EventType = ProjectManagement.Models.CelebrationType.Anniversary,
+                Day = 1,
+                Month = 2,
+                CreatedById = Admin,
+                CreatedUtc = DateTimeOffset.UtcNow,
+                UpdatedUtc = DateTimeOffset.UtcNow
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        await using var db = new ApplicationDbContext(_options);
+        var overview = await new MasterDataAdministrationQueryService(db, new AuditActionPresentationCatalog())
+            .GetOverviewAsync(2026);
+
+        var celebrations = overview.Domains.Single(domain => domain.Key == "celebrations");
+        Assert.False(celebrations.TracksUsage);
+        Assert.Equal(1, celebrations.Total);
+        Assert.Equal(0, celebrations.InUse);
+        Assert.Equal(0, overview.RecordsInUse);
+    }
+
     private async Task<int> SeedTechnicalCategoryAsync(string name)
     {
         await using var db = new ApplicationDbContext(_options);

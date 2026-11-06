@@ -658,7 +658,7 @@ public class ActivityServiceTests : IDisposable
     [Fact]
     public async Task ActivityTypeService_RestrictsNonPrivilegedUsers()
     {
-        var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, _userContext, _clock, new NoOpAdminAuditService());
+        var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, _userContext, _clock, new NoOpAdminAuditService(), _context);
         await Assert.ThrowsAsync<ActivityAuthorizationException>(() => typeService.CreateAsync(new ActivityTypeInput("Operations", null, true)));
     }
 
@@ -666,7 +666,7 @@ public class ActivityServiceTests : IDisposable
     public async Task ActivityTypeService_AllowsAdmin()
     {
         var adminContext = new TestUserContext("admin", isAdmin: true);
-        var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, adminContext, _clock, new NoOpAdminAuditService());
+        var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, adminContext, _clock, new NoOpAdminAuditService(), _context);
 
         var type = await typeService.CreateAsync(new ActivityTypeInput("Logistics", null, true));
         Assert.Equal("Logistics", type.Name);

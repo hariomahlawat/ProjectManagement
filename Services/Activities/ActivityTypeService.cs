@@ -2,6 +2,8 @@ using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ProjectManagement.Contracts.Activities;
+using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.MasterData;
@@ -15,14 +17,20 @@ public sealed class ActivityTypeService : IActivityTypeService
     private readonly IUserContext _userContext;
     private readonly IClock _clock;
     private readonly IAdminAuditService _audit;
+    private readonly ApplicationDbContext _db;
 
+    // The repository and the admin audit both write through this (scoped) context; a change
+    // and its audit row commit together, so a failed audit write can no longer leave an
+    // unaudited change behind.
     public ActivityTypeService(
         IActivityTypeRepository activityTypeRepository,
         IActivityTypeValidator validator,
         IUserContext userContext,
         IClock clock,
-        IAdminAuditService audit)
+        IAdminAuditService audit,
+        ApplicationDbContext db)
     {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
         _activityTypeRepository = activityTypeRepository;
         _validator = validator;
         _userContext = userContext;
@@ -48,6 +56,7 @@ public sealed class ActivityTypeService : IActivityTypeService
             LastModifiedAtUtc = now
         };
 
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         try
         {
             await _activityTypeRepository.AddAsync(type, cancellationToken);
@@ -63,6 +72,7 @@ public sealed class ActivityTypeService : IActivityTypeService
             type.Id.ToString(),
             After: Snapshot(type),
             Origin: "Admin.ActivityTypes"), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return type;
     }
@@ -96,6 +106,7 @@ public sealed class ActivityTypeService : IActivityTypeService
             });
         }
 
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         try
         {
             await _activityTypeRepository.UpdateAsync(existing, input.RowVersion, cancellationToken);
@@ -122,6 +133,7 @@ public sealed class ActivityTypeService : IActivityTypeService
             Before: before,
             After: Snapshot(existing),
             Origin: "Admin.ActivityTypes"), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return existing;
     }

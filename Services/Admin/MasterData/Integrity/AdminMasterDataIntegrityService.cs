@@ -169,13 +169,28 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
                 _ => 0
             };
 
+            // Record each row's old and new position, so the repair can be traced and reversed
+            // from the audit log (it used to record only the check and a count).
+            var moves = _db.ChangeTracker.Entries()
+                .Where(entry => entry.State == EntityState.Modified)
+                .Select(entry => entry.Property("SortOrder"))
+                .Where(property => property.IsModified)
+                .Select(property => new
+                {
+                    Entity = property.EntityEntry.Metadata.ClrType.Name,
+                    Id = property.EntityEntry.Property("Id").CurrentValue,
+                    From = property.OriginalValue,
+                    To = property.CurrentValue
+                })
+                .ToArray();
+
             await _db.SaveChangesAsync(cancellationToken);
             await _audit.RecordAsync(new AdminAuditEntry(
                 "MasterData.IntegrityOrderNormalised",
                 "MasterDataIntegrity",
                 normalizedKey,
-                Before: new { Check = normalizedKey },
-                After: new { Check = normalizedKey, RecordsChanged = changed },
+                Before: new { Check = normalizedKey, Positions = moves.Select(move => new { move.Entity, move.Id, SortOrder = move.From }) },
+                After: new { Check = normalizedKey, RecordsChanged = changed, Positions = moves.Select(move => new { move.Entity, move.Id, SortOrder = move.To }) },
                 Reason: "Deterministic display-order repair",
                 Message: changed == 0
                     ? "Display order was already normalised."
