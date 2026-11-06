@@ -235,13 +235,12 @@
                                     <span class="admin-audit-event-cell__copy">
                                         <strong>@presentation.Label</strong>
                                         <span>@(string.IsNullOrWhiteSpace(row.Message) ? presentation.Category : row.Message)</span>
-                                        <code>@row.Action</code>
                                     </span>
                                 </div>
                             </td>
                             <td>
                                 <div class="admin-activity-value">
-                                    <strong>@(payload?.ActorName ?? row.UserName ?? "System")</strong>
+                                    <strong>@row.Actor</strong>
                                     <span>@(string.IsNullOrWhiteSpace(payload?.ActorRoles) ? presentation.Category : payload.ActorRoles)</span>
                                 </div>
                             </td>
@@ -256,10 +255,6 @@
                                             <a href="@entityLink.Href">@entityLink.Text <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
                                         }
                                     </div>
-                                }
-                                else
-                                {
-                                    <span class="admin-muted-value">Not recorded</span>
                                 }
                             </td>
                             <td>
@@ -322,6 +317,7 @@
             <div><dt>Outcome</dt><dd data-audit-outcome>—</dd></div>
             <div><dt>Reason</dt><dd data-audit-reason>—</dd></div>
             <div><dt>Trace/reference</dt><dd data-audit-trace>—</dd></div>
+            <div><dt>Event code</dt><dd><code data-audit-action>—</code></dd></div>
         </dl>
 
         <div class="admin-audit-message" data-audit-message-wrap hidden>

@@ -31,7 +31,7 @@ public sealed class AdminPresentationCatalogTests
     [Theory]
     [InlineData("Projects.ActualsUpdated", "Project actuals updated")]
     [InlineData("AdminUserPasswordReset", "User password reset")]
-    [InlineData("CustomAuditAction", "Custom Audit Action")]
+    [InlineData("CustomAuditAction", "Custom audit action")]
     [InlineData("MasterData.ProjectCategoryCreated", "Project category created")]
     [InlineData("MasterData.IntegrityOrderNormalised", "Display order normalised")]
     public void AuditCatalog_ReturnsReadableLabels(string action, string expected)
