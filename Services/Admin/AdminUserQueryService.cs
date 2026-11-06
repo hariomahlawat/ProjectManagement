@@ -360,9 +360,13 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
                 authEvent.UserAgent))
             .ToListAsync(cancellationToken);
 
+        // Failed and locked-out sign-ins record the user name as typed. Identity signs people in
+        // case-insensitively, so "ADMIN" attempts belong to the "admin" account too.
+        var normalizedUserName = userName.ToUpperInvariant();
         var failed = await _db.AuditLogs.AsNoTracking()
             .Where(audit =>
-                (audit.UserId == userId || audit.UserName == userName)
+                (audit.UserId == userId
+                    || (audit.UserName != null && audit.UserName.ToUpper() == normalizedUserName))
                 && (audit.Action == AuthenticationEventNames.AuditLoginFailed
                     || audit.Action == AuthenticationEventNames.AuditLoginLockedOut))
             .OrderByDescending(audit => audit.TimeUtc)

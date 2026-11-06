@@ -68,23 +68,44 @@ namespace ProjectManagement.Tests
             await userManager.CreateAsync(admin, "Passw0rd!");
             await userManager.AddToRoleAsync(admin, "Admin");
 
-            var result = await service.UpdateUserRolesAsync(admin.Id, Array.Empty<string>());
+            await roleManager.CreateAsync(new IdentityRole("HoD"));
+
+            var result = await service.UpdateUserAsync(admin.Id, admin.FullName, admin.Rank, new[] { "HoD" });
 
             Assert.False(result.Succeeded);
+            Assert.Contains("last active Admin", Assert.Single(result.Errors).Description);
+            Assert.Contains("Admin", await userManager.GetRolesAsync(admin));
         }
 
         [Fact]
-        public async Task CannotDeleteLastActiveAdmin()
+        public async Task Unlock_ClearsATemporaryLockoutAndFailedCount()
         {
-            var service = CreateService("other", out var context, out var userManager, out var roleManager);
-            await roleManager.CreateAsync(new IdentityRole("Admin"));
-            var admin = new ApplicationUser { UserName = "admin" };
-            await userManager.CreateAsync(admin, "Passw0rd!");
-            await userManager.AddToRoleAsync(admin, "Admin");
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            var user = new ApplicationUser { UserName = "locked", LockoutEnabled = true };
+            await userManager.CreateAsync(user, "Passw0rd!");
+            await userManager.AccessFailedAsync(user);
+            await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddMinutes(5));
 
-            var result = await service.DeleteUserAsync(admin.Id);
+            var result = await service.UnlockAsync(user.Id);
+
+            Assert.True(result.Succeeded);
+            var reloaded = await userManager.FindByIdAsync(user.Id);
+            Assert.Null(reloaded!.LockoutEnd);
+            Assert.Equal(0, reloaded.AccessFailedCount);
+            Assert.Contains(context.AuditLogs, log => log.Action == "AdminUserUnlocked");
+        }
+
+        [Fact]
+        public async Task Unlock_RefusesADisabledAccount()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            var user = new ApplicationUser { UserName = "disabled", IsDisabled = true, LockoutEnabled = true, LockoutEnd = DateTimeOffset.MaxValue };
+            await userManager.CreateAsync(user, "Passw0rd!");
+
+            var result = await service.UnlockAsync(user.Id);
 
             Assert.False(result.Succeeded);
+            Assert.Equal(DateTimeOffset.MaxValue, (await userManager.FindByIdAsync(user.Id))!.LockoutEnd);
         }
 
         [Fact]

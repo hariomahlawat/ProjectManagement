@@ -315,20 +315,6 @@ namespace ProjectManagement.Services
             return IdentityResult.Success;
         }
 
-        public async Task<IdentityResult> UpdateUserDetailsAsync(string userId, string fullName, string rank)
-        {
-            var roles = await GetUserRolesAsync(userId);
-            return await UpdateUserAsync(userId, fullName, rank, roles);
-        }
-
-        public async Task<IdentityResult> UpdateUserRolesAsync(string userId, IEnumerable<string> roles)
-        {
-            var user = await _userManager.FindByIdAsync(userId);
-            return user is null
-                ? Failure("User not found.")
-                : await UpdateUserAsync(userId, user.FullName, user.Rank, roles);
-        }
-
         public async Task<IdentityResult> ResetPasswordAsync(string userId, string newPassword)
         {
             var user = await _userManager.FindByIdAsync(userId);
@@ -382,7 +368,7 @@ namespace ProjectManagement.Services
             }
         }
 
-        public async Task<IdentityResult> DeleteUserAsync(string userId)
+        public async Task<IdentityResult> UnlockAsync(string userId)
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user is null)
@@ -390,45 +376,56 @@ namespace ProjectManagement.Services
                 return Failure("User not found.");
             }
 
-            var currentUserName = _http.HttpContext?.User?.Identity?.Name;
-            if (!string.IsNullOrEmpty(currentUserName)
-                && string.Equals(currentUserName, user.UserName, StringComparison.OrdinalIgnoreCase))
+            if (user.IsDisabled)
             {
-                return Failure("You cannot delete your own account.");
+                return Failure("This account is disabled. Enable it instead; enabling also clears the lockout.");
             }
 
-            await using var transaction = await RelationalTransactionScope.CreateAsync(
-                _db.Database,
-                IsolationLevel.Serializable);
+            if (user.PendingDeletion)
+            {
+                return Failure("Undo the deletion request before unlocking this account.");
+            }
+
+            var previousLockoutEnd = user.LockoutEnd;
+            var previousFailures = user.AccessFailedCount;
+            if (previousLockoutEnd is null && previousFailures == 0)
+            {
+                return IdentityResult.Success;
+            }
+
+            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database);
             try
             {
-                var roles = await _userManager.GetRolesAsync(user);
-                if (roles.Contains(RoleNames.Admin, StringComparer.OrdinalIgnoreCase)
-                    && IsAdministrativelyActive(user)
-                    && await CountActiveAdminsAsync() <= 1)
-                {
-                    await transaction.RollbackAsync();
-                    return Failure("Cannot delete the last active Admin.");
-                }
-
-                var result = await _userManager.DeleteAsync(user);
-                if (!result.Succeeded)
+                var lockoutResult = await _userManager.SetLockoutEndDateAsync(user, null);
+                if (!lockoutResult.Succeeded)
                 {
                     await transaction.RollbackAsync();
                     _db.ChangeTracker.Clear();
-                    return result;
+                    return lockoutResult;
                 }
 
-                await RecordAuditAsync("AdminUserDeleted", user, before: new { user.FullName, user.Rank, Roles = roles }, after: null);
+                var failuresResult = await _userManager.ResetAccessFailedCountAsync(user);
+                if (!failuresResult.Succeeded)
+                {
+                    await transaction.RollbackAsync();
+                    _db.ChangeTracker.Clear();
+                    return failuresResult;
+                }
+
+                await RecordAuditAsync(
+                    "AdminUserUnlocked",
+                    user,
+                    before: new { LockoutEnd = previousLockoutEnd, AccessFailedCount = previousFailures },
+                    after: new { LockoutEnd = (DateTimeOffset?)null, AccessFailedCount = 0 });
                 await transaction.CommitAsync();
                 return IdentityResult.Success;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Unlocking user {UserId} failed.", userId);
                 await transaction.RollbackAsync();
                 _db.ChangeTracker.Clear();
-                _logger.LogError(ex, "Atomic user deletion failed for {UserId}.", userId);
-                return Failure("The user could not be deleted.");
+                return Failure("The account could not be unlocked.");
             }
         }
 

@@ -216,6 +216,35 @@ public sealed class AdminUserQueryServiceTests
         Assert.Equal("target.user", administrative[0].Message);
     }
 
+    // Failed sign-ins record the name as typed, while Identity signs in case-insensitively, so
+    // brute-force attempts typed as "TARGET" used to be missing from the target's activity.
+    [Fact]
+    public async Task RecentLoginActivity_IncludesFailedAttemptsTypedInAnotherCase()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        var now = new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero);
+        db.Users.Add(User("target", "Target User"));
+        db.AuditLogs.AddRange(
+            new AuditLog { TimeUtc = now.AddMinutes(-3).UtcDateTime, Level = "Warning", Action = AuthenticationEventNames.AuditLoginFailed, UserName = "TARGET" },
+            new AuditLog { TimeUtc = now.AddMinutes(-2).UtcDateTime, Level = "Warning", Action = AuthenticationEventNames.AuditLoginFailed, UserName = "Target" },
+            new AuditLog { TimeUtc = now.AddMinutes(-1).UtcDateTime, Level = "Warning", Action = AuthenticationEventNames.AuditLoginFailed, UserName = "someone-else" });
+        await db.SaveChangesAsync();
+
+        var service = new AdminUserQueryService(
+            db,
+            new UserAccountStateResolver(),
+            new AdminTimeService(new FixedClock(now)),
+            Options.Create(new UserLifecycleOptions { HardDeleteWindowHours = 24, UndoWindowMinutes = 30 }));
+
+        var authentication = await service.GetRecentLoginActivityAsync("target");
+
+        Assert.Equal(2, authentication.Count);
+    }
+
     private static ApplicationUser User(
         string id,
         string fullName,

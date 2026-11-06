@@ -288,7 +288,7 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
                 "privileged-pending-deletion",
                 AccessGovernanceFindingSeverity.Critical,
                 "Privileged account pending deletion",
-                "Remove or transfer privileged access before the deletion workflow completes.",
+                "The account is deleted with its roles when the deletion window ends. Make sure another active account holds these responsibilities; to change this account's roles first, undo the deletion request.",
                 user.Id));
         }
         else if (privilegedRoles.Count > 0 && user.IsDisabled)

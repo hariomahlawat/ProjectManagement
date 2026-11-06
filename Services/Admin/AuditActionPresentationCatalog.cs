@@ -22,6 +22,7 @@ public sealed partial class AuditActionPresentationCatalog : IAuditActionPresent
             ["AdminUserCreated"] = new("User account created", "bi-person-plus", "success", "Access & security", "ApplicationUser"),
             ["AdminUserUpdated"] = new("User profile and roles updated", "bi-person-gear", "neutral", "Access & security", "ApplicationUser"),
             ["AdminUserPasswordReset"] = new("User password reset", "bi-key", "warning", "Access & security", "ApplicationUser"),
+            ["AdminUserUnlocked"] = new("User lockout cleared", "bi-unlock", "info", "Access & security", "ApplicationUser"),
             ["AdminUserDisabled"] = new("User account disabled", "bi-person-slash", "warning", "Access & security", "ApplicationUser"),
             ["AdminUserEnabled"] = new("User account enabled", "bi-person-check", "success", "Access & security", "ApplicationUser"),
             ["AdminUserDeleteRequested"] = new("User deletion requested", "bi-person-x", "danger", "Access & security", "ApplicationUser"),
