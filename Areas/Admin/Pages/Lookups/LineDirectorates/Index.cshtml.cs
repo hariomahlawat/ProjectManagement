@@ -5,6 +5,7 @@ using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.MasterData;
+using ProjectManagement.Services.Admin.MasterData.Integrity;
 
 namespace ProjectManagement.Areas.Admin.Pages.Lookups.LineDirectorates;
 
@@ -13,12 +14,16 @@ public sealed class IndexModel : PageModel
 {
     private readonly IMasterDataAdministrationQueryService _query;
     private readonly IAdminMasterDataCommandService _commands;
+    private readonly IListOrderNoticeService _order;
 
-    public IndexModel(IMasterDataAdministrationQueryService query, IAdminMasterDataCommandService commands)
+    public IndexModel(IMasterDataAdministrationQueryService query, IAdminMasterDataCommandService commands, IListOrderNoticeService order)
     {
         _query = query ?? throw new ArgumentNullException(nameof(query));
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+        _order = order ?? throw new ArgumentNullException(nameof(order));
     }
+
+    public ListOrderNotice OrderNotice { get; private set; } = ListOrderNotice.None(AdminMasterDataIntegrityService.LineDirectorateOrderKey);
 
     [BindProperty(SupportsGet = true, Name = "q")]
     public string? Search { get; set; }
@@ -53,7 +58,15 @@ public sealed class IndexModel : PageModel
         Status = Result.Status;
         PageNumber = Result.Page;
         PageSize = Result.PageSize;
+        OrderNotice = await _order.GetAsync(User, AdminMasterDataIntegrityService.LineDirectorateOrderKey, cancellationToken);
         BuildPresentation();
+    }
+
+    public async Task<IActionResult> OnPostRenumberOrderAsync(CancellationToken cancellationToken)
+    {
+        var result = await _order.RenumberAsync(User, AdminMasterDataIntegrityService.LineDirectorateOrderKey, cancellationToken);
+        TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)
