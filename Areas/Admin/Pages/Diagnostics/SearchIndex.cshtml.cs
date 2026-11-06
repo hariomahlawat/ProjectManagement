@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.SearchV2.Indexing;
 using ProjectManagement.Services.SearchV2.Models;
@@ -18,13 +19,19 @@ public sealed class SearchIndexModel : PageModel
     private readonly IAuthorizationService _authorization;
     private readonly ISearchV2Engine _engine;
     private readonly SearchV2Options _options;
+    private readonly IAdminAuditService _audit;
+
+    public const string RebuildRequestedAction = "SearchIndex.RebuildRequested";
+    public const string RetryRequestedAction = "SearchIndex.RetryRequested";
 
     public SearchIndexModel(
         ISearchIndexStore store,
         IAuthorizationService authorization,
         ISearchV2Engine engine,
-        IOptions<SearchV2Options> options)
+        IOptions<SearchV2Options> options,
+        IAdminAuditService audit)
     {
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -71,6 +78,10 @@ public sealed class SearchIndexModel : PageModel
     {
         if (!await CanMaintainAsync()) return Forbid();
         await _store.RequestFullRebuildAsync(User.Identity?.Name ?? "administrator", cancellationToken);
+        await _audit.RecordAsync(new AdminAuditEntry(
+            RebuildRequestedAction,
+            "SearchIndex",
+            Message: "Full search index rebuild requested."), cancellationToken);
         StatusMessage = "A full Search V2 rebuild has been queued. The current active generation will continue serving users until the replacement generation is complete.";
         return RedirectToPage();
     }
@@ -79,6 +90,10 @@ public sealed class SearchIndexModel : PageModel
     {
         if (!await CanMaintainAsync()) return Forbid();
         await _store.RetryFailedAsync(null, cancellationToken);
+        await _audit.RecordAsync(new AdminAuditEntry(
+            RetryRequestedAction,
+            "SearchIndex",
+            Message: "All failed search indexing jobs sent back to the queue."), cancellationToken);
         StatusMessage = "Failed Search V2 indexing jobs have been returned to the retry queue.";
         return RedirectToPage();
     }
@@ -86,7 +101,15 @@ public sealed class SearchIndexModel : PageModel
     public async Task<IActionResult> OnPostRetryAsync(long id, CancellationToken cancellationToken)
     {
         if (!await CanMaintainAsync()) return Forbid();
-        if (id > 0) await _store.RetryFailedAsync(id, cancellationToken);
+        if (id > 0)
+        {
+            await _store.RetryFailedAsync(id, cancellationToken);
+            await _audit.RecordAsync(new AdminAuditEntry(
+                RetryRequestedAction,
+                "SearchIndexWorkItem",
+                EntityId: id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                Message: $"Failed search indexing job {id} sent back to the queue."), cancellationToken);
+        }
         StatusMessage = "The selected Search V2 indexing job has been returned to the retry queue.";
         return RedirectToPage();
     }
