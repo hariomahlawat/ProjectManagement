@@ -353,6 +353,11 @@
                 {
                     @await Html.PartialAsync("~/Views/Shared/_Breadcrumbs.cshtml", breadcrumbModel)
                 }
+                @if (signedIn)
+                {
+                    @* Admin pages that keep their own module's layout lead back to Administration. *@
+                    @await Component.InvokeAsync("AdminReturnBar")
+                }
                 @RenderBody()
             </div>
         </main>
