@@ -188,7 +188,6 @@ public sealed class EditModel : PageModel
             : $"Edit {(string.IsNullOrWhiteSpace(Account.FullName) ? Account.UserName : Account.FullName)}";
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "People and access",
             Title = title,
             Description = Account is null
                 ? "Update identity details and assigned roles."

@@ -288,9 +288,8 @@ public sealed class IndexModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Monitoring",
             Title = "Audit log",
-            Description = "Trace administrative actions, affected records and security-relevant system events.",
+            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.Logs).Description,
             Icon = "bi-journal-text",
             Actions = new[]
             {

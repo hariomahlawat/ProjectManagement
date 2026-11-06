@@ -67,9 +67,8 @@ public sealed class IndexModel : PageModel
         PageSize = Result.PageSize;
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Master data · Calendar configuration",
             Title = "Celebrations",
-            Description = "Maintain birthdays and anniversaries shown in the shared calendar without changing user-account profiles.",
+            Description = "Birthdays and anniversaries shown on the shared calendar. Changing them here does not change anyone's account.",
             Icon = "bi-stars",
             Actions = CanEdit
                 ? new[]

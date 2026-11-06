@@ -290,7 +290,7 @@ public static class AdminNavigationCatalog
         // System
         Entry(AdminNavigationKeys.DatabaseHealth, AdminNavigationGroups.System, 300,
             Item("System health", "Admin", "/Diagnostics/DbHealth", "bi-heart-pulse", AdminPolicies.SecurityView),
-            "Check the database, storage, background jobs and keys, and run the checks again.",
+            "Whether the database, file storage, search and background jobs are working; run the checks again.",
             "diagnostics, database, server, status, health, workers",
             exactPage: true, showOnDashboard: true, showInQuickLinks: true),
         Entry(AdminNavigationKeys.SearchIndex, AdminNavigationGroups.System, 305,
@@ -363,7 +363,7 @@ public static class AdminNavigationCatalog
         Entry(AdminNavigationKeys.Help, AdminNavigationGroups.Help, 400,
             Item("Administration guide", "Admin", "/Help/Index", "bi-question-circle", AdminPolicies.Access),
             "How Administration works: access, monitoring, recovery, data jobs and reference lists.",
-            "help, admin help, guide, how to, manual",
+            "help, admin help, guide, how to, how do i, manual",
             matchPagePattern: "/Help/", showInQuickLinks: true)
     };
 
@@ -403,6 +403,22 @@ public static class AdminNavigationCatalog
         string? currentPage,
         IQueryCollection? query = null) =>
         Catalog.FirstOrDefault(entry => entry.Match.Matches(currentArea, currentPage, query));
+
+    /// <summary>
+    /// The eyebrow above an admin page's title: the sidebar group it belongs to, the same words
+    /// on every page of the group (docs/ux/admin-module.md, rule 6). Home has none; pages
+    /// outside the catalogue keep their own.
+    /// </summary>
+    public static string? EyebrowFor(string? currentArea, string? currentPage, IQueryCollection? query, string? fallback)
+    {
+        var entry = FindActiveEntry(currentArea, currentPage, query);
+        if (entry is null)
+        {
+            return fallback;
+        }
+
+        return string.Equals(entry.Group, AdminNavigationGroups.Home, StringComparison.Ordinal) ? null : entry.Group;
+    }
 
     public static NavigationItem BuildAdminPanel() => new()
     {

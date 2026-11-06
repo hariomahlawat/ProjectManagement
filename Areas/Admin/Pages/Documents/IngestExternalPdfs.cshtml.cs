@@ -95,9 +95,8 @@ public sealed class IngestExternalPdfsModel : PageModel
         Result = RunId.HasValue ? _history.Get(RunId.Value) : RecentRuns.FirstOrDefault();
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Controlled maintenance",
             Title = "PDF ingestion",
-            Description = "Link eligible FFC, IPR and Activity PDFs into the searchable document repository through a concurrency-protected, audited run.",
+            Description = "Adds the PDFs attached to FFC, IPR and activity records to the document repository, so they can be searched. PDFs already there are skipped, and only one run can happen at a time.",
             Icon = "bi-file-earmark-arrow-up",
             Actions = new[]
             {

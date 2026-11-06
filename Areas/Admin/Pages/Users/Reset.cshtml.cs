@@ -142,7 +142,6 @@ public sealed class ResetModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Security operation",
             Title = "Reset password",
             Description = Account is null
                 ? "Issue a new temporary password."

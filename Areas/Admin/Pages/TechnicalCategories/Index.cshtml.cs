@@ -85,9 +85,8 @@ public sealed class IndexModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Master data · Taxonomy",
             Title = "Technical categories",
-            Description = "Maintain the technology taxonomy used for portfolio analysis and capability reporting.",
+            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.TechnicalCategories).Description,
             Icon = "bi-cpu",
             Actions = new[]
             {

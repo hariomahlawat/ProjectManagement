@@ -225,6 +225,23 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
 - Every route, policy and action is unchanged. The Search index, Data jobs and Data checks
   pages keep their handlers.
 
+**Shipped in PR 8 (plain words):**
+- **One eyebrow per group.** `_AdminPageHeader` shows the page's sidebar group (People,
+  Sign-ins & audit, Restore & archive, Reference lists, System, Help), using
+  `AdminNavigationCatalog.EyebrowFor`. Home has none. Pages outside the catalogue keep their own.
+  The 15 or so hand-written eyebrows ("Master data · Taxonomy", "Security operation"…) were
+  removed.
+- **The catalogue's sentence on the page.** The overview and list pages take their description
+  from the catalogue: Users, Who has which role, Sign-in activity, Audit log, the reference
+  lists and Archived projects. Search, Every admin page and the page agree word for word. ARPP,
+  PDF ingestion, the account page, Holidays, Celebrations and the guide were rewritten in plain
+  words.
+- **How do I…** Twelve short answers open the Administration guide. Each names the exact
+  button and links to its page when the viewer can open it. Home's header button is
+  "How do I…". The guide's own sections are renamed to the sidebar's words.
+- A test fails if an admin page header uses "governed", "assurance", "taxonomy",
+  "deterministic" or similar jargon again.
+
 ### Compatibility
 
 - Every current URL keeps working: merged pages answer on their old routes or redirect to the

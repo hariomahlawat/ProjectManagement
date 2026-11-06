@@ -1,4 +1,12 @@
 @model ProjectManagement.Areas.Admin.Models.AdminPageHeaderModel
+@{
+    // The eyebrow is the page's sidebar group, the same on every page of the group.
+    var eyebrow = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.EyebrowFor(
+        ViewContext.RouteData.Values["area"]?.ToString(),
+        ViewContext.RouteData.Values["page"]?.ToString(),
+        ViewContext.HttpContext.Request.Query,
+        Model.Eyebrow);
+}
 
 <header class="admin-page-header">
     <div class="admin-page-header__main">
@@ -10,9 +18,9 @@
         }
 
         <div class="admin-page-header__copy">
-            @if (!string.IsNullOrWhiteSpace(Model.Eyebrow))
+            @if (!string.IsNullOrWhiteSpace(eyebrow))
             {
-                <div class="admin-page-header__eyebrow">@Model.Eyebrow</div>
+                <div class="admin-page-header__eyebrow">@eyebrow</div>
             }
             <h1>@Model.Title</h1>
             @if (!string.IsNullOrWhiteSpace(Model.Description))

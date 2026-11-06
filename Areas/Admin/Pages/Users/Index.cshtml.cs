@@ -146,9 +146,8 @@ public sealed class IndexModel : PageModel
 
     private AdminPageHeaderModel BuildHeader() => new()
     {
-        Eyebrow = "Access & security",
         Title = "Users",
-        Description = "Manage identities, assigned roles and account lifecycle state.",
+        Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.Users).Description,
         Icon = "bi-people",
         Actions = new[]
         {

@@ -37,7 +37,6 @@ public sealed class IndexModel : PageModel
         var entry = AdminNavigationCatalog.GetEntry(AdminNavigationKeys.AllPages);
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = AdminNavigationGroups.Help,
             Title = entry.Item.Text,
             Description = "Every administration page you can open, grouped by task. Type a word to narrow the list.",
             Icon = entry.Item.Icon

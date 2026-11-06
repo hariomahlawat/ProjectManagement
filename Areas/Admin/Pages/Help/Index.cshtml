@@ -8,9 +8,32 @@
 
 <div class="admin-guide-layout">
     <div class="admin-guide-sections">
+        @* Short answers first (docs/ux/admin-module.md, PR 8); the full guide follows. *@
+        <section id="how-do-i" class="admin-panel admin-guide-section admin-how-do-i" aria-labelledby="how-do-i-title">
+            <header class="admin-panel__header">
+                <div><h2 id="how-do-i-title">How do I…</h2></div>
+                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+            </header>
+            <dl class="admin-how-do-i__list">
+                @foreach (var answer in Model.Answers)
+                {
+                    <div>
+                        <dt>@answer.Question</dt>
+                        <dd>
+                            @answer.Answer
+                            @if (answer.Href is not null)
+                            {
+                                <a href="@answer.Href">@answer.LinkText <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                            }
+                        </dd>
+                    </div>
+                }
+            </dl>
+        </section>
+
         <section id="people-access" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
-                <div><div class="admin-panel__eyebrow">People and access</div><h2>User lifecycle</h2></div>
+                <div><div class="admin-panel__eyebrow">People</div><h2>Accounts, from creation to deletion</h2></div>
                 <i class="bi bi-people" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
@@ -25,7 +48,7 @@
 
         <section id="access-governance" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
-                <div><div class="admin-panel__eyebrow">Access governance</div><h2>Roles, capabilities and privileged accounts</h2></div>
+                <div><div class="admin-panel__eyebrow">People</div><h2>Who has which role</h2></div>
                 <i class="bi bi-shield-check" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
@@ -41,7 +64,7 @@
 
         <section id="monitoring" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
-                <div><div class="admin-panel__eyebrow">Monitoring</div><h2>Login activity and audit logs</h2></div>
+                <div><div class="admin-panel__eyebrow">Sign-ins &amp; audit</div><h2>Sign-in activity, the audit log and ERP usage</h2></div>
                 <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
@@ -57,7 +80,7 @@
 
         <section id="recovery" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
-                <div><div class="admin-panel__eyebrow">Recovery and retention</div><h2>Archive, trash and purge</h2></div>
+                <div><div class="admin-panel__eyebrow">Restore &amp; archive</div><h2>Archiving, deleting and restoring</h2></div>
                 <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
@@ -72,7 +95,7 @@
 
         <section id="maintenance" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
-                <div><div class="admin-panel__eyebrow">Controlled maintenance</div><h2>Ingestion and legacy import</h2></div>
+                <div><div class="admin-panel__eyebrow">System</div><h2>Data jobs</h2></div>
                 <i class="bi bi-tools" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
@@ -82,7 +105,7 @@
 
         <section id="master-data" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
-                <div><div class="admin-panel__eyebrow">Configuration governance</div><h2>Master data</h2></div>
+                <div><div class="admin-panel__eyebrow">Reference lists</div><h2>Lists used in forms</h2></div>
                 <i class="bi bi-sliders2" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
@@ -98,13 +121,13 @@
         </section>
 
                 <section id="office-calendar" class="admin-panel admin-guide-section">
-            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Office calendar</div><h2>Gazetted and Restricted Holidays</h2></div><i class="bi bi-calendar-week" aria-hidden="true"></i></header>
+            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Reference lists</div><h2>Gazetted and restricted holidays</h2></div><i class="bi bi-calendar-week" aria-hidden="true"></i></header>
             <div class="admin-guide-section__body"><p>Classification and office observance are separate decisions. Every Restricted Holiday appears on the shared calendar, but only Gazetted Holidays and RHs declared as office holidays close the office and affect future working-day calculations.</p><ul><li>Use <strong>Declare as office holiday</strong> to observe an RH office-wide.</li><li>Use <strong>Withdraw office observance</strong> to return the date to normal working status while retaining the RH for information.</li><li>Existing approved project dates are never silently recalculated.</li></ul></div>
         </section>
 
         <section id="configuration-integrity" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
-                <div><div class="admin-panel__eyebrow">Configuration assurance</div><h2>Integrity review and controlled repair</h2></div>
+                <div><div class="admin-panel__eyebrow">System</div><h2>Data checks</h2></div>
                 <i class="bi bi-clipboard2-check" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
@@ -120,15 +143,16 @@
     </div>
 
     <aside class="admin-panel admin-guide-nav" aria-label="Guide sections">
-        <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">On this page</div><h2>Guide sections</h2></div></header>
-        <a href="#people-access">People and access</a>
-        <a href="#access-governance">Access governance</a>
-        <a href="#monitoring">Monitoring</a>
-        <a href="#recovery">Recovery and retention</a>
-        <a href="#maintenance">Controlled maintenance</a>
-        <a href="#master-data">Master data</a>
-        <a href="#office-calendar">Office calendar</a>
-        <a href="#configuration-integrity">Configuration integrity</a>
+        <header class="admin-panel__header"><div><h2>On this page</h2></div></header>
+        <a href="#how-do-i">How do I…</a>
+        <a href="#people-access">Accounts</a>
+        <a href="#access-governance">Who has which role</a>
+        <a href="#monitoring">Sign-ins and audit</a>
+        <a href="#recovery">Archiving, deleting and restoring</a>
+        <a href="#maintenance">Data jobs</a>
+        <a href="#master-data">Lists used in forms</a>
+        <a href="#office-calendar">Holidays</a>
+        <a href="#configuration-integrity">Data checks</a>
     </aside>
 </div>
 

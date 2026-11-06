@@ -67,9 +67,8 @@ public sealed class IndexModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Master data · Reference list",
             Title = "Project types",
-            Description = "Maintain the controlled project classification used in project records.",
+            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.ProjectTypes).Description,
             Icon = "bi-tags",
             Actions = new[]
             {

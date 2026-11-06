@@ -103,9 +103,8 @@ public sealed class IndexModel : PageModel
         Snapshot = await _referenceData.GetAdminSnapshotAsync(cancellationToken);
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "ARPP configuration",
             Title = "ARPP reference data",
-            Description = "Maintain the approved CFA, Fund and DFPDS values available in the ARPP workspace. Deactivate historical values instead of deleting them.",
+            Description = "The CFA, Fund and DFPDS values offered in the ARPP workspace. Deactivate a value instead of deleting it: entries that use it keep it.",
             Icon = "bi-list-check",
             Actions = new[]
             {

@@ -67,9 +67,8 @@ public sealed class IndexModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Master data · Reference list",
             Title = "Sponsoring units",
-            Description = "Maintain the controlled sponsoring organisations associated with project requirements.",
+            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.SponsoringUnits).Description,
             Icon = "bi-building",
             Actions = new[]
             {

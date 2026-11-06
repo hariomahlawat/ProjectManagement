@@ -79,9 +79,8 @@ public sealed class ArchivedModel : PageModel
         PageSize = Result.PageSize;
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Recovery and retention",
             Title = "Archived projects",
-            Description = "Review projects removed from active operational views and restore them without changing their lifecycle records.",
+            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.ArchivedProjects).Description,
             Icon = "bi-archive",
             Actions = new[]
             {
