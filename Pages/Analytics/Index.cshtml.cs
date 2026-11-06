@@ -29,6 +29,7 @@ namespace ProjectManagement.Pages.Analytics
         private readonly IArppAnalyticsService? _arppAnalytics;
         private readonly IArVrImpactAnalyticsService? _arVrImpact;
         private readonly IAuthorizationService? _authorization;
+        private readonly Services.Analytics.Presentation.IArppProgressSlideComposer? _arppSlides;
 
         /// <summary>True when the signed-in user may see the ARPP mode (the ARPP report's ViewArpp policy). Decides the switcher item; the server check is in OnGetAsync.</summary>
         public bool CanViewArpp { get; private set; }
@@ -39,9 +40,11 @@ namespace ProjectManagement.Pages.Analytics
             IPortfolioAnalyticsService portfolioAnalytics,
             IArppAnalyticsService? arppAnalytics = null,
             IAuthorizationService? authorization = null,
-            IArVrImpactAnalyticsService? arVrImpact = null)
+            IArVrImpactAnalyticsService? arVrImpact = null,
+            Services.Analytics.Presentation.IArppProgressSlideComposer? arppSlides = null)
         {
             _arVrImpact = arVrImpact;
+            _arppSlides = arppSlides;
             _db = db;
             _projectAnalyticsService = projectAnalyticsService;
             _portfolioAnalytics = portfolioAnalytics;
@@ -128,6 +131,42 @@ namespace ProjectManagement.Pages.Analytics
         public int CategoryCount => Categories.Count;
 
         public int TechnicalGroupCount => TechnicalCategories.Count;
+
+        /// <summary>
+        /// The ARPP progress slides (.pptx) for the year and view the ARPP mode shows: the same ViewArpp check as
+        /// the mode, and the same figures (ArppAnalyticsService), so the slides never say something the page does not.
+        /// </summary>
+        public async Task<IActionResult> OnGetArppSlidesAsync(CancellationToken cancellationToken)
+        {
+            if (_arppAnalytics is null || _arppSlides is null)
+            {
+                return NotFound();
+            }
+
+            if (!await CanViewArppAsync())
+            {
+                return Forbid();
+            }
+
+            AsOfIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime);
+            var today = DateOnly.FromDateTime(AsOfIst.DateTime);
+            var arpp = await _arppAnalytics.BuildAsync(
+                ArppFinancialYearStart,
+                today,
+                showToday: string.Equals(ArppView, "today", StringComparison.OrdinalIgnoreCase),
+                cancellationToken: cancellationToken);
+            if (!arpp.HasData)
+            {
+                return NotFound();
+            }
+
+            var (content, _) = _arppSlides.Compose(arpp, today);
+            var shownOn = arpp.AsOfDate ?? today;
+            return File(
+                content,
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                $"ARPP-FY{arpp.FinancialYearDisplay}-progress-{shownOn:yyyy-MM-dd}.pptx");
+        }
 
         public async Task<IActionResult> OnGetAsync(string? tab, CancellationToken cancellationToken)
         {
@@ -321,40 +360,10 @@ namespace ProjectManagement.Pages.Analytics
                 }
 
                 case AnalyticsTab.Arpp when Arpp is not null && Arpp.HasData:
-                {
-                    // A past year counts where the projects stood on its 31 March; the current year, today.
-                    var when = Arpp.AsOfDate is { } asOf ? $"on {asOf:d MMM}" : "ongoing";
-                    var notKnown = Arpp.CardNotKnownCount > 0 ? $" · {Arpp.CardNotKnownCount} not known {when}" : string.Empty;
-                    return new[]
-                    {
-                        // Listed, then where they stand: completed, supply order placed, then the rest split by AoN
-                        // (AoN to SO stage, Pre-AoN stage). Cancelled projects are in no card; the standing board lists them.
-                        new HeadlineFigure(
-                            "Listed projects",
-                            Arpp.ListedCount.ToString(),
-                            $"IPA {IndianCurrencyFormatter.FormatCompact(Arpp.ListedIpaValue)} · New {Arpp.NewCount} · CL {Arpp.CommittedLiabilityCount} · CF {Arpp.CarryForwardCount} · delisted {Arpp.DelistedCount}{notKnown}"),
-                        new HeadlineFigure(
-                            "Completed",
-                            Arpp.CompletedCount.ToString(),
-                            Arpp.CompletedSupplyOrderValue > 0
-                                ? $"supply orders {IndianCurrencyFormatter.FormatCompact(Arpp.CompletedSupplyOrderValue)}"
-                                : "no supply-order value recorded"),
-                        new HeadlineFigure(
-                            "Supply orders placed",
-                            Arpp.SupplyOrderCount.ToString(),
-                            Arpp.SupplyOrderValue > 0
-                                ? $"supply orders {IndianCurrencyFormatter.FormatCompact(Arpp.SupplyOrderValue)} · {when}"
-                                : $"{when}; no value recorded yet"),
-                        new HeadlineFigure(
-                            "AoN to SO stage",
-                            Arpp.AonToSupplyOrderCount.ToString(),
-                            $"{when}, AoN completed, supply order not yet placed"),
-                        new HeadlineFigure(
-                            "Pre-AoN stage",
-                            Arpp.PreAonCount.ToString(),
-                            $"{when}, AoN not yet completed")
-                    };
-                }
+                    // The same five cards as the progress slides (ArppHeadlines).
+                    return ArppHeadlines.Build(Arpp)
+                        .Select(card => new HeadlineFigure(card.Label, card.Value, card.Hint))
+                        .ToArray();
 
                 default:
                     return Array.Empty<HeadlineFigure>();

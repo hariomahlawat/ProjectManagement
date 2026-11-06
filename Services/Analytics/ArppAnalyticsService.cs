@@ -230,6 +230,76 @@ namespace ProjectManagement.Services.Analytics
             var aonToSo = beforeSo.Where(item => item.PastAon == true && item.SupplyOrderPlaced == false).ToList();
             var cardNotKnown = beforeSo.Count - preAon.Count - aonToSo.Count + lifecycleNotKnown.Count;
 
+            // One line per listed project for the progress slides, in the same buckets as the cards.
+            var shownOnDate = asOf ?? today;
+            var developmentPdc = (await _db.ProjectStages
+                    .AsNoTracking()
+                    .Where(stage => approvedIds.Contains(stage.ProjectId) && stage.StageCode == StageCodes.DEVP && stage.PlannedDue != null)
+                    .Select(stage => new { stage.ProjectId, stage.PlannedDue })
+                    .ToListAsync(cancellationToken))
+                .GroupBy(stage => stage.ProjectId)
+                .ToDictionary(group => group.Key, group => group.Max(stage => stage.PlannedDue!.Value));
+            var completion = (await _db.Projects
+                    .AsNoTracking()
+                    .Where(project => approvedIds.Contains(project.Id))
+                    .Select(project => new { project.Id, project.CompletedOn, project.CompletedYear, project.CompletedMonth })
+                    .ToListAsync(cancellationToken))
+                .ToDictionary(project => project.Id);
+            var preAonIds = preAon.Select(item => item.ProjectId).ToHashSet();
+            var aonToSoIds = aonToSo.Select(item => item.ProjectId).ToHashSet();
+            var withSoIds = withSo.Select(item => item.ProjectId).ToHashSet();
+            ArppProgressBucket BucketOf(Standing item) => item.Lifecycle switch
+            {
+                LifecycleAsOf.Completed => ArppProgressBucket.Completed,
+                LifecycleAsOf.Cancelled => ArppProgressBucket.Cancelled,
+                LifecycleAsOf.Active when withSoIds.Contains(item.ProjectId) => ArppProgressBucket.UnderDevelopment,
+                LifecycleAsOf.Active when aonToSoIds.Contains(item.ProjectId) => ArppProgressBucket.AonToSupplyOrder,
+                LifecycleAsOf.Active when preAonIds.Contains(item.ProjectId) => ArppProgressBucket.PreAon,
+                _ => ArppProgressBucket.NotKnown
+            };
+            string? CompletedOn(int projectId)
+            {
+                if (!completion.TryGetValue(projectId, out var done))
+                {
+                    return null;
+                }
+
+                if (done.CompletedOn is { } on)
+                {
+                    return on.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                }
+
+                return done.CompletedYear is { } year
+                    ? done.CompletedMonth is { } month and >= 1 and <= 12
+                        ? new DateOnly(year, month, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                        : year.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : null;
+            }
+
+            var projectLines = standings
+                .Select(item =>
+                {
+                    var bucket = BucketOf(item);
+                    var atDevelopment = bucket == ArppProgressBucket.UnderDevelopment
+                        && string.Equals(item.StageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase);
+                    DateOnly? pdc = atDevelopment && developmentPdc.TryGetValue(item.ProjectId, out var due) ? due : null;
+                    return new ArppProjectLineVm(
+                        item.ProjectId,
+                        item.ProjectName,
+                        ParentOf(item.ProjectId),
+                        bucket,
+                        item.Lifecycle == LifecycleAsOf.Active ? item.StageCode : null,
+                        item.Lifecycle == LifecycleAsOf.Active ? item.StageName : null,
+                        item.Lifecycle == LifecycleAsOf.Active ? Array.IndexOf(StageCodes.All, item.StageCode) : -1,
+                        pdc,
+                        pdc is { } pdcDate && pdcDate < shownOnDate,
+                        bucket == ArppProgressBucket.Completed ? CompletedOn(item.ProjectId) : null,
+                        bucket == ArppProgressBucket.Completed && completion.TryGetValue(item.ProjectId, out var c)
+                            ? c.CompletedOn ?? (c.CompletedYear is { } y ? new DateOnly(y, c.CompletedMonth is { } m and >= 1 and <= 12 ? m : 1, 1) : null)
+                            : null);
+                })
+                .ToList();
+
             static AnalyticsBoardGroupVm Milestone(string key, string name, IEnumerable<Standing> rows, Func<Standing, string?> detail) =>
                 new(key, name, rows.Count(), ByName(rows).Select(item => new AnalyticsBoardProjectVm(item.ProjectId, item.ProjectName, detail(item))).ToList());
 
@@ -270,6 +340,7 @@ namespace ProjectManagement.Services.Analytics
                     .ThenBy(name => name, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
                 StandingCategories = standingCategories,
+                ProjectLines = projectLines,
                 StandingBoard = standingBoard,
                 ByCategory = byCategory,
                 ByCfa = byCfa,

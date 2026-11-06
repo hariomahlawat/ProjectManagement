@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
@@ -278,6 +279,50 @@ public sealed class ArppAnalyticsServiceTests
         var tec = vm.StandingCategories[StageCodes.TEC];
         Assert.Equal(new[] { "DCD Projects", "CoE" }, tec.Select(category => category.Name).ToArray()); // their own order
         Assert.Equal("Drive", tec[0].Projects.Single().ProjectName);
+    }
+
+    [Fact]
+    public async Task BuildAsync_ProjectLines_FollowTheCardsWithPdcAndCompletion()
+    {
+        await using var db = CreateDb();
+        db.Projects.AddRange(
+            new Project { Id = 1, Name = "Late devp" },
+            new Project { Id = 2, Name = "On time devp" },
+            new Project { Id = 3, Name = "Paid" },
+            new Project { Id = 4, Name = "Done", LifecycleStatus = ProjectLifecycleStatus.Completed, CompletedYear = 2026, CompletedMonth = 1 },
+            new Project { Id = 5, Name = "Early" });
+        db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.DEVP, SortOrder = 11, Status = StageStatus.InProgress, PlannedDue = new DateOnly(2026, 6, 22) },
+            new ProjectStage { ProjectId = 2, StageCode = StageCodes.DEVP, SortOrder = 11, Status = StageStatus.InProgress, PlannedDue = new DateOnly(2027, 2, 20) },
+            new ProjectStage { ProjectId = 3, StageCode = StageCodes.DEVP, SortOrder = 11, Status = StageStatus.Completed, PlannedDue = new DateOnly(2026, 1, 1) });
+        await db.SaveChangesAsync();
+        var library = new FakeLibrary(2026,
+            Row(1, "Late devp", ArppCategory.New, 10_000_000m),
+            Row(2, "On time devp", ArppCategory.New, 10_000_000m),
+            Row(3, "Paid", ArppCategory.New, 10_000_000m),
+            Row(4, "Done", ArppCategory.New, 10_000_000m),
+            Row(5, "Early", ArppCategory.New, 10_000_000m));
+        var fy = new FakeFyUpdate(new[] { 2026 },
+            Update(1, "Late devp", ProjectLifecycleStatus.Active, StageCodes.DEVP),
+            Update(2, "On time devp", ProjectLifecycleStatus.Active, StageCodes.DEVP),
+            Update(3, "Paid", ProjectLifecycleStatus.Active, StageCodes.PAYMENT),
+            Update(4, "Done", ProjectLifecycleStatus.Completed, null),
+            Update(5, "Early", ProjectLifecycleStatus.Active, StageCodes.SOW));
+
+        var vm = await new ArppAnalyticsService(db, library, fy).BuildAsync(2026, Today);
+        var lines = vm.ProjectLines.ToDictionary(line => line.ProjectName);
+
+        Assert.Equal(ArppProgressBucket.UnderDevelopment, lines["Late devp"].Bucket);
+        Assert.Equal(new DateOnly(2026, 6, 22), lines["Late devp"].DevelopmentPdc);
+        Assert.True(lines["Late devp"].PdcOverdue);
+        Assert.False(lines["On time devp"].PdcOverdue);
+        Assert.Null(lines["Paid"].DevelopmentPdc);           // past Development: no PDC shown
+        Assert.Equal(ArppProgressBucket.Completed, lines["Done"].Bucket);
+        Assert.Equal("Jan 2026", lines["Done"].CompletedLabel);
+        Assert.Equal(ArppProgressBucket.PreAon, lines["Early"].Bucket);
+        // The lines and the cards agree.
+        Assert.Equal(vm.SupplyOrderCount, vm.ProjectLines.Count(line => line.Bucket == ArppProgressBucket.UnderDevelopment));
+        Assert.Equal(vm.PreAonCount, vm.ProjectLines.Count(line => line.Bucket == ArppProgressBucket.PreAon));
     }
 
     [Fact]
