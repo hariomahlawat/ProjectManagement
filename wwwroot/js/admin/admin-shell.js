@@ -194,12 +194,108 @@
             || document.querySelector(".modal.show")) {
             return;
         }
-        const search = Array.from(document.querySelectorAll("[data-admin-sidebar-search]")).find(isVisible);
+        // Home's own box first, then the sidebar's.
+        const search = Array.from(document.querySelectorAll("[data-admin-home-search]")).find(isVisible)
+            ?? Array.from(document.querySelectorAll("[data-admin-sidebar-search]")).find(isVisible);
         if (!search) return;
         event.preventDefault();
         search.focus();
         search.select();
     }, true);
+
+    // Home: "Find a page or setting" shows the best matches first. A word in a page's name counts
+    // most, then its search words, then its description; every word must match somewhere.
+    const scoreEntry = (entry, words) => {
+        let total = 0;
+        for (const word of words) {
+            const score = (entry.dataset.title ?? "").includes(word) ? 3
+                : (entry.dataset.keywords ?? "").includes(word) ? 2
+                : (entry.dataset.label ?? "").includes(word) ? 1
+                : 0;
+            if (score === 0) return 0;
+            total += score;
+        }
+        return total;
+    };
+
+    document.querySelectorAll("[data-admin-home-find]").forEach(find => {
+        const input = find.querySelector("[data-admin-home-search]");
+        const results = find.querySelector("[data-admin-home-find-results]");
+        const empty = find.querySelector("[data-admin-home-find-empty]");
+        const status = find.querySelector("[data-admin-home-find-status]");
+        const entries = Array.from(find.querySelectorAll("[data-admin-home-find-entry]"));
+        const maximum = 7;
+        if (!input || !results) return;
+
+        const shownLinks = () => Array.from(results.querySelectorAll("[data-admin-home-find-entry]:not([hidden]) a"));
+
+        const apply = () => {
+            const query = normalise(input.value);
+            const words = query.length === 0 ? [] : query.split(/\s+/);
+            const ranked = words.length === 0 ? [] : entries
+                .map((entry, order) => ({ entry, order, score: scoreEntry(entry, words) }))
+                .filter(item => item.score > 0)
+                .sort((a, b) => b.score - a.score || a.order - b.order)
+                .slice(0, maximum);
+
+            entries.forEach(entry => { entry.hidden = true; });
+            ranked.forEach(item => {
+                item.entry.hidden = false;
+                results.appendChild(item.entry);
+            });
+
+            results.hidden = ranked.length === 0;
+            input.setAttribute("aria-expanded", String(ranked.length > 0));
+            if (empty) empty.hidden = words.length === 0 || ranked.length > 0;
+            if (status) {
+                status.textContent = words.length === 0 ? "" : ranked.length === 0 ? "Nothing matches." : `${pageWord(ranked.length)} found.`;
+            }
+        };
+
+        const reset = () => {
+            input.value = "";
+            apply();
+            input.focus();
+        };
+
+        input.addEventListener("input", apply);
+        input.addEventListener("keydown", event => {
+            const links = shownLinks();
+            if (event.key === "ArrowDown" && links.length > 0) {
+                event.preventDefault();
+                links[0].focus();
+            } else if (event.key === "Enter" && links.length > 0) {
+                event.preventDefault();
+                links[0].click();
+            } else if (event.key === "Escape" && input.value.length > 0) {
+                event.preventDefault();
+                reset();
+            }
+        });
+        results.addEventListener("keydown", event => {
+            const links = shownLinks();
+            const index = links.indexOf(event.target);
+            if (index < 0) return;
+            if (event.key === "ArrowDown") {
+                event.preventDefault();
+                links[Math.min(index + 1, links.length - 1)].focus();
+            } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                (index === 0 ? input : links[index - 1]).focus();
+            } else if (event.key === "Escape") {
+                event.preventDefault();
+                reset();
+            }
+        });
+        find.querySelectorAll("[data-admin-home-try]").forEach(button => {
+            button.addEventListener("click", () => {
+                input.value = button.dataset.adminHomeTry ?? "";
+                apply();
+                input.focus();
+            });
+        });
+        input.setAttribute("aria-expanded", "false");
+    });
 
     // "Every admin page": the same matching narrows the full list.
     document.querySelectorAll("[data-admin-index]").forEach(index => {

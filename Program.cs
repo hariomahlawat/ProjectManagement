@@ -655,6 +655,7 @@ builder.Services.AddScoped<IDocumentRecoveryQueryService, DocumentRecoveryQueryS
 builder.Services.AddScoped<IAdminMaintenanceSummaryService, AdminMaintenanceSummaryService>();
 builder.Services.AddScoped<ILegacyImportPreflightService, LegacyImportPreflightService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+builder.Services.AddScoped<IAdminHomeService, AdminHomeService>();
 builder.Services.AddScoped<IAdminLoginMonitoringService, AdminLoginMonitoringService>();
 builder.Services.AddScoped<IAdminUserQueryService, AdminUserQueryService>();
 builder.Services.AddScoped<IAdminAccessGovernanceService, AdminAccessGovernanceService>();

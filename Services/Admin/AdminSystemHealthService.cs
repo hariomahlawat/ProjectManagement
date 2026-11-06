@@ -37,6 +37,13 @@ public interface IAdminSystemHealthService
     Task<AdminSystemHealthSnapshot> CheckAsync(
         bool forceRefresh = false,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The result of the most recent run, without running the checks again (null when they have
+    /// not run since the application started). Administration Home uses it so opening Home never
+    /// waits on storage or database checks.
+    /// </summary>
+    AdminSystemHealthSnapshot? GetLatest() => null;
 }
 
 /// <summary>
@@ -46,6 +53,8 @@ public interface IAdminSystemHealthService
 public sealed class AdminSystemHealthService : IAdminSystemHealthService
 {
     private const string CacheKey = "admin-system-health-v1";
+    private const string LatestKey = "admin-system-health-latest-v1";
+    private static readonly TimeSpan LatestDuration = TimeSpan.FromDays(1);
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(10);
 
@@ -131,8 +140,12 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             databaseSnapshot);
 
         _cache.Set(CacheKey, snapshot, CacheDuration);
+        _cache.Set(LatestKey, snapshot, LatestDuration);
         return snapshot;
     }
+
+    public AdminSystemHealthSnapshot? GetLatest() =>
+        _cache.TryGetValue(LatestKey, out AdminSystemHealthSnapshot? latest) ? latest : null;
 
     private async Task<DatabaseHealthSnapshot> RunDatabaseChecksAsync(
         ICollection<AdminSystemHealthCheck> target,
