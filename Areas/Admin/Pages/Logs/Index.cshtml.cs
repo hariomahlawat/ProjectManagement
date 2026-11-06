@@ -54,6 +54,39 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string Sort { get; set; } = "Time";
     [BindProperty(SupportsGet = true)] public string Dir { get; set; } = "desc";
 
+    /// <summary>True to see the whole history instead of the default recent window.</summary>
+    [BindProperty(SupportsGet = true)] public bool All { get; set; }
+
+    public const int DefaultWindowDays = 30;
+
+    // With no dates and nothing that narrows the log to specific records, the page used to
+    // count, group and chart the entire audit history on every load (one chart label per day
+    // since go-live). It now shows the last 30 days unless the administrator asks for all.
+    // Searches for a user, record, action, IP or text keep their full history.
+    public bool UsesDefaultWindow => !All
+        && !From.HasValue
+        && !To.HasValue
+        && string.IsNullOrWhiteSpace(Action)
+        && string.IsNullOrWhiteSpace(EntityType)
+        && string.IsNullOrWhiteSpace(UserName)
+        && string.IsNullOrWhiteSpace(UserId)
+        && string.IsNullOrWhiteSpace(Ip)
+        && string.IsNullOrWhiteSpace(Contains);
+
+    public string AllHistoryUrl()
+    {
+        var values = QueryValues(1);
+        values[nameof(All)] = true;
+        return Url.Page("./Index", values) ?? "#";
+    }
+
+    public string RecentWindowUrl()
+    {
+        var values = QueryValues(1);
+        values[nameof(All)] = null;
+        return Url.Page("./Index", values) ?? "#";
+    }
+
     public AdminLogResult Result { get; private set; } = new(
         Array.Empty<AdminLogRow>(),
         Array.Empty<string>(),
@@ -221,7 +254,9 @@ public sealed class IndexModel : PageModel
         UserId,
         Ip,
         Contains,
-        From.HasValue ? DateOnly.FromDateTime(From.Value) : null,
+        From.HasValue
+            ? DateOnly.FromDateTime(From.Value)
+            : UsesDefaultWindow ? _time.TodayIst.AddDays(-(DefaultWindowDays - 1)) : null,
         To.HasValue ? DateOnly.FromDateTime(To.Value) : null,
         PageNo,
         PageSize,
@@ -245,7 +280,8 @@ public sealed class IndexModel : PageModel
         [nameof(PageNo)] = page,
         [nameof(PageSize)] = PageSize,
         [nameof(Sort)] = Sort,
-        [nameof(Dir)] = Dir
+        [nameof(Dir)] = Dir,
+        [nameof(All)] = All ? true : null
     };
 
     private void BuildPresentation()

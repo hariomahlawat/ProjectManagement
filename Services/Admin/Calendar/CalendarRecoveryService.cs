@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Search;
 
 namespace ProjectManagement.Services.Admin.Calendar;
 
@@ -92,7 +93,7 @@ public sealed class CalendarRecoveryService : ICalendarRecoveryService
         var events = _db.Events.IgnoreQueryFilters().AsNoTracking().Where(calendarEvent => calendarEvent.IsDeleted);
         if (search is not null)
         {
-            var pattern = $"%{search}%";
+            var pattern = SearchLikePattern.Contains(search);
             events = events.Where(calendarEvent =>
                 EF.Functions.ILike(calendarEvent.Title, pattern)
                 || (calendarEvent.Location != null && EF.Functions.ILike(calendarEvent.Location, pattern))

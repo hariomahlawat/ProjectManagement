@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Search;
 
 namespace ProjectManagement.Services.Admin;
 
@@ -433,7 +434,7 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
 
             if (_db.Database.IsNpgsql())
             {
-                var pattern = $"%{term}%";
+                var pattern = SearchLikePattern.Contains(term);
                 var matchingRoleIds = _db.Roles.AsNoTracking()
                     .Where(role => role.Name != null && EF.Functions.ILike(role.Name, pattern))
                     .Select(role => role.Id);
