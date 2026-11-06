@@ -1,6 +1,12 @@
 // wwwroot/js/todo.js
 
 (function () {
+
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askPrism = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
   // Ensure Bootstrap is available
   if (!window.bootstrap) return;
 
@@ -245,33 +251,11 @@
     dropdownObserver.observe(document.body, { childList: true, subtree: true });
   }
 
-  // ---------- Shared confirm modal ----------
-  const modalEl = document.getElementById('appConfirmModal');
-  const confirmTextEl = document.getElementById('appConfirmText');
-  const confirmYesBtn = document.getElementById('appConfirmYes');
-  const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
-
-  let pendingAction = null; // () => void
-
-  function askConfirm(message, onYes) {
-    if (!modal) {
-      // Fallback if modal is missing; still CSP-safe
-      if (window.confirm(message)) onYes?.();
-      return;
-    }
-    confirmTextEl.textContent = message || 'Are you sure?';
-    pendingAction = onYes;
-    modal.show();
-  }
-
-  if (confirmYesBtn && modalEl) {
-    confirmYesBtn.addEventListener('click', () => {
-      try { pendingAction && pendingAction(); } finally {
-        pendingAction = null;
-        modal.hide();
-      }
+  // ---------- Confirmation: the shared PRISM dialog ----------
+  function askConfirm(options, onYes) {
+    askPrism(options).then((accepted) => {
+      if (accepted) onYes?.();
     });
-    modalEl.addEventListener('hidden.bs.modal', () => pendingAction = null);
   }
 
   // ---------- Event delegation for checkboxes & delete ----------
@@ -280,7 +264,13 @@
     const cb = e.target.closest('.js-done-checkbox');
     if (cb) {
       e.preventDefault(); // don't toggle immediately
-      askConfirm('Mark this task as completed?', () => {
+      askConfirm({
+        icon: 'bi-check2-circle',
+        title: 'Mark this task as completed?',
+        message: 'It moves to your completed tasks.',
+        confirmText: 'Mark completed',
+        cancelText: 'Not yet'
+      }, () => {
         // apply intended toggle then submit reliably
         cb.checked = !cb.checked;
         if (cb.form && cb.form.requestSubmit) cb.form.requestSubmit();
@@ -289,17 +279,8 @@
       return;
     }
 
-    // B) Delete button (within a form). We use the button class, not inline onsubmit.
-    const delBtn = e.target.closest('.js-confirm-delete');
-    if (delBtn && delBtn.form) {
-      e.preventDefault();
-      const msg = delBtn.getAttribute('data-confirm') || 'Delete this item?';
-      askConfirm(msg, () => {
-        if (delBtn.form.requestSubmit) delBtn.form.requestSubmit(delBtn);
-        else delBtn.form.submit();
-      });
-      return;
-    }
+    // Delete buttons carry data-confirm: core/declarative-actions.js asks in the shared dialog,
+    // on every page, whether or not this script has loaded.
   });
 
   

@@ -1,6 +1,11 @@
 (() => {
     'use strict';
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
     const panel = document.querySelector('[data-person-photo-discovery]');
     if (!panel) return;
 
@@ -180,7 +185,17 @@
             : selfReview
                 ? `Mark ${faceIds.length} selected photo${faceIds.length === 1 ? '' : 's'} as not you?`
                 : `Reject this person for ${faceIds.length} selected appearance${faceIds.length === 1 ? '' : 's'}?`;
-        if (!window.confirm(prompt)) return;
+        const accepted = await askConfirm({
+            tone: confirmAction ? 'primary' : 'warning',
+            icon: confirmAction ? 'bi-person-check' : 'bi-person-x',
+            title: prompt,
+            message: confirmAction
+                ? 'They are added to this person\'s confirmed photographs.'
+                : 'They are removed from this person\'s photographs.',
+            confirmText: confirmAction ? 'Confirm' : (selfReview ? 'Not me' : 'Reject'),
+            cancelText: 'Cancel'
+        });
+        if (!accepted) return;
 
         const formData = new FormData(tokenForm);
         faceIds.forEach(faceId => formData.append('faceIds', faceId));

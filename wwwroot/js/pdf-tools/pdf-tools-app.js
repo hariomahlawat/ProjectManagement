@@ -5,6 +5,11 @@
 (() => {
   'use strict';
 
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askConfirm = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
   const root = document.querySelector('[data-pdf-tools]');
   const core = window.PrismPdfTools;
   const PDFLib = window.PDFLib;
@@ -81,10 +86,18 @@
     return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
   }
 
+  // Resolves true for small files, or when the user chooses to continue with large ones.
   function confirmLarge(files) {
     const total = files.reduce((sum, file) => sum + file.size, 0);
-    return total < LARGE_FILE_BYTES ||
-      window.confirm(`These files total ${formatBytes(total)}. Large files may make this browser slow. Continue?`);
+    if (total < LARGE_FILE_BYTES) return Promise.resolve(true);
+    return askConfirm({
+      tone: 'warning',
+      icon: 'bi-hourglass-split',
+      title: 'Work with these large files?',
+      message: `These files total ${formatBytes(total)}. Large files may make this browser slow. Everything stays on this computer.`,
+      confirmText: 'Continue',
+      cancelText: 'Choose other files'
+    });
   }
 
   function saveBlob(blob, fileName) {
@@ -307,7 +320,7 @@
       if (!input.multiple) {
         list.length = 1;
       }
-      if (!confirmLarge(list)) {
+      if (!(await confirmLarge(list))) {
         return;
       }
       await onFiles(list, state);

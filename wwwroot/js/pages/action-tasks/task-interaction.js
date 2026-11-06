@@ -214,14 +214,7 @@
             }
         });
 
-        document.addEventListener('submit', (event) => {
-            const form = event.target.closest('[data-at-update-delete-form]');
-            if (!form) return;
-            const message = form.getAttribute('data-confirm') || 'Delete this remark?';
-            if (!window.confirm(message)) {
-                event.preventDefault();
-            }
-        });
+        // Remark deletes ask through their data-confirm attribute (core/declarative-actions.js).
     }
 
 

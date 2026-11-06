@@ -11,21 +11,6 @@ const read = (relative) => fs.readFileSync(path.join(repoRoot, relative), 'utf8'
 
 // view -> { script: handler file, selector: text the handler must contain, hosts: pages that load the handler }
 const registry = {
-  'Pages/Tasks/_TaskList.cshtml': {
-    script: 'wwwroot/js/todo.js',
-    selector: '.js-confirm-delete',
-    hosts: ['Pages/Shared/_Layout.cshtml'], // init.js loads todo.js wherever a .todo-list renders
-  },
-  'Pages/Tasks/Index.cshtml': {
-    script: 'wwwroot/js/todo.js',
-    selector: '.js-confirm-delete',
-    hosts: ['Pages/Shared/_Layout.cshtml'],
-  },
-  'Pages/Shared/_TodoWidget.cshtml': {
-    script: 'wwwroot/js/todo.js',
-    selector: '.js-confirm-delete',
-    hosts: ['Pages/Shared/_Layout.cshtml'],
-  },
   'Pages/Analytics/Partials/_ProjectManagementInsights.cshtml': {
     script: 'wwwroot/js/analytics-projects.js',
     selector: '[data-auto-submit="change"]',
@@ -35,11 +20,6 @@ const registry = {
     script: 'wwwroot/js/analytics-projects.js',
     selector: '[data-auto-submit="change"]',
     hosts: ['Pages/Analytics/Index.cshtml'],
-  },
-  'Pages/ActionTasks/_TaskUpdateTimeline.cshtml': {
-    script: 'wwwroot/js/pages/action-tasks/task-interaction.js',
-    selector: '[data-at-update-delete-form]',
-    hosts: ['Pages/ActionTasks/Details.cshtml', 'Pages/ActionTasks/Index.cshtml'],
   },
   'Pages/Workspace/BriefingDecks/_DeckLibrary.cshtml': {
     script: 'wwwroot/js/pages/project-briefing-library.js',
