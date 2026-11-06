@@ -294,3 +294,6 @@ Still open, outside this plan: the local database's 27 failed search-index jobs 
 
 Each PR keeps current routes and permissions, ships with tests, and is merged when CI and the
 Codex review are clean.
+
+A cold review after the redesign shipped (6 Nov 2026), and the fixes it led to, are in
+`admin-review-fixes.md`.
