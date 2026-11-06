@@ -37,3 +37,8 @@ test('nothing still waits for a global showToast that PRISM never defines', () =
     assert.doesNotMatch(source, /window\.showToast/, file);
   }
 });
+
+test('Calendar offers one Undo at a time: a newer change dismisses the older offer', () => {
+  const source = fs.readFileSync(path.join(jsRoot, 'calendar.js'), 'utf8');
+  assert.match(source, /calendarUndo\?\.dismiss\(\);\s*calendarUndo = window\.PrismToast\.show\(/);
+});
