@@ -20,16 +20,23 @@ public sealed class DbHealthModel : PageModel
         _time = time ?? throw new ArgumentNullException(nameof(time));
     }
 
-    [BindProperty(SupportsGet = true)]
-    public bool Refresh { get; set; }
-
     public AdminSystemHealthSnapshot Snapshot { get; private set; } = EmptySnapshot();
     public AdminPageHeaderModel Header { get; private set; } = new();
     public IReadOnlyList<AdminMonitoringMetricModel> Metrics { get; private set; } = Array.Empty<AdminMonitoringMetricModel>();
 
+    // Viewing the page uses the cached checks. Running them again (probe files written to
+    // disk, checks of up to 10 s each) is a POST: it used to be "?Refresh=true", which any
+    // link, bookmark or repeated reload could trigger to bypass the cache.
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        Snapshot = await _health.CheckAsync(Refresh, cancellationToken);
+        Snapshot = await _health.CheckAsync(forceRefresh: false, cancellationToken);
+        BuildPresentation();
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostRefreshAsync(CancellationToken cancellationToken)
+    {
+        Snapshot = await _health.CheckAsync(forceRefresh: true, cancellationToken);
         BuildPresentation();
         return Page();
     }
@@ -92,9 +99,10 @@ public sealed class DbHealthModel : PageModel
                 new AdminPageActionModel
                 {
                     Text = "Run checks again",
-                    Href = Url.Page("./DbHealth", new { Refresh = true }),
+                    Href = Url.Page("./DbHealth", "Refresh"),
                     Icon = "bi-arrow-clockwise",
-                    IsPrimary = true
+                    IsPrimary = true,
+                    UsesPost = true
                 }
             }
         };

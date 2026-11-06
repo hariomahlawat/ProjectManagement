@@ -292,7 +292,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             return writable;
         }
 
-        var explicitlyConfigured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DP_KEYS_DIR"));
+        var explicitlyConfigured = !string.IsNullOrWhiteSpace(_configuration["DP_KEYS_DIR"]);
         if (_environment.IsProduction() && !explicitlyConfigured)
         {
             return (
@@ -416,15 +416,15 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             }
             if (worker.LastSucceededUtc.HasValue)
             {
-                details.Add($"Last successful cycle: {worker.LastSucceededUtc:dd MMM yyyy, HH:mm} UTC");
+                details.Add($"Last successful cycle: {FormatIst(worker.LastSucceededUtc.Value)}");
             }
             else if (worker.LastStartedUtc.HasValue)
             {
-                details.Add($"Last started: {worker.LastStartedUtc:dd MMM yyyy, HH:mm} UTC");
+                details.Add($"Last started: {FormatIst(worker.LastStartedUtc.Value)}");
             }
             else
             {
-                details.Add($"Registered: {worker.RegisteredUtc:dd MMM yyyy, HH:mm} UTC");
+                details.Add($"Registered: {FormatIst(worker.RegisteredUtc)}");
             }
             if (!string.IsNullOrWhiteSpace(worker.Detail))
             {
@@ -455,10 +455,17 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         return Path.GetFullPath(path);
     }
 
+    // Worker times were shown in UTC while the rest of Administration uses IST.
+    private static string FormatIst(DateTimeOffset utc) =>
+        ProjectManagement.Infrastructure.IstClock.ToIst(utc).ToString("dd MMM yyyy, HH:mm", System.Globalization.CultureInfo.InvariantCulture) + " IST";
+
     private string ResolveDataProtectionPath()
     {
-        var configured = Environment.GetEnvironmentVariable("DP_KEYS_DIR");
-        if (!string.IsNullOrWhiteSpace(configured)) return Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured));
+        // Same source as Program.cs: configuration (environment variable, appsettings or
+        // command line), not the environment variable alone, so the check probes the folder
+        // the application actually uses.
+        var configured = _configuration["DP_KEYS_DIR"];
+        if (!string.IsNullOrWhiteSpace(configured)) return Path.GetFullPath(configured);
 
         return _environment.IsDevelopment()
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PRISM-ERP", "DataProtectionKeys")
