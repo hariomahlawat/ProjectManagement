@@ -14,7 +14,7 @@
                 <i class="bi bi-people" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
-                <p>Use <strong>Disable</strong> when sign-in must stop while records, ownership and attribution remain intact. Password reset issues a temporary credential, invalidates current sessions and requires a change at the next sign-in.</p>
+                <p>Use <strong>Disable</strong> when sign-in must stop while records, ownership and attribution remain intact. Password reset issues a temporary credential, signs out open sessions at their next check (every minute by default, <code>Security:SessionRevalidationMinutes</code>) and requires a change at the next sign-in. Disabling an account or changing its roles reaches open sessions the same way.</p>
                 <ul>
                     <li>Review the complete account page before changing privileged roles.</li>
                     <li>Do not disable or remove the final active Administrator account.</li>

@@ -1,10 +1,13 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Admin;
 
@@ -21,12 +24,18 @@ public sealed class DisableModel : PageModel
     public DisableModel(
         IUserLifecycleService lifecycle,
         IAdminUserQueryService queries,
-        ILogger<DisableModel> logger)
+        ILogger<DisableModel> logger,
+        IOptions<SecurityStampValidatorOptions> stampOptions)
     {
         _lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
         _queries = queries ?? throw new ArgumentNullException(nameof(queries));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        SessionEndDelay = SessionRevalidation.DescribeDelay(
+            stampOptions?.Value.ValidationInterval ?? throw new ArgumentNullException(nameof(stampOptions)));
     }
+
+    /// <summary>When open sessions notice the change, e.g. "within a minute".</summary>
+    public string SessionEndDelay { get; }
 
     public AdminUserDetails? Account { get; private set; }
 
@@ -123,7 +132,7 @@ public sealed class DisableModel : PageModel
         try
         {
             await _lifecycle.DisableAsync(id, actorId, Reason);
-            TempData[FlashMessageKeys.AdminUsersSuccess] = $"@{Account.UserName} was disabled. Existing sessions were invalidated.";
+            TempData[FlashMessageKeys.AdminUsersSuccess] = $"@{Account.UserName} was disabled. Any open sessions will be signed out {SessionEndDelay}.";
             return RedirectToPage("./Details", new { id });
         }
         catch (InvalidOperationException exception)

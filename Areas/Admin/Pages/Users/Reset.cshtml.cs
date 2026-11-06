@@ -25,13 +25,19 @@ public sealed class ResetModel : PageModel
         IUserManagementService users,
         IAdminUserQueryService queries,
         ILogger<ResetModel> logger,
-        IOptions<IdentityOptions> identityOptions)
+        IOptions<IdentityOptions> identityOptions,
+        IOptions<SecurityStampValidatorOptions> stampOptions)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _queries = queries ?? throw new ArgumentNullException(nameof(queries));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _passwordOptions = identityOptions?.Value.Password ?? throw new ArgumentNullException(nameof(identityOptions));
+        SessionEndDelay = SessionRevalidation.DescribeDelay(
+            stampOptions?.Value.ValidationInterval ?? throw new ArgumentNullException(nameof(stampOptions)));
     }
+
+    /// <summary>When open sessions notice the change, e.g. "within a minute".</summary>
+    public string SessionEndDelay { get; }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -128,7 +134,7 @@ public sealed class ResetModel : PageModel
             "Administrator {Administrator} reset the password for user {UserId}.",
             User.Identity?.Name,
             id);
-        TempData[FlashMessageKeys.AdminUsersSuccess] = $"Password reset for @{Account.UserName}. Existing sessions were invalidated and a password change is required at next sign-in.";
+        TempData[FlashMessageKeys.AdminUsersSuccess] = $"Password reset for @{Account.UserName}. Any open sessions will be signed out {SessionEndDelay}, and a password change is required at next sign-in.";
         return RedirectToPage("./Details", new { id });
     }
 
