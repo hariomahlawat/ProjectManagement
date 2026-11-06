@@ -382,6 +382,10 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("asp-route-generate=\"1\"", library, StringComparison.Ordinal);
         Assert.Contains("if (startUrl.searchParams.get('generate') === '1') {", script, StringComparison.Ordinal);
         Assert.Contains("form.requestSubmit();", script, StringComparison.Ordinal);
+        // It waits for the Studio to set the Gaps count, however the modules load (Codex, #2950).
+        Assert.Contains("document.addEventListener('pbd:studio-ready', generateFromLibrary, { once: true });", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("    }, 0);", script, StringComparison.Ordinal);
+        Assert.Contains("document.dispatchEvent(new CustomEvent('pbd:studio-ready'));", Read("project-briefing-studio.js"), StringComparison.Ordinal);
 
         // A deck without projects offers Add projects instead of a greyed-out Generate.
         Assert.Contains("asp-route-start=\"projects\">Add projects</a>", library, StringComparison.Ordinal);

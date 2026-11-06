@@ -522,3 +522,17 @@ test('This slide leaves the proliferation cost out when the server says the slid
   assert.ok(labels().includes('Proliferation'), 'a project the server shows it for still lists it');
 });
 
+test('the Studio says when its Gaps count is set, before the slides are built', async () => {
+  let readyEvents = 0;
+  const { window, document, requests } = startStudio((win) => {
+    win.document.addEventListener('pbd:studio-ready', () => { readyEvents += 1; });
+  });
+  // Ready before the first build answers: the count comes from the page's own data.
+  assert.equal(readyEvents, 1);
+  assert.equal(document.querySelector('[data-pbd-studio]').dataset.pbdStudioReady, 'true');
+  assert.equal(document.querySelector('[data-pbd-checks-badge]').textContent, '2');
+  requests[0].answer(payload());
+  await settle(window);
+  assert.equal(readyEvents, 1, 'said once');
+});
+

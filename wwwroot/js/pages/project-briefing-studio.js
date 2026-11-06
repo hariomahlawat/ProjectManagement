@@ -1518,5 +1518,8 @@ if (root) {
   const firstTab = root.dataset.pbdOpenSettings === 'true' ? 'deck' : 'slide';
   setTab(['slide', 'deck', 'checks'].includes(savedPlace.tab) ? savedPlace.tab : firstTab);
   renderChecksPanel();
+  // The Gaps count is now set: anything waiting on it (Generate from the library) may go.
+  root.dataset.pbdStudioReady = 'true';
+  document.dispatchEvent(new CustomEvent('pbd:studio-ready'));
   loadPreview();
 }
