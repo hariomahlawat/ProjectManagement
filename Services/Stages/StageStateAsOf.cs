@@ -22,7 +22,8 @@ public sealed record StageFactNow(string Code, StageStatus Status, DateOnly? Act
 
 /// <summary>
 /// One applied stage change (not a request): the status before and after, the completion dates it
-/// carried, and the day it was recorded (IST).
+/// carried, the day it was recorded (IST), and its place among the project's changes (recorded
+/// time, then id), so two changes on one day keep their order.
 /// </summary>
 public sealed record StageLogFact(
     string Code,
@@ -30,7 +31,8 @@ public sealed record StageLogFact(
     DateOnly RecordedOn,
     string? FromStatus = null,
     DateOnly? FromCompletedOn = null,
-    DateOnly? ToCompletedOn = null);
+    DateOnly? ToCompletedOn = null,
+    long Sequence = 0);
 
 /// <summary>A project's stage on a past date: one stage, or the range it lies in when dates are missing.</summary>
 public sealed record StagePositionAsOf(
@@ -135,7 +137,7 @@ public static class StageStateAsOfResolver
 
             // The last applied change recorded on or before the date is the stage's status on it.
             if (logsByCode.TryGetValue(fact.Code, out var history)
-                && history.Where(log => log.RecordedOn <= asOf).OrderBy(log => log.RecordedOn).LastOrDefault() is { } last
+                && history.Where(log => log.RecordedOn <= asOf).OrderBy(log => log.RecordedOn).ThenBy(log => log.Sequence).LastOrDefault() is { } last
                 && Enum.TryParse<StageStatus>(last.ToStatus, ignoreCase: true, out var then))
             {
                 return then switch

@@ -192,6 +192,21 @@ public sealed class StageStateAsOfResolverTests
     }
 
     [Fact]
+    public void TwoChangesOnTheDate_TheLaterOneDecides()
+    {
+        // Completed and then reopened on 31 March, listed out of order: the reopen (later) decides.
+        var states = Resolve(
+            new[] { Fact(StageCodes.FS, StageStatus.InProgress, start: new(2026, 1, 5)) },
+            new[]
+            {
+                new StageLogFact(StageCodes.FS, "InProgress", new(2026, 3, 31), FromStatus: "Completed", Sequence: 2),
+                new StageLogFact(StageCodes.FS, "Completed", new(2026, 3, 31), FromStatus: "InProgress", Sequence: 1)
+            });
+
+        Assert.Equal(StageStateAsOf.InProgress, states[StageCodes.FS]);
+    }
+
+    [Fact]
     public void ParallelStages_GiveTheRangeEitherWayRound()
     {
         // TEC not started on the date, BM completed undated: either could be the stage then.

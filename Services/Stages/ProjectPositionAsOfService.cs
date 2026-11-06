@@ -101,19 +101,22 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
         var logs = (await _db.StageChangeLogs
                 .AsNoTracking()
                 .Where(log => ids.Contains(log.ProjectId) && !NotApplied.Contains(log.Action))
-                .Select(log => new { log.ProjectId, log.StageCode, log.ToStatus, log.FromStatus, log.FromCompletedOn, log.ToCompletedOn, log.At })
+                .Select(log => new { log.Id, log.ProjectId, log.StageCode, log.ToStatus, log.FromStatus, log.FromCompletedOn, log.ToCompletedOn, log.At })
                 .ToListAsync(cancellationToken))
             .GroupBy(log => log.ProjectId)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<StageLogFact>)group
-                    .Select(log => new StageLogFact(
+                    .OrderBy(log => log.At)
+                    .ThenBy(log => log.Id)
+                    .Select((log, index) => new StageLogFact(
                         log.StageCode,
                         log.ToStatus,
                         DateOnly.FromDateTime(log.At.ToOffset(Ist).DateTime),
                         log.FromStatus,
                         log.FromCompletedOn,
-                        log.ToCompletedOn))
+                        log.ToCompletedOn,
+                        index))
                     .ToList());
         var supplyOrderDates = (await _db.ProjectSupplyOrderFacts
                 .AsNoTracking()
