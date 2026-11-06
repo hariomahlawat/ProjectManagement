@@ -73,20 +73,24 @@
                asp-route-view="overview"
                class="@(activeLens == "personal" ? "is-active" : null)"
                aria-current="@(activeLens == "personal" ? "true" : null)"
-               title="Open personal workspace landing">
+               title="Open personal workspace landing"
+               data-tooltip="Personal view">
                 <i class="bi bi-person" aria-hidden="true"></i>
                 <span>Personal</span>
             </a>
             <a asp-page="/Workspace/CommandDesk"
                class="@(activeLens == "command" ? "is-active" : null)"
                aria-current="@(activeLens == "command" ? "true" : null)"
-               title="Open the Command desk">
+               title="Open the Command desk"
+               data-tooltip="Command view">
                 <i class="bi bi-shield-check" aria-hidden="true"></i>
                 <span>Command</span>
             </a>
         </div>
     }
 
+    @* Folded, every item keeps its icon (distinct per destination, coloured by its group) and its
+       name: the labels are hidden visually, not removed, so screen readers still announce them. *@
     <nav id="workspace-local-navigation">
         @if (Model.HasProjectOfficerAccess)
         {
@@ -98,7 +102,7 @@
                    class="@(Active("personal-overview"))"
                    aria-current="@(Current("personal-overview"))"
                    data-tooltip="Briefing desk">
-                    <i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Briefing desk</span>
+                    <i class="bi bi-briefcase" aria-hidden="true"></i><span>Briefing desk</span>
                 </a>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="project-officer"
@@ -106,7 +110,7 @@
                    class="@(Active("personal-conference"))"
                    aria-current="@(Current("personal-conference"))"
                    data-tooltip="My conference review">
-                    <i class="bi bi-clipboard2-check" aria-hidden="true"></i><span>My conference review</span>
+                    <i class="bi bi-calendar-check" aria-hidden="true"></i><span>My conference review</span>
                 </a>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="project-officer"
@@ -114,7 +118,7 @@
                    class="@(Active("personal-projects"))"
                    aria-current="@(Current("personal-projects"))"
                    data-tooltip="Project register">
-                    <i class="bi bi-kanban" aria-hidden="true"></i><span>Project register</span>
+                    <i class="bi bi-table" aria-hidden="true"></i><span>Project register</span>
                     @if (Model.AssignedProjectCount > 0)
                     {
                         <b>@Model.AssignedProjectCount</b>
@@ -131,7 +135,7 @@
                    class="@(Active("command-desk"))"
                    aria-current="@(Current("command-desk"))"
                    data-tooltip="Command desk">
-                    <i class="bi bi-binoculars" aria-hidden="true"></i><span>Command desk</span>
+                    <i class="bi bi-speedometer2" aria-hidden="true"></i><span>Command desk</span>
                 </a>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="command"
@@ -139,7 +143,7 @@
                    class="@(Active("command-officers"))"
                    aria-current="@(Current("command-officers"))"
                    data-tooltip="Officer workload">
-                    <i class="bi bi-people" aria-hidden="true"></i><span>Officer workload</span>
+                    <i class="bi bi-person-workspace" aria-hidden="true"></i><span>Officer workload</span>
                     @if (Model.ProjectOfficerCount > 0)
                     {
                         <b>@Model.ProjectOfficerCount</b>
@@ -184,7 +188,7 @@
                    class="@(Active("command-usage-pattern"))"
                    aria-current="@(Current("command-usage-pattern"))"
                    data-tooltip="ERP usage pattern">
-                    <i class="bi bi-bounding-box-circles" aria-hidden="true"></i><span>ERP usage pattern</span>
+                    <i class="bi bi-bar-chart-line" aria-hidden="true"></i><span>ERP usage pattern</span>
                 </a>
             </div>
         }

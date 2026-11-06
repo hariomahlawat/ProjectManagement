@@ -515,16 +515,48 @@
 .command-workspace:not(.is-nav-expanded) .cw-local-rail__mark,
 .command-workspace:not(.is-nav-expanded) .cw-local-rail__identity > div,
 .command-workspace:not(.is-nav-expanded) .cw-local-rail__access,
-.command-workspace:not(.is-nav-expanded) .cw-workspace-lens,
-.command-workspace:not(.is-nav-expanded) .cw-local-rail__group-label,
+.command-workspace:not(.is-nav-expanded) .cw-workspace-lens__thumb,
+.command-workspace:not(.is-nav-expanded) .cw-local-rail__group-label { display:none; }
+/* Folded labels and counts are hidden visually, not removed: screen readers still name each
+   link ("Officer workload 7"), which display:none would drop. */
 .command-workspace:not(.is-nav-expanded) .cw-local-rail nav a > span,
-.command-workspace:not(.is-nav-expanded) .cw-local-rail nav a > b { display:none; }
+.command-workspace:not(.is-nav-expanded) .cw-local-rail nav a > b,
+.command-workspace:not(.is-nav-expanded) .cw-workspace-lens a > span {
+    position:absolute;
+    width:1px;
+    height:1px;
+    margin:-1px;
+    padding:0;
+    overflow:hidden;
+    clip:rect(0 0 0 0);
+    white-space:nowrap;
+    border:0;
+}
+/* The lens (Personal / Command) stays in view as two stacked icons, the current one lit. */
+.command-workspace:not(.is-nav-expanded) .cw-workspace-lens {
+    grid-template-columns:1fr;
+    gap:2px;
+    margin:2px 0 8px;
+}
+.command-workspace:not(.is-nav-expanded) .cw-workspace-lens a { padding:5px 0; }
+.command-workspace:not(.is-nav-expanded) .cw-workspace-lens a.is-active {
+    background:var(--cw-lens-thumb);
+    box-shadow:var(--cw-glass-shadow), 0 0 0 1px var(--cw-glass-rim);
+}
+.command-workspace:not(.is-nav-expanded) .cw-workspace-lens i { font-size:1rem; }
 .command-workspace:not(.is-nav-expanded) .cw-local-rail nav a {
     grid-template-columns:1fr;
     justify-items:center;
+    min-height:34px;
+    padding-block:2px;
     padding-inline:0;
 }
-.command-workspace:not(.is-nav-expanded) .cw-local-rail nav a > i { width:100%; }
+/* Folded icons are a little larger and carry their group's hue, so they read at a glance. */
+.command-workspace:not(.is-nav-expanded) .cw-local-rail nav a > i {
+    width:100%;
+    color:color-mix(in srgb, var(--cw-hue) 62%, var(--cw-muted));
+    font-size:1.1rem;
+}
 .command-workspace:not(.is-nav-expanded) [data-tooltip]::after {
     content:attr(data-tooltip);
     position:absolute;
@@ -591,9 +623,19 @@
     .cw-local-rail:not(.is-expanded) .cw-local-rail__identity > div,
     .cw-local-rail:not(.is-expanded) .cw-local-rail__access,
     .cw-local-rail:not(.is-expanded) .cw-workspace-lens,
-    .cw-local-rail:not(.is-expanded) .cw-local-rail__group-label,
+    .cw-local-rail:not(.is-expanded) .cw-local-rail__group-label { display:none; }
     .cw-local-rail:not(.is-expanded) nav a > span,
-    .cw-local-rail:not(.is-expanded) nav a > b { display:none; }
+    .cw-local-rail:not(.is-expanded) nav a > b {
+        position:absolute;
+        width:1px;
+        height:1px;
+        margin:-1px;
+        padding:0;
+        overflow:hidden;
+        clip:rect(0 0 0 0);
+        white-space:nowrap;
+        border:0;
+    }
     .cw-local-rail:not(.is-expanded) nav a { grid-template-columns:1fr; justify-items:center; padding-inline:0; }
     .cw-local-rail:not(.is-expanded) nav a > i { width:100%; }
 }
