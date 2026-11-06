@@ -121,7 +121,10 @@ the page; only the ARPP mode checks a further policy.
   where each project stands today (for a past year: where it stood on 31 March, the last day of that
   year, worked out by `ProjectPositionAsOfService`, with a Today switch beside the year). A Financial year chip picks the year; the page opens on the
   current financial year when it has a published ARPP, else on the latest published year with a
-  note. Cards: where the projects stand (ongoing by stage, with Completed / stage / Cancelled rows),
+  note. Cards: where the projects stand (ongoing by stage, stacked by parent category like the Ongoing
+  chart, with a legend that names only the categories present in that year's ARPP, in their own sort
+  order; the Completed / stage / Not known / Cancelled rows carry the same category chips and list their
+  projects under each),
   by sanctioning authority (CFA), by category and IPA cost band, milestones (past AoN, supply
   orders placed, and the supply-order amounts beside the listed IPA, no percentage), and fund,
   DFPDS schedule and parent category rows. No PDC figures: they are development tracking (Command

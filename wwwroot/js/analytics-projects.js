@@ -91,7 +91,9 @@ function renderEmptyState(canvas, message) {
 // the same short labels, so the eye can compare charts across modes.
 const stageShortLabels = {
   FS: 'FS', IPA: 'IPA', SOW: 'SoW', AON: 'AoN', BID: 'Bid', TEC: 'TEC', BM: 'BM', COB: 'COB',
-  PNC: 'PNC', EAS: 'EAS', SO: 'SO', DEVP: 'Devp', ATP: 'ATP', PAYMENT: 'Pay', TOT: 'ToT'
+  PNC: 'PNC', EAS: 'EAS', SO: 'SO', DEVP: 'Devp', ATP: 'ATP', PAYMENT: 'Pay', TOT: 'ToT',
+  // Buckets that are not workflow stages.
+  UNASSIGNED: 'Unassigned', NOT_KNOWN: 'Not known'
 };
 
 function workflowStages() {
@@ -110,7 +112,7 @@ function stageAxis(codesInData, namesByCode = new Map()) {
     if (!key || known.has(key)) return;
     known.add(key);
     const name = namesByCode.get(code) ?? code;
-    axis.push({ code, name, short: name.length > 8 ? code : name });
+    axis.push({ code, name, short: stageShortLabels[key] ?? (name.length > 8 ? code : name) });
   });
   return axis;
 }
@@ -615,7 +617,11 @@ function initCoe(panel) {
 
 // SECTION: ARPP mode (one financial year's listed projects)
 function initArpp(panel) {
-  // Where they stand: ongoing listed projects by current stage, same axis as every stage chart.
+  paintCategoryDots(panel);
+
+  // Where they stand: ongoing listed projects by stage, same axis as every stage chart, stacked by parent
+  // category like the Ongoing chart. The series carries only the categories present in the year's ARPP, so
+  // the legend never names an empty one.
   const stageCanvas = panel.querySelector('#arpp-by-stage-chart');
   const stageSeries = readJson(stageCanvas, 'series', []);
   if (stageCanvas) {
@@ -624,26 +630,44 @@ function initArpp(panel) {
     } else {
       const names = new Map(stageSeries.map((p) => [p.stageCode, p.stageName]));
       const axis = stageAxis(stageSeries.map((p) => p.stageCode), names);
+      // The server's order (each category's own sort order), shared with the row chips.
+      const present = new Set(stageSeries.filter((p) => ensureNumber(p.count) > 0).map((p) => p.categoryName ?? 'Uncategorized'));
+      const served = readJson(stageCanvas, 'categories', []).filter((name) => present.has(name));
+      const categories = served.length === present.size ? served : orderCategories([...present]);
       sizeChartHost(stageCanvas.parentElement, { min: 280, max: 300 });
       mount(stageCanvas, () => {
         const tokens = chartTokens();
+        const datasets = categories.map((category) => ({
+          label: category,
+          data: axis.map((stage) => stageSeries
+            .filter((p) => String(p.stageCode).toUpperCase() === stage.code.toUpperCase() && (p.categoryName ?? 'Uncategorized') === category)
+            .reduce((sum, p) => sum + ensureNumber(p.count), 0)),
+          backgroundColor: categoryColor(category, tokens),
+          stack: 'category'
+        }));
         const chart = new window.Chart(stageCanvas, {
           type: 'bar',
-          data: {
-            labels: axis.map((stage) => stage.short),
-            datasets: [{
-              label: 'Ongoing listed projects',
-              data: axis.map((stage) => stageSeries
-                .filter((p) => String(p.stageCode).toUpperCase() === stage.code.toUpperCase())
-                .reduce((sum, p) => sum + ensureNumber(p.count), 0)),
-              backgroundColor: tokens.primary
-            }]
-          },
+          data: { labels: axis.map((stage) => stage.short), datasets },
           options: {
-            scales: barScales(),
-            plugins: { tooltip: { callbacks: { title: stageTooltipTitle(axis), label: (item) => `${item.formattedValue} ongoing` } } }
+            interaction: { mode: 'index', intersect: true },
+            scales: barScales({ stacked: true }),
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  title: stageTooltipTitle(axis),
+                  label: (item) => `${item.dataset.label}: ${item.formattedValue}`,
+                  footer: (items) => `Total: ${items.reduce((sum, item) => sum + ensureNumber(item.parsed.y), 0)}`
+                }
+              }
+            }
           }
         });
+        renderLegend(panel.querySelector('[data-legend="arpp-by-stage-chart"]'), chart, datasets.map((dataset, index) => ({
+          label: dataset.label,
+          color: dataset.backgroundColor,
+          value: dataset.data.reduce((sum, value) => sum + value, 0),
+          datasetIndex: index
+        })));
         enableBarClick(chart, (index) => drillAction(panel, `stage:${axis[index]?.code ?? ''}`));
         return chart;
       });
