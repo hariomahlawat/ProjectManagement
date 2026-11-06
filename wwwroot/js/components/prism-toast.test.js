@@ -153,3 +153,19 @@ test('a server-rendered stack also pauses while hovered', async () => {
   advance(20000);
   assert.equal(toasts(document).length, 1);
 });
+
+test('closing a focused toast from the keyboard lets the others run out again', () => {
+  const { window, document, advance } = createDom();
+  window.PrismToast.show({ text: 'First.' });
+  window.PrismToast.show({ text: 'Second.' });
+  const [, second] = toasts(document);
+
+  const close = second.querySelector('[data-prism-toast-close]');
+  close.focus();
+  close.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  close.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.deepEqual(toasts(document).map((el) => el.textContent.trim()), ['First.']);
+
+  advance(60000);
+  assert.equal(toasts(document).length, 0, 'the remaining toast is not left paused');
+});

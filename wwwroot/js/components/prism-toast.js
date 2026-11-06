@@ -38,6 +38,10 @@
     let paused = false;
     const timers = new Map(); // element -> { left, started, handle }
 
+    // Timers run unless the pointer is over the stack or focus is inside it.
+    const stackInUse = () => Boolean(region?.isConnected
+        && (region.matches(":hover") || region.contains(document.activeElement)));
+
     const getRegion = () => {
         if (!region?.isConnected) region = document.querySelector("[data-prism-toasts]");
         if (!region) {
@@ -52,8 +56,7 @@
             region.dataset.prismToastsBound = "true";
             const pause = () => setPaused(true);
             const resume = () => {
-                if (region.matches(":hover") || region.contains(document.activeElement)) return;
-                setPaused(false);
+                if (!stackInUse()) setPaused(false);
             };
             region.addEventListener("mouseenter", pause);
             region.addEventListener("mouseleave", resume);
@@ -118,7 +121,9 @@
         const finish = () => {
             el.remove();
             restack();
-            if (!getRegion().querySelector("[data-prism-toast]")) setPaused(false);
+            // Removing a focused toast moves focus without a focusout on the stack, so check
+            // again: the others resume unless the stack is still hovered or focused.
+            if (!stackInUse()) setPaused(false);
         };
         if (reduceMotion()) finish();
         else window.setTimeout(finish, 280);
