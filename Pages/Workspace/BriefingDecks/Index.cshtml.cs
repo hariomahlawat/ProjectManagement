@@ -227,17 +227,17 @@ public sealed class IndexModel : PageModel
             // which re-checks access and the retention window (docs/ux/toasts.md).
             TempData.ToastWithAction("success", "Briefing deck moved to Recently deleted.", new ToastAction(
                 "Undo",
-                Url.Page("/Workspace/BriefingDecks/Index", "Restore")!,
+                Url.Page("/Workspace/BriefingDecks/Index", "Restore", new { deckId = (long?)null })!,
                 new Dictionary<string, string>
                 {
                     ["deckId"] = deckId.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 }));
-            return RedirectToPage();
+            return RedirectToLibrary();
         }
         catch (KeyNotFoundException exception)
         {
             ErrorMessage = exception.Message;
-            return RedirectToPage();
+            return RedirectToLibrary();
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -262,14 +262,18 @@ public sealed class IndexModel : PageModel
         catch (KeyNotFoundException exception)
         {
             ErrorMessage = exception.Message;
-            return RedirectToPage();
+            return RedirectToLibrary();
         }
         catch (DbUpdateException)
         {
             ErrorMessage = "The deck could not be restored. Reload and try again.";
-            return RedirectToPage();
+            return RedirectToLibrary();
         }
     }
+
+    // The library itself. A bare RedirectToPage() would keep the deck id from the current URL
+    // (/Workspace/BriefingDecks/{deckId}), which after a delete opens a deck that is gone.
+    private IActionResult RedirectToLibrary() => RedirectToPage(new { deckId = (long?)null });
 
     public async Task<IActionResult> OnPostSaveSettingsAsync(
         [FromForm] SaveDeckSettingsInput input,

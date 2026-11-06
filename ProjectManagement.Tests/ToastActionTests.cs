@@ -69,9 +69,15 @@ public sealed class ToastActionTests
         var page = ReadRepoFile("Pages", "Workspace", "BriefingDecks", "Index.cshtml.cs");
 
         // Undo posts to the same Restore handler as Recently deleted, with the same field.
-        Assert.Contains("Url.Page(\"/Workspace/BriefingDecks/Index\", \"Restore\")", page, StringComparison.Ordinal);
+        Assert.Contains("Url.Page(\"/Workspace/BriefingDecks/Index\", \"Restore\", new { deckId = (long?)null })", page, StringComparison.Ordinal);
         Assert.Contains("[\"deckId\"] = deckId.ToString(", page, StringComparison.Ordinal);
         Assert.DoesNotContain("StatusMessage = $\"Briefing deck deleted.", page, StringComparison.Ordinal);
+
+        // Deleting from the Studio (/Workspace/BriefingDecks/{deckId}) must land on the library,
+        // not on the deleted deck's URL ("That deck was not found").
+        var delete = page[page.IndexOf("OnPostDeleteAsync(", StringComparison.Ordinal)..page.IndexOf("OnPostSaveSettingsAsync(", StringComparison.Ordinal)];
+        Assert.DoesNotContain("return RedirectToPage();", delete, StringComparison.Ordinal);
+        Assert.Contains("RedirectToPage(new { deckId = (long?)null })", page, StringComparison.Ordinal);
     }
 
     private static TempDataDictionary NewTempData() => new(new DefaultHttpContext(), new NullTempDataProvider());
