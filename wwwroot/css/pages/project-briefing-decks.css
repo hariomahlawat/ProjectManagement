@@ -5835,8 +5835,11 @@ span.pbd-additional-slide-row__handle {
         display: none;
     }
 
+    /* Cards never wider than the phone: the column and the name cell may shrink, and a long
+       description wraps instead of pushing the card (and its menu) off-screen. */
     .pbd-library__table tbody {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         gap: .6rem;
     }
 
@@ -5870,8 +5873,15 @@ span.pbd-additional-slide-row__handle {
 
     .pbd-library__table td:first-child {
         flex: 1 1 100%;
+        min-width: 0;
         padding-right: 2.6rem;
         font-size: .9rem;
+    }
+
+    .pbd-library__table .pbd-library__description {
+        max-width: none;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
 
     .pbd-library__table td.is-actions {

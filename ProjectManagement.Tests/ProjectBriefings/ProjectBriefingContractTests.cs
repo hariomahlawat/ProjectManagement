@@ -359,6 +359,9 @@ public sealed class ProjectBriefingContractTests
 
         // Library: cards with labelled values.
         Assert.Contains(".pbd-library__table td[data-label]::before {", phone, StringComparison.Ordinal);
+        // Cards never wider than the phone (Codex, #2946): the column and name cell shrink, descriptions wrap.
+        Assert.Contains("grid-template-columns: minmax(0, 1fr);", phone, StringComparison.Ordinal);
+        Assert.Contains(".pbd-library__table .pbd-library__description {\n        max-width: none;\n        white-space: normal;", phone, StringComparison.Ordinal);
         foreach (var label in new[] { "Template", "Projects", "Slides", "Owner", "Edited", "Generated", "Changed since" })
         {
             Assert.Contains($"data-label=\"{label}\"", library, StringComparison.Ordinal);
