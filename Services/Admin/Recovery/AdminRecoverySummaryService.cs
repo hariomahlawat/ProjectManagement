@@ -57,7 +57,7 @@ public sealed class AdminRecoverySummaryService : IAdminRecoverySummaryService
     public async Task<AdminRecoverySummary> GetAsync(CancellationToken cancellationToken = default)
     {
         var now = _time.UtcNow;
-        var retentionDays = Math.Max(0, _projectRetention.TrashRetentionDays);
+        var retentionDays = _projectRetention.EffectiveTrashRetentionDays;
         var purgeCutoff = now.AddDays(-retentionDays);
         var dueSoonCutoff = now.AddDays(-(Math.Max(0, retentionDays - _options.DueSoonDays)));
 

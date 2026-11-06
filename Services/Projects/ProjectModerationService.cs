@@ -43,6 +43,10 @@ public sealed class ProjectModerationService
     private readonly IUploadRootProvider _uploadRootProvider;
     private readonly ProjectDocumentOptions _documentOptions;
     private readonly IAuditService _audit;
+    private readonly ProjectRetentionOptions _retention;
+
+    public const int MinimumPurgeReasonLength = 5;
+    public const int MaximumPurgeReasonLength = 512;
 
     public ProjectModerationService(
         ApplicationDbContext db,
@@ -50,7 +54,8 @@ public sealed class ProjectModerationService
         ILogger<ProjectModerationService> logger,
         IUploadRootProvider uploadRootProvider,
         IOptions<ProjectDocumentOptions> documentOptions,
-        IAuditService audit)
+        IAuditService audit,
+        IOptions<ProjectRetentionOptions> retention)
     {
         _db = db;
         _clock = clock;
@@ -58,6 +63,7 @@ public sealed class ProjectModerationService
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
         _documentOptions = documentOptions?.Value ?? throw new ArgumentNullException(nameof(documentOptions));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _retention = retention?.Value ?? throw new ArgumentNullException(nameof(retention));
     }
 
     // SECTION: Moderation actions
@@ -189,18 +195,38 @@ public sealed class ProjectModerationService
         return ProjectModerationResult.Success();
     }
 
+    /// <summary>
+    /// Permanently deletes a project from Trash on an administrator's request. Every caller
+    /// (the admin Trash page and the purge API) gets the same rules: a recorded reason, and
+    /// the project must have been in Trash for the full retention period.
+    /// </summary>
     public async Task<ProjectModerationResult> PurgeAsync(
         int projectId,
         string actorUserId,
         bool includeAssets,
+        string? reason,
         CancellationToken cancellationToken = default)
     {
+        var trimmedReason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedReason) || trimmedReason.Length < MinimumPurgeReasonLength)
+        {
+            return ProjectModerationResult.ValidationFailed("Record a clear administrative reason for permanent deletion.");
+        }
+
+        if (trimmedReason.Length > MaximumPurgeReasonLength)
+        {
+            return ProjectModerationResult.ValidationFailed(
+                $"The permanent-deletion reason must be {MaximumPurgeReasonLength} characters or fewer.");
+        }
+
         var project = await _db.Projects
             .AsNoTracking()
             .Where(candidate => candidate.Id == projectId)
             .Select(candidate => new PurgeCandidate(
                 candidate.Id,
+                candidate.Name,
                 candidate.IsDeleted,
+                candidate.DeletedAt,
                 candidate.DeleteReason))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -214,7 +240,20 @@ public sealed class ProjectModerationService
             return ProjectModerationResult.InvalidState("Project must be in Trash before it can be purged.");
         }
 
-        await PurgeCoreAsync(project, actorUserId, includeAssets, "Manual", cancellationToken);
+        if (project.DeletedAt is null)
+        {
+            return ProjectModerationResult.InvalidState(
+                "This project has no recorded deletion date, so its retention period cannot be confirmed. Restore it and move it to Trash again to start the retention period.");
+        }
+
+        var purgeAvailableUtc = project.DeletedAt.Value.AddDays(_retention.EffectiveTrashRetentionDays);
+        if (purgeAvailableUtc > _clock.UtcNow)
+        {
+            return ProjectModerationResult.InvalidState(
+                "Permanent deletion is not available until the retention period has expired. Restore the project instead or wait.");
+        }
+
+        await PurgeCoreAsync(project, actorUserId, includeAssets, "Manual", trimmedReason, cancellationToken);
         return ProjectModerationResult.Success();
     }
 
@@ -226,7 +265,7 @@ public sealed class ProjectModerationService
         var projects = await _db.Projects
             .AsNoTracking()
             .Where(project => project.IsDeleted && project.DeletedAt != null && project.DeletedAt <= cutoffUtc)
-            .Select(project => new PurgeCandidate(project.Id, project.IsDeleted, project.DeleteReason))
+            .Select(project => new PurgeCandidate(project.Id, project.Name, project.IsDeleted, project.DeletedAt, project.DeleteReason))
             .ToListAsync(cancellationToken);
 
         var purged = 0;
@@ -234,7 +273,7 @@ public sealed class ProjectModerationService
         {
             try
             {
-                await PurgeCoreAsync(project, "system", includeAssets, "Expired", cancellationToken);
+                await PurgeCoreAsync(project, "system", includeAssets, "Expired", purgeReason: null, cancellationToken);
                 purged++;
             }
             catch (Exception ex)
@@ -261,6 +300,7 @@ public sealed class ProjectModerationService
         string actorUserId,
         bool includeAssets,
         string source,
+        string? purgeReason,
         CancellationToken cancellationToken)
     {
         FileQuarantineHandle? quarantinedAssets = null;
@@ -293,12 +333,12 @@ public sealed class ProjectModerationService
             var metadataJson = JsonSerializer.Serialize(metadata);
 
             await WritePurgeAuditAsync(
-                project.Id,
+                project,
                 actorUserId,
-                project.DeleteReason,
                 includeAssets,
                 metadataJson,
-                source);
+                source,
+                purgeReason);
 
             await transaction.CommitAsync(cancellationToken);
         }
@@ -543,7 +583,12 @@ public sealed class ProjectModerationService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    private sealed record PurgeCandidate(int Id, bool IsDeleted, string? DeleteReason);
+    private sealed record PurgeCandidate(
+        int Id,
+        string Name,
+        bool IsDeleted,
+        DateTimeOffset? DeletedAt,
+        string? DeleteReason);
 
     // SECTION: Asset cleanup
     private string BuildProjectRootPath(int projectId)
@@ -615,25 +660,33 @@ public sealed class ProjectModerationService
     }
 
     private async Task WritePurgeAuditAsync(
-        int projectId,
+        PurgeCandidate project,
         string performedByUserId,
-        string? reason,
         bool includeAssets,
         string? metadata,
-        string source)
+        string source,
+        string? purgeReason)
     {
+        var projectId = project.Id;
+        // "Reason" stays the Trash reason, as before. The purge is recorded here, inside the
+        // purge transaction, with the project name (the row is gone afterwards) and the
+        // administrator's purge reason.
         var data = new Dictionary<string, string?>
         {
             ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+            ["ProjectName"] = project.Name,
             ["IncludeAssets"] = includeAssets ? "true" : "false",
-            ["Reason"] = reason,
+            ["Reason"] = project.DeleteReason,
+            ["PurgeReason"] = purgeReason,
             ["Metadata"] = metadata,
             ["Source"] = source
         };
 
         await _audit.LogAsync(
             GlobalAuditActions.ProjectPurge,
-            message: $"Project {projectId} purged.",
+            message: purgeReason is null
+                ? $"Project '{project.Name}' ({projectId}) purged."
+                : $"Project '{project.Name}' ({projectId}) purged. Reason: {purgeReason}",
             userId: performedByUserId,
             data: data);
     }

@@ -202,12 +202,14 @@ internal static class ActualCorrectionSchemaPostgresFixture
         {
             var service = new ProjectModerationService(
                 db,
-                FakeClock.AtUtc(DateTimeOffset.UtcNow),
+                // Past the retention period: the project was trashed "now" when seeded.
+                FakeClock.AtUtc(DateTimeOffset.UtcNow.AddDays(ProjectRetentionOptions.DefaultTrashRetentionDays + 1)),
                 NullLogger<ProjectModerationService>.Instance,
                 new NoUploadRoot(),
                 Options.Create(new ProjectDocumentOptions()),
-                new NoAudit());
-            var result = await service.PurgeAsync(projectId, Seeder, includeAssets: false);
+                new NoAudit(),
+                Options.Create(new ProjectRetentionOptions()));
+            var result = await service.PurgeAsync(projectId, Seeder, includeAssets: false, reason: "Schema test purge");
             Assert.Equal(ProjectModerationStatus.Success, result.Status);
         }
 

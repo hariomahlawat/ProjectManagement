@@ -1945,7 +1945,7 @@ projectsApi.MapPost("/{id:int}/purge", async (
         return Results.Unauthorized();
     }
 
-    var result = await moderation.PurgeAsync(id, userId, request.RemoveAssets, cancellationToken);
+    var result = await moderation.PurgeAsync(id, userId, request.RemoveAssets, request.Reason, cancellationToken);
     return MapProjectModerationResult(result);
 }).RequireAuthorization(AdminPolicies.RecoveryManage);
 

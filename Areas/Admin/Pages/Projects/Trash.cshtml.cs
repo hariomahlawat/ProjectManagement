@@ -19,7 +19,7 @@ public sealed class TrashModel : PageModel
 {
     private readonly IProjectRecoveryQueryService _query;
     private readonly ProjectModerationService _moderation;
-    private readonly IAdminAuditService _audit;
+    private readonly ILogger<TrashModel> _logger;
     private readonly IAdminNavigationUrlBuilder _navigation;
     private readonly IAdminTimeService _time;
     private readonly ProjectRetentionOptions _retention;
@@ -27,14 +27,14 @@ public sealed class TrashModel : PageModel
     public TrashModel(
         IProjectRecoveryQueryService query,
         ProjectModerationService moderation,
-        IAdminAuditService audit,
+        ILogger<TrashModel> logger,
         IAdminNavigationUrlBuilder navigation,
         IAdminTimeService time,
         IOptions<ProjectRetentionOptions> retention)
     {
         _query = query ?? throw new ArgumentNullException(nameof(query));
         _moderation = moderation ?? throw new ArgumentNullException(nameof(moderation));
-        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
         _time = time ?? throw new ArgumentNullException(nameof(time));
         _retention = retention?.Value ?? throw new ArgumentNullException(nameof(retention));
@@ -49,7 +49,7 @@ public sealed class TrashModel : PageModel
     public AdminPageHeaderModel Header { get; private set; } = new();
     public ProjectRecoveryPage<ProjectRecoveryRow> Result { get; private set; } =
         new(Array.Empty<ProjectRecoveryRow>(), 0, 1, 25);
-    public int RetentionDays => Math.Max(0, _retention.TrashRetentionDays);
+    public int RetentionDays => _retention.EffectiveTrashRetentionDays;
     public bool RemoveAssetsByDefault => _retention.RemoveAssetsOnPurge;
     public int DueCount => Result.Items.Count(row => row.IsPurgeDue);
     public long VisibleStoredBytes => Result.Items.Sum(row => row.StoredBytes);
@@ -110,31 +110,30 @@ public sealed class TrashModel : PageModel
             TempData[FlashMessageKeys.AdminRecoveryError] = "Acknowledge that permanent deletion cannot be undone.";
             return RedirectToPage(RouteValues());
         }
-        var reason = Command.Reason?.Trim();
-        if (string.IsNullOrWhiteSpace(reason) || reason.Length < 5)
+        // The reason and retention rules are enforced by the purge service, which records the
+        // purge (with this reason) in the same transaction as the deletion. A failed purge
+        // therefore leaves no record claiming it happened.
+        try
         {
-            TempData[FlashMessageKeys.AdminRecoveryError] = "Record a clear administrative reason for permanent deletion.";
-            return RedirectToPage(RouteValues());
+            result = await _moderation.PurgeAsync(
+                preview.ProjectId,
+                actor,
+                Command.RemoveAssets,
+                Command.Reason,
+                cancellationToken);
         }
-        if (reason.Length > 512)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            TempData[FlashMessageKeys.AdminRecoveryError] = "The permanent-deletion reason must be 512 characters or fewer.";
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Permanent deletion of project {ProjectId} failed", preview.ProjectId);
+            TempData[FlashMessageKeys.AdminRecoveryError] =
+                $"'{preview.Name}' could not be permanently deleted. Review the application log before trying again.";
             return RedirectToPage(RouteValues());
         }
 
-        await _audit.RecordAsync(
-            new AdminAuditEntry(
-                Action: "ProjectPurgeAuthorised",
-                EntityType: "Project",
-                EntityId: preview.ProjectId.ToString(),
-                Before: preview,
-                After: new { Command.RemoveAssets, Reason = reason },
-                Origin: "Admin.Recovery.ProjectTrash",
-                Level: "Warning",
-                Message: $"Permanent deletion authorised for project '{preview.Name}'. Reason: {reason}"),
-            cancellationToken);
-
-        result = await _moderation.PurgeAsync(preview.ProjectId, actor, Command.RemoveAssets, cancellationToken);
         SetResultMessage(result, $"Permanently deleted '{preview.Name}'.");
         return RedirectToPage(RouteValues());
     }

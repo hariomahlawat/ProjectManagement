@@ -116,6 +116,22 @@ The `MaxAge` exemption means an unread action-required notification can outlive 
 
 `ProjectOfficeReports:SocialMediaPhotos` mirrors the `VisitPhotos` block: override `MaxFileSizeBytes`, opt into `MinWidth` / `MinHeight` thresholds when desired, manage `AllowedContentTypes`, and adjust derivative presets per campaign. Keep the key names stable so generated assets continue to resolve even if you tweak dimensions or JPEG quality. The `StoragePrefix` placeholder can be replaced with nested folder names, but must retain an `{eventId}` token so uploads remain segregated per event. (see appsettings.json lines 94-105) (see Areas/ProjectOfficeReports/Application/SocialMediaPhotoOptions.cs lines 6-37)
 
+## Project trash and admin recovery
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `Projects:Retention:TrashRetentionDays` | `30` | Days a trashed project stays in Trash. `ProjectRetentionWorker` (daily) purges projects trashed longer ago than this, and an administrator cannot purge a project manually (Admin > Project trash, or `POST /api/projects/{id}/purge`) before it has passed. Values below `1` are treated as `30` and the worker logs a warning, so a mistyped `0` can never purge every trashed project. (see Configuration/ProjectRetentionOptions.cs, Services/Projects/ProjectRetentionWorker.cs) |
+| `Projects:Retention:RemoveAssetsOnPurge` | `true` | Whether the daily worker also deletes a purged project's upload directory. The admin Trash page asks per purge and defaults to this value. |
+| `AdminRecovery:DueSoonDays` | `7` | Projects this many days or fewer from purge show as "Due soon" in the Recovery centre and the Trash filter. Must be 1–90. |
+| `AdminRecovery:DefaultPageSize` / `MaximumPageSize` | `25` / `100` | Page sizes for the recovery lists. Default must be between 10 and the maximum; the maximum must be 10–500. |
+| `AdminRecovery:MaximumBulkDocuments` | `100` | Most documents one recycle-bin bulk restore or delete may process. Must be 1–500. |
+| `AdminRecovery:RecentOperationCount` | `8` | Rows in the Recovery centre's recent operations list. Must be 1–50. |
+| `AdminRecovery:LegacyImportPreviewRows` / `LegacyImportStagingMinutes` | `100` / `30` | Legacy project import preview size (10–1000) and how long a staged workbook is kept (5–240 minutes). |
+
+`AdminRecovery` values are validated at startup (see Configuration/AdminRecoveryOptionsValidator.cs).
+
+A manual purge always needs a reason (5–512 characters) and a project that has been in Trash for the full retention period; a project with no recorded deletion date must be restored and trashed again first. The purge, its reason and the project name are audited as `Projects.Purge` in the same transaction as the deletion.
+
 ## Data directories & backup automation
 
 | Key | Default | Purpose |
