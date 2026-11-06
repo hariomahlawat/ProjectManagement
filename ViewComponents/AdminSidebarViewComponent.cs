@@ -27,8 +27,12 @@ public sealed class AdminSidebarViewComponent : ViewComponent
             currentPage,
             HttpContext.Request.Query);
 
+        // A page reached through another page (a hub's own pages) is not in the sidebar; while
+        // it is open, the page that leads to it is highlighted instead.
+        var activeKey = activeEntry?.SidebarParent ?? activeEntry?.Key;
+
         var visibleEntries = new List<AdminSidebarItemViewModel>();
-        foreach (var entry in AdminNavigationCatalog.Entries.OrderBy(entry => entry.Order))
+        foreach (var entry in AdminNavigationCatalog.Entries.Where(entry => entry.InSidebar).OrderBy(entry => entry.Order))
         {
             if (!await IsAuthorizedAsync(entry))
             {
@@ -41,7 +45,31 @@ public sealed class AdminSidebarViewComponent : ViewComponent
                 Text = entry.Item.Text,
                 Icon = entry.Item.Icon,
                 Url = _urlBuilder.GetPath(HttpContext, entry.Item),
-                IsActive = string.Equals(entry.Key, activeEntry?.Key, StringComparison.Ordinal)
+                IsActive = string.Equals(entry.Key, activeKey, StringComparison.Ordinal),
+                Description = entry.Description,
+                Keywords = entry.Keywords
+            });
+        }
+
+        // Pages reached through a hub are not in the sidebar, but its filter still finds them:
+        // they are rendered as search-only links, shown only while the administrator types.
+        var searchOnly = new List<AdminSidebarItemViewModel>();
+        foreach (var entry in AdminNavigationCatalog.Entries.Where(entry => !entry.InSidebar).OrderBy(entry => entry.Order))
+        {
+            if (!await IsAuthorizedAsync(entry))
+            {
+                continue;
+            }
+
+            searchOnly.Add(new AdminSidebarItemViewModel
+            {
+                Key = entry.Key,
+                Text = entry.Item.Text,
+                Icon = entry.Item.Icon,
+                Url = _urlBuilder.GetPath(HttpContext, entry.Item),
+                IsActive = false,
+                Description = entry.Description,
+                Keywords = entry.Keywords
             });
         }
 
@@ -62,6 +90,7 @@ public sealed class AdminSidebarViewComponent : ViewComponent
         return View(new AdminSidebarViewModel
         {
             Groups = groups,
+            SearchOnlyItems = searchOnly,
             CurrentSection = activeEntry?.Item.Text ?? "Administration"
         });
     }
@@ -99,6 +128,9 @@ public sealed class AdminSidebarViewModel
         Array.Empty<AdminSidebarGroupViewModel>();
 
     public string CurrentSection { get; init; } = "Administration";
+
+    public IReadOnlyList<AdminSidebarItemViewModel> SearchOnlyItems { get; init; } =
+        Array.Empty<AdminSidebarItemViewModel>();
 }
 
 public sealed class AdminSidebarGroupViewModel
@@ -109,6 +141,8 @@ public sealed class AdminSidebarGroupViewModel
         Array.Empty<AdminSidebarItemViewModel>();
 
     public bool IsActive => Items.Any(item => item.IsActive);
+
+    public bool IsHome => string.Equals(Name, AdminNavigationGroups.Home, StringComparison.Ordinal);
 }
 
 public sealed class AdminSidebarItemViewModel
@@ -120,6 +154,10 @@ public sealed class AdminSidebarItemViewModel
     public string? Icon { get; init; }
 
     public string? Url { get; init; }
+
+    public string Description { get; init; } = string.Empty;
+
+    public string Keywords { get; init; } = string.Empty;
 
     public bool IsActive { get; init; }
 }

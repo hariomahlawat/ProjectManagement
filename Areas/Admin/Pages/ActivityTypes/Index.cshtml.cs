@@ -101,7 +101,7 @@ public sealed class IndexModel : PageModel
         {
             actions.Add(new AdminPageActionModel
             {
-                Text = "Master data centre",
+                Text = "Lists used in forms",
                 Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
                 Icon = "bi-arrow-left"
             });

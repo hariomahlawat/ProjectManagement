@@ -81,7 +81,10 @@ public sealed class AdminCapabilityCatalog : IAdminCapabilityCatalog
             Capability("media-configure", "Configure Media Library", "Maintain media-library configuration.", AdminPolicies.MediaConfigure, adminAndHod, AdminCapabilityRisk.High, "bi-gear"),
             Capability("media-operate", "Operate Media Queue", "Run authorised media-processing queue operations.", AdminPolicies.MediaOperateQueue, adminAndHod, AdminCapabilityRisk.High, "bi-list-check"),
             Capability("media-recover", "Recover Media", "Restore or reconcile recoverable media records.", AdminPolicies.MediaRecover, adminAndHod, AdminCapabilityRisk.High, "bi-recycle"),
-            Capability("media-classification", "Manage Media Classification", "Maintain controlled media classification values.", AdminPolicies.MediaClassificationManage, adminAndHod, AdminCapabilityRisk.High, "bi-tags")
+            Capability("media-classification", "Manage Media Classification", "Maintain controlled media classification values.", AdminPolicies.MediaClassificationManage, adminAndHod, AdminCapabilityRisk.High, "bi-tags"),
+            ExternalCapability("docrepo-delete-approve", "Approve Document Deletions", "Approve or reject requests to delete Document Repository files, and review unreadable or missing files.", Policies.Documents.DeleteApprove, Policies.Documents.DeleteApprovalRoles, AdminCapabilityRisk.High, "bi-file-earmark-x", Route("DocumentRepository", "/Admin/DeleteRequests/Index", "Document deletion approvals")),
+            ExternalCapability("docrepo-categories", "Manage Document Repository Lists", "Maintain the document types and offices used in the Document Repository.", Policies.Documents.ManageCategories, Policies.Documents.CategoryManagerRoles, AdminCapabilityRisk.Moderate, "bi-folder2", Route("DocumentRepository", "/Admin/DocumentCategories/Index", "Document types")),
+            ExternalCapability("docrepo-purge", "Delete Repository Files For Good", "Permanently delete Document Repository files from its Trash.", Policies.Documents.Purge, Policies.Documents.PurgeRoles, AdminCapabilityRisk.Critical, "bi-trash", Route("DocumentRepository", "/Admin/Trash/Index", "Trash"))
         };
     }
 

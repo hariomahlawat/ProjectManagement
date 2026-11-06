@@ -72,7 +72,7 @@ public sealed class IndexModel : PageModel
     private AdminPageHeaderModel BuildHeader() => new()
     {
         Eyebrow = "Master data · assurance",
-        Title = "Configuration integrity",
+        Title = "Data checks",
         Description = "Assess hierarchy, naming, reference and display-order integrity before controlled corrective action.",
         Icon = "bi-clipboard2-check",
         Actions = new[]
@@ -85,7 +85,7 @@ public sealed class IndexModel : PageModel
             },
             new AdminPageActionModel
             {
-                Text = "Master data centre",
+                Text = "Lists used in forms",
                 Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
                 Icon = "bi-arrow-left"
             }

@@ -103,13 +103,13 @@ public sealed class IngestExternalPdfsModel : PageModel
             {
                 new AdminPageActionModel
                 {
-                    Text = "Maintenance centre",
+                    Text = "Data jobs",
                     Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.MaintenanceCentre),
                     Icon = "bi-arrow-left"
                 },
                 new AdminPageActionModel
                 {
-                    Text = "Audit logs",
+                    Text = "Audit log",
                     Href = Url.Page("/Logs/Index", new { area = "Admin", Category = "pdf-ingestion" }) ?? "#",
                     Icon = "bi-journal-text"
                 }

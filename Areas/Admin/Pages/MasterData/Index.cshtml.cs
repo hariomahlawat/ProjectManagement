@@ -36,7 +36,7 @@ public sealed class IndexModel : PageModel
         Header = new AdminPageHeaderModel
         {
             Eyebrow = "Configuration governance",
-            Title = "Master data",
+            Title = "Lists used in forms",
             Description = "Maintain controlled taxonomies, reference lists and calendar configuration used throughout PRISM.",
             Icon = "bi-sliders2",
             Actions = new[]

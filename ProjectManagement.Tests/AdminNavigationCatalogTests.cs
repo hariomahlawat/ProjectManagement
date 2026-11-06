@@ -93,6 +93,93 @@ public sealed class AdminNavigationCatalogTests
         Assert.Null(ordinaryProjects);
     }
 
+    // docs/ux/admin-module.md: an administrator can find every page and setting, and every
+    // page says in one sentence what it is for.
+    [Fact]
+    public void EveryEntry_SaysWhatItIsForAndHowPeopleSearchForIt()
+    {
+        Assert.All(AdminNavigationCatalog.Entries, entry =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(entry.Description), $"{entry.Key} needs a description.");
+            Assert.EndsWith(".", entry.Description.Trim());
+            Assert.False(string.IsNullOrWhiteSpace(entry.Keywords), $"{entry.Key} needs search words.");
+        });
+    }
+
+    [Fact]
+    public void EveryEntry_OpensAPageThatExists()
+    {
+        var root = RepositoryRoot();
+        Assert.All(AdminNavigationCatalog.Entries, entry =>
+        {
+            var area = entry.Item.Area ?? string.Empty;
+            var pagesFolder = string.IsNullOrEmpty(area)
+                ? Path.Combine(root, "Pages")
+                : Path.Combine(root, "Areas", area, "Pages");
+            var file = Path.Combine(pagesFolder, entry.Item.Page!.TrimStart('/').Replace('/', Path.DirectorySeparatorChar) + ".cshtml");
+            Assert.True(File.Exists(file), $"{entry.Key} points to {area}{entry.Item.Page}, which does not exist.");
+        });
+    }
+
+    [Fact]
+    public void Sidebar_IsShortAndGroupedByTask()
+    {
+        var sidebar = AdminNavigationCatalog.Entries.Where(entry => entry.InSidebar).ToArray();
+
+        Assert.InRange(sidebar.Length, 10, 20);
+        Assert.Equal(AdminNavigationCatalog.BuildModuleItems().Count, sidebar.Length);
+        Assert.All(AdminNavigationGroups.Ordered, group => Assert.Contains(sidebar, entry => entry.Group == group));
+    }
+
+    [Fact]
+    public void PagesOutsideTheSidebar_PointToASidebarEntryOrStaySearchable()
+    {
+        var byKey = AdminNavigationCatalog.Entries.ToDictionary(entry => entry.Key, StringComparer.Ordinal);
+        Assert.All(AdminNavigationCatalog.Entries.Where(entry => entry.SidebarParent is not null), entry =>
+        {
+            Assert.False(entry.InSidebar);
+            Assert.True(byKey.TryGetValue(entry.SidebarParent!, out var parent));
+            Assert.True(parent!.InSidebar);
+        });
+    }
+
+    [Theory]
+    [InlineData("DocumentRepository", "/Admin/Trash/Index")]
+    [InlineData("DocumentRepository", "/Admin/DeleteRequests/Index")]
+    [InlineData("", "/Admin/MediaSources/Index")]
+    public void PagesFromOtherModules_KeepTheirOwnLayout(string area, string page)
+    {
+        Assert.NotNull(AdminNavigationCatalog.FindActiveEntry(area, page, new QueryCollection()));
+        Assert.False(AdminNavigationCatalog.IsInScope(area, page, null, null, new QueryCollection()));
+    }
+
+    [Fact]
+    public void HubPages_HighlightTheirSidebarEntry()
+    {
+        Assert.Equal(
+            AdminNavigationKeys.RecoveryCentre,
+            AdminNavigationCatalog.GetEntry(AdminNavigationKeys.ProjectTrash).SidebarParent);
+        Assert.Equal(
+            AdminNavigationKeys.MasterDataCentre,
+            AdminNavigationCatalog.GetEntry(AdminNavigationKeys.SponsoringUnits).SidebarParent);
+    }
+
+    private static string RepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
+    }
+
     [Fact]
     public void AdminArea_IsAlwaysRecognisedAsAdministrationScope()
     {

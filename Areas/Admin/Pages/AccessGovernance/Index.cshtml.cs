@@ -90,7 +90,7 @@ public sealed class IndexModel : PageModel
     private AdminPageHeaderModel BuildHeader() => new()
     {
         Eyebrow = "Access & security",
-        Title = "Access governance",
+        Title = "Who has which role",
         Description = "Review privileged role holdings, policy coverage and account conditions requiring administrator attention.",
         Icon = "bi-shield-check",
         Actions = new[]

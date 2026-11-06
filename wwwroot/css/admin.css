@@ -2889,6 +2889,8 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-sidebar__nav { padding-top: .35rem; }
 .admin-sidebar__group { padding: .2rem 0 .38rem; }
 .admin-sidebar__group + .admin-sidebar__group { margin-top: .08rem; padding-top: .48rem; }
+/* Home is a single entry: no group heading above it. */
+.admin-sidebar__group--home > .admin-sidebar__group-label { display: none; }
 .admin-sidebar__group-label {
     display: flex;
     min-height: 1.65rem;

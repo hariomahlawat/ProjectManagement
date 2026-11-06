@@ -289,14 +289,14 @@ public sealed class IndexModel : PageModel
         Header = new AdminPageHeaderModel
         {
             Eyebrow = "Monitoring",
-            Title = "Audit logs",
+            Title = "Audit log",
             Description = "Trace administrative actions, affected records and security-relevant system events.",
             Icon = "bi-journal-text",
             Actions = new[]
             {
                 new AdminPageActionModel
                 {
-                    Text = "Login activity",
+                    Text = "Sign-in activity",
                     Href = Url.Page("/Analytics/Logins", new { area = "Admin" }),
                     Icon = "bi-graph-up-arrow"
                 },

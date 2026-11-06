@@ -100,7 +100,7 @@
             currentAction,
             Context.Request.Query);
         var isUsagePage = string.Equals(currentPage, "/Usage/Index", StringComparison.OrdinalIgnoreCase);
-        var useAdminModuleShell = isAdminModulePage && (!isUsagePage || User.IsInRole(RoleNames.Admin));
+        var useAdminModuleShell = isAdminModulePage && User.IsInRole(RoleNames.Admin);
         var usageModuleKey = signedIn ? ErpUsageModules.ResolvePath(Context.Request.Path) : null;
         var isCalendarPrimaryPage = isCalendarPage && !useAdminModuleShell;
 
