@@ -11,7 +11,7 @@
     <section class="admin-panel admin-maintenance-card" aria-labelledby="pdf-maintenance-title">
         <header class="admin-panel__header">
             <div><div class="admin-panel__eyebrow">Document repository</div><h2 id="pdf-maintenance-title">PDF ingestion</h2></div>
-            <span class="admin-status-pill admin-status-pill--@(Model.Summary.PdfIngestionRunning ? "warning" : Model.Summary.LastPdfRun?.Status == "Failed" ? "danger" : "success")">
+            <span class="admin-status-pill admin-status-pill--@(Model.Summary.PdfIngestionRunning ? "warning" : Model.Summary.LastPdfRun?.Status switch { "Failed" => "danger", "Completed" or null => "success", _ => "warning" })">
                 @(Model.Summary.PdfIngestionRunning ? "Running" : Model.Summary.LastPdfRun?.Status ?? "Ready")
             </span>
         </header>

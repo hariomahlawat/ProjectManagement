@@ -23,4 +23,10 @@ public sealed record AdminPageActionModel
     public string? Icon { get; init; }
 
     public bool IsPrimary { get; init; }
+
+    /// <summary>
+    /// Render as a POST form button (with the antiforgery token) instead of a link, for an
+    /// action that does work rather than navigate.
+    /// </summary>
+    public bool UsesPost { get; init; }
 }
