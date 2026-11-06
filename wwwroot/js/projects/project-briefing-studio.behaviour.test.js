@@ -423,3 +423,20 @@ test('Present starts at the slide in view, with notes and the strip on request',
   assert.equal(viewer.open, false);
   assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 1 of 5/, 'the Studio shows the slide Present ended on');
 });
+
+test('Present shows the notes of the project on the slide, not of a left-out project selected in the Studio', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload({
+    projects: PROJECTS.map((item) => ({ ...item, speakerNotes: `Notes for ${item.projectName}` }))
+  }));
+  await settle(window);
+  outlineRow(document, 'Delta kit').click();
+
+  document.querySelector('[data-pbd-preview-open]').click();
+  const viewer = document.querySelector('[data-pbd-viewer]');
+  document.querySelector('[data-pbd-viewer-first]').click();
+  viewer.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+  assert.equal(document.querySelector('[data-pbd-viewer-counter]').textContent, '2 / 5');
+  assert.equal(document.querySelector('[data-pbd-viewer-notes-text]').textContent, 'Notes for Alpha simulator');
+});

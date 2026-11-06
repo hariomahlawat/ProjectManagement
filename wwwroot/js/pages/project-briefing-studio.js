@@ -1199,8 +1199,9 @@ if (root) {
   let enteredFullscreen = false;
 
   // The notes the PowerPoint carries for the project on this slide (saved text, not a draft).
+  // The slide's own outline says whose it is; the Studio's selection may be a left-out project.
   const viewerNotesFor = (index) => {
-    const projectId = entryForIndex(index)?.projectId;
+    const projectId = outlineItems[index]?.projectId;
     const project = projectId ? projects.get(projectId) : null;
     if (!project) return 'No speaker notes: this slide is not about one project.';
     return (project.speakerNotes || '').trim() || `No speaker notes for ${project.projectName}. Write them in This slide.`;
