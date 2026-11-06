@@ -1,13 +1,15 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Documents.RecycleModel
 @{
-    ViewData["Title"] = "Document recycle bin";
+    ViewData["Title"] = "Deleted project documents";
     var firstItem = Model.Result.TotalCount == 0 ? 0 : ((Model.Result.Page - 1) * Model.Result.PageSize) + 1;
     var lastItem = Math.Min(Model.Result.TotalCount, Model.Result.Page * Model.Result.PageSize);
 }
 
 <partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+@await Component.InvokeAsync("RestoreTabs", new { active = ProjectManagement.Services.Admin.Recovery.AdminRestoreTabKeys.ProjectDocuments })
 
 <section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Document recovery summary">
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Recoverable documents</span><small>Current filter scope</small></span></article>

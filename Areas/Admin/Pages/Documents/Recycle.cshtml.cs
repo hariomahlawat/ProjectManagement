@@ -184,19 +184,9 @@ public sealed class RecycleModel : PageModel
         PageSize = Result.PageSize;
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Recovery and retention",
-            Title = "Document recycle bin",
-            Description = "Restore project documents or permanently remove selected records and stored files through a controlled operation.",
-            Icon = "bi-recycle",
-            Actions = new[]
-            {
-                new AdminPageActionModel
-                {
-                    Text = "Restore deleted items",
-                    Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.RecoveryCentre),
-                    Icon = "bi-arrow-left"
-                }
-            }
+            Title = "Restore deleted items",
+            Description = "Documents removed from projects. Restore puts a document back on its project. They stay here until an administrator deletes them for good, which also removes the stored file.",
+            Icon = "bi-arrow-counterclockwise"
         };
     }
 

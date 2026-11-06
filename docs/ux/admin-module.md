@@ -166,6 +166,30 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
   Repository and social media lists.
 - **Data jobs** (on the Maintenance route): PDF ingestion and legacy import with their last run.
 
+**Shipped in PR 5:** one tab strip (`RestoreTabs` view component, counts from
+`IAdminRestoreTabsService`) over every bin.
+
+| Tab | Page (address unchanged) |
+| --- | --- |
+| Overview | `/Admin/Recovery`: each kind, how many can come back, how long it is kept, and recent restores and permanent deletions |
+| Projects | `/Admin/Projects/Trash` |
+| Project documents | `/Admin/Documents/Recycle` |
+| Repository documents | the Document Repository's Trash, which opens in that module |
+| Calendar events | `/Admin/Calendar/Deleted` |
+| Chat files | Chat file storage, at its undo list |
+
+- Each tab keeps its own page, filters and confirmed restore and delete-for-good actions. Old
+  links open the matching tab, and no handler or permission changed.
+- The bin pages share the heading "Restore deleted items" and say in one sentence what restoring
+  does and how long items are kept. In search they are "Deleted projects", "Deleted project
+  documents", "Deleted calendar events" and "Deleted repository documents".
+- A tab appears only if the viewer can open its page.
+- Home's restore tile adds up the same tab counts, so Home and the page always agree.
+- Projects past their retention are deleted automatically, so purges due are not a "To look at"
+  item.
+- Fixed in passing: deleted calendar events are hidden by a query filter, so they were counted
+  as 0; the counts now lift that filter.
+
 ### Compatibility
 
 - Every current URL keeps working: merged pages answer on their old routes or redirect to the

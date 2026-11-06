@@ -96,19 +96,9 @@ public sealed class DeletedModel : PageModel
         PageSize = Result.PageSize;
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Recovery and retention",
-            Title = "Deleted calendar events",
-            Description = "Review removed calendar records and restore the original event or recurring series to the shared calendar.",
-            Icon = "bi-calendar-x",
-            Actions = new[]
-            {
-                new AdminPageActionModel
-                {
-                    Text = "Restore deleted items",
-                    Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.RecoveryCentre),
-                    Icon = "bi-arrow-left"
-                }
-            }
+            Title = "Restore deleted items",
+            Description = "Events removed from the shared calendar. Restore puts the event, or the whole repeating series, back on the calendar. They stay here until someone restores them.",
+            Icon = "bi-arrow-counterclockwise"
         };
     }
 

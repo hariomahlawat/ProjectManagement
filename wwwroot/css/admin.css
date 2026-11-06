@@ -4286,3 +4286,91 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-home-recent__meta { color: var(--admin-text-muted); font-variant-numeric: tabular-nums; }
 .admin-home-recent__empty,
 .admin-home-recent__more { margin: .6rem 0 0; font-size: .82rem; }
+
+/* =========================================================================
+   Restore deleted items: one tab strip over every bin page, and the Overview tab.
+   ========================================================================= */
+.admin-restore-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+    margin: .8rem 0 .9rem;
+    border-bottom: 1px solid var(--admin-border);
+}
+.admin-restore-tabs__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin-bottom: -1px;
+    padding: .55rem .75rem;
+    border-bottom: 2px solid transparent;
+    color: var(--admin-text-secondary);
+    font-size: .84rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+.admin-restore-tabs__tab:hover { color: var(--admin-text); }
+.admin-restore-tabs__tab:focus-visible { outline: 2px solid var(--admin-primary); outline-offset: -2px; }
+.admin-restore-tabs__tab.is-active {
+    border-bottom-color: var(--admin-primary);
+    color: var(--admin-primary-strong);
+}
+.admin-restore-tabs__tab i { font-size: .7rem; opacity: .75; }
+.admin-restore-tabs__count {
+    min-width: 1.4rem;
+    padding: .02rem .4rem;
+    border-radius: 999px;
+    background: var(--admin-surface-muted);
+    color: var(--admin-text-secondary);
+    font-size: .7rem;
+    font-weight: 800;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.admin-restore-tabs__tab.is-active .admin-restore-tabs__count {
+    background: var(--admin-primary-soft);
+    color: var(--admin-primary-strong);
+}
+
+.admin-restore-overview { margin-bottom: .9rem; }
+.admin-restore-overview__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .25rem 1rem;
+    padding: .85rem 1rem .35rem;
+}
+.admin-restore-overview__header h2 { margin: 0; font-size: 1rem; font-weight: 780; }
+.admin-restore-overview__header small { color: var(--admin-text-muted); font-size: .74rem; }
+.admin-restore-overview__list { display: grid; margin: 0; padding: .2rem .5rem .5rem; list-style: none; }
+.admin-restore-overview__list li + li { border-top: 1px solid var(--admin-border); }
+.admin-restore-overview__kind {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .8rem;
+    padding: .65rem .5rem;
+    border-radius: var(--admin-radius-sm);
+    color: var(--admin-text);
+    text-decoration: none;
+}
+.admin-restore-overview__kind:hover,
+.admin-restore-overview__kind:focus-visible { background: var(--admin-surface-subtle); color: var(--admin-text); }
+.admin-restore-overview__count {
+    color: var(--admin-text);
+    font-size: 1.3rem;
+    font-weight: 800;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.admin-restore-overview__copy strong { display: block; font-size: .9rem; }
+.admin-restore-overview__copy span { color: var(--admin-text-secondary); font-size: .8rem; }
+.admin-restore-overview__kind > i { color: var(--admin-text-muted); }
+.admin-restore-overview__note {
+    margin: 0;
+    padding: .7rem 1rem;
+    border-top: 1px solid var(--admin-border);
+    color: var(--admin-text-secondary);
+    font-size: .82rem;
+}
