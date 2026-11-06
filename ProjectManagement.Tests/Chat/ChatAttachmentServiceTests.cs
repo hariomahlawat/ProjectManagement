@@ -593,8 +593,11 @@ public sealed class ChatAttachmentServiceTests
         var batch = Assert.Single(await scope.Storage.ListBatchesAsync());
         Assert.True(batch.CanUndo);
         Assert.Equal((2, 2), (batch.Files, batch.People));
+        // Restore deleted items counts exactly what an undo would bring back.
+        Assert.Equal(2, await scope.Storage.CountRestorableByAdministratorAsync());
         var undone = await scope.Storage.UndoBatchAsync("dave", "Dave Dutta", batch.BatchId);
         Assert.Equal(2, undone.Change.Files);
+        Assert.Equal(0, await scope.Storage.CountRestorableByAdministratorAsync());
         Assert.NotNull(await scope.Files.OpenAsync("bob", alicesOld.Id, thumbnail: false));
         Assert.Equal("Chat.AttachmentsRestored", scope.Audit.Entries.Last().Action);
         Assert.NotNull((await scope.Storage.UndoBatchAsync("dave", null, batch.BatchId)).Change.Error);
@@ -615,6 +618,7 @@ public sealed class ChatAttachmentServiceTests
         Assert.False(File.Exists(scope.PathOf(key)));
         var batch = Assert.Single(await scope.Storage.ListBatchesAsync());
         Assert.False(batch.CanUndo);
+        Assert.Equal(0, await scope.Storage.CountRestorableByAdministratorAsync());
     }
 
     [Fact]

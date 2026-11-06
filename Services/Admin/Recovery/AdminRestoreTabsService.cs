@@ -91,7 +91,7 @@ public sealed class AdminRestoreTabsService : IAdminRestoreTabsService
             // Deleted events are hidden by a query filter everywhere else, so it is lifted here.
             () => _db.Events.IgnoreQueryFilters().AsNoTracking().CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.ChatFiles, "Chat files", AdminNavigationKeys.ChatStorage, true,
-            async () => (await _chat.ListBatchesAsync(cancellationToken)).Where(batch => batch.CanUndo).Sum(batch => batch.Files),
+            () => _chat.CountRestorableByAdministratorAsync(cancellationToken),
             // Chat files open at the clean-ups that can be undone, not at the top of the page.
             fragment: "chatStorageBatches");
 

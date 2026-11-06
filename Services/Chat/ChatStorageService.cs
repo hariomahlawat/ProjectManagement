@@ -286,6 +286,18 @@ public sealed class ChatStorageService
     }
 
     /// <summary>
+    /// How many files an administrator can still bring back by undoing clean-ups: the same rule
+    /// <see cref="UndoBatchAsync"/> restores by, across every clean-up (not only the recent list).
+    /// </summary>
+    public Task<int> CountRestorableByAdministratorAsync(CancellationToken cancellationToken = default)
+    {
+        var undoFrom = _clock.UtcNow - Settings.UndoWindow;
+        return Restorable(undoFrom, ChatAttachmentRemovalReason.Administrator, ChatAttachmentRemovalReason.Retention)
+            .Where(a => a.RemovalBatchId != null)
+            .CountAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// An administrator undoes a clean-up (theirs, another administrator's, or a retention run)
     /// within the window: every file of it not yet deleted from disk is restored. Allowances are
     /// not checked; the files were there before.
