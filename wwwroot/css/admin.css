@@ -4490,3 +4490,18 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 @media (prefers-reduced-motion: reduce) {
     .admin-list-card { transition: none; }
 }
+
+/* System health: the Search group links to the Search index page (PR 7). */
+.admin-health-domain__more {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .25rem .8rem;
+    padding: .7rem 1rem;
+    border-top: 1px solid var(--admin-border);
+    color: var(--admin-text-secondary);
+    font-size: .8rem;
+}
+.admin-health-domain__more a { font-weight: 700; text-decoration: none; }
+/* Data jobs: the one-line note below the two jobs. */
+.admin-data-jobs__note { margin: .9rem 0 0; align-items: center; }

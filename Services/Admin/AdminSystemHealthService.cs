@@ -3,6 +3,8 @@ using System.Reflection;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.SearchV2;
+using ProjectManagement.Services.SearchV2.Indexing;
 using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Admin;
@@ -64,6 +66,8 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     private readonly IWebHostEnvironment _environment;
     private readonly IConfiguration _configuration;
     private readonly IAdminWorkerStatusRegistry _workers;
+    private readonly ISearchIndexStore _searchIndex;
+    private readonly IOptions<SearchV2Options> _searchOptions;
     private readonly IMemoryCache _cache;
     private readonly ILogger<AdminSystemHealthService> _logger;
 
@@ -74,6 +78,8 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         IWebHostEnvironment environment,
         IConfiguration configuration,
         IAdminWorkerStatusRegistry workers,
+        ISearchIndexStore searchIndex,
+        IOptions<SearchV2Options> searchOptions,
         IMemoryCache cache,
         ILogger<AdminSystemHealthService> logger)
     {
@@ -83,6 +89,8 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _workers = workers ?? throw new ArgumentNullException(nameof(workers));
+        _searchIndex = searchIndex ?? throw new ArgumentNullException(nameof(searchIndex));
+        _searchOptions = searchOptions ?? throw new ArgumentNullException(nameof(searchOptions));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -124,6 +132,16 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             "Data Protection key storage",
             token => CheckDataProtectionDirectoryAsync(dataProtectionRoot, token),
             "Configure DP_KEYS_DIR to a persistent writable directory shared by the deployed application instance.",
+            cancellationToken));
+
+        // Search is part of PRISM's health: items that could not be indexed are missing from
+        // results until someone retries them (docs/ux/admin-module.md, PR 7).
+        checks.Add(await RunAsync(
+            "search-index",
+            "Search",
+            "Search index",
+            CheckSearchIndexAsync,
+            "Open Search index to retry the items that failed, or rebuild the index.",
             cancellationToken));
 
         checks.Add(BuildDiskSpaceCheck(_uploads.RootPath));
@@ -452,7 +470,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 worker.Label,
                 status,
                 summary,
-                string.Join(" · ", details) + ".",
+                EndSentence(string.Join(" · ", details)),
                 status is AdminHealthStatus.Warning or AdminHealthStatus.Critical
                     ? "Review application logs and the worker schedule or configuration."
                     : null,
@@ -460,6 +478,48 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 now);
         }
     }
+
+    private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckSearchIndexAsync(CancellationToken cancellationToken)
+    {
+        var index = await _searchIndex.GetHealthAsync(cancellationToken);
+        return SearchIndexResult(index, _searchOptions.Value.ProjectionVersion);
+    }
+
+    // Search answers only from an index built for this version of PRISM (SearchEngine rejects any
+    // other version), so a version mismatch is "not ready" even when nothing has failed.
+    internal static (AdminHealthStatus Status, string Summary, string? Detail) SearchIndexResult(
+        ProjectManagement.Services.SearchV2.Models.SearchIndexHealth index,
+        int requiredProjectionVersion)
+    {
+        var detail = $"{index.EntryCount:N0} items searchable · {index.PendingItems:N0} waiting to be indexed.";
+        if (index.IsReady && index.IndexVersion != requiredProjectionVersion)
+        {
+            return (
+                AdminHealthStatus.Warning,
+                "The search index was built for a different version of PRISM, so search shows no results until it is rebuilt.",
+                $"Index version {index.IndexVersion}; this version of PRISM needs {requiredProjectionVersion}. " + detail);
+        }
+
+        if (!index.IsReady)
+        {
+            return (AdminHealthStatus.Warning, "The search index is not ready yet, so search shows few or no results.", detail);
+        }
+
+        if (index.FailedItems > 0)
+        {
+            return (
+                AdminHealthStatus.Warning,
+                index.FailedItems == 1
+                    ? "1 item could not be added to search, so it is missing from results."
+                    : $"{index.FailedItems:N0} items could not be added to search, so they are missing from results.",
+                detail);
+        }
+
+        return (AdminHealthStatus.Healthy, "Search is up to date.", detail);
+    }
+
+    internal static string EndSentence(string text) =>
+        text.EndsWith('.') ? text : text + ".";
 
     private string ResolvePath(string configuredPath)
     {

@@ -22,7 +22,7 @@
     <div class="admin-health-check__body">
         <div class="admin-health-check__heading">
             <strong>@Model.Label</strong>
-            <span class="admin-status-pill admin-status-pill--@tone">@(Model.Status == AdminHealthStatus.Unavailable ? "Starting / unavailable" : Model.Status.ToString())</span>
+            <span class="admin-status-pill admin-status-pill--@tone">@(Model.Status switch { AdminHealthStatus.Unavailable => "Not run yet", AdminHealthStatus.Healthy => "OK", AdminHealthStatus.Warning => "Worth a look", _ => "Not working" })</span>
         </div>
         <p>@Model.Summary</p>
         @if (!string.IsNullOrWhiteSpace(Model.Detail))

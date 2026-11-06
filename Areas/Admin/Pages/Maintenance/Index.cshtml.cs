@@ -34,19 +34,9 @@ public sealed class IndexModel : PageModel
         Summary = await _summary.GetAsync(cancellationToken);
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Controlled maintenance",
             Title = "Data jobs",
-            Description = "Run governed ingestion and legacy-data operations with validation, auditability and clear outcomes.",
-            Icon = "bi-tools",
-            Actions = new[]
-            {
-                new AdminPageActionModel
-                {
-                    Text = "Restore deleted items",
-                    Href = Path(AdminNavigationKeys.RecoveryCentre),
-                    Icon = "bi-arrow-counterclockwise"
-                }
-            }
+            Description = "Jobs that bring data into PRISM in bulk. Each one checks its input first and records what it did in the audit log.",
+            Icon = "bi-tools"
         };
     }
 
