@@ -338,6 +338,32 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Empty((await host.SearchAsync("ospreyfalcon")).Results);
     }
 
+    // Regression for 42P08 "could not determine data type of parameter $4": re-indexing any
+    // record other than a project passes a null @projectId to "@projectId IS NOT NULL", which
+    // PostgreSQL cannot type unless the parameter is. 27 work items failed this way on 23-25 Oct
+    // 2026 (fixed in 6822b2dc6) with nothing in CI to catch it.
+    [SearchV2PostgresFact]
+    public async Task ReindexingARecordThatIsNotAProject_SucceedsOnPostgres()
+    {
+        await using var host = _database.CreateHost();
+        var projectId = await host.SeedProjectAsync("Kestrelwing regression project");
+        var documentId = await host.SeedProjectDocumentAsync(projectId, "Kestrelwing regression document");
+        await host.ResetIndexStateAsync();
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(1, await host.CountEntriesAsync("ProjectDocument", documentId.ToString()));
+
+        // Through the worker, as a queued change would be: the item must not end up failed.
+        await host.WithStoreAsync(store => store.EnqueueAsync("ProjectDocument", documentId.ToString(), CancellationToken.None));
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(0L, await host.ScalarAsync<long>("""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "Status" = 3 OR "LastError" LIKE '%42P08%';"""));
+        Assert.Equal(1, await host.CountEntriesAsync("ProjectDocument", documentId.ToString()));
+
+        // Directly: replacing a non-project entity with nothing removes it without error.
+        await host.WithStoreAsync(store => store.ReplaceEntityAsync(
+            "ProjectDocument", documentId.ToString(), Array.Empty<SearchProjection>(), host.ProjectionVersion, CancellationToken.None));
+        Assert.Equal(0, await host.CountEntriesAsync("ProjectDocument", documentId.ToString()));
+    }
+
     [SearchV2PostgresFact]
     public async Task TrashedAndArchivedProjectDocuments_StayOutAfterAFullRebuild()
     {
