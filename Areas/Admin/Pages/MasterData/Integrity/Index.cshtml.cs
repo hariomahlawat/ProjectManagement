@@ -40,7 +40,7 @@ public sealed class IndexModel : PageModel
         if (!acknowledge)
         {
             TempData[FlashMessageKeys.AdminMasterDataError] =
-                "Confirm that you reviewed the integrity findings before applying the repair.";
+                "Tick the box to confirm you looked at what will change.";
             return RedirectToPage(new { focus = checkKey });
         }
 
@@ -63,26 +63,19 @@ public sealed class IndexModel : PageModel
 
     public string StatusLabel(MasterDataIntegrityStatus status) => status switch
     {
-        MasterDataIntegrityStatus.Healthy => "Healthy",
-        MasterDataIntegrityStatus.Warning => "Review",
-        MasterDataIntegrityStatus.Critical => "Critical",
+        MasterDataIntegrityStatus.Healthy => "OK",
+        MasterDataIntegrityStatus.Warning => "Worth a look",
+        MasterDataIntegrityStatus.Critical => "Needs fixing",
         _ => "Unknown"
     };
 
     private AdminPageHeaderModel BuildHeader() => new()
     {
-        Eyebrow = "Master data · assurance",
         Title = "Data checks",
-        Description = "Assess hierarchy, naming, reference and display-order integrity before controlled corrective action.",
+        Description = "Checks the lists used in forms for problems: values out of order, duplicate names, broken parent links and holiday mistakes. Each check says what it looks for.",
         Icon = "bi-clipboard2-check",
         Actions = new[]
         {
-            new AdminPageActionModel
-            {
-                Text = "Integrity guidance",
-                Href = (Url.Page("/Help/Index", new { area = "Admin" }) ?? "/Admin/Help") + "#configuration-integrity",
-                Icon = "bi-question-circle"
-            },
             new AdminPageActionModel
             {
                 Text = "Lists used in forms",

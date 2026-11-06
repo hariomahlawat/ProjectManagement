@@ -67,9 +67,9 @@ public sealed class DbHealthModel : PageModel
     public string StatusLabel(AdminHealthStatus status) => status switch
     {
         AdminHealthStatus.Healthy => "Healthy",
-        AdminHealthStatus.Warning => "Attention required",
-        AdminHealthStatus.Critical => "Critical",
-        _ => "Starting / unknown"
+        AdminHealthStatus.Warning => "Some checks need a look",
+        AdminHealthStatus.Critical => "Something is not working",
+        _ => "Not run yet"
     };
 
     public string FormatBytes(long? bytes)
@@ -90,9 +90,8 @@ public sealed class DbHealthModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Monitoring",
             Title = "System health",
-            Description = "Verify database, migration, storage, security and background-service readiness.",
+            Description = "Whether PRISM's database, file storage, search and background jobs are working. Run the checks again after fixing something.",
             Icon = "bi-heart-pulse",
             Actions = new[]
             {
@@ -129,7 +128,7 @@ public sealed class DbHealthModel : PageModel
             {
                 Label = "Warnings",
                 Value = Snapshot.WarningCount.ToString("N0"),
-                Detail = "Review recommended",
+                Detail = "Worth a look",
                 Icon = "bi-exclamation-triangle",
                 Tone = Snapshot.WarningCount > 0 ? "warning" : "neutral"
             },
@@ -137,15 +136,15 @@ public sealed class DbHealthModel : PageModel
             {
                 Label = "Critical",
                 Value = Snapshot.CriticalCount.ToString("N0"),
-                Detail = "Immediate action required",
+                Detail = "Need fixing now",
                 Icon = "bi-x-octagon",
                 Tone = Snapshot.CriticalCount > 0 ? "danger" : "neutral"
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Starting / unknown",
+                Label = "Not run yet",
                 Value = Snapshot.UnavailableCount.ToString("N0"),
-                Detail = "Checks not yet conclusive",
+                Detail = "Jobs that have not run since PRISM started",
                 Icon = "bi-hourglass-split",
                 Tone = "neutral"
             },
@@ -165,7 +164,8 @@ public sealed class DbHealthModel : PageModel
         "Database" => 0,
         "Storage" => 1,
         "Application security" => 2,
-        "Background services" => 3,
+        "Search" => 3,
+        "Background services" => 4,
         _ => 9
     };
 

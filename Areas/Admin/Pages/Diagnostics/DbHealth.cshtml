@@ -20,27 +20,26 @@
 <section class="admin-health-overview admin-health-overview--@overallTone" aria-labelledby="health-overview-title">
     <span class="admin-health-overview__icon" aria-hidden="true"><i class="bi @Model.StatusIcon(health.OverallStatus)"></i></span>
     <div class="admin-health-overview__copy">
-        <div class="admin-panel__eyebrow">Operational assurance</div>
         <h2 id="health-overview-title">@Model.StatusLabel(health.OverallStatus)</h2>
         <p>
             @if (health.OverallStatus == AdminHealthStatus.Healthy)
             {
-                <text>All completed checks are reporting a healthy state.</text>
+                <text>Everything that was checked is working.</text>
             }
             else if (health.OverallStatus == AdminHealthStatus.Critical)
             {
-                <text>One or more critical checks require immediate administrator action.</text>
+                <text>At least one check failed. Its row below says what to do.</text>
             }
             else
             {
-                <text>One or more checks require review before the next operational or deployment activity.</text>
+                <text>Some checks have warnings or have not run yet. Each row below says what it found.</text>
             }
         </p>
     </div>
     <div class="admin-health-overview__meta">
         <span>Checked</span>
         <strong>@Model.FormatIst(health.CheckedUtc)</strong>
-        <small>Results are cached for 45 seconds unless refreshed.</small>
+        <small>Opening this page reuses results for 45 seconds; "Run checks again" runs them now.</small>
     </div>
 </section>
 
@@ -73,7 +72,6 @@
         <section class="admin-panel admin-health-domain" aria-labelledby="@groupId">
             <header class="admin-panel__header">
                 <div>
-                    <div class="admin-panel__eyebrow">Assurance domain</div>
                     <h2 id="@groupId">@group.Key</h2>
                 </div>
                 <div class="admin-health-domain__summary">
@@ -87,11 +85,11 @@
                     }
                     @if (unavailable > 0)
                     {
-                        <span class="admin-status-pill admin-status-pill--neutral">@unavailable starting / unavailable</span>
+                        <span class="admin-status-pill admin-status-pill--neutral">@unavailable not run yet</span>
                     }
                     @if (critical == 0 && warnings == 0 && unavailable == 0)
                     {
-                        <span class="admin-status-pill admin-status-pill--success">Healthy</span>
+                        <span class="admin-status-pill admin-status-pill--success">All OK</span>
                     }
                 </div>
             </header>
@@ -101,6 +99,13 @@
                     <partial name="~/Areas/Admin/Pages/Shared/_AdminHealthCheckRow.cshtml" model="check" />
                 }
             </div>
+            @if (group.Key == "Search")
+            {
+                <footer class="admin-health-domain__more">
+                    <a asp-area="Admin" asp-page="/Diagnostics/SearchIndex">Open Search index <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                    <span>Retry items that failed, rebuild the index, or see why a result ranks where it does.</span>
+                </footer>
+            }
         </section>
     }
 </div>
@@ -109,14 +114,13 @@
     <article class="admin-panel">
         <header class="admin-panel__header">
             <div>
-                <div class="admin-panel__eyebrow">Deployment readiness</div>
-                <h2>Pending migrations</h2>
+                <h2>Database updates not yet applied</h2>
             </div>
             <span class="admin-panel__meta">@database.PendingMigrations.Count</span>
         </header>
         @if (database.PendingMigrations.Count == 0)
         {
-            <div class="admin-compact-empty"><i class="bi bi-check-circle" aria-hidden="true"></i><span>No pending migrations were detected.</span></div>
+            <div class="admin-compact-empty"><i class="bi bi-check-circle" aria-hidden="true"></i><span>None. The database is up to date with this version of PRISM.</span></div>
         }
         else
         {
@@ -132,20 +136,19 @@
     <article class="admin-panel">
         <header class="admin-panel__header">
             <div>
-                <div class="admin-panel__eyebrow">Migration lineage</div>
-                <h2>Applied but missing from assembly</h2>
+                <h2>Database updates this version does not know</h2>
             </div>
             <span class="admin-panel__meta">@database.AppliedButMissingMigrations.Count</span>
         </header>
         @if (database.AppliedButMissingMigrations.Count == 0)
         {
-            <div class="admin-compact-empty"><i class="bi bi-check-circle" aria-hidden="true"></i><span>The deployed migration assembly matches database history.</span></div>
+            <div class="admin-compact-empty"><i class="bi bi-check-circle" aria-hidden="true"></i><span>None. This version of PRISM knows every update applied to the database.</span></div>
         }
         else
         {
             <div class="admin-inline-notice admin-inline-notice--danger">
                 <i class="bi bi-x-octagon" aria-hidden="true"></i>
-                <span>The following applied migrations are absent from the deployed assembly. Correct the deployment lineage before applying further migrations.</span>
+                <span>The database has updates that this version of PRISM does not include, which usually means an older version was deployed over a newer one. Deploy the matching version before applying further updates.</span>
             </div>
             <ul class="admin-technical-list">
                 @foreach (var migration in database.AppliedButMissingMigrations)

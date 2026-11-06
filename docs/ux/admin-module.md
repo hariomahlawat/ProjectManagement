@@ -204,6 +204,27 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
   "Master-data domains") are gone. Recent changes show names, not user ids.
 - Each list keeps its own page, route and permission.
 
+**Shipped in PR 7 (System):**
+- **System health includes search.** A "Search" group checks the search index. It is amber
+  when the index is not ready or when items could not be added to search; until they are
+  retried, those items are missing from results. The group links to the Search index page.
+  Search index left the sidebar and highlights System health.
+- Because the Search check is part of the system checks, Home's status line and "To look at"
+  also show search failures. A signed-in review on 6 Nov found 27 failed indexing jobs (database
+  error `42P08`, 23 to 25 Oct) that had not been shown anywhere outside the Search index page.
+- Plain words on System health: "Some checks need a look", "Not run yet" (was "Starting /
+  unavailable"), OK, Worth a look, Not working. Worker details no longer end in "..". The
+  migration panels say "Database updates not yet applied" and "Database updates this version
+  does not know".
+- **Data jobs** names the two jobs by what they do ("Copy PDFs into the document repository",
+  "Import projects from Excel"). The four "operating safeguards" cards became one sentence,
+  and the unrelated "Restore deleted items" button is gone.
+- **Data checks** names each check plainly ("Duplicate names", "Project type order") with one
+  sentence each. Statuses are OK, Worth a look and Needs fixing. The repair confirmation says
+  what happens: "Renumber this list 1, 2, 3… keeping its current order".
+- Every route, policy and action is unchanged. The Search index, Data jobs and Data checks
+  pages keep their handlers.
+
 ### Compatibility
 
 - Every current URL keeps working: merged pages answer on their old routes or redirect to the

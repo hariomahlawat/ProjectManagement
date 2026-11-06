@@ -7,15 +7,15 @@
 
 <header class="admin-page-header">
     <div class="admin-page-header__content">
-        <div class="admin-page-header__eyebrow">Monitoring</div>
+        <div class="admin-page-header__eyebrow">System health</div>
         <h1><i class="bi bi-search me-2" aria-hidden="true"></i>Search index</h1>
-        <p>Review Search V2 generation health, projection freshness and failed indexing work without interrupting the active search generation.</p>
+        <p>Whether PRISM search is up to date. Retry items that could not be added to search, or rebuild the whole index; search keeps working while it rebuilds.</p>
     </div>
     <div class="admin-page-header__actions">
-        <a asp-area="Admin" asp-page="/Diagnostics/DbHealth" class="btn btn-outline-secondary"><i class="bi bi-heart-pulse me-1"></i>System health</a>
+        <a asp-area="Admin" asp-page="/Diagnostics/DbHealth" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>System health</a>
         @if (Model.CanMaintain)
         {
-            <form method="post" asp-page-handler="Rebuild" data-confirm="Queue a full Search V2 rebuild? The existing active generation will remain live until the new generation is ready.">
+            <form method="post" asp-page-handler="Rebuild" data-confirm="Rebuild the search index? Search keeps using the current index until the new one is ready.">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i>Rebuild search index</button>
             </form>
         }
