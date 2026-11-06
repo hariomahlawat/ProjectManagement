@@ -1,13 +1,13 @@
 @using System.Collections.Generic
 @using System.Text.Json
 @{
-    var items = new List<(string Level, string Text)>();
+    var items = new List<(string Level, string Text, ToastActionItem? Action)>();
 
     void AddIf(string key, string level)
     {
         if (TempData.ContainsKey(key) && TempData[key] is string value && !string.IsNullOrWhiteSpace(value))
         {
-            items.Add((level, value));
+            items.Add((level, value, null));
         }
     }
 
@@ -36,7 +36,14 @@
 
                 if (!string.IsNullOrWhiteSpace(toast.Text))
                 {
-                    items.Add((level, toast.Text!));
+                    // An action only ever posts to a local page handler.
+                    var action = toast.Action is { } candidate
+                        && !string.IsNullOrWhiteSpace(candidate.Label)
+                        && !string.IsNullOrWhiteSpace(candidate.PostUrl)
+                        && Url.IsLocalUrl(candidate.PostUrl)
+                            ? candidate
+                            : null;
+                    items.Add((level, toast.Text!, action));
                 }
             }
         }
@@ -54,6 +61,17 @@
         public string? Level { get; set; }
 
         public string? Text { get; set; }
+
+        public ToastActionItem? Action { get; set; }
+    }
+
+    private sealed class ToastActionItem
+    {
+        public string? Label { get; set; }
+
+        public string? PostUrl { get; set; }
+
+        public Dictionary<string, string>? Fields { get; set; }
     }
 }
 
@@ -74,9 +92,21 @@
                 "warning" => "bi-exclamation-lg",
                 _ => "bi-info-lg"
             };
-            <div class="prism-toast" data-prism-toast data-tone="@item.Level" role="@(item.Level == "danger" ? "alert" : "status")" data-life="@(item.Level == "danger" ? "0" : "5500")">
+            <div class="prism-toast" data-prism-toast data-tone="@item.Level" role="@(item.Level == "danger" ? "alert" : "status")" data-life="@(item.Level == "danger" ? "0" : item.Action is null ? "5500" : "10000")">
                 <span class="prism-toast__icon" aria-hidden="true"><i class="bi @icon"></i></span>
                 <p class="prism-toast__text">@item.Text</p>
+                @if (item.Action is { } action)
+                {
+                    @* Undo and similar: a real form, so the handler re-checks permission and the record version. *@
+                    <form method="post" action="@action.PostUrl" class="prism-toast__form">
+                        @Html.AntiForgeryToken()
+                        @foreach (var field in action.Fields ?? new Dictionary<string, string>())
+                        {
+                            <input type="hidden" name="@field.Key" value="@field.Value" />
+                        }
+                        <button type="submit" class="prism-toast__action" data-prism-toast-action>@action.Label</button>
+                    </form>
+                }
                 <button type="button" class="prism-toast__close" data-prism-toast-close aria-label="Dismiss"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                 @if (item.Level != "danger")
                 {

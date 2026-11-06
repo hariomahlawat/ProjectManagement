@@ -143,6 +143,17 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
         await SaveWithFriendlyConcurrencyAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The idea's current record version (deleted or not), for an Undo offered right after a
+    /// change; the restore it posts back is checked against it as usual.
+    /// </summary>
+    public Task<byte[]?> CurrentRowVersionAsync(int ideaId, CancellationToken cancellationToken = default)
+        => _db.ProjectIdeas
+            .AsNoTracking()
+            .Where(candidate => candidate.Id == ideaId)
+            .Select(candidate => (byte[]?)candidate.RowVersion)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<bool> SoftDeleteIdeaAsync(
         int ideaId,
         string? reason,
