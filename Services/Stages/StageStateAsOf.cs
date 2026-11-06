@@ -230,8 +230,11 @@ public static class StageStateAsOfResolver
             }
         }
 
+        // Every following stage that qualifies gives an end; parallel followers (TEC and BM after Bid) can
+        // give different ones, and the stage had ended by the earliest of them.
         DateOnly? EndFromNextStart(string code)
         {
+            DateOnly? earliest = null;
             foreach (var follower in directDependents[code])
             {
                 if (!byCode.TryGetValue(follower, out var next) || next.ActualStart is not { } start)
@@ -246,11 +249,12 @@ public static class StageStateAsOfResolver
                     .ToList();
                 if (others.All(other => other!.CompletedOn is { } otherEnd && otherEnd < start.AddDays(-1)))
                 {
-                    return start.AddDays(-1);
+                    var end = start.AddDays(-1);
+                    earliest = earliest is { } known && known <= end ? known : end;
                 }
             }
 
-            return null;
+            return earliest;
         }
 
         return states;

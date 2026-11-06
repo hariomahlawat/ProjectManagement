@@ -206,6 +206,23 @@ public sealed class StageStateAsOfResolverTests
         Assert.Equal(StageStateAsOf.InProgress, states[StageCodes.FS]);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ParallelFollowers_TheEarliestStartEndsTheStage(bool tecFirst)
+    {
+        // Bid is undated; TEC started on 10 April and BM on 1 April: Bid had ended by 31 March, whatever the row order.
+        var tec = Fact(StageCodes.TEC, StageStatus.InProgress, start: new(2026, 4, 10));
+        var bm = Fact(StageCodes.BM, StageStatus.InProgress, start: new(2026, 4, 1));
+        var states = Resolve(
+            Fact(StageCodes.AON, StageStatus.Completed, completedOn: new(2026, 1, 10)),
+            Fact(StageCodes.BID, StageStatus.Completed),
+            tecFirst ? tec : bm,
+            tecFirst ? bm : tec);
+
+        Assert.Equal(StageStateAsOf.Finished, states[StageCodes.BID]);
+    }
+
     [Fact]
     public void ParallelStages_GiveTheRangeEitherWayRound()
     {
