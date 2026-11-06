@@ -229,6 +229,53 @@ public sealed class StageStateAsOfResolverTests
         Assert.Equal(new[] { StageCodes.TEC, StageCodes.BM }, position.Candidates.Select(stage => stage.Code).ToArray());
     }
 
+    [Fact]
+    public void AProjectReactivatedAfterTheDate_IsReadFromTheEventBeforeIt()
+    {
+        static ProjectPositionAsOfService.LifecycleEvent Event(long id, string action, string recordedUtc, DateOnly? date = null, int? year = null) =>
+            new(id, action, DateTime.Parse(recordedUtc), 1, date, year, null);
+
+        // Completed on 10 Feb, reactivated on 20 May: completed on 31 March.
+        Assert.Equal(LifecycleAsOf.Completed, ProjectPositionAsOfService.LifecycleBeforeReactivation(new[]
+        {
+            Event(1, "Project.LifecycleCompletionEndorsed", "2026-02-10T06:00:00", date: new DateOnly(2026, 2, 10)),
+            Event(2, "Project.LifecycleReactivated", "2026-05-20T06:00:00")
+        }, YearEnd));
+        // Cancelled on 5 Jan, reactivated in June: cancelled on 31 March.
+        Assert.Equal(LifecycleAsOf.Cancelled, ProjectPositionAsOfService.LifecycleBeforeReactivation(new[]
+        {
+            Event(1, "Project.LifecycleCancelled", "2026-01-05T06:00:00", date: new DateOnly(2026, 1, 5)),
+            Event(2, "Project.LifecycleReactivated", "2026-06-01T06:00:00")
+        }, YearEnd));
+        // Completed (year only, 2026) and reactivated later: not known.
+        Assert.Equal(LifecycleAsOf.NotKnown, ProjectPositionAsOfService.LifecycleBeforeReactivation(new[]
+        {
+            Event(1, "Project.LifecycleCompleted", "2026-04-02T06:00:00", year: 2026),
+            Event(2, "Project.LifecycleReactivated", "2026-06-01T06:00:00")
+        }, YearEnd));
+        // No event before the reactivation: not known.
+        Assert.Equal(LifecycleAsOf.NotKnown, ProjectPositionAsOfService.LifecycleBeforeReactivation(new[]
+        {
+            Event(2, "Project.LifecycleReactivated", "2026-06-01T06:00:00")
+        }, YearEnd));
+        // Reactivated before the date: today's fields decide.
+        Assert.Null(ProjectPositionAsOfService.LifecycleBeforeReactivation(new[]
+        {
+            Event(1, "Project.LifecycleCompleted", "2025-11-02T06:00:00", year: 2025),
+            Event(2, "Project.LifecycleReactivated", "2026-01-10T06:00:00")
+        }, YearEnd));
+    }
+
+    [Fact]
+    public void ALifecycleEvent_ReadsItsProjectAndDates()
+    {
+        var parsed = ProjectPositionAsOfService.LifecycleEvent.Parse(7, "Project.LifecycleCancelled", new DateTime(2026, 5, 13), "{\"ProjectId\":\"182\",\"CancelledOn\":\"2026-05-13\",\"Reason\":\"x\"}");
+        Assert.NotNull(parsed);
+        Assert.Equal(182, parsed!.ProjectId);
+        Assert.Equal(new DateOnly(2026, 5, 13), parsed.Date);
+        Assert.Null(ProjectPositionAsOfService.LifecycleEvent.Parse(8, "Project.LifecycleCompleted", DateTime.UtcNow, "not json"));
+    }
+
     [Theory]
     [InlineData(ProjectLifecycleStatus.Completed, "2026-02-10", null, null, null, LifecycleAsOf.Completed)]
     [InlineData(ProjectLifecycleStatus.Completed, "2026-04-10", null, null, null, LifecycleAsOf.Active)]

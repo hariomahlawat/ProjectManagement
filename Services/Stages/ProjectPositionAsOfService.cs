@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +49,18 @@ public interface IProjectPositionAsOfService
 public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
 {
     private static readonly TimeSpan Ist = TimeSpan.FromHours(5.5);
+
+    // Lifecycle audit events. A reactivation clears the project's completion or cancellation dates, so the
+    // lifecycle before it is read from the completion or cancellation event recorded before it.
+    private const string Reactivated = "Project.LifecycleReactivated";
+    private static readonly string[] LifecycleActions =
+    {
+        Reactivated,
+        "Project.LifecycleCompleted",
+        "Project.LifecycleCompletionEndorsed",
+        "Project.LifecycleCompletionUpdated",
+        "Project.LifecycleCancelled"
+    };
 
     // Change-log entries that record a request or its outcome without changing the stage: never history.
     private static readonly string[] NotApplied = { "Requested", "Submitted", "Superseded", "Rejected", "Withdrawn", "CreatedAsReplacement" };
@@ -128,6 +141,15 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
                 group => group.Key,
                 group => group.OrderByDescending(fact => fact.CreatedOnUtc).ThenByDescending(fact => fact.Id).First().SupplyOrderDate);
         var workflows = await _workflowPolicy.GetManyAsync(ids, cancellationToken);
+        var lifecycleEvents = (await _db.AuditLogs
+                .AsNoTracking()
+                .Where(log => LifecycleActions.Contains(log.Action))
+                .Select(log => new { log.Id, log.Action, log.TimeUtc, log.DataJson })
+                .ToListAsync(cancellationToken))
+            .Select(log => LifecycleEvent.Parse(log.Id, log.Action, log.TimeUtc, log.DataJson))
+            .Where(item => item is not null && ids.Contains(item.ProjectId))
+            .GroupBy(item => item!.ProjectId)
+            .ToDictionary(group => group.Key, group => group.Select(item => item!).OrderBy(item => item.TimeUtc).ThenBy(item => item.Id).ToList());
 
         var result = new Dictionary<int, ProjectPositionAsOf>(projects.Count);
         foreach (var project in projects)
@@ -135,6 +157,10 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
             var rows = stages.GetValueOrDefault(project.Id) ?? new List<ProjectStage>();
             workflows.TryGetValue(project.Id, out var workflow);
             var lifecycle = LifecycleOn(project.LifecycleStatus, project.CompletedOn, project.CompletedYear, project.CompletedMonth, project.CancelledOn, asOf);
+            if (lifecycleEvents.TryGetValue(project.Id, out var events) && LifecycleBeforeReactivation(events, asOf) is { } before)
+            {
+                lifecycle = before;
+            }
             var soDate = supplyOrderDates.TryGetValue(project.Id, out var recordedSo) ? recordedSo : (DateOnly?)null;
             var aonRow = rows.FirstOrDefault(stage => string.Equals(stage.StageCode, StageCodes.AON, StringComparison.OrdinalIgnoreCase));
 
@@ -214,6 +240,72 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
                     : LifecycleAsOf.NotKnown;
             default:
                 return LifecycleAsOf.Active;
+        }
+    }
+
+    /// <summary>
+    /// When the project was reactivated after the date, its lifecycle on the date comes from the last
+    /// completion or cancellation event recorded before that reactivation (not known when there is none).
+    /// Null when no reactivation came after the date, so today's fields decide.
+    /// </summary>
+    public static LifecycleAsOf? LifecycleBeforeReactivation(IReadOnlyList<LifecycleEvent> events, DateOnly asOf)
+    {
+        var reactivation = events.FirstOrDefault(item => item.Action == Reactivated && item.RecordedOn > asOf);
+        if (reactivation is null)
+        {
+            return null;
+        }
+
+        var before = events
+            .Where(item => item.Action != Reactivated
+                && (item.TimeUtc < reactivation.TimeUtc || item.TimeUtc == reactivation.TimeUtc && item.Id < reactivation.Id))
+            .LastOrDefault();
+        if (before is null)
+        {
+            return LifecycleAsOf.NotKnown;
+        }
+
+        return before.Action == "Project.LifecycleCancelled"
+            ? LifecycleOn(ProjectLifecycleStatus.Cancelled, null, null, null, before.Date, asOf)
+            : LifecycleOn(ProjectLifecycleStatus.Completed, before.Date, before.Year, before.Month, null, asOf);
+    }
+
+    /// <summary>One lifecycle audit event and the dates it carries.</summary>
+    public sealed record LifecycleEvent(long Id, string Action, DateTime TimeUtc, int ProjectId, DateOnly? Date, int? Year, short? Month)
+    {
+        public DateOnly RecordedOn => DateOnly.FromDateTime(DateTime.SpecifyKind(TimeUtc, DateTimeKind.Utc).Add(Ist));
+
+        public static LifecycleEvent? Parse(long id, string action, DateTime timeUtc, string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(json);
+                string? Read(string name) =>
+                    document.RootElement.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                if (!int.TryParse(Read("ProjectId"), out var projectId))
+                {
+                    return null;
+                }
+
+                var date = DateOnly.TryParse(Read("CompletionDate") ?? Read("CancelledOn"), System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : (DateOnly?)null;
+                return new LifecycleEvent(
+                    id,
+                    action,
+                    timeUtc,
+                    projectId,
+                    date,
+                    int.TryParse(Read("CompletionYear"), out var year) ? year : null,
+                    short.TryParse(Read("CompletionMonth"), out var month) ? month : null);
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
     }
 
