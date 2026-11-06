@@ -18,13 +18,16 @@ public sealed class IngestExternalPdfsModel : PageModel
     private readonly IPdfIngestionRunHistory _history;
     private readonly IAdminTimeService _time;
     private readonly IAdminNavigationUrlBuilder _navigation;
+    private readonly IHostApplicationLifetime _lifetime;
 
     public IngestExternalPdfsModel(
         IPdfIngestionCoordinator coordinator,
         IPdfIngestionRunHistory history,
         IAdminTimeService time,
-        IAdminNavigationUrlBuilder navigation)
+        IAdminNavigationUrlBuilder navigation,
+        IHostApplicationLifetime lifetime)
     {
+        _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _history = history ?? throw new ArgumentNullException(nameof(history));
         _time = time ?? throw new ArgumentNullException(nameof(time));
@@ -42,9 +45,12 @@ public sealed class IngestExternalPdfsModel : PageModel
         Load();
     }
 
-    public async Task<IActionResult> OnPostRunAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostRunAsync()
     {
-        var operation = await _coordinator.RunAsync(cancellationToken);
+        // The run is not tied to the request: a closed tab or a browser/proxy timeout used to
+        // cancel it part-way, with no run history recorded. It now runs to completion and
+        // records its result; only an application shutdown cancels it (audited as cancelled).
+        var operation = await _coordinator.RunAsync(_lifetime.ApplicationStopping);
         if (!operation.Succeeded || operation.Value is null)
         {
             TempData[FlashMessageKeys.AdminPdfIngestionError] = !string.IsNullOrWhiteSpace(operation.TraceId)
