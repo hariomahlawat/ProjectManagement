@@ -17,6 +17,9 @@
         toastMessage = flash;
         toastVariant = "success";
     }
+    // This page shows the message in its own toast (with Undo); the layout's toast must not
+    // show it a second time. The page body renders before the layout, so removing it here works.
+    TempData.Remove("ToastMessage");
 }
 
 @section Styles {

@@ -58,6 +58,8 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
+    @* Shown inline above; keep the layout's toast from repeating it. *@
+    @{ TempData.Remove("ToastError"); }
     @if (TempData["Toast"] is string ok && !string.IsNullOrWhiteSpace(ok))
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
