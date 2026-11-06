@@ -779,6 +779,7 @@ builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetad
 builder.Services.AddSingleton<IWorkflowChecklistProvider, WorkflowChecklistProvider>();
 builder.Services.AddScoped<IProjectStageWorkflowPolicy, ProjectStageWorkflowPolicy>();
 builder.Services.AddScoped<IStageStartInferenceService, StageStartInferenceService>();
+builder.Services.AddScoped<IProjectPositionAsOfService, ProjectPositionAsOfService>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();

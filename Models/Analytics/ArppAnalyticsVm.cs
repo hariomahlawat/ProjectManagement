@@ -18,6 +18,11 @@ public sealed class ArppAnalyticsVm
 
     /// <summary>True when the year shown is the financial year of the "as of" date.</summary>
     public bool IsCurrentFinancialYear { get; init; }
+    /// <summary>
+    /// Set for a past year: the page shows where its projects stood on this date, the last day of that
+    /// financial year. Null: today.
+    /// </summary>
+    public DateOnly? AsOfDate { get; init; }
     /// <summary>Set when the current financial year has no published ARPP and an earlier year is shown instead.</summary>
     public string? FallbackNote { get; init; }
 
@@ -38,6 +43,8 @@ public sealed class ArppAnalyticsVm
     public int OngoingCount { get; init; }
     public int CompletedCount { get; init; }
     public int CancelledCount { get; init; }
+    /// <summary>Projects whose lifecycle on the date cannot be told (completed or cancelled with only a year).</summary>
+    public int NotKnownCount { get; init; }
 
     /// <summary>Ongoing listed projects by current stage, every workflow stage in order.</summary>
     public IReadOnlyList<ArppStageCountVm> ByStage { get; init; } = Array.Empty<ArppStageCountVm>();
@@ -69,6 +76,8 @@ public sealed class ArppAnalyticsVm
     public int AonToSupplyOrderCount { get; init; }
     /// <summary>Of those, the ones not yet past AoN (FS, IPA, SoW, or the AoN stage itself): the "Pre-AoN stage" card.</summary>
     public int PreAonCount { get; init; }
+    /// <summary>On a past date: projects the records cannot place in one card. Zero for today.</summary>
+    public int CardNotKnownCount { get; init; }
     public IReadOnlyList<AnalyticsBoardGroupVm> MilestoneBoard { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
 }
 

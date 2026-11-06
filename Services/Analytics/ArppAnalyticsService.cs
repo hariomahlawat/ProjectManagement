@@ -13,6 +13,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Reports.ArppFyProjectUpdate;
+using ProjectManagement.Services.Stages;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Analytics
@@ -34,19 +35,23 @@ namespace ProjectManagement.Services.Analytics
     {
         private const string UnassignedStageCode = "UNASSIGNED";
         private const string UnassignedStageName = "Unassigned";
+        private const string NotKnownCode = "NOT_KNOWN";
 
         private readonly ApplicationDbContext _db;
         private readonly IArppLibraryService _arppLibrary;
         private readonly IArppFyProjectUpdateService _arppFyUpdate;
+        private readonly IProjectPositionAsOfService? _positionAsOf;
 
         public ArppAnalyticsService(
             ApplicationDbContext db,
             IArppLibraryService arppLibrary,
-            IArppFyProjectUpdateService arppFyUpdate)
+            IArppFyProjectUpdateService arppFyUpdate,
+            IProjectPositionAsOfService? positionAsOf = null)
         {
             _db = db;
             _arppLibrary = arppLibrary;
             _arppFyUpdate = arppFyUpdate;
+            _positionAsOf = positionAsOf;
         }
 
         public async Task<ArppAnalyticsVm> BuildAsync(int? requestedFinancialYearStart, DateOnly today, CancellationToken cancellationToken = default)
@@ -130,64 +135,141 @@ namespace ProjectManagement.Services.Analytics
             var byCostBand = GroupBy(row => CostBandKey(row.IpaCost), row => CostBandName(CostBandKey(row.IpaCost)), bandOrder);
             var byParentCategory = GroupBy(row => parentCategoryByProject.TryGetValue(row.ProjectId, out var name) ? name : "Uncategorized");
 
-            // Standing: the lifecycle status from the FY update rows is authoritative (an archived project keeps
-            // its Completed or Cancelled status); the published row's display status is only the fallback.
-            ProjectLifecycleStatus LifecycleOf(ArppLibraryCurrentRow row) =>
-                standing.TryGetValue(row.ProjectId, out var update)
-                    ? update.LifecycleStatus
-                    : row.ProjectStatus switch
-                    {
-                        "Completed" => ProjectLifecycleStatus.Completed,
-                        "Cancelled" => ProjectLifecycleStatus.Cancelled,
-                        _ => ProjectLifecycleStatus.Active
-                    };
-            string? StandingDetail(ArppLibraryCurrentRow row)
-            {
-                var archived = standing.TryGetValue(row.ProjectId, out var update) ? update.IsArchived : row.ProjectStatus == "Archived";
-                return archived ? $"{ArppDisplayNames.For(row.Category)} · archived" : ArppDisplayNames.For(row.Category);
-            }
+            // A past year shows where its projects stood on 31 March, the last day of that financial year
+            // (owner, 6 Nov 2026); the current year shows today. Either way each listed project gets one
+            // Standing, and every card, list and chart below is counted from those.
+            var fyEnd = FinancialYearHelper.GetEndDate(selected);
+            DateOnly? asOf = fyEnd < today && _positionAsOf is not null ? fyEnd : null;
+            var standings = asOf is { } yearEnd
+                ? await StandingsOnAsync(approved, standing, yearEnd, cancellationToken)
+                : await StandingsTodayAsync(approved, standing, approvedIds, cancellationToken);
+            var asOfLabel = asOf is { } shownOn ? $"on {shownOn:d MMM yyyy}" : null;
 
-            var completedRows = approved.Where(row => LifecycleOf(row) == ProjectLifecycleStatus.Completed).ToList();
-            var cancelledRows = approved.Where(row => LifecycleOf(row) == ProjectLifecycleStatus.Cancelled).ToList();
-            var ongoingRows = approved.Where(row => LifecycleOf(row) == ProjectLifecycleStatus.Active).ToList();
+            static AnalyticsBoardProjectVm ToStandingProject(Standing item) => new(item.ProjectId, item.ProjectName, item.Detail);
+            static IOrderedEnumerable<Standing> ByName(IEnumerable<Standing> items) => items.OrderBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase);
 
-            var stageOfProject = ongoingRows.ToDictionary(
-                row => row.ProjectId,
-                row => standing.TryGetValue(row.ProjectId, out var update) && !string.IsNullOrWhiteSpace(update.CurrentStageCode)
-                    ? (Code: update.CurrentStageCode!.Trim(), Name: update.CurrentStageLabel)
-                    : (Code: UnassignedStageCode, Name: UnassignedStageName));
+            var completed = standings.Where(item => item.Lifecycle == LifecycleAsOf.Completed).ToList();
+            var cancelled = standings.Where(item => item.Lifecycle == LifecycleAsOf.Cancelled).ToList();
+            var ongoing = standings.Where(item => item.Lifecycle == LifecycleAsOf.Active).ToList();
+            var lifecycleNotKnown = standings.Where(item => item.Lifecycle == LifecycleAsOf.NotKnown).ToList();
+
+            var stageOfProject = ongoing.ToDictionary(item => item.ProjectId, item => (Code: item.StageCode, Name: item.StageName));
             var stageCodes = AnalyticsAggregation.BuildOrderedStageCodes(stageOfProject.Values.Select(stage => stage.Code));
             var stageOrder = AnalyticsAggregation.BuildStageOrderLookup(stageCodes);
             var byStage = StageCodes.All
                 .Select(code => new ArppStageCountVm(code, StageCodes.DisplayNameOf(code), stageOfProject.Values.Count(stage => string.Equals(stage.Code, code, StringComparison.OrdinalIgnoreCase))))
                 .Concat(stageCodes
                     .Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase))
+                    .OrderBy(code => code == NotKnownCode ? 1 : 0)
                     .Select(code => new ArppStageCountVm(code, stageOfProject.Values.First(stage => stage.Code == code).Name, stageOfProject.Values.Count(stage => stage.Code == code))))
                 .ToList();
 
             var standingBoard = new List<AnalyticsBoardGroupVm>();
-            if (completedRows.Count > 0)
+            if (completed.Count > 0)
             {
-                standingBoard.Add(new AnalyticsBoardGroupVm("COMPLETED", "Completed", completedRows.Count,
-                    completedRows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => ToBoardProject(row, StandingDetail(row))).ToList()));
+                standingBoard.Add(new AnalyticsBoardGroupVm("COMPLETED", "Completed", completed.Count, ByName(completed).Select(ToStandingProject).ToList()));
             }
-            standingBoard.AddRange(ongoingRows
-                .GroupBy(row => stageOfProject[row.ProjectId].Code, StringComparer.OrdinalIgnoreCase)
+            standingBoard.AddRange(ongoing
+                .Where(item => item.StageCode != NotKnownCode)
+                .GroupBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(group => AnalyticsAggregation.ResolveStageOrder(group.Key, stageOrder))
-                .Select(group => new AnalyticsBoardGroupVm(
-                    group.Key,
-                    stageOfProject[group.First().ProjectId].Name,
-                    group.Count(),
-                    group.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => ToBoardProject(row, StandingDetail(row))).ToList())));
-            if (cancelledRows.Count > 0)
+                .Select(group => new AnalyticsBoardGroupVm(group.Key, group.First().StageName, group.Count(), ByName(group).Select(ToStandingProject).ToList())));
+            var stageNotKnown = ongoing.Where(item => item.StageCode == NotKnownCode).Concat(lifecycleNotKnown).ToList();
+            if (stageNotKnown.Count > 0)
             {
-                standingBoard.Add(new AnalyticsBoardGroupVm("CANCELLED", "Cancelled", cancelledRows.Count,
-                    cancelledRows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => ToBoardProject(row, StandingDetail(row))).ToList()));
+                standingBoard.Add(new AnalyticsBoardGroupVm(NotKnownCode, $"Not known {asOfLabel}", stageNotKnown.Count, ByName(stageNotKnown).Select(ToStandingProject).ToList()));
+            }
+            if (cancelled.Count > 0)
+            {
+                standingBoard.Add(new AnalyticsBoardGroupVm("CANCELLED", "Cancelled", cancelled.Count, ByName(cancelled).Select(ToStandingProject).ToList()));
             }
 
-            // Milestones from the FY update rows (approved projects only).
-            var updates = approvedIds.Where(standing.ContainsKey).Select(id => standing[id]).ToList();
+            // Cards and milestones. Supply orders count projects still in work; completed projects carry
+            // their own supply-order value. The rest split by AoN; a project the records cannot place in one
+            // card is counted as not known, never guessed.
+            var pastAon = standings.Where(item => item.PastAon == true).ToList();
+            var withSo = ongoing.Where(item => item.InWork && item.SupplyOrderPlaced == true).ToList();
+            var beforeSo = ongoing.Where(item => item.InWork && item.SupplyOrderPlaced != true).ToList();
+            var preAon = beforeSo.Where(item => item.PastAon == false).ToList();
+            var aonToSo = beforeSo.Where(item => item.PastAon == true && item.SupplyOrderPlaced == false).ToList();
+            var cardNotKnown = beforeSo.Count - preAon.Count - aonToSo.Count + lifecycleNotKnown.Count;
 
+            static AnalyticsBoardGroupVm Milestone(string key, string name, IEnumerable<Standing> rows, Func<Standing, string?> detail) =>
+                new(key, name, rows.Count(), ByName(rows).Select(item => new AnalyticsBoardProjectVm(item.ProjectId, item.ProjectName, detail(item))).ToList());
+
+            var milestoneBoard = new[]
+            {
+                Milestone("AON", asOfLabel is null ? "Past AoN" : $"Past AoN {asOfLabel}", pastAon, item => item.AonDetail),
+                Milestone("SO", asOfLabel is null ? "Supply order placed" : $"Supply order placed {asOfLabel}", withSo, item => item.SupplyOrderDetail)
+            };
+
+            return new ArppAnalyticsVm
+            {
+                FinancialYearStart = selected,
+                FinancialYearDisplay = FinancialYearHelper.Format(selected),
+                AvailableFinancialYears = available,
+                IsCurrentFinancialYear = selected == currentFy,
+                AsOfDate = asOf,
+                FallbackNote = fallbackNote,
+                ListedCount = approved.Count,
+                ListedIpaValue = position.ApprovedIpaValue,
+                NewCount = approved.Count(row => row.Category == ArppCategory.New),
+                CommittedLiabilityCount = approved.Count(row => row.Category == ArppCategory.CommittedLiability),
+                CarryForwardCount = approved.Count(row => row.Category == ArppCategory.CarryForward),
+                DelistedCount = position.DelistedRows.Count,
+                DelistedIpaValue = position.DelistedIpaValue,
+                AddedByAddendumCount = approved.Count(row => row.SourceKind == ArppIssueKind.Addendum),
+                UnlinkedRowCount = position.TotalUnlinkedDocumentRows,
+                OngoingCount = ongoing.Count,
+                CompletedCount = completed.Count,
+                CancelledCount = cancelled.Count,
+                NotKnownCount = lifecycleNotKnown.Count,
+                ByStage = byStage,
+                StandingBoard = standingBoard,
+                ByCategory = byCategory,
+                ByCfa = byCfa,
+                ByFund = byFund,
+                ByDfpds = byDfpds,
+                ByCostBand = byCostBand,
+                ByParentCategory = byParentCategory,
+                PastAonCount = pastAon.Count,
+                SupplyOrderCount = withSo.Count,
+                SupplyOrderValue = withSo.Sum(item => item.SupplyOrderValue ?? 0m),
+                CompletedSupplyOrderValue = completed.Sum(item => item.SupplyOrderValue ?? 0m),
+                BeforeSupplyOrderCount = beforeSo.Count,
+                AonToSupplyOrderCount = aonToSo.Count,
+                PreAonCount = preAon.Count,
+                CardNotKnownCount = cardNotKnown,
+                MilestoneBoard = milestoneBoard
+            };
+        }
+
+        /// <summary>One listed project as the page counts it: today, or on a past year's 31 March.</summary>
+        private sealed record Standing(
+            int ProjectId,
+            string ProjectName,
+            LifecycleAsOf Lifecycle,
+            bool InWork,
+            string StageCode,
+            string StageName,
+            string? Detail,
+            bool? PastAon,
+            string? AonDetail,
+            bool? SupplyOrderPlaced,
+            decimal? SupplyOrderValue,
+            string? SupplyOrderDetail);
+
+        private static string? SupplyOrderDetail(decimal? amount, DateOnly? date) =>
+            amount is > 0m ? IndianCurrencyFormatter.FormatCompact(amount.Value) : date?.ToString("d MMM yyyy");
+
+        // Today: the lifecycle status from the FY update rows is authoritative (an archived project keeps
+        // its Completed or Cancelled status); the published row's display status is only the fallback.
+        private async Task<IReadOnlyList<Standing>> StandingsTodayAsync(
+            IReadOnlyList<ArppLibraryCurrentRow> approved,
+            IReadOnlyDictionary<int, ArppFyProjectUpdateRow> standing,
+            IReadOnlyList<int> approvedIds,
+            CancellationToken cancellationToken)
+        {
             // Past AoN is the AoN stage marked Completed, with or without its date (owner, 6 Nov 2026), or
             // Skipped (AoN not required: the project is past it). A project whose workflow has no AoN stage
             // is past AoN once its current stage is beyond the Pre-AoN phase.
@@ -220,65 +302,90 @@ namespace ProjectManagement.Services.Analytics
                     && StagePhases.Of(row.CurrentStageCode) != StagePhase.PreAon;
             }
 
-            var pastAon = updates.Where(IsPastAon).ToList();
-            // "Supply order placed" is a milestone of projects still in work: a supply-order date, or the
-            // project having reached the Supply Order stage or beyond. A resolved amount alone can be an L1
-            // or PNC cost recorded before any order exists. Completed projects are not in this count; their
-            // supply-order value is reported on its own (CompletedSupplyOrderValue).
-            var withSo = updates.Where(row => IsInWork(row) && HasSupplyOrderEvidence(row)).ToList();
-            var completedUpdates = updates.Where(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed).ToList();
-            // The rest: ongoing listed projects that have not reached a supply order, split by AoN: past it
-            // ("AoN to SO stage") or not yet (Pre-AoN: FS, IPA, SoW, and the AoN stage until it is completed).
-            // Cancelled projects are in no card. The ARPP page carries no PDC figures (owner, 6 Nov 2026).
-            var beforeSo = updates.Where(row => IsInWork(row) && !HasSupplyOrderEvidence(row)).ToList();
-            var aonToSo = beforeSo.Where(IsPastAon).ToList();
-            var preAon = beforeSo.Where(row => !IsPastAon(row)).ToList();
-
-            static AnalyticsBoardGroupVm Milestone(string key, string name, IReadOnlyList<ArppFyProjectUpdateRow> rows, Func<ArppFyProjectUpdateRow, string?> detail) =>
-                new(key, name, rows.Count, rows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => new AnalyticsBoardProjectVm(row.ProjectId, row.ProjectName, detail(row))).ToList());
-
-            var milestoneBoard = new[]
+            var result = new List<Standing>(approved.Count);
+            foreach (var row in approved)
             {
-                Milestone("AON", "Past AoN", pastAon, row => row.AonDate?.ToString("d MMM yyyy") ?? (IsAonSkipped(row) ? "AoN skipped" : "date not recorded")),
-                Milestone("SO", "Supply order placed", withSo, row => row.SupplyOrderAmountInRupees is > 0m ? IndianCurrencyFormatter.FormatCompact(row.SupplyOrderAmountInRupees.Value) : row.SupplyOrderDate?.ToString("d MMM yyyy"))
-            };
+                standing.TryGetValue(row.ProjectId, out var update);
+                var lifecycle = update?.LifecycleStatus ?? row.ProjectStatus switch
+                {
+                    "Completed" => ProjectLifecycleStatus.Completed,
+                    "Cancelled" => ProjectLifecycleStatus.Cancelled,
+                    _ => ProjectLifecycleStatus.Active
+                };
+                var archived = update?.IsArchived ?? row.ProjectStatus == "Archived";
+                var detail = archived ? $"{ArppDisplayNames.For(row.Category)} · archived" : ArppDisplayNames.For(row.Category);
+                var (code, name) = update is not null && !string.IsNullOrWhiteSpace(update.CurrentStageCode)
+                    ? (update.CurrentStageCode!.Trim(), update.CurrentStageLabel)
+                    : (UnassignedStageCode, UnassignedStageName);
+                var inWork = update is not null && IsInWork(update);
+                result.Add(new Standing(
+                    row.ProjectId,
+                    row.ProjectName,
+                    lifecycle switch
+                    {
+                        ProjectLifecycleStatus.Completed => LifecycleAsOf.Completed,
+                        ProjectLifecycleStatus.Cancelled => LifecycleAsOf.Cancelled,
+                        _ => LifecycleAsOf.Active
+                    },
+                    inWork,
+                    code,
+                    name,
+                    detail,
+                    update is null ? null : IsPastAon(update),
+                    update is null ? null : update.AonDate?.ToString("d MMM yyyy") ?? (IsAonSkipped(update) ? "AoN skipped" : "date not recorded"),
+                    update is null ? null : inWork && HasSupplyOrderEvidence(update),
+                    update?.SupplyOrderAmountInRupees,
+                    update is null ? null : SupplyOrderDetail(update.SupplyOrderAmountInRupees, update.SupplyOrderDate)));
+            }
 
-            return new ArppAnalyticsVm
+            return result;
+        }
+
+        // On a past year's 31 March, from today's records (IProjectPositionAsOfService). Supply-order values
+        // are today's (a placed order's PNC/L1 value does not change); they count once the order was placed.
+        private async Task<IReadOnlyList<Standing>> StandingsOnAsync(
+            IReadOnlyList<ArppLibraryCurrentRow> approved,
+            IReadOnlyDictionary<int, ArppFyProjectUpdateRow> standing,
+            DateOnly asOf,
+            CancellationToken cancellationToken)
+        {
+            var positions = await _positionAsOf!.ResolveAsync(approved.Select(row => row.ProjectId).ToList(), asOf, cancellationToken);
+            var result = new List<Standing>(approved.Count);
+            foreach (var row in approved)
             {
-                FinancialYearStart = selected,
-                FinancialYearDisplay = FinancialYearHelper.Format(selected),
-                AvailableFinancialYears = available,
-                IsCurrentFinancialYear = selected == currentFy,
-                FallbackNote = fallbackNote,
-                ListedCount = approved.Count,
-                ListedIpaValue = position.ApprovedIpaValue,
-                NewCount = approved.Count(row => row.Category == ArppCategory.New),
-                CommittedLiabilityCount = approved.Count(row => row.Category == ArppCategory.CommittedLiability),
-                CarryForwardCount = approved.Count(row => row.Category == ArppCategory.CarryForward),
-                DelistedCount = position.DelistedRows.Count,
-                DelistedIpaValue = position.DelistedIpaValue,
-                AddedByAddendumCount = approved.Count(row => row.SourceKind == ArppIssueKind.Addendum),
-                UnlinkedRowCount = position.TotalUnlinkedDocumentRows,
-                OngoingCount = ongoingRows.Count,
-                CompletedCount = completedRows.Count,
-                CancelledCount = cancelledRows.Count,
-                ByStage = byStage,
-                StandingBoard = standingBoard,
-                ByCategory = byCategory,
-                ByCfa = byCfa,
-                ByFund = byFund,
-                ByDfpds = byDfpds,
-                ByCostBand = byCostBand,
-                ByParentCategory = byParentCategory,
-                PastAonCount = pastAon.Count,
-                SupplyOrderCount = withSo.Count,
-                SupplyOrderValue = withSo.Sum(row => row.SupplyOrderAmountInRupees ?? 0m),
-                CompletedSupplyOrderValue = completedUpdates.Sum(row => row.SupplyOrderAmountInRupees ?? 0m),
-                BeforeSupplyOrderCount = beforeSo.Count,
-                AonToSupplyOrderCount = aonToSo.Count,
-                PreAonCount = preAon.Count,
-                MilestoneBoard = milestoneBoard
-            };
+                standing.TryGetValue(row.ProjectId, out var update);
+                var category = ArppDisplayNames.For(row.Category);
+                if (!positions.TryGetValue(row.ProjectId, out var at))
+                {
+                    result.Add(new Standing(row.ProjectId, row.ProjectName, LifecycleAsOf.NotKnown, false, NotKnownCode, "Not known", $"{category} · no project record", null, null, null, null, null));
+                    continue;
+                }
+
+                var value = update?.SupplyOrderAmountInRupees;
+                var (code, name, detail) = at.Lifecycle switch
+                {
+                    LifecycleAsOf.NotKnown => (NotKnownCode, "Not known", $"{category} · completion date not recorded"),
+                    LifecycleAsOf.Active when at.Stage.IsKnown && at.Stage.StageCode is { } known => (known, at.Stage.StageName, category),
+                    LifecycleAsOf.Active when at.Stage.IsKnown => (UnassignedStageCode, "Workflow concluded", category),
+                    LifecycleAsOf.Active => (NotKnownCode, "Not known", $"{category} · {at.Stage.StageName} (dates not recorded)"),
+                    _ => (UnassignedStageCode, UnassignedStageName, category)
+                };
+                result.Add(new Standing(
+                    row.ProjectId,
+                    row.ProjectName,
+                    at.Lifecycle,
+                    at.Lifecycle == LifecycleAsOf.Active,
+                    code,
+                    name,
+                    detail,
+                    at.PastAon,
+                    at.AonDate?.ToString("d MMM yyyy") ?? (at.AonSkipped ? "AoN skipped" : "date not recorded"),
+                    at.Lifecycle == LifecycleAsOf.Active ? at.SupplyOrderPlaced : null,
+                    value,
+                    SupplyOrderDetail(value, at.SupplyOrderDate)));
+            }
+
+            return result;
         }
 
         private static bool IsInWork(ArppFyProjectUpdateRow row) =>
