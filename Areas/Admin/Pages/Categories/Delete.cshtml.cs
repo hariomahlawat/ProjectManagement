@@ -29,7 +29,7 @@ public sealed class DeleteModel : PageModel
     [BindProperty]
     public string Confirmation { get; set; } = string.Empty;
 
-    public bool CanDelete => Impact is { DirectUsageCount: 0, DirectChildCount: 0 };
+    public bool CanDelete => Impact is { DirectUsageCount: 0, DirectChildCount: 0, OtherReferenceCount: 0 };
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -46,7 +46,7 @@ public sealed class DeleteModel : PageModel
 
         if (!CanDelete)
         {
-            ModelState.AddModelError(string.Empty, "This category is referenced by projects or contains child categories. Deactivate it instead of deleting it.");
+            ModelState.AddModelError(string.Empty, "This category is referenced by projects, legacy imports or change requests, or contains child categories. Deactivate it instead of deleting it.");
             return Page();
         }
 

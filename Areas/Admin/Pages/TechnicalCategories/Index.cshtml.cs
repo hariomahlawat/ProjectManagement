@@ -49,10 +49,24 @@ public sealed class IndexModel : PageModel
         BuildPresentation();
     }
 
-    public async Task<IActionResult> OnPostToggleAsync(int id, CancellationToken cancellationToken)
+    // The form sends the state the administrator chose and the row version it showed, so a
+    // resubmitted form or another administrator's change cannot flip the item the wrong way.
+    public async Task<IActionResult> OnPostToggleAsync(int id, bool isActive, string? rowVersion, CancellationToken cancellationToken)
     {
-        var result = await _commands.ToggleTechnicalCategoryAsync(id, cancellationToken);
+        var result = await _commands.SetTechnicalCategoryActiveAsync(id, isActive, DecodeRowVersion(rowVersion), cancellationToken);
         return RedirectWithResult(result);
+    }
+
+    private static byte[] DecodeRowVersion(string? value)
+    {
+        try
+        {
+            return string.IsNullOrWhiteSpace(value) ? Array.Empty<byte>() : Convert.FromBase64String(value);
+        }
+        catch (FormatException)
+        {
+            return Array.Empty<byte>();
+        }
     }
 
     public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)

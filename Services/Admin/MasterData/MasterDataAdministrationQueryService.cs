@@ -150,7 +150,8 @@ public sealed record CategoryImpact(
     int DirectChildCount,
     int DescendantCount,
     bool IsActive,
-    string RowVersion);
+    string RowVersion,
+    int OtherReferenceCount = 0);
 
 public interface IMasterDataAdministrationQueryService
 {
@@ -359,6 +360,12 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             ? result.Rows.FirstOrDefault(item => item.Id == row.ParentId.Value)?.Name
             : null;
 
+        // Records other than projects that the database will not let a delete orphan.
+        var otherReferences = kind == MasterDataCategoryKind.Technical
+            ? await _db.ProjectLegacyImports.AsNoTracking().CountAsync(import => import.TechnicalCategoryId == id, cancellationToken)
+              + await _db.ProjectMetaChangeRequests.AsNoTracking().CountAsync(request => request.TechnicalCategoryId == id, cancellationToken)
+            : await _db.ProjectLegacyImports.AsNoTracking().CountAsync(import => import.ProjectCategoryId == id, cancellationToken);
+
         return new CategoryImpact(
             row.Id,
             row.Name,
@@ -367,7 +374,8 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             row.DirectChildCount,
             row.DescendantCount,
             row.IsActive,
-            row.RowVersion);
+            row.RowVersion,
+            otherReferences);
     }
 
     public Task<FlatLookupDirectoryResult> GetFlatLookupAsync(

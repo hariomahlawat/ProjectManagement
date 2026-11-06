@@ -19,13 +19,13 @@ public interface IAdminMasterDataCommandService
     Task<AdminOperationResult<ProjectCategory>> CreateProjectCategoryAsync(CategoryCreateCommand command, CancellationToken cancellationToken = default);
     Task<AdminOperationResult<ProjectCategory>> UpdateProjectCategoryAsync(CategoryUpdateCommand command, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> DeleteProjectCategoryAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default);
-    Task<AdminOperationResult> ToggleProjectCategoryAsync(int id, CancellationToken cancellationToken = default);
+    Task<AdminOperationResult> SetProjectCategoryActiveAsync(int id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> MoveProjectCategoryAsync(int id, int offset, CancellationToken cancellationToken = default);
 
     Task<AdminOperationResult<TechnicalCategory>> CreateTechnicalCategoryAsync(CategoryCreateCommand command, CancellationToken cancellationToken = default);
     Task<AdminOperationResult<TechnicalCategory>> UpdateTechnicalCategoryAsync(CategoryUpdateCommand command, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> DeleteTechnicalCategoryAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default);
-    Task<AdminOperationResult> ToggleTechnicalCategoryAsync(int id, CancellationToken cancellationToken = default);
+    Task<AdminOperationResult> SetTechnicalCategoryActiveAsync(int id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> MoveTechnicalCategoryAsync(int id, int offset, CancellationToken cancellationToken = default);
 
     Task<AdminOperationResult<ProjectType>> CreateProjectTypeAsync(FlatLookupCreateCommand command, CancellationToken cancellationToken = default);
@@ -199,8 +199,8 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
             isTechnical: false,
             cancellationToken);
 
-    public Task<AdminOperationResult> ToggleProjectCategoryAsync(int id, CancellationToken cancellationToken = default) =>
-        ToggleCategoryAsync(id, isTechnical: false, cancellationToken);
+    public Task<AdminOperationResult> SetProjectCategoryActiveAsync(int id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken = default) =>
+        SetCategoryActiveAsync(id, isActive, rowVersion, isTechnical: false, cancellationToken);
 
     public Task<AdminOperationResult> MoveProjectCategoryAsync(int id, int offset, CancellationToken cancellationToken = default) =>
         MoveCategoryAsync(id, offset, isTechnical: false, cancellationToken);
@@ -331,8 +331,8 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
     public Task<AdminOperationResult> DeleteTechnicalCategoryAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default) =>
         DeleteCategoryAsync(id, rowVersion, isTechnical: true, cancellationToken);
 
-    public Task<AdminOperationResult> ToggleTechnicalCategoryAsync(int id, CancellationToken cancellationToken = default) =>
-        ToggleCategoryAsync(id, isTechnical: true, cancellationToken);
+    public Task<AdminOperationResult> SetTechnicalCategoryActiveAsync(int id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken = default) =>
+        SetCategoryActiveAsync(id, isActive, rowVersion, isTechnical: true, cancellationToken);
 
     public Task<AdminOperationResult> MoveTechnicalCategoryAsync(int id, int offset, CancellationToken cancellationToken = default) =>
         MoveCategoryAsync(id, offset, isTechnical: true, cancellationToken);
@@ -501,6 +501,12 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
                 return AdminOperationResult.Failure("This technical category is assigned to existing projects and cannot be deleted.", "EntityInUse");
             }
 
+            if (await _db.ProjectLegacyImports.AnyAsync(import => import.TechnicalCategoryId == id, cancellationToken)
+                || await _db.ProjectMetaChangeRequests.AnyAsync(request => request.TechnicalCategoryId == id, cancellationToken))
+            {
+                return AdminOperationResult.Failure(OtherReferencesMessage("technical category"), "EntityInUse");
+            }
+
             SetOriginalRowVersion(category, rowVersion);
             var before = Snapshot(category);
             _db.TechnicalCategories.Remove(category);
@@ -522,6 +528,11 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         if (await _db.Projects.AnyAsync(project => project.CategoryId == id, cancellationToken))
         {
             return AdminOperationResult.Failure("This project category is assigned to existing projects and cannot be deleted.", "EntityInUse");
+        }
+
+        if (await _db.ProjectLegacyImports.AnyAsync(import => import.ProjectCategoryId == id, cancellationToken))
+        {
+            return AdminOperationResult.Failure(OtherReferencesMessage("project category"), "EntityInUse");
         }
 
         SetOriginalRowVersion(projectCategory, rowVersion);
@@ -550,9 +561,31 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         {
             return Concurrency();
         }
+        catch (DbUpdateException ex) when (IsForeignKeyViolation(ex))
+        {
+            // A record the checks above do not know about still points at this row. The
+            // database refused the delete, so nothing changed; say so instead of failing.
+            await transaction.RollbackAsync(CancellationToken.None);
+            _db.ChangeTracker.Clear();
+            return AdminOperationResult.Failure(
+                $"'{name}' is still referenced by other records and cannot be deleted. Deactivate it instead.",
+                "EntityInUse");
+        }
     }
 
-    private async Task<AdminOperationResult> ToggleCategoryAsync(int id, bool isTechnical, CancellationToken cancellationToken)
+    private static string OtherReferencesMessage(string label) =>
+        $"This {label} is referenced by legacy imports or project change requests and cannot be deleted. Deactivate it instead.";
+
+    // The admin asks for a target state (not "flip whatever is stored") with the row version
+    // the page showed. A resubmitted form or a second administrator's change can then never
+    // reverse the requested action: an item already in the requested state is left alone,
+    // and a stale version is refused.
+    private async Task<AdminOperationResult> SetCategoryActiveAsync(
+        int id,
+        bool isActive,
+        byte[] rowVersion,
+        bool isTechnical,
+        CancellationToken cancellationToken)
     {
         var auth = await EnsureAuthorizedAsync(cancellationToken);
         if (!auth.Succeeded)
@@ -568,8 +601,19 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
                 return NotFound("Technical category");
             }
 
+            if (category.IsActive == isActive)
+            {
+                return AlreadyInState(category.Name, isActive);
+            }
+
+            if (!HasRowVersion(rowVersion))
+            {
+                return MissingRowVersion();
+            }
+
+            SetOriginalRowVersion(category, rowVersion);
             var before = Snapshot(category);
-            category.IsActive = !category.IsActive;
+            category.IsActive = isActive;
             return await SaveStatusAsync("MasterData.TechnicalCategoryStatusChanged", "TechnicalCategory", category.Id, category.Name, category.IsActive, before, Snapshot(category), cancellationToken);
         }
 
@@ -579,10 +623,24 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
             return NotFound("Project category");
         }
 
+        if (projectCategory.IsActive == isActive)
+        {
+            return AlreadyInState(projectCategory.Name, isActive);
+        }
+
+        if (!HasRowVersion(rowVersion))
+        {
+            return MissingRowVersion();
+        }
+
+        SetOriginalRowVersion(projectCategory, rowVersion);
         var projectBefore = Snapshot(projectCategory);
-        projectCategory.IsActive = !projectCategory.IsActive;
+        projectCategory.IsActive = isActive;
         return await SaveStatusAsync("MasterData.ProjectCategoryStatusChanged", "ProjectCategory", projectCategory.Id, projectCategory.Name, projectCategory.IsActive, projectBefore, Snapshot(projectCategory), cancellationToken);
     }
+
+    private static AdminOperationResult AlreadyInState(string name, bool isActive) =>
+        AdminOperationResult.Success(isActive ? $"'{name}' is already active." : $"'{name}' is already inactive.");
 
     private async Task<AdminOperationResult> SaveStatusAsync(
         string action,
@@ -989,6 +1047,9 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         AdminOperationResult.Failure(
             "The record version is missing. Reload the page and try again.",
             "ConcurrencyTokenMissing");
+
+    private static bool IsForeignKeyViolation(DbUpdateException exception) =>
+        exception.InnerException is PostgresException postgres && postgres.SqlState == PostgresErrorCodes.ForeignKeyViolation;
 
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is PostgresException postgres && postgres.SqlState == PostgresErrorCodes.UniqueViolation;

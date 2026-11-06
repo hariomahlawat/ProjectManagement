@@ -22,7 +22,7 @@ public sealed class DeleteModel : PageModel
     public CategoryImpact? Impact { get; private set; }
     [BindProperty] public string RowVersion { get; set; } = string.Empty;
     [BindProperty] public string Confirmation { get; set; } = string.Empty;
-    public bool CanDelete => Impact is { DirectUsageCount: 0, DirectChildCount: 0 };
+    public bool CanDelete => Impact is { DirectUsageCount: 0, DirectChildCount: 0, OtherReferenceCount: 0 };
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -38,7 +38,7 @@ public sealed class DeleteModel : PageModel
         if (Impact is null) return NotFound();
         if (!CanDelete)
         {
-            ModelState.AddModelError(string.Empty, "This category is referenced by projects or contains child categories. Deactivate it instead of deleting it.");
+            ModelState.AddModelError(string.Empty, "This category is referenced by projects, legacy imports or change requests, or contains child categories. Deactivate it instead of deleting it.");
             return Page();
         }
         if (!string.Equals(Confirmation?.Trim(), Impact.Name, StringComparison.Ordinal))
