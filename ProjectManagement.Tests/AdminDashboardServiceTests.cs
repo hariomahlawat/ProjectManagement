@@ -67,6 +67,11 @@ public sealed class AdminDashboardServiceTests
             },
             result.AttentionItems.Select(item => item.Title).ToArray());
         Assert.All(result.AttentionItems, item => Assert.Equal(AdminAttentionSeverity.Warning, item.Severity));
+        // "Errors in the last 24 hours" opens the audit log from yesterday (IST), not its
+        // default 30 days, so the errors it counted are the ones shown.
+        var errors = result.AttentionItems.Single(item => item.NavigationKey == ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.Logs);
+        Assert.Equal("Error", errors.RouteValues!["Level"]);
+        Assert.Equal("2026-07-12", errors.RouteValues!["From"]);
         Assert.Equal("administrator", result.RecentActions[0].Actor);
     }
 

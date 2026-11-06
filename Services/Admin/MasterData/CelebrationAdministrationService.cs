@@ -107,9 +107,10 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         if (type == "anniversary") source = source.Where(item => item.EventType == CelebrationType.Anniversary);
         if (search.Length > 0)
         {
+            var pattern = SearchLikePattern.Contains(search);
             source = source.Where(item =>
-                EF.Functions.ILike(item.Name, SearchLikePattern.Contains(search))
-                || (item.SpouseName != null && EF.Functions.ILike(item.SpouseName, $"%{search}%")));
+                EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter)
+                || (item.SpouseName != null && EF.Functions.ILike(item.SpouseName, pattern, SearchLikePattern.EscapeCharacter)));
         }
 
         var entities = await source

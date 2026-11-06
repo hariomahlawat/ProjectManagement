@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Services.Search;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
@@ -129,11 +130,11 @@ public sealed class ProjectRecoveryQueryService : IProjectRecoveryQueryService
 
         if (search is not null)
         {
-            var pattern = $"%{search}%";
+            var pattern = SearchLikePattern.Contains(search);
             projects = projects.Where(project =>
-                EF.Functions.ILike(project.Name, pattern)
-                || (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern))
-                || (project.DeleteReason != null && EF.Functions.ILike(project.DeleteReason, pattern)));
+                EF.Functions.ILike(project.Name, pattern, SearchLikePattern.EscapeCharacter)
+                || (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern, SearchLikePattern.EscapeCharacter))
+                || (project.DeleteReason != null && EF.Functions.ILike(project.DeleteReason, pattern, SearchLikePattern.EscapeCharacter)));
         }
 
         projects = query.Retention?.Trim().ToLowerInvariant() switch
@@ -236,10 +237,10 @@ public sealed class ProjectRecoveryQueryService : IProjectRecoveryQueryService
             .Where(project => project.IsArchived && !project.IsDeleted);
         if (search is not null)
         {
-            var pattern = $"%{search}%";
+            var pattern = SearchLikePattern.Contains(search);
             projects = projects.Where(project =>
-                EF.Functions.ILike(project.Name, pattern)
-                || (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern)));
+                EF.Functions.ILike(project.Name, pattern, SearchLikePattern.EscapeCharacter)
+                || (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern, SearchLikePattern.EscapeCharacter)));
         }
 
         var totalCount = await projects.CountAsync(cancellationToken);

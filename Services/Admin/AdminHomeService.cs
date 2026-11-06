@@ -311,7 +311,7 @@ public static class AdminHomeRules
                 "bi-list-check",
                 lists is null
                     ? NoFigure
-                    : $"{N(lists.Domains.Count)} lists · {N(lists.ActiveRecords)} values in use"),
+                    : $"{N(lists.Domains.Count)} lists · {N(lists.ActiveRecords)} active values"),
             new AdminHomeTile(
                 AdminNavigationKeys.DatabaseHealth,
                 "Check that PRISM is healthy",

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.Ingestion;
 using ProjectManagement.Services.Navigation;
@@ -72,14 +73,11 @@ public sealed class IngestExternalPdfsModel : PageModel
         csv.AppendLine("Source,Source item,File name,Result");
         foreach (var failure in run.Failures)
         {
-            csv.Append(Escape(failure.Source)).Append(',')
-                .Append(Escape(failure.SourceItemId)).Append(',')
-                .Append(Escape(failure.FileName)).Append(',')
-                .Append(Escape(failure.Message)).AppendLine();
+            SafeCsv.AppendRow(csv, failure.Source, failure.SourceItemId, failure.FileName, failure.Message);
         }
 
         return File(
-            Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(),
+            SafeCsv.ToUtf8WithBom(csv.ToString()),
             "text/csv; charset=utf-8",
             $"pdf-ingestion-failures-{run.CompletedAtUtc:yyyyMMdd-HHmmss}.csv");
     }
@@ -114,12 +112,5 @@ public sealed class IngestExternalPdfsModel : PageModel
                 }
             }
         };
-    }
-
-    private static string Escape(string? value)
-    {
-        var text = value ?? string.Empty;
-        if (text.Length > 0 && text[0] is '=' or '+' or '-' or '@') text = "'" + text;
-        return '"' + text.Replace("\"", "\"\"") + '"';
     }
 }

@@ -635,6 +635,7 @@ builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValid
 builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
 builder.Services.AddScoped<IMasterDataAdministrationQueryService, MasterDataAdministrationQueryService>();
 builder.Services.AddScoped<IAdminMasterDataIntegrityService, AdminMasterDataIntegrityService>();
+builder.Services.AddScoped<IListOrderNoticeService, ListOrderNoticeService>();
 builder.Services.AddScoped<ICelebrationAdministrationService, CelebrationAdministrationService>();
 builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
 builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
