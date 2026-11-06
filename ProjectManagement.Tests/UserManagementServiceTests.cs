@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -123,6 +124,105 @@ namespace ProjectManagement.Tests
             Assert.Contains("Admin", roles);
             Assert.Contains("HoD", roles);
         }
+        // An account holding a role outside the catalogue (an integration role) used to be
+        // impossible to edit: the page sent that role back and the service rejected it.
+        [Fact]
+        public async Task UpdateUser_KeepsAnExtensionRoleTheAccountAlreadyHolds()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            await roleManager.CreateAsync(new IdentityRole("Admin"));
+            await roleManager.CreateAsync(new IdentityRole("HoD"));
+            await roleManager.CreateAsync(new IdentityRole("Auditor"));
+            var user = new ApplicationUser { UserName = "integrator", FullName = "Old Name", Rank = "Maj" };
+            await userManager.CreateAsync(user, "Passw0rd!");
+            await userManager.AddToRolesAsync(user, new[] { "HoD", "Auditor" });
+
+            // As the Edit page used to send it (catalogue roles plus the held extension role)...
+            var withExtension = await service.UpdateUserAsync(user.Id, "New Name", "Lt Col", new[] { "HoD", "Auditor" });
+            // ...and as it sends it now (catalogue roles only).
+            var catalogueOnly = await service.UpdateUserAsync(user.Id, "New Name", "Lt Col", new[] { "Admin" });
+
+            Assert.True(withExtension.Succeeded, string.Join("; ", withExtension.Errors.Select(e => e.Description)));
+            Assert.True(catalogueOnly.Succeeded, string.Join("; ", catalogueOnly.Errors.Select(e => e.Description)));
+            var roles = await userManager.GetRolesAsync((await userManager.FindByIdAsync(user.Id))!);
+            Assert.Contains("Admin", roles);
+            Assert.Contains("Auditor", roles);
+            Assert.DoesNotContain("HoD", roles);
+        }
+
+        [Fact]
+        public async Task UpdateUser_StillRejectsAnExtensionRoleTheAccountDoesNotHold()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            await roleManager.CreateAsync(new IdentityRole("HoD"));
+            await roleManager.CreateAsync(new IdentityRole("Auditor"));
+            var user = new ApplicationUser { UserName = "officer", FullName = "Name", Rank = "Maj" };
+            await userManager.CreateAsync(user, "Passw0rd!");
+            await userManager.AddToRoleAsync(user, "HoD");
+
+            var result = await service.UpdateUserAsync(user.Id, "Name", "Maj", new[] { "HoD", "Auditor" });
+
+            Assert.False(result.Succeeded);
+            Assert.DoesNotContain("Auditor", await userManager.GetRolesAsync((await userManager.FindByIdAsync(user.Id))!));
+        }
+
+        // Two administrators editing the same account: the second save used to win silently,
+        // removing a role the first had just added.
+        [Fact]
+        public async Task UpdateUser_RefusesAStaleFormVersion()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            await roleManager.CreateAsync(new IdentityRole("HoD"));
+            await roleManager.CreateAsync(new IdentityRole("Admin"));
+            var user = new ApplicationUser { UserName = "officer", FullName = "Name", Rank = "Maj" };
+            await userManager.CreateAsync(user, "Passw0rd!");
+            await userManager.AddToRoleAsync(user, "HoD");
+            var openedVersion = UserEditVersion.Compute("Name", "Maj", user.AccountKind, new[] { "HoD" });
+
+            // Another administrator adds Admin after this form was opened.
+            await userManager.AddToRoleAsync(user, "Admin");
+
+            var result = await service.UpdateUserAsync(user.Id, "Name", "Maj", new[] { "HoD" }, expectedVersion: openedVersion);
+
+            Assert.False(result.Succeeded);
+            Assert.Equal(nameof(IdentityErrorDescriber.ConcurrencyFailure), Assert.Single(result.Errors).Code);
+            Assert.Contains("Admin", await userManager.GetRolesAsync((await userManager.FindByIdAsync(user.Id))!));
+        }
+
+        [Fact]
+        public async Task UpdateUser_AcceptsTheCurrentVersion_EvenAfterASignInLevelChange()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            await roleManager.CreateAsync(new IdentityRole("HoD"));
+            await roleManager.CreateAsync(new IdentityRole("Admin"));
+            var user = new ApplicationUser { UserName = "officer", FullName = "Name", Rank = "Maj" };
+            await userManager.CreateAsync(user, "Passw0rd!");
+            await userManager.AddToRoleAsync(user, "HoD");
+            var openedVersion = UserEditVersion.Compute("Name", "Maj", user.AccountKind, new[] { "HoD" });
+
+            // Sign-in bookkeeping rotates Identity's ConcurrencyStamp but changes nothing the
+            // form shows, so it must not block the save.
+            await userManager.UpdateSecurityStampAsync(user);
+            await userManager.AccessFailedAsync(user);
+
+            var result = await service.UpdateUserAsync(user.Id, "New Name", "Maj", new[] { "HoD", "Admin" }, expectedVersion: openedVersion);
+
+            Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(e => e.Description)));
+            Assert.Contains("Admin", await userManager.GetRolesAsync((await userManager.FindByIdAsync(user.Id))!));
+        }
+
+        [Fact]
+        public void EditVersion_IgnoresWhitespaceRoleOrderAndCase()
+        {
+            var a = UserEditVersion.Compute(" Name ", "Maj", UserAccountKind.Human, new[] { "HoD", "Admin" });
+            var b = UserEditVersion.Compute("Name", " Maj", UserAccountKind.Human, new[] { "admin", "HOD" });
+
+            Assert.Equal(a, b);
+            Assert.NotEqual(a, UserEditVersion.Compute("Name", "Maj", UserAccountKind.Human, new[] { "HoD" }));
+            Assert.True(UserEditVersion.Matches(a.ToLowerInvariant(), b));
+            Assert.False(UserEditVersion.Matches(null, b));
+        }
+
         private sealed class NullRoleNotificationService : IRoleNotificationService
         {
             public Task NotifyRolesUpdatedAsync(ApplicationUser user, IReadOnlyCollection<string> addedRoles, IReadOnlyCollection<string> removedRoles, string actorUserId, CancellationToken cancellationToken = default)

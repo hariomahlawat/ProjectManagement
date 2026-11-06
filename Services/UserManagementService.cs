@@ -161,7 +161,8 @@ namespace ProjectManagement.Services
             string fullName,
             string rank,
             IEnumerable<string> roles,
-            UserAccountKind? accountKind = null)
+            UserAccountKind? accountKind = null,
+            string? expectedVersion = null)
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user is null)
@@ -180,13 +181,34 @@ namespace ProjectManagement.Services
                 return Failure("Select a valid account classification.");
             }
 
-            var roleResolution = await ResolveRolesAsync(roles);
+            var currentRoles = await _userManager.GetRolesAsync(user);
+
+            // The Edit form carries the version it was opened with. Refuse the save when the
+            // name, rank, classification or roles changed since, so a second administrator's
+            // edit cannot silently undo the first one's (for example, removing a role they
+            // just added).
+            if (expectedVersion is not null
+                && !UserEditVersion.Matches(
+                    expectedVersion,
+                    UserEditVersion.Compute(user.FullName, user.Rank, user.AccountKind, currentRoles)))
+            {
+                return IdentityResult.Failed(new IdentityErrorDescriber().ConcurrencyFailure());
+            }
+
+            // Extension roles the account already holds are kept below whatever the caller
+            // sends, so they are left out of the requested set rather than rejected as not
+            // assignable (which used to make such accounts impossible to edit).
+            var requestedRoles = (roles ?? Array.Empty<string>())
+                .Where(role => !(IsExtensionRole(role)
+                    && currentRoles.Contains(role, StringComparer.OrdinalIgnoreCase)))
+                .ToArray();
+
+            var roleResolution = await ResolveRolesAsync(requestedRoles);
             if (!roleResolution.Result.Succeeded)
             {
                 return roleResolution.Result;
             }
 
-            var currentRoles = await _userManager.GetRolesAsync(user);
             var targetRoles = new HashSet<string>(roleResolution.Roles, StringComparer.OrdinalIgnoreCase);
 
             // Administration exposes only the canonical institutional role catalogue.
@@ -196,7 +218,7 @@ namespace ProjectManagement.Services
             // canonical equivalent upgrades the assignment in-place.
             foreach (var currentRole in currentRoles)
             {
-                if (!RoleNames.IsAssignable(currentRole) && !RoleNames.IsLegacyAlias(currentRole))
+                if (IsExtensionRole(currentRole))
                 {
                     targetRoles.Add(currentRole);
                 }
@@ -559,6 +581,13 @@ namespace ProjectManagement.Services
 
         private string? GetCurrentActorUserId() =>
             _http.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        // A role outside PRISM's assignable catalogue that is not a known legacy alias, such as
+        // an integration-specific role. Administration never assigns these but keeps them.
+        private static bool IsExtensionRole(string role) =>
+            !string.IsNullOrWhiteSpace(role)
+            && !RoleNames.IsAssignable(role)
+            && !RoleNames.IsLegacyAlias(role);
 
         private static IdentityResult Failure(string description) =>
             IdentityResult.Failed(new IdentityError { Description = description });

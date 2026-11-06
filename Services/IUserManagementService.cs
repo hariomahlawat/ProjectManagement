@@ -23,7 +23,8 @@ namespace ProjectManagement.Services
             string fullName,
             string rank,
             IEnumerable<string> roles,
-            UserAccountKind? accountKind = null);
+            UserAccountKind? accountKind = null,
+            string? expectedVersion = null);
 
         // Retained for compatibility with existing callers. New UI flows should use UpdateUserAsync.
         Task<IdentityResult> UpdateUserRolesAsync(string userId, IEnumerable<string> roles);

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.Admin.Models;
@@ -66,6 +67,9 @@ public sealed class EditModel : PageModel
 
         [MinLength(1, ErrorMessage = "Assign at least one role to the user.")]
         public List<string> Roles { get; set; } = new();
+
+        /// <summary>The account version this form was opened with (see UserEditVersion).</summary>
+        public string? Version { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync(string id, CancellationToken cancellationToken)
@@ -82,18 +86,7 @@ public sealed class EditModel : PageModel
             return RedirectToPage("./Details", new { id });
         }
 
-        Input = new InputModel
-        {
-            Id = Account.Id,
-            FullName = Account.FullName,
-            Rank = Account.Rank,
-            AccountKind = Account.AccountKind,
-            Roles = Account.Roles
-                .Select(RoleNames.Canonicalize)
-                .Where(RoleNames.IsAssignable)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList()
-        };
+        Input = BuildInputFromAccount(Account);
 
         await LoadPresentationAsync(cancellationToken);
         return Page();
@@ -137,23 +130,32 @@ public sealed class EditModel : PageModel
             return Page();
         }
 
-        // The assignment UI is intentionally limited to PRISM's canonical role
-        // catalogue. Preserve any unknown extension role that may already exist on
-        // the account, but deliberately do not preserve known legacy aliases: those
-        // are normalised to their canonical role the next time the account is saved.
-        var rolesToApply = Input.Roles
-            .Concat(Account.Roles.Where(role =>
-                !RoleNames.IsLegacyAlias(role)
-                && !RoleNames.IsAssignable(RoleNames.Canonicalize(role))))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        // The assignment UI is limited to PRISM's canonical role catalogue. The service keeps
+        // any extension role the account already holds and normalises legacy aliases, so only
+        // the selected catalogue roles are sent.
+        var rolesToApply = Input.Roles.ToArray();
 
         var result = await _users.UpdateUserAsync(
             Input.Id,
             Input.FullName,
             Input.Rank,
             rolesToApply,
-            Input.AccountKind);
+            Input.AccountKind,
+            Input.Version ?? string.Empty);
+
+        if (result.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure)))
+        {
+            // Show the account as it is now, with a fresh version, so the administrator can
+            // review the other change and re-apply theirs.
+            Account = await _queries.GetDetailsAsync(id, cancellationToken) ?? Account;
+            Input = BuildInputFromAccount(Account);
+            ModelState.Clear();
+            ModelState.AddModelError(
+                string.Empty,
+                "Someone else changed this account after you opened it. The form now shows the current details and roles; make your changes again and save.");
+            await LoadPresentationAsync(cancellationToken);
+            return Page();
+        }
 
         if (!result.Succeeded)
         {
@@ -205,6 +207,20 @@ public sealed class EditModel : PageModel
                 }
         };
     }
+
+    private static InputModel BuildInputFromAccount(AdminUserDetails account) => new()
+    {
+        Id = account.Id,
+        FullName = account.FullName,
+        Rank = account.Rank,
+        AccountKind = account.AccountKind,
+        Roles = account.Roles
+            .Select(RoleNames.Canonicalize)
+            .Where(RoleNames.IsAssignable)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList(),
+        Version = UserEditVersion.Compute(account.FullName, account.Rank, account.AccountKind, account.Roles)
+    };
 
     private void NormaliseInput()
     {
