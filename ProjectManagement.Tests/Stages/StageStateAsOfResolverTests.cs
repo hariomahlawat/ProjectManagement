@@ -177,6 +177,32 @@ public sealed class StageStateAsOfResolverTests
     }
 
     [Fact]
+    public void ACorrectedStartDate_ReplacesTheFirstOne()
+    {
+        // Started on 3 Feb, the start corrected to 4 May after the date: not started on 31 March.
+        var states = Resolve(
+            new[] { Fact(StageCodes.FS, StageStatus.InProgress, start: new(2026, 5, 4)) },
+            new[] { new StageLogFact(StageCodes.FS, "InProgress", new(2026, 6, 1), FromStatus: "InProgress", Sequence: 1, FromActualStart: new(2026, 2, 3), ToActualStart: new(2026, 5, 4)) });
+
+        Assert.Equal(StageStateAsOf.NotStarted, states[StageCodes.FS]);
+    }
+
+    [Fact]
+    public void AResetBeforeTheDate_EndsTheEarlierStart()
+    {
+        // Started in January, reset to Not started on 20 Feb: not started on 31 March.
+        var states = Resolve(
+            new[] { Fact(StageCodes.FS, StageStatus.NotStarted) },
+            new[]
+            {
+                new StageLogFact(StageCodes.FS, "InProgress", new(2026, 1, 10), FromStatus: "NotStarted", Sequence: 1, ToActualStart: new(2026, 1, 10)),
+                new StageLogFact(StageCodes.FS, "NotStarted", new(2026, 2, 20), FromStatus: "InProgress", Sequence: 2, FromActualStart: new(2026, 1, 10))
+            });
+
+        Assert.Equal(StageStateAsOf.NotStarted, states[StageCodes.FS]);
+    }
+
+    [Fact]
     public void ACorrectedCompletionDate_ReplacesTheFirstOne()
     {
         // Recorded completed on 10 Feb, the date later corrected to 20 May (no reopen): not finished on 31 March.
