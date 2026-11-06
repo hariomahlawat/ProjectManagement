@@ -224,7 +224,7 @@ public sealed class ProjectBriefingContractTests
         // Library: dates without this year's year, owner truncated with the full name on hover,
         // and no "Not generated yet" repeated in Data since.
         Assert.Contains("return ist.Year == todayIst.Year ? ist.ToString(\"dd MMM\") : ist.ToString(\"dd MMM yy\");", library, StringComparison.Ordinal);
-        Assert.Contains("<td class=\"is-owner\" title=\"@deck.CreatedByDisplay\">", library, StringComparison.Ordinal);
+        Assert.Contains("<td class=\"is-owner\" title=\"@deck.CreatedByDisplay\"", library, StringComparison.Ordinal);
         Assert.DoesNotContain("Not generated yet", library, StringComparison.Ordinal);
         Assert.Contains(".pbd-library__table .is-date {\n    white-space: nowrap;", css, StringComparison.Ordinal);
 
@@ -344,6 +344,25 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains(">Changed since</th>", library, StringComparison.Ordinal);
         Assert.Contains("required, at least 3 characters", page, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"@UpdateSheetRowLabel(row)\"", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Review_PhoneHeaderAndLibraryCards()
+    {
+        var library = Read("_DeckLibrary.cshtml");
+        var css = Read("project-briefing-decks.css").Replace("\r\n", "\n");
+        var phone = css[css.LastIndexOf("@media (max-width: 575.98px) {", StringComparison.Ordinal)..];
+
+        // Studio header: Generate on its own row; the icon, "Updated" and the note give way.
+        Assert.Contains(".pbd-deck-header__actions .pbd-generate-action {\n        flex: 1 1 100%;", phone, StringComparison.Ordinal);
+        Assert.Contains(".pbd-deck-header__meta,", phone, StringComparison.Ordinal);
+
+        // Library: cards with labelled values.
+        Assert.Contains(".pbd-library__table td[data-label]::before {", phone, StringComparison.Ordinal);
+        foreach (var label in new[] { "Template", "Projects", "Slides", "Owner", "Edited", "Generated", "Changed since" })
+        {
+            Assert.Contains($"data-label=\"{label}\"", library, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

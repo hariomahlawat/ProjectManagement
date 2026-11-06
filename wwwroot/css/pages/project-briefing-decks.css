@@ -5800,3 +5800,95 @@ span.pbd-additional-slide-row__handle {
     display: none;
 }
 
+/* Phone (review PR D). Studio header: Generate gets its own full-width row, Switch deck and the
+   deck menu beneath it; the deck icon, the "Updated" line and the placeholder note give way (the
+   Gaps step says the same); the progress line uses the full width. Library: the table becomes a
+   list of cards, each value labelled. */
+@media (max-width: 575.98px) {
+    .pbd-deck-header__mark,
+    .pbd-deck-header__meta,
+    .pbd-generate-action small {
+        display: none;
+    }
+
+    .pbd-deck-header__actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .pbd-deck-header__actions .pbd-generate-action {
+        flex: 1 1 100%;
+    }
+
+    .pbd-library__table-wrap {
+        overflow: visible;
+        border: 0;
+        background: none;
+    }
+
+    .pbd-library__table {
+        display: block;
+        min-width: 0;
+    }
+
+    .pbd-library__table thead {
+        display: none;
+    }
+
+    .pbd-library__table tbody {
+        display: grid;
+        gap: .6rem;
+    }
+
+    .pbd-library__table tr {
+        position: relative;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .2rem .9rem;
+        padding: .75rem .85rem;
+        border: 1px solid var(--pbd-border);
+        border-radius: .75rem;
+        background: var(--pbd-surface);
+    }
+
+    .pbd-library__table tr[hidden] {
+        display: none;
+    }
+
+    .pbd-library__table td,
+    .pbd-library__table td:first-child {
+        display: block;
+        padding: 0;
+        border: 0;
+        font-size: .8rem;
+        text-align: left;
+    }
+
+    .pbd-library__table tbody tr:hover td {
+        background: none;
+    }
+
+    .pbd-library__table td:first-child {
+        flex: 1 1 100%;
+        padding-right: 2.6rem;
+        font-size: .9rem;
+    }
+
+    .pbd-library__table td.is-actions {
+        position: absolute;
+        top: .6rem;
+        right: .6rem;
+        width: auto;
+        padding: 0;
+    }
+
+    .pbd-library__table td[data-label]::before {
+        content: attr(data-label) " ";
+        color: var(--pbd-muted);
+    }
+
+    .pbd-library__table .is-owner {
+        max-width: none;
+    }
+}
+
