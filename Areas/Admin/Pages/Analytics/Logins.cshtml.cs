@@ -259,7 +259,7 @@ public sealed class LoginsModel : PageModel
             {
                 Label = "Affected accounts",
                 Value = Snapshot.AffectedAccounts.ToString("N0"),
-                Detail = $"{Snapshot.UniqueUsers:N0} active users · {Snapshot.UniqueSourceIps:N0} sources",
+                Detail = $"{Snapshot.UniqueUsers:N0} active user{(Snapshot.UniqueUsers == 1 ? "" : "s")} · {Snapshot.UniqueSourceIps:N0} source{(Snapshot.UniqueSourceIps == 1 ? "" : "s")}",
                 Icon = "bi-person-exclamation",
                 Tone = Snapshot.AffectedAccounts > 0 ? "warning" : "neutral"
             },

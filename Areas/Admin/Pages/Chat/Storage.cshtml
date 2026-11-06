@@ -29,20 +29,20 @@
 
 <section class="admin-monitoring-metric-grid" aria-label="Chat storage summary">
     <article class="admin-monitoring-metric">
-        <span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span>
-        <div><small>Files kept</small><strong>@Model.Totals.Files.ToString("N0")</strong><span>@StorageModel.Size(Model.Totals.TotalBytes) in all</span></div>
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-files"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Totals.Files.ToString("N0")</strong><span>Files kept</span><small>@StorageModel.Size(Model.Totals.TotalBytes) in all</small></span>
     </article>
     <article class="admin-monitoring-metric">
-        <span class="admin-monitoring-metric__icon"><i class="bi bi-hdd"></i></span>
-        <div><small>Free on the upload disk</small><strong>@(Model.Totals.FreeDiskBytes is { } free ? StorageModel.Size(free) : "Unknown")</strong><span>Uploads stop below @settings.MinimumFreeDiskGb GB</span></div>
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-hdd"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@(Model.Totals.FreeDiskBytes is { } free ? StorageModel.Size(free) : "Unknown")</strong><span>Free on the upload disk</span><small>Uploads stop below @settings.MinimumFreeDiskGb GB</small></span>
     </article>
     <article class="admin-monitoring-metric">
-        <span class="admin-monitoring-metric__icon"><i class="bi bi-person"></i></span>
-        <div><small>Allowance</small><strong>@StorageModel.Size(settings.AllowanceBytes) each</strong><span>@settings.MaxFileMb MB per file</span></div>
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-person"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@StorageModel.Size(settings.AllowanceBytes) each</strong><span>Allowance</span><small>@settings.MaxFileMb MB per file</small></span>
     </article>
     <article class="admin-monitoring-metric">
-        <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-x"></i></span>
-        <div><small>Automatic retention</small><strong>@(settings.RetentionDays > 0 ? $"{settings.RetentionDays} days" : "Off")</strong><span>Older files are removed once a day</span></div>
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-calendar2-x"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@(settings.RetentionDays > 0 ? $"{settings.RetentionDays} days" : "Off")</strong><span>Automatic retention</span><small>Older files are removed once a day</small></span>
     </article>
 </section>
 

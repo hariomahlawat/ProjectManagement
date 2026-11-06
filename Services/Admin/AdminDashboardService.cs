@@ -184,13 +184,13 @@ public sealed class AdminDashboardService : IAdminDashboardService
                     action.Actor,
                     _time.FormatIst(action.TimeUtc)))
                 .ToArray(),
-            BuildAttention(metrics));
+            BuildAttention(metrics, _time.TodayIst.AddDays(-1)));
     }
 
     // Only what an administrator has to act on (docs/ux/admin-module.md, rule 5 "Colour means
     // something"). A pending password change, a disabled account or items in a bin are normal and
     // show as neutral figures on Home's task tiles instead.
-    internal static IReadOnlyList<AdminDashboardAttention> BuildAttention(AdminDashboardMetrics metrics)
+    internal static IReadOnlyList<AdminDashboardAttention> BuildAttention(AdminDashboardMetrics metrics, DateOnly? errorsSince = null)
     {
         var items = new List<AdminDashboardAttention>();
 
@@ -230,7 +230,11 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 "Something failed while people were working. Check what it was.",
                 "Review",
                 AdminNavigationKeys.Logs,
-                new Dictionary<string, object?> { ["Level"] = "Error" }));
+                // From yesterday (IST), so the audit log shows these errors rather than its
+                // default 30 days.
+                errorsSince is { } since
+                    ? new Dictionary<string, object?> { ["Level"] = "Error", ["From"] = since.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
+                    : new Dictionary<string, object?> { ["Level"] = "Error" }));
         }
 
         return items;
