@@ -32,7 +32,9 @@ public sealed record StageLogFact(
     string? FromStatus = null,
     DateOnly? FromCompletedOn = null,
     DateOnly? ToCompletedOn = null,
-    long Sequence = 0);
+    long Sequence = 0,
+    DateOnly? FromActualStart = null,
+    DateOnly? ToActualStart = null);
 
 /// <summary>A project's stage on a past date: one stage, or the range it lies in when dates are missing.</summary>
 public sealed record StagePositionAsOf(
@@ -100,11 +102,18 @@ public static class StageStateAsOfResolver
         static bool IsStatus(StageLogFact log, StageStatus status) =>
             string.Equals(log.ToStatus, status.ToString(), StringComparison.OrdinalIgnoreCase);
 
-        // Positive evidence that a stage had begun (or ended) by the date.
+        IReadOnlyList<StageLogFact> HistoryOf(string code) =>
+            logsByCode.TryGetValue(code, out var entries)
+                ? entries.OrderBy(log => log.RecordedOn).ThenBy(log => log.Sequence).ToList()
+                : Array.Empty<StageLogFact>();
+
+        // Positive evidence that a stage had begun (or ended) by the date: a start or completion date (today's
+        // or one the history carries, which a later reset may have cleared), or a status recorded by then.
         bool StartedBy(string code) =>
             byCode.TryGetValue(code, out var fact)
             && (fact.ActualStart is { } start && start <= asOf
                 || fact.CompletedOn is { } end && end <= asOf
+                || Logged(code, log => log.ToActualStart is { } to && to <= asOf || log.FromActualStart is { } from && from <= asOf)
                 || Logged(code, log => log.RecordedOn <= asOf
                     && (IsStatus(log, StageStatus.InProgress) || IsStatus(log, StageStatus.Completed))));
 
@@ -127,47 +136,26 @@ public static class StageStateAsOfResolver
 
         StageStateAsOf OwnState(StageFactNow fact)
         {
-            // A completion date recorded on the stage today, on or before the date, decides. A later one may
-            // be a second completion after a reopen, so the history is read first.
-            if (fact.Status == StageStatus.Completed && fact.CompletedOn is { } completedOn && completedOn <= asOf)
+            StageStateAsOf Open() => StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
+
+            // Each completion, with any later date corrections applied, until the reopen that ended it.
+            var cycles = CompletionCycles(fact, HistoryOf(fact.Code));
+            if (cycles.Any(cycle => cycle.FinishedOn(asOf)))
             {
                 return StageStateAsOf.Finished;
             }
 
-            // The last applied change recorded on or before the date is the stage's status on it.
-            if (logsByCode.TryGetValue(fact.Code, out var history)
-                && history.Where(log => log.RecordedOn <= asOf).OrderBy(log => log.RecordedOn).ThenBy(log => log.Sequence).LastOrDefault() is { } last
+            // Not finished on the date by any completion: the last change recorded by then gives its status.
+            if (HistoryOf(fact.Code).LastOrDefault(log => log.RecordedOn <= asOf) is { } last
                 && Enum.TryParse<StageStatus>(last.ToStatus, ignoreCase: true, out var then))
             {
-                return then switch
-                {
-                    StageStatus.Completed => StageStateAsOf.Finished,
-                    StageStatus.Skipped => StageStateAsOf.Skipped,
-                    StageStatus.InProgress or StageStatus.Blocked => StageStateAsOf.InProgress,
-                    _ => StageStateAsOf.NotStarted
-                };
+                return then == StageStatus.Skipped ? StageStateAsOf.Skipped : Open();
             }
 
-            // A completion date the history carries (a stage reopened later keeps it).
-            if (history is not null
-                && history
-                    .Select(log => string.Equals(log.ToStatus, nameof(StageStatus.Completed), StringComparison.OrdinalIgnoreCase) ? log.ToCompletedOn
-                        : string.Equals(log.FromStatus, nameof(StageStatus.Completed), StringComparison.OrdinalIgnoreCase) ? log.FromCompletedOn
-                        : null)
-                    .Where(date => date.HasValue)
-                    .Select(date => date!.Value)
-                    .DefaultIfEmpty()
-                    .Min() is { } historical && historical != default)
+            // A dated completion, but after the date (or reopened before it).
+            if (cycles.Any(cycle => cycle.End.HasValue))
             {
-                return historical <= asOf
-                    ? StageStateAsOf.Finished
-                    : StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
-            }
-
-            // Completed after the date, with no earlier completion in the history.
-            if (fact.Status == StageStatus.Completed && fact.CompletedOn is not null)
-            {
-                return StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
+                return Open();
             }
 
             switch (fact.Status)
@@ -178,20 +166,10 @@ public static class StageStateAsOfResolver
                     break;
                 default:
                     // Not finished today, and nothing says it was finished then.
-                    return StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
+                    return Open();
             }
 
-            if (RecordedOpenAfter(fact.Code))
-            {
-                return StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
-            }
-
-            if (Logged(fact.Code, log => log.RecordedOn <= asOf && IsStatus(log, StageStatus.Completed)))
-            {
-                return StageStateAsOf.Finished;
-            }
-
-            return StageStateAsOf.Unknown;
+            return RecordedOpenAfter(fact.Code) ? Open() : StageStateAsOf.Unknown;
         }
 
         // Dated evidence that a stage had begun or ended by the date (its own recorded start or completion,
@@ -305,6 +283,59 @@ public static class StageStateAsOfResolver
         }
 
         return states;
+    }
+
+    /// <summary>One completion of a stage: its end (after any date corrections), when it was recorded, and when a reopen ended it.</summary>
+    private sealed record CompletionCycle(DateOnly? End, DateOnly? RecordedOn, DateOnly? ReopenedOn)
+    {
+        /// <summary>Finished on the date: completed by then (dated, or recorded by then when undated) and not yet reopened.</summary>
+        public bool FinishedOn(DateOnly asOf) =>
+            (End is { } end ? end <= asOf : RecordedOn is { } recorded && recorded <= asOf)
+            && (ReopenedOn is not { } reopened || reopened > asOf);
+    }
+
+    // Reads a stage's applied history as completion cycles. A completion opens a cycle; a later change that
+    // stays Completed only corrects its date; a change away from Completed (a reopen) closes it. Today's
+    // record is the last cycle, with today's completion date authoritative for it.
+    private static IReadOnlyList<CompletionCycle> CompletionCycles(StageFactNow fact, IReadOnlyList<StageLogFact> history)
+    {
+        static bool Is(string? status, StageStatus expected) =>
+            string.Equals(status, expected.ToString(), StringComparison.OrdinalIgnoreCase);
+
+        var cycles = new List<CompletionCycle>();
+        var open = false;
+        DateOnly? end = null;
+        DateOnly? recorded = null;
+        foreach (var log in history)
+        {
+            if (Is(log.ToStatus, StageStatus.Completed))
+            {
+                if (!open)
+                {
+                    open = true;
+                    recorded = log.RecordedOn;
+                    end = log.ToCompletedOn;
+                }
+                else if (log.ToCompletedOn is { } corrected)
+                {
+                    end = corrected;
+                }
+            }
+            else if (open || Is(log.FromStatus, StageStatus.Completed))
+            {
+                cycles.Add(new CompletionCycle(end ?? log.FromCompletedOn, open ? recorded : null, log.RecordedOn));
+                open = false;
+                end = null;
+                recorded = null;
+            }
+        }
+
+        if (fact.Status == StageStatus.Completed)
+        {
+            cycles.Add(new CompletionCycle(fact.CompletedOn ?? end, open ? recorded : null, null));
+        }
+
+        return cycles;
     }
 
     /// <summary>
