@@ -118,7 +118,7 @@ if (root) {
   // Each fix says where the change lands: "Fix in project" changes the project record (every deck
   // and page shows it); "This deck only" writes text kept with this deck.
   const GAPS = {
-    status: { label: 'Status remark', missing: 'No external status remark yet', href: (p) => p.openUrl },
+    status: { label: 'Status remark', missing: 'No external status remark yet', href: (p) => `${p.openUrl}#remarks` },
     costRd: { label: 'Cost (R&D)', missing: 'Not recorded', href: (p) => p.openUrl },
     proliferationCost: { label: 'Proliferation cost', missing: 'Not recorded', href: (p) => p.openUrl },
     photo: { label: 'Photograph', missing: 'No usable cover photo', href: (p) => `/Projects/${p.projectId}/Photos` },
@@ -142,6 +142,7 @@ if (root) {
   const collapsed = new Set();
   let controller = null;
   let refreshTimer = 0;
+  let lastBuiltAt = 0;
   let hasProjects = root.dataset.hasProjects === 'true';
   let viewerIndex = 0;
   let selectedKey = '';
@@ -1072,7 +1073,11 @@ if (root) {
     if (countLabel) countLabel.textContent = String(payload.slideCount);
     if (slideTotal) slideTotal.textContent = label;
     if (slideBreakdown) slideBreakdown.textContent = 'Exact count from the slide preview.';
-    if (status) status.textContent = `${label}, built from current PRISM data at ${payload.generatedAt}. Generate PowerPoint downloads exactly these slides.`;
+    // One line, so the slide starts higher; the promise about Generate stays on hover.
+    if (status) {
+      status.textContent = `${label} · built ${payload.generatedAt} from current PRISM data`;
+      status.title = 'Generate PowerPoint downloads exactly these slides.';
+    }
   };
 
   const renderEmpty = (message) => {
@@ -1114,6 +1119,7 @@ if (root) {
   };
 
   const loadPreview = async () => {
+    lastBuiltAt = Date.now();
     // Cancel a running build so an obsolete response cannot restore old slides.
     controller?.abort();
     controller = null;
@@ -1452,6 +1458,19 @@ if (root) {
     window.clearTimeout(refreshTimer);
     refreshTimer = window.setTimeout(loadPreview, 900);
   });
+
+  // A fix made in the project's own tab ("Fix in project") shows here when the person comes back:
+  // a quiet rebuild once the page is in view again, at most every 15 seconds, never while a build
+  // runs, while presenting or while typing in the Studio.
+  const rebuildOnReturn = () => {
+    if (document.visibilityState !== 'visible') return;
+    if (controller || viewer?.open) return;
+    if (Date.now() - lastBuiltAt < 15000) return;
+    if (document.activeElement?.matches?.('input, textarea, select, [contenteditable="true"]')) return;
+    loadPreview();
+  };
+  document.addEventListener('visibilitychange', rebuildOnReturn);
+  window.addEventListener('focus', rebuildOnReturn);
 
   // All slides is not brought back on narrow screens, where the grid runs to thousands of pixels.
   setView(savedPlace.view === 'grid' && !narrowScreen() ? 'grid' : 'slide');

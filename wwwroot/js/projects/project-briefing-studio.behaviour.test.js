@@ -440,3 +440,39 @@ test('Present shows the notes of the project on the slide, not of a left-out pro
   assert.equal(document.querySelector('[data-pbd-viewer-counter]').textContent, '2 / 5');
   assert.equal(document.querySelector('[data-pbd-viewer-notes-text]').textContent, 'Notes for Alpha simulator');
 });
+
+test('coming back to the Studio rebuilds the slides, but not straight after a build or while typing', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload());
+  await settle(window);
+
+  // Straight after the first build: nothing new.
+  window.dispatchEvent(new window.Event('focus'));
+  assert.equal(requests.length, 1);
+
+  // Later, after a fix in the project's own tab: one quiet rebuild with the fresh gaps.
+  const realNow = window.Date.now.bind(window.Date);
+  window.Date.now = () => realNow() + 20000;
+  const search = document.querySelector('[data-pbd-outline-search]');
+  search.focus();
+  window.dispatchEvent(new window.Event('focus'));
+  assert.equal(requests.length, 1, 'no rebuild while the person is typing');
+
+  search.blur();
+  window.dispatchEvent(new window.Event('focus'));
+  assert.equal(requests.length, 2);
+  requests[1].answer(payload({ contentGaps: { 1: ['photo'], 4: ['costRd'] } }));
+  await settle(window);
+  assert.equal(document.querySelector('[data-pbd-checks-badge]').textContent, '1');
+});
+
+test("a missing status remark is fixed in the project's remarks section", async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload());
+  await settle(window);
+  outlineRow(document, 'Bravo trainer').click();
+
+  const fix = document.querySelector('.pbd-inspector__gaps a');
+  assert.equal(fix.textContent.trim(), 'Fix in project');
+  assert.match(fix.getAttribute('href'), /#remarks$/);
+});

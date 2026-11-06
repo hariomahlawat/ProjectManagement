@@ -152,43 +152,6 @@
                 </div>
             </header>
         }
-        else
-        {
-            <nav class="pbd-studio-nav" aria-label="Briefing decks">
-                <a class="pbd-studio-nav__back" href="@Url.Content("~/Workspace/BriefingDecks")">
-                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                    Briefing decks
-                </a>
-                <div class="pbd-studio-nav__actions">
-                    @if (Model.Decks.Count > 1)
-                    {
-                        <div class="dropdown">
-                            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-collection" aria-hidden="true"></i>
-                                Switch deck
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end pbd-studio-nav__decks">
-                                @foreach (var saved in Model.Decks)
-                                {
-                                    var isCurrent = saved.Id == deck.Id;
-                                    <li>
-                                        <a class="dropdown-item @(isCurrent ? "active" : null)" aria-current="@(isCurrent ? "page" : null)"
-                                           asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@saved.Id">
-                                            <strong>@saved.Name</strong>
-                                            <small>@saved.Purpose · @saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects")</small>
-                                        </a>
-                                    </li>
-                                }
-                            </ul>
-                        </div>
-                    }
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
-                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                        New deck
-                    </button>
-                </div>
-            </nav>
-        }
 
         @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
         {
@@ -255,7 +218,13 @@
                             <div class="pbd-deck-header__identity">
                                 <span class="pbd-deck-header__mark" aria-hidden="true"><i class="bi bi-easel2"></i></span>
                                 <div>
-                                    <span class="pbd-eyebrow">Briefing deck</span>
+                                    @* The way back to the library sits where the eyebrow was, so the Studio needs no row
+                                       of its own above the header (the slide starts higher on laptops). It must not
+                                       inherit the open deck's id from the route. *@
+                                    <a class="pbd-studio-nav__back" href="@Url.Content("~/Workspace/BriefingDecks")">
+                                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                                        Briefing decks
+                                    </a>
                                     <div class="pbd-deck-title" data-pbd-deck-title-view>
                                         <h2 id="pbd-deck-title" data-pbd-deck-name>@deck.Name</h2>
                                         <button type="button" class="btn btn-sm btn-link pbd-deck-title__edit" data-pbd-rename aria-label="Rename the deck or edit its description" title="Rename or edit description">
@@ -293,11 +262,36 @@
                                     </form>
                                     <small data-pbd-placeholder-note hidden>Missing content uses defined placeholders.</small>
                                 </div>
+                                @if (Model.Decks.Count > 1)
+                                {
+                                    <div class="dropdown">
+                                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="bi bi-collection" aria-hidden="true"></i>
+                                            Switch deck
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end pbd-studio-nav__decks">
+                                            @foreach (var saved in Model.Decks)
+                                            {
+                                                var isCurrent = saved.Id == deck.Id;
+                                                <li>
+                                                    <a class="dropdown-item @(isCurrent ? "active" : null)" aria-current="@(isCurrent ? "page" : null)"
+                                                       asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@saved.Id">
+                                                        <strong>@saved.Name</strong>
+                                                        <small>@saved.Purpose · @saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects")</small>
+                                                    </a>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
                                 <div class="dropdown">
                                     <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Deck actions">
                                         <i class="bi bi-three-dots" aria-hidden="true"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
+                                        <li>
+                                            <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal"><i class="bi bi-plus-lg" aria-hidden="true"></i> New deck</button>
+                                        </li>
                                         <li>
                                             <form method="post" asp-page-handler="Duplicate">
                                                 <input type="hidden" name="deckId" value="@deck.Id" />

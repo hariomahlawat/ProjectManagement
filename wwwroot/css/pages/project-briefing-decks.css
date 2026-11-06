@@ -211,7 +211,8 @@
     place-items: center;
     border-radius: .68rem;
     background: var(--pbd-navy);
-    color: #fff;
+    /* The surface colour, not white: in dark theme the tile turns light and a white icon vanished. */
+    color: var(--pbd-surface);
     font-size: 1.13rem;
 }
 
@@ -243,6 +244,12 @@
     color: var(--pbd-muted);
     font-size: .75rem;
     text-align: right;
+}
+
+/* Takes no room until there is something to say. */
+.pbd-generate-status:empty {
+    min-height: 0;
+    margin: 0;
 }
 
 .pbd-generate-status.is-success { color: var(--pbd-green); }
@@ -2612,10 +2619,6 @@ body.pbd-profile-drawer-open {
 
 :where([data-bs-theme="dark"]) .pbd-editor {
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.21);
-}
-
-:where([data-bs-theme="dark"]) .pbd-deck-header__mark {
-    color: #fff;
 }
 
 :where([data-bs-theme="dark"]) .pbd-settings__form {
@@ -5196,15 +5199,7 @@ span.pbd-additional-slide-row__handle {
     background: var(--pbd-surface);
 }
 
-/* Studio: the way back to the library and the deck switcher, above the deck header. */
-.pbd-studio-nav {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: .5rem 1rem;
-    margin-bottom: .75rem;
-}
+/* Studio: the way back to the library (in the deck header) and the deck switcher. */
 
 .pbd-studio-nav__back {
     display: inline-flex;
@@ -5222,10 +5217,10 @@ span.pbd-additional-slide-row__handle {
     color: var(--pbd-blue);
 }
 
-.pbd-studio-nav__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .5rem;
+/* In the deck header, in the eyebrow's place. */
+.pbd-deck-header .pbd-studio-nav__back {
+    min-height: 0;
+    font-size: .78rem;
 }
 
 .pbd-studio-nav__decks {
@@ -5656,8 +5651,15 @@ span.pbd-additional-slide-row__handle {
     margin: 0;
 }
 
-.pbd-quick-card .btn.is-added {
+/* Added stays readable in every state: Bootstrap's focus/active blue background hid the green
+   text after the click that added it. */
+.pbd-quick-card .btn.is-added,
+.pbd-quick-card .btn.is-added:hover,
+.pbd-quick-card .btn.is-added:focus,
+.pbd-quick-card .btn.is-added:focus-visible,
+.pbd-quick-card .btn.is-added:active {
     border-color: var(--pbd-green);
+    background: color-mix(in srgb, var(--pbd-green) 10%, var(--pbd-surface));
     color: var(--pbd-green);
 }
 
