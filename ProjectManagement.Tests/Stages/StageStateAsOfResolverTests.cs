@@ -206,6 +206,44 @@ public sealed class StageStateAsOfResolverTests
         Assert.Equal(StageStateAsOf.InProgress, states[StageCodes.FS]);
     }
 
+    [Fact]
+    public void ADatedLaterStage_OutweighsAnOlderOpenLog()
+    {
+        // AoN was recorded In progress in January, then force-completed without a date when Bid's February
+        // completion was entered in April: AoN was finished by 31 March.
+        var states = Resolve(
+            new[]
+            {
+                Fact(StageCodes.IPA, StageStatus.Completed, completedOn: new(2025, 12, 1)),
+                Fact(StageCodes.AON, StageStatus.Completed),
+                Fact(StageCodes.BID, StageStatus.Completed, completedOn: new(2026, 2, 20))
+            },
+            new[] { new StageLogFact(StageCodes.AON, "InProgress", new(2026, 1, 15)) });
+
+        Assert.Equal(StageStateAsOf.Finished, states[StageCodes.AON]);
+    }
+
+    [Fact]
+    public void BackToBack_LooksPastSkippedStages()
+    {
+        // COB undated; PNC and EAS skipped; SO started on 1 April: COB ended on 31 March.
+        var states = StageStateAsOfResolver.Resolve(
+            new[]
+            {
+                Fact(StageCodes.TEC, StageStatus.Completed, completedOn: new(2026, 1, 5)),
+                Fact(StageCodes.BM, StageStatus.Completed, completedOn: new(2026, 1, 6)),
+                Fact(StageCodes.COB, StageStatus.Completed),
+                Fact(StageCodes.PNC, StageStatus.Skipped),
+                Fact(StageCodes.EAS, StageStatus.Skipped),
+                Fact(StageCodes.SO, StageStatus.InProgress, start: new(2026, 4, 1))
+            },
+            Array.Empty<StageLogFact>(),
+            WorkflowWithPncAndEas(),
+            YearEnd);
+
+        Assert.Equal(StageStateAsOf.Finished, states[StageCodes.COB]);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -345,6 +383,26 @@ public sealed class StageStateAsOfResolverTests
             dependencies,
             new HashSet<string>(StringComparer.OrdinalIgnoreCase),
             pncApplicable: false);
+    }
+
+    // As SDD-2.0: PNC and EAS both follow COB (EAS also needs PNC when it applies), then SO; a skipped
+    // PNC and EAS sit between COB and SO.
+    private static ProjectStageWorkflowSnapshot WorkflowWithPncAndEas()
+    {
+        string[] order = { StageCodes.TEC, StageCodes.BM, StageCodes.COB, StageCodes.PNC, StageCodes.EAS, StageCodes.SO };
+        var dependencies = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            [StageCodes.COB] = new[] { StageCodes.TEC, StageCodes.BM },
+            [StageCodes.PNC] = new[] { StageCodes.COB },
+            [StageCodes.EAS] = new[] { StageCodes.COB },
+            [StageCodes.SO] = new[] { StageCodes.EAS }
+        };
+        return new ProjectStageWorkflowSnapshot(
+            "test-pnc",
+            order.Select(code => new WorkflowStageDefinition(code, StageCodes.DisplayNameOf(code))).ToList(),
+            dependencies,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            pncApplicable: true);
     }
 
     private static IReadOnlyList<ProjectLifecycleStageSnapshot> Snapshots(IEnumerable<StageFactNow> facts)

@@ -189,6 +189,12 @@ public static class StageStateAsOfResolver
             return StageStateAsOf.Unknown;
         }
 
+        // Dated evidence that a stage had begun or ended by the date (its own recorded start or completion,
+        // not a log entry).
+        bool DatedBy(string code) =>
+            byCode.TryGetValue(code, out var fact)
+            && (fact.ActualStart is { } start && start <= asOf || fact.CompletedOn is { } end && end <= asOf);
+
         // Second pass, repeated until nothing changes: settle the unknowns from the stages around them.
         var changed = true;
         while (changed)
@@ -205,6 +211,16 @@ public static class StageStateAsOfResolver
                         && state is StageStateAsOf.NotStarted or StageStateAsOf.InProgress))
                 {
                     next = StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
+                }
+                // A later stage with a dated start or completion by the date outweighs an older open-status
+                // log: the stage (completed today, with no date of its own) was finished by then. Predecessor
+                // backfill (completing earlier stages when a later one is entered) leaves exactly this shape.
+                else if (current is StageStateAsOf.InProgress or StageStateAsOf.NotStarted
+                    && fact.Status == StageStatus.Completed
+                    && fact.CompletedOn is null
+                    && dependents[fact.Code].Any(DatedBy))
+                {
+                    next = StageStateAsOf.Finished;
                 }
                 else if (current == StageStateAsOf.Unknown)
                 {
@@ -230,18 +246,44 @@ public static class StageStateAsOfResolver
             }
         }
 
+        // The stages that follow this one directly, looking past skipped stages to the next effective one.
+        IEnumerable<string> EffectiveFollowers(string code, HashSet<string> seen)
+        {
+            foreach (var follower in directDependents[code])
+            {
+                if (!seen.Add(follower))
+                {
+                    continue;
+                }
+
+                if (byCode.TryGetValue(follower, out var fact) && fact.Status == StageStatus.Skipped)
+                {
+                    foreach (var beyond in EffectiveFollowers(follower, seen))
+                    {
+                        yield return beyond;
+                    }
+                }
+                else
+                {
+                    yield return follower;
+                }
+            }
+        }
+
         // Every following stage that qualifies gives an end; parallel followers (TEC and BM after Bid) can
         // give different ones, and the stage had ended by the earliest of them.
         DateOnly? EndFromNextStart(string code)
         {
             DateOnly? earliest = null;
-            foreach (var follower in directDependents[code])
+            foreach (var follower in EffectiveFollowers(code, new HashSet<string>(StringComparer.OrdinalIgnoreCase)))
             {
                 if (!byCode.TryGetValue(follower, out var next) || next.ActualStart is not { } start)
                 {
                     continue;
                 }
 
+                // The follower's other required predecessors (skipped ones looked past) must all have ended
+                // before the day this one is taken to have ended.
                 var others = DirectPredecessorsOf(follower)
                     .Where(other => !string.Equals(other, code, StringComparison.OrdinalIgnoreCase))
                     .Select(other => byCode.TryGetValue(other, out var fact) ? fact : null)
