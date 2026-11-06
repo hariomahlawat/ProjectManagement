@@ -138,7 +138,7 @@ else
                             {
                                 <li><hr class="dropdown-divider" /></li>
                                 <li>
-                                    <form method="post" asp-page-handler="DeleteContact" data-confirm-form="Remove @contactLabel from this organisation?">
+                                    <form method="post" asp-page-handler="DeleteContact" data-confirm="Remove @contactLabel from this organisation?" data-confirm-action="Remove contact">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="partnerId" value="@partner.Id" />
                                         <input type="hidden" name="contactId" value="@contact.Id" />

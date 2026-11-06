@@ -55,3 +55,23 @@ test('editor warns before leaving the page with unsaved changes', () => {
   dom.window.dispatchEvent(dirty);
   assert.equal(dirty.defaultPrevented, true);
 });
+
+test('while the PRISM confirmation is open, Tab and Escape belong to it, not the editor', () => {
+  const dom = createDom();
+  const doc = dom.window.document;
+  // The shared confirmation dialog, open outside the editor.
+  doc.body.insertAdjacentHTML('beforeend',
+    '<dialog open data-prism-confirm-dialog><button id="keep">Keep editing</button><button id="discard">Discard changes</button></dialog>');
+  let asked = 0;
+  dom.window.PrismConfirm = { show: () => { asked += 1; return new Promise(() => {}); } };
+  doc.getElementById('number').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+
+  doc.getElementById('keep').focus();
+  assert.equal(tab(dom).defaultPrevented, false, 'Tab is not pulled back into the editor');
+  assert.equal(doc.activeElement.id, 'keep');
+
+  const escape = new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+  doc.dispatchEvent(escape);
+  assert.equal(escape.defaultPrevented, false, 'Escape is left to the dialog');
+  assert.equal(asked, 0, 'Escape does not open another confirmation');
+});

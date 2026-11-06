@@ -259,7 +259,8 @@
                   asp-page-handler="RemoveAttachment"
                   id="iprRemoveAttachment@(attachment.Id)"
                   class="d-none"
-                  data-ipr-confirm="Remove this attachment?">
+                  data-confirm="Remove this attachment? The file is removed from this IPR record."
+                  data-confirm-action="Remove attachment">
                 <partial name="_RegisterStateFields" model="Model" />
                 <input type="hidden" name="RemoveAttachment.AttachmentId" value="@attachment.Id" />
                 <input type="hidden" name="RemoveAttachment.RecordId" value="@Model.Input.Id" />
@@ -276,7 +277,8 @@
                   asp-page="./Index"
                   asp-page-handler="Delete"
                   id="iprDeleteForm"
-                  data-ipr-confirm="This will permanently delete the IPR record and all its attachments. Continue?">
+                  data-confirm="Delete this IPR record? The record and all its attachments are deleted. This cannot be undone."
+                  data-confirm-action="Delete record">
                 <partial name="_RegisterStateFields" model="Model" />
                 <input type="hidden" asp-for="DeleteRequest.Id" />
                 <input type="hidden" asp-for="DeleteRequest.RowVersion" />

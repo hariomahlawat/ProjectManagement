@@ -214,12 +214,6 @@
 .social-delete-summary dd { margin: .2rem 0 0; color: #24314a; font-weight: 700; }
 .social-delete-actions { display: flex; justify-content: center; gap: .7rem; margin-top: 1rem; }
 
-.social-confirm-modal .modal-content { position: relative; background: var(--pm-card, #fff); border-radius: 1.1rem; }
-.social-confirm-modal__icon { width: 3rem; height: 3rem; flex: 0 0 auto; border-radius: 50%; background: #fff0f1; color: #d23249; display: grid; place-items: center; font-weight: 800; font-size: 1.2rem; }
-.social-confirm-modal__title { font-weight: 800; color: #17223c; }
-.social-confirm-modal__message { color: #4d5a71; }
-.social-confirm-modal__subtitle { color: #8792a4; font-size: .85rem; }
-.social-confirm-modal__close { position: absolute; top: .9rem; right: .9rem; z-index: 2; }
 [data-social-toast-container] { display: none; }
 
 @media (max-width: 1100px) {
@@ -824,23 +818,6 @@
 
 :where([data-bs-theme="dark"]) .social-delete-summary dd {
     color: #e6e8eb;
-}
-
-:where([data-bs-theme="dark"]) .social-confirm-modal__icon {
-    background: color-mix(in srgb, #f87171 8%, #16181b);
-    color: #f87171;
-}
-
-:where([data-bs-theme="dark"]) .social-confirm-modal__title {
-    color: #e6e8eb;
-}
-
-:where([data-bs-theme="dark"]) .social-confirm-modal__message {
-    color: #b4b9bf;
-}
-
-:where([data-bs-theme="dark"]) .social-confirm-modal__subtitle {
-    color: #9aa0a6;
 }
 
 :where([data-bs-theme="dark"]) .social-index-summary {

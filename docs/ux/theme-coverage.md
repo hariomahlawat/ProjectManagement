@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **6193** stylesheet literals in 71 files, **6** in inline view styles.
+Totals: **6184** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -23,11 +23,11 @@ Totals: **6193** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 1: Dashboard, My Workspace, Projects lists, Calendar, shared site.css
 
-1615 literals.
+1612 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 334 | 263 |
+| `site.css` | 331 | 261 |
 | `officer-conference.css` | 202 | 139 |
 | `command-workspace.css` | 192 | 126 |
 | `pages/projects-completed-summary.css` | 186 | 140 |
@@ -64,13 +64,13 @@ Totals: **6193** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 3: Project pages and reports
 
-2192 literals.
+2191 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `pages/projects-publications.css` | 1304 | 813 |
 | `project-ideas.css` | 228 | 150 |
-| `pages/project-briefing-decks.css` | 163 | 114 |
+| `pages/project-briefing-decks.css` | 162 | 113 |
 | `project-ideas-board.css` | 124 | 76 |
 | `pages/projects-reports.css` | 89 | 64 |
 | `site-ipr.css` | 78 | 50 |
@@ -85,14 +85,14 @@ Totals: **6193** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 4: Action tracker, tasks, office reports, admin and the rest
 
-1372 literals.
+1367 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `action-tracker.css` | 223 | 152 |
 | `admin.css` | 176 | 136 |
 | `pages/approvals.css` | 157 | 98 |
-| `social-media.css` | 113 | 91 |
+| `social-media.css` | 108 | 87 |
 | `erp-usage.css` | 80 | 58 |
 | `activities/details.css` | 69 | 45 |
 | `pages/industry-partners.css` | 69 | 47 |

@@ -156,7 +156,7 @@ else
                             {
                                 <li><hr class="dropdown-divider" /></li>
                                 <li>
-                                    <form method="post" asp-page-handler="UnlinkProject" data-confirm-form="Remove this JDP association? The organisation and project will remain in PRISM.">
+                                    <form method="post" asp-page-handler="UnlinkProject" data-confirm="Remove this JDP association? The organisation and project will remain in PRISM." data-confirm-action="Remove association">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="partnerId" value="@partner.Id" />
                                         <input type="hidden" name="associationProjectId" value="@link.ProjectId" />
