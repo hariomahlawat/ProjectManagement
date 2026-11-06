@@ -73,7 +73,6 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     private readonly IAdminWorkerStatusRegistry _workers;
     private readonly ISearchIndexStore _searchIndex;
     private readonly ApplicationDbContext _db;
-    private readonly IDocStorage _docStorage;
     private readonly IOptionsMonitor<ChatOptions> _chat;
     private readonly IServiceProvider _services;
     private readonly IOptions<SearchV2Options> _searchOptions;
@@ -89,7 +88,6 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         IAdminWorkerStatusRegistry workers,
         ISearchIndexStore searchIndex,
         ApplicationDbContext db,
-        IDocStorage docStorage,
         IOptionsMonitor<ChatOptions> chat,
         IServiceProvider services,
         IOptions<SearchV2Options> searchOptions,
@@ -104,7 +102,6 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         _workers = workers ?? throw new ArgumentNullException(nameof(workers));
         _searchIndex = searchIndex ?? throw new ArgumentNullException(nameof(searchIndex));
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _docStorage = docStorage ?? throw new ArgumentNullException(nameof(docStorage));
         _chat = chat ?? throw new ArgumentNullException(nameof(chat));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _searchOptions = searchOptions ?? throw new ArgumentNullException(nameof(searchOptions));
@@ -587,13 +584,17 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         var capped = paths.Count > RepositoryFileCheckLimit;
         if (capped) paths.RemoveAt(paths.Count - 1);
 
+        // Resolved here, inside the guarded check: the storage service creates its folder when it
+        // starts, and a failure there must become this check's warning, not stop System health
+        // and Home from loading.
+        var docStorage = _services.GetRequiredService<IDocStorage>();
         var missing = 0;
         foreach (var path in paths)
         {
             // File.Exists does not observe the token, so stop between files: on a slow share a
             // timed-out check ends here and reports the timeout instead of finishing the batch.
             cancellationToken.ThrowIfCancellationRequested();
-            if (!await _docStorage.ExistsAsync(path ?? string.Empty, cancellationToken)) missing++;
+            if (!await docStorage.ExistsAsync(path ?? string.Empty, cancellationToken)) missing++;
         }
 
         return RepositoryFilesResult(paths.Count, missing, capped);
