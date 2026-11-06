@@ -369,6 +369,25 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Library_ContinueIsHonestAndGenerateRunsTheStudiosChecks()
+    {
+        var library = Read("_DeckLibrary.cshtml");
+        var script = Read("project-briefing-decks.js");
+
+        // "Continue" only for the person's own last deck.
+        Assert.Contains("@(continueDeck.LastEditedByMe ? \"Continue\" : \"Recently edited\")", library, StringComparison.Ordinal);
+
+        // Generate from the library opens the deck and runs the Studio's Generate; no bare post.
+        Assert.DoesNotContain("asp-page-handler=\"Generate\"", library, StringComparison.Ordinal);
+        Assert.Contains("asp-route-generate=\"1\"", library, StringComparison.Ordinal);
+        Assert.Contains("if (startUrl.searchParams.get('generate') === '1') {", script, StringComparison.Ordinal);
+        Assert.Contains("form.requestSubmit();", script, StringComparison.Ordinal);
+
+        // A deck without projects offers Add projects instead of a greyed-out Generate.
+        Assert.Contains("asp-route-start=\"projects\">Add projects</a>", library, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()
     {
         var page = Read("Index.cshtml");

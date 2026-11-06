@@ -586,3 +586,27 @@ the Studio.
   names), the Template picker showing the current template above its list, and the rail's
   contrast (a workspace-wide change).
 
+## Library review (6 Nov 2026)
+
+An independent UI/UX review of the deck library (`/Workspace/BriefingDecks`) at 1366×768,
+1920×1080 and 375×812, light and dark. Plan, by PR:
+
+1. **Continue and Generate.** Done (this change). The card is "Continue" only for the deck this
+   person last edited; otherwise it is "Recently edited" (the deck most recently edited by anyone;
+   decks are shared). Generate in the library (the card and each deck's ⋯ menu) no longer posts
+   straight to the server, which gave no progress, no double-click guard, no gap question and a
+   stale row afterwards: it opens the deck with `?generate=1`, and the Studio runs its own
+   Generate (saving pending changes, "Generate with gaps?", progress, the result line); the flag
+   is dropped from the address. A deck with no projects offers **Add projects** (opening the
+   Studio on Add projects) instead of a greyed-out Generate. The server's Generate handler stays
+   for compatibility.
+2. **The table.** Deck wide; Template; Projects; Edited (when · who); one **PowerPoint** status
+   ("Not generated", "05 Nov · 54 slides · up to date", "3 changes since" linking to what moved);
+   "Mine" with its own heading and an explained empty state; content width capped on wide screens.
+3. **Polish.** Phone cards and the Continue card shorter; New deck hints at 12 px with an inline
+   error and a fresh form each time; one `<main>`; the shared focus ring on deck links; search,
+   filter and sort remembered; the library without the Studio's scripts.
+
+Outside this module: the shared "What's new" announcement can cover the page's top-right buttons
+on a first visit.
+

@@ -38,7 +38,9 @@
 @if (continueDeck is not null)
 {
     <section class="pbd-library__section" aria-labelledby="pbd-continue-title">
-        <h2 class="pbd-library__heading" id="pbd-continue-title">Continue</h2>
+        @* "Continue" only for a deck this person last edited; otherwise the deck most recently edited
+           by anyone (decks are shared), named for what it is. *@
+        <h2 class="pbd-library__heading" id="pbd-continue-title">@(continueDeck.LastEditedByMe ? "Continue" : "Recently edited")</h2>
         <div class="pbd-continue">
             <div class="pbd-continue__identity">
                 <span class="pbd-continue__mark" aria-hidden="true"><i class="bi bi-easel2"></i></span>
@@ -74,9 +76,16 @@
             </div>
             <div class="pbd-continue__actions">
                 <a class="btn btn-primary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id">Open in Studio</a>
-                <form method="post" asp-page-handler="Generate" asp-route-deckId="@continueDeck.Id">
-                    <button type="submit" class="btn btn-outline-secondary" disabled="@(continueDeck.ProjectCount == 0)">Generate PowerPoint</button>
-                </form>
+                @if (continueDeck.ProjectCount == 0)
+                {
+                    <a class="btn btn-outline-secondary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id" asp-route-start="projects">Add projects</a>
+                }
+                else
+                {
+                    @* Generate in the Studio, with its progress, saved-changes and gap checks. *@
+                    <a class="btn btn-outline-secondary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id" asp-route-generate="1"
+                       title="Opens the deck and generates the PowerPoint there, after its checks">Generate PowerPoint</a>
+                }
             </div>
         </div>
     </section>
@@ -210,9 +219,14 @@
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a class="dropdown-item" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"><i class="bi bi-easel2" aria-hidden="true"></i> Open in Studio</a></li>
                                     <li>
-                                        <form method="post" asp-page-handler="Generate" asp-route-deckId="@deck.Id">
-                                            <button type="submit" class="dropdown-item" disabled="@(deck.ProjectCount == 0)"><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Generate PowerPoint</button>
-                                        </form>
+                                        @if (deck.ProjectCount == 0)
+                                        {
+                                            <a class="dropdown-item" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id" asp-route-start="projects"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add projects</a>
+                                        }
+                                        else
+                                        {
+                                            <a class="dropdown-item" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id" asp-route-generate="1"><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Generate PowerPoint</a>
+                                        }
                                     </li>
                                     <li>
                                         <form method="post" asp-page-handler="Duplicate">

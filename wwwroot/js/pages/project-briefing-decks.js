@@ -1427,6 +1427,23 @@ if (root) {
   root.addEventListener('click', (event) => {
     if (event.target instanceof Element && event.target.closest('[data-pbd-open-selector]')) openAddProjects();
   });
+  // From the library, Generate opens the deck here and runs this Generate: progress, saving
+  // pending changes and the gap question all apply. Started once the Studio has read the deck's
+  // gaps (its module runs after this one); the flag is dropped so a reload does not repeat it.
+  const startUrl = new URL(window.location.href);
+  if (startUrl.searchParams.get('generate') === '1') {
+    startUrl.searchParams.delete('generate');
+    window.history.replaceState(window.history.state, '', startUrl);
+    window.setTimeout(() => {
+      const form = root.querySelector('[data-pbd-generate-form]');
+      const button = form?.querySelector('[data-pbd-generate]');
+      if (form instanceof HTMLFormElement && button && !button.disabled) {
+        button.focus();
+        form.requestSubmit();
+      }
+    }, 0);
+  }
+
   // A new deck opens on Add projects, its next step. Drop the flag so a reload does not reopen it.
   if (root.querySelector('[data-pbd-studio][data-pbd-start="projects"]')) {
     openAddProjects();
