@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences;
@@ -70,7 +71,9 @@ public sealed class IndexModel : PageModel
             return Page();
         }
 
-        TempData["StatusMessage"] = result.Message;
+        // Admin pages render the namespaced admin keys only. The generic StatusMessage /
+        // ErrorMessage keys were never shown here and surfaced later on ARPP and FFC pages.
+        TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.Message;
         return RedirectToPage();
     }
 
@@ -91,7 +94,7 @@ public sealed class IndexModel : PageModel
                 User.Identity?.Name),
             cancellationToken);
 
-        TempData[result.Success ? "StatusMessage" : "ErrorMessage"] = result.Message;
+        TempData[result.Success ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.Message;
         return RedirectToPage();
     }
 

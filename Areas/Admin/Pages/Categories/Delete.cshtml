@@ -25,6 +25,7 @@
                 <div><dt>Status</dt><dd>@(Model.Impact.IsActive ? "Active" : "Inactive")</dd></div>
                 <div><dt>Projects</dt><dd>@Model.Impact.DirectUsageCount</dd></div>
                 <div><dt>Direct children</dt><dd>@Model.Impact.DirectChildCount</dd></div>
+                <div><dt>Legacy imports and change requests</dt><dd>@Model.Impact.OtherReferenceCount</dd></div>
                 <div><dt>All descendants</dt><dd>@Model.Impact.DescendantCount</dd></div>
             </dl>
             @if (Model.CanDelete)

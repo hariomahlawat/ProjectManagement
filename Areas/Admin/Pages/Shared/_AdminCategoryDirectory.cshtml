@@ -112,11 +112,15 @@
                                     <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
                                         <input type="hidden" name="id" value="@row.Id" />
                                         <input type="hidden" name="offset" value="-1" />
+                                        <input type="hidden" name="q" value="@Model.Result.Search" />
+                                        <input type="hidden" name="status" value="@Model.Result.Status" />
                                         <button class="btn btn-sm btn-icon" type="submit" disabled="@(!row.CanMoveUp ? "disabled" : null)" aria-label="Move @row.Name up"><i class="bi bi-chevron-up" aria-hidden="true"></i></button>
                                     </form>
                                     <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
                                         <input type="hidden" name="id" value="@row.Id" />
                                         <input type="hidden" name="offset" value="1" />
+                                        <input type="hidden" name="q" value="@Model.Result.Search" />
+                                        <input type="hidden" name="status" value="@Model.Result.Status" />
                                         <button class="btn btn-sm btn-icon" type="submit" disabled="@(!row.CanMoveDown ? "disabled" : null)" aria-label="Move @row.Name down"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
                                     </form>
                                 </div>
@@ -130,6 +134,10 @@
                                         <li>
                                             <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.ToggleHandler">
                                                 <input type="hidden" name="id" value="@row.Id" />
+                                                <input type="hidden" name="isActive" value="@(row.IsActive ? "false" : "true")" />
+                                                <input type="hidden" name="rowVersion" value="@row.RowVersion" />
+                                                <input type="hidden" name="q" value="@Model.Result.Search" />
+                                                <input type="hidden" name="status" value="@Model.Result.Status" />
                                                 <button class="dropdown-item" type="submit"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")" aria-hidden="true"></i>@(row.IsActive ? "Deactivate" : "Activate")</button>
                                             </form>
                                         </li>
