@@ -2077,7 +2077,6 @@ if (root) {
 
   generateForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!(await confirmGaps('Generate', generateButton))) return;
     // Generate from saved settings: finish a pending save first.
     if (settingsPending() && !(await saveSettingsNow())) {
       setState(generateStatus, 'Save the deck settings before generating the PowerPoint.', 'error');
@@ -2090,6 +2089,9 @@ if (root) {
       setState(generateStatus, 'Save the speaker notes before generating the PowerPoint.', 'error');
       return;
     }
+    // Asked only now: each save above applies the deck's new gaps to the Gaps count, so the
+    // warning describes the deck actually being downloaded (Codex review on #2938).
+    if (!(await confirmGaps('Generate', generateButton))) return;
     if (!generateButton || generateButton.disabled) return;
     generateButton.disabled = true;
     generateLabel?.classList.add('d-none');

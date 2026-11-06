@@ -302,6 +302,10 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("if (await confirmGaps('Present', presentButton)) {", script, StringComparison.Ordinal);
         Assert.Contains("if (!(await confirmGaps('Generate', generateButton))) return;", script, StringComparison.Ordinal);
         Assert.Contains("cancelText: 'Review gaps',", script, StringComparison.Ordinal);
+        // Generate asks only after pending saves settle, so the count matches the deck downloaded.
+        var generate = script[script.IndexOf("generateForm?.addEventListener('submit'", StringComparison.Ordinal)..];
+        Assert.True(generate.IndexOf("await deckMutationTail;", StringComparison.Ordinal)
+            < generate.IndexOf("confirmGaps('Generate'", StringComparison.Ordinal));
     }
 
     [Fact]
