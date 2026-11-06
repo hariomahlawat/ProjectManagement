@@ -1,43 +1,145 @@
 @page
 @model ProjectManagement.Pages.DeveloperModel
+@using ProjectManagement.Utilities
 @{
-    ViewData["Title"] = "Developer";
+    ViewData["Title"] = "About";
+    ViewData["UseFullWidth"] = true;
+    var areas = PrismAreas.All;
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/developer.css" asp-append-version="true" />
 }
 
-<!-- ===========================
-     DEVELOPER CARD
-     =========================== -->
-<div class="container-xxl py-4">
-    <div class="developer-card shadow-sm">
-        <div class="developer-header">
-            <img src="~/img/logos/sdd.png" alt="Simulator Development Division logo" class="developer-logo" />
-            <div>
-                <h1 class="developer-name">Col Hari Om Ahlawat</h1>
-                <div class="developer-tagline">Simulator Development Division</div>
-            </div>
-        </div>
+@*
+    ABOUT (/Developer, "About" in the signed-in footer)
+    The maker first: the SDD archer looses an arrow and its light opens into the six-colour
+    spectrum behind the developer's name. Then the work (PRISM ERP: the prism icon and the six
+    areas) and, last, this installation's build for fault reports.
+    Styles: wwwroot/css/pages/developer.css (landing.css tokens only).
+    Script: wwwroot/js/pages/about-prism.js (copy buttons, scroll reveal).
+*@
+<div class="lp about">
+    <div class="lp-aurora lp-aurora--about" aria-hidden="true"></div>
 
-        <div class="developer-body">
-            <div class="developer-section">
-                <h2>Contact</h2>
-                <ul>
-                    <li><strong>Email:</strong> hariomahlawat@gmail.com</li>
-                    <li><strong>Phone:</strong> +91-8967888563</li>
-                </ul>
+    <section class="about-hero" aria-labelledby="about-title">
+        <div class="lp-wrap about-hero__inner">
+            <div class="about-emblem">
+                <div class="about-emblem__fan" aria-hidden="true"></div>
+                <img src="~/img/logos/sdd.webp" alt="Simulator Development Division emblem: an archer drawing a bow, rising from a laptop" width="433" height="735" />
             </div>
 
-            
+            <p class="lp-eyebrow about-rise" style="--i: 1">Designed and built by</p>
+            <h1 id="about-title" class="about-hero__title about-rise" style="--i: 2"><span>Col Hari Om Ahlawat</span></h1>
+            <p class="about-hero__unit about-rise" style="--i: 3">Simulator Development Division</p>
 
-            
+            <div class="about-contacts about-rise" style="--i: 4">
+                <button type="button" class="about-contact" aria-label="Copy email address hariomahlawat@gmail.com" title="Copy email address" data-about-copy="hariomahlawat@gmail.com" data-about-copied="Email address copied">
+                    <span class="about-contact__icon" aria-hidden="true"><i class="bi bi-envelope"></i><i class="bi bi-check2"></i></span>
+                    <span class="about-contact__text">
+                        <span>Email</span>
+                        <strong>hariomahlawat@gmail.com</strong>
+                    </span>
+                </button>
+                <button type="button" class="about-contact" aria-label="Copy phone number +91-8967888563" title="Copy phone number" data-about-copy="+91-8967888563" data-about-copied="Phone number copied">
+                    <span class="about-contact__icon" aria-hidden="true"><i class="bi bi-telephone"></i><i class="bi bi-check2"></i></span>
+                    <span class="about-contact__text">
+                        <span>Phone</span>
+                        <strong>+91-8967888563</strong>
+                    </span>
+                </button>
+            </div>
         </div>
+    </section>
 
-        <div class="developer-footer">
-            <span>ProjectManagement</span>
-            <span class="muted">Version @Model.AppVersion</span>
+    <section class="lp-wrap about-section about-work" aria-labelledby="about-work-title">
+        <header class="about-work__head about-reveal">
+            <div class="about-icon" aria-hidden="true">
+                <partial name="_PrismSpectrum" model="false" />
+            </div>
+            <p class="lp-eyebrow">The work</p>
+            <h2 id="about-work-title" class="about-work__title">PRISM <span>ERP</span></h2>
+            <p class="about-work__tag"><span class="lp-spectrum-text">One record. Every view.</span></p>
+            <p class="about-work__lead">
+                Project intelligence for the Simulator Development Division, built to run entirely
+                on your local network.
+            </p>
+        </header>
+
+        <ol class="about-areas" aria-label="Areas of PRISM">
+            @for (var i = 0; i < areas.Count; i++)
+            {
+                <li class="lp-hue-@(i + 1) about-reveal" style="--i: @i">
+                    <span class="about-areas__ray" aria-hidden="true"></span>
+                    <strong>@areas[i].Name</strong>
+                    <span>@areas[i].Detail</span>
+                </li>
+            }
+        </ol>
+    </section>
+
+    <section class="lp-wrap about-section about-system" aria-labelledby="about-system-title">
+        <div class="about-panel about-reveal" data-glass-light>
+            <header class="about-panel__head">
+                <div>
+                    <p class="lp-eyebrow">System</p>
+                    <h2 id="about-system-title">This installation</h2>
+                </div>
+                <button type="button" class="about-copy" data-about-copy="@Model.DetailsText" data-about-copied="Details copied">
+                    <i class="bi bi-copy" aria-hidden="true"></i>
+                    <i class="bi bi-check2" aria-hidden="true"></i>
+                    <span>Copy details</span>
+                </button>
+            </header>
+
+            <dl class="about-specs">
+                <div>
+                    <dt>Version</dt>
+                    <dd>@Model.AppVersion</dd>
+                </div>
+                <div>
+                    <dt>Build</dt>
+                    <dd>
+                        @if (Model.ShortCommit is not null)
+                        {
+                            <code title="@Model.Commit">@Model.ShortCommit</code>
+                        }
+                        else
+                        {
+                            <span class="about-specs__muted">Not recorded</span>
+                        }
+                    </dd>
+                </div>
+                <div>
+                    <dt>Built</dt>
+                    <dd>@Model.BuiltOn</dd>
+                </div>
+                <div>
+                    <dt>Running since</dt>
+                    <dd>@Model.RunningSince</dd>
+                </div>
+                <div>
+                    <dt>Runtime</dt>
+                    <dd>@Model.Runtime</dd>
+                </div>
+                <div>
+                    <dt>Environment</dt>
+                    <dd>@Model.EnvironmentName</dd>
+                </div>
+                <div class="about-specs__wide">
+                    <dt>Network</dt>
+                    <dd><span class="about-dot" aria-hidden="true"></span>Local network only. PRISM needs no Internet connection.</dd>
+                </div>
+            </dl>
+            <p class="about-panel__note">Times are IST. Quote the version and build when you report a problem.</p>
         </div>
-    </div>
+    </section>
+
+    <div class="about-toast" role="status" aria-live="polite" data-about-toast></div>
 </div>
+
+@section Scripts {
+    <script src="~/js/pages/glass-light.js" asp-append-version="true" defer></script>
+    <script src="~/js/pages/about-prism.js" asp-append-version="true" defer></script>
+}

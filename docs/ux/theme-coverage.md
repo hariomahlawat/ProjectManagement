@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **6303** stylesheet literals in 73 files, **6** in inline view styles.
+Totals: **6215** stylesheet literals in 72 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -24,11 +24,11 @@ Totals: **6303** stylesheet literals in 73 files, **6** in inline view styles.
 
 ## Wave 1: Dashboard, My Workspace, Projects lists, Calendar, shared site.css
 
-1668 literals.
+1615 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 387 | 292 |
+| `site.css` | 334 | 263 |
 | `officer-conference.css` | 202 | 139 |
 | `command-workspace.css` | 192 | 126 |
 | `pages/projects-completed-summary.css` | 186 | 140 |
@@ -65,13 +65,13 @@ Totals: **6303** stylesheet literals in 73 files, **6** in inline view styles.
 
 ## Wave 3: Project pages and reports
 
-2226 literals.
+2192 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `pages/projects-publications.css` | 1304 | 813 |
 | `project-ideas.css` | 228 | 150 |
-| `pages/project-briefing-decks.css` | 197 | 135 |
+| `pages/project-briefing-decks.css` | 163 | 114 |
 | `project-ideas-board.css` | 124 | 76 |
 | `pages/projects-reports.css` | 89 | 64 |
 | `site-ipr.css` | 78 | 50 |
@@ -86,7 +86,7 @@ Totals: **6303** stylesheet literals in 73 files, **6** in inline view styles.
 
 ## Wave 4: Action tracker, tasks, office reports, admin and the rest
 
-1373 literals.
+1372 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
@@ -116,7 +116,6 @@ Totals: **6303** stylesheet literals in 73 files, **6** in inline view styles.
 | `project-office-reports/ffc-map.css` | 4 | 4 |
 | `project-office-reports/ffc-portfolio.css` | 4 | 4 |
 | `project-office-reports/visits-details.css` | 4 | 2 |
-| `pages/developer.css` | 1 | 1 |
 
 ## Inline view styles
 
