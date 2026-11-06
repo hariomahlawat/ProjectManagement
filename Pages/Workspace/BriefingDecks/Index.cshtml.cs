@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Infrastructure.Ui;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services.Ffc;
@@ -222,7 +223,15 @@ public sealed class IndexModel : PageModel
         try
         {
             await _deckService.DeleteAsync(deckId, userId, rowVersion, cancellationToken);
-            StatusMessage = $"Briefing deck deleted. It can be restored from Recently deleted for {ProjectBriefingDeckService.DeletedRetentionDays} days.";
+            // The glass toast offers Undo through the same handler as Recently deleted's Restore,
+            // which re-checks access and the retention window (docs/ux/toasts.md).
+            TempData.ToastWithAction("success", "Briefing deck moved to Recently deleted.", new ToastAction(
+                "Undo",
+                Url.Page("/Workspace/BriefingDecks/Index", "Restore")!,
+                new Dictionary<string, string>
+                {
+                    ["deckId"] = deckId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                }));
             return RedirectToPage();
         }
         catch (KeyNotFoundException exception)
