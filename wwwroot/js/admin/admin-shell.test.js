@@ -194,3 +194,22 @@ test('Every admin page: no match says so; clearing restores the list', () => {
   assert.equal(window.document.getElementById('system').hidden, false);
   assert.equal(window.document.querySelector('[data-admin-index-count]').textContent, '3 pages');
 });
+
+test('"/" ignores the search box in a closed admin drawer (narrow screens)', () => {
+  const drawer = `<div class="offcanvas" id="adminSidebarOffcanvas"><div class="admin-sidebar-offcanvas__body">
+    <input data-admin-sidebar-search><nav data-admin-sidebar-nav></nav></div></div>`;
+  const window = createDom(drawer);
+
+  const event = press(window, window.document.getElementById('outside'), '/');
+
+  assert.equal(event.defaultPrevented, false);
+  assert.notEqual(window.document.activeElement, window.document.querySelector('[data-admin-sidebar-search]'));
+});
+
+test('"/" ignores a search box hidden with visibility:hidden', () => {
+  const window = createDom(sidebar.replace('<aside class="admin-sidebar">', '<aside class="admin-sidebar" style="visibility:hidden">'));
+
+  const event = press(window, window.document.getElementById('outside'), '/');
+
+  assert.equal(event.defaultPrevented, false);
+});

@@ -32,11 +32,14 @@
         return query.split(/\s+/).every(word => haystack.includes(word));
     };
 
+    // A closed Bootstrap drawer keeps its layout box but is visibility:hidden, so that is checked too.
     const isVisible = element =>
         element instanceof HTMLElement
         && !element.hidden
         && !element.closest("[hidden]")
-        && element.getClientRects().length > 0;
+        && !element.closest(".offcanvas:not(.show):not(.showing)")
+        && element.getClientRects().length > 0
+        && window.getComputedStyle(element).visibility !== "hidden";
 
     const isEditable = target =>
         target instanceof Element
