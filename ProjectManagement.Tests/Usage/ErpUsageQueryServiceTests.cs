@@ -180,6 +180,48 @@ public sealed class ErpUsageQueryServiceTests
         Assert.DoesNotContain(expandedResult.Users, row => row.UserId == "pending");
     }
 
+    // The export used to ask GetAsync for page after page, recomputing every figure each time.
+    // It now computes once; the rows must be exactly the paged rows, in order, up to the cap.
+    [Fact]
+    public async Task ExportRows_MatchThePagedRowsInOrder_AndStopAtTheExportCap()
+    {
+        await using var db = CreateContext();
+        for (var index = 1; index <= 23; index++)
+        {
+            db.Users.Add(User($"user{index:D2}", UserAccountKind.Human));
+        }
+        db.UserActivityBuckets.Add(Bucket("user07", new DateOnly(2026, 7, 13), 10, "projects", navigation: true));
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions { TrackingInceptionUtc = UtcOffsetFromIst(2026, 7, 1, 0) };
+        var service = CreateService(db, new DateTime(2026, 7, 14, 18, 0, 0), options);
+
+        var paged = new List<ErpUsageUserRow>();
+        for (var page = 1; page <= 3; page++)
+        {
+            var result = await service.GetAsync(new ErpUsageQuery { Days = 7, Page = page, PageSize = 10 });
+            paged.AddRange(result.Users);
+        }
+
+        var exported = await service.GetExportRowsAsync(new ErpUsageQuery { Days = 7, Page = 2, PageSize = 10 });
+
+        Assert.Equal(23, paged.Count);
+        Assert.Equal(paged.Select(row => row.UserId), exported.Select(row => row.UserId));
+        Assert.Equal(paged.Select(Csv), exported.Select(Csv));
+        Assert.Equal(1, exported.Single(row => row.UserId == "user07").ActiveWorkingDays);
+
+        options.MaximumExportRows = 5;
+        var capped = await service.GetExportRowsAsync(new ErpUsageQuery { Days = 7 });
+        Assert.Equal(paged.Take(5).Select(row => row.UserId), capped.Select(row => row.UserId));
+    }
+
+    // The values the CSV export writes for a row (Pages/Usage/Index.cshtml.cs).
+    private static string Csv(ErpUsageUserRow row) => string.Join('|',
+        row.FullName, row.UserName, row.Rank, string.Join(';', row.Roles), row.AccountState, row.AccountKind,
+        row.EffectiveTrackingStart, row.UsedToday, row.LastActiveUtc, row.ActiveWorkingDays, row.AvailableWorkingDays,
+        row.ActivePercentage, row.ApproximateActiveMinutes, string.Join(';', row.Modules),
+        row.OperationalActionCount, row.AdministrativeActionCount, row.Posture);
+
     [Fact]
     public async Task CommandSummary_FlagsOnlyUsersExposedToSevenWorkingDays()
     {

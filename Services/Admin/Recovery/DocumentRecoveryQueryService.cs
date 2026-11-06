@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Services.Search;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
@@ -96,11 +97,11 @@ public sealed class DocumentRecoveryQueryService : IDocumentRecoveryQueryService
 
         if (search is not null)
         {
-            var pattern = $"%{search}%";
+            var pattern = SearchLikePattern.Contains(search);
             query = query.Where(document =>
-                EF.Functions.ILike(document.Title, pattern)
-                || EF.Functions.ILike(document.OriginalFileName, pattern)
-                || EF.Functions.ILike(document.Project.Name, pattern));
+                EF.Functions.ILike(document.Title, pattern, SearchLikePattern.EscapeCharacter)
+                || EF.Functions.ILike(document.OriginalFileName, pattern, SearchLikePattern.EscapeCharacter)
+                || EF.Functions.ILike(document.Project.Name, pattern, SearchLikePattern.EscapeCharacter));
         }
         if (request.ProjectId.HasValue)
             query = query.Where(document => document.ProjectId == request.ProjectId.Value);
@@ -118,13 +119,13 @@ public sealed class DocumentRecoveryQueryService : IDocumentRecoveryQueryService
         }
         if (deletedBy is not null)
         {
-            var pattern = $"%{deletedBy}%";
+            var pattern = SearchLikePattern.Contains(deletedBy);
             query = query.Where(document =>
                 (document.ArchivedByUser != null && document.ArchivedByUser.FullName != null
-                    && EF.Functions.ILike(document.ArchivedByUser.FullName, pattern))
+                    && EF.Functions.ILike(document.ArchivedByUser.FullName, pattern, SearchLikePattern.EscapeCharacter))
                 || (document.ArchivedByUser != null && document.ArchivedByUser.UserName != null
-                    && EF.Functions.ILike(document.ArchivedByUser.UserName, pattern))
-                || (document.ArchivedByUserId != null && EF.Functions.ILike(document.ArchivedByUserId, pattern)));
+                    && EF.Functions.ILike(document.ArchivedByUser.UserName, pattern, SearchLikePattern.EscapeCharacter))
+                || (document.ArchivedByUserId != null && EF.Functions.ILike(document.ArchivedByUserId, pattern, SearchLikePattern.EscapeCharacter)));
         }
 
         // A scoped DbContext cannot execute concurrent database operations. Keep
