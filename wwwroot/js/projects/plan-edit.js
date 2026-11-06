@@ -274,9 +274,16 @@
   });
   offcanvas.addEventListener('show.bs.offcanvas', () => { paused = false; });
   // The unsaved-changes guard holds autosave while it asks whether to post one tab only.
-  offcanvas.addEventListener('plan:hold-autosave', cancelQueuedSave);
+  // A "no" brings back only a save that was queued before the hold; it never starts one.
+  let resumeAfterHold = false;
+  offcanvas.addEventListener('plan:hold-autosave', () => {
+    resumeAfterHold = timer !== null;
+    cancelQueuedSave();
+  });
   offcanvas.addEventListener('plan:resume-autosave', () => {
-    if (submitting || paused) return;
+    const wasQueued = resumeAfterHold;
+    resumeAfterHold = false;
+    if (!wasQueued || submitting || paused) return;
     cancelQueuedSave();
     timer = window.setTimeout(saveDraft, DEBOUNCE_MS);
   });
