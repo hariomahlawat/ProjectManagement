@@ -261,8 +261,8 @@
                                             </li>
                                             <li class="@(presentedProjects!.Length == 0 ? null : openCheckCount == 0 ? "is-done" : "is-open")" data-pbd-progress-step="checks">
                                                 <button type="button" data-pbd-progress-tab="checks">
-                                                    <span class="pbd-progress__label">Checks</span>
-                                                    <span class="pbd-progress__value" data-pbd-progress-checks>@(presentedProjects.Length == 0 ? "–" : openCheckCount == 0 ? "All recorded" : $"{openCheckCount} to review")</span>
+                                                    <span class="pbd-progress__label">Gaps</span>
+                                                    <span class="pbd-progress__value" data-pbd-progress-checks>@(presentedProjects.Length == 0 ? "–" : openCheckCount == 0 ? "None" : $"{openCheckCount} to fill")</span>
                                                 </button>
                                             </li>
                                             <li class="is-done" data-pbd-progress-step="template">
@@ -292,7 +292,7 @@
                                             <span class="d-none" data-pbd-generate-progress><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generating…</span>
                                         </button>
                                     </form>
-                                    <small data-pbd-placeholder-note hidden>Missing content uses defined placeholders.</small>
+                                    <small data-pbd-placeholder-note hidden>Gaps show as placeholders on the slides.</small>
                                 </div>
                                 @if (Model.Decks.Count > 1)
                                 {
@@ -433,7 +433,7 @@
                                 <div class="pbd-inspector__tabs" role="tablist" aria-label="Inspector">
                                     <button type="button" role="tab" id="pbd-inspector-tab-slide" class="is-active" aria-selected="true" aria-controls="pbd-inspector-slide" data-pbd-inspector-tab="slide">This slide</button>
                                     <button type="button" role="tab" id="pbd-inspector-tab-deck" aria-selected="false" aria-controls="pbd-inspector-deck" data-pbd-inspector-tab="deck" tabindex="-1">Deck</button>
-                                    <button type="button" role="tab" id="pbd-inspector-tab-checks" aria-selected="false" aria-controls="pbd-inspector-checks" data-pbd-inspector-tab="checks" tabindex="-1">Checks <span class="pbd-inspector__badge" data-pbd-checks-badge hidden></span></button>
+                                    <button type="button" role="tab" id="pbd-inspector-tab-checks" aria-selected="false" aria-controls="pbd-inspector-checks" data-pbd-inspector-tab="checks" tabindex="-1">Gaps <span class="pbd-inspector__badge" data-pbd-checks-badge hidden></span></button>
                                 </div>
 
                                 <div id="pbd-inspector-slide" role="tabpanel" aria-labelledby="pbd-inspector-tab-slide" class="pbd-inspector__panel" data-pbd-inspector-panel="slide">

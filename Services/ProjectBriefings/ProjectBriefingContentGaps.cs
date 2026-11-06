@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 
 namespace ProjectManagement.Services.ProjectBriefings;
@@ -45,7 +46,11 @@ public static class ProjectBriefingContentGaps
         var gaps = new List<string>(4);
         if (uses.Status && string.IsNullOrWhiteSpace(project.ExternalStatus)) gaps.Add(Status);
         if (uses.CostRd && !project.CostRd.IsAvailable) gaps.Add(CostRd);
-        if (uses.ProliferationCost && !project.ProliferationCost.IsAvailable) gaps.Add(ProliferationCost);
+        // A proliferation cost is only expected once a project is completed (owner, 6 Nov 2026);
+        // an ongoing project without one is not a gap.
+        if (uses.ProliferationCost
+            && project.LifecycleStatus == ProjectLifecycleStatus.Completed
+            && !project.ProliferationCost.IsAvailable) gaps.Add(ProliferationCost);
         if (uses.Photo && !project.HasCoverPhoto) gaps.Add(Photo);
         if (uses.CapabilityOverview && !HasCapabilityOverview(project.BriefDescription)) gaps.Add(CapabilityOverview);
         if (uses.ProjectBrief && !HasProjectBrief(project.ProjectBrief)) gaps.Add(ProjectBrief);

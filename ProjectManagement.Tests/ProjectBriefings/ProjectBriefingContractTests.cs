@@ -43,7 +43,7 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("Manage this deck", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-studio", page, StringComparison.Ordinal);
         Assert.Contains("id=\"pbd-add-projects-modal\"", page, StringComparison.Ordinal);
-        Assert.Contains("Missing content uses defined placeholders", page, StringComparison.Ordinal);
+        Assert.Contains("Gaps show as placeholders on the slides.", page, StringComparison.Ordinal);
         // The landing page is the deck library; the Studio switches decks from its own bar.
         Assert.Contains("<partial name=\"_DeckLibrary\"", page, StringComparison.Ordinal);
         Assert.Contains("Switch deck", page, StringComparison.Ordinal);
@@ -280,6 +280,28 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("root.addEventListener('keydown'", studio, StringComparison.Ordinal);
         Assert.Contains("filter: filterGap || null", studio, StringComparison.Ordinal);
         Assert.Contains("centreSelectedRow();", studio, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Review_GapsHaveOneNameAndAreSaidBeforePresentingOrGenerating()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var studio = Read("project-briefing-studio.js");
+
+        // One word: gaps.
+        Assert.Contains("data-pbd-inspector-tab=\"checks\" tabindex=\"-1\">Gaps <span", page, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"pbd-progress__label\">Gaps</span>", page, StringComparison.Ordinal);
+        Assert.Contains("`Gaps · ${missing.length}`", studio, StringComparison.Ordinal);
+        Assert.DoesNotContain("items missing", studio, StringComparison.Ordinal);
+
+        // Each field once in This slide.
+        Assert.Contains("if (!missing.includes('costRd')) facts.append(", studio, StringComparison.Ordinal);
+
+        // Present and Generate say so first (once per deck per session).
+        Assert.Contains("if (await confirmGaps('Present', presentButton)) {", script, StringComparison.Ordinal);
+        Assert.Contains("if (!(await confirmGaps('Generate', generateButton))) return;", script, StringComparison.Ordinal);
+        Assert.Contains("cancelText: 'Review gaps',", script, StringComparison.Ordinal);
     }
 
     [Fact]

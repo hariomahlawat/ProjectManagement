@@ -1,3 +1,4 @@
+using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings;
 using Xunit;
@@ -18,13 +19,34 @@ public sealed class ProjectBriefingContentGapsTests
             {
                 ProjectBriefingContentGaps.Status,
                 ProjectBriefingContentGaps.CostRd,
-                ProjectBriefingContentGaps.ProliferationCost,
                 ProjectBriefingContentGaps.Photo,
                 ProjectBriefingContentGaps.CapabilityOverview,
                 ProjectBriefingContentGaps.ProjectBrief
             },
             gaps[1]);
         Assert.Empty(gaps[2]);
+    }
+
+    [Fact]
+    public void ProliferationCost_IsOnlyAGapOnceTheProjectIsCompleted()
+    {
+        // Owner, 6 Nov 2026: a proliferation cost is only expected once a project is completed.
+        var completed = EmptyProject(3);
+        completed = new ProjectBriefingProjectVm
+        {
+            ProjectId = completed.ProjectId,
+            ProjectName = completed.ProjectName,
+            BriefDescription = completed.BriefDescription,
+            ProjectBrief = completed.ProjectBrief,
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        };
+
+        var gaps = ProjectBriefingContentGaps.Resolve(
+            new[] { EmptyProject(1), completed },
+            Settings(ProjectBriefingPresentationMode.Combined, ProjectBriefingCostMode.Both, ProjectBriefingNarrativeMode.Both));
+
+        Assert.DoesNotContain(ProjectBriefingContentGaps.ProliferationCost, gaps[1]);
+        Assert.Contains(ProjectBriefingContentGaps.ProliferationCost, gaps[3]);
     }
 
     [Fact]

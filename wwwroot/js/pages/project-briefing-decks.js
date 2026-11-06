@@ -2035,8 +2035,49 @@ if (root) {
     return header.match(/filename="?([^";]+)"?/i)?.[1] || 'Project_Briefing_Deck.pptx';
   };
 
+  // Before the deck is shown or handed over with gaps, say so once (per deck, per session):
+  // the slides would carry placeholders such as "Not recorded".
+  const gapsAcknowledgedKey = `${storagePrefix}gapsAcknowledged`;
+  const openGapKinds = () => {
+    const badge = root.querySelector('[data-pbd-checks-badge]');
+    return badge && !badge.hidden ? Number(badge.textContent) || 0 : 0;
+  };
+  const confirmGaps = async (action, returnFocus) => {
+    const kinds = openGapKinds();
+    if (!kinds) return true;
+    try { if (window.sessionStorage.getItem(gapsAcknowledgedKey) === '1') return true; } catch { /* ask */ }
+    const choice = await prismConfirm({
+      title: `${action} with gaps?`,
+      message: `${kinds} ${kinds === 1 ? 'kind' : 'kinds'} of gap ${kinds === 1 ? 'is' : 'are'} still open. Those slides show placeholders such as "Not recorded". The Gaps tab lists them.`,
+      confirmText: `${action} anyway`,
+      cancelText: 'Review gaps',
+      tone: 'primary',
+      returnFocus
+    });
+    if (choice) {
+      try { window.sessionStorage.setItem(gapsAcknowledgedKey, '1'); } catch { /* asked again next time */ }
+      return true;
+    }
+    root.querySelector('[data-pbd-inspector-tab="checks"]')?.click();
+    return false;
+  };
+  // Present: the Studio opens the viewer; this runs first and lets the click through once agreed.
+  const presentButton = root.querySelector('[data-pbd-preview-open]');
+  let presentAgreed = false;
+  presentButton?.addEventListener('click', async (event) => {
+    if (presentAgreed) { presentAgreed = false; return; }
+    if (!openGapKinds()) return;
+    try { if (window.sessionStorage.getItem(gapsAcknowledgedKey) === '1') return; } catch { /* ask */ }
+    event.stopImmediatePropagation();
+    if (await confirmGaps('Present', presentButton)) {
+      presentAgreed = true;
+      presentButton.click();
+    }
+  }, { capture: true });
+
   generateForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (!(await confirmGaps('Generate', generateButton))) return;
     // Generate from saved settings: finish a pending save first.
     if (settingsPending() && !(await saveSettingsNow())) {
       setState(generateStatus, 'Save the deck settings before generating the PowerPoint.', 'error');
