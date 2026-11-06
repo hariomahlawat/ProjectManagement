@@ -56,7 +56,6 @@ const MARKUP = `
   <nav data-pbd-progress><ol>
     <li data-pbd-progress-step="projects"><button type="button"><span data-pbd-progress-projects></span></button></li>
     <li data-pbd-progress-step="checks"><button type="button" data-pbd-progress-tab="checks"><span data-pbd-progress-checks></span></button></li>
-    <li data-pbd-progress-step="generate"><button type="button" data-pbd-progress-generate>Generate</button></li>
   </ol></nav>
   <div data-deck-id="7">
     <section data-pbd-studio data-preview-url="/preview" data-has-projects="true"
@@ -351,7 +350,6 @@ test('the progress line counts the projects and the checks to review, and opens 
   assert.equal(document.querySelector('[data-pbd-progress-projects]').textContent, '4');
   assert.equal(document.querySelector('[data-pbd-progress-checks]').textContent, '2 to fill');
   assert.ok(document.querySelector('[data-pbd-progress-step="checks"]').classList.contains('is-open'));
-  assert.ok(document.querySelector('[data-pbd-progress-step="generate"]').classList.contains('is-ready'));
 
   document.querySelector('[data-pbd-progress-tab="checks"]').click();
   assert.equal(document.querySelector('[data-pbd-inspector-panel="checks"]').hidden, false);

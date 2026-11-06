@@ -885,7 +885,7 @@ if (root) {
     panel.replaceChildren(...nodes);
   };
 
-  // The progress line under the deck header: projects, checks, settings, generate.
+  // The progress line in the deck header: projects, gaps, settings (Generate is the button beside it).
   const progress = document.querySelector('[data-pbd-progress]');
   const progressStep = (name) => progress?.querySelector(`[data-pbd-progress-step="${name}"]`);
   const setStepState = (name, state) => {
@@ -902,7 +902,6 @@ if (root) {
     const checksValue = progress.querySelector('[data-pbd-progress-checks]');
     if (checksValue) checksValue.textContent = presented === 0 ? '–' : (openChecks ? `${openChecks} to fill` : 'None');
     setStepState('checks', presented === 0 ? '' : (openChecks ? 'is-open' : 'is-done'));
-    setStepState('generate', presented ? 'is-ready' : '');
   };
 
   const renderChecksPanel = () => {
@@ -1396,11 +1395,6 @@ if (root) {
     else setTab(name, { focus: true });
     root.querySelector('.pbd-studio__inspector')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }));
-  progress?.querySelector('[data-pbd-progress-generate]')?.addEventListener('click', () => {
-    const generate = document.querySelector('[data-pbd-generate]');
-    generate?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    generate?.focus();
-  });
   tabs.forEach((tab, index) => tab.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();

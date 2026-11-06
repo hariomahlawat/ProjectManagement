@@ -117,7 +117,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("<nav class=\"pbd-progress\" aria-label=\"Deck progress\" data-pbd-progress>", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-progress-tab=\"checks\"", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-progress-tab=\"deck\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-progress-generate", page, StringComparison.Ordinal);
+        // Generate is the button beside the progress line, not a step of it (review PR E).
+        Assert.DoesNotContain("data-pbd-progress-generate", page, StringComparison.Ordinal);
         Assert.Contains("const renderProgress = (presented, openChecks) =>", studio, StringComparison.Ordinal);
         Assert.Contains("progressTemplate.textContent", script, StringComparison.Ordinal);
 
@@ -306,6 +307,43 @@ public sealed class ProjectBriefingContractTests
         var generate = script[script.IndexOf("generateForm?.addEventListener('submit'", StringComparison.Ordinal)..];
         Assert.True(generate.IndexOf("await deckMutationTail;", StringComparison.Ordinal)
             < generate.IndexOf("confirmGaps('Generate'", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Review_PlainWordsHeadingsAndKeysForEveryone()
+    {
+        var page = Read("Index.cshtml");
+        var library = Read("_DeckLibrary.cshtml");
+        var libraryScript = Read("project-briefing-library.js");
+        var decks = Read("project-briefing-decks.js");
+        var extraSlides = Read("project-briefing-additional-slides.js");
+        var profile = Read("_InstitutionalProfileEditor.cshtml");
+        var charter = Read("_RoleCharterEditor.cshtml");
+        var ffc = Read("_FfcGlobalFootprintEditor.cshtml");
+
+        // The deck name is the page's main heading.
+        Assert.Contains("<h1 id=\"pbd-deck-title\" data-pbd-deck-name>@deck.Name</h1>", page, StringComparison.Ordinal);
+
+        // Drawers in plain words, pointing at where the slide is switched on.
+        foreach (var drawer in new[] { profile, charter, ffc })
+        {
+            Assert.DoesNotContain("authoritative", drawer, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("72:28", drawer, StringComparison.Ordinal);
+            Assert.DoesNotContain("Additional Slides workspace", drawer, StringComparison.Ordinal);
+        }
+        Assert.Contains("in the Deck tab under Extra slides", profile, StringComparison.Ordinal);
+
+        // Escape closes each drawer even when focus is outside it.
+        Assert.Contains("if (!profileDrawer?.classList.contains('is-open') || profileDrawer.contains(event.target)) return;", decks, StringComparison.Ordinal);
+        Assert.Contains("if (!drawer?.classList.contains('is-open') || drawer.contains(event.target)) return;", extraSlides, StringComparison.Ordinal);
+        Assert.Contains("if (!ffcDrawer?.classList.contains('is-open') || ffcDrawer.contains(event.target)) return;", extraSlides, StringComparison.Ordinal);
+
+        // Library: which project matched; a clear column name. New deck: the rule up front.
+        Assert.Contains("data-pbd-library-match hidden", library, StringComparison.Ordinal);
+        Assert.Contains("match.textContent = projects.length", libraryScript, StringComparison.Ordinal);
+        Assert.Contains(">Changed since</th>", library, StringComparison.Ordinal);
+        Assert.Contains("required, at least 3 characters", page, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@UpdateSheetRowLabel(row)\"", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -818,7 +856,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("data-pbd-institutional-partnership-editor", profileEditor, StringComparison.Ordinal);
         Assert.Contains("InstitutionalProjectScope", profileEditor, StringComparison.Ordinal);
         Assert.Contains("Original completed projects — recommended", profileEditor, StringComparison.Ordinal);
-        Assert.Contains("read-only and are taken from their authoritative PRISM modules", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("come from PRISM and cannot be edited here", profileEditor, StringComparison.Ordinal);
         Assert.Contains("Profile footer strip", profileEditor, StringComparison.Ordinal);
         Assert.Contains("InstitutionalFooterStripText", profileEditor, StringComparison.Ordinal);
         Assert.Contains("Shown exactly as entered", profileEditor, StringComparison.Ordinal);

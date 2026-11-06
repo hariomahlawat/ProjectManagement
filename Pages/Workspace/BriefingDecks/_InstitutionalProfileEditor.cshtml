@@ -53,7 +53,7 @@
             <div>
                 <span class="pbd-eyebrow">Additional slide</span>
                 <h3 id="pbd-profile-drawer-title">Configure SDD Institutional Profile</h3>
-                <p>Maintain this slide independently while ERP-backed figures remain authoritative and read-only.</p>
+                <p>The figures come from PRISM and update by themselves. Here you choose what the slide shows and add the history and partners.</p>
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-profile-close aria-label="Close SDD profile editor">
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
@@ -69,8 +69,8 @@
             <div class="pbd-additional-slide-editor-context">
                 <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
                 <span>
-                    <strong>@(institutionalProfile.IncludeSlide ? "Included in this deck" : "Currently disabled")</strong>
-                    <small>Enable, disable and arrange this slide from the Additional Slides workspace.</small>
+                    <strong>@(institutionalProfile.IncludeSlide ? "In this deck" : "Not in this deck")</strong>
+                    <small>Turn it on or off, and set its place, in the Deck tab under Extra slides.</small>
                 </span>
             </div>
 
@@ -102,7 +102,7 @@
                                                                   data-pbd-institutional-history-value
                                                                   hidden>@institutionalHistoryLines</textarea>
                                                         <div class="pbd-institutional-list-editor__heading">
-                                                            <span><strong>Milestones</strong><small>Structured, ordered and retained as one editable PowerPoint timeline.</small></span>
+                                                            <span><strong>Milestones</strong><small>Each milestone is one point on the slide's timeline, in this order.</small></span>
                                                             <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-history-add>
                                                                 <i class="bi bi-plus-lg" aria-hidden="true"></i> Add milestone
                                                             </button>
@@ -136,7 +136,7 @@
 
                                                 <fieldset class="pbd-choice-group">
                                                     <legend>Institutional-output modules</legend>
-                                                    <p class="pbd-form-note"><i class="bi bi-shield-lock" aria-hidden="true"></i> Project, proliferation, training and IPR figures are read-only and are taken from their authoritative PRISM modules. Select and order only what should appear on the slide.</p>
+                                                    <p class="pbd-form-note"><i class="bi bi-shield-lock" aria-hidden="true"></i> Project, proliferation, training and IPR figures come from PRISM and cannot be edited here. Choose which to show and in what order.</p>
                                                     <input type="hidden"
                                                            name="InstitutionalModuleOrder"
                                                            value="@institutionalModuleOrder"
@@ -197,7 +197,7 @@
                                                                 <option value="@category.Name" selected="@(string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase))">@category.Name</option>
                                                             }
                                                         </select>
-                                                        <small>Selected from authoritative PRISM technical categories.</small>
+                                                        <small>From PRISM's technical categories.</small>
                                                     </label>
                                                 </div>
 

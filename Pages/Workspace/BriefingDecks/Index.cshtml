@@ -226,7 +226,7 @@
                                         Briefing decks
                                     </a>
                                     <div class="pbd-deck-title" data-pbd-deck-title-view>
-                                        <h2 id="pbd-deck-title" data-pbd-deck-name>@deck.Name</h2>
+                                        <h1 id="pbd-deck-title" data-pbd-deck-name>@deck.Name</h1>
                                         <button type="button" class="btn btn-sm btn-link pbd-deck-title__edit" data-pbd-rename aria-label="Rename the deck or edit its description" title="Rename or edit description">
                                             <i class="bi bi-pencil" aria-hidden="true"></i>
                                         </button>
@@ -269,12 +269,6 @@
                                                 <button type="button" data-pbd-progress-tab="deck">
                                                     <span class="pbd-progress__label">Settings</span>
                                                     <span class="pbd-progress__value" data-pbd-progress-template>@templateTitle@(templateCustomised ? ", customised" : null)</span>
-                                                </button>
-                                            </li>
-                                            <li class="@(presentedProjects.Length > 0 ? "is-ready" : null)" data-pbd-progress-step="generate">
-                                                <button type="button" data-pbd-progress-generate>
-                                                    <span class="pbd-progress__label">Generate</span>
-                                                    <span class="pbd-progress__value">PowerPoint</span>
                                                 </button>
                                             </li>
                                         </ol>
@@ -598,7 +592,7 @@
                                             <div class="pbd-update-row-option" data-pbd-update-row data-row-key="@row">
                                                 <span class="pbd-update-row-option__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
                                                 <label>
-                                                    <input type="checkbox" name="UpdateSheetRows" value="@row" checked="@selectedUpdateSheetRows.Contains(row)" />
+                                                    <input type="checkbox" name="UpdateSheetRows" value="@row" checked="@selectedUpdateSheetRows.Contains(row)" aria-label="@UpdateSheetRowLabel(row)" />
                                                     <span><strong>@UpdateSheetRowLabel(row)</strong><small>@UpdateSheetRowDescription(row)</small></span>
                                                 </label>
                                                 <span class="pbd-update-row-option__move">
@@ -1095,7 +1089,8 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <label class="form-label"><span>Deck name</span><input class="form-control" name="Name" maxlength="160" minlength="3" required placeholder="For example: Monthly review, November" data-pbd-new-name /></label>
+                            <label class="form-label"><span>Deck name <small>required, at least 3 characters</small></span><input class="form-control" name="Name" maxlength="160" minlength="3" required aria-describedby="pbd-new-name-help" placeholder="For example: Monthly review, November" data-pbd-new-name /></label>
+                            <small class="pbd-form-help" id="pbd-new-name-help">Shown in the deck library and on the cover slide.</small>
                             @* The template is the slide design, with its recommended settings; any setting can be changed later. *@
                             <fieldset class="pbd-new-templates">
                                 <legend class="form-label">Template</legend>

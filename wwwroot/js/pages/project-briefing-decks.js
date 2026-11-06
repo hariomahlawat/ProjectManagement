@@ -775,6 +775,14 @@ if (root) {
   root.querySelectorAll('[data-pbd-profile-close]').forEach((button) =>
     button.addEventListener('click', async () => { await closeProfileDrawer(); }));
   profileBackdrop?.addEventListener('click', async () => { await closeProfileDrawer(); });
+  // Escape also works when focus is outside the drawer (the drawer's own handler covers inside).
+  document.addEventListener('keydown', async (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (!profileDrawer?.classList.contains('is-open') || profileDrawer.contains(event.target)) return;
+    if (document.querySelector('dialog[open]')) return;
+    event.preventDefault();
+    await closeProfileDrawer();
+  });
   profileDrawer?.addEventListener('keydown', async (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();

@@ -33,6 +33,17 @@ if (library) {
         && terms.every((term) => row.dataset.search.includes(term));
       row.hidden = !visible;
       if (visible) shown += 1;
+      // When the search found the deck through its projects, say which ones.
+      const match = row.querySelector('[data-pbd-library-match]');
+      if (!match) return;
+      const own = `${row.dataset.name || ''} ${row.querySelector('.pbd-library__description')?.textContent || ''}`.toLowerCase();
+      const projects = visible && terms.length && !terms.every((term) => own.includes(term))
+        ? (row.dataset.projects || '').split('\n').filter((name) => name && terms.some((term) => name.toLowerCase().includes(term)))
+        : [];
+      match.hidden = projects.length === 0;
+      match.textContent = projects.length
+        ? `Matches: ${projects.slice(0, 2).join(', ')}${projects.length > 2 ? ` and ${projects.length - 2} more` : ''}`
+        : '';
     });
     if (count) count.textContent = String(shown);
     if (empty) empty.hidden = shown > 0;
