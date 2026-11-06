@@ -645,6 +645,7 @@ builder.Services.AddScoped<IErpCommandAdoptionQueryService, ErpCommandAdoptionQu
 builder.Services.AddScoped<IErpUsagePatternQueryService, ErpUsagePatternQueryService>();
 builder.Services.AddHostedService<UserActivityRetentionWorker>();
 builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
+builder.Services.AddScoped<IPdfIngestionClusterLock, PdfIngestionClusterLock>();
 builder.Services.AddSingleton<IPdfIngestionRunHistory, PdfIngestionRunHistory>();
 builder.Services.AddScoped<IPdfIngestionCoordinator, PdfIngestionCoordinator>();
 builder.Services.AddScoped<IAdminRecoverySummaryService, AdminRecoverySummaryService>();

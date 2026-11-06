@@ -101,6 +101,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
     private readonly IUploadPathResolver _pathResolver;
     private readonly DocRepoOptions _options;
     private readonly IPdfIngestionRunGate _runGate;
+    private readonly IPdfIngestionClusterLock _clusterLock;
     private readonly IAdminAuditService _audit;
     private readonly IPdfIngestionRunHistory _history;
     private readonly IAdminTimeService _time;
@@ -114,6 +115,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
         IUploadPathResolver pathResolver,
         IOptions<DocRepoOptions> options,
         IPdfIngestionRunGate runGate,
+        IPdfIngestionClusterLock clusterLock,
         IAdminAuditService audit,
         IPdfIngestionRunHistory history,
         IAdminTimeService time,
@@ -126,6 +128,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _runGate = runGate ?? throw new ArgumentNullException(nameof(runGate));
+        _clusterLock = clusterLock ?? throw new ArgumentNullException(nameof(clusterLock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _history = history ?? throw new ArgumentNullException(nameof(history));
         _time = time ?? throw new ArgumentNullException(nameof(time));
@@ -154,6 +157,16 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
 
         using (lease)
         {
+            // The gate above covers this process; the advisory lock covers every process
+            // sharing the database (rolling deployments, more than one instance).
+            await using var clusterLease = await _clusterLock.TryAcquireAsync(cancellationToken);
+            if (clusterLease is null)
+            {
+                return AdminOperationResult<PdfIngestionRunResult>.Failure(
+                    "Another PDF ingestion run is already in progress on another application server.",
+                    "PdfIngestionAlreadyRunning");
+            }
+
             var runId = Guid.NewGuid();
             var startedAt = _time.UtcNow;
             var traceId = _httpContextAccessor.HttpContext?.TraceIdentifier;
