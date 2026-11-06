@@ -45,6 +45,8 @@ public static class AdminNavigationKeys
     public const string MediaSources = "media-sources";
     public const string MediaIntelligence = "media-intelligence";
     public const string MediaClassification = "media-classification";
+    public const string SocialMediaTypes = "social-media-types";
+    public const string SocialMediaPlatforms = "social-media-platforms";
 }
 
 // Task groups, named for what an administrator wants to do (docs/ux/admin-module.md).
@@ -255,15 +257,25 @@ public static class AdminNavigationCatalog
             "arpp, cfa, fund, dfpds, schedule",
             matchPagePattern: "/MasterData/ArppReferences/", showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre),
         Entry(AdminNavigationKeys.DocumentTypes, AdminNavigationGroups.ReferenceLists, 198,
-            Item("Document types", "DocumentRepository", "/Admin/DocumentCategories/Index", "bi-folder2", Policies.Documents.ManageCategories),
+            Item("Repository document types", "DocumentRepository", "/Admin/DocumentCategories/Index", "bi-folder2", Policies.Documents.ManageCategories),
             "The kinds of document people file in the Document Repository.",
-            "document categories, document type, docrepo, repository",
-            matchPagePattern: "/Admin/DocumentCategories/", inSidebar: false, usesAdminShell: false),
+            "document categories, document type, docrepo, repository, dropdown",
+            matchPagePattern: "/Admin/DocumentCategories/", inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre, usesAdminShell: false),
         Entry(AdminNavigationKeys.DocumentOffices, AdminNavigationGroups.ReferenceLists, 199,
-            Item("Offices", "DocumentRepository", "/Admin/OfficeCategories/Index", "bi-building-gear", Policies.Documents.ManageCategories),
+            Item("Repository offices", "DocumentRepository", "/Admin/OfficeCategories/Index", "bi-building-gear", Policies.Documents.ManageCategories),
             "The offices a Document Repository file can belong to.",
-            "office categories, offices, docrepo, repository",
-            matchPagePattern: "/Admin/OfficeCategories/", inSidebar: false, usesAdminShell: false),
+            "office categories, offices, docrepo, repository, dropdown",
+            matchPagePattern: "/Admin/OfficeCategories/", inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre, usesAdminShell: false),
+        Entry(AdminNavigationKeys.SocialMediaTypes, AdminNavigationGroups.ReferenceLists, 199,
+            Item("Social media event types", "ProjectOfficeReports", "/Admin/SocialMediaTypes/Index", "bi-megaphone", AdminPolicies.MasterDataManage),
+            "The kinds of event a social media post can be about.",
+            "social media, event type, post, dropdown",
+            exactPage: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre, usesAdminShell: false),
+        Entry(AdminNavigationKeys.SocialMediaPlatforms, AdminNavigationGroups.ReferenceLists, 199,
+            Item("Social media platforms", "ProjectOfficeReports", "/Admin/SocialMediaTypes/Platforms/Index", "bi-share", AdminPolicies.MasterDataManage),
+            "Where a social media post was published, such as X or Facebook.",
+            "social media, platform, twitter, facebook, instagram, youtube, dropdown",
+            matchPagePattern: "/Admin/SocialMediaTypes/Platforms/", inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre, usesAdminShell: false),
         Entry(AdminNavigationKeys.Holidays, AdminNavigationGroups.ReferenceLists, 200,
             Item("Holidays", string.Empty, "/Settings/Holidays/Index", "bi-calendar-week", AdminPolicies.HolidaysManage),
             "Gazetted and restricted holidays, and which ones the office observes.",

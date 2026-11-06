@@ -4404,3 +4404,89 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-home-task p { grid-column: 2; }
     .admin-home-task__fact { grid-column: 1 / -1; margin-top: .3rem; padding-top: .4rem; }
 }
+
+/* =========================================================================
+   Lists used in forms (Areas/Admin/Pages/MasterData): one card per list, by group.
+   ========================================================================= */
+.admin-lists-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
+    align-items: start;
+    gap: 1rem;
+    margin-top: .9rem;
+}
+.admin-lists { display: grid; gap: 1rem; min-width: 0; }
+.admin-lists__group { display: grid; gap: .5rem; }
+.admin-lists__group-name {
+    margin: 0;
+    color: var(--admin-text-muted);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.admin-lists__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+    gap: .7rem;
+}
+.admin-list-card {
+    display: grid;
+    align-content: start;
+    gap: .3rem;
+    padding: .8rem .9rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius);
+    background: var(--admin-surface);
+    color: var(--admin-text);
+    text-decoration: none;
+    transition: border-color .15s ease;
+}
+.admin-list-card:hover,
+.admin-list-card:focus-visible { border-color: var(--admin-primary); color: var(--admin-text); }
+.admin-list-card__head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: .1rem .6rem;
+}
+.admin-list-card__icon {
+    display: grid;
+    grid-row: span 2;
+    width: 1.9rem;
+    height: 1.9rem;
+    place-items: center;
+    border-radius: .55rem;
+    background: var(--admin-primary-soft);
+    color: var(--admin-primary);
+    font-size: .85rem;
+}
+.admin-list-card__head strong { font-size: .9rem; font-weight: 780; }
+.admin-list-card__count {
+    color: var(--admin-text-muted);
+    font-size: .74rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.admin-list-card__description { color: var(--admin-text-secondary); font-size: .8rem; line-height: 1.4; }
+.admin-list-card__where { color: var(--admin-text-muted); font-size: .74rem; }
+.admin-list-card__where i { font-size: .65rem; }
+.admin-lists__rule {
+    display: flex;
+    gap: .6rem;
+    padding: .75rem .9rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius);
+    background: var(--admin-surface-subtle);
+    color: var(--admin-text-secondary);
+    font-size: .82rem;
+}
+.admin-lists__rule i { color: var(--admin-info); }
+.admin-lists__rule p { margin: 0; }
+.admin-lists__rule strong { color: var(--admin-text); }
+@media (max-width: 1100px) {
+    .admin-lists-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .admin-list-card { transition: none; }
+}

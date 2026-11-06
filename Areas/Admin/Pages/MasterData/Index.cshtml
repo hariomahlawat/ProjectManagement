@@ -8,61 +8,53 @@
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 <partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 
-<section class="admin-master-summary-grid" aria-label="Master-data summary">
-    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
-        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-collection"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.TotalRecords.ToString("N0")</strong><span>Total records</span><small>Across controlled domains</small></span>
-    </article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--success">
-        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-check-circle"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.ActiveRecords.ToString("N0")</strong><span>Active records</span><small>Available in operational forms</small></span>
-    </article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
-        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-slash-circle"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.InactiveRecords.ToString("N0")</strong><span>Inactive records</span><small>Retained for historical references</small></span>
-    </article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--info">
-        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-link-45deg"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.RecordsInUse.ToString("N0")</strong><span>Records in use</span><small>Referenced by active or historical data</small></span>
-    </article>
-</section>
+<div class="admin-lists-layout">
+    <div class="admin-lists">
+        @foreach (var group in Model.Groups)
+        {
+            var headingId = "lists-" + group.Name.ToLowerInvariant().Replace(" ", "-");
+            <section class="admin-lists__group" aria-labelledby="@headingId">
+                <h2 id="@headingId" class="admin-lists__group-name">@group.Name</h2>
+                <div class="admin-lists__grid">
+                    @foreach (var list in group.Lists)
+                    {
+                        var opensIn = ProjectManagement.Areas.Admin.Pages.MasterData.IndexModel.OpensIn(list);
+                        <a class="admin-list-card" href="@Model.DomainUrl(list)">
+                            <span class="admin-list-card__head">
+                                <span class="admin-list-card__icon" aria-hidden="true"><i class="bi @list.Icon"></i></span>
+                                <strong>@list.Title</strong>
+                                <span class="admin-list-card__count">@ProjectManagement.Areas.Admin.Pages.MasterData.IndexModel.Values(list)</span>
+                            </span>
+                            <span class="admin-list-card__description">@list.Description</span>
+                            <span class="admin-list-card__where">
+                                Used in: @list.UsedIn
+                                @if (opensIn is not null)
+                                {
+                                    <span> · Opens in @opensIn <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></span>
+                                }
+                            </span>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
 
-<div class="admin-master-layout">
-    <section class="admin-panel" aria-labelledby="master-domains-title">
-        <header class="admin-panel__header">
-            <div>
-                <div class="admin-panel__eyebrow">Controlled configuration</div>
-                <h2 id="master-domains-title">Master-data domains</h2>
-            </div>
-        </header>
-        <div class="admin-master-domain-grid">
-            @foreach (var domain in Model.Snapshot.Domains)
-            {
-                <a class="admin-master-domain-card" href="@Model.DomainUrl(domain)">
-                    <span class="admin-master-domain-card__icon" aria-hidden="true"><i class="bi @domain.Icon"></i></span>
-                    <span class="admin-master-domain-card__copy">
-                        <strong>@domain.Title</strong>
-                        <span>@domain.Description</span>
-                    </span>
-                    <dl class="admin-master-domain-card__facts">
-                        <div><dt>Total</dt><dd>@domain.Total</dd></div>
-                        <div><dt>Active</dt><dd>@domain.Active</dd></div>
-                        <div><dt>Inactive</dt><dd>@domain.Inactive</dd></div>
-                        <div><dt>In use</dt><dd>@(domain.TracksUsage ? domain.InUse.ToString("N0") : "—")</dd></div>
-                    </dl>
-                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                </a>
-            }
-        </div>
-    </section>
+        <section class="admin-lists__rule" aria-label="Values that records use">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <p>
+                <strong>A value that records use cannot be deleted.</strong>
+                Deactivate it instead: records that use it keep it, and forms stop offering it.
+                <a asp-area="Admin" asp-page="/Help/Index" asp-fragment="master-data">How lists work</a>
+            </p>
+        </section>
+    </div>
 
     <aside class="admin-panel admin-master-activity" aria-labelledby="master-activity-title">
         <header class="admin-panel__header">
             <div>
-                <div class="admin-panel__eyebrow">Audit trail</div>
-                <h2 id="master-activity-title">Recent changes</h2>
+                <h2 id="master-activity-title">Recent changes to the lists</h2>
             </div>
-            <a asp-area="Admin" asp-page="/Logs/Index" asp-route-Category="master data">View all</a>
+            <a asp-area="Admin" asp-page="/Logs/Index" asp-route-Category="master data">Open the audit log</a>
         </header>
         @if (Model.Snapshot.RecentChanges.Count == 0)
         {
@@ -70,8 +62,8 @@
                      model="@(new AdminEmptyStateModel
                      {
                          Icon = "bi-clock-history",
-                         Title = "No recent configuration changes",
-                         Description = "Master-data actions will appear here after they are recorded."
+                         Title = "No changes yet",
+                         Description = "Added, renamed and deactivated values appear here."
                      })" />
         }
         else
@@ -95,12 +87,3 @@
         }
     </aside>
 </div>
-
-<section class="admin-guidance-strip" aria-label="Master-data governance guidance">
-    <span aria-hidden="true"><i class="bi bi-shield-check"></i></span>
-    <div>
-        <strong>Governance principle</strong>
-        <p>Deactivate referenced values instead of deleting them. Permanent deletion is only available when no dependent records or child entries exist.</p>
-    </div>
-    <a asp-area="Admin" asp-page="/Help/Index" asp-fragment="master-data">Read guidance <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-</section>

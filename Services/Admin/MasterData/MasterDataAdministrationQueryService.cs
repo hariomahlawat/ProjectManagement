@@ -31,7 +31,20 @@ public sealed record MasterDataDomainSummary(
     int Inactive,
     int InUse,
     string Policy,
-    bool TracksUsage = true);
+    bool TracksUsage = true,
+    string Group = "",
+    string UsedIn = "");
+
+/// <summary>The groups of "Lists used in forms", in page order (docs/ux/admin-module.md, PR 6).</summary>
+public static class MasterDataGroups
+{
+    public const string Projects = "Projects";
+    public const string ActivitiesArpp = "Activities and ARPP";
+    public const string DocumentsSocialMedia = "Documents and social media";
+    public const string Calendar = "Calendar";
+
+    public static IReadOnlyList<string> Ordered { get; } = new[] { Projects, ActivitiesArpp, DocumentsSocialMedia, Calendar };
+}
 
 public sealed record MasterDataRecentChange(
     long AuditId,
@@ -281,39 +294,75 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             .CountAsync(item => item.DeletedUtc == null, cancellationToken);
         var celebrations = new CountSnapshot(celebrationsTotal, celebrationsTotal, 0, 0);
 
+        // Lists that belong to other modules but are still choices in PRISM's forms.
+        var documentTypes = await CountListAsync(
+            _db.DocumentCategories.AsNoTracking().Select(item => item.IsActive),
+            _db.Documents.AsNoTracking().Select(item => item.DocumentCategoryId).Distinct(),
+            cancellationToken);
+        var offices = await CountListAsync(
+            _db.OfficeCategories.AsNoTracking().Select(item => item.IsActive),
+            _db.Documents.AsNoTracking().Select(item => item.OfficeCategoryId).Distinct(),
+            cancellationToken);
+        var socialMediaTypes = await CountListAsync(
+            _db.SocialMediaEventTypes.AsNoTracking().Select(item => item.IsActive),
+            _db.SocialMediaEvents.AsNoTracking().Select(item => item.SocialMediaEventTypeId).Distinct(),
+            cancellationToken);
+        var socialMediaPlatforms = await CountListAsync(
+            _db.SocialMediaPlatforms.AsNoTracking().Select(item => item.IsActive),
+            _db.SocialMediaEvents.AsNoTracking().Select(item => item.SocialMediaPlatformId).Distinct(),
+            cancellationToken);
+
         var domains = new[]
         {
-            Domain("project-categories", "Project categories", "Hierarchy used to group projects and management reports.", "bi-diagram-3", "Admin", "/Categories/Index", projectCategories, AdminPolicies.MasterDataManage),
-            Domain("technical-categories", "Technical categories", "Technology taxonomy used for capability and portfolio analysis.", "bi-cpu", "Admin", "/TechnicalCategories/Index", technicalCategories, AdminPolicies.MasterDataManage),
-            Domain("project-types", "Project types", "Controlled project classification available in project records.", "bi-tags", "Admin", "/Lookups/ProjectTypes/Index", projectTypes, AdminPolicies.MasterDataManage),
-            Domain("sponsoring-units", "Sponsoring units", "Units and formations sponsoring projects and requirements.", "bi-building", "Admin", "/Lookups/SponsoringUnits/Index", sponsoringUnits, AdminPolicies.MasterDataManage),
-            Domain("line-directorates", "Line directorates", "Line directorates associated with project sponsorship.", "bi-diagram-2", "Admin", "/Lookups/LineDirectorates/Index", lineDirectorates, AdminPolicies.MasterDataManage),
-            Domain("activity-types", "Activity types", "Controlled activity classifications used across planning and reporting.", "bi-list-task", "Admin", "/ActivityTypes/Index", activityTypes, AdminPolicies.ActivityTypesManage),
-            Domain("arpp-reference-data", "ARPP reference data", "Controlled CFA, Fund and DFPDS values used for faster and consistent ARPP entry.", "bi-list-check", "Admin", "/MasterData/ArppReferences/Index", arppReferenceData, AdminPolicies.MasterDataManage),
-            Domain("holidays", $"Holidays · {holidayYear}", "Gazetted Holidays, Restricted Holidays and office-observance decisions used by the shared calendar and schedule calculations.", "bi-calendar-week", string.Empty, "/Settings/Holidays/Index", holidays, AdminPolicies.HolidaysManage, tracksUsage: false),
-            Domain("celebrations", "Celebrations", "Birthdays and anniversaries shown in the shared calendar.", "bi-stars", string.Empty, "/Celebrations/Index", celebrations, Policies.Calendar.ManageCelebrations, tracksUsage: false)
+            Domain("project-categories", "Project categories", "Groups projects in dashboards and reports. A category can have sub-categories.", "bi-diagram-3", "Admin", "/Categories/Index", projectCategories, AdminPolicies.MasterDataManage,
+                group: MasterDataGroups.Projects, usedIn: "Project form"),
+            Domain("technical-categories", "Technical categories", "The technology area of a project.", "bi-cpu", "Admin", "/TechnicalCategories/Index", technicalCategories, AdminPolicies.MasterDataManage,
+                group: MasterDataGroups.Projects, usedIn: "Project form"),
+            Domain("project-types", "Project types", "The kind of project, such as build or procurement.", "bi-tags", "Admin", "/Lookups/ProjectTypes/Index", projectTypes, AdminPolicies.MasterDataManage,
+                group: MasterDataGroups.Projects, usedIn: "Project form"),
+            Domain("sponsoring-units", "Sponsoring units", "Units and formations that sponsor a project.", "bi-building", "Admin", "/Lookups/SponsoringUnits/Index", sponsoringUnits, AdminPolicies.MasterDataManage,
+                group: MasterDataGroups.Projects, usedIn: "Project form"),
+            Domain("line-directorates", "Line directorates", "The directorate linked to a project's sponsor.", "bi-diagram-2", "Admin", "/Lookups/LineDirectorates/Index", lineDirectorates, AdminPolicies.MasterDataManage,
+                group: MasterDataGroups.Projects, usedIn: "Project form"),
+            Domain("activity-types", "Activity types", "Kinds of activity, used in planning and reports.", "bi-list-task", "Admin", "/ActivityTypes/Index", activityTypes, AdminPolicies.ActivityTypesManage,
+                group: MasterDataGroups.ActivitiesArpp, usedIn: "Activity form"),
+            Domain("arpp-reference-data", "ARPP values", "The CFA, Fund and DFPDS choices offered when entering ARPP data.", "bi-list-check", "Admin", "/MasterData/ArppReferences/Index", arppReferenceData, AdminPolicies.MasterDataManage,
+                group: MasterDataGroups.ActivitiesArpp, usedIn: "ARPP entry"),
+            Domain("document-types", "Repository document types", "The kind of document filed in the Document Repository.", "bi-folder2", "DocumentRepository", "/Admin/DocumentCategories/Index", documentTypes, Policies.Documents.ManageCategories,
+                group: MasterDataGroups.DocumentsSocialMedia, usedIn: "Document Repository upload"),
+            Domain("document-offices", "Repository offices", "The office a Document Repository document belongs to.", "bi-building-gear", "DocumentRepository", "/Admin/OfficeCategories/Index", offices, Policies.Documents.ManageCategories,
+                group: MasterDataGroups.DocumentsSocialMedia, usedIn: "Document Repository upload"),
+            Domain("social-media-types", "Social media event types", "The kind of event a social media post is about.", "bi-megaphone", "ProjectOfficeReports", "/Admin/SocialMediaTypes/Index", socialMediaTypes, AdminPolicies.MasterDataManage,
+                group: MasterDataGroups.DocumentsSocialMedia, usedIn: "Social media post form"),
+            Domain("social-media-platforms", "Social media platforms", "Where a social media post was published.", "bi-share", "ProjectOfficeReports", "/Admin/SocialMediaTypes/Platforms/Index", socialMediaPlatforms, AdminPolicies.MasterDataManage,
+                group: MasterDataGroups.DocumentsSocialMedia, usedIn: "Social media post form"),
+            Domain("holidays", $"Holidays · {holidayYear}", "Gazetted and restricted holidays, and which ones the office observes. Stage dates skip them.", "bi-calendar-week", string.Empty, "/Settings/Holidays/Index", holidays, AdminPolicies.HolidaysManage, tracksUsage: false,
+                group: MasterDataGroups.Calendar, usedIn: "Shared calendar and stage dates"),
+            Domain("celebrations", "Celebrations", "Birthdays and anniversaries shown on the shared calendar.", "bi-stars", string.Empty, "/Celebrations/Index", celebrations, Policies.Calendar.ManageCelebrations, tracksUsage: false,
+                group: MasterDataGroups.Calendar, usedIn: "Shared calendar")
         };
 
-        var auditRows = await _db.AuditLogs.AsNoTracking()
-            .Where(item => item.Action.StartsWith("MasterData.")
-                || item.Action.StartsWith("Holiday")
-                || item.Action.StartsWith("GazettedHoliday")
-                || item.Action.StartsWith("RestrictedHoliday")
-                || item.Action.StartsWith("Celebration")
-                || item.Action.StartsWith("MasterData.ArppReference"))
-            .OrderByDescending(item => item.TimeUtc)
-            .ThenByDescending(item => item.Id)
+        var auditRows = await (
+                from item in _db.AuditLogs.AsNoTracking()
+                where item.Action.StartsWith("MasterData.")
+                    || item.Action.StartsWith("Holiday")
+                    || item.Action.StartsWith("GazettedHoliday")
+                    || item.Action.StartsWith("RestrictedHoliday")
+                    || item.Action.StartsWith("Celebration")
+                join user in _db.Users on item.UserId equals user.Id into users
+                from user in users.DefaultIfEmpty()
+                orderby item.TimeUtc descending, item.Id descending
+                select new
+                {
+                    item.Id,
+                    item.Action,
+                    item.Level,
+                    // The person's name when the log kept only their id.
+                    Actor = item.UserName ?? (user == null ? item.UserId : (user.FullName ?? user.UserName)),
+                    item.Message,
+                    item.TimeUtc
+                })
             .Take(8)
-            .Select(item => new
-            {
-                item.Id,
-                item.Action,
-                item.Level,
-                item.UserName,
-                item.UserId,
-                item.Message,
-                item.TimeUtc
-            })
             .ToListAsync(cancellationToken);
 
         var recentChanges = auditRows.Select(item =>
@@ -322,7 +371,7 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             return new MasterDataRecentChange(
                 item.Id,
                 presentation.Label,
-                item.UserName ?? item.UserId,
+                item.Actor,
                 item.Message,
                 new DateTimeOffset(EnsureUtc(item.TimeUtc)),
                 presentation.Icon,
@@ -716,7 +765,9 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         string page,
         CountSnapshot counts,
         string policy,
-        bool tracksUsage = true) => new(
+        bool tracksUsage = true,
+        string group = "",
+        string usedIn = "") => new(
             key,
             title,
             description,
@@ -728,7 +779,30 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             counts.Total - counts.Active,
             counts.InUse,
             policy,
-            tracksUsage);
+            tracksUsage,
+            group,
+            usedIn);
+
+    // Total and active values of a list, and how many of its values records use.
+    private static async Task<CountSnapshot> CountListAsync(
+        IQueryable<bool> isActive,
+        IQueryable<int> usedIds,
+        CancellationToken cancellationToken)
+    {
+        var total = await isActive.CountAsync(cancellationToken);
+        var active = await isActive.CountAsync(value => value, cancellationToken);
+        return new CountSnapshot(total, active, total - active, await usedIds.CountAsync(cancellationToken));
+    }
+
+    private static async Task<CountSnapshot> CountListAsync(
+        IQueryable<bool> isActive,
+        IQueryable<Guid> usedIds,
+        CancellationToken cancellationToken)
+    {
+        var total = await isActive.CountAsync(cancellationToken);
+        var active = await isActive.CountAsync(value => value, cancellationToken);
+        return new CountSnapshot(total, active, total - active, await usedIds.CountAsync(cancellationToken));
+    }
 
     private static IQueryable<T> ApplyStatus<T>(
         IQueryable<T> query,
