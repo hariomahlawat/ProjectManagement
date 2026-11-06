@@ -248,7 +248,39 @@
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-rename-cancel>Cancel</button>
                                         </div>
                                     </form>
-                                    <small class="pbd-deck-header__meta">Updated @IstClock.ToIst(deck.UpdatedAtUtc).ToString("dd MMM yyyy, HH:mm") by @deck.LastModifiedByDisplay</small>
+                                    <div class="pbd-deck-header__status">
+                                    @* The order of work, each step opening where it is done (Studio usability PR 3); in the header
+                                       with the last change, so the Studio starts higher (review PR B). *@
+                                    <nav class="pbd-progress" aria-label="Deck progress" data-pbd-progress>
+                                        <ol>
+                                            <li class="@(deck.Projects.Count > 0 ? "is-done" : "is-next")" data-pbd-progress-step="projects">
+                                                <button type="button" data-pbd-open-selector>
+                                                    <span class="pbd-progress__label">Projects</span>
+                                                    <span class="pbd-progress__value" data-pbd-progress-projects>@(deck.Projects.Count == 0 ? "Add" : deck.Projects.Count.ToString())</span>
+                                                </button>
+                                            </li>
+                                            <li class="@(presentedProjects!.Length == 0 ? null : openCheckCount == 0 ? "is-done" : "is-open")" data-pbd-progress-step="checks">
+                                                <button type="button" data-pbd-progress-tab="checks">
+                                                    <span class="pbd-progress__label">Checks</span>
+                                                    <span class="pbd-progress__value" data-pbd-progress-checks>@(presentedProjects.Length == 0 ? "–" : openCheckCount == 0 ? "All recorded" : $"{openCheckCount} to review")</span>
+                                                </button>
+                                            </li>
+                                            <li class="is-done" data-pbd-progress-step="template">
+                                                <button type="button" data-pbd-progress-tab="deck">
+                                                    <span class="pbd-progress__label">Settings</span>
+                                                    <span class="pbd-progress__value" data-pbd-progress-template>@templateTitle@(templateCustomised ? ", customised" : null)</span>
+                                                </button>
+                                            </li>
+                                            <li class="@(presentedProjects.Length > 0 ? "is-ready" : null)" data-pbd-progress-step="generate">
+                                                <button type="button" data-pbd-progress-generate>
+                                                    <span class="pbd-progress__label">Generate</span>
+                                                    <span class="pbd-progress__value">PowerPoint</span>
+                                                </button>
+                                            </li>
+                                        </ol>
+                                    </nav>
+                                        <small class="pbd-deck-header__meta">Updated @IstClock.ToIst(deck.UpdatedAtUtc).ToString("dd MMM yyyy, HH:mm") by @deck.LastModifiedByDisplay</small>
+                                    </div>
                                 </div>
                             </div>
                             <div class="pbd-deck-header__actions">
@@ -308,35 +340,6 @@
                                 </div>
                             </div>
                         </header>
-                        @* The order of work, each step opening where it is done (docs/ux/briefing-decks.md, Studio usability PR 3). *@
-                        <nav class="pbd-progress" aria-label="Deck progress" data-pbd-progress>
-                            <ol>
-                                <li class="@(deck.Projects.Count > 0 ? "is-done" : "is-next")" data-pbd-progress-step="projects">
-                                    <button type="button" data-pbd-open-selector>
-                                        <span class="pbd-progress__label">Projects</span>
-                                        <span class="pbd-progress__value" data-pbd-progress-projects>@(deck.Projects.Count == 0 ? "Add" : deck.Projects.Count.ToString())</span>
-                                    </button>
-                                </li>
-                                <li class="@(presentedProjects!.Length == 0 ? null : openCheckCount == 0 ? "is-done" : "is-open")" data-pbd-progress-step="checks">
-                                    <button type="button" data-pbd-progress-tab="checks">
-                                        <span class="pbd-progress__label">Checks</span>
-                                        <span class="pbd-progress__value" data-pbd-progress-checks>@(presentedProjects.Length == 0 ? "–" : openCheckCount == 0 ? "All recorded" : $"{openCheckCount} to review")</span>
-                                    </button>
-                                </li>
-                                <li class="is-done" data-pbd-progress-step="template">
-                                    <button type="button" data-pbd-progress-tab="deck">
-                                        <span class="pbd-progress__label">Settings</span>
-                                        <span class="pbd-progress__value" data-pbd-progress-template>@templateTitle@(templateCustomised ? ", customised" : null)</span>
-                                    </button>
-                                </li>
-                                <li class="@(presentedProjects.Length > 0 ? "is-ready" : null)" data-pbd-progress-step="generate">
-                                    <button type="button" data-pbd-progress-generate>
-                                        <span class="pbd-progress__label">Generate</span>
-                                        <span class="pbd-progress__value">PowerPoint</span>
-                                    </button>
-                                </li>
-                            </ol>
-                        </nav>
                         <div class="pbd-model-note" role="note" data-pbd-model-note hidden>
                             <i class="bi bi-info-circle" aria-hidden="true"></i>
                             <p>The slides are rebuilt from live PRISM data each time, so stages, costs and status are always current. Changes here save as you go and are shared with every Comdt and HoD workspace user.</p>

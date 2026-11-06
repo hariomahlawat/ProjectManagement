@@ -100,7 +100,7 @@ const MARKUP = `
 </div>`;
 
 // Each fetch waits until the test answers it, so the order of responses can be controlled.
-const startStudio = () => {
+const startStudio = (prepare) => {
   const dom = new JSDOM(`<!doctype html><html><body>${MARKUP}</body></html>`, {
     url: 'http://localhost/Workspace/BriefingDecks/7',
     runScripts: 'outside-only',
@@ -129,6 +129,7 @@ const startStudio = () => {
   };
   if (!window.CSS) window.CSS = {};
   if (!window.CSS.escape) window.CSS.escape = (value) => String(value).replace(/["\\]/g, '\\$&');
+  if (prepare) prepare(window);
   window.eval(studioSource);
   return { window, document: window.document, requests };
 };
@@ -475,4 +476,33 @@ test("a missing status remark is fixed in the project's remarks section", async 
   const fix = document.querySelector('.pbd-inspector__gaps a');
   assert.equal(fix.textContent.trim(), 'Fix in project');
   assert.match(fix.getAttribute('href'), /#remarks$/);
+});
+
+test('arrow keys move between slides from the page itself, but not from a field', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload());
+  await settle(window);
+  const meta = () => document.querySelector('[data-pbd-stage-meta]').textContent;
+  assert.match(meta(), /^Slide 1 of 5/);
+
+  document.body.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.match(meta(), /^Slide 2 of 5/);
+
+  const search = document.querySelector('[data-pbd-outline-search]');
+  search.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.match(meta(), /^Slide 2 of 5/, 'typing in a field keeps the arrows');
+});
+
+test('after a reload the Checks filter is still applied', async () => {
+  const { window, document, requests } = startStudio((win) => {
+    win.sessionStorage.setItem('projectBriefingStudio:7:place', JSON.stringify({ view: 'slide', tab: 'checks', filter: 'status' }));
+  });
+  requests[0].answer(payload());
+  await settle(window);
+
+  assert.equal(document.querySelector('[data-pbd-outline-filter]').hidden, false);
+  assert.equal(document.querySelector('[data-pbd-outline-filter-text]').textContent, 'Projects missing status remark');
+  const rows = [...document.querySelectorAll('.pbd-outline__row')].map((row) => row.textContent);
+  assert.ok(rows.some((text) => text.includes('Alpha simulator')));
+  assert.ok(!rows.some((text) => text.includes('Charlie range')), 'projects with the remark recorded are filtered out');
 });

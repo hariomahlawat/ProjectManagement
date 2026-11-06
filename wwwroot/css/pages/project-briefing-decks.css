@@ -3200,7 +3200,10 @@ body.pbd-profile-drawer-open {
     top: calc(var(--topbar-height, 56px) + .75rem);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - var(--topbar-height, 56px) - 1.5rem);
+    /* The room left below the header (--pbd-studio-offset, measured by the Studio script), so
+       the Studio fits the window without the page scrolling; at least 26rem on short screens,
+       where the page scrolls once and the panels stay in view. */
+    max-height: max(26rem, calc(100vh - var(--pbd-studio-offset, calc(var(--topbar-height, 56px) + .75rem)) - 1.5rem));
     overflow: hidden;
 }
 
@@ -3396,12 +3399,16 @@ body.pbd-profile-drawer-open {
     text-align: right;
 }
 
+/* Two lines, so projects that share a prefix ("VR Based …") can be told apart. */
 .pbd-outline__name {
+    display: -webkit-box;
     flex: 1;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
 }
 
 .pbd-outline__gaps {
@@ -5540,7 +5547,20 @@ span.pbd-additional-slide-row__handle {
 }
 
 .pbd-progress {
-    margin: 0 0 .6rem;
+    margin: 0;
+}
+
+/* Under the deck name: the progress line and the last change, on one line where they fit. */
+.pbd-deck-header__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem .85rem;
+    margin-top: .45rem;
+}
+
+.pbd-deck-header__status .pbd-deck-header__meta {
+    margin-top: 0;
 }
 
 .pbd-progress ol {
