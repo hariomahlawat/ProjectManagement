@@ -178,3 +178,49 @@ test('sticky toasts have no timer and wait until dismissed', () => {
   advance(120000);
   assert.equal(toasts(document).length, 1);
 });
+
+test('a pointer heading for the stack pauses the timers, as hovering does', () => {
+  const { window, document, advance } = createDom();
+  window.requestAnimationFrame = (fn) => { fn(); return 1; };
+  window.PrismToast.show({ text: 'Briefing deck moved to Recently deleted.', action: { label: 'Undo', run: () => {} } });
+  const region = document.querySelector('[data-prism-toasts]');
+  region.getBoundingClientRect = () => ({ left: 300, right: 700, top: 500, bottom: 560, width: 400, height: 60 });
+
+  document.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 650, clientY: 470 }));
+  assert.ok(region.classList.contains('is-paused'), 'the timer line pauses too');
+  advance(20000);
+  assert.equal(toasts(document).length, 1, 'still there while the pointer is near');
+
+  document.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 100, clientY: 100 }));
+  assert.ok(!region.classList.contains('is-paused'));
+  advance(7000);
+  assert.equal(toasts(document).length, 0, 'runs out once the pointer moves away');
+});
+
+test('a toast shown in a background tab waits until the page is seen', () => {
+  const { window, document, advance } = createDom();
+  let state = 'hidden';
+  Object.defineProperty(document, 'visibilityState', { get: () => state, configurable: true });
+  window.PrismToast.show({ text: 'Remark saved.' });
+
+  advance(20000);
+  assert.equal(toasts(document).length, 1, 'kept while the tab is hidden');
+
+  state = 'visible';
+  document.dispatchEvent(new window.Event('visibilitychange'));
+  advance(4500);
+  assert.equal(toasts(document).length, 0);
+});
+
+test('the pointer leaving the window no longer counts as near', () => {
+  const { window, document, advance } = createDom();
+  window.requestAnimationFrame = (fn) => { fn(); return 1; };
+  window.PrismToast.show({ text: 'Remark saved.' });
+  const region = document.querySelector('[data-prism-toasts]');
+  region.getBoundingClientRect = () => ({ left: 300, right: 700, top: 500, bottom: 560, width: 400, height: 60 });
+
+  document.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 500, clientY: 590 }));
+  document.documentElement.dispatchEvent(new window.MouseEvent('mouseleave'));
+  advance(4500);
+  assert.equal(toasts(document).length, 0);
+});

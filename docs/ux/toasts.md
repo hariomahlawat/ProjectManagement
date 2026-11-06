@@ -65,7 +65,9 @@ It returns `{ element, dismiss }`. Text is always set as text, never as markup.
 
 - **Lifetime:** success, info and warning fade on their own; a thin line in the tone shows the
   time left. Errors stay until dismissed (close button, or Esc when the toast has focus).
-- **Pausing:** hovering the stack or moving focus into it pauses every timer.
+- **Pausing:** hovering the stack, moving the pointer to within 64px of it, or moving focus into
+  it pauses every timer, so reaching for **Undo** never races the countdown. A toast shown
+  while the tab is in the background waits until the page is seen.
 - **Stacking:** up to three show, newest in front; older ones tuck behind, fainter and smaller.
   An error stays in front until it is dismissed. Hovering fans the stack out so each can be read.
 - **Announcements:** errors use `role="alert"`; the rest `role="status"`.

@@ -39,9 +39,56 @@
     let paused = false;
     const timers = new Map(); // element -> { left, started, handle }
 
-    // Timers run unless the pointer is over the stack or focus is inside it.
+    // Timers run unless the stack is in use: the pointer is over it or heading for it (within
+    // NEAR px), focus is inside it, or the page is not on screen (a background tab).
+    const NEAR = 64;
+    let pointerNear = false;
     const stackInUse = () => Boolean(region?.isConnected
-        && (region.matches(":hover") || region.contains(document.activeElement)));
+        && (pointerNear
+            || region.matches(":hover")
+            || region.contains(document.activeElement)
+            || document.visibilityState === "hidden"));
+
+    const syncPaused = () => setPaused(stackInUse());
+
+    // Reaching for Undo should not race the timer: near the stack counts as on it.
+    let pointerFrame = 0;
+    let lastPointer = null;
+    const checkPointer = () => {
+        pointerFrame = 0;
+        const host = region?.isConnected ? region : null;
+        let near = false;
+        if (host && lastPointer && timers.size > 0) {
+            const box = host.getBoundingClientRect();
+            const { x, y } = lastPointer;
+            near = box.width > 0
+                && x >= box.left - NEAR && x <= box.right + NEAR
+                && y >= box.top - NEAR && y <= box.bottom + NEAR;
+        }
+        if (near !== pointerNear) {
+            pointerNear = near;
+            syncPaused();
+        }
+    };
+    document.addEventListener("pointermove", event => {
+        if (event.pointerType && event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+        lastPointer = { x: event.clientX, y: event.clientY };
+        if (!pointerFrame) {
+            pointerFrame = 1;
+            (window.requestAnimationFrame || (fn => window.setTimeout(fn, 16)))(checkPointer);
+        }
+    }, { passive: true });
+    // The pointer left the window: it is no longer near the stack.
+    document.documentElement.addEventListener("mouseleave", () => {
+        lastPointer = null;
+        if (pointerNear) {
+            pointerNear = false;
+            if (region?.isConnected) syncPaused();
+        }
+    });
+    document.addEventListener("visibilitychange", () => {
+        if (region?.isConnected) syncPaused();
+    });
 
     const getRegion = () => {
         if (!region?.isConnected) region = document.querySelector("[data-prism-toasts]");
@@ -98,12 +145,16 @@
     const startTimer = (el, life) => {
         const timer = { left: life, started: Date.now(), handle: 0 };
         timers.set(el, timer);
+        // A toast shown in a background tab waits until the page is seen.
+        if (document.visibilityState === "hidden") setPaused(true);
         if (!paused) timer.handle = window.setTimeout(() => dismiss(el), life);
     };
 
     function setPaused(value) {
         if (paused === value) return;
         paused = value;
+        // The timer lines follow the same pause (see .prism-toasts.is-paused in prism-toast.css).
+        region?.classList.toggle("is-paused", paused);
         timers.forEach((timer, el) => {
             if (paused) {
                 window.clearTimeout(timer.handle);

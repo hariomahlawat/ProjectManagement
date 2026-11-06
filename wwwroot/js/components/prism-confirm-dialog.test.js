@@ -194,3 +194,62 @@ test('focus: "cancel" keeps Enter away from the action for any tone', async () =
   await flush();
   assert.equal(dom.window.document.activeElement, $(dom, '.prism-confirm-dialog__btn--quiet'));
 });
+
+test('a question with no message is marked title-only, so it sits level with the icon', () => {
+  const dom = createDom();
+  const dialog = $(dom, 'dialog');
+
+  dom.window.PrismConfirm.show({ title: 'Delete this task?', message: '', tone: 'danger' });
+  assert.ok(dialog.hasAttribute('data-title-only'));
+  $(dom, '.prism-confirm-dialog__btn--quiet').click();
+
+  dom.window.PrismConfirm.show({ title: 'Delete this task?', message: "It's removed from your list.", tone: 'danger' });
+  assert.ok(!dialog.hasAttribute('data-title-only'));
+});
+
+test('an open menu closes before the dialog opens, and focus returns to its button', async () => {
+  const dom = createDom();
+  const { document } = dom.window;
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="dropdown">
+      <button id="more" data-bs-toggle="dropdown" aria-expanded="true">More</button>
+      <ul class="dropdown-menu show"><li><button id="delete">Delete</button></li></ul>
+    </div>`);
+  document.getElementById('delete').focus();
+
+  const result = dom.window.PrismConfirm.show({ title: 'Delete this task?', tone: 'danger' });
+  assert.ok(!document.querySelector('.dropdown-menu').classList.contains('show'), 'the menu is closed');
+
+  $(dom, '.prism-confirm-dialog__btn--quiet').click();
+  assert.equal(await result, false);
+  await flush();
+  assert.equal(document.activeElement?.id, 'more', 'not the hidden menu item');
+});
+
+test('a menu moved to <body> while open is closed through its own button, not the first one on the page', async () => {
+  const dom = createDom();
+  const { document } = dom.window;
+  document.body.insertAdjacentHTML('afterbegin', `
+    <div class="dropdown"><button id="account" data-bs-toggle="dropdown">Account</button><ul class="dropdown-menu"></ul></div>`);
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="dropdown"><button id="more" data-bs-toggle="dropdown" aria-expanded="true">More</button></div>
+    <ul class="dropdown-menu show" id="moved"><li><button id="delete">Delete</button></li></ul>`);
+  const moved = document.getElementById('moved');
+  const hidden = [];
+  dom.window.bootstrap = {
+    Dropdown: {
+      getInstance: toggle => (toggle.id === 'more' ? { _menu: moved } : null),
+      getOrCreateInstance: toggle => ({ hide: () => { hidden.push(toggle.id); moved.classList.remove('show'); } })
+    }
+  };
+  document.getElementById('delete').focus();
+
+  const result = dom.window.PrismConfirm.show({ title: 'Delete this task?', tone: 'danger' });
+  assert.deepEqual(hidden, ['more']);
+  assert.ok(!moved.classList.contains('show'));
+
+  $(dom, '.prism-confirm-dialog__btn--quiet').click();
+  await result;
+  await flush();
+  assert.equal(document.activeElement?.id, 'more');
+});
