@@ -468,5 +468,12 @@ projects missing", Show) and the preview following each settings change.
    them on the first); other slides say they have none. It starts at the slide in view, with
    "From the start" in the toolbar beside Notes and Slides. The header lists the keys (arrows,
    N, Esc); Space, Page Up/Down, Home and End also move.
-5. **Phone.** One slide at a time (All slides is not restored below 900 px), the outline as a
-   sheet, Generate and Present first, settings in a sheet.
+5. **Phone.** Done (this change). When the Studio is narrower than 700 px the slide comes first,
+   with Present in its bar (Generate stays at the top of the deck header); the outline follows as
+   a sheet: its header (Slides 52, Show slides, + Projects, + Slide) with the list folded until
+   "Show slides" (up to 60 % of the screen, scrolling). Picking a slide folds the sheet and
+   brings the slide into view; Show in Checks opens it. The inspector comes last, in the page
+   flow rather than sticky. A remembered All slides view is not restored below 900 px. At
+   375 px the page went from about 2,800 px to 1,640 px, and the slide starts at about 740 px
+   instead of 1,490 px. The settings stay in the Deck tab under the slide rather than a
+   separate sheet: with the outline folded they are a tab away.

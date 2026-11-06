@@ -5660,3 +5660,38 @@ span.pbd-additional-slide-row__handle {
     border-color: var(--pbd-green);
     color: var(--pbd-green);
 }
+
+/* Phone (Studio usability PR 5): the slide first, the outline as a sheet under it ("Show
+   slides"), the inspector after. These come last so they win over the sticky side columns. */
+.pbd-outline__toggle {
+    display: none;
+}
+
+@container pbd-studio (max-width: 699.98px) {
+    .pbd-studio__stage {
+        order: -1;
+        scroll-margin-top: calc(var(--topbar-height, 56px) + .5rem);
+    }
+
+    .pbd-studio__outline,
+    .pbd-studio__inspector {
+        position: static;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .pbd-outline__toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+    }
+
+    .pbd-studio__outline:not(.is-open) > :not(.pbd-outline__header) {
+        display: none;
+    }
+
+    .pbd-studio__outline.is-open .pbd-outline__list {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+}

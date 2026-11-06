@@ -165,6 +165,28 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Phone_PutsTheSlideFirstWithTheOutlineAsASheet()
+    {
+        var page = Read("Index.cshtml");
+        var studio = Read("project-briefing-studio.js");
+        var css = Read("project-briefing-decks.css").Replace("\r\n", "\n");
+
+        // The outline folds into a sheet under the slide, opened with Show slides.
+        Assert.Contains("aria-controls=\"pbd-outline-sheet\" data-pbd-outline-toggle", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"pbd-outline-sheet\"", page, StringComparison.Ordinal);
+        Assert.Contains(".pbd-studio__outline:not(.is-open) > :not(.pbd-outline__header) {", css, StringComparison.Ordinal);
+
+        // The phone rules come after the sticky side columns, so they win.
+        var phone = css.LastIndexOf("@container pbd-studio (max-width: 699.98px) {", StringComparison.Ordinal);
+        Assert.True(phone > css.IndexOf("max-height: calc(100vh - var(--topbar-height, 56px) - 1.5rem);", StringComparison.Ordinal));
+        Assert.Contains("order: -1;", css[phone..], StringComparison.Ordinal);
+
+        // Picking a slide folds the sheet; All slides is not restored on narrow screens.
+        Assert.Contains("if (outlineIsSheet()) {", studio, StringComparison.Ordinal);
+        Assert.Contains("savedPlace.view === 'grid' && !narrowScreen()", studio, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()
     {
         var page = Read("Index.cshtml");

@@ -158,6 +158,20 @@ if (root) {
     }
   };
   const savedPlace = readPlace();
+  const narrowScreen = () => Boolean(window.matchMedia?.('(max-width: 899.98px)').matches);
+
+  // Phones: the outline is a sheet under the slide, opened with "Show slides". The CSS decides
+  // when (the Studio's width); the toggle is only displayed then.
+  const outlineAside = root.querySelector('.pbd-studio__outline');
+  const outlineToggle = root.querySelector('[data-pbd-outline-toggle]');
+  const outlineToggleText = outlineToggle?.querySelector('[data-pbd-outline-toggle-text]');
+  const outlineIsSheet = () => Boolean(outlineToggle && window.getComputedStyle(outlineToggle).display !== 'none');
+  const setOutlineOpen = (open) => {
+    outlineAside?.classList.toggle('is-open', open);
+    outlineToggle?.setAttribute('aria-expanded', String(open));
+    if (outlineToggleText) outlineToggleText.textContent = open ? 'Hide slides' : 'Show slides';
+  };
+  outlineToggle?.addEventListener('click', () => setOutlineOpen(!outlineAside?.classList.contains('is-open')));
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -654,7 +668,15 @@ if (root) {
             badge.title = `${plural(missing.length, 'item')} missing: ${names}. The PowerPoint shows a placeholder; select the slide to fix it.`;
             row.append(badge);
           }
-          row.addEventListener('click', () => selectEntry(entry, { openSlideTab: true }));
+          row.addEventListener('click', () => {
+            selectEntry(entry, { openSlideTab: true });
+            // On a phone the sheet folds away and the chosen slide comes into view.
+            if (outlineIsSheet()) {
+              setOutlineOpen(false);
+              // After the folded sheet has left the layout.
+              window.requestAnimationFrame(() => root.querySelector('.pbd-studio__stage')?.scrollIntoView({ block: 'start' }));
+            }
+          });
           item.append(row);
           list.append(item);
         });
@@ -927,6 +949,8 @@ if (root) {
   };
 
   const setFilter = (key) => {
+    // Show narrows the outline; on a phone, open the sheet so the narrowed list is seen.
+    if (key && outlineIsSheet()) setOutlineOpen(true);
     filterGap = key;
     if (filterBox) filterBox.hidden = !key;
     if (filterText) filterText.textContent = key ? `Projects missing ${GAPS[key]?.label.toLowerCase() || key}` : '';
@@ -1429,7 +1453,8 @@ if (root) {
     refreshTimer = window.setTimeout(loadPreview, 900);
   });
 
-  setView(savedPlace.view === 'grid' ? 'grid' : 'slide');
+  // All slides is not brought back on narrow screens, where the grid runs to thousands of pixels.
+  setView(savedPlace.view === 'grid' && !narrowScreen() ? 'grid' : 'slide');
   // A new, empty deck opens on the Deck tab, where its template is chosen.
   const firstTab = root.dataset.pbdOpenSettings === 'true' ? 'deck' : 'slide';
   setTab(['slide', 'deck', 'checks'].includes(savedPlace.tab) ? savedPlace.tab : firstTab);

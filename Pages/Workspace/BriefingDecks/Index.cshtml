@@ -373,6 +373,10 @@
                                 <header class="pbd-outline__header">
                                     <h3 id="pbd-outline-title">Slides <span data-pbd-studio-count>@(presentedProjects!.Length == 0 ? null : deck.SlideEstimate.TotalSlides)</span></h3>
                                     <div class="pbd-outline__actions">
+                                        @* Phones: the outline folds into a sheet under the slide (Studio usability PR 5). *@
+                                        <button type="button" class="btn btn-sm btn-outline-secondary pbd-outline__toggle" aria-expanded="false" aria-controls="pbd-outline-sheet" data-pbd-outline-toggle>
+                                            <i class="bi bi-list-ul" aria-hidden="true"></i> <span data-pbd-outline-toggle-text>Show slides</span>
+                                        </button>
                                         <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-open-selector>
                                             <i class="bi bi-plus-lg" aria-hidden="true"></i> Projects
                                         </button>
@@ -394,7 +398,7 @@
                                     <span data-pbd-outline-filter-text></span>
                                     <button type="button" class="btn btn-sm btn-link" data-pbd-outline-filter-clear>Show all</button>
                                 </div>
-                                <nav class="pbd-outline__list" aria-label="Slides in deck order" data-pbd-outline>
+                                <nav class="pbd-outline__list" id="pbd-outline-sheet" aria-label="Slides in deck order" data-pbd-outline>
                                     <p class="pbd-outline__empty">Building the slide list…</p>
                                 </nav>
                             </aside>
