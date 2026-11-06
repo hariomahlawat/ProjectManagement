@@ -235,6 +235,27 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void AddProjects_KeepsItsTabsUndoesBulkAddsAndTellsPendingFromSaved()
+    {
+        var script = Read("project-briefing-decks.js");
+        var css = Read("project-briefing-decks.css").Replace("\r\n", "\n");
+
+        // The tab strip cannot shrink, and only the dialog scrolls.
+        Assert.Contains(".pbd-add-projects .modal-body {\n    grid-auto-rows: max-content;", css, StringComparison.Ordinal);
+        Assert.Contains(".pbd-add-projects .pbd-search-results {\n    max-height: none;", css, StringComparison.Ordinal);
+
+        // A quick or category add can be undone: exactly the projects it brought in.
+        Assert.Contains("if (added.length) offerAddUndo(added, button);", script, StringComparison.Ordinal);
+        Assert.Contains("await updateMembership([], added, addProjectsStatus);", script, StringComparison.Ordinal);
+
+        // Saved and pending told apart; the deck's own projects listed before any search.
+        Assert.Contains("? (desired ? ['In deck', 'is-in-deck'] : ['Will be removed', 'is-pending-remove'])", script, StringComparison.Ordinal);
+        Assert.Contains(": (desired ? ['Will be added', 'is-pending-add'] : ['', '']);", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("'NOT IN DECK'", script, StringComparison.Ordinal);
+        Assert.Contains("renderSearchResults(deckRowsFrom(latestProjects));", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()
     {
         var page = Read("Index.cshtml");

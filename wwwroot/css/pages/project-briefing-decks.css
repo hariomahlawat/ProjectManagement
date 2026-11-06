@@ -4203,6 +4203,46 @@ html:has(.pbd-viewer[open]) {
     border-radius: .6rem;
 }
 
+/* Rows take their content's height: the tab strip (a sideways scroller) shrank to 9 px when a
+   long result list filled the dialog at 1366x768. */
+.pbd-add-projects .modal-body {
+    grid-auto-rows: max-content;
+}
+
+/* One scroll, the dialog's: the result list grows with it, and the Apply bar stays in view. */
+.pbd-add-projects .pbd-search-results {
+    max-height: none;
+    overflow: visible;
+}
+
+.pbd-add-projects .pbd-individual-form__footer {
+    position: sticky;
+    bottom: calc(-1 * var(--bs-modal-padding, 1rem));
+    z-index: 1;
+    padding-bottom: .55rem;
+    background: var(--pbd-surface);
+}
+
+.pbd-add-projects__undo {
+    padding: 0 .2rem;
+    vertical-align: baseline;
+    font-size: inherit;
+}
+
+.pbd-membership-badge[hidden] {
+    display: none;
+}
+
+.pbd-membership-badge.is-pending-add {
+    background: var(--pbd-blue-soft);
+    color: var(--pbd-blue);
+}
+
+.pbd-membership-badge.is-pending-remove {
+    background: color-mix(in srgb, var(--pbd-red) 10%, transparent);
+    color: var(--pbd-red);
+}
+
 /* Deck tab: the Template picker, the save line and the settings steps. */
 .pbd-inspector__heading--first {
     margin-top: 0;
