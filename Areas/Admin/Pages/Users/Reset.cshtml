@@ -17,7 +17,7 @@
                     <span class="admin-operation-heading__icon admin-operation-heading__icon--warning"><i class="bi bi-key" aria-hidden="true"></i></span>
                     <div>
                         <h2 id="reset-password-title">Issue a temporary password</h2>
-                        <p>This operation invalidates the user’s current sessions and requires a password change at the next sign-in.</p>
+                        <p>This operation signs out the user’s open sessions @Model.SessionEndDelay and requires a password change at the next sign-in.</p>
                     </div>
                 </div>
 
@@ -60,7 +60,7 @@
 
                     <label class="admin-confirm-check">
                         <input asp-for="Input.Acknowledge" class="form-check-input" />
-                        <span>I understand that existing sessions will be invalidated and the user must change this temporary password at next sign-in.</span>
+                        <span>I understand that the user's open sessions will be signed out @Model.SessionEndDelay and they must change this temporary password at next sign-in.</span>
                     </label>
                     <span asp-validation-for="Input.Acknowledge" class="text-danger"></span>
 

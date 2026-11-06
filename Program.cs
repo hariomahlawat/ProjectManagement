@@ -216,6 +216,11 @@ builder.Services
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+// Re-check signed-in users against their security stamp every minute (default) instead of
+// Identity's 30, so disabling, resetting or demoting an account takes effect promptly.
+builder.Services.AddOptions<SecurityStampValidatorOptions>()
+    .Configure<IConfiguration>(SessionRevalidation.Configure);
+
 builder.Services.AddAuthorization(options =>
 {
     // SECTION: Administrative capability policies

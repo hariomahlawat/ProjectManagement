@@ -16,7 +16,7 @@
                     <span class="admin-operation-heading__icon admin-operation-heading__icon--warning"><i class="bi bi-person-slash" aria-hidden="true"></i></span>
                     <div>
                         <h2 id="disable-account-title">Block account access</h2>
-                        <p>The user will be signed out and unable to authenticate. Existing project records, remarks and ownership history remain intact.</p>
+                        <p>The user will be signed out @Model.SessionEndDelay and unable to sign in again. Existing project records, remarks and ownership history remain intact.</p>
                     </div>
                 </div>
 
@@ -42,7 +42,7 @@
 
                         <label class="admin-confirm-check">
                             <input asp-for="Acknowledge" class="form-check-input" data-admin-confirm-ack />
-                            <span>I understand that this immediately blocks the user’s access and invalidates current sessions.</span>
+                            <span>I understand that this immediately blocks new sign-ins and signs out the user’s open sessions @Model.SessionEndDelay.</span>
                         </label>
                         <span asp-validation-for="Acknowledge" class="text-danger"></span>
                     </div>
