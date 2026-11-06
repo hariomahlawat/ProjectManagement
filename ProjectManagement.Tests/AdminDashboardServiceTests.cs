@@ -32,6 +32,15 @@ public sealed class AdminDashboardServiceTests
             UserName = "administrator",
             Message = "A controlled test error was recorded."
         });
+        // Deleted events are hidden by a query filter; the count must still see them.
+        db.Events.Add(new Event
+        {
+            Id = Guid.NewGuid(),
+            Title = "Removed review",
+            StartUtc = now,
+            EndUtc = now.AddHours(1),
+            IsDeleted = true
+        });
         await db.SaveChangesAsync();
 
         var service = new AdminDashboardService(
@@ -46,6 +55,7 @@ public sealed class AdminDashboardServiceTests
         Assert.Equal(1, result.Metrics.DisabledUsers);
         Assert.Equal(1, result.Metrics.LockedUsers);
         Assert.Equal(1, result.Metrics.PendingDeletionUsers);
+        Assert.Equal(1, result.Metrics.DeletedEvents);
         // Only what an administrator must act on: the locked and pending accounts and the error.
         // The pending password change and the disabled account are normal and are not listed.
         Assert.Equal(

@@ -3,6 +3,7 @@ using System.Security.Claims;
 using ProjectManagement.Services.Admin.Maintenance;
 using ProjectManagement.Services.Admin.MasterData;
 using ProjectManagement.Services.Admin.MasterData.Integrity;
+using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Navigation.ModuleNav;
 
@@ -60,6 +61,7 @@ public sealed class AdminHomeService : IAdminHomeService
     private readonly IMasterDataAdministrationQueryService _masterData;
     private readonly IAdminMaintenanceSummaryService _maintenance;
     private readonly IAdminNavigationAccess _access;
+    private readonly IAdminRestoreTabsService _restore;
     private readonly IAdminTimeService _time;
     private readonly ILogger<AdminHomeService> _logger;
 
@@ -70,6 +72,7 @@ public sealed class AdminHomeService : IAdminHomeService
         IMasterDataAdministrationQueryService masterData,
         IAdminMaintenanceSummaryService maintenance,
         IAdminNavigationAccess access,
+        IAdminRestoreTabsService restore,
         IAdminTimeService time,
         ILogger<AdminHomeService> logger)
     {
@@ -79,6 +82,7 @@ public sealed class AdminHomeService : IAdminHomeService
         _masterData = masterData ?? throw new ArgumentNullException(nameof(masterData));
         _maintenance = maintenance ?? throw new ArgumentNullException(nameof(maintenance));
         _access = access ?? throw new ArgumentNullException(nameof(access));
+        _restore = restore ?? throw new ArgumentNullException(nameof(restore));
         _time = time ?? throw new ArgumentNullException(nameof(time));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -112,9 +116,10 @@ public sealed class AdminHomeService : IAdminHomeService
             .Where(item => CanOpen(item.NavigationKey))
             .ToArray();
 
-        // Only what the tile's page (Restore deleted items) lets the administrator restore today.
-        // Document Repository trash joins the count when that page shows it (PR 5).
-        var restorable = dashboard.Metrics.RecoveryQueue;
+        // The same counts as the tabs of Restore deleted items, so Home and that page agree.
+        var restorable = CanOpen(AdminNavigationKeys.RecoveryCentre)
+            ? (await _restore.GetAsync(user, cancellationToken)).Sum(tab => tab.Count ?? 0)
+            : 0;
 
         var tiles = AdminHomeRules.BuildTiles(dashboard.Metrics, restorable, health, lists, jobs, FormatWhen)
             .Where(tile => CanOpen(tile.NavigationKey))
@@ -279,7 +284,7 @@ public static class AdminHomeRules
             new AdminHomeTile(
                 AdminNavigationKeys.RecoveryCentre,
                 "Restore something deleted",
-                "Bring back a deleted project, document or calendar event.",
+                "Bring back a deleted project, document, calendar event or chat file.",
                 "bi-arrow-counterclockwise",
                 restorable switch
                 {

@@ -1,0 +1,23 @@
+@model IReadOnlyList<ProjectManagement.ViewComponents.RestoreTabViewModel>
+@if (Model.Count > 1)
+{
+    <nav class="admin-restore-tabs" aria-label="Kind of deleted item">
+        @foreach (var tab in Model)
+        {
+            <a class="admin-restore-tabs__tab@(tab.IsActive ? " is-active" : string.Empty)"
+               href="@tab.Href"
+               aria-current="@(tab.IsActive ? "page" : null)"
+               title="@(tab.OpensAnotherPage ? "Opens another page" : null)">
+                <span>@tab.Label</span>
+                @if (tab.Count is int count)
+                {
+                    <span class="admin-restore-tabs__count"><span class="visually-hidden">: </span>@count<span class="visually-hidden"> can be restored</span></span>
+                }
+                @if (tab.OpensAnotherPage)
+                {
+                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (opens another page)</span>
+                }
+            </a>
+        }
+    </nav>
+}

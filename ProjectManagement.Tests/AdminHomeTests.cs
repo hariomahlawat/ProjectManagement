@@ -6,6 +6,7 @@ using ProjectManagement.Services.Admin.Ingestion;
 using ProjectManagement.Services.Admin.Maintenance;
 using ProjectManagement.Services.Admin.MasterData;
 using ProjectManagement.Services.Admin.MasterData.Integrity;
+using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Navigation.ModuleNav;
 using ProjectManagement.Tests.Fakes;
@@ -182,17 +183,30 @@ public sealed class AdminHomeTests
     }
 
     [Fact]
-    public async Task Service_RestoreTileCountsWhatItsPageCanRestore()
+    public async Task Service_RestoreTileAddsUpTheTabsOfRestoreDeletedItems()
     {
+        // Projects 2, project documents 3, repository documents 4, chat files 5; the overview tab
+        // has no count and a count that could not be read adds nothing.
+        var tabs = new[]
+        {
+            new AdminRestoreTab(AdminRestoreTabKeys.Overview, "Overview", AdminNavigationKeys.RecoveryCentre, null, false),
+            new AdminRestoreTab(AdminRestoreTabKeys.Projects, "Projects", AdminNavigationKeys.ProjectTrash, 2, false),
+            new AdminRestoreTab(AdminRestoreTabKeys.ProjectDocuments, "Project documents", AdminNavigationKeys.DocumentRecycle, 3, false),
+            new AdminRestoreTab(AdminRestoreTabKeys.RepositoryDocuments, "Repository documents", AdminNavigationKeys.RepositoryTrash, 4, true),
+            new AdminRestoreTab(AdminRestoreTabKeys.CalendarEvents, "Calendar events", AdminNavigationKeys.DeletedEvents, null, false),
+            new AdminRestoreTab(AdminRestoreTabKeys.ChatFiles, "Chat files", AdminNavigationKeys.ChatStorage, 5, true)
+        };
         var service = CreateService(
             new LatestOnlyHealth(null),
-            new AdminDashboardMetrics { TrashedProjects = 2, DeletedDocuments = 3, DeletedEvents = 1 },
-            AdminNavigationCatalog.Entries.Select(entry => entry.Key).ToArray());
+            new AdminDashboardMetrics(),
+            AdminNavigationCatalog.Entries.Select(entry => entry.Key).ToArray(),
+            failingSources: false,
+            restoreTabs: tabs);
 
         var snapshot = await service.GetAsync(new ClaimsPrincipal(new ClaimsIdentity()));
 
         Assert.Equal(
-            "6 deleted items can be restored",
+            "14 deleted items can be restored",
             snapshot.Tiles.Single(tile => tile.NavigationKey == AdminNavigationKeys.RecoveryCentre).Fact);
     }
 
@@ -254,7 +268,8 @@ public sealed class AdminHomeTests
         IAdminSystemHealthService health,
         AdminDashboardMetrics metrics,
         string[] openableKeys,
-        bool failingSources) =>
+        bool failingSources,
+        IReadOnlyList<AdminRestoreTab>? restoreTabs = null) =>
         new(
             new FixedDashboard(metrics),
             health,
@@ -262,6 +277,10 @@ public sealed class AdminHomeTests
             new FixedMasterData(failingSources),
             new FixedMaintenance(),
             new FixedAccess(openableKeys),
+            new FixedRestoreTabs(restoreTabs ?? new[]
+            {
+                new AdminRestoreTab(AdminRestoreTabKeys.Projects, "Projects", AdminNavigationKeys.ProjectTrash, metrics.TrashedProjects, false)
+            }),
             new AdminTimeService(FakeClock.AtUtc(Checked)),
             NullLogger<AdminHomeService>.Instance);
 
@@ -359,6 +378,12 @@ public sealed class AdminHomeTests
     {
         public Task<AdminMaintenanceSummary> GetAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new AdminMaintenanceSummary(false, null, 0, 0, null, null));
+    }
+
+    private sealed class FixedRestoreTabs(IReadOnlyList<AdminRestoreTab> tabs) : IAdminRestoreTabsService
+    {
+        public Task<IReadOnlyList<AdminRestoreTab>> GetAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
+            Task.FromResult(tabs);
     }
 
     private sealed class FixedAccess(string[] keys) : IAdminNavigationAccess

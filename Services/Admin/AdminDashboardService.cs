@@ -146,11 +146,11 @@ public sealed class AdminDashboardService : IAdminDashboardService
             ErrorEventsLast24Hours = errorEvents,
             ArchivedProjects = await _db.Projects.AsNoTracking()
                 .CountAsync(project => !project.IsDeleted && project.IsArchived, cancellationToken),
-            TrashedProjects = await _db.Projects.AsNoTracking()
+            TrashedProjects = await _db.Projects.IgnoreQueryFilters().AsNoTracking()
                 .CountAsync(project => project.IsDeleted, cancellationToken),
             DeletedDocuments = await _db.ProjectDocuments.AsNoTracking()
                 .CountAsync(document => document.Status == ProjectDocumentStatus.SoftDeleted, cancellationToken),
-            DeletedEvents = await _db.Events.AsNoTracking()
+            DeletedEvents = await _db.Events.IgnoreQueryFilters().AsNoTracking()
                 .CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken)
         };
 

@@ -164,19 +164,9 @@ public sealed class TrashModel : PageModel
         PageSize = Result.PageSize;
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Recovery and retention",
-            Title = "Project trash",
-            Description = $"Restore complete project records or conduct a controlled purge after the {RetentionDays}-day retention period.",
-            Icon = "bi-trash3",
-            Actions = new[]
-            {
-                new AdminPageActionModel
-                {
-                    Text = "Restore deleted items",
-                    Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.RecoveryCentre),
-                    Icon = "bi-arrow-left"
-                }
-            }
+            Title = "Restore deleted items",
+            Description = $"Deleted projects, with their documents, photos and team. Restore brings a project back as it was. Projects are deleted for good automatically {RetentionDays} days after they were deleted.",
+            Icon = "bi-arrow-counterclockwise"
         };
     }
 

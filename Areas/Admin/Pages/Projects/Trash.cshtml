@@ -2,12 +2,14 @@
 @model ProjectManagement.Areas.Admin.Pages.Projects.TrashModel
 @using ProjectManagement.Services.Admin
 @{
-    ViewData["Title"] = "Project trash";
+    ViewData["Title"] = "Deleted projects";
     var firstItem = Model.Result.TotalCount == 0 ? 0 : ((Model.Result.Page - 1) * Model.Result.PageSize) + 1;
     var lastItem = Math.Min(Model.Result.TotalCount, Model.Result.Page * Model.Result.PageSize);
 }
 
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+@await Component.InvokeAsync("RestoreTabs", new { active = ProjectManagement.Services.Admin.Recovery.AdminRestoreTabKeys.Projects })
 
 @if (TempData[FlashMessageKeys.AdminRecoverySuccess] is string successMessage)
 {

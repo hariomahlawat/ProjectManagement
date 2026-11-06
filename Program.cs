@@ -650,6 +650,7 @@ builder.Services.AddScoped<IPdfIngestionClusterLock, PdfIngestionClusterLock>();
 builder.Services.AddSingleton<IPdfIngestionRunHistory, PdfIngestionRunHistory>();
 builder.Services.AddScoped<IPdfIngestionCoordinator, PdfIngestionCoordinator>();
 builder.Services.AddScoped<IAdminRecoverySummaryService, AdminRecoverySummaryService>();
+builder.Services.AddScoped<IAdminRestoreTabsService, AdminRestoreTabsService>();
 builder.Services.AddScoped<IProjectRecoveryQueryService, ProjectRecoveryQueryService>();
 builder.Services.AddScoped<IDocumentRecoveryQueryService, DocumentRecoveryQueryService>();
 builder.Services.AddScoped<IAdminMaintenanceSummaryService, AdminMaintenanceSummaryService>();
