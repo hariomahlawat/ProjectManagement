@@ -62,12 +62,14 @@
           </button>
         </div>
       </header>
+      <div class="analytics-card__legend" data-legend="arpp-by-stage-chart"></div>
       <div class="analytics-card__chart">
         <canvas id="arpp-by-stage-chart"
                 role="img"
-                aria-label="@(onDate is null ? "Ongoing ARPP-listed projects by current stage" : $"ARPP-listed projects in work {onDate}, by stage")"
+                aria-label="@(onDate is null ? "Ongoing ARPP-listed projects by current stage and parent category" : $"ARPP-listed projects in work {onDate}, by stage and parent category")"
                 data-empty-message="No ongoing listed projects."
-                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, json))'></canvas>
+                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStageByCategory, json))'
+                data-categories='@Html.Raw(JsonSerializer.Serialize(Model.StageCategoryOrder, json))'></canvas>
       </div>
 
       <section class="analytics-drill" aria-label="Listed projects by standing">
@@ -76,21 +78,33 @@
         {
           var width = maxStanding > 0 ? (int)Math.Round(100.0 * group.Count / maxStanding) : 0;
           var tone = group.Key == "COMPLETED" ? "is-completed" : group.Key == "CANCELLED" ? "is-cancelled" : "";
+          var categories = Model.StandingCategories.TryGetValue(group.Key, out var found) ? found : Array.Empty<ArppStandingCategoryVm>();
           <details class="analytics-drill__row @tone" data-drill-key="stage:@group.Key">
             <summary class="analytics-drill__summary">
               <span class="analytics-drill__name">@group.Name</span>
               <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
-              <span class="analytics-drill__chips"></span>
+              <span class="analytics-drill__chips">
+                @foreach (var category in categories)
+                {
+                  <span class="analytics-drill__chip"><i class="analytics-dot" data-category-dot="@category.Name" aria-hidden="true"></i>@category.Name <b>@category.Count</b></span>
+                }
+              </span>
               <span class="analytics-drill__count">@group.Count</span>
               <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
             </summary>
             <div class="analytics-drill__body">
-              <ol class="analytics-drill__list">
-                @foreach (var project in group.Projects)
-                {
-                  <li><a href="@overviewUrl?id=@project.ProjectId">@project.ProjectName</a>@if (project.Detail is not null) { <span class="analytics-drill__stage">@project.Detail</span> }</li>
-                }
-              </ol>
+              @foreach (var category in categories)
+              {
+                <div class="analytics-drill__group">
+                  <h4><i class="analytics-dot" data-category-dot="@category.Name" aria-hidden="true"></i>@category.Name <span>@category.Count</span></h4>
+                  <ol>
+                    @foreach (var project in category.Projects)
+                    {
+                      <li><a href="@overviewUrl?id=@project.ProjectId">@project.ProjectName</a>@if (project.Detail is not null) { <span class="analytics-drill__stage">@project.Detail</span> }</li>
+                    }
+                  </ol>
+                </div>
+              }
             </div>
           </details>
         }

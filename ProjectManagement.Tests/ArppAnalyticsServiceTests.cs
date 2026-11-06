@@ -248,6 +248,39 @@ public sealed class ArppAnalyticsServiceTests
     }
 
     [Fact]
+    public async Task BuildAsync_StacksStagesByParentCategory_OnlyThosePresent()
+    {
+        await using var db = CreateDb();
+        db.ProjectCategories.AddRange(
+            new ProjectCategory { Id = 1, Name = "DCD Projects", SortOrder = 1 },
+            new ProjectCategory { Id = 2, Name = "CoE", SortOrder = 2 },
+            new ProjectCategory { Id = 3, Name = "Other R&D Projects", SortOrder = 3 },   // not in this year's ARPP
+            new ProjectCategory { Id = 4, Name = "AR/VR", ParentId = 2, SortOrder = 1 }); // under CoE
+        db.Projects.AddRange(
+            new Project { Id = 1, Name = "Drive", CategoryId = 1 },
+            new Project { Id = 2, Name = "Goggles", CategoryId = 4 },
+            new Project { Id = 3, Name = "Range", CategoryId = 1 });
+        await db.SaveChangesAsync();
+        var library = new FakeLibrary(2026,
+            Row(1, "Drive", ArppCategory.New, 10_000_000m),
+            Row(2, "Goggles", ArppCategory.New, 10_000_000m),
+            Row(3, "Range", ArppCategory.New, 10_000_000m));
+        var fy = new FakeFyUpdate(new[] { 2026 },
+            Update(1, "Drive", ProjectLifecycleStatus.Active, StageCodes.TEC),
+            Update(2, "Goggles", ProjectLifecycleStatus.Active, StageCodes.TEC),
+            Update(3, "Range", ProjectLifecycleStatus.Active, StageCodes.AON));
+
+        var vm = await new ArppAnalyticsService(db, library, fy).BuildAsync(2026, Today);
+
+        // Only DCD and CoE appear (the sub-category counts under its root); Other R&D, with no listed project, does not.
+        Assert.Equal(new[] { "CoE", "DCD Projects" }, vm.ByStageByCategory.Select(point => point.CategoryName).Distinct().OrderBy(name => name).ToArray());
+        Assert.Equal(1, vm.ByStageByCategory.Single(point => point.StageCode == StageCodes.AON).Count);
+        var tec = vm.StandingCategories[StageCodes.TEC];
+        Assert.Equal(new[] { "DCD Projects", "CoE" }, tec.Select(category => category.Name).ToArray()); // their own order
+        Assert.Equal("Drive", tec[0].Projects.Single().ProjectName);
+    }
+
+    [Fact]
     public async Task BuildAsync_TheCurrentYear_StaysOnToday()
     {
         await using var db = CreateDb();
