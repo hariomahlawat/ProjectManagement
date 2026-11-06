@@ -3560,6 +3560,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset?>("RemovedUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("RestoredUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Sha256")
                         .IsRequired()
                         .HasMaxLength(64)

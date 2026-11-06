@@ -102,16 +102,18 @@ public sealed class AdminRecoverySummaryService : IAdminRecoverySummaryService
     private async Task<IReadOnlyList<AdminRecoveryOperation>> LoadRecentOperationsAsync(
         CancellationToken cancellationToken)
     {
+        var take = _options.RecentOperationCount;
         var rows = await _db.AuditLogs.AsNoTracking()
             .Where(log =>
                 log.Action.Contains("Restore")
                 || log.Action.Contains("Purge")
                 || log.Action.Contains("Trash")
                 || log.Action.Contains("HardDelete")
-                || log.Action.Contains("Archived"))
+                || log.Action.Contains("Archived")
+                || log.Action.StartsWith("Chat.Attachments"))
             .OrderByDescending(log => log.TimeUtc)
             .ThenByDescending(log => log.Id)
-            .Take(_options.RecentOperationCount)
+            .Take(take)
             .Select(log => new
             {
                 log.Action,
@@ -123,7 +125,7 @@ public sealed class AdminRecoverySummaryService : IAdminRecoverySummaryService
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(row =>
+        var auditOperations = rows.Select(row =>
         {
             var presentation = _actions.Describe(row.Action, row.Level);
             return new AdminRecoveryOperation(
@@ -134,8 +136,59 @@ public sealed class AdminRecoverySummaryService : IAdminRecoverySummaryService
                 presentation.Tone,
                 presentation.Icon,
                 row.Message);
-        }).ToArray();
+        });
+
+        // Moving a project to Trash, restoring it, archiving and unarchiving are recorded in
+        // the project's own history (ProjectAudits), not the global audit log, so they never
+        // appeared here.
+        var projectRows = await (
+                from audit in _db.ProjectAudits.AsNoTracking()
+                where ProjectRecoveryActions.Contains(audit.Action)
+                join project in _db.Projects.IgnoreQueryFilters() on audit.ProjectId equals project.Id
+                join user in _db.Users on audit.PerformedByUserId equals user.Id into users
+                from user in users.DefaultIfEmpty()
+                orderby audit.PerformedAt descending, audit.Id descending
+                select new
+                {
+                    audit.Action,
+                    audit.PerformedAt,
+                    audit.Reason,
+                    ProjectName = project.Name,
+                    Actor = user == null ? audit.PerformedByUserId : (user.FullName ?? user.UserName)
+                })
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        var projectOperations = projectRows.Select(row =>
+        {
+            var (title, tone, icon) = row.Action switch
+            {
+                "Trash" => ("Project moved to Trash", "warning", "bi-trash3"),
+                "RestoreTrash" => ("Project restored from Trash", "success", "bi-arrow-counterclockwise"),
+                "Archive" => ("Project archived", "neutral", "bi-archive"),
+                _ => ("Project restored from archive", "success", "bi-box-arrow-up")
+            };
+            var detail = string.IsNullOrWhiteSpace(row.Reason)
+                ? row.ProjectName
+                : $"{row.ProjectName}. Reason: {row.Reason}";
+            return new AdminRecoveryOperation(
+                "Project." + row.Action,
+                title,
+                row.Actor,
+                row.PerformedAt,
+                tone,
+                icon,
+                detail);
+        });
+
+        return auditOperations
+            .Concat(projectOperations)
+            .OrderByDescending(operation => operation.WhenUtc)
+            .Take(take)
+            .ToArray();
     }
+
+    private static readonly string[] ProjectRecoveryActions = { "Trash", "RestoreTrash", "Archive", "RestoreArchive" };
 
     private static DateTime EnsureUtc(DateTime value) => value.Kind switch
     {

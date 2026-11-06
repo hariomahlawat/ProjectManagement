@@ -54,6 +54,13 @@ public sealed class ChatAttachment
     /// </summary>
     public DateTimeOffset? PurgedUtc { get; set; }
 
+    /// <summary>
+    /// When the file was last restored after a removal (by its sender or by an administrator's
+    /// undo). Automatic retention leaves a restored file alone for a grace period, so undoing a
+    /// retention clean-up is not reversed by the next daily run. Null if never restored.
+    /// </summary>
+    public DateTimeOffset? RestoredUtc { get; set; }
+
     /// <summary><see cref="PurgedUtc"/> of a file claimed for deletion and not yet confirmed gone.</summary>
     public static readonly DateTimeOffset PurgeClaimed = DateTimeOffset.UnixEpoch;
 

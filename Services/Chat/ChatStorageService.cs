@@ -321,6 +321,9 @@ public sealed class ChatStorageService
 
     // ------------------------------------------------------------------ retention
 
+    /// <summary>How long automatic retention leaves a restored file alone.</summary>
+    public static readonly TimeSpan RestoredRetentionGrace = TimeSpan.FromDays(30);
+
     /// <summary>
     /// Removes sent files older than the retention age, as one batch (undoable within the
     /// window); owners are told. Safe to run again: only files still kept are taken.
@@ -334,8 +337,12 @@ public sealed class ChatStorageService
         }
 
         var cutoff = _clock.UtcNow.AddDays(-days);
+        // A restored file is left alone for a grace period: otherwise undoing a retention
+        // clean-up (or restoring from My files) was reversed by the next daily run.
+        var restoredSince = _clock.UtcNow - RestoredRetentionGrace;
         var result = await RemoveAsync(
-            KeptSent.Where(a => a.CreatedUtc < cutoff),
+            KeptSent.Where(a => a.CreatedUtc < cutoff
+                && (a.RestoredUtc == null || a.RestoredUtc < restoredSince)),
             ChatAttachmentRemovalReason.Retention,
             null,
             notifyOwners: true,
@@ -482,8 +489,10 @@ public sealed class ChatStorageService
 
         DateTimeOffset? none = null;
         Guid? noBatch = null;
+        DateTimeOffset? restoredAt = _clock.UtcNow;
         await query.Where(a => ids.Contains(a.Id)).ExecuteUpdateAsync(
             set => set
+                .SetProperty(a => a.RestoredUtc, restoredAt)
                 .SetProperty(a => a.RemovedUtc, none)
                 .SetProperty(a => a.RemovalReason, (string?)null)
                 .SetProperty(a => a.RemovedByUserId, (string?)null)

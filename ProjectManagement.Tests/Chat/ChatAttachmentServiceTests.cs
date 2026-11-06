@@ -642,6 +642,27 @@ public sealed class ChatAttachmentServiceTests
         Assert.NotNull((await scope.Storage.ApplyRetentionAsync()).Change.Error);
     }
 
+    // Undoing a retention clean-up used to be reversed by the next daily run, with a new batch
+    // and a new notice to the owner. A restored file is now left alone for a grace period.
+    [Fact]
+    public async Task Retention_LeavesARestoredFileAloneForTheGracePeriod()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var old = await SendFileAsync(scope, "alice", "bob", "old.txt");
+        scope.Clock.Advance(TimeSpan.FromDays(366));
+        var removal = await scope.Storage.ApplyRetentionAsync();
+        Assert.Equal(1, removal.Change.Files);
+
+        Assert.Equal(1, (await scope.Storage.UndoBatchAsync("dave", "Dave Dutta", removal.Change.BatchId!.Value)).Change.Files);
+        scope.Clock.Advance(TimeSpan.FromDays(1));
+
+        Assert.Equal(0, (await scope.Storage.ApplyRetentionAsync()).Change.Files);
+        Assert.NotNull(await scope.Files.OpenAsync("bob", old.Id, thumbnail: false));
+
+        scope.Clock.Advance(ChatStorageService.RestoredRetentionGrace);
+        Assert.Equal(1, (await scope.Storage.ApplyRetentionAsync()).Change.Files);
+    }
+
     [Theory]
     [InlineData(512, "512 B")]
     [InlineData(2048, "2 KB")]

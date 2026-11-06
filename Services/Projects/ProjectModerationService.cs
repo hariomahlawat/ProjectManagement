@@ -253,7 +253,19 @@ public sealed class ProjectModerationService
                 "Permanent deletion is not available until the retention period has expired. Restore the project instead or wait.");
         }
 
-        await PurgeCoreAsync(project, actorUserId, includeAssets, "Manual", trimmedReason, cancellationToken);
+        try
+        {
+            await PurgeCoreAsync(project, actorUserId, includeAssets, "Manual", trimmedReason, cancellationToken);
+        }
+        catch (ProjectNoLongerInTrashException)
+        {
+            return ProjectModerationResult.InvalidState("The project was restored or already purged by someone else. Nothing was deleted.");
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ProjectModerationResult.InvalidState("The project changed while it was being purged (for example, it was restored). Nothing was deleted.");
+        }
+
         return ProjectModerationResult.Success();
     }
 
@@ -275,6 +287,10 @@ public sealed class ProjectModerationService
             {
                 await PurgeCoreAsync(project, "system", includeAssets, "Expired", purgeReason: null, cancellationToken);
                 purged++;
+            }
+            catch (ProjectNoLongerInTrashException)
+            {
+                _logger.LogInformation("Project {ProjectId} left Trash before it could be purged; skipped.", project.Id);
             }
             catch (Exception ex)
             {
@@ -310,6 +326,17 @@ public sealed class ProjectModerationService
 
         try
         {
+            // The caller checked IsDeleted before this transaction. A restore that committed
+            // since then must win: re-check inside the transaction, before any file moves.
+            // A restore that commits after the project row is loaded below is caught by the
+            // row version (DbUpdateConcurrencyException) and rolls the purge back.
+            if (!await _db.Projects.IgnoreQueryFilters().AnyAsync(
+                    candidate => candidate.Id == project.Id && candidate.IsDeleted,
+                    cancellationToken))
+            {
+                throw new ProjectNoLongerInTrashException(project.Id);
+            }
+
             if (includeAssets)
             {
                 quarantinedAssets = FileSystemQuarantine.StageDirectory(
@@ -575,12 +602,22 @@ public sealed class ProjectModerationService
 
         var projectEntity = await _db.Projects
             .FirstOrDefaultAsync(candidate => candidate.Id == projectId, cancellationToken);
-        if (projectEntity is not null)
+        if (projectEntity is null || !projectEntity.IsDeleted)
         {
-            _db.Projects.Remove(projectEntity);
+            throw new ProjectNoLongerInTrashException(projectId);
         }
 
+        _db.Projects.Remove(projectEntity);
+
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private sealed class ProjectNoLongerInTrashException : Exception
+    {
+        public ProjectNoLongerInTrashException(int projectId)
+            : base($"Project {projectId} is no longer in Trash.")
+        {
+        }
     }
 
     private sealed record PurgeCandidate(

@@ -134,6 +134,7 @@ largest allowances in use by size (no file names, no conversations), to manage d
 | Automatic retention | Sent files older than **1 year** are removed once a day (`Chat:Attachments:RetentionDays`, 0 = off). |
 | People are told | A notification when an administrator or retention removes their files, with how many, how much, and until when they can be restored. |
 | Undo for 1 day | Every removal can be undone for 24 hours (`Chat:Attachments:UndoHours`) by whoever made it: people restore their own removals and retention's from My files; administrators undo their clean-ups and retention runs from the admin page. Unsending a message stays final. Files are deleted from disk only after the window. |
+| Restored files are kept | A restored file (from My files or an administrator's undo) is left alone by automatic retention for 30 days after the restore (`ChatAttachments.RestoredUtc`, `ChatStorageService.RestoredRetentionGrace`), so undoing a retention clean-up is not reversed by the next daily run. |
 
 The messages stay: a removed file shows "File removed", "File removed by an administrator" or
 "File removed automatically (old)".
