@@ -256,7 +256,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 row.LastModifiedByDisplay,
                 Encode(row.RowVersion))
             {
-                Purpose = DescribePurpose(row.SelectionRulesJson),
+                Purpose = DescribePurpose(row.SelectionRulesJson, row.Layout),
                 IsMine = row.OwnerUserId == userId || row.LastModifiedByUserId == userId,
                 LastEditedByMe = (row.LastModifiedByUserId ?? row.OwnerUserId) == userId,
                 LastGeneratedSlideCount = row.LastGeneratedSlideCount,
@@ -267,13 +267,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             .ToList();
     }
 
-    // The purpose preset the deck was last set from, or how it was set up.
-    private static string DescribePurpose(string? selectionRulesJson)
+    // The template (slide design) the deck uses, as the Studio shows it.
+    private static string DescribePurpose(string? selectionRulesJson, ProjectBriefingLayout layout)
     {
         var preset = ProjectBriefingDeckConfigurationCodec.Read(selectionRulesJson).Preset;
-        return preset is { } value && ProjectBriefingDeckPresets.IsDefined(value)
-            ? ProjectBriefingDeckPresets.Get(value).Title
-            : "Set up by hand";
+        return ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPresets.TemplateOf(preset, layout)).Title;
     }
 
     public Task<ProjectBriefingDeck?> GetEntityAsync(
@@ -303,7 +301,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default,
         ProjectBriefingDeckPreset? preset = null)
     {
-        if (preset is { } requested && !ProjectBriefingDeckPresets.IsDefined(requested))
+        if (preset is { } requested && !ProjectBriefingDeckPresets.IsTemplate(requested))
         {
             throw new InvalidOperationException("The selected template is not available.");
         }
@@ -487,9 +485,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default)
     {
-        if (!ProjectBriefingDeckPresets.IsDefined(preset))
+        if (!ProjectBriefingDeckPresets.IsTemplate(preset))
         {
-            throw new InvalidOperationException("The selected preset is not available.");
+            throw new InvalidOperationException("The selected template is not available.");
         }
 
         var userId = NormalizeUserId(requestingUserId);

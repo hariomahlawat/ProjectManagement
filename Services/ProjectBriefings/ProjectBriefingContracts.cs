@@ -51,7 +51,7 @@ public sealed record ProjectBriefingDeckSummaryVm(
     string LastModifiedByDisplay,
     string RowVersion)
 {
-    public string Purpose { get; init; } = "Set up by hand";
+    public string Purpose { get; init; } = "Portfolio";
     public bool IsMine { get; init; }
     public bool LastEditedByMe { get; init; }
     public int? LastGeneratedSlideCount { get; init; }

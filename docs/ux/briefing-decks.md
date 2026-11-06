@@ -22,11 +22,12 @@ agreed plan to turn the builder into a **Briefing Studio**.
 `/Workspace/BriefingDecks` without a deck id is the library (5 Nov 2026); it no longer opens the
 last-updated deck, so nobody edits a deck they did not pick.
 
-- **New deck** asks for a name and a template (or "Set up by hand"), then opens the Studio on
-  Add projects.
+- **New deck** asks for a name and a template (Portfolio or Fact Sheets), then opens the
+  Studio on Add projects.
 - **Continue**: the deck the person last edited (else the latest), with Open in Studio and
   Generate PowerPoint.
-- **All decks** table: deck and description, purpose (the preset's title, or "Set up by hand"),
+- **All decks** table: deck and description, template (Portfolio or Fact Sheets, from the
+  deck's slide design),
   projects, slides in the last generated PowerPoint (`LastGeneratedSlideCount`, recorded on each
   generation; "—" until then), owner, last edited, last generated, and a ⋯ menu (Open, Generate,
   Duplicate, Delete through the Studio confirmation dialog). **Mine** keeps decks the person owns
@@ -325,10 +326,11 @@ A separate icon rail was considered and rejected: the inspector is narrow and ha
 
 **Owner decisions (5 Nov 2026).**
 
-- The purpose presets are called **Template** (Monthly command review, Visit or external audience,
-  Project update sheets), shown as one compact picker at the top; after any change it reads
-  "customised" ("Started from this template, then customised").
-- The Standard briefing / Update sheets choice is called **Layout**, inside the Slides step.
+- The purpose presets are called **Template**, shown as one compact picker at the top; after
+  any change it reads "customised" ("Started from this template, then customised"). Superseded
+  on 6 Nov: see "Templates are slide designs".
+- The Standard briefing / Update sheets choice is called **Layout**, inside the Slides step
+  (now chosen through the Template picker; the control is hidden).
 - Settings become numbered steps, one open at a time, each closed step showing a one-line summary
   of its choices. Steps that do not apply are not shown:
 
@@ -477,3 +479,23 @@ projects missing", Show) and the preview following each settings change.
    375 px the page went from about 2,800 px to 1,640 px, and the slide starts at about 740 px
    instead of 1,490 px. The settings stay in the Deck tab under the slide rather than a
    separate sheet: with the outline folded they are a tab away.
+
+## Templates are slide designs (6 Nov 2026)
+
+Owner decision: a template is a slide design; anything else is a setting the user can change.
+
+- **Two templates.** **Portfolio** (a status table and stage summary, then a capability slide
+  with photograph per project) and **Fact Sheets** (one formal sheet per project: the
+  recommended facts, brief and photograph). They were "Monthly command review" and "Project
+  update sheets"; the names are labels in `ProjectBriefingDeckPresets`, so no data changed.
+- **Visit or external audience is retired.** It was settings (no costs or status, SDD profile,
+  Thank You), not a design, and is no longer offered or accepted by `ApplyPresetAsync` /
+  `CreateAsync`. The enum value stays so stored decks still read; such decks keep every setting
+  and show as Portfolio, customised. No reminder about costs for visitors (owner).
+- **Template replaces Layout.** The Template picker is the one way to choose the design; the
+  Layout control in the Slides step is hidden (its inputs stay for the form and the step
+  summaries). Applying a template still asks first on a customised deck and offers Undo.
+- **Every deck shows a template.** `TemplateOf` gives the deck's own template while it is still
+  offered and matches its design, otherwise the template for its design; "Set up by hand" is
+  gone from New deck, the picker and the library. A deck whose settings differ from its
+  template's reads "customised".

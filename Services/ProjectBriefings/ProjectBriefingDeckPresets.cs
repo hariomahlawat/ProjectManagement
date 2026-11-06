@@ -5,6 +5,9 @@ using ProjectManagement.Models.ProjectBriefings;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
+// A template is a slide design: Portfolio (capability slides) or Fact Sheets (one formal sheet per
+// project). VisitOrExternalAudience was settings rather than a design; it is no longer offered,
+// and stays only so decks that stored it still read (they show as Portfolio, customised).
 public enum ProjectBriefingDeckPreset
 {
     MonthlyCommandReview = 1,
@@ -42,8 +45,8 @@ public static class ProjectBriefingDeckPresets
     {
         new ProjectBriefingDeckPresetDefinition(
             ProjectBriefingDeckPreset.MonthlyCommandReview,
-            "Monthly command review",
-            "Status table, stage summary and a capability slide per project, with both costs.",
+            "Portfolio",
+            "A status table and stage summary, then a capability slide with photograph for each project.",
             new ProjectBriefingDeckPresetState(
                 ProjectBriefingLayout.StandardBriefing,
                 ProjectBriefingPresentationMode.Combined,
@@ -80,8 +83,8 @@ public static class ProjectBriefingDeckPresets
                 IncludesInstitutionalProfile: true)),
         new ProjectBriefingDeckPresetDefinition(
             ProjectBriefingDeckPreset.ProjectUpdateSheets,
-            "Project update sheets",
-            "One formal sheet per project with the recommended facts, brief and photograph.",
+            "Fact Sheets",
+            "One formal sheet per project: the recommended facts, brief and photograph.",
             new ProjectBriefingDeckPresetState(
                 ProjectBriefingLayout.ProjectUpdateSheet,
                 ProjectBriefingPresentationMode.Combined,
@@ -98,6 +101,24 @@ public static class ProjectBriefingDeckPresets
                 IncludePortfolioSummarySlide: true,
                 IncludesInstitutionalProfile: false))
     };
+
+    // The templates offered: one per slide design.
+    public static IReadOnlyList<ProjectBriefingDeckPresetDefinition> Templates { get; } = All
+        .Where(definition => IsTemplate(definition.Preset))
+        .ToArray();
+
+    public static bool IsTemplate(ProjectBriefingDeckPreset preset)
+        => preset is ProjectBriefingDeckPreset.MonthlyCommandReview or ProjectBriefingDeckPreset.ProjectUpdateSheets;
+
+    // The template a deck shows: the one it was set from while that is still offered and still its
+    // slide design, otherwise the template for its design (decks set up by hand, or from the
+    // retired visit preset).
+    public static ProjectBriefingDeckPreset TemplateOf(ProjectBriefingDeckPreset? preset, ProjectBriefingLayout layout)
+        => preset is { } chosen && IsTemplate(chosen) && Get(chosen).State.Layout == layout
+            ? chosen
+            : layout == ProjectBriefingLayout.ProjectUpdateSheet
+                ? ProjectBriefingDeckPreset.ProjectUpdateSheets
+                : ProjectBriefingDeckPreset.MonthlyCommandReview;
 
     public static ProjectBriefingDeckPresetDefinition Get(ProjectBriefingDeckPreset preset)
         => All.FirstOrDefault(definition => definition.Preset == preset)

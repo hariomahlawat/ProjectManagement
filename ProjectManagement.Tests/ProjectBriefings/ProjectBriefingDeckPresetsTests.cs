@@ -57,15 +57,26 @@ public sealed class ProjectBriefingDeckPresetsTests
     }
 
     [Fact]
-    public void VisitPreset_ShowsTheProfileAndHidesCostsAndStatus()
+    public void TheTemplatesOffered_AreTheTwoSlideDesigns()
     {
-        var visit = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.VisitOrExternalAudience).State;
+        // A template is a slide design; the visit preset was only settings and is not offered.
+        Assert.Equal(
+            new[] { ("Portfolio", ProjectBriefingLayout.StandardBriefing), ("Fact Sheets", ProjectBriefingLayout.ProjectUpdateSheet) },
+            ProjectBriefingDeckPresets.Templates.Select(template => (template.Title, template.State.Layout)));
+        Assert.False(ProjectBriefingDeckPresets.IsTemplate(ProjectBriefingDeckPreset.VisitOrExternalAudience));
+    }
 
-        Assert.True(visit.IncludesInstitutionalProfile);
-        Assert.Equal(ProjectBriefingCostMode.None, visit.CostMode);
-        Assert.False(visit.ShowPresentStatus);
-        Assert.Equal(ProjectBriefingClosingSlideType.ThankYou, visit.ClosingSlideType);
-        Assert.Equal(ProjectBriefingPresentationMode.DetailedProjects, visit.PresentationMode);
+    [Theory]
+    [InlineData(null, ProjectBriefingLayout.StandardBriefing, ProjectBriefingDeckPreset.MonthlyCommandReview)]
+    [InlineData(null, ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingDeckPreset.ProjectUpdateSheets)]
+    [InlineData(ProjectBriefingDeckPreset.VisitOrExternalAudience, ProjectBriefingLayout.StandardBriefing, ProjectBriefingDeckPreset.MonthlyCommandReview)]
+    [InlineData(ProjectBriefingDeckPreset.MonthlyCommandReview, ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingDeckPreset.ProjectUpdateSheets)]
+    [InlineData(ProjectBriefingDeckPreset.ProjectUpdateSheets, ProjectBriefingLayout.ProjectUpdateSheet, ProjectBriefingDeckPreset.ProjectUpdateSheets)]
+    public void EveryDeck_ShowsTheTemplateForItsSlideDesign(
+        ProjectBriefingDeckPreset? stored, ProjectBriefingLayout layout, ProjectBriefingDeckPreset expected)
+    {
+        // Decks set up by hand or from the retired visit preset show the template of their design.
+        Assert.Equal(expected, ProjectBriefingDeckPresets.TemplateOf(stored, layout));
     }
 
     [Fact]

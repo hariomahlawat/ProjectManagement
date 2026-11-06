@@ -1011,11 +1011,11 @@ if (root) {
       button.setAttribute('aria-pressed', String(current));
     });
     const known = Boolean(deck.preset && presetTitles[deck.preset]);
-    if (templateCurrent) templateCurrent.textContent = known ? presetTitles[deck.preset] : 'Set up by hand';
+    if (templateCurrent && known) templateCurrent.textContent = presetTitles[deck.preset];
     if (templateCustomised) templateCustomised.hidden = !(known && deck.presetAdjusted);
     const progressTemplate = root.querySelector('[data-pbd-progress-template]');
-    if (progressTemplate) {
-      progressTemplate.textContent = `${known ? presetTitles[deck.preset] : 'Set up by hand'}${known && deck.presetAdjusted ? ', customised' : ''}`;
+    if (progressTemplate && known) {
+      progressTemplate.textContent = `${presetTitles[deck.preset]}${deck.presetAdjusted ? ', customised' : ''}`;
     }
     if (presetStatus) {
       presetStatus.textContent = !known
