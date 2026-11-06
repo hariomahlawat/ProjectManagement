@@ -203,8 +203,10 @@ public sealed class ProjectMetaChangeDecisionService
             }
         }
 
+        // An inactive value is accepted when it is the one the project already has: retired
+        // master data stays on existing projects and must not block saving other changes.
         var categoryId = payload.CategoryId;
-        if (categoryId.HasValue)
+        if (categoryId.HasValue && categoryId != project.CategoryId)
         {
             var categoryExists = await _db.ProjectCategories
                 .AsNoTracking()
@@ -217,7 +219,7 @@ public sealed class ProjectMetaChangeDecisionService
         }
 
         var technicalCategoryId = payload.TechnicalCategoryId;
-        if (technicalCategoryId.HasValue)
+        if (technicalCategoryId.HasValue && technicalCategoryId != project.TechnicalCategoryId)
         {
             var technicalCategoryExists = await _db.TechnicalCategories
                 .AsNoTracking()
@@ -230,7 +232,7 @@ public sealed class ProjectMetaChangeDecisionService
         }
 
         var projectTypeId = payload.ProjectTypeId;
-        if (projectTypeId.HasValue)
+        if (projectTypeId.HasValue && projectTypeId != project.ProjectTypeId)
         {
             var projectTypeExists = await _db.ProjectTypes
                 .AsNoTracking()
@@ -253,7 +255,7 @@ public sealed class ProjectMetaChangeDecisionService
                 .Select(u => new { u.Id, u.Name, u.IsActive })
                 .SingleOrDefaultAsync(u => u.Id == sponsoringUnitId.Value, cancellationToken);
 
-            if (unit is null || !unit.IsActive)
+            if (unit is null || (!unit.IsActive && sponsoringUnitId != project.SponsoringUnitId))
             {
                 return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveSponsoringUnit), default!, new Dictionary<string, string?>());
             }
@@ -270,7 +272,7 @@ public sealed class ProjectMetaChangeDecisionService
                 .Select(l => new { l.Id, l.Name, l.IsActive })
                 .SingleOrDefaultAsync(l => l.Id == sponsoringLineDirectorateId.Value, cancellationToken);
 
-            if (line is null || !line.IsActive)
+            if (line is null || (!line.IsActive && sponsoringLineDirectorateId != project.SponsoringLineDirectorateId))
             {
                 return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveLineDirectorate), default!, new Dictionary<string, string?>());
             }

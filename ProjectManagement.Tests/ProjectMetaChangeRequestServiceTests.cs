@@ -272,6 +272,79 @@ public sealed class ProjectMetaChangeRequestServiceTests
         Assert.Equal(30, payload.TechnicalCategoryId);
     }
 
+    // Master data retired while a project still uses it must not block the project's other
+    // changes: the request carries the project's current (now inactive) values unchanged.
+    [Fact]
+    public async Task SubmitAsync_KeepsInactiveValuesTheProjectAlreadyHas()
+    {
+        await using var db = CreateContext();
+        await db.ProjectCategories.AddAsync(new ProjectCategory { Id = 40, Name = "Retired category", IsActive = false });
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory { Id = 41, Name = "Retired technical", IsActive = false });
+        await db.ProjectTypes.AddAsync(new ProjectType { Id = 42, Name = "Retired type", IsActive = false });
+        await db.SponsoringUnits.AddAsync(new SponsoringUnit { Id = 43, Name = "Disbanded unit", IsActive = false });
+        await db.LineDirectorates.AddAsync(new LineDirectorate { Id = 44, Name = "Merged directorate", IsActive = false });
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 9,
+            Name = "Editable",
+            CreatedByUserId = "creator",
+            LeadPoUserId = "po-user",
+            CategoryId = 40,
+            TechnicalCategoryId = 41,
+            ProjectTypeId = 42,
+            SponsoringUnitId = 43,
+            SponsoringLineDirectorateId = 44
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectMetaChangeRequestService(db, FakeClock.AtUtc(new DateTimeOffset(2024, 10, 1, 0, 0, 0, TimeSpan.Zero)));
+
+        var result = await service.SubmitAsync(new ProjectMetaChangeRequestSubmission
+        {
+            ProjectId = 9,
+            Name = "Editable",
+            Description = "Only the description changes",
+            CategoryId = 40,
+            TechnicalCategoryId = 41,
+            ProjectTypeId = 42,
+            SponsoringUnitId = 43,
+            SponsoringLineDirectorateId = 44
+        }, "po-user", CancellationToken.None);
+
+        Assert.Equal(ProjectMetaChangeRequestSubmissionOutcome.Success, result.Outcome);
+        Assert.Equal(1, await db.ProjectMetaChangeRequests.CountAsync());
+    }
+
+    [Fact]
+    public async Task SubmitAsync_StillRefusesSwitchingToAnotherInactiveValue()
+    {
+        await using var db = CreateContext();
+        await db.SponsoringUnits.AddRangeAsync(
+            new SponsoringUnit { Id = 50, Name = "Current", IsActive = true },
+            new SponsoringUnit { Id = 51, Name = "Disbanded", IsActive = false });
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 10,
+            Name = "Editable",
+            CreatedByUserId = "creator",
+            LeadPoUserId = "po-user",
+            SponsoringUnitId = 50
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectMetaChangeRequestService(db, FakeClock.AtUtc(new DateTimeOffset(2024, 10, 1, 0, 0, 0, TimeSpan.Zero)));
+
+        var result = await service.SubmitAsync(new ProjectMetaChangeRequestSubmission
+        {
+            ProjectId = 10,
+            Name = "Editable",
+            SponsoringUnitId = 51
+        }, "po-user", CancellationToken.None);
+
+        Assert.Equal(ProjectMetaChangeRequestSubmissionOutcome.ValidationFailed, result.Outcome);
+        Assert.True(result.Errors.ContainsKey("SponsoringUnitId"));
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

@@ -186,7 +186,9 @@ public class EditModel : PageModel
             return Page();
         }
 
-        if (selectedCategoryId.HasValue)
+        // An inactive value is accepted when it is the one the project already has: retired
+        // master data stays on existing projects and must not block saving other changes.
+        if (selectedCategoryId.HasValue && selectedCategoryId != project.CategoryId)
         {
             var categoryExists = await _db.ProjectCategories
                 .AsNoTracking()
@@ -199,7 +201,7 @@ public class EditModel : PageModel
             }
         }
 
-        if (selectedTechnicalCategoryId.HasValue)
+        if (selectedTechnicalCategoryId.HasValue && selectedTechnicalCategoryId != project.TechnicalCategoryId)
         {
             var technicalCategoryExists = await _db.TechnicalCategories
                 .AsNoTracking()
@@ -212,7 +214,7 @@ public class EditModel : PageModel
             }
         }
 
-        if (selectedProjectTypeId.HasValue)
+        if (selectedProjectTypeId.HasValue && selectedProjectTypeId != project.ProjectTypeId)
         {
             var projectTypeExists = await _db.ProjectTypes
                 .AsNoTracking()
@@ -242,7 +244,7 @@ public class EditModel : PageModel
             }
         }
 
-        if (Input.SponsoringUnitId.HasValue)
+        if (Input.SponsoringUnitId.HasValue && Input.SponsoringUnitId != project.SponsoringUnitId)
         {
             var unitActive = await _db.SponsoringUnits
                 .AsNoTracking()
@@ -255,7 +257,7 @@ public class EditModel : PageModel
             }
         }
 
-        if (Input.SponsoringLineDirectorateId.HasValue)
+        if (Input.SponsoringLineDirectorateId.HasValue && Input.SponsoringLineDirectorateId != project.SponsoringLineDirectorateId)
         {
             var lineActive = await _db.LineDirectorates
                 .AsNoTracking()
@@ -471,6 +473,28 @@ public class EditModel : PageModel
         }
 
         AddOptions(null, string.Empty);
+
+        // Keep the current category selectable when it is inactive or sits under an inactive
+        // parent; otherwise the form would post "(none)" and clear it.
+        if (selectedCategoryId.HasValue)
+        {
+            var selectedValue = selectedCategoryId.Value.ToString();
+            if (options.All(option => !string.Equals(option.Value, selectedValue, StringComparison.Ordinal)))
+            {
+                var selected = await _db.ProjectCategories
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == selectedCategoryId.Value, cancellationToken);
+
+                if (selected is not null)
+                {
+                    options.Add(new SelectListItem(
+                        selected.IsActive ? selected.Name : $"{selected.Name} (inactive)",
+                        selected.Id.ToString(),
+                        true));
+                }
+            }
+        }
+
         CategoryOptions = options;
     }
 

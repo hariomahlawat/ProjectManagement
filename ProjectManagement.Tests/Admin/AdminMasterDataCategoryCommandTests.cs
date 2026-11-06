@@ -175,6 +175,32 @@ public sealed class AdminMasterDataCategoryCommandTests : IAsyncLifetime
         Assert.False((await verify.TechnicalCategories.SingleAsync(item => item.Id == categoryId)).IsActive);
     }
 
+    // A project type, sponsoring unit or line directorate used by any project could never be
+    // deactivated, although the page and Help said referenced values should be deactivated.
+    [Fact]
+    public async Task SetProjectTypeActive_RetiresATypeThatProjectsStillUse()
+    {
+        int typeId;
+        await using (var seed = new ApplicationDbContext(_options))
+        {
+            var type = new ProjectType { Name = "Retiring type", IsActive = true };
+            seed.ProjectTypes.Add(type);
+            await seed.SaveChangesAsync();
+            typeId = type.Id;
+            seed.Projects.Add(new Project { Name = "Uses it", CreatedByUserId = Admin, CreatedAt = DateTime.UtcNow, ProjectTypeId = typeId });
+            await seed.SaveChangesAsync();
+        }
+
+        await using var db = new ApplicationDbContext(_options);
+        var row = await db.ProjectTypes.AsNoTracking().SingleAsync(item => item.Id == typeId);
+        var result = await CreateService(db).SetProjectTypeActiveAsync(typeId, isActive: false, row.RowVersion);
+
+        Assert.True(result.Succeeded, result.UserMessage);
+        await using var verify = new ApplicationDbContext(_options);
+        Assert.False((await verify.ProjectTypes.SingleAsync(item => item.Id == typeId)).IsActive);
+        Assert.Equal(typeId, (await verify.Projects.SingleAsync()).ProjectTypeId);
+    }
+
     private async Task<int> SeedTechnicalCategoryAsync(string name)
     {
         await using var db = new ApplicationDbContext(_options);

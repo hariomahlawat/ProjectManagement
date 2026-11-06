@@ -373,7 +373,6 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
             item => item.Name,
             item => item.IsActive,
             (item, value) => item.IsActive = value,
-            idValue => _db.Projects.AnyAsync(project => project.ProjectTypeId == idValue, cancellationToken),
             Snapshot,
             cancellationToken);
 
@@ -416,7 +415,6 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
             item => item.Name,
             item => item.IsActive,
             (item, value) => { item.IsActive = value; item.UpdatedUtc = _clock.UtcNow.UtcDateTime; },
-            idValue => _db.Projects.AnyAsync(project => project.SponsoringUnitId == idValue, cancellationToken),
             Snapshot,
             cancellationToken);
 
@@ -459,7 +457,6 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
             item => item.Name,
             item => item.IsActive,
             (item, value) => { item.IsActive = value; item.UpdatedUtc = _clock.UtcNow.UtcDateTime; },
-            idValue => _db.Projects.AnyAsync(project => project.SponsoringLineDirectorateId == idValue, cancellationToken),
             Snapshot,
             cancellationToken);
 
@@ -837,7 +834,6 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         Func<T, string> getName,
         Func<T, bool> getActive,
         Action<T, bool> setActive,
-        Func<int, Task<bool>> isInUse,
         Func<T, object> snapshot,
         CancellationToken cancellationToken) where T : class
     {
@@ -853,11 +849,8 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
             return NotFound(char.ToUpperInvariant(label[0]) + label[1..]);
         }
 
-        if (!isActive && await isInUse(id))
-        {
-            return AdminOperationResult.Failure($"This {label} is assigned to existing projects and cannot be deactivated.", "EntityInUse");
-        }
-
+        // A value in use can be retired: projects keep it, their forms show it as
+        // "(inactive)" and still save with it, and it stops being offered for new selections.
         if (getActive(entity) == isActive)
         {
             return AdminOperationResult.Success(isActive ? $"'{getName(entity)}' is already active." : $"'{getName(entity)}' is already inactive.");

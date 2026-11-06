@@ -85,7 +85,9 @@ public sealed class ProjectMetaChangeRequestService
             }
         }
 
-        if (categoryId.HasValue)
+        // An inactive value is accepted when it is the one the project already has: retired
+        // master data stays on existing projects and must not block saving other changes.
+        if (categoryId.HasValue && categoryId != project.CategoryId)
         {
             var categoryExists = await _db.ProjectCategories
                 .AsNoTracking()
@@ -101,7 +103,7 @@ public sealed class ProjectMetaChangeRequestService
             }
         }
 
-        if (technicalCategoryId.HasValue)
+        if (technicalCategoryId.HasValue && technicalCategoryId != project.TechnicalCategoryId)
         {
             var technicalCategoryExists = await _db.TechnicalCategories
                 .AsNoTracking()
@@ -117,7 +119,7 @@ public sealed class ProjectMetaChangeRequestService
             }
         }
 
-        if (projectTypeId.HasValue)
+        if (projectTypeId.HasValue && projectTypeId != project.ProjectTypeId)
         {
             var projectTypeExists = await _db.ProjectTypes
                 .AsNoTracking()
@@ -133,7 +135,7 @@ public sealed class ProjectMetaChangeRequestService
             }
         }
 
-        if (sponsoringUnitId.HasValue)
+        if (sponsoringUnitId.HasValue && sponsoringUnitId != project.SponsoringUnitId)
         {
             var unitExists = await _db.SponsoringUnits
                 .AsNoTracking()
@@ -149,7 +151,7 @@ public sealed class ProjectMetaChangeRequestService
             }
         }
 
-        if (sponsoringLineDirectorateId.HasValue)
+        if (sponsoringLineDirectorateId.HasValue && sponsoringLineDirectorateId != project.SponsoringLineDirectorateId)
         {
             var lineExists = await _db.LineDirectorates
                 .AsNoTracking()
