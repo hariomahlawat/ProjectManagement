@@ -84,7 +84,10 @@ public sealed class SystemHealthRefreshEndToEndTests : IClassFixture<WebApplicat
             PagePath + "?handler=Refresh",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["__RequestVerificationToken"] = token }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // The checks run once, then the page redirects to itself, so reloading it does not post
+        // the form again and re-run every check.
+        Assert.Equal(HttpStatusCode.Found, response.StatusCode);
+        Assert.EndsWith(PagePath, response.Headers.Location!.OriginalString, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(new[] { false, true }, _health.Calls);
     }
 

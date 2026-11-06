@@ -50,7 +50,7 @@
     </article>
     <article class="admin-health-fact">
         <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-speedometer2"></i></span>
-        <div><small>Query latency</small><strong>@(database.QueryLatencyMilliseconds.HasValue ? $"{database.QueryLatencyMilliseconds:N0} ms" : "—")</strong><span>@(database.ServerVersion ?? "Server version unavailable")</span></div>
+        <div><small>Query latency</small><strong>@(database.QueryLatencyMilliseconds.HasValue ? $"{database.QueryLatencyMilliseconds:N0} ms" : "—")</strong><span>@(database.ServerVersion is { } version ? $"PostgreSQL {version}" : "Server version unavailable")</span></div>
     </article>
     <article class="admin-health-fact">
         <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-device-ssd"></i></span>
