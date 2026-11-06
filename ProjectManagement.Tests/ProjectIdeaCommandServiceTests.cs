@@ -270,6 +270,24 @@ public sealed class ProjectIdeaCommandServiceTests
     }
 
     [Fact]
+    public async Task CurrentRowVersionAsync_GivesTheVersionThatUndoNeedsToRestoreADeletedIdea()
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var service = new ProjectIdeaCommandService(db);
+        var before = idea.RowVersion.ToArray();
+        await service.SoftDeleteIdeaAsync(idea.Id, "Duplicate", before, Actor("hod-1", RoleNames.HoD));
+
+        var current = await service.CurrentRowVersionAsync(idea.Id);
+
+        Assert.NotNull(current);
+        Assert.NotEqual(before, current);
+        Assert.True(await service.RestoreDeletedIdeaAsync(idea.Id, current!, Actor("hod-1", RoleNames.HoD)));
+        Assert.False(idea.IsDeleted);
+        Assert.Null(await service.CurrentRowVersionAsync(int.MaxValue));
+    }
+
+    [Fact]
     public async Task EditCommentAsync_GeneralAuthorWithinWindowUpdatesTextOnly()
     {
         var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);

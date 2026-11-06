@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Configuration;
+using ProjectManagement.Infrastructure.Ui;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Services.ProjectIdeas;
 
@@ -221,7 +222,11 @@ public class DetailsModel : PageModel
         try
         {
             await _commands.ArchiveAsync(Idea, archiveReason, DecodeRowVersion(rowVersion), CurrentActor());
-            SetToastSuccess("Idea archived.");
+            // Undo restores it through the same handler as the Restore button.
+            TempData.ToastWithAction("success", "Idea archived.", new ToastAction(
+                "Undo",
+                Url.Page("/ProjectIdeas/Details", "Restore", new { id })!,
+                new Dictionary<string, string> { ["rowVersion"] = Convert.ToBase64String(Idea.RowVersion) }));
         }
         catch (InvalidOperationException exception)
         {
@@ -262,7 +267,23 @@ public class DetailsModel : PageModel
                 DecodeRowVersion(rowVersion),
                 CurrentActor());
             if (!deleted) return NotFound();
-            SetToastSuccess("Idea deleted.");
+            // Undo restores it through the same handler as Restore on Deleted ideas.
+            var deletedVersion = await _commands.CurrentRowVersionAsync(id);
+            if (deletedVersion is { Length: > 0 })
+            {
+                TempData.ToastWithAction("success", "Idea moved to Deleted ideas.", new ToastAction(
+                    "Undo",
+                    Url.Page("/ProjectIdeas/Deleted", "Restore")!,
+                    new Dictionary<string, string>
+                    {
+                        ["ideaId"] = id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        ["rowVersion"] = Convert.ToBase64String(deletedVersion)
+                    }));
+            }
+            else
+            {
+                SetToastSuccess("Idea deleted.");
+            }
             return RedirectToPage("Deleted");
         }
         catch (InvalidOperationException exception)

@@ -20,6 +20,24 @@ Set one of these in a page handler; `_Layout` renders it on the next page throug
 
 The markup is the finished toast, so it shows even if the script has not loaded.
 
+### Undo from the server
+
+When the server can really reverse what it just did, offer it in the toast:
+
+```csharp
+TempData.ToastWithAction("success", "Idea archived.", new ToastAction(
+    "Undo",
+    Url.Page("/ProjectIdeas/Details", "Restore", new { id })!,
+    new Dictionary<string, string> { ["rowVersion"] = Convert.ToBase64String(Idea.RowVersion) }));
+```
+
+- The button is a real form (`Infrastructure/Ui/TempDataToastExtensions.cs`, rendered by
+  `Views/Shared/_Toasts.cshtml`): it posts the fields with the antiforgery token to the handler
+  that the page's own Restore button uses, so permission and the record version are checked
+  again. Only local URLs are rendered.
+- A toast with an action stays 10 seconds instead of 5.5.
+- Offer it only for actions with a working reverse handler that the same user may run.
+
 ## From a script
 
 ```js
@@ -71,4 +89,4 @@ It returns `{ element, dismiss }`. Text is always set as text, never as markup.
 | --- | --- |
 | 1 | `PrismToast` on every page; server messages (`_Toasts.cshtml`) in the glass toast; this guide |
 | 2 | Done: the 14 scripts with their own toasts hand their messages to `PrismToast` and keep their old code only as a fallback (visits, social media, proliferation and its data-quality panel, JDP, remarks, stages, process flow, Document Repository and its upload queue, Briefing desk). Calendar (moved or edited events), Tasks (marked done) and the Notebook keep their **Undo** as the toast's action. The Document Repository used to wait for a global `showToast` that PRISM never defined; its messages now show. |
-| 3 | **Undo** where the server can restore (for example Document Repository trash) |
+| 3 | Done: server toasts can carry one action (`ToastWithAction`). Project Ideas offers **Undo** after archiving (restore) and after deleting (restore from Deleted ideas). Briefing Studio's deck delete is the next good candidate (its restore needs only the deck id); it was left out because that page was being changed in parallel. Document Repository trash restore is admin-only, so it gets no Undo for other users. |

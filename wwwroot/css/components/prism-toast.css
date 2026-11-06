@@ -139,6 +139,11 @@
     font-size: 0.8rem;
 }
 
+/* A server action (Undo) is a small form; it lays out like the button inside it. */
+.prism-toast__form {
+    display: contents;
+}
+
 .prism-toast__action {
     flex: 0 0 auto;
     padding: 0.4rem 0.85rem;
