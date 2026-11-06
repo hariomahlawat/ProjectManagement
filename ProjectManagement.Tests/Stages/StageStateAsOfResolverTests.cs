@@ -177,6 +177,32 @@ public sealed class StageStateAsOfResolverTests
     }
 
     [Fact]
+    public void ASecondCompletionAfterAReopen_KeepsTheFirstOne()
+    {
+        // Completed on 10 Feb, reopened on 15 Apr, completed again on 20 May (today's date): finished on 31 March.
+        var states = Resolve(
+            new[] { Fact(StageCodes.FS, StageStatus.Completed, start: new(2026, 1, 5), completedOn: new(2026, 5, 20)) },
+            new[]
+            {
+                new StageLogFact(StageCodes.FS, "Completed", new(2026, 2, 10), FromStatus: "InProgress", ToCompletedOn: new(2026, 2, 10), Sequence: 1),
+                new StageLogFact(StageCodes.FS, "InProgress", new(2026, 4, 15), FromStatus: "Completed", FromCompletedOn: new(2026, 2, 10), Sequence: 2),
+                new StageLogFact(StageCodes.FS, "Completed", new(2026, 5, 20), FromStatus: "InProgress", ToCompletedOn: new(2026, 5, 20), Sequence: 3)
+            });
+
+        Assert.Equal(StageStateAsOf.Finished, states[StageCodes.FS]);
+    }
+
+    [Fact]
+    public void ACompletionAfterTheDate_WithNoEarlierOne_IsNotFinished()
+    {
+        var states = Resolve(
+            new[] { Fact(StageCodes.FS, StageStatus.Completed, start: new(2026, 1, 5), completedOn: new(2026, 5, 20)) },
+            new[] { new StageLogFact(StageCodes.FS, "Completed", new(2026, 5, 20), FromStatus: "InProgress", ToCompletedOn: new(2026, 5, 20)) });
+
+        Assert.Equal(StageStateAsOf.InProgress, states[StageCodes.FS]);
+    }
+
+    [Fact]
     public void TheLastChangeRecordedBeforeTheDate_IsTheStatusOnIt()
     {
         // Undated today; recorded In progress on 1 Mar and completed (undated) on 20 Apr.

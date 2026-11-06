@@ -127,12 +127,11 @@ public static class StageStateAsOfResolver
 
         StageStateAsOf OwnState(StageFactNow fact)
         {
-            // A completion date recorded on the stage today decides.
-            if (fact.Status == StageStatus.Completed && fact.CompletedOn is { } completedOn)
+            // A completion date recorded on the stage today, on or before the date, decides. A later one may
+            // be a second completion after a reopen, so the history is read first.
+            if (fact.Status == StageStatus.Completed && fact.CompletedOn is { } completedOn && completedOn <= asOf)
             {
-                return completedOn <= asOf
-                    ? StageStateAsOf.Finished
-                    : StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
+                return StageStateAsOf.Finished;
             }
 
             // The last applied change recorded on or before the date is the stage's status on it.
@@ -163,6 +162,12 @@ public static class StageStateAsOfResolver
                 return historical <= asOf
                     ? StageStateAsOf.Finished
                     : StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
+            }
+
+            // Completed after the date, with no earlier completion in the history.
+            if (fact.Status == StageStatus.Completed && fact.CompletedOn is not null)
+            {
+                return StartedBy(fact.Code) ? StageStateAsOf.InProgress : StageStateAsOf.NotStarted;
             }
 
             switch (fact.Status)
