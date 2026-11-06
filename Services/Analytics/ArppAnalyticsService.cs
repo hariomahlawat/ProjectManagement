@@ -42,17 +42,21 @@ namespace ProjectManagement.Services.Analytics
         private readonly IArppLibraryService _arppLibrary;
         private readonly IArppFyProjectUpdateService _arppFyUpdate;
         private readonly IProjectPositionAsOfService? _positionAsOf;
+        private readonly IProjectFormalUpdateFactsResolver _formalFacts;
 
         public ArppAnalyticsService(
             ApplicationDbContext db,
             IArppLibraryService arppLibrary,
             IArppFyProjectUpdateService arppFyUpdate,
-            IProjectPositionAsOfService? positionAsOf = null)
+            IProjectPositionAsOfService? positionAsOf = null,
+            IProjectFormalUpdateFactsResolver? formalFacts = null)
         {
             _db = db;
             _arppLibrary = arppLibrary;
             _arppFyUpdate = arppFyUpdate;
             _positionAsOf = positionAsOf;
+            // The one owner of the Development PDC (and the AoN and supply-order dates) for formal reports.
+            _formalFacts = formalFacts ?? new ProjectFormalUpdateFactsResolver(db);
         }
 
         public async Task<ArppAnalyticsVm> BuildAsync(int? requestedFinancialYearStart, DateOnly today, bool showToday = false, CancellationToken cancellationToken = default)
@@ -232,13 +236,8 @@ namespace ProjectManagement.Services.Analytics
 
             // One line per listed project for the progress slides, in the same buckets as the cards.
             var shownOnDate = asOf ?? today;
-            var developmentPdc = (await _db.ProjectStages
-                    .AsNoTracking()
-                    .Where(stage => approvedIds.Contains(stage.ProjectId) && stage.StageCode == StageCodes.DEVP && stage.PlannedDue != null)
-                    .Select(stage => new { stage.ProjectId, stage.PlannedDue })
-                    .ToListAsync(cancellationToken))
-                .GroupBy(stage => stage.ProjectId)
-                .ToDictionary(group => group.Key, group => group.Max(stage => stage.PlannedDue!.Value));
+            // The Development PDC as every formal report resolves it (ProjectFormalUpdateFactsResolver).
+            var formalFacts = await _formalFacts.ResolveAsync(approvedIds, cancellationToken);
             var completion = (await _db.Projects
                     .AsNoTracking()
                     .Where(project => approvedIds.Contains(project.Id))
@@ -280,7 +279,7 @@ namespace ProjectManagement.Services.Analytics
                     var bucket = BucketOf(item);
                     var atDevelopment = bucket == ArppProgressBucket.UnderDevelopment
                         && string.Equals(item.StageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase);
-                    DateOnly? pdc = atDevelopment && developmentPdc.TryGetValue(item.ProjectId, out var due) ? due : null;
+                    DateOnly? pdc = atDevelopment && formalFacts.TryGetValue(item.ProjectId, out var facts) ? facts.DevelopmentPdcDate : null;
                     return new ArppProjectLineVm(
                         item.ProjectId,
                         item.ProjectName,
