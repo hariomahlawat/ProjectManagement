@@ -73,7 +73,7 @@ public sealed class IndexModel : PageModel
             Icon = "bi-building",
             Actions = new[]
             {
-                new AdminPageActionModel { Text = "Master data centre", Href = Url.Page("/MasterData/Index", new { area = "Admin" }), Icon = "bi-arrow-left" },
+                new AdminPageActionModel { Text = "Lists used in forms", Href = Url.Page("/MasterData/Index", new { area = "Admin" }), Icon = "bi-arrow-left" },
                 new AdminPageActionModel { Text = "Add sponsoring unit", Href = Url.Page("./Create", new { area = "Admin" }), Icon = "bi-plus-lg", IsPrimary = true }
             }
         };

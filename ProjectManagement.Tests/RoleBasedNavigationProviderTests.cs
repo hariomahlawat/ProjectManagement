@@ -47,10 +47,12 @@ public class RoleBasedNavigationProviderTests
         var adminPanel = navigation.Single(item => item.Text == "Administration");
         var children = adminPanel.Children.ToList();
 
-        Assert.Contains(children, c => c.Text == "Project trash");
-        Assert.Contains(children, c => c.Text == "Document recycle bin");
-        Assert.Contains(children, c => c.Text == "Deleted events");
-        Assert.Contains(children, c => c.Text == "Activity types" && c.Page == "/ActivityTypes/Index");
+        // The panel shows the same task entries as the Administration sidebar
+        // (docs/ux/admin-module.md); the bins and the individual lists open from them.
+        Assert.Contains(children, c => c.Text == "Restore deleted items" && c.Page == "/Recovery/Index");
+        Assert.Contains(children, c => c.Text == "Lists used in forms" && c.Page == "/MasterData/Index");
+        Assert.DoesNotContain(children, c => c.Text == "Project trash");
+        Assert.DoesNotContain(children, c => c.Text == "Activity types");
 
         var archivedProjects = children.Single(c => c.Text == "Archived projects");
         Assert.Equal("Admin", archivedProjects.Area);

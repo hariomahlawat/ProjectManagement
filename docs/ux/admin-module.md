@@ -72,6 +72,20 @@ A UI/UX review on 6 Nov 2026 (from the code and markup; no signed-in walkthrough
 | | Chat file storage | Chat storage |
 | (footer) | Every admin page · How do I… | Admin help |
 
+**Shipped in PR 2:**
+- The five groups and their task names. Page titles were renamed with them:
+  - "Who has which role", "Sign-in activity" and "Audit log"
+  - "Restore deleted items", "Lists used in forms", "Data jobs" and "Data checks"
+  - "Chat file storage"
+- The sidebar has 17 entries, and every group starts open.
+- Pages reached through a hub are out of the sidebar and highlight their hub instead. These are the bins, the individual lists, PDF ingestion and legacy import.
+- Until the merged pages land, a few things stay separate:
+  - Holidays and Celebrations are two sidebar entries.
+  - Search index keeps its own entry.
+  - The Document Repository appears as "Document deletion approvals", and media as "Media Sources".
+- Document Repository and media pages keep their own module layout.
+- The Administration sidebar is shown only to Admins. HoD reaching Holidays, Celebrations or Activity types keeps the ordinary navigation.
+
 ### One catalogue drives everything
 
 `AdminNavigationCatalog` becomes the single source for the sidebar, the search, the "Every

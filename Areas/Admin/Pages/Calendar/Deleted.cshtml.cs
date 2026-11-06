@@ -104,7 +104,7 @@ public sealed class DeletedModel : PageModel
             {
                 new AdminPageActionModel
                 {
-                    Text = "Recovery centre",
+                    Text = "Restore deleted items",
                     Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.RecoveryCentre),
                     Icon = "bi-arrow-left"
                 }

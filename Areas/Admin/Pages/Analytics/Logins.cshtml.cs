@@ -190,14 +190,14 @@ public sealed class LoginsModel : PageModel
         Header = new AdminPageHeaderModel
         {
             Eyebrow = "Monitoring",
-            Title = "Login activity",
+            Title = "Sign-in activity",
             Description = "Review authentication volume, time patterns and sign-ins requiring administrator attention.",
             Icon = "bi-graph-up-arrow",
             Actions = new[]
             {
                 new AdminPageActionModel
                 {
-                    Text = "Audit logs",
+                    Text = "Audit log",
                     Href = Url.Page("/Logs/Index", new
                     {
                         area = "Admin",

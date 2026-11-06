@@ -36,14 +36,14 @@ public sealed class IndexModel : PageModel
         Header = new AdminPageHeaderModel
         {
             Eyebrow = "Recovery and retention",
-            Title = "Recovery centre",
+            Title = "Restore deleted items",
             Description = "Review recoverable records, retention deadlines and controlled permanent-deletion activity.",
             Icon = "bi-arrow-counterclockwise",
             Actions = new[]
             {
                 new AdminPageActionModel
                 {
-                    Text = "Maintenance centre",
+                    Text = "Data jobs",
                     Href = Path(AdminNavigationKeys.MaintenanceCentre),
                     Icon = "bi-tools"
                 }

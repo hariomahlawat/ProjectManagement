@@ -35,26 +35,36 @@ public static class AdminNavigationKeys
     public const string ArchivedProjects = "archived-projects";
     public const string MaintenanceCentre = "maintenance-centre";
     public const string Help = "help";
+    public const string DocumentDeleteRequests = "document-delete-requests";
+    public const string DocumentTypes = "document-types";
+    public const string DocumentOffices = "document-offices";
+    public const string UnreadablePdfs = "unreadable-pdfs";
+    public const string MissingDocumentFiles = "missing-document-files";
+    public const string RepositoryTrash = "repository-trash";
+    public const string MediaSources = "media-sources";
+    public const string MediaIntelligence = "media-intelligence";
+    public const string MediaClassification = "media-classification";
 }
 
+// Task groups, named for what an administrator wants to do (docs/ux/admin-module.md).
 public static class AdminNavigationGroups
 {
-    public const string Overview = "Overview";
-    public const string AccessSecurity = "Access & Security";
-    public const string Monitoring = "Monitoring";
-    public const string Recovery = "Recovery";
-    public const string Maintenance = "Maintenance";
-    public const string MasterData = "Master Data";
+    public const string Home = "Home";
+    public const string People = "People";
+    public const string SignInsAudit = "Sign-ins & audit";
+    public const string RestoreArchive = "Restore & archive";
+    public const string ReferenceLists = "Reference lists";
+    public const string System = "System";
     public const string Help = "Help";
 
     public static IReadOnlyList<string> Ordered { get; } = new[]
     {
-        Overview,
-        AccessSecurity,
-        Monitoring,
-        Recovery,
-        Maintenance,
-        MasterData,
+        Home,
+        People,
+        SignInsAudit,
+        RestoreArchive,
+        ReferenceLists,
+        System,
         Help
     };
 }
@@ -108,6 +118,14 @@ public sealed record AdminNavigationMatch(
     }
 }
 
+/// <summary>
+/// One administration page. <see cref="Description"/> is the plain sentence that says what the
+/// page is for; <see cref="Keywords"/> are the everyday words people search with ("trash",
+/// "locked out", "dropdown"). Pages reached through another page (a hub's own pages, the lists
+/// behind "Lists used in forms") stay in the catalogue for search and the page index but out of
+/// the sidebar, and highlight their <see cref="SidebarParent"/> there. Pages that belong to
+/// another module keep that module's layout (<see cref="UsesAdminShell"/> false).
+/// </summary>
 public sealed record AdminNavigationEntry(
     string Key,
     string Group,
@@ -115,252 +133,228 @@ public sealed record AdminNavigationEntry(
     NavigationItem Item,
     AdminNavigationMatch Match,
     bool ShowOnDashboard = false,
-    bool ShowInQuickLinks = false);
+    bool ShowInQuickLinks = false,
+    string Description = "",
+    string Keywords = "",
+    bool InSidebar = true,
+    string? SidebarParent = null,
+    bool UsesAdminShell = true);
 
 public static class AdminNavigationCatalog
 {
     private static readonly IReadOnlyList<AdminNavigationEntry> Catalog = new AdminNavigationEntry[]
     {
-        Entry(
-            AdminNavigationKeys.Dashboard,
-            AdminNavigationGroups.Overview,
-            10,
-            Item("Overview", "Admin", "/Index", "bi-grid-1x2", AdminPolicies.Access),
-            exactPage: true,
-            showOnDashboard: true),
+        // Home
+        Entry(AdminNavigationKeys.Dashboard, AdminNavigationGroups.Home, 10,
+            Item("Home", "Admin", "/Index", "bi-house", AdminPolicies.Access),
+            "Start here: what needs your attention and the common admin jobs.",
+            "overview, dashboard, start, administration",
+            exactPage: true, showOnDashboard: true),
 
-        Entry(
-            AdminNavigationKeys.Users,
-            AdminNavigationGroups.AccessSecurity,
-            20,
+        // People
+        Entry(AdminNavigationKeys.Users, AdminNavigationGroups.People, 20,
             Item("Users", "Admin", "/Users/Index", "bi-people", AdminPolicies.UsersManage),
-            matchPagePattern: "/Users/",
-            showOnDashboard: true),
+            "Add people, change their roles, reset a password, clear a lockout, disable or delete an account.",
+            "add user, create account, new user, password, reset, locked out, unlock, disable, enable, role, delete user",
+            matchPagePattern: "/Users/", showOnDashboard: true),
+        Entry(AdminNavigationKeys.AccessGovernance, AdminNavigationGroups.People, 25,
+            Item("Who has which role", "Admin", "/AccessGovernance/Index", "bi-shield-check", AdminPolicies.AccessGovernanceView),
+            "Every admin and HoD at a glance, and accounts that need a look: disabled, locked or never signed in.",
+            "access governance, roles, privileges, permissions, admins, access review",
+            matchPagePattern: "/AccessGovernance/", showOnDashboard: true),
 
-        Entry(
-            AdminNavigationKeys.AccessGovernance,
-            AdminNavigationGroups.AccessSecurity,
-            25,
-            Item("Access governance", "Admin", "/AccessGovernance/Index", "bi-shield-check", AdminPolicies.AccessGovernanceView),
-            matchPagePattern: "/AccessGovernance/",
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.Logins,
-            AdminNavigationGroups.Monitoring,
-            30,
-            Item("Login activity", "Admin", "/Analytics/Logins", "bi-graph-up-arrow", AdminPolicies.SecurityView),
-            matchPagePattern: "/Analytics/",
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.ErpUsage,
-            AdminNavigationGroups.Monitoring,
-            35,
+        // Sign-ins & audit
+        Entry(AdminNavigationKeys.Logins, AdminNavigationGroups.SignInsAudit, 30,
+            Item("Sign-in activity", "Admin", "/Analytics/Logins", "bi-box-arrow-in-right", AdminPolicies.SecurityView),
+            "Who signed in and when, failed attempts and sign-ins at unusual times.",
+            "login, logins, login activity, failed login, sessions, authentication",
+            matchPagePattern: "/Analytics/", showOnDashboard: true),
+        Entry(AdminNavigationKeys.Logs, AdminNavigationGroups.SignInsAudit, 40,
+            Item("Audit log", "Admin", "/Logs/Index", "bi-journal-text", AdminPolicies.LogsView),
+            "Every change made in PRISM: who did what, to which record and when.",
+            "audit logs, logs, history, trail, who changed, events, errors",
+            matchPagePattern: "/Logs/", showOnDashboard: true),
+        Entry(AdminNavigationKeys.ErpUsage, AdminNavigationGroups.SignInsAudit, 45,
             Item("ERP usage", string.Empty, "/Usage/Index", "bi-person-check", Policies.Usage.View),
-            exactPage: true,
-            showOnDashboard: true),
+            "How many people use PRISM each day and which modules they use.",
+            "usage, adoption, active users, statistics",
+            exactPage: true, showOnDashboard: true),
 
-        Entry(
-            AdminNavigationKeys.Logs,
-            AdminNavigationGroups.Monitoring,
-            40,
-            Item("Audit logs", "Admin", "/Logs/Index", "bi-journal-text", AdminPolicies.LogsView),
-            matchPagePattern: "/Logs/",
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.DatabaseHealth,
-            AdminNavigationGroups.Monitoring,
-            50,
-            Item("System health", "Admin", "/Diagnostics/DbHealth", "bi-heart-pulse", AdminPolicies.SecurityView),
-            exactPage: true,
-            showOnDashboard: true,
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.SearchIndex,
-            AdminNavigationGroups.Monitoring,
-            52,
-            Item("Search index", "Admin", "/Diagnostics/SearchIndex", "bi-search", AdminPolicies.SecurityView),
-            exactPage: true,
-            showOnDashboard: false,
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.RecoveryCentre,
-            AdminNavigationGroups.Recovery,
-            55,
-            Item("Recovery centre", "Admin", "/Recovery/Index", "bi-arrow-counterclockwise", AdminPolicies.RecoveryManage),
-            exactPage: true,
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.ChatStorage,
-            AdminNavigationGroups.Recovery,
-            56,
-            Item("Chat storage", "Admin", "/Chat/Storage", "bi-paperclip", AdminPolicies.RecoveryManage),
-            exactPage: true,
-            showOnDashboard: false),
-
-        Entry(
-            AdminNavigationKeys.ProjectTrash,
-            AdminNavigationGroups.Recovery,
-            60,
+        // Restore & archive
+        Entry(AdminNavigationKeys.RecoveryCentre, AdminNavigationGroups.RestoreArchive, 55,
+            Item("Restore deleted items", "Admin", "/Recovery/Index", "bi-arrow-counterclockwise", AdminPolicies.RecoveryManage),
+            "Bring back deleted projects, documents and calendar events, and see what is due to be deleted for good.",
+            "recovery centre, trash, recycle bin, undelete, recover, deleted, purge, bin",
+            exactPage: true, showOnDashboard: true),
+        Entry(AdminNavigationKeys.ProjectTrash, AdminNavigationGroups.RestoreArchive, 60,
             Item("Project trash", "Admin", "/Projects/Trash", "bi-trash3", AdminPolicies.RecoveryManage),
-            exactPage: true,
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.DocumentRecycle,
-            AdminNavigationGroups.Recovery,
-            70,
+            "Projects moved to Trash: restore one, or delete it for good after the retention period.",
+            "deleted projects, trash, purge, restore project",
+            exactPage: true, showOnDashboard: true, inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre),
+        Entry(AdminNavigationKeys.DocumentRecycle, AdminNavigationGroups.RestoreArchive, 70,
             Item("Document recycle bin", "Admin", "/Documents/Recycle", "bi-recycle", AdminPolicies.RecoveryManage),
-            exactPage: true,
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.DeletedEvents,
-            AdminNavigationGroups.Recovery,
-            80,
-            Item("Deleted events", "Admin", "/Calendar/Deleted", "bi-calendar-x", AdminPolicies.RecoveryManage),
-            exactPage: true,
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.ArchivedProjects,
-            AdminNavigationGroups.Recovery,
-            90,
+            "Project documents that were deleted: restore them, or remove them and their files for good.",
+            "deleted documents, recycle bin, restore document",
+            exactPage: true, showOnDashboard: true, inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre),
+        Entry(AdminNavigationKeys.DeletedEvents, AdminNavigationGroups.RestoreArchive, 80,
+            Item("Deleted calendar events", "Admin", "/Calendar/Deleted", "bi-calendar-x", AdminPolicies.RecoveryManage),
+            "Calendar events that were deleted: put an event or a whole series back on the calendar.",
+            "deleted events, calendar, restore event, meeting",
+            exactPage: true, showOnDashboard: true, inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre),
+        Entry(AdminNavigationKeys.RepositoryTrash, AdminNavigationGroups.RestoreArchive, 85,
+            Item("Trash", "DocumentRepository", "/Admin/Trash/Index", "bi-trash", Policies.Documents.Purge),
+            "Document Repository files that were deleted: restore them or delete them for good.",
+            "document repository trash, docrepo trash, deleted repository documents, restore",
+            matchPagePattern: "/Admin/Trash/", inSidebar: false, usesAdminShell: false),
+        Entry(AdminNavigationKeys.ArchivedProjects, AdminNavigationGroups.RestoreArchive, 90,
             Item("Archived projects", "Admin", "/Projects/Archived", "bi-archive", AdminPolicies.RecoveryManage),
-            exactPage: true,
-            showOnDashboard: true,
-            showInQuickLinks: true),
+            "Projects taken out of everyday views. Restore one to make it visible again.",
+            "archive, unarchive, hidden projects",
+            exactPage: true, showOnDashboard: true, showInQuickLinks: true),
 
-        Entry(
-            AdminNavigationKeys.MaintenanceCentre,
-            AdminNavigationGroups.Maintenance,
-            95,
-            Item("Maintenance centre", "Admin", "/Maintenance/Index", "bi-tools", AdminPolicies.IngestionManage),
-            exactPage: true,
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.PdfIngestion,
-            AdminNavigationGroups.Maintenance,
-            100,
-            Item("PDF ingestion", "Admin", "/Documents/IngestExternalPdfs", "bi-file-earmark-arrow-up", AdminPolicies.IngestionManage),
-            exactPage: true,
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.LegacyImport,
-            AdminNavigationGroups.Maintenance,
-            110,
-            Item("Legacy import", "ProjectOfficeReports", "/Projects/LegacyImport", "bi-database-up", AdminPolicies.IngestionManage),
-            exactPage: true,
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.MasterDataCentre,
-            AdminNavigationGroups.MasterData,
-            115,
-            Item("Master data centre", "Admin", "/MasterData/Index", "bi-sliders2", AdminPolicies.MasterDataManage),
-            exactPage: true,
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.MasterDataIntegrity,
-            AdminNavigationGroups.MasterData,
-            117,
-            Item("Configuration integrity", "Admin", "/MasterData/Integrity/Index", "bi-clipboard2-check", AdminPolicies.IntegrityManage),
-            matchPagePattern: "/MasterData/Integrity/",
-            showOnDashboard: true),
-
-        Entry(
-            AdminNavigationKeys.Holidays,
-            AdminNavigationGroups.MasterData,
-            120,
-            Item("Holidays", string.Empty, "/Settings/Holidays/Index", "bi-calendar-week", AdminPolicies.HolidaysManage),
-            matchPagePattern: "/Settings/Holidays/",
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.Celebrations,
-            AdminNavigationGroups.MasterData,
-            130,
-            Item("Celebrations", string.Empty, "/Celebrations/Index", "bi-stars", Policies.Calendar.ManageCelebrations),
-            matchPagePattern: "/Celebrations/",
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.ProjectCategories,
-            AdminNavigationGroups.MasterData,
-            140,
+        // Reference lists
+        Entry(AdminNavigationKeys.MasterDataCentre, AdminNavigationGroups.ReferenceLists, 115,
+            Item("Lists used in forms", "Admin", "/MasterData/Index", "bi-ui-checks", AdminPolicies.MasterDataManage),
+            "The choices in PRISM's dropdowns: categories, project types, sponsoring units, activity types and ARPP values.",
+            "master data, dropdown, lookup, reference data, taxonomy, choices",
+            exactPage: true, showOnDashboard: true),
+        Entry(AdminNavigationKeys.ProjectCategories, AdminNavigationGroups.ReferenceLists, 140,
             Item("Project categories", "Admin", "/Categories/Index", "bi-diagram-3", AdminPolicies.MasterDataManage),
-            matchPagePattern: "/Categories/",
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.TechnicalCategories,
-            AdminNavigationGroups.MasterData,
-            150,
+            "The category tree that groups projects in dashboards and reports.",
+            "category, categories, project category, hierarchy",
+            matchPagePattern: "/Categories/", showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre),
+        Entry(AdminNavigationKeys.TechnicalCategories, AdminNavigationGroups.ReferenceLists, 150,
             Item("Technical categories", "Admin", "/TechnicalCategories/Index", "bi-cpu", AdminPolicies.MasterDataManage),
-            matchPagePattern: "/TechnicalCategories/",
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.ActivityTypes,
-            AdminNavigationGroups.MasterData,
-            160,
-            Item("Activity types", "Admin", "/ActivityTypes/Index", "bi-list-task", AdminPolicies.ActivityTypesManage),
-            matchPagePattern: "/ActivityTypes/",
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.ProjectTypes,
-            AdminNavigationGroups.MasterData,
-            170,
+            "The technology areas a project can belong to.",
+            "technical category, technology, taxonomy",
+            matchPagePattern: "/TechnicalCategories/", showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre),
+        Entry(AdminNavigationKeys.ProjectTypes, AdminNavigationGroups.ReferenceLists, 170,
             Item("Project types", "Admin", "/Lookups/ProjectTypes/Index", "bi-tags", AdminPolicies.MasterDataManage),
-            matchPagePattern: "/Lookups/ProjectTypes/",
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.SponsoringUnits,
-            AdminNavigationGroups.MasterData,
-            180,
+            "The project types offered in the project form.",
+            "project type, build, procurement",
+            matchPagePattern: "/Lookups/ProjectTypes/", showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre),
+        Entry(AdminNavigationKeys.SponsoringUnits, AdminNavigationGroups.ReferenceLists, 180,
             Item("Sponsoring units", "Admin", "/Lookups/SponsoringUnits/Index", "bi-building", AdminPolicies.MasterDataManage),
-            matchPagePattern: "/Lookups/SponsoringUnits/",
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.LineDirectorates,
-            AdminNavigationGroups.MasterData,
-            190,
+            "Units and formations that sponsor projects.",
+            "sponsoring unit, unit, formation, sponsor",
+            matchPagePattern: "/Lookups/SponsoringUnits/", showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre),
+        Entry(AdminNavigationKeys.LineDirectorates, AdminNavigationGroups.ReferenceLists, 190,
             Item("Line directorates", "Admin", "/Lookups/LineDirectorates/Index", "bi-diagram-2", AdminPolicies.MasterDataManage),
-            matchPagePattern: "/Lookups/LineDirectorates/",
-            showInQuickLinks: true),
-
-        Entry(
-            AdminNavigationKeys.ArppReferenceData,
-            AdminNavigationGroups.MasterData,
-            195,
+            "Directorates linked to a project's sponsor.",
+            "line directorate, directorate, line dte",
+            matchPagePattern: "/Lookups/LineDirectorates/", showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre),
+        Entry(AdminNavigationKeys.ActivityTypes, AdminNavigationGroups.ReferenceLists, 195,
+            Item("Activity types", "Admin", "/ActivityTypes/Index", "bi-list-task", AdminPolicies.ActivityTypesManage),
+            "The kinds of activity people can record in planning and reports.",
+            "activity type, activities, classification",
+            matchPagePattern: "/ActivityTypes/", showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre),
+        Entry(AdminNavigationKeys.ArppReferenceData, AdminNavigationGroups.ReferenceLists, 197,
             Item("ARPP reference data", "Admin", "/MasterData/ArppReferences/Index", "bi-list-check", AdminPolicies.MasterDataManage),
-            matchPagePattern: "/MasterData/ArppReferences/",
-            showInQuickLinks: true),
+            "The CFA, Fund and DFPDS values offered in the ARPP workspace.",
+            "arpp, cfa, fund, dfpds, schedule",
+            matchPagePattern: "/MasterData/ArppReferences/", showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MasterDataCentre),
+        Entry(AdminNavigationKeys.DocumentTypes, AdminNavigationGroups.ReferenceLists, 198,
+            Item("Document types", "DocumentRepository", "/Admin/DocumentCategories/Index", "bi-folder2", Policies.Documents.ManageCategories),
+            "The kinds of document people file in the Document Repository.",
+            "document categories, document type, docrepo, repository",
+            matchPagePattern: "/Admin/DocumentCategories/", inSidebar: false, usesAdminShell: false),
+        Entry(AdminNavigationKeys.DocumentOffices, AdminNavigationGroups.ReferenceLists, 199,
+            Item("Offices", "DocumentRepository", "/Admin/OfficeCategories/Index", "bi-building-gear", Policies.Documents.ManageCategories),
+            "The offices a Document Repository file can belong to.",
+            "office categories, offices, docrepo, repository",
+            matchPagePattern: "/Admin/OfficeCategories/", inSidebar: false, usesAdminShell: false),
+        Entry(AdminNavigationKeys.Holidays, AdminNavigationGroups.ReferenceLists, 200,
+            Item("Holidays", string.Empty, "/Settings/Holidays/Index", "bi-calendar-week", AdminPolicies.HolidaysManage),
+            "Gazetted and restricted holidays, and which ones the office observes.",
+            "holiday, gazetted, restricted, closed, leave, calendar",
+            matchPagePattern: "/Settings/Holidays/", showInQuickLinks: true),
+        Entry(AdminNavigationKeys.Celebrations, AdminNavigationGroups.ReferenceLists, 205,
+            Item("Celebrations", string.Empty, "/Celebrations/Index", "bi-stars", Policies.Calendar.ManageCelebrations),
+            "Birthdays and anniversaries shown on the shared calendar.",
+            "birthday, anniversary, calendar",
+            matchPagePattern: "/Celebrations/", showInQuickLinks: true),
 
-        Entry(
-            AdminNavigationKeys.Help,
-            AdminNavigationGroups.Help,
-            200,
-            Item("Admin help", "Admin", "/Help/Index", "bi-question-circle", AdminPolicies.Access),
-            matchPagePattern: "/Help/",
-            showInQuickLinks: true)
+        // System
+        Entry(AdminNavigationKeys.DatabaseHealth, AdminNavigationGroups.System, 300,
+            Item("System health", "Admin", "/Diagnostics/DbHealth", "bi-heart-pulse", AdminPolicies.SecurityView),
+            "Check the database, storage, background jobs and keys, and run the checks again.",
+            "diagnostics, database, server, status, health, workers",
+            exactPage: true, showOnDashboard: true, showInQuickLinks: true),
+        Entry(AdminNavigationKeys.SearchIndex, AdminNavigationGroups.System, 305,
+            Item("Search index", "Admin", "/Diagnostics/SearchIndex", "bi-search", AdminPolicies.SecurityView),
+            "Whether PRISM search is up to date, and rebuild it if results look wrong.",
+            "search, index, rebuild, results missing",
+            exactPage: true, showInQuickLinks: true),
+        Entry(AdminNavigationKeys.MaintenanceCentre, AdminNavigationGroups.System, 310,
+            Item("Data jobs", "Admin", "/Maintenance/Index", "bi-tools", AdminPolicies.IngestionManage),
+            "Copy FFC, IPR and activity PDFs into the Document Repository, or import legacy projects from Excel.",
+            "maintenance centre, maintenance, ingestion, import, jobs",
+            exactPage: true, showOnDashboard: true),
+        Entry(AdminNavigationKeys.PdfIngestion, AdminNavigationGroups.System, 315,
+            Item("PDF ingestion", "Admin", "/Documents/IngestExternalPdfs", "bi-file-earmark-arrow-up", AdminPolicies.IngestionManage),
+            "Copy FFC, IPR and activity PDFs into the Document Repository so they can be searched.",
+            "pdf, ingest, ingestion, copy documents, repository",
+            exactPage: true, showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MaintenanceCentre),
+        Entry(AdminNavigationKeys.LegacyImport, AdminNavigationGroups.System, 320,
+            Item("Legacy project import", "ProjectOfficeReports", "/Projects/LegacyImport", "bi-database-up", AdminPolicies.IngestionManage),
+            "Import older projects from an Excel workbook after a preview.",
+            "legacy import, excel, import projects, migration",
+            exactPage: true, showInQuickLinks: true, inSidebar: false, sidebarParent: AdminNavigationKeys.MaintenanceCentre),
+        Entry(AdminNavigationKeys.MasterDataIntegrity, AdminNavigationGroups.System, 325,
+            Item("Data checks", "Admin", "/MasterData/Integrity/Index", "bi-clipboard2-check", AdminPolicies.IntegrityManage),
+            "Find and fix problems in the reference lists, such as gaps in display order or duplicate names.",
+            "configuration integrity, integrity, validation, duplicates, order",
+            matchPagePattern: "/MasterData/Integrity/", showOnDashboard: true),
+        Entry(AdminNavigationKeys.DocumentDeleteRequests, AdminNavigationGroups.System, 330,
+            Item("Document deletion approvals", "DocumentRepository", "/Admin/DeleteRequests/Index", "bi-file-earmark-x", Policies.Documents.DeleteApprove),
+            "Approve or reject requests to delete Document Repository files.",
+            "document repository, docrepo, delete requests, approvals",
+            matchPagePattern: "/Admin/DeleteRequests/", usesAdminShell: false),
+        Entry(AdminNavigationKeys.UnreadablePdfs, AdminNavigationGroups.System, 335,
+            Item("Unreadable PDFs", "DocumentRepository", "/Admin/OCRFailures/OcrFailures", "bi-file-earmark-break", Policies.Documents.DeleteApprove),
+            "Document Repository PDFs whose text could not be read, so they cannot be searched; retry them.",
+            "ocr, ocr failures, scanned, text not found, docrepo",
+            matchPagePattern: "/Admin/OCRFailures/", inSidebar: false, usesAdminShell: false),
+        Entry(AdminNavigationKeys.MissingDocumentFiles, AdminNavigationGroups.System, 340,
+            Item("Missing files", "DocumentRepository", "/Admin/MissingFiles", "bi-file-earmark-excl", Policies.Documents.DeleteApprove),
+            "Document Repository records whose file is missing on disk.",
+            "missing files, broken documents, docrepo, storage",
+            exactPage: true, inSidebar: false, usesAdminShell: false),
+        Entry(AdminNavigationKeys.MediaSources, AdminNavigationGroups.System, 345,
+            Item("Media Sources", string.Empty, "/Admin/MediaSources/Index", "bi-images", AdminPolicies.MediaView),
+            "The folders PRISM reads photos and videos from, and the media processing queue.",
+            "media library, photos, folders, sources, queue",
+            matchPagePattern: "/Admin/MediaSources/", usesAdminShell: false),
+        Entry(AdminNavigationKeys.MediaIntelligence, AdminNavigationGroups.System, 350,
+            Item("Media intelligence", string.Empty, "/Admin/MediaIntelligence/Index", "bi-person-bounding-box", AdminPolicies.MediaView),
+            "Face detection and identity matching for the photo library.",
+            "faces, people in photos, identity, media",
+            exactPage: true, inSidebar: false, usesAdminShell: false),
+        Entry(AdminNavigationKeys.MediaClassification, AdminNavigationGroups.System, 355,
+            Item("Classification review", string.Empty, "/Admin/MediaIntelligence/Classifications", "bi-tags", AdminPolicies.MediaView),
+            "Check and correct whether each image is a photograph, a document or a graphic.",
+            "photo classification, reclassify, media",
+            exactPage: true, inSidebar: false, usesAdminShell: false),
+        Entry(AdminNavigationKeys.ChatStorage, AdminNavigationGroups.System, 360,
+            Item("Chat file storage", "Admin", "/Chat/Storage", "bi-paperclip", AdminPolicies.RecoveryManage),
+            "How much space chat files use, clean-ups with undo, and the automatic retention rule.",
+            "chat storage, chat attachments, files, space, retention",
+            exactPage: true),
+
+        // Help
+        Entry(AdminNavigationKeys.Help, AdminNavigationGroups.Help, 400,
+            Item("Administration guide", "Admin", "/Help/Index", "bi-question-circle", AdminPolicies.Access),
+            "How Administration works: access, monitoring, recovery, data jobs and reference lists.",
+            "help, admin help, guide, how to, manual",
+            matchPagePattern: "/Help/", showInQuickLinks: true)
     };
 
     public static IReadOnlyList<AdminNavigationEntry> Entries => Catalog;
 
+    // The sidebar, the module bar and the main menu's Administration panel show the same
+    // entries: pages reached through another page are left out (they stay searchable).
     public static IReadOnlyList<NavigationItem> BuildModuleItems() =>
-        Catalog.OrderBy(entry => entry.Order).Select(entry => entry.Item).ToArray();
+        Catalog.Where(entry => entry.InSidebar).OrderBy(entry => entry.Order).Select(entry => entry.Item).ToArray();
 
     public static NavigationItem Get(string key) =>
         GetEntry(key).Item;
@@ -383,7 +377,7 @@ public static class AdminNavigationCatalog
             return true;
         }
 
-        return Catalog.Any(entry => entry.Match.Matches(currentArea, currentPage, query));
+        return Catalog.Any(entry => entry.UsesAdminShell && entry.Match.Matches(currentArea, currentPage, query));
     }
 
     public static AdminNavigationEntry? FindActiveEntry(
@@ -410,11 +404,16 @@ public static class AdminNavigationCatalog
         string group,
         int order,
         NavigationItem item,
+        string description,
+        string keywords,
         string? matchPagePattern = null,
         bool exactPage = false,
         IReadOnlyDictionary<string, string?>? requiredQuery = null,
         bool showOnDashboard = false,
-        bool showInQuickLinks = false)
+        bool showInQuickLinks = false,
+        bool inSidebar = true,
+        string? sidebarParent = null,
+        bool usesAdminShell = true)
     {
         var pagePattern = matchPagePattern ?? item.Page
             ?? throw new InvalidOperationException($"Admin navigation entry '{key}' must define a page.");
@@ -426,7 +425,12 @@ public static class AdminNavigationCatalog
             item,
             new AdminNavigationMatch(item.Area ?? string.Empty, pagePattern, exactPage, requiredQuery),
             showOnDashboard,
-            showInQuickLinks);
+            showInQuickLinks,
+            description,
+            keywords,
+            inSidebar,
+            sidebarParent,
+            usesAdminShell);
     }
 
     private static NavigationItem Item(

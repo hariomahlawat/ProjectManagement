@@ -27,8 +27,12 @@ public sealed class AdminSidebarViewComponent : ViewComponent
             currentPage,
             HttpContext.Request.Query);
 
+        // A page reached through another page (a hub's own pages) is not in the sidebar; while
+        // it is open, the page that leads to it is highlighted instead.
+        var activeKey = activeEntry?.SidebarParent ?? activeEntry?.Key;
+
         var visibleEntries = new List<AdminSidebarItemViewModel>();
-        foreach (var entry in AdminNavigationCatalog.Entries.OrderBy(entry => entry.Order))
+        foreach (var entry in AdminNavigationCatalog.Entries.Where(entry => entry.InSidebar).OrderBy(entry => entry.Order))
         {
             if (!await IsAuthorizedAsync(entry))
             {
@@ -41,7 +45,9 @@ public sealed class AdminSidebarViewComponent : ViewComponent
                 Text = entry.Item.Text,
                 Icon = entry.Item.Icon,
                 Url = _urlBuilder.GetPath(HttpContext, entry.Item),
-                IsActive = string.Equals(entry.Key, activeEntry?.Key, StringComparison.Ordinal)
+                IsActive = string.Equals(entry.Key, activeKey, StringComparison.Ordinal),
+                Description = entry.Description,
+                Keywords = entry.Keywords
             });
         }
 
@@ -109,6 +115,8 @@ public sealed class AdminSidebarGroupViewModel
         Array.Empty<AdminSidebarItemViewModel>();
 
     public bool IsActive => Items.Any(item => item.IsActive);
+
+    public bool IsHome => string.Equals(Name, AdminNavigationGroups.Home, StringComparison.Ordinal);
 }
 
 public sealed class AdminSidebarItemViewModel
@@ -120,6 +128,10 @@ public sealed class AdminSidebarItemViewModel
     public string? Icon { get; init; }
 
     public string? Url { get; init; }
+
+    public string Description { get; init; } = string.Empty;
+
+    public string Keywords { get; init; } = string.Empty;
 
     public bool IsActive { get; init; }
 }

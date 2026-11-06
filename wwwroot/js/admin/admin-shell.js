@@ -3,7 +3,7 @@
 
     const roots = document.querySelectorAll(".admin-sidebar, .admin-sidebar-offcanvas__body");
     const offcanvasElement = document.getElementById("adminSidebarOffcanvas");
-    const storageKey = "prism.admin.sidebar.groups.v2";
+    const storageKey = "prism.admin.sidebar.groups.v3";
 
     const readState = () => {
         try {
