@@ -627,6 +627,7 @@ builder.Services.AddSingleton<IAdminAuditPayloadParser, AdminAuditPayloadParser>
 builder.Services.AddSingleton<IAdminAuditEntityLinkResolver, AdminAuditEntityLinkResolver>();
 builder.Services.AddSingleton<IAdminWorkerStatusRegistry, AdminWorkerStatusRegistry>();
 builder.Services.AddSingleton<IAdminNavigationUrlBuilder, AdminNavigationUrlBuilder>();
+builder.Services.AddScoped<IAdminNavigationAccess, AdminNavigationAccess>();
 builder.Services.AddScoped<IUserAccountStateResolver, UserAccountStateResolver>();
 builder.Services.AddScoped<ISafeCsvWriter, SafeCsvWriter>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
