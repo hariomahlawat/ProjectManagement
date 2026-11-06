@@ -506,3 +506,21 @@ test('after a reload the Checks filter is still applied', async () => {
   assert.ok(rows.some((text) => text.includes('Alpha simulator')));
   assert.ok(!rows.some((text) => text.includes('Charlie range')), 'projects with the remark recorded are filtered out');
 });
+
+test('This slide leaves the proliferation cost out when the server says the slides do', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload({
+    projects: PROJECTS.map((item) => (item.projectId === 3
+      ? { ...item, showsProliferationCost: false, proliferationCost: { isAvailable: false } }
+      : { ...item, proliferationCost: { isAvailable: true, displayValue: '₹10 Lakh' } }))
+  }));
+  await settle(window);
+
+  outlineRow(document, 'Charlie range').click();
+  const labels = () => [...document.querySelectorAll('.pbd-inspector__facts dt')].map((node) => node.textContent);
+  assert.ok(!labels().includes('Proliferation'), 'an ongoing project without the cost does not list it');
+
+  outlineRow(document, 'Bravo trainer').click();
+  assert.ok(labels().includes('Proliferation'), 'a project the server shows it for still lists it');
+});
+

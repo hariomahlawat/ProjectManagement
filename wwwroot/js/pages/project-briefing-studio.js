@@ -832,8 +832,9 @@ if (root) {
       };
       // Each field once: a cost listed under Gaps is not repeated here.
       if (!missing.includes('costRd')) facts.append(fact('Cost (R&D)', project.costRd?.displayValue || 'Not recorded', project.costRd?.basisDisplay));
-      // An ongoing project's proliferation cost is shown only when recorded (owner, 6 Nov 2026).
-      const showsProliferation = project.proliferationCost?.isAvailable || project.lifecycleStatus === 'Completed';
+      // Whether the proliferation cost shows is the server's resolved rule (an ongoing project's
+      // only when recorded); missing from older payloads, it is shown as before.
+      const showsProliferation = project.showsProliferationCost !== false;
       if (showsProliferation && !missing.includes('proliferationCost')) facts.append(fact('Proliferation', project.proliferationCost?.displayValue || 'Not recorded'));
       facts.append(entry.indices.length
         ? fact('Slides', plural(entry.indices.length, 'slide'), entry.indices.map((index) => slides[index]?.number).join(', '))

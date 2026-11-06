@@ -28,6 +28,23 @@ public sealed class ProjectBriefingContentGapsTests
     }
 
     [Fact]
+    public void ProjectModel_PublishesWhetherTheProliferationCostShows()
+    {
+        // The Studio reads the server's resolved rule instead of keeping its own (Codex, #2938).
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var ongoing = System.Text.Json.JsonSerializer.Serialize(EmptyProject(1), options);
+        var completed = System.Text.Json.JsonSerializer.Serialize(new ProjectBriefingProjectVm
+        {
+            ProjectId = 2,
+            ProjectName = "Project 2",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        }, options);
+
+        Assert.Contains("\"showsProliferationCost\":false", ongoing, StringComparison.Ordinal);
+        Assert.Contains("\"showsProliferationCost\":true", completed, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProliferationCost_IsOnlyAGapOnceTheProjectIsCompleted()
     {
         // Owner, 6 Nov 2026: a proliferation cost is only expected once a project is completed.
