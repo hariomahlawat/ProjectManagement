@@ -65,5 +65,27 @@
             </div>
         </details>
     }
+    @if (Model.SearchOnlyItems.Count > 0)
+    {
+        <div class="admin-sidebar__group admin-sidebar__search-only" data-admin-sidebar-search-only hidden>
+            <span class="admin-sidebar__group-label">More pages</span>
+            <div class="admin-sidebar__items">
+                @foreach (var item in Model.SearchOnlyItems.Where(item => !string.IsNullOrWhiteSpace(item.Url)))
+                {
+                    <a class="admin-sidebar__item"
+                       href="@item.Url"
+                       title="@item.Description"
+                       hidden
+                       data-admin-sidebar-search-only-link
+                       data-admin-sidebar-label="@($"{item.Text} {item.Keywords}".ToLowerInvariant())">
+                        <span class="admin-sidebar__item-icon" aria-hidden="true">
+                            <i class="bi @(item.Icon ?? "bi-circle")"></i>
+                        </span>
+                        <span class="admin-sidebar__item-text">@item.Text</span>
+                    </a>
+                }
+            </div>
+        </div>
+    }
     <p class="admin-sidebar__no-results" data-admin-sidebar-no-results hidden>Nothing matches. Try another word, such as "trash", "password" or "holiday".</p>
 </nav>

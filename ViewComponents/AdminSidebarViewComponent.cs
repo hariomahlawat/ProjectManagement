@@ -51,6 +51,28 @@ public sealed class AdminSidebarViewComponent : ViewComponent
             });
         }
 
+        // Pages reached through a hub are not in the sidebar, but its filter still finds them:
+        // they are rendered as search-only links, shown only while the administrator types.
+        var searchOnly = new List<AdminSidebarItemViewModel>();
+        foreach (var entry in AdminNavigationCatalog.Entries.Where(entry => !entry.InSidebar).OrderBy(entry => entry.Order))
+        {
+            if (!await IsAuthorizedAsync(entry))
+            {
+                continue;
+            }
+
+            searchOnly.Add(new AdminSidebarItemViewModel
+            {
+                Key = entry.Key,
+                Text = entry.Item.Text,
+                Icon = entry.Item.Icon,
+                Url = _urlBuilder.GetPath(HttpContext, entry.Item),
+                IsActive = false,
+                Description = entry.Description,
+                Keywords = entry.Keywords
+            });
+        }
+
         var groups = AdminNavigationGroups.Ordered
             .Select(groupName => new AdminSidebarGroupViewModel
             {
@@ -68,6 +90,7 @@ public sealed class AdminSidebarViewComponent : ViewComponent
         return View(new AdminSidebarViewModel
         {
             Groups = groups,
+            SearchOnlyItems = searchOnly,
             CurrentSection = activeEntry?.Item.Text ?? "Administration"
         });
     }
@@ -105,6 +128,9 @@ public sealed class AdminSidebarViewModel
         Array.Empty<AdminSidebarGroupViewModel>();
 
     public string CurrentSection { get; init; } = "Administration";
+
+    public IReadOnlyList<AdminSidebarItemViewModel> SearchOnlyItems { get; init; } =
+        Array.Empty<AdminSidebarItemViewModel>();
 }
 
 public sealed class AdminSidebarGroupViewModel

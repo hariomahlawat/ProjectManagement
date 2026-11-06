@@ -30,6 +30,8 @@
         const clear = root.querySelector("[data-admin-sidebar-search-clear]");
         const noResults = root.querySelector("[data-admin-sidebar-no-results]");
         const groups = Array.from(root.querySelectorAll("[data-admin-sidebar-group]"));
+        const searchOnly = root.querySelector("[data-admin-sidebar-search-only]");
+        const searchOnlyLinks = Array.from(root.querySelectorAll("[data-admin-sidebar-search-only-link]"));
         const savedState = readState();
 
         groups.forEach(group => {
@@ -83,6 +85,20 @@
                     group.open = true;
                 }
             });
+
+            // Pages that open from a hub appear only while searching.
+            let extraMatches = 0;
+            searchOnlyLinks.forEach(link => {
+                const matches = query.length > 0 && normalise(link.dataset.adminSidebarLabel).includes(query);
+                link.hidden = !matches;
+                if (matches) {
+                    extraMatches += 1;
+                }
+            });
+            if (searchOnly) {
+                searchOnly.hidden = extraMatches === 0;
+            }
+            visibleCount += extraMatches;
 
             if (clear) {
                 clear.hidden = query.length === 0;
