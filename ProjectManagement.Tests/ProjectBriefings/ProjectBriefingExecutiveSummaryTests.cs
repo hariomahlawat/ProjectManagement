@@ -56,6 +56,53 @@ public sealed class ProjectBriefingExecutiveSummaryTests
         Assert.Contains("₹18.5 Lakh", completed, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BriefPagination_ReservesNoRoomForAProliferationCardTheSlideLeavesOut()
+    {
+        // Codex review on #2938: pagination must count the cost cards the slide draws.
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 1,
+            DeckName = "Pagination",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.ProliferationOnly,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with
+            {
+                ShowPresentStage = false,
+                ShowPresentStatus = false
+            },
+            GeneratedAtUtc = DateTimeOffset.UtcNow
+        };
+        ProjectBriefingPresentationProject Ongoing(bool recorded, string brief) => new()
+        {
+            ProjectId = 1,
+            ProjectName = "AURA",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = recorded
+                ? new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.Proliferation, "₹10 Lakh", "Proliferation")
+                : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            ProjectBrief = brief,
+            BriefDescription = "Capability overview.",
+            SortOrder = 1
+        };
+
+        var sentence = "The trainer reproduces the full engagement sequence for the crew in realistic conditions. ";
+        var fewer = false;
+        for (var sentences = 4; sentences <= 60; sentences++)
+        {
+            var brief = string.Concat(Enumerable.Repeat(sentence, sentences));
+            var slidesWithout = ProjectBriefingSlideComposer.ProjectBriefSlideCount(data, Ongoing(recorded: false, brief));
+            var slidesWith = ProjectBriefingSlideComposer.ProjectBriefSlideCount(data, Ongoing(recorded: true, brief));
+            Assert.True(slidesWithout <= slidesWith, $"{sentences} sentences: {slidesWithout} > {slidesWith}");
+            fewer |= slidesWithout < slidesWith;
+        }
+
+        Assert.True(fewer, "Some brief length should fit on fewer slides once the strip is not drawn.");
+    }
+
     [Theory]
     [InlineData(ProjectLifecycleStatus.Active, false, false)]
     [InlineData(ProjectLifecycleStatus.Active, true, true)]
