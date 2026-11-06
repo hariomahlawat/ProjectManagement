@@ -157,7 +157,9 @@ public sealed class RequestModel : PageModel
             return Page();
         }
 
-        if (Input.SponsoringUnitId.HasValue)
+        // An inactive value is accepted when it is the one the project already has: retired
+        // master data stays on existing projects and must not block saving other changes.
+        if (Input.SponsoringUnitId.HasValue && Input.SponsoringUnitId != project.SponsoringUnitId)
         {
             var unitActive = await _db.SponsoringUnits
                 .AsNoTracking()
@@ -170,7 +172,7 @@ public sealed class RequestModel : PageModel
             }
         }
 
-        if (Input.SponsoringLineDirectorateId.HasValue)
+        if (Input.SponsoringLineDirectorateId.HasValue && Input.SponsoringLineDirectorateId != project.SponsoringLineDirectorateId)
         {
             var lineActive = await _db.LineDirectorates
                 .AsNoTracking()
@@ -183,7 +185,7 @@ public sealed class RequestModel : PageModel
             }
         }
 
-        if (Input.TechnicalCategoryId.HasValue)
+        if (Input.TechnicalCategoryId.HasValue && Input.TechnicalCategoryId != project.TechnicalCategoryId)
         {
             var technicalActive = await _db.TechnicalCategories
                 .AsNoTracking()
@@ -196,7 +198,7 @@ public sealed class RequestModel : PageModel
             }
         }
 
-        if (Input.ProjectTypeId.HasValue)
+        if (Input.ProjectTypeId.HasValue && Input.ProjectTypeId != project.ProjectTypeId)
         {
             var projectTypeActive = await _db.ProjectTypes
                 .AsNoTracking()
@@ -285,6 +287,28 @@ public sealed class RequestModel : PageModel
         }
 
         AddOptions(null, string.Empty);
+
+        // Keep the current category selectable when it is inactive or sits under an inactive
+        // parent; otherwise the form would post "(none)" and clear it.
+        if (selectedCategoryId.HasValue)
+        {
+            var selectedValue = selectedCategoryId.Value.ToString();
+            if (options.All(option => !string.Equals(option.Value, selectedValue, StringComparison.Ordinal)))
+            {
+                var selected = await _db.ProjectCategories
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == selectedCategoryId.Value, cancellationToken);
+
+                if (selected is not null)
+                {
+                    options.Add(new SelectListItem(
+                        selected.IsActive ? selected.Name : $"{selected.Name} (inactive)",
+                        selected.Id.ToString(),
+                        true));
+                }
+            }
+        }
+
         CategoryOptions = options;
     }
 

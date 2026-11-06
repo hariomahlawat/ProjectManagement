@@ -280,6 +280,28 @@ public sealed class ProjectMetaChangeDecisionServiceTests
         Assert.Equal(ProjectValidationMessages.DuplicateCaseFileNumber, result.Error);
     }
 
+    [Fact]
+    public async Task DecideAsync_ApprovesARequestThatKeepsTheProjectsInactiveTechnicalCategory()
+    {
+        await using var db = CreateContext();
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory { Id = 26, Name = "Retired", IsActive = false });
+        await db.SaveChangesAsync();
+        await SeedProjectAsync(db, "hod-owner", technicalCategoryId: 26);
+        await SeedRequestAsync(db, 1, payloadName: "Renamed", payloadTechnicalCategoryId: 26, originalTechnicalCategoryId: 26);
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 4, 9, 0, 0, TimeSpan.Zero));
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, new RecordingAudit());
+
+        var result = await service.DecideAsync(
+            new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, null),
+            new ProjectMetaDecisionUser("hod-owner", IsAdmin: false, IsHoD: true));
+
+        Assert.Equal(ProjectMetaDecisionOutcome.Success, result.Outcome);
+        var project = await db.Projects.AsNoTracking().SingleAsync(p => p.Id == 1);
+        Assert.Equal("Renamed", project.Name);
+        Assert.Equal(26, project.TechnicalCategoryId);
+    }
+
     private static async Task SeedProjectAsync(ApplicationDbContext db, string hodUserId, int? technicalCategoryId = null)
     {
         await db.Projects.AddAsync(new Project
