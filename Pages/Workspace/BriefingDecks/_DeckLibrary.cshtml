@@ -122,7 +122,7 @@
 
 <section class="pbd-library__section" aria-labelledby="pbd-all-decks-title" data-pbd-library>
     <div class="pbd-library__toolbar">
-        <h2 class="pbd-library__heading" id="pbd-all-decks-title">All decks · <span data-pbd-library-count>@Model.Decks.Count</span></h2>
+        <h2 class="pbd-library__heading" id="pbd-all-decks-title"><span data-pbd-library-title>All decks</span> · <span data-pbd-library-count>@Model.Decks.Count</span></h2>
         <div class="pbd-library__controls">
             <div class="pbd-segmented" role="group" aria-label="Show decks">
                 <button type="button" class="pbd-segmented__option" aria-pressed="false" data-pbd-library-scope="mine">Mine</button>
@@ -148,14 +148,11 @@
         <table class="pbd-library__table">
             <thead>
                 <tr>
-                    <th scope="col">Deck</th>
+                    <th scope="col" class="is-deck">Deck</th>
                     <th scope="col">Template</th>
                     <th scope="col" class="is-number">Projects</th>
-                    <th scope="col" class="is-number">Slides</th>
-                    <th scope="col">Owner</th>
-                    <th scope="col">Last edited</th>
-                    <th scope="col">Last generated</th>
-                    <th scope="col" title="What changed in the projects' data since the deck's last PowerPoint">Changed since</th>
+                    <th scope="col">Edited</th>
+                    <th scope="col">PowerPoint</th>
                     <th scope="col"><span class="visually-hidden">Actions</span></th>
                 </tr>
             </thead>
@@ -181,34 +178,32 @@
                         @* data-label: on a phone the table becomes cards, and each value carries its label. *@
                         <td class="is-date" data-label="Template">@deck.Purpose</td>
                         <td class="is-number" data-label="Projects">@deck.ProjectCount</td>
-                        @if (deck.LastGeneratedSlideCount is int slideCount)
-                        {
-                            <td class="is-number" data-label="Slides">@slideCount</td>
-                        }
-                        else
-                        {
-                            <td class="is-number" data-label="Slides"><span class="pbd-library__quiet" title="Counted when the PowerPoint is first generated. The Studio shows the count as you build.">—</span></td>
-                        }
-                        <td class="is-owner" title="@deck.CreatedByDisplay" data-label="Owner">@deck.CreatedByDisplay</td>
-                        <td class="is-date" title="@WhenFull(deck.UpdatedAtUtc) by @deck.LastModifiedByDisplay" data-label="Edited">@WhenShort(deck.UpdatedAtUtc)</td>
-                        <td class="is-date" title="@(deck.LastGeneratedAtUtc is { } generatedAt ? WhenFull(generatedAt) : null)" data-label="Generated">@(deck.LastGeneratedAtUtc is { } generated ? WhenShort(generated) : "Not yet")</td>
-                        <td class="is-changes" data-label="Changed since">
-                            @if (deck.LastGeneratedAtUtc is null)
+                        <td class="is-edited" data-label="Edited" title="@WhenFull(deck.UpdatedAtUtc) · created by @deck.CreatedByDisplay">
+                            @WhenShort(deck.UpdatedAtUtc)<small>@deck.LastModifiedByDisplay</small>
+                        </td>
+                        @* One status for the PowerPoint: whether there is one, how many slides, and whether
+                           the projects' data has moved since (the reason it may need generating again). *@
+                        <td class="is-powerpoint" data-label="PowerPoint">
+                            @if (deck.LastGeneratedAtUtc is not { } generatedOn)
                             {
-                                @* "Last generated" already says Not yet; this column only adds a dash. *@
-                                <span class="pbd-library__quiet" title="Changes are tracked from the first PowerPoint.">—</span>
-                            }
-                            else if (deck.DataMovement is null)
-                            {
-                                <span class="pbd-library__quiet" title="This deck was generated before changes were tracked. Generate it again to start.">—</span>
-                            }
-                            else if (deck.DataMovement.HasMoved)
-                            {
-                                <span class="pbd-library__moved" title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes")</span>
+                                <span class="pbd-library__quiet">@(deck.ProjectCount == 0 ? "No projects yet" : "Not generated")</span>
                             }
                             else
                             {
-                                <span class="pbd-library__quiet">Up to date</span>
+                                <span title="@WhenFull(generatedOn)">@WhenShort(generatedOn)@(deck.LastGeneratedSlideCount is int slides ? $" · {slides} slides" : string.Empty)</span>
+                                @if (deck.DataMovement is null)
+                                {
+                                    <small class="pbd-library__quiet">changes not tracked yet</small>
+                                }
+                                else if (deck.DataMovement.HasMoved)
+                                {
+                                    <a class="pbd-library__moved" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"
+                                       title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes") since</a>
+                                }
+                                else
+                                {
+                                    <small class="pbd-library__current">up to date</small>
+                                }
                             }
                         </td>
                         <td class="is-actions">
@@ -249,7 +244,10 @@
                 }
             </tbody>
         </table>
-        <p class="pbd-library__empty" data-pbd-library-empty hidden>No decks match. Clear the search or show all decks.</p>
+        <div class="pbd-library__empty" data-pbd-library-empty hidden>
+            <p data-pbd-library-empty-text>No decks match.</p>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-library-reset>Show all decks</button>
+        </div>
     </div>
 </section>
 

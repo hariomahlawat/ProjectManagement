@@ -5163,7 +5163,7 @@ span.pbd-additional-slide-row__handle {
 
 .pbd-library__table {
     width: 100%;
-    min-width: 64rem;
+    min-width: 52rem;
     border-collapse: collapse;
     font-size: .9rem;
 }
@@ -5899,6 +5899,63 @@ span.pbd-additional-slide-row__handle {
 
     .pbd-library__table .is-owner {
         max-width: none;
+    }
+}
+
+/* Library table (library PR 2): the deck name gets the room, edits and the PowerPoint status are
+   one cell each, and the page stops widening on large screens. */
+.pbd-library,
+.command-workspace--briefing-decks .pbd-page-header {
+    max-width: 84rem;
+}
+
+.pbd-library__table .is-deck {
+    width: 34%;
+}
+
+.pbd-library__table .is-edited,
+.pbd-library__table .is-powerpoint {
+    white-space: nowrap;
+}
+
+.pbd-library__table .is-edited small,
+.pbd-library__table .is-powerpoint small,
+.pbd-library__table .is-powerpoint .pbd-library__moved {
+    display: block;
+    font-size: .78rem;
+}
+
+.pbd-library__table .is-edited small {
+    color: var(--pbd-muted);
+}
+
+.pbd-library__current {
+    color: var(--pbd-green);
+}
+
+.pbd-library__empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem 1rem;
+    padding: 1rem 1.1rem;
+}
+
+.pbd-library__empty[hidden] {
+    display: none;
+}
+
+.pbd-library__empty p {
+    margin: 0;
+    color: var(--pbd-muted);
+}
+
+@media (max-width: 575.98px) {
+    .pbd-library__table .is-edited small,
+    .pbd-library__table .is-powerpoint small,
+    .pbd-library__table .is-powerpoint .pbd-library__moved {
+        display: inline;
+        margin-left: .3rem;
     }
 }
 
