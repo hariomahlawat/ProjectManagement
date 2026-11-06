@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ProjectManagement.Models.Analytics;
 
@@ -29,6 +30,17 @@ public sealed class CoeAnalyticsVm
     // SECTION: Sub-category project listings
     public IReadOnlyList<CoeSubcategoryProjectsVm> SubcategoryProjects { get; init; } =
         Array.Empty<CoeSubcategoryProjectsVm>();
+
+    /// <summary>Real sub-categories with a project; projects filed straight under a CoE parent category are not one.</summary>
+    public int SubcategoryCount => SubcategoryProjects.Count(bucket => !bucket.WithoutSubcategory);
+
+    /// <summary>Projects filed straight under a CoE parent category, with no sub-category.</summary>
+    public int ProjectsWithoutSubcategoryCount => SubcategoryProjects
+        .Where(bucket => bucket.WithoutSubcategory)
+        .Sum(bucket => bucket.Projects.Count);
+
+    /// <summary>Suffix on a CoE parent category's name for its projects that have no sub-category.</summary>
+    public const string WithoutSubcategorySuffix = " (no sub-category)";
     // END SECTION
 
     // SECTION: In-page drill-down for the stage chart (ongoing CoE projects by current stage)
@@ -84,7 +96,8 @@ public sealed record CoeSubcategoryProjectsVm(
     IReadOnlyList<CoeProjectSummaryVm> Projects,
     int OngoingCount = 0,
     int CompletedCount = 0,
-    int CancelledCount = 0);
+    int CancelledCount = 0,
+    bool WithoutSubcategory = false);
 
 public sealed record CoeProjectSummaryVm(
     int Id,

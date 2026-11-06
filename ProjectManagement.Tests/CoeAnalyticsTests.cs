@@ -156,6 +156,43 @@ public sealed class CoeAnalyticsTests : IDisposable
     }
 
     [Fact]
+    public async Task CoeTab_ProjectFiledUnderTheCoeParent_IsLabelledNoSubCategory_AndNotCountedAsOne()
+    {
+        var coeRoot = new ProjectCategory { Name = "CoE" };
+        var midTerm = new ProjectCategory { Name = "CoE Mid Term", Parent = coeRoot };
+        var shortTerm = new ProjectCategory { Name = "CoE Short Term", Parent = coeRoot };
+        _db.ProjectCategories.AddRange(coeRoot, midTerm, shortTerm);
+        await _db.SaveChangesAsync();
+
+        Project P(string name, ProjectCategory category) => new()
+        {
+            Name = name,
+            CategoryId = category.Id,
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            CreatedByUserId = "user",
+            WorkflowVersion = ProcurementWorkflow.VersionV1
+        };
+        _db.Projects.AddRange(P("Mid one", midTerm), P("Short one", shortTerm), P("Parent one", coeRoot));
+        await _db.SaveChangesAsync();
+
+        await _pageModel.OnGetAsync("coe", CancellationToken.None);
+        var coe = _pageModel.Coe!;
+
+        // The chart and the drill-down both name the parent row for what it is.
+        Assert.Contains(coe.SubcategoriesByLifecycle, bucket => bucket.Name == "CoE (no sub-category)" && bucket.Ongoing == 1);
+        Assert.DoesNotContain(coe.SubcategoriesByLifecycle, bucket => bucket.Name == "CoE");
+        var parentRow = Assert.Single(coe.SubcategoryProjects, bucket => bucket.WithoutSubcategory);
+        Assert.Equal("CoE (no sub-category)", parentRow.SubcategoryName);
+        Assert.Equal("Parent one", Assert.Single(parentRow.Projects).Name);
+
+        // The headline counts the two real sub-categories and says one project sits in none.
+        Assert.Equal(2, coe.SubcategoryCount);
+        var figure = Assert.Single(_pageModel.Headlines, f => f.Label == "Sub-categories");
+        Assert.Equal("2", figure.Value);
+        Assert.Equal("with at least one project · 1 project in none", figure.Hint);
+    }
+
+    [Fact]
     public async Task BuildCoeAsync_ReturnsAllSubcategoriesWithoutGrouping()
     {
         var coeRoot = new ProjectCategory { Name = "Centres of Excellence" };

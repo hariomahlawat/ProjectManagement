@@ -545,7 +545,8 @@ function initCoe(panel) {
               data: axis.map((stage) => stageSeries
                 .filter((p) => String(p.stageKey).toUpperCase() === stage.code.toUpperCase())
                 .reduce((sum, p) => sum + ensureNumber(p.projectCount ?? p.value), 0)),
-              backgroundColor: tokens.category.coe
+              // Ongoing blue, as in the lifecycle chart beside it: the CoE green reads as "Completed" there.
+              backgroundColor: lifecycleColor('Ongoing', tokens)
             }]
           },
           options: {
