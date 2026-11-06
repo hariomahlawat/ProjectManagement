@@ -188,6 +188,31 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Walkthrough_StudioHeaderIsOneBlockAndFixesFlowBack()
+    {
+        var page = Read("Index.cshtml");
+        var studio = Read("project-briefing-studio.js");
+        var css = Read("project-briefing-decks.css");
+
+        // No row of its own above the deck header: the way back is in the header, Switch deck
+        // beside Generate, New deck in the deck menu.
+        Assert.DoesNotContain("<nav class=\"pbd-studio-nav\"", page, StringComparison.Ordinal);
+        var header = page[page.IndexOf("<header class=\"pbd-deck-header\">", StringComparison.Ordinal)..page.IndexOf("</header>", page.IndexOf("<header class=\"pbd-deck-header\">", StringComparison.Ordinal), StringComparison.Ordinal)];
+        Assert.Contains("class=\"pbd-studio-nav__back\"", header, StringComparison.Ordinal);
+        Assert.Contains("Switch deck", header, StringComparison.Ordinal);
+        Assert.Contains("data-bs-target=\"#pbd-new-deck-modal\"><i class=\"bi bi-plus-lg\" aria-hidden=\"true\"></i> New deck</button>", header, StringComparison.Ordinal);
+
+        // A fix made in the project's tab shows when the person comes back.
+        Assert.Contains("document.addEventListener('visibilitychange', rebuildOnReturn);", studio, StringComparison.Ordinal);
+        Assert.Contains("href: (p) => `${p.openUrl}#remarks`", studio, StringComparison.Ordinal);
+
+        // Added stays readable when focused; the header icon shows in dark theme.
+        Assert.Contains(".pbd-quick-card .btn.is-added:focus,", css, StringComparison.Ordinal);
+        Assert.Contains("color: var(--pbd-surface);\n    font-size: 1.13rem;", css.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain(":where([data-bs-theme=\"dark\"]) .pbd-deck-header__mark {", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()
     {
         var page = Read("Index.cshtml");

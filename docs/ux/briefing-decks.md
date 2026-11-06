@@ -499,3 +499,28 @@ Owner decision: a template is a slide design; anything else is a setting the use
   offered and matches its design, otherwise the template for its design; "Set up by hand" is
   gone from New deck, the picker and the library. A deck whose settings differ from its
   template's reads "customised".
+
+## Walkthrough fixes (6 Nov 2026)
+
+A first-time-user walkthrough on master at 1366×768 (after the Studio usability plan and the
+template change) found:
+
+1. **"Added" unreadable.** After a quick add the focused button took Bootstrap's blue background
+   under green text. Added now keeps its green look in every state.
+2. **Header icon gone in dark theme.** The tile turns light there while the icon stayed white; the
+   icon now uses the surface colour, like the library's.
+3. **The slide started too low on laptops** (about 480 px down; a 1366×768 browser shows about
+   650 px). The Studio's own row above the header is gone: "← Briefing decks" sits in the header
+   where the "Briefing deck" eyebrow was, Switch deck beside Generate, New deck in the ⋯ menu.
+   The line under the slide is one line ("62 slides · built … from current PRISM data", the
+   promise about Generate on hover).
+4. **Fixes did not show on return.** Coming back to the Studio tab (or window) rebuilds the slides
+   quietly: at most every 15 seconds, never while a build runs, while presenting or while typing.
+5. **"Fix in project" for a status remark** opens the project at its remarks section (`#remarks`,
+   which the project page already opens). The cost gaps still open the project page; it has no
+   cost section to land on.
+
+Left for later: the library table is cramped with the rail expanded at 1366 (owner and dates wrap;
+"Data since: Not generated yet" repeats "Last generated: Not yet"), the "… projects added" line
+stays in the outline, and Add projects has only × to finish.
+
