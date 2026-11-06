@@ -64,10 +64,14 @@ What is left falls into three kinds:
    - One finding is listed twice.
    - Normal states are amber: a single Commandant, an Admin who is also HoD.
    - Holder lists are cut off without "+N more" (8 of 15 shown).
-8. **List order is broken.** Every value has display order 1 in Project types, Sponsoring
-   units and Line directorates, and 100 in the repository lists, so the arrows do nothing.
-   Data checks finds the first three but not the repository lists, and its fix is on another
-   page.
+8. **List order data has repeats.**
+   - Every value has display order 1 in Project types, Sponsoring units and Line directorates,
+     and 100 in the repository lists, so until someone moves a value the lists sort by name.
+   - Moving works: the up/down arrows renumber the whole list
+     (`AdminMasterDataCommandService.ReorderAsync`). The repeats come from how values are
+     created or from older data.
+   - Data checks finds the first three but not the repository lists, and its fix is on another
+     page.
 9. **Jargon on second-level pages.**
    - Search index: "Projection 7/7", "atomic generation activation", "Search V2 ranker".
    - Media sources: "projected durably", "Outbox", "dead-letter", raw config keys.
@@ -123,7 +127,7 @@ What is left falls into three kinds:
 | 6 | **Code guards.** Category tree: visited set in the script and the server so a cycle cannot loop or render twice, with a JS test; a reflection test that every admin page model has a policy (and matches its catalogue entry); `SearchLikePattern` in every admin search; `SafeCsv` for the PDF failure export; ERP usage export computed once | M10, M11, Low |
 | 7 | **One name for each thing.** Page titles equal catalogue names (Chat file storage, ARPP values, Legacy project import back link, Create user); one role display-name map used on every page, legacy role hidden; "sign-in" everywhere; the guide's body text renamed | M5, M6, Low |
 | 8 | **Who has which role tells the truth.** One findings count; no duplicates; single-holder and Admin+HoD neutral; "+N more" on holder lists; tiles two per row on phones | M7, Low |
-| 9 | **List order works.** Saving keeps a list numbered 1, 2, 3…; repository lists included in Data checks; each list page shows its own order problem with the renumber button | M8 |
+| 9 | **List order data.** New values get the next number instead of a fixed 1 or 100 (moving already renumbers and is left as it is); repository lists included in Data checks, and their move behaviour checked; each list page shows its own order problem with the renumber button | M8 |
 | 10 | **Plain words on the second-level pages.** Search index, Media sources, Media intelligence, Legacy import, PDF ingestion, Sign-in activity, ERP usage, the user page and the bin tiles; technical detail behind "Technical details"; the jargon test widened to these pages; "View all sign-ins" opens a period that includes the user's last sign-in | M9, M12 |
 | 11 | **Phone and empty-state polish.** Users table without sideways scroll; badges that wrap; empty bins show one plain empty state; `/` focuses the page's own filter on Every admin page; social media lists say "Deactivate"; then a signed-in recheck of every page at desktop, phone and dark | Low |
 
