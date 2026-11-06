@@ -1,6 +1,12 @@
 (() => {
     'use strict';
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
+
     const root = document.querySelector('[data-multi-jdp-root]');
     if (!root) return;
 
@@ -256,8 +262,16 @@
         searchInput?.focus();
     };
 
-    const closeAdd = ({ confirmDirty = true } = {}) => {
-        if (confirmDirty && dirty && !window.confirm('Discard the selected JDP?')) return false;
+    const discardJdp = () => askConfirm({
+        tone: 'warning',
+        title: 'Discard the selected JDP?',
+        message: 'It has not been added to the project.',
+        confirmText: 'Discard',
+        cancelText: 'Keep it'
+    });
+
+    const closeAdd = async ({ confirmDirty = true } = {}) => {
+        if (confirmDirty && dirty && !(await discardJdp())) return false;
         resetAdd();
         addForm?.classList.add('d-none');
         showAddButton?.classList.remove('d-none');
@@ -360,8 +374,16 @@
         const button = event.target.closest('[data-multi-jdp-remove]');
         if (!button || busy) return;
 
-        const name = button.dataset.partnerName || 'this JDP';
-        if (!window.confirm(`Remove ${name} as a JDP for this project?`)) return;
+        const name = button.dataset.partnerName || 'This JDP';
+        const accepted = await askConfirm({
+            tone: 'danger',
+            title: 'Remove this JDP from the project?',
+            message: 'It stops being listed as a JDP for this project.',
+            subject: { icon: 'bi-building', name },
+            confirmText: 'Remove JDP',
+            cancelText: 'Keep JDP'
+        });
+        if (!accepted || busy) return;
 
         setBusy(true);
         try {
@@ -377,10 +399,20 @@
     });
 
     drawer?.addEventListener('show.bs.offcanvas', loadProfile);
+    // Bootstrap needs the answer now, so the close is held, the question asked, and the
+    // drawer closed again only if the user agrees.
+    let closeApproved = false;
     drawer?.addEventListener('hide.bs.offcanvas', event => {
-        if (dirty && !window.confirm('Discard the selected JDP?')) {
-            event.preventDefault();
+        if (!dirty || closeApproved) {
+            closeApproved = false;
+            return;
         }
+        event.preventDefault();
+        discardJdp().then(accepted => {
+            if (!accepted) return;
+            closeApproved = true;
+            window.bootstrap?.Offcanvas.getOrCreateInstance(drawer).hide();
+        });
     });
 
 })();

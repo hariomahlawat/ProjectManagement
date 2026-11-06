@@ -1,6 +1,12 @@
 (() => {
     "use strict";
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
+
     const form = document.querySelector("[data-brochure-form]");
     if (!(form instanceof HTMLFormElement)) return;
 
@@ -595,12 +601,18 @@
         return url.toString();
     };
 
-    const navigateToPreset = (id, { force = false } = {}) => {
+    const navigateToPreset = async (id, { force = false } = {}) => {
         if (!force && renderPresetDirtyState()) {
-            const message = canManagePresets
-                ? "Your current brochure has unsaved configuration changes. Discard them and load another saved brochure?"
-                : "Your current brochure has local changes. Discard them and load another saved brochure?";
-            if (!window.confirm(message)) {
+            const accepted = await askConfirm({
+                tone: "warning",
+                title: "Load another saved brochure?",
+                message: canManagePresets
+                    ? "Your current brochure has unsaved configuration changes. They will be discarded."
+                    : "Your current brochure has local changes. They will be discarded.",
+                confirmText: "Discard and load",
+                cancelText: "Keep editing"
+            });
+            if (!accepted) {
                 updatePresetSelector();
                 return;
             }
@@ -2761,14 +2773,20 @@
         renderSelected(true);
     });
 
-    clearButton?.addEventListener("click", () => {
+    clearButton?.addEventListener("click", async () => {
         if (!orderedIds.length) return;
         const approved = reviewedCount();
-        const detail = approved > 0
-            ? ` This working selection also contains ${approved} publication approval${approved === 1 ? "" : "s"}.`
-            : "";
-        const confirmed = window.confirm(`Clear all ${orderedIds.length} selected project${orderedIds.length === 1 ? "" : "s"}?${detail}`);
-        if (!confirmed) return;
+        const count = orderedIds.length;
+        const confirmed = await askConfirm({
+            tone: "danger",
+            title: `Clear all ${count} selected project${count === 1 ? "" : "s"}?`,
+            message: approved > 0
+                ? `This working selection also contains ${approved} publication approval${approved === 1 ? "" : "s"}, which will be cleared too.`
+                : "The brochure selection starts again from empty.",
+            confirmText: "Clear selection",
+            cancelText: "Keep selection"
+        });
+        if (!confirmed || !orderedIds.length) return;
 
         smartFlowUndoOrder = null;
         orderedIds = [];
@@ -2837,8 +2855,15 @@
         });
     });
 
-    restoreApprovedPrint?.addEventListener("click", () => {
-        const shouldRestore = window.confirm("Restore all institutional publication text to the approved reference wording?");
+    restoreApprovedPrint?.addEventListener("click", async () => {
+        const shouldRestore = await askConfirm({
+            tone: "warning",
+            icon: "bi-arrow-counterclockwise",
+            title: "Restore the approved wording?",
+            message: "All institutional publication text goes back to the approved reference wording. Your edits to it are replaced.",
+            confirmText: "Restore wording",
+            cancelText: "Keep my text"
+        });
         if (!shouldRestore) return;
 
         printMatterFields.forEach(field => {
@@ -3083,7 +3108,14 @@
             return;
         }
         const preset = currentPreset();
-        if (!window.confirm(`Update shared brochure “${preset?.name || "this brochure"}”? Changes will be available to all authorised Publications users.`)) return;
+        const accepted = await askConfirm({
+            title: "Update this shared brochure?",
+            message: "Changes will be available to all authorised Publications users.",
+            subject: { icon: "bi-journal-richtext", name: preset?.name || "This brochure" },
+            confirmText: "Update brochure",
+            cancelText: "Cancel"
+        });
+        if (!accepted || presetMutationBusy) return;
         presetOperationTargetId = activePresetId;
         setPresetMutationBusy(true);
         syncHiddenInputs();
@@ -3227,7 +3259,16 @@
     const deletePreset = async id => {
         const preset = getPreset(id);
         if (!preset || !canManagePresets || presetMutationBusy) return;
-        if (!window.confirm(`Delete shared brochure “${preset.name}”? It will no longer be available to users. Existing generated PDFs are unaffected.`)) return;
+        const accepted = await askConfirm({
+            tone: "danger",
+            title: "Delete this shared brochure?",
+            message: "It will no longer be available to users.",
+            subject: { icon: "bi-journal-richtext", name: preset.name },
+            note: "PDFs already generated from it are not affected.",
+            confirmText: "Delete brochure",
+            cancelText: "Keep brochure"
+        });
+        if (!accepted || presetMutationBusy) return;
         setPresetMutationBusy(true);
         const payload = antiforgeryFormData();
         payload.append("presetId", String(preset.id));

@@ -1,6 +1,12 @@
 (() => {
   'use strict';
 
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askConfirm = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
+
   const form = document.querySelector('[data-completed-project-edit-form]');
   if (!(form instanceof HTMLFormElement)) return;
 
@@ -68,7 +74,19 @@
 
   const confirmNavigation = (event) => {
     if (!dirty || submitting) return;
-    if (!window.confirm('Discard the unsaved changes?')) event.preventDefault();
+    const link = event.currentTarget;
+    event.preventDefault();
+    askConfirm({
+      tone: 'warning',
+      title: 'Discard the unsaved changes?',
+      message: 'Your edits to this summary have not been saved.',
+      confirmText: 'Discard changes',
+      cancelText: 'Keep editing'
+    }).then((accepted) => {
+      if (!accepted) return;
+      dirty = false;
+      if (link instanceof HTMLAnchorElement && link.href) window.location.assign(link.href);
+    });
   };
 
   document.querySelectorAll('[data-cancel-edit]').forEach((link) => {

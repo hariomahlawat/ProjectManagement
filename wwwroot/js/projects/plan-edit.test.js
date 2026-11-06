@@ -89,6 +89,34 @@ test('routed Duration form initializes status and autosaves its entered values',
   assert.match(h.status(), /^Saved/);
 });
 
+test('declining "save this tab only" does not start an autosave that was not queued', async (t) => {
+  const h = setup(t);
+  // Only the Exact tab has edits; the Durations form is untouched, so nothing is queued.
+  h.window.document.querySelector('#exactPlanForm input[name="Input.Mode"]')
+    .dispatchEvent(new h.window.Event('input', { bubbles: true }));
+  h.window.confirm = () => false;
+  h.click('SaveChanges');
+  await tick();
+  assert.equal(h.timers.size, 0, 'no autosave queued after "Go back"');
+  await h.autosave();
+  assert.equal(h.calls.length, 0, 'no Durations draft is written');
+  assert.equal(h.submissions.length, 0);
+});
+
+test('declining "save this tab only" resumes a Durations autosave that was queued', async (t) => {
+  const h = setup(t);
+  h.input();
+  assert.equal(h.timers.size, 1);
+  h.window.confirm = () => false;
+  h.window.document.querySelector('#exactPlanForm button').click();
+  assert.equal(h.timers.size, 0, 'held while the question is open');
+  await tick();
+  assert.equal(h.timers.size, 1, 'the queued save comes back after "Go back"');
+  await h.autosave();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.submissions.length, 0);
+});
+
 test('marked Exact form also receives explicit submission protection', async (t) => {
   const h = setup(t);
   h.input();
