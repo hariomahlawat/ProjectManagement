@@ -1,102 +1,764 @@
-/* ===========================
-   DEVELOPER CARD LAYOUT
-   =========================== */
-.developer-card {
-    background: white;
-    border-radius: 18px;
-    padding: 24px;
-    max-width: 820px;
-    margin: 0 auto;
-    border: 1px solid var(--pm-border-faint);
+/* =============================================================
+   ABOUT (Pages/Developer.cshtml, "About" in the signed-in footer)
+
+   The maker first. The SDD archer looses an arrow and its light
+   opens into the six-colour spectrum behind the developer's name.
+   Then the work (PRISM ERP: the prism icon and its six areas) and,
+   last, this installation's build for fault reports.
+
+   Loaded after landing.css and uses its tokens and glass recipe;
+   no colour literals here. Motion: the hero plays once on load,
+   lower sections rise in as they scroll into view
+   (about-prism.js adds .is-ready / .is-in). Reduce Motion shows
+   everything at rest; Reduce Transparency gets solid panes.
+   ============================================================= */
+
+/* Signed in there is no header capsule to slide under (landing.css pulls main up for it). */
+body:has(.about) main {
+    margin-top: 0;
 }
 
-/* ===========================
-   HEADER
-   =========================== */
-.developer-header {
+.about {
+    --about-emblem: clamp(8.5rem, 14vw, 11rem);
+    --about-icon: clamp(96px, 9vw, 116px);
+    --about-spring: cubic-bezier(0.16, 1, 0.3, 1);
+    --about-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
+    padding-bottom: clamp(3.5rem, 8vw, 5.5rem);
+}
+
+.lp-aurora--about {
+    inset: -8rem -6% auto;
+    height: 62rem;
+    opacity: var(--lp-aurora-hero-alpha);
+    background:
+        radial-gradient(22% 28% at 50% 24%, color-mix(in srgb, var(--lp-spec-2) 40%, transparent), transparent 70%),
+        radial-gradient(22% 30% at 20% 30%, color-mix(in srgb, var(--lp-spec-5) 40%, transparent), transparent 70%),
+        radial-gradient(24% 32% at 82% 26%, color-mix(in srgb, var(--lp-spec-6) 45%, transparent), transparent 70%),
+        radial-gradient(22% 26% at 14% 62%, color-mix(in srgb, var(--lp-spec-1) 26%, transparent), transparent 70%),
+        radial-gradient(20% 26% at 86% 60%, color-mix(in srgb, var(--lp-spec-4) 34%, transparent), transparent 70%);
+    -webkit-mask-image: linear-gradient(180deg, var(--lp-shadow) 0%, var(--lp-shadow) 50%, transparent 92%);
+    mask-image: linear-gradient(180deg, var(--lp-shadow) 0%, var(--lp-shadow) 50%, transparent 92%);
+}
+
+/* ---------- Hero: the developer ---------- */
+
+.about-hero {
+    position: relative;
+    isolation: isolate;
+    padding: clamp(2.5rem, 6vw, 4.5rem) 0 clamp(3.5rem, 8vw, 6rem);
+    overflow: hidden;
+    text-align: center;
+}
+
+.about-hero__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* The archer, standing in warm light, with a soft shadow where the laptop rests. */
+.about-emblem {
+    position: relative;
+    isolation: isolate;
+    width: var(--about-emblem);
+    margin-bottom: clamp(1.5rem, 3vw, 2.25rem);
+    animation: about-land 1.2s var(--about-spring) 0.1s both;
+}
+
+.about-emblem img {
+    display: block;
+    width: 100%;
+    height: auto;
+    filter: drop-shadow(0 22px 26px color-mix(in srgb, var(--lp-shadow) 24%, transparent));
+}
+
+.about-emblem::before {
+    content: "";
+    position: absolute;
+    inset: 4% -45% 18%;
+    z-index: -1;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--lp-spec-2) 38%, transparent), transparent);
+    filter: blur(18px);
+    animation: about-glow 1.6s ease-out 0.3s both;
+}
+
+.about-emblem::after {
+    content: "";
+    position: absolute;
+    left: 4%;
+    right: 30%;
+    bottom: -4%;
+    z-index: -1;
+    height: 9%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--lp-shadow) 28%, transparent), transparent);
+}
+
+/* The arrow's light: it leaves the arrowhead (top right of the emblem) and opens into the
+   spectrum, running on to the right edge of the page behind the name. */
+.about-emblem__fan {
+    position: absolute;
+    top: 22.2%;
+    left: 98%;
+    z-index: -1;
+    width: max(50vw, 30rem);
+    height: min(34rem, 72vh);
+    background: linear-gradient(180deg, var(--lp-spec-1), var(--lp-spec-2), var(--lp-spec-3), var(--lp-spec-4), var(--lp-spec-5), var(--lp-spec-6));
+    clip-path: polygon(0 49.7%, 100% 0, 100% 100%, 0 50.3%);
+    -webkit-mask-image: linear-gradient(90deg, var(--lp-shadow) 0%, transparent 88%);
+    mask-image: linear-gradient(90deg, var(--lp-shadow) 0%, transparent 88%);
+    opacity: max(var(--lp-fan-alpha), 0.3);
+    filter: blur(1px);
+    pointer-events: none;
+    transform: translateY(-50%);
+    transform-origin: left center;
+    animation: about-fan 1.4s var(--about-spring) 0.75s both;
+}
+
+.about-hero__title {
+    margin: 0;
+    font-size: clamp(2.7rem, 7.4vw, 5.6rem);
+    line-height: 1;
+    letter-spacing: -0.05em;
+    text-wrap: balance;
+}
+
+/* One sweep of light across the name, after it has risen in. */
+.about-hero__title span {
+    background: linear-gradient(100deg, var(--lp-text) 0%, var(--lp-text) 42%, var(--lp-spec-6) 50%, var(--lp-spec-5) 54%, var(--lp-text) 62%, var(--lp-text) 100%);
+    background-size: 260% 100%;
+    background-position: 0% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: about-shine 1.8s cubic-bezier(0.45, 0, 0.2, 1) 1.35s both;
+}
+
+.about-hero__unit {
+    margin: 0.8rem 0 0;
+    color: var(--lp-body);
+    font-size: clamp(1.1rem, 2vw, 1.35rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+/* The hero text rises in, one line after another, after the archer lands. */
+.about-rise {
+    animation: about-rise 0.95s var(--about-spring) both;
+    animation-delay: calc(0.35s + var(--i, 0) * 80ms);
+}
+
+/* ---------- Contact buttons ---------- */
+
+.about-contacts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 18.5rem));
+    justify-content: center;
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: clamp(1.75rem, 3.5vw, 2.4rem);
+}
+
+.about-contact {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--pm-surface-muted);
+    gap: 0.8rem;
+    min-width: 0;
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--lp-glass-rim);
+    border-radius: 20px;
+    background: var(--lp-glass-strong);
+    box-shadow: var(--lp-glass-shadow);
+    backdrop-filter: var(--lp-glass-filter);
+    -webkit-backdrop-filter: var(--lp-glass-filter);
+    color: var(--lp-text);
+    text-align: left;
+    transition: transform 0.25s var(--about-spring), border-color 0.2s ease, box-shadow 0.25s ease;
 }
 
-.developer-logo {
-    height: 56px;
-    width: auto;
-    border-radius: 8px;
+.about-contact:hover {
+    border-color: color-mix(in srgb, var(--lp-accent) 45%, var(--lp-glass-rim));
+    box-shadow: var(--lp-glass-shadow), 0 18px 34px -22px color-mix(in srgb, var(--lp-accent) 70%, transparent);
+    transform: translateY(-2px);
 }
 
-.developer-name {
-    font-size: 1.8rem;
-    margin: 0;
-    font-weight: 700;
-}
-
-.developer-tagline {
-    color: var(--pm-text-tertiary);
-    font-size: 0.95rem;
-}
-
-/* ===========================
-   BODY
-   =========================== */
-.developer-body {
-    padding-top: 16px;
+.about-contact__icon {
+    position: relative;
     display: grid;
-    gap: 16px;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--lp-accent) 14%, transparent);
+    color: var(--lp-accent);
+    font-size: 1.05rem;
 }
 
-.developer-section h2 {
-    font-size: 1.1rem;
-    margin-bottom: 8px;
+.about-contact__text {
+    display: grid;
+    min-width: 0;
+}
+
+.about-contact__text > span {
+    color: var(--lp-muted);
+    font-size: 0.76rem;
     font-weight: 600;
 }
 
-.developer-section ul {
-    margin: 0;
-    padding-left: 18px;
+.about-contact__text strong {
+    overflow: hidden;
+    font-size: 0.95rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-/* ===========================
-   PILLS
-   =========================== */
-.pill-row {
+.about-copy:active,
+.about-contact:active {
+    transform: scale(0.97);
+}
+
+.about-copy:focus-visible,
+.about-contact:focus-visible {
+    outline: 2px solid var(--lp-accent);
+    outline-offset: 3px;
+}
+
+/* Copy icon and tick share one slot; the tick springs in after a copy. */
+.about-copy .bi,
+.about-contact__icon .bi {
+    display: inline-block;
+    transition: transform 0.35s var(--about-spring), opacity 0.2s ease;
+}
+
+.about-copy .bi-check2,
+.about-contact__icon .bi-check2 {
+    position: absolute;
+    opacity: 0;
+    transform: scale(0.4);
+    color: var(--lp-spec-3);
+}
+
+.is-copied .bi-check2 {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.is-copied .bi:not(.bi-check2) {
+    opacity: 0;
+    transform: scale(0.4);
+}
+
+/* ---------- Sections ---------- */
+
+.about-section + .about-section {
+    margin-top: clamp(4rem, 9vw, 6.5rem);
+}
+
+.about h2 {
+    margin: 0;
+    color: var(--lp-text);
+    letter-spacing: -0.03em;
+}
+
+.about .lp-eyebrow {
+    margin-bottom: 0.45rem;
+}
+
+/* ---------- The work: PRISM ERP ---------- */
+
+.about-work__head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: clamp(1.75rem, 3.5vw, 2.5rem);
+    text-align: center;
+}
+
+/* The app icon: a night tile holding the PRISM mark. The tile stays dark in both themes
+   (like the landing call-to-action panel), so the mark inside is drawn with its night values:
+   a white beam, lifted hues and smoked glass. */
+.about-icon {
+    --lp-beam: var(--lp-on-night);
+    --lp-glass-lo: var(--lp-glass-hi);
+    --lp-glass-edge: var(--lp-on-night-muted);
+    --lp-aura: var(--lp-lift-5);
+    --lp-spec-1: var(--lp-lift-1);
+    --lp-spec-2: var(--lp-lift-2);
+    --lp-spec-3: var(--lp-lift-3);
+    --lp-spec-4: var(--lp-lift-4);
+    --lp-spec-5: var(--lp-lift-5);
+    --lp-spec-6: var(--lp-lift-6);
+    --lp-glass-hi-alpha: 0.2;
+    --lp-glass-lo-alpha: 0.04;
+    --lp-glass-edge-alpha: 0.5;
+    --lp-glass-face-alpha: 0.14;
+    --lp-ground-alpha: 0;
+    --lp-aura-alpha: 0.4;
+    --lp-fan-alpha: 0.45;
+    --lp-split-alpha: 0.45;
+    --lp-beam-glow-alpha: 0.12;
+    --lp-beam-core-alpha: 0.85;
+    --lp-ray-glow-alpha: 0.8;
+    --lp-ray-core-alpha: 0.5;
+    position: relative;
+    isolation: isolate;
+    width: var(--about-icon);
+    height: var(--about-icon);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    border-radius: 27%;
+    background: radial-gradient(120% 90% at 30% 0%, var(--lp-night-2), var(--lp-night) 70%);
+    box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--lp-on-night) 22%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--lp-on-night) 10%, transparent),
+        0 30px 60px -26px color-mix(in srgb, var(--lp-lift-6) 65%, transparent),
+        0 14px 28px -16px color-mix(in srgb, var(--lp-shadow) 60%, transparent);
+}
+
+/* Frame the prism body (x 180-420, y 90-430 of the 540 x 520 artwork) in the middle of the
+   tile; the beam comes in at the left edge and the rays leave by the right. */
+.about-icon .lp-prism {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 98%;
+    transform: translate(-55.6%, -51%);
+}
+
+/* A sweep of light across the icon as it comes into view. */
+.about-icon::after {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(110deg, transparent 38%, color-mix(in srgb, var(--lp-on-night) 45%, transparent) 50%, transparent 62%);
+    transform: translateX(-130%);
+}
+
+.about.is-ready .is-in .about-icon::after {
+    animation: about-sweep 1.4s cubic-bezier(0.45, 0, 0.2, 1) 0.5s both;
+}
+
+.about-work__title {
+    font-size: clamp(2.4rem, 5.6vw, 3.9rem);
+    line-height: 1;
+    letter-spacing: -0.05em;
+}
+
+.about-work__title span {
+    color: var(--lp-muted);
+    font-weight: 400;
+}
+
+.about-work__tag {
+    margin: 0.85rem 0 0;
+    font-size: clamp(1.2rem, 2.2vw, 1.55rem);
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+}
+
+.about-work__lead {
+    max-width: 33rem;
+    margin: 0.75rem auto 0;
+    color: var(--lp-body);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    text-wrap: balance;
+}
+
+.about-areas {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.85rem;
+    max-width: 66rem;
+    margin: 0 auto;
+    padding: 0;
+    list-style: none;
+}
+
+.about-areas li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 1.15rem 1.1rem 1.3rem;
+    border: 1px solid var(--lp-glass-rim);
+    border-radius: 22px;
+    background: var(--lp-glass-surface);
+    box-shadow: var(--lp-glass-shadow);
+    transition: transform 0.35s var(--about-spring), box-shadow 0.35s var(--about-spring);
+}
+
+.about-areas li:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--lp-glass-shadow), 0 22px 40px -24px color-mix(in srgb, var(--lp-hue) 70%, transparent);
+}
+
+.about-areas__ray {
+    display: block;
+    height: 3px;
+    margin-bottom: 0.75rem;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--lp-hue), color-mix(in srgb, var(--lp-hue) 15%, transparent));
+    box-shadow: 0 0 14px color-mix(in srgb, var(--lp-hue) 55%, transparent);
+    transform-origin: left center;
+}
+
+.about-areas strong {
+    color: var(--lp-text);
+    font-size: 1.02rem;
+    letter-spacing: -0.01em;
+}
+
+.about-areas li > span:last-child {
+    color: var(--lp-muted);
+    font-size: 0.86rem;
+    line-height: 1.45;
+}
+
+/* ---------- This installation ---------- */
+
+.about-panel {
+    position: relative;
+    isolation: isolate;
+    width: min(100%, 46rem);
+    margin-inline: auto;
+    padding: clamp(1.5rem, 3.4vw, 2.4rem);
+    border: 1px solid var(--lp-glass-rim);
+    border-radius: 28px;
+    background: var(--lp-glass-strong);
+    box-shadow: var(--lp-glass-shadow), 0 40px 90px -56px color-mix(in srgb, var(--lp-spec-5) 60%, transparent);
+    backdrop-filter: var(--lp-glass-filter);
+    -webkit-backdrop-filter: var(--lp-glass-filter);
+}
+
+/* A thin spectrum edge along the top: the light that reached the pane. */
+.about-panel::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 18%;
+    right: 18%;
+    z-index: 2;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--lp-spectrum);
+    opacity: 0.85;
+}
+
+/* The specular highlight; glass-light.js moves it with the pointer. */
+.about-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(420px circle at var(--lp-mx, 50%) var(--lp-my, -14%), var(--lp-glass-sheen), transparent 62%);
+    opacity: 0.4;
+    transition: opacity 0.35s ease;
+}
+
+.about-panel:hover::after {
+    opacity: 0.8;
+}
+
+.about-panel > * {
+    position: relative;
+    z-index: 1;
+}
+
+.about-panel__head {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-}
-
-.pill {
-    background: var(--pm-surface-contrast);
-    border: 1px solid var(--pm-border-faint);
-    padding: 6px 10px;
-    border-radius: 999px;
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-
-/* ===========================
-   FOOTER
-   =========================== */
-.developer-footer {
-    margin-top: 18px;
-    padding-top: 12px;
-    border-top: 1px solid var(--pm-surface-muted);
-    display: flex;
+    align-items: flex-end;
     justify-content: space-between;
-    font-size: 0.85rem;
+    gap: 1rem;
+    margin-bottom: 1.4rem;
 }
 
-.developer-footer .muted {
-    color: var(--pm-text-tertiary);
+.about-panel__head h2 {
+    font-size: clamp(1.4rem, 2.6vw, 1.7rem);
 }
 
-/* ============================================================
-   Dark theme (generated by tools/theme-dark-codemod.js, then reviewed).
-   Light is unchanged; these rules only apply under data-bs-theme="dark".
-   Palette: docs/ux/dark-theme-palette.md
-   ============================================================ */
-:where([data-bs-theme="dark"]) .developer-card {
-    background: #16181b;
+.about-copy {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 40px;
+    padding: 0 1rem;
+    border: 1px solid var(--lp-glass-rim);
+    border-radius: 999px;
+    background: var(--lp-glass);
+    box-shadow: var(--lp-glass-shadow);
+    color: var(--lp-text);
+    font-size: 0.88rem;
+    font-weight: 600;
+    transition: transform 0.2s var(--lp-ease), border-color 0.2s ease;
+}
+
+.about-copy:hover {
+    border-color: color-mix(in srgb, var(--lp-accent) 45%, var(--lp-glass-rim));
+    transform: translateY(-1px);
+}
+
+.about-copy .bi-check2 {
+    left: 1rem;
+}
+
+.about-specs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2.5rem;
+    margin: 0;
+}
+
+.about-specs > div {
+    padding: 0.95rem 0;
+    border-top: 1px solid var(--lp-glass-rim);
+}
+
+.about-specs__wide {
+    grid-column: 1 / -1;
+}
+
+.about-specs dt {
+    margin-bottom: 0.2rem;
+    color: var(--lp-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.about-specs dd {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0;
+    color: var(--lp-text);
+    font-size: 1rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.about-specs code {
+    color: var(--lp-text);
+    font-family: var(--about-mono);
+    font-size: 0.92em;
+    font-weight: 600;
+}
+
+.about-specs__muted {
+    color: var(--lp-muted);
+    font-weight: 400;
+}
+
+/* A steady green light: on the network, nothing reaching out. */
+.about-dot {
+    position: relative;
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--lp-spec-3);
+}
+
+.about-dot::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: var(--lp-spec-3);
+    opacity: 0;
+    animation: about-breathe 3.2s ease-in-out infinite;
+}
+
+.about-panel__note {
+    margin: 1.1rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--lp-glass-rim);
+    color: var(--lp-muted);
+    font-size: 0.84rem;
+}
+
+/* ---------- Toast ---------- */
+
+.about-toast {
+    position: fixed;
+    bottom: 1.75rem;
+    left: 50%;
+    z-index: 1080;
+    padding: 0.6rem 1.15rem;
+    border: 1px solid var(--lp-glass-rim);
+    border-radius: 999px;
+    background: var(--lp-glass-strong);
+    box-shadow: var(--lp-glass-shadow);
+    backdrop-filter: var(--lp-glass-filter);
+    -webkit-backdrop-filter: var(--lp-glass-filter);
+    color: var(--lp-text);
+    font-size: 0.88rem;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 14px) scale(0.96);
+    transition: opacity 0.25s ease, transform 0.45s var(--about-spring);
+}
+
+.about-toast:empty {
+    visibility: hidden;
+}
+
+.about-toast.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+}
+
+/* ---------- Scroll reveal (about-prism.js) ---------- */
+
+.about.is-ready .about-reveal {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(22px);
+    transition: opacity 0.8s ease, filter 0.8s ease, transform 1s var(--about-spring);
+    transition-delay: calc(var(--i, 0) * 70ms);
+}
+
+.about.is-ready .about-reveal.is-in {
+    opacity: 1;
+    filter: none;
+    transform: none;
+}
+
+.about.is-ready .about-areas__ray {
+    transform: scaleX(0);
+    transition: transform 1.1s var(--about-spring);
+    transition-delay: calc(0.2s + var(--i, 0) * 70ms);
+}
+
+.about.is-ready .is-in .about-areas__ray {
+    transform: scaleX(1);
+}
+
+/* The hover lift must not wait for the reveal delay. */
+.about.is-ready .about-areas li.is-in {
+    transition: opacity 0.8s ease, filter 0.8s ease, transform 0.35s var(--about-spring), box-shadow 0.35s var(--about-spring);
+}
+
+/* ---------- Keyframes ---------- */
+
+@keyframes about-land {
+    from { opacity: 0; filter: blur(10px); transform: translateY(16px) scale(0.9); }
+}
+
+@keyframes about-glow {
+    from { opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes about-fan {
+    from { opacity: 0; transform: translateY(-50%) scaleX(0.08); }
+}
+
+@keyframes about-shine {
+    from { background-position: 100% 0; }
+    to { background-position: 0% 0; }
+}
+
+@keyframes about-sweep {
+    to { transform: translateX(130%); }
+}
+
+@keyframes about-rise {
+    from { opacity: 0; filter: blur(6px); transform: translateY(18px); }
+}
+
+@keyframes about-breathe {
+    0%, 100% { opacity: 0; transform: scale(0.6); }
+    50% { opacity: 0.28; transform: scale(1); }
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1100px) {
+    .about-areas {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .about-emblem__fan {
+        height: 18rem;
+    }
+
+    .about-contacts {
+        grid-template-columns: minmax(0, 20rem);
+    }
+
+    .about-work__lead {
+        font-size: 1rem;
+    }
+
+    .about-panel {
+        border-radius: 24px;
+    }
+
+    .about-specs {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .about-areas {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.65rem;
+    }
+
+    .about-areas li {
+        padding: 1rem 0.95rem 1.1rem;
+        border-radius: 18px;
+    }
+}
+
+/* ---------- Accessibility ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .about-emblem,
+    .about-emblem::before,
+    .about-emblem__fan,
+    .about-hero__title span,
+    .about-rise,
+    .about-dot::after,
+    .about.is-ready .is-in .about-icon::after {
+        animation: none;
+    }
+
+    .about-icon::after {
+        display: none;
+    }
+
+    .about-copy,
+    .about-contact,
+    .about-areas li,
+    .about-toast {
+        transition: none;
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .about-emblem__fan {
+        display: none;
+    }
+
+    .about-contact,
+    .about-toast {
+        background: var(--lp-surface);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
 }

@@ -52,6 +52,31 @@ an icon, an eyebrow, a heading, one sentence and the next action.
 - These pages also render signed in (Access denied and Error mostly are). `.status--in-app`
   then drops the slide-under-the-capsule offset and sits below the app top bar.
 
+## About (signed in)
+
+`/Developer`, linked as "About" from the signed-in footer, is the maker's page first and
+PRISM's second. It tells the prism story inside the app:
+
+- **Hero: the developer.** The SDD archer stands in warm light; the light of its arrow
+  leaves the arrowhead and opens into the six-colour spectrum behind "Designed and built by",
+  the developer's name and division. Email and phone are copy-to-clipboard buttons.
+- **The work: PRISM ERP.** The PRISM icon (a night tile that stays dark in both themes and
+  draws the bare mark, `model: false`, with its night values), the tagline and the six
+  areas from `Utilities/PrismAreas.cs`. That class is also the list the prism mark draws its
+  rays from, so the two cannot drift apart.
+- **This installation**: version (`App:Version` when set, otherwise the assembly version),
+  build commit, build time, process start, runtime, environment and the offline-LAN note.
+  `Utilities/AppBuildInfo.cs` reads these once from the assembly the SDK stamped
+  (`1.0.0+<sha>` from Source Link). Times are IST. "Copy details" copies them as plain text
+  for a fault report.
+
+Motion: the hero plays once on load (the archer lands, the spectrum opens from the arrow,
+the lines rise in and one sweep of light crosses the name); lower sections rise in as they
+scroll into view (`wwwroot/js/pages/about-prism.js`). Reduce Motion shows everything at
+rest. Copying falls back to `execCommand('copy')` because PRISM is often served over plain
+http on the LAN, where `navigator.clipboard` is unavailable. Styles:
+`wwwroot/css/pages/developer.css` (landing tokens only, no colour literals).
+
 ## Where the copy comes from
 
 Keep the copy true to the current application; update it when a module is added or retired.

@@ -12,15 +12,10 @@
     // fans out to a 14-unit band centred on Y at x = 520. The bare artwork carries the rays on
     // to x = 1000, past the SVG box, so on the sign-in page they run behind the glass card.
     // Order follows the refraction (top ray to bottom ray) and leads with the project record.
-    var labels = new[]
-    {
-        (Y: 120, Name: "Projects", Detail: "Stages, plans and facts"),
-        (Y: 190, Name: "Desks", Detail: "Command and briefing desks"),
-        (Y: 260, Name: "Teamwork", Detail: "Chat, tasks, notebook, calendar"),
-        (Y: 330, Name: "Office records", Detail: "Visits, training, IPR, ToT, FFC"),
-        (Y: 400, Name: "Media", Detail: "Photos, videos, publications"),
-        (Y: 470, Name: "Documents", Detail: "Repository, AOTS, OCR search"),
-    };
+    // The areas themselves live in PrismAreas, which About PRISM also lists.
+    var labels = ProjectManagement.Utilities.PrismAreas.All
+        .Select((area, i) => (Y: 120 + 70 * i, area.Name, area.Detail))
+        .ToArray();
     var rayEndX = showLabels ? 520.0 : 1000.0;
     var inv = System.Globalization.CultureInfo.InvariantCulture;
     // Where the beam enters the glass; the spectrum starts separating from here.
