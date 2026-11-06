@@ -228,6 +228,26 @@ public sealed class ArppAnalyticsServiceTests
     }
 
     [Fact]
+    public async Task BuildAsync_APastYearOnItsTodaySwitch_CountsToday()
+    {
+        await using var db = CreateDb();
+        var positions = new FakePositions();
+        var library = new FakeLibrary(2025, Row(1, "Moved on", ArppCategory.New, 10_000_000m));
+        var fy = new FakeFyUpdate(new[] { 2026, 2025 }, Update(1, "Moved on", ProjectLifecycleStatus.Active, StageCodes.DEVP));
+
+        var onYearEnd = await new ArppAnalyticsService(db, library, fy, positions).BuildAsync(2025, Today);
+        var onToday = await new ArppAnalyticsService(db, library, fy, new FakePositions()).BuildAsync(2025, Today, showToday: true);
+
+        // Both offer the switch (the year's 31 March); only the year-end view asks for the position on it.
+        Assert.Equal(new DateOnly(2026, 3, 31), onYearEnd.YearEndDate);
+        Assert.False(onYearEnd.ShowsToday);
+        Assert.Equal(new DateOnly(2026, 3, 31), onToday.YearEndDate);
+        Assert.True(onToday.ShowsToday);
+        Assert.Null(onToday.AsOfDate);
+        Assert.Equal(1, onToday.SupplyOrderCount); // today's stage, Development, is beyond the supply order
+    }
+
+    [Fact]
     public async Task BuildAsync_TheCurrentYear_StaysOnToday()
     {
         await using var db = CreateDb();
@@ -238,6 +258,7 @@ public sealed class ArppAnalyticsServiceTests
         var vm = await new ArppAnalyticsService(db, library, fy, positions).BuildAsync(2026, Today);
 
         Assert.Null(vm.AsOfDate);
+        Assert.Null(vm.YearEndDate); // no switch for the current year
         Assert.Null(positions.AskedFor);
         Assert.Equal(1, vm.PreAonCount);
     }

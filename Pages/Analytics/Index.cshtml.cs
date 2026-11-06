@@ -68,6 +68,10 @@ namespace ProjectManagement.Pages.Analytics
         [BindProperty(SupportsGet = true, Name = "financialYearStart")]
         public int? ArppFinancialYearStart { get; set; }
 
+        /// <summary>"today": a past year's ARPP as of today rather than on its 31 March. Kept in the address so a link opens the same view.</summary>
+        [BindProperty(SupportsGet = true, Name = "view")]
+        public string? ArppView { get; set; }
+
         public ArppAnalyticsVm? Arpp { get; private set; }
 
         [BindProperty(SupportsGet = true, Name = "ongoingStageParentCategoryIds")]
@@ -216,7 +220,11 @@ namespace ProjectManagement.Pages.Analytics
                     // The ARPP rules (year choice, bands, standing, milestones) live in the service; the page only binds the year.
                     Arpp = _arppAnalytics is null
                         ? null
-                        : await _arppAnalytics.BuildAsync(ArppFinancialYearStart, DateOnly.FromDateTime(AsOfIst.DateTime), cancellationToken);
+                        : await _arppAnalytics.BuildAsync(
+                            ArppFinancialYearStart,
+                            DateOnly.FromDateTime(AsOfIst.DateTime),
+                            showToday: string.Equals(ArppView, "today", StringComparison.OrdinalIgnoreCase),
+                            cancellationToken: cancellationToken);
                     break;
             }
             // END SECTION

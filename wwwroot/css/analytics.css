@@ -144,6 +144,11 @@ button.analytics-figure { width: 100%; text-align: left; font: inherit; cursor: 
 .analytics-seg button:hover { color: var(--an-strong); }
 .analytics-seg button:focus-visible { outline: none; box-shadow: var(--an-focus); }
 .analytics-seg button[aria-pressed="true"] { background: var(--an-surface); color: var(--an-strong); box-shadow: var(--an-shadow); }
+/* The same control as links (a choice that changes the address, such as the ARPP 31 March / Today view). */
+.analytics-seg a { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 12px; border-radius: 999px; color: var(--an-muted); font-size: .75rem; font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; transition: background-color 160ms var(--an-ease), color 160ms var(--an-ease), box-shadow 160ms var(--an-ease); }
+.analytics-seg a:hover { color: var(--an-strong); }
+.analytics-seg a:focus-visible { outline: none; box-shadow: var(--an-focus); }
+.analytics-seg a[aria-current="true"] { background: var(--an-surface); color: var(--an-strong); box-shadow: var(--an-shadow); }
 
 /* ---------- Category / lifecycle dots ---------- */
 .analytics-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 999px; background: var(--pm-dot, var(--pm-chart-cat-neutral)); }
@@ -264,6 +269,10 @@ button.analytics-figure { width: 100%; text-align: left; font: inherit; cursor: 
 .analytics-card__foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 575.98px) {
     .analytics-minis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* A past year's ARPP header: the 31 March / Today switch takes its own row above the year chip. */
+    .analytics-panel--arpp .analytics-card__actions { flex-wrap: wrap; justify-content: flex-start; }
+    .analytics-panel--arpp .analytics-card__actions .analytics-seg { flex: 1 1 100%; }
+    .analytics-panel--arpp .analytics-card__actions .analytics-seg a { flex: 1 1 0; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) {
     .analytics-drill__row.is-flash > .analytics-drill__summary { animation: none; }

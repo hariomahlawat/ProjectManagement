@@ -4,6 +4,11 @@
 {
   <form method="get" asp-page="./Index" class="analytics-filter-form" aria-label="Choose the ARPP financial year">
     <input type="hidden" name="tab" value="Arpp" />
+    @if (Model.ShowsToday)
+    {
+      @* Keep the Today view when another past year is chosen. *@
+      <input type="hidden" name="view" value="today" />
+    }
     <label class="analytics-filter analytics-filter--select">
       <span>Financial year</span>
       <b>@Model.FinancialYearDisplay</b>
