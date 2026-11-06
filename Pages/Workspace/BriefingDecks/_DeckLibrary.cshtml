@@ -17,6 +17,14 @@
     string WhenInline(DateTimeOffset value) => When(value).Replace("Today", "today");
     string Projects(int count) => $"{count} {(count == 1 ? "project" : "projects")}";
     string Day(DateTimeOffset value) => IstClock.ToIst(value).ToString("dd MMM");
+    // Table dates stay on one line: the year only when it is not this year; the full date on hover.
+    string WhenShort(DateTimeOffset value)
+    {
+        var ist = IstClock.ToIst(value);
+        if (ist.Date == todayIst) return $"Today, {ist:HH:mm}";
+        return ist.Year == todayIst.Year ? ist.ToString("dd MMM") : ist.ToString("dd MMM yy");
+    }
+    string WhenFull(DateTimeOffset value) => IstClock.ToIst(value).ToString("dd MMM yyyy, HH:mm");
     // What moved for one project: "stage, status remark".
     string MovedFacts(ProjectBriefingMovedProject project) => string.Join(", ", new[]
     {
@@ -159,7 +167,7 @@
                                 <small class="pbd-library__description">@deck.Description</small>
                             }
                         </td>
-                        <td>@deck.Purpose</td>
+                        <td class="is-date">@deck.Purpose</td>
                         <td class="is-number">@deck.ProjectCount</td>
                         @if (deck.LastGeneratedSlideCount is int slideCount)
                         {
@@ -169,13 +177,14 @@
                         {
                             <td class="is-number"><span class="pbd-library__quiet" title="Counted when the PowerPoint is first generated. The Studio shows the count as you build.">—</span></td>
                         }
-                        <td>@deck.CreatedByDisplay</td>
-                        <td title="by @deck.LastModifiedByDisplay">@When(deck.UpdatedAtUtc)</td>
-                        <td>@(deck.LastGeneratedAtUtc is { } generated ? When(generated) : "Not yet")</td>
+                        <td class="is-owner" title="@deck.CreatedByDisplay">@deck.CreatedByDisplay</td>
+                        <td class="is-date" title="@WhenFull(deck.UpdatedAtUtc) by @deck.LastModifiedByDisplay">@WhenShort(deck.UpdatedAtUtc)</td>
+                        <td class="is-date" title="@(deck.LastGeneratedAtUtc is { } generatedAt ? WhenFull(generatedAt) : null)">@(deck.LastGeneratedAtUtc is { } generated ? WhenShort(generated) : "Not yet")</td>
                         <td>
                             @if (deck.LastGeneratedAtUtc is null)
                             {
-                                <span class="pbd-library__quiet">Not generated yet</span>
+                                @* "Last generated" already says Not yet; this column only adds a dash. *@
+                                <span class="pbd-library__quiet" title="Changes are tracked from the first PowerPoint.">—</span>
                             }
                             else if (deck.DataMovement is null)
                             {

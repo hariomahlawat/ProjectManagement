@@ -5155,6 +5155,19 @@ span.pbd-additional-slide-row__handle {
     font-variant-numeric: tabular-nums;
 }
 
+/* Template, owner and dates keep to one line, so rows stay one line high at 1366 px with the
+   rail open (.is-date is the one-line cell). */
+.pbd-library__table .is-date {
+    white-space: nowrap;
+}
+
+.pbd-library__table .is-owner {
+    max-width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .pbd-library__table .is-actions {
     width: 1%;
     padding-right: 1.1rem;

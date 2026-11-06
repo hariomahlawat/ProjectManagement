@@ -213,6 +213,28 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Walkthrough_LibraryRowsStayOneLineAndAddProjectsHasDone()
+    {
+        var page = Read("Index.cshtml");
+        var library = Read("_DeckLibrary.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var css = Read("project-briefing-decks.css").Replace("\r\n", "\n");
+
+        // Library: dates without this year's year, owner truncated with the full name on hover,
+        // and no "Not generated yet" repeated in Data since.
+        Assert.Contains("return ist.Year == todayIst.Year ? ist.ToString(\"dd MMM\") : ist.ToString(\"dd MMM yy\");", library, StringComparison.Ordinal);
+        Assert.Contains("<td class=\"is-owner\" title=\"@deck.CreatedByDisplay\">", library, StringComparison.Ordinal);
+        Assert.DoesNotContain("Not generated yet", library, StringComparison.Ordinal);
+        Assert.Contains(".pbd-library__table .is-date {\n    white-space: nowrap;", css, StringComparison.Ordinal);
+
+        // The outline's "projects added" confirmation clears itself; errors stay.
+        Assert.Contains("if (state === 'saved' && element.matches('[data-pbd-membership-status]'))", script, StringComparison.Ordinal);
+
+        // Add projects can be finished with Done.
+        Assert.Contains("data-bs-dismiss=\"modal\" data-pbd-add-projects-done>Done</button>", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()
     {
         var page = Read("Index.cshtml");
