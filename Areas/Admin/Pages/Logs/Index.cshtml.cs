@@ -316,7 +316,7 @@ public sealed class IndexModel : PageModel
             {
                 Label = "Events",
                 Value = summary.Total.ToString("N0"),
-                Detail = "Current filter scope",
+                Detail = "Matching the filters",
                 Icon = "bi-activity",
                 Tone = "neutral",
                 Href = FilterUrl(),
@@ -326,7 +326,7 @@ public sealed class IndexModel : PageModel
             {
                 Label = "Information",
                 Value = summary.Information.ToString("N0"),
-                Detail = "Routine operations",
+                Detail = "Everyday changes",
                 Icon = "bi-info-circle",
                 Tone = "neutral",
                 Href = FilterUrl("Info"),
@@ -336,9 +336,9 @@ public sealed class IndexModel : PageModel
             {
                 Label = "Warnings",
                 Value = summary.Warnings.ToString("N0"),
-                Detail = "Review recommended",
+                Detail = "Worth a look",
                 Icon = "bi-exclamation-triangle",
-                Tone = "warning",
+                Tone = summary.Warnings > 0 ? "warning" : "neutral",
                 Href = FilterUrl("Warning"),
                 IsActive = string.Equals(Level, "Warning", StringComparison.OrdinalIgnoreCase)
             },
@@ -346,9 +346,9 @@ public sealed class IndexModel : PageModel
             {
                 Label = "Errors",
                 Value = summary.Errors.ToString("N0"),
-                Detail = "Immediate investigation",
+                Detail = "Things that failed",
                 Icon = "bi-x-octagon",
-                Tone = "danger",
+                Tone = summary.Errors > 0 ? "danger" : "neutral",
                 Href = FilterUrl("Error"),
                 IsActive = string.Equals(Level, "Error", StringComparison.OrdinalIgnoreCase)
             },
@@ -356,7 +356,7 @@ public sealed class IndexModel : PageModel
             {
                 Label = "Actors",
                 Value = summary.Actors.ToString("N0"),
-                Detail = $"{summary.AffectedRecords:N0} affected records",
+                Detail = summary.AffectedRecords == 1 ? "1 record changed" : $"{summary.AffectedRecords:N0} records changed",
                 Icon = "bi-person-check",
                 Tone = "neutral"
             }

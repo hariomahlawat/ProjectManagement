@@ -237,21 +237,21 @@ public sealed class LoginsModel : PageModel
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Failed authentication events",
+                Label = "Failed sign-ins",
                 Value = Snapshot.Failed.ToString("N0"),
-                Detail = "Rejected attempts",
+                Detail = "Wrong password or unknown user",
                 Icon = "bi-shield-exclamation",
-                Tone = "warning",
+                Tone = Snapshot.Failed > 0 ? "warning" : "neutral",
                 Href = FilterUrl("failed", false),
                 IsActive = string.Equals(Outcome, "failed", StringComparison.OrdinalIgnoreCase) && !ReviewOnly
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Lockout events",
+                Label = "Lockouts",
                 Value = Snapshot.LockedOut.ToString("N0"),
-                Detail = "Authentication lockouts",
+                Detail = "Accounts locked after failed attempts",
                 Icon = "bi-lock",
-                Tone = "danger",
+                Tone = Snapshot.LockedOut > 0 ? "danger" : "neutral",
                 Href = FilterUrl("locked-out", false),
                 IsActive = string.Equals(Outcome, "locked-out", StringComparison.OrdinalIgnoreCase) && !ReviewOnly
             },

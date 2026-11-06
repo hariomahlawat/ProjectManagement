@@ -242,6 +242,29 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
 - A test fails if an admin page header uses "governed", "assurance", "taxonomy",
   "deterministic" or similar jargon again.
 
+**Shipped in PR 9 (phone and dark pass, signed in):**
+- **Phone (375 px).** Every admin page was opened signed in, including Users, the bins, the
+  lists, System health, Search index, Data jobs, Data checks, the guide and Every admin page. No
+  page scrolls sideways; wide tables scroll inside their own box. The summary cards on Users,
+  the Audit log, Sign-in activity and System health now sit two per row on phones; they were
+  one per row, which pushed the real content a whole screen down.
+- **Colour means something (rule 5).** The Audit log's Warnings and Errors cards and Sign-in
+  activity's Failed and Lockouts cards were amber or red even at 0. They are neutral at 0 now.
+  Their sub-labels are plain words ("Things that failed", "Wrong password or unknown user"), and
+  "1 affected records" reads "1 record changed".
+- **Dark.** Every admin page was scanned in dark mode for light patches and dark text. The only
+  hits were the start of a colour fade when the theme is switched on an open page, which users
+  never see because pages load in their theme. The 23 `var(--pm-card, #fff)` fallbacks in
+  admin.css became `var(--admin-surface)`, so admin surfaces follow the admin palette in both
+  themes, and the role options' hover and selected colours use admin tokens. The colour baseline
+  is lowered (admin.css 176 → 170) so the hard-coded colours cannot come back.
+
+**The redesign is complete.** Nine PRs plus a review-fix PR: #2947, #2949, #2953, #2955, #2956,
+#2959, #2960, #2963, #2965 and this one.
+
+Still open, outside this plan: the local database's 27 failed search-index jobs (`42P08`, 23 to
+25 Oct). System health now reports them; their cause has not been found.
+
 ### Compatibility
 
 - Every current URL keeps working: merged pages answer on their old routes or redirect to the
