@@ -170,7 +170,7 @@
 
             dialog.dataset.tone = tone;
             title.textContent = settings.title;
-            message.textContent = settings.message;
+            setText(message, settings.message);
             setText(detail, settings.detail);
             accept.textContent = settings.confirmText;
             if (cancelLabel) cancelLabel.textContent = settings.cancelText;

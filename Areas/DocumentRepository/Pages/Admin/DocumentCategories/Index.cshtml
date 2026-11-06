@@ -87,7 +87,7 @@
                                     <td class="library-table__actions">
                                         <button type="submit" class="btn btn-sm btn-outline-primary" form="edit-@category.Id">Save</button>
                                         <button type="submit" class="btn btn-sm btn-link library-table__quiet" form="toggle-@category.Id"
-                                                data-confirm="@(category.IsActive && count > 0 ? $"{count} documents use “{category.Name}”. They keep it, but it will no longer be offered for new documents. Deactivate it?" : null)">
+                                                data-confirm="@(category.IsActive && count > 0 ? $"Deactivate “{category.Name}”? {count} documents use it. They keep it, but it will no longer be offered for new documents." : null)">
                                             @(category.IsActive ? "Deactivate" : "Activate")
                                         </button>
                                     </td>
