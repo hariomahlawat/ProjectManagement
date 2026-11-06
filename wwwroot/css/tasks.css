@@ -345,19 +345,13 @@
   padding-bottom: 0.35rem;
   margin-bottom: 0.65rem;
   background: var(--pm-surface, var(--bs-body-bg, var(--pm-card)));
+  /* The band runs 1.5rem past each side. Shadows paint it without widening the page, which an
+     absolutely placed ::after did on screens under 992px (a sideways scrollbar on Tasks). */
+  box-shadow:
+    -1.5rem 0 0 var(--pm-surface, var(--bs-body-bg, var(--pm-card))),
+    1.5rem 0 0 var(--pm-surface, var(--bs-body-bg, var(--pm-card)));
   display: flex;
   align-items: center;
-}
-
-.tasks-lane-header::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -1.5rem;
-  right: -1.5rem;
-  background: var(--pm-surface, var(--bs-body-bg, var(--pm-card)));
-  z-index: -1;
 }
 
 .tasks-lane-pill {

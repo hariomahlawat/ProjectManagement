@@ -76,7 +76,8 @@ check: every action it guards must be validated and authorized server-side.
 - **Title:** a question that names the action and the object. "Withdraw the plan from
   approval?", not "Confirm action" or "Are you sure?".
 - **Message:** the consequence in plain words. Say who else is affected and whether it can
-  be undone. No "please" and no exclamation marks.
+  be undone. No "please" and no exclamation marks. Give one even when it is short ("Delete
+  this task? It's removed from your list."); a question alone is shown level with the icon.
 - **Buttons:** verbs naming the action, "Delete document" and "Keep document" or "Cancel".
   Never OK / Yes / Confirm.
 - **Tone:** match the consequence, not the anxiety. Red only when something is removed or
@@ -91,6 +92,8 @@ check: every action it guards must be validated and authorized server-side.
 
 - **Focus:** the reason or phrase box when there is one; otherwise **Cancel** for `danger`
   (Enter never deletes by accident) and the action for `primary` and `warning`.
+- **Menus:** an open dropdown (a ⋯ › Delete item) closes before the dialog opens, and focus
+  returns to the menu's button afterwards, also when the page had moved the menu to `<body>`.
 - **Keys:** Esc cancels; Enter in the phrase box and Ctrl/Cmd+Enter in the reason box confirm
   once the input is valid.
 - **Motion:** the page dims and blurs, the sheet springs in (slightly lower and smaller,

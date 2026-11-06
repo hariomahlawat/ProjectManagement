@@ -187,7 +187,8 @@
     outline-offset: 2px;
 }
 
-/* Time left: a hairline in the tone that runs out; it pauses while the stack is hovered or focused. */
+/* Time left: a hairline in the tone that runs out; it pauses while the stack is in use
+   (hovered, approached, focused) or the page is in a background tab. */
 .prism-toast__timer {
     position: absolute;
     left: 1rem;
@@ -201,7 +202,8 @@
 }
 
 .prism-toasts:hover .prism-toast__timer,
-.prism-toasts:focus-within .prism-toast__timer {
+.prism-toasts:focus-within .prism-toast__timer,
+.prism-toasts.is-paused .prism-toast__timer {
     animation-play-state: paused;
 }
 

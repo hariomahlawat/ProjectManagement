@@ -153,6 +153,15 @@
     padding-right: 1.25rem;
 }
 
+/* Only a question, no message: the title sits level with the icon. */
+.prism-confirm-dialog[data-title-only] .prism-confirm-dialog__head {
+    align-items: center;
+}
+
+.prism-confirm-dialog[data-title-only] .prism-confirm-dialog__content h2 {
+    margin: 0;
+}
+
 .prism-confirm-dialog__content h2 {
     margin: 0.15rem 0 0.4rem;
     color: var(--pm-text-strong);

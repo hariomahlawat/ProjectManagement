@@ -149,6 +149,32 @@
         else restoreDialogHome();
     });
 
+    // A menu item that asks (⋯ › Delete) should not leave its menu open behind the dialog.
+    // Focus moves to the menu's button, so it is where focus returns when the dialog closes.
+    // A menu may have been moved to <body> while open (Tasks does this to escape clipping), so
+    // its button is found through Bootstrap's own record of the menu, else beside the menu.
+    const toggleForMenu = menu => {
+        const api = window.bootstrap?.Dropdown;
+        const toggles = [...document.querySelectorAll('[data-bs-toggle="dropdown"]')];
+        const owner = toggles.find(toggle => api?.getInstance?.(toggle)?._menu === menu);
+        if (owner) return owner;
+        const parent = menu.parentElement;
+        return parent && parent !== document.body
+            ? parent.querySelector(':scope > [data-bs-toggle="dropdown"]')
+            : null;
+    };
+
+    const closeOpenMenus = () => {
+        document.querySelectorAll(".dropdown-menu.show").forEach(menu => {
+            const toggle = toggleForMenu(menu);
+            const hadFocus = menu.contains(document.activeElement);
+            const api = window.bootstrap?.Dropdown;
+            if (toggle && api?.getOrCreateInstance) api.getOrCreateInstance(toggle).hide();
+            if (menu.classList.contains("show")) menu.classList.remove("show");
+            if (hadFocus && toggle instanceof HTMLElement) toggle.focus({ preventScroll: true });
+        });
+    };
+
     const setText = (element, text) => {
         if (!element) return;
         element.textContent = text || "";
@@ -165,6 +191,7 @@
                 : "primary";
             settings.tone = tone;
 
+            closeOpenMenus();
             previouslyFocused = document.activeElement instanceof HTMLElement
                 ? document.activeElement
                 : null;
@@ -173,6 +200,8 @@
             title.textContent = settings.title;
             setText(message, settings.message);
             setText(detail, settings.detail);
+            // Only a question: it sits level with the icon instead of above an empty space.
+            dialog.toggleAttribute("data-title-only", !settings.message && !settings.detail);
             accept.textContent = settings.confirmText;
             if (cancelLabel) cancelLabel.textContent = settings.cancelText;
             if (icon) icon.className = `bi ${safeIcon(settings.icon, iconClassForTone(tone))}`;
