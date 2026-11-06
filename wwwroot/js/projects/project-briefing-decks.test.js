@@ -29,7 +29,7 @@ test('briefing deck JSON mutations use the configured antiforgery header and sam
 
 test('briefing deck project search safely renders server values with textContent', () => {
   assert.match(source, /name\.textContent = project\.projectName/);
-  assert.match(source, /meta\.textContent = \[project\.lifecycle/);
+  assert.match(source, /meta\.textContent = \[\.\.\.new Set\(\[project\.lifecycle/);
   assert.doesNotMatch(source, /project\.projectName.*innerHTML/);
 });
 

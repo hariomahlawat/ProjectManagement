@@ -1373,6 +1373,31 @@ if (root) {
     ? window.bootstrap.Modal.getOrCreateInstance(addProjectsModalElement)
     : null;
   const addProjectsStatus = addProjectsModalElement?.querySelector('[data-pbd-add-projects-status]');
+  // Undo after a quick or category add: removes only the projects that add brought in.
+  const offerAddUndo = (added, button) => {
+    if (!addProjectsStatus) return;
+    const undo = document.createElement('button');
+    undo.type = 'button';
+    undo.className = 'btn btn-link btn-sm pbd-add-projects__undo';
+    undo.textContent = 'Undo';
+    undo.setAttribute('aria-label', `Undo: remove the ${added.length === 1 ? 'project' : `${added.length} projects`} just added`);
+    undo.addEventListener('click', async () => {
+      undo.disabled = true;
+      try {
+        await updateMembership([], added, addProjectsStatus);
+        const message = `Removed the ${added.length === 1 ? 'project' : `${added.length} projects`} just added.`;
+        setState(addProjectsStatus, message, 'saved');
+        setState(membershipStatus, message, 'saved');
+        if (button?.classList.contains('is-added')) {
+          button.classList.remove('is-added');
+          button.textContent = 'Add';
+        }
+      } catch {
+        undo.disabled = false;
+      }
+    });
+    addProjectsStatus.append(' ', undo);
+  };
   const quickAddButtons = () => [...(addProjectsModalElement?.querySelectorAll('.pbd-quick-card button[type="submit"]') || [])];
   const openAddProjects = () => {
     setState(addProjectsStatus, '');
@@ -1576,9 +1601,13 @@ if (root) {
     event.preventDefault();
     const button = event.submitter instanceof HTMLButtonElement ? event.submitter : form.querySelector('button[type="submit"]');
     button?.setAttribute('disabled', 'disabled');
+    // Taken when this save starts in the queue, after any earlier save's reply is applied, so a
+    // second add made before the first finished undoes only its own projects.
+    let membersBefore = new Set();
     setState(addProjectsStatus, 'Adding projects…', 'saving');
     try {
       const payload = await runDeckMutation(async () => {
+        membersBefore = new Set(latestProjects.map((project) => Number(project.projectId)));
         const body = new FormData(form);
         body.set('RowVersion', currentRowVersion());
         const response = await fetch(form.action, {
@@ -1595,6 +1624,11 @@ if (root) {
       applyEditorState(payload?.deck);
       setState(addProjectsStatus, payload?.message || 'Deck updated.', 'saved');
       setState(membershipStatus, payload?.message || 'Deck updated.', 'saved');
+      // A selection can add dozens of projects in one click; offer to take exactly those back out.
+      const added = latestProjects
+        .map((project) => Number(project.projectId))
+        .filter((projectId) => !membersBefore.has(projectId));
+      if (added.length) offerAddUndo(added, button);
       if (button && form.classList.contains('pbd-quick-card')) {
         button.classList.add('is-added');
         button.replaceChildren(Object.assign(document.createElement('i'), { className: 'bi bi-check-lg' }), document.createTextNode(' Added'));
@@ -1756,19 +1790,34 @@ if (root) {
       node.hidden = !visible;
       if (visible) shown += 1;
     });
+    if (showingDeckRows) {
+      setState(searchStatus, `This deck has ${searchRows.length} ${searchRows.length === 1 ? 'project' : 'projects'}. Untick to remove, or search to add more.`);
+      return;
+    }
     setState(searchStatus, searchRows.length ? `${shown} of ${searchRows.length} matching projects shown.` : 'No projects match this search.');
   };
 
   // After any membership change (search, quick add, categories, removals), mark search results
   // from the deck's actual members while keeping ticks the person has not applied yet.
   const reconcileSearchMembership = (projects) => {
+    // No search typed and no deck list showing yet (the deck was empty): show the members now.
+    const blankQuery = (searchInput?.value.trim() || '').length < 2;
+    if (blankQuery && !showingDeckRows) {
+      if (projects.length) {
+        showingDeckRows = true;
+        renderSearchResults(deckRowsFrom(projects));
+      }
+      return;
+    }
     if (searchRows.length === 0) return;
     const members = new Set(projects.map((project) => Number(project.projectId)));
     const pending = new Map();
     resultDesired.forEach((desired, projectId) => {
       if (desired !== resultBaseline.get(projectId)) pending.set(projectId, desired);
     });
-    searchRows = searchRows.map((project) => ({ ...project, isSelected: members.has(Number(project.projectId)) }));
+    searchRows = showingDeckRows
+      ? deckRowsFrom(projects)
+      : searchRows.map((project) => ({ ...project, isSelected: members.has(Number(project.projectId)) }));
     renderSearchResults(searchRows);
     pending.forEach((desired, projectId) => {
       if (desired === members.has(projectId)) return;
@@ -1779,12 +1828,42 @@ if (root) {
     });
   };
 
+  // Saved membership and the pending tick, told apart: only saved members read "In deck".
+  const showMembershipBadge = (badge, saved, desired) => {
+    const [text, state] = saved
+      ? (desired ? ['In deck', 'is-in-deck'] : ['Will be removed', 'is-pending-remove'])
+      : (desired ? ['Will be added', 'is-pending-add'] : ['', '']);
+    badge.textContent = text;
+    badge.hidden = !text;
+    badge.className = `pbd-membership-badge ${state}`.trim();
+  };
+
+  // With no search typed, the list is the deck's own projects (untick to remove).
+  let showingDeckRows = false;
+  const deckRowsFrom = (projects) => projects.map((project) => ({
+    projectId: Number(project.projectId),
+    projectName: project.projectName,
+    isSelected: true,
+    fromDeck: true,
+    lifecycle: project.lifecycleDisplay,
+    presentStage: project.presentStage,
+    projectCategory: project.projectCategory,
+    technicalCategory: project.technicalCategory
+  }));
+
   const renderSearchResults = (rows) => {
     searchRows = rows;
     resultBaseline.clear();
     resultDesired.clear();
     searchResults?.replaceChildren();
     if (!rows.length) {
+      // The deck list emptied (every project removed): back to the prompt, ready to refill.
+      if (showingDeckRows) {
+        showingDeckRows = false;
+        setState(searchStatus, 'Type at least two letters of a project name to find it.');
+        updateMembershipSummary();
+        return;
+      }
       setState(searchStatus, 'No projects match this search.');
       updateMembershipSummary();
       return;
@@ -1803,8 +1882,7 @@ if (root) {
       checkbox.addEventListener('change', () => {
         resultDesired.set(project.projectId, checkbox.checked);
         label.classList.toggle('is-selected', checkbox.checked);
-        badge.textContent = checkbox.checked ? 'IN DECK' : 'NOT IN DECK';
-        badge.classList.toggle('is-in-deck', checkbox.checked);
+        showMembershipBadge(badge, Boolean(project.isSelected), checkbox.checked);
         updateMembershipSummary();
         applyMembershipResultFilter();
       });
@@ -1815,14 +1893,17 @@ if (root) {
       const name = document.createElement('strong');
       name.textContent = project.projectName;
       const badge = document.createElement('em');
-      badge.className = project.isSelected ? 'pbd-membership-badge is-in-deck' : 'pbd-membership-badge';
-      badge.textContent = project.isSelected ? 'IN DECK' : 'NOT IN DECK';
+      showMembershipBadge(badge, Boolean(project.isSelected), Boolean(project.isSelected));
       heading.append(name, badge);
       const meta = document.createElement('small');
-      meta.textContent = [project.lifecycle, project.presentStage, project.projectCategory, project.technicalCategory, project.projectOfficer].filter(Boolean).join(' · ');
-      const ref = document.createElement('small');
-      ref.textContent = project.caseFileNumber ? `Ref: ${project.caseFileNumber}` : 'No case-file reference';
-      body.append(heading, meta, ref);
+      // "Completed · Completed" said once.
+      meta.textContent = [...new Set([project.lifecycle, project.presentStage, project.projectCategory, project.technicalCategory, project.projectOfficer].filter(Boolean))].join(' · ');
+      body.append(heading, meta);
+      if (!project.fromDeck) {
+        const ref = document.createElement('small');
+        ref.textContent = project.caseFileNumber ? `Ref: ${project.caseFileNumber}` : 'No case-file reference';
+        body.append(ref);
+      }
       label.append(checkbox, body);
       label.classList.toggle('is-selected', checkbox.checked);
       searchResults?.append(label);
@@ -1835,12 +1916,19 @@ if (root) {
     const query = searchInput?.value.trim() || '';
     if (query.length < 2) {
       searchAbortController?.abort();
+      if (latestProjects.length) {
+        showingDeckRows = true;
+        renderSearchResults(deckRowsFrom(latestProjects));
+        return;
+      }
+      showingDeckRows = false;
       searchResults?.replaceChildren();
       searchRows = [];
-      setState(searchStatus, 'Enter at least two characters.');
+      setState(searchStatus, 'Type at least two letters of a project name to find it.');
       updateMembershipSummary();
       return;
     }
+    showingDeckRows = false;
 
     searchAbortController?.abort();
     searchAbortController = new AbortController();
@@ -1868,6 +1956,8 @@ if (root) {
     searchTimer = window.setTimeout(searchProjects, 260);
   });
   membershipFilter?.addEventListener('change', applyMembershipResultFilter);
+  // Open on the deck's own projects.
+  if (individualForm && deckId > 0) searchProjects();
 
   individualForm?.addEventListener('submit', async (event) => {
     event.preventDefault();

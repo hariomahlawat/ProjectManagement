@@ -529,3 +529,31 @@ Then (follow-up):
 7. **Loose ends.** The "… projects added" confirmation under the outline clears after six seconds
    (errors stay), and Add projects has a **Done** button (adding saves at once; Done only closes).
 
+## Independent review (6 Nov 2026)
+
+A cold UI/UX review by a separate reviewer (no earlier findings shared), on master at 1366×768,
+1920×1080 and 375×812, light and dark. Confirmed by hand: the Add projects tab strip collapsed
+to 9 px after a search at 1366×768, and the Studio's arrow keys only work while focus is inside
+the Studio.
+
+**Plan, by PR**
+
+- **A. Add projects.** Done (this change). The dialog body's rows take their content's height,
+  so the tab strip (a sideways scroller) no longer shrinks; one scroll (the dialog's), the result
+  list growing with it and the Apply bar sticky at the bottom. Quick and category adds offer
+  **Undo** (removes exactly the projects that add brought in). Manage individually opens on the
+  deck's own projects (untick to remove, search to add); badges read **In deck** (saved),
+  **Will be added** / **Will be removed** (pending until Apply), nothing for a project outside the
+  deck; "Completed · Completed" is said once. The dialog's lead says which parts save at once.
+- **B. Studio fits the window.** The Studio sized to the window (only the three panels scroll),
+  a one-line header, outline titles on two lines, arrow keys wherever focus is not in a field,
+  the outline scrolled to the selected slide after a reload, the Checks filter kept.
+- **C. Gaps made honest.** Check only what the slides show for the project's stage (owner to
+  confirm: proliferation cost before completion), one name for gaps, one row per field in This
+  slide, a short gap summary before Present and Generate, a visible meaning for the outline badge.
+- **D. Phone.** Header actions stacked, the slide first, the library as cards.
+- **E. Wording and accessibility.** The progress line's Generate step as status, settings steps
+  unnumbered, library dashes and search matches explained, text ≥ 12 px and ≥ 4.5:1, plain SDD
+  drawer copy and Escape, an `<h1>`, named Show buttons, the doubled Portfolio in the picker,
+  New deck validation, stage names in the outline.
+
