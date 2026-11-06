@@ -57,25 +57,31 @@
     }
 }
 
+@*
+    Server messages (TempData ToastSuccess / ToastInfo / ToastWarning / ToastError / ToastMessage /
+    ToastJson) in the PRISM glass toast. wwwroot/js/components/prism-toast.js adds the timers,
+    stacking and dismissal; without it they still show and can be read. docs/ux/toasts.md.
+*@
 @if (items.Count > 0)
 {
-    <div class="toast-container position-fixed top-0 end-0 p-3 app-toast-container" aria-live="polite" aria-atomic="true">
+    <div class="prism-toasts" data-prism-toasts role="region" aria-label="Notifications">
         @foreach (var item in items)
         {
-            var title = item.Level switch
+            var icon = item.Level switch
             {
-                "success" => "Success",
-                "danger" => "Action required",
-                "warning" => "Attention",
-                _ => "Update"
+                "success" => "bi-check-lg",
+                "danger" => "bi-x-lg",
+                "warning" => "bi-exclamation-lg",
+                _ => "bi-info-lg"
             };
-            <div class="toast show app-toast app-toast-@item.Level" role="status" aria-live="polite" aria-atomic="true" data-bs-delay="4500">
-                <div class="toast-header">
-                    <span class="app-toast-indicator" aria-hidden="true"></span>
-                    <strong class="me-auto">@title</strong>
-                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-                <div class="toast-body">@item.Text</div>
+            <div class="prism-toast" data-prism-toast data-tone="@item.Level" role="@(item.Level == "danger" ? "alert" : "status")" data-life="@(item.Level == "danger" ? "0" : "5500")">
+                <span class="prism-toast__icon" aria-hidden="true"><i class="bi @icon"></i></span>
+                <p class="prism-toast__text">@item.Text</p>
+                <button type="button" class="prism-toast__close" data-prism-toast-close aria-label="Dismiss"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                @if (item.Level != "danger")
+                {
+                    <span class="prism-toast__timer" aria-hidden="true"></span>
+                }
             </div>
         }
     </div>

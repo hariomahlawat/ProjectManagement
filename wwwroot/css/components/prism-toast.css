@@ -1,0 +1,252 @@
+/* =============================================================
+   PRISM TOASTS (wwwroot/js/components/prism-toast.js)
+   The "done" half of an action, in the same glass as the
+   confirmation dialog: a frosted pill at the bottom centre with a
+   tinted icon, one sentence and at most one action (Undo, View,
+   Retry). Up to three show at once, newest in front; an error stays
+   in front until it is dismissed. Hover or focus fans the stack out.
+
+   Site tokens only; Reduce Motion drops the motion and the timer
+   line, Reduce Transparency makes the pill solid.
+   Wording and use: docs/ux/toasts.md.
+   ============================================================= */
+
+:root {
+    --pt-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --pt-glass-mix: 80%;
+    --pt-gleam: color-mix(in srgb, var(--pm-text-inverted) 18%, transparent);
+    --pt-rim-hi: color-mix(in srgb, var(--pm-text-inverted) 85%, transparent);
+    --pt-rim: color-mix(in srgb, var(--pm-text-strong) 10%, transparent);
+    --pt-shadow: color-mix(in srgb, var(--pm-text-strong) 30%, transparent);
+}
+
+:root[data-bs-theme="dark"] {
+    --pt-glass-mix: 78%;
+    --pt-gleam: color-mix(in srgb, var(--pm-text-strong) 6%, transparent);
+    --pt-rim-hi: color-mix(in srgb, var(--pm-text-strong) 20%, transparent);
+    --pt-rim: color-mix(in srgb, var(--pm-text-strong) 12%, transparent);
+    --pt-shadow: color-mix(in srgb, var(--pm-page-bg) 85%, transparent);
+}
+
+.prism-toasts {
+    position: fixed;
+    left: 50%;
+    bottom: max(1.5rem, env(safe-area-inset-bottom));
+    z-index: 1090;
+    display: grid;
+    width: min(26rem, calc(100vw - 2rem));
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.prism-toast {
+    --tone: var(--pm-primary);
+    --tone-ink: var(--pm-primary-strong);
+    --i: 0;
+    grid-area: 1 / 1;
+    align-self: end;
+    position: relative;
+    z-index: calc(10 - var(--i));
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3.5rem;
+    padding: 0.65rem 0.65rem 0.65rem 0.8rem;
+    overflow: hidden;
+    border: 1px solid var(--pt-rim);
+    border-radius: 20px;
+    background:
+        linear-gradient(140deg, var(--pt-gleam) 0%, transparent 45%),
+        color-mix(in srgb, var(--pm-card) var(--pt-glass-mix), transparent);
+    box-shadow:
+        inset 0 1px 0 var(--pt-rim-hi),
+        0 24px 50px -24px var(--pt-shadow),
+        0 16px 30px -24px color-mix(in srgb, var(--tone) 60%, transparent);
+    backdrop-filter: blur(26px) saturate(1.8);
+    -webkit-backdrop-filter: blur(26px) saturate(1.8);
+    color: var(--pm-text-strong);
+    pointer-events: auto;
+    /* Behind the front one: fainter, smaller, peeking out above it. */
+    opacity: calc(1 - var(--i) * 0.28);
+    transform: translateY(calc(var(--i) * -10px)) scale(calc(1 - var(--i) * 0.05));
+    transform-origin: 50% 0;
+    transition: transform 0.5s var(--pt-ease), opacity 0.3s ease;
+    animation: pt-in 0.55s var(--pt-ease) both;
+}
+
+.prism-toast[hidden] {
+    display: none;
+}
+
+.prism-toast.is-leaving {
+    animation: pt-out 0.28s ease both;
+}
+
+/* Hover or focus fans the stack out so every toast can be read (--fan is set by the script). */
+.prism-toasts:hover .prism-toast,
+.prism-toasts:focus-within .prism-toast {
+    opacity: 1;
+    transform: translateY(calc(-1 * var(--fan, 0px)));
+}
+
+.prism-toast[data-tone="success"] {
+    --tone: var(--pm-success);
+    --tone-ink: var(--pm-success-strong);
+}
+
+.prism-toast[data-tone="warning"] {
+    --tone: var(--pm-warning);
+    --tone-ink: var(--pm-warning-strong);
+}
+
+.prism-toast[data-tone="danger"] {
+    --tone: var(--pm-danger);
+    --tone-ink: var(--pm-danger);
+}
+
+.prism-toast__icon {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--tone) 16%, transparent);
+    color: var(--tone-ink);
+    font-size: 1.1rem;
+}
+
+.prism-toast__icon .bi {
+    animation: pt-pop 0.5s var(--pt-ease) 0.1s both;
+}
+
+.prism-toast__text {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.prism-toast__text b {
+    font-weight: 700;
+}
+
+.prism-toast__detail {
+    display: block;
+    color: var(--pm-text-muted);
+    font-size: 0.8rem;
+}
+
+.prism-toast__action {
+    flex: 0 0 auto;
+    padding: 0.4rem 0.85rem;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--tone) 14%, transparent);
+    color: var(--tone-ink);
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.prism-toast__action:hover,
+.prism-toast__action:focus-visible {
+    background: color-mix(in srgb, var(--tone) 22%, transparent);
+    color: var(--tone-ink);
+}
+
+.prism-toast__close {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--pm-text-muted);
+}
+
+.prism-toast__close:hover,
+.prism-toast__close:focus-visible {
+    background: color-mix(in srgb, var(--pm-text-strong) 8%, transparent);
+    color: var(--pm-text-strong);
+}
+
+.prism-toast__action:focus-visible,
+.prism-toast__close:focus-visible {
+    outline: 2px solid var(--tone);
+    outline-offset: 2px;
+}
+
+/* Time left: a hairline in the tone that runs out; it pauses while the stack is hovered or focused. */
+.prism-toast__timer {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--tone) 60%, transparent);
+    transform-origin: left;
+    animation: pt-timer var(--life, 4500ms) linear both;
+}
+
+.prism-toasts:hover .prism-toast__timer,
+.prism-toasts:focus-within .prism-toast__timer {
+    animation-play-state: paused;
+}
+
+@keyframes pt-in {
+    from { opacity: 0; filter: blur(4px); transform: translateY(18px) scale(0.94); }
+}
+
+@keyframes pt-out {
+    to { opacity: 0; transform: translateY(12px) scale(0.96); }
+}
+
+@keyframes pt-pop {
+    from { opacity: 0; transform: scale(0.4); }
+}
+
+@keyframes pt-timer {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+@media (max-width: 575.98px) {
+    .prism-toasts {
+        bottom: max(0.75rem, env(safe-area-inset-bottom));
+        width: calc(100vw - 1rem);
+    }
+}
+
+@media print {
+    .prism-toasts {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .prism-toast,
+    .prism-toast.is-leaving,
+    .prism-toast__icon .bi {
+        animation: none;
+        transition: none;
+    }
+
+    .prism-toast__timer {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .prism-toast {
+        background: var(--pm-card);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
