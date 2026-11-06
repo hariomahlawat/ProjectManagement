@@ -40,12 +40,12 @@
 
 <section class="admin-panel" aria-labelledby="recent-recovery-title">
     <header class="admin-panel__header">
-        <div><h2 id="recent-recovery-title">Recent restores and permanent deletions</h2></div>
+        <div><h2 id="recent-recovery-title">Recent deletions, restores and archiving</h2></div>
         <a class="admin-panel__link" asp-area="Admin" asp-page="/Logs/Index" asp-route-Category="Recovery">Open the audit log <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
     </header>
     @if (Model.Summary.RecentOperations.Count == 0)
     {
-        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-clock-history", Title = "Nothing restored or deleted for good yet", Description = "Restores and permanent deletions appear here when they happen." })" />
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-clock-history", Title = "Nothing yet", Description = "Deletions, restores and archiving by administrators appear here." })" />
     }
     else
     {

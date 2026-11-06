@@ -4374,3 +4374,33 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     color: var(--admin-text-secondary);
     font-size: .82rem;
 }
+
+/* Review fixes (6 Nov): phones and touch screens. */
+/* The "/" key hint only helps with a keyboard. */
+@media (hover: none) and (pointer: coarse) {
+    .admin-sidebar__search-key,
+    .admin-home-find__key { display: none; }
+}
+@media (max-width: 640px) {
+    /* Restore tabs: one row that scrolls sideways instead of wrapping onto several. */
+    .admin-restore-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .admin-restore-tabs::-webkit-scrollbar { display: none; }
+    .admin-restore-tabs__tab { flex: 0 0 auto; white-space: nowrap; }
+
+    /* Home tiles: icon beside the title, so six tasks fit in less scrolling. */
+    .admin-home-task {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto;
+        column-gap: .7rem;
+        padding: .8rem .9rem;
+    }
+    .admin-home-task__icon { grid-row: 1 / span 2; width: 1.9rem; height: 1.9rem; }
+    .admin-home-task h3 { margin: 0; align-self: center; }
+    .admin-home-task p { grid-column: 2; }
+    .admin-home-task__fact { grid-column: 1 / -1; margin-top: .3rem; padding-top: .4rem; }
+}

@@ -53,4 +53,31 @@ public sealed class AdminRecoverySummaryRecentOperationsTests
         Assert.Equal("Head of Dept", latestTrash.Actor);
         Assert.Equal("Radar upgrade. Reason: Duplicate again", latestTrash.Detail);
     }
+
+    [Fact]
+    public async Task RecentOperations_LeaveOutPeoplesOwnNotebookRestores_AndShowNamesNotIds()
+    {
+        var now = new DateTimeOffset(2026, 11, 6, 6, 0, 0, TimeSpan.Zero);
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .Options);
+        db.Users.Add(new ApplicationUser { Id = "bc62f5aa", UserName = "admin.rao", FullName = "Maj S. Rao" });
+        db.AuditLogs.AddRange(
+            new AuditLog { TimeUtc = now.AddMinutes(-10).UtcDateTime, Level = "Info", Action = "Notebook.Restore", UserId = "bc62f5aa" },
+            new AuditLog { TimeUtc = now.AddMinutes(-20).UtcDateTime, Level = "Info", Action = "Documents.Restore", UserId = "bc62f5aa" });
+        await db.SaveChangesAsync();
+
+        var service = new AdminRecoverySummaryService(
+            db,
+            new AdminTimeService(FakeClock.AtUtc(now)),
+            new AuditActionPresentationCatalog(),
+            Options.Create(new ProjectRetentionOptions()),
+            Options.Create(new AdminRecoveryOptions()));
+
+        var summary = await service.GetAsync();
+
+        var operation = Assert.Single(summary.RecentOperations);
+        Assert.Equal("Documents.Restore", operation.Action);
+        Assert.Equal("Maj S. Rao", operation.Actor);
+    }
 }

@@ -25,7 +25,7 @@
     </header>
 
     <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar admin-recovery-filter-toolbar--documents">
-        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-search-control"><i class="bi bi-search"></i><input asp-for="Search" class="form-control" placeholder="Title, file name or project" /></div></div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-input-with-icon"><i class="bi bi-search" aria-hidden="true"></i><input asp-for="Search" class="form-control" placeholder="Title, file name or project" /></div></div>
         <div class="admin-filter-toolbar__field"><label asp-for="ProjectId">Project</label><select asp-for="ProjectId" asp-items="Model.Result.Projects" class="form-select"><option value="">All projects</option></select></div>
         <div class="admin-filter-toolbar__field"><label asp-for="StageCode">Stage</label><select asp-for="StageCode" asp-items="Model.Result.Stages" class="form-select"><option value="">All stages</option></select></div>
         <div class="admin-filter-toolbar__field"><label asp-for="DeletedFrom">Deleted from</label><input asp-for="DeletedFrom" type="date" class="form-control" /></div>

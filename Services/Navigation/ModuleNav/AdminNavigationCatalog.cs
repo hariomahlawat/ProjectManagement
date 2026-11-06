@@ -322,7 +322,7 @@ public static class AdminNavigationCatalog
             "missing files, broken documents, docrepo, storage",
             exactPage: true, inSidebar: false, usesAdminShell: false),
         Entry(AdminNavigationKeys.MediaSources, AdminNavigationGroups.System, 345,
-            Item("Media Sources", string.Empty, "/Admin/MediaSources/Index", "bi-images", AdminPolicies.MediaView),
+            Item("Media sources", string.Empty, "/Admin/MediaSources/Index", "bi-images", AdminPolicies.MediaView),
             "The folders PRISM reads photos and videos from, and the media processing queue.",
             "media library, photos, folders, sources, queue",
             matchPagePattern: "/Admin/MediaSources/", usesAdminShell: false),
