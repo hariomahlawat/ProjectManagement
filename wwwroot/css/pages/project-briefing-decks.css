@@ -3958,14 +3958,101 @@ body.pbd-profile-drawer-open {
     box-shadow: 0 0 0 2px var(--pbd-blue);
 }
 
+/* Present (Studio usability PR 4): tools in the header, the notes under the slide, the strip on
+   request (beside the slide on wide screens). */
+/* The page behind stays put while presenting. */
+html:has(.pbd-viewer[open]) {
+    overflow: hidden;
+}
+
+.pbd-viewer__body:focus {
+    outline: none;
+}
+
+.pbd-viewer__keys {
+    margin: 0;
+    color: var(--pbd-muted);
+    font-size: .74rem;
+    white-space: nowrap;
+}
+
+.pbd-viewer__keys kbd {
+    margin: 0 .1rem;
+    padding: .05rem .3rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .25rem;
+    background: var(--pbd-canvas);
+    color: var(--pbd-ink);
+    font-size: .7rem;
+}
+
+.pbd-viewer__tools {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: .35rem;
+}
+
+.pbd-viewer__tools .btn[aria-pressed="true"] {
+    border-color: var(--pbd-blue);
+    background: var(--pbd-blue-soft);
+    color: var(--pbd-blue);
+}
+
+.pbd-viewer__body {
+    grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
+.pbd-viewer__notes {
+    grid-column: 1 / -1;
+    max-height: 26vh;
+    overflow-y: auto;
+    margin: 0 3.5rem;
+    padding: .65rem .9rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .55rem;
+    background: var(--pbd-surface);
+}
+
+.pbd-viewer__notes h3 {
+    margin: 0 0 .3rem;
+    color: var(--pbd-muted);
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.pbd-viewer__notes p {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+.pbd-viewer__notes[hidden],
+.pbd-viewer__strip[hidden] {
+    display: none;
+}
+
+@media (max-width: 1099.98px) {
+    .pbd-viewer__keys {
+        display: none;
+    }
+}
+
 @media (min-width: 1400px) {
-    .pbd-viewer__body {
+    .pbd-viewer.has-strip .pbd-viewer__body {
         grid-template-columns: 3rem minmax(0, 1fr) 3rem clamp(12rem, 14vw, 18rem);
-        grid-template-rows: minmax(0, 1fr);
     }
 
-    .pbd-viewer__strip {
+    .pbd-viewer.has-strip .pbd-viewer__notes {
+        grid-column: 1 / 4;
+    }
+
+    .pbd-viewer.has-strip .pbd-viewer__strip {
         grid-column: 4;
+        grid-row: 1 / span 2;
         flex-direction: column;
         align-self: stretch;
         overflow-x: hidden;
@@ -3973,7 +4060,7 @@ body.pbd-profile-drawer-open {
         padding: .2rem .4rem .2rem .2rem;
     }
 
-    .pbd-viewer__strip li {
+    .pbd-viewer.has-strip .pbd-viewer__strip li {
         flex: none;
     }
 }
@@ -3986,6 +4073,24 @@ body.pbd-profile-drawer-open {
 
     .pbd-viewer__nav {
         display: none;
+    }
+
+    .pbd-viewer__notes {
+        margin: 0;
+    }
+
+    .pbd-viewer__header {
+        flex-wrap: wrap;
+        gap: .4rem .75rem;
+    }
+
+    .pbd-viewer__tools {
+        justify-content: flex-end;
+        width: 100%;
+    }
+
+    .pbd-viewer__tools .btn {
+        padding-inline: .45rem;
     }
 }
 

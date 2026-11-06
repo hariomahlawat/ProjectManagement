@@ -146,6 +146,25 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Present_FillsTheScreenWithNotesOnRequest()
+    {
+        var page = Read("Index.cshtml");
+        var studio = Read("project-briefing-studio.js");
+
+        // Full screen where allowed; leaving it (Esc) ends the presentation and returns to the Studio.
+        Assert.Contains("screenRoot.requestFullscreen({ navigationUI: 'hide' })", studio, StringComparison.Ordinal);
+        Assert.Contains("document.addEventListener('fullscreenchange'", studio, StringComparison.Ordinal);
+        Assert.Contains("document.exitFullscreen?.()", studio, StringComparison.Ordinal);
+
+        // The strip and the speaker notes wait until asked for; From the start sits in the toolbar.
+        Assert.Contains("<ol class=\"pbd-viewer__strip\" data-pbd-viewer-strip aria-label=\"All slides\" hidden></ol>", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-viewer-notes hidden", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-viewer-first", page, StringComparison.Ordinal);
+        Assert.Contains("aria-keyshortcuts=\"N\" data-pbd-viewer-notes-toggle", page, StringComparison.Ordinal);
+        Assert.Contains("const presentPrefsKey = 'prism.briefingDecks.present';", studio, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()
     {
         var page = Read("Index.cshtml");

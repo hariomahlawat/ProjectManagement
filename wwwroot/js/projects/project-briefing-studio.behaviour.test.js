@@ -84,6 +84,18 @@ const MARKUP = `
       <div data-pbd-inspector-panel="deck" hidden></div>
       <div data-pbd-inspector-panel="checks" hidden></div>
     </section>
+    <dialog data-pbd-viewer>
+      <h2 data-pbd-viewer-title></h2><span data-pbd-viewer-counter></span>
+      <button type="button" data-pbd-viewer-first>From the start</button>
+      <button type="button" aria-pressed="false" data-pbd-viewer-notes-toggle>Notes</button>
+      <button type="button" aria-pressed="false" data-pbd-viewer-strip-toggle>Slides</button>
+      <button type="button" data-pbd-viewer-close>End</button>
+      <button type="button" data-pbd-viewer-prev>Prev</button>
+      <div data-pbd-viewer-stage></div>
+      <button type="button" data-pbd-viewer-next>Next</button>
+      <section data-pbd-viewer-notes hidden><p data-pbd-viewer-notes-text></p></section>
+      <ol data-pbd-viewer-strip hidden></ol>
+    </dialog>
   </div>
 </div>`;
 
@@ -108,6 +120,13 @@ const startStudio = () => {
     });
   });
   window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+  // jsdom has no modal dialogs or full screen: a plain open/close stand-in, and no requestFullscreen.
+  if (!window.Element.prototype.scrollIntoView) window.Element.prototype.scrollIntoView = () => {};
+  window.HTMLDialogElement.prototype.showModal = function showModal() { this.open = true; };
+  window.HTMLDialogElement.prototype.close = function close() {
+    this.open = false;
+    this.dispatchEvent(new window.Event('close'));
+  };
   if (!window.CSS) window.CSS = {};
   if (!window.CSS.escape) window.CSS.escape = (value) => String(value).replace(/["\\]/g, '\\$&');
   window.eval(studioSource);
@@ -366,4 +385,41 @@ test('a project with nothing missing says so in This slide', async () => {
   const panel = document.querySelector('[data-pbd-inspector-panel="slide"]');
   assert.equal(panel.querySelector('.pbd-inspector__gaps'), null);
   assert.match(panel.querySelector('.pbd-inspector__ready').textContent, /Everything these slides show is recorded/);
+});
+
+test('Present starts at the slide in view, with notes and the strip on request', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload({
+    projects: PROJECTS.map((item) => (item.projectId === 2 ? { ...item, speakerNotes: 'Mention the field trial' } : { ...item }))
+  }));
+  await settle(window);
+  outlineRow(document, 'Bravo trainer').click();
+
+  document.querySelector('[data-pbd-preview-open]').click();
+  const viewer = document.querySelector('[data-pbd-viewer]');
+  assert.equal(viewer.open, true);
+  assert.equal(document.querySelector('[data-pbd-viewer-counter]').textContent, '3 / 5');
+  assert.equal(document.querySelector('[data-pbd-viewer-strip]').hidden, true, 'the strip waits until asked for');
+  assert.equal(document.querySelector('[data-pbd-viewer-notes]').hidden, true);
+
+  viewer.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'n', bubbles: true }));
+  assert.equal(document.querySelector('[data-pbd-viewer-notes]').hidden, false);
+  assert.equal(document.querySelector('[data-pbd-viewer-notes-text]').textContent, 'Mention the field trial');
+  assert.equal(document.querySelector('[data-pbd-viewer-notes-toggle]').getAttribute('aria-pressed'), 'true');
+
+  viewer.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.equal(document.querySelector('[data-pbd-viewer-counter]').textContent, '4 / 5');
+  assert.match(document.querySelector('[data-pbd-viewer-notes-text]').textContent, /No speaker notes for Charlie range/);
+
+  document.querySelector('[data-pbd-viewer-first]').click();
+  assert.equal(document.querySelector('[data-pbd-viewer-counter]').textContent, '1 / 5');
+  assert.match(document.querySelector('[data-pbd-viewer-notes-text]').textContent, /not about one project/);
+
+  document.querySelector('[data-pbd-viewer-strip-toggle]').click();
+  assert.equal(document.querySelector('[data-pbd-viewer-strip]').hidden, false);
+  assert.equal(document.querySelectorAll('[data-pbd-viewer-strip] button').length, 5);
+
+  document.querySelector('[data-pbd-viewer-close]').click();
+  assert.equal(viewer.open, false);
+  assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 1 of 5/, 'the Studio shows the slide Present ended on');
 });

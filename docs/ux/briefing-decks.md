@@ -459,9 +459,14 @@ projects missing", Show) and the preview following each settings change.
    and Escape closes the dialog even when focus has left it. The library's Slides column keeps
    "—" until the first PowerPoint, now with a tooltip: the preview count is not stored, and
    storing it would need a new column for little gain.
-4. **Present.** Full screen (Fullscreen API, falling back to the dialog), the slide as large as the
-   screen allows, filmstrip hidden until asked for, and an optional notes view showing the
-   project's speaker notes. It starts at the selected slide, with "From the start" beside it.
-   Keyboard help: arrows, Home/End, N for notes, Esc.
+4. **Present.** Done (this change). Present opens the page full screen (Fullscreen API, from the
+   Present click); where the browser refuses, the dialog still fills the window. Leaving full
+   screen (Esc) ends the presentation and the Studio returns to the slide it ended on. The slide
+   is as large as the screen allows; the strip of every slide ("Slides") and the speaker notes
+   ("Notes", or N) open on request, and both choices are remembered on the browser. The notes
+   are the project's saved speaker notes, shown on each of its slides (the PowerPoint carries
+   them on the first); other slides say they have none. It starts at the slide in view, with
+   "From the start" in the toolbar beside Notes and Slides. The header lists the keys (arrows,
+   N, Esc); Space, Page Up/Down, Home and End also move.
 5. **Phone.** One slide at a time (All slides is not restored below 900 px), the outline as a
    sheet, Generate and Present first, settings in a sheet.
