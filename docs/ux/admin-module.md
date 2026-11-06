@@ -190,6 +190,20 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
 - Fixed in passing: deleted calendar events are hidden by a query filter, so they were counted
   as 0; the counts now lift that filter.
 
+**Shipped in PR 6:** "Lists used in forms" (`/Admin/MasterData`) is one page of cards.
+- The cards are grouped Projects, Activities and ARPP, Documents and social media, and
+  Calendar.
+- Each card shows the list's plain description, its value count (and how many are
+  deactivated), and the form that uses it. Lists kept by another module say they open there.
+- 13 lists, up from 9: Repository document types, Repository offices, Social media event types
+  and Social media platforms join. The two social media lists are also in the catalogue now,
+  so search and Every admin page find them.
+- A card appears only if the viewer can open that list.
+- The rule is said once: a value that records use cannot be deleted; deactivate it instead.
+- The four total-record cards and the compliance wording ("Configuration governance",
+  "Master-data domains") are gone. Recent changes show names, not user ids.
+- Each list keeps its own page, route and permission.
+
 ### Compatibility
 
 - Every current URL keeps working: merged pages answer on their old routes or redirect to the
