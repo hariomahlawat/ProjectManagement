@@ -8,6 +8,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Arpp;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Projects;
@@ -19,12 +20,13 @@ namespace ProjectManagement.Services.Analytics
     /// <summary>
     /// Analytics → ARPP: the projects listed in one financial year's published ARPP (the library's
     /// current position) joined to where each project stands today. Owns the business rules the page
-    /// shows: which year to open on, IPA cost bands, standing by lifecycle, and milestone eligibility.
+    /// shows: which year to open on, IPA cost bands, standing by lifecycle, and milestone eligibility
+    /// (past AoN, supply order placed, and the split of the rest into AoN to SO and Pre-AoN).
     /// </summary>
     public interface IArppAnalyticsService
     {
         /// <param name="requestedFinancialYearStart">The year the user asked for, or null for the default rule.</param>
-        /// <param name="today">The "as of" date (IST) that decides the current financial year and PDC due/overdue.</param>
+        /// <param name="today">The "as of" date (IST) that decides the current financial year.</param>
         Task<ArppAnalyticsVm> BuildAsync(int? requestedFinancialYearStart, DateOnly today, CancellationToken cancellationToken = default);
     }
 
@@ -184,33 +186,61 @@ namespace ProjectManagement.Services.Analytics
             }
 
             // Milestones from the FY update rows (approved projects only).
-            var fyEnd = FinancialYearHelper.GetEndDate(selected);
             var updates = approvedIds.Where(standing.ContainsKey).Select(id => standing[id]).ToList();
-            var pastAon = updates.Where(row => row.AonDate.HasValue).ToList();
+
+            // Past AoN is the AoN stage marked Completed, with or without its date (owner, 6 Nov 2026), or
+            // Skipped (AoN not required: the project is past it). A project whose workflow has no AoN stage
+            // is past AoN once its current stage is beyond the Pre-AoN phase.
+            var aonStatuses = (await _db.ProjectStages
+                    .AsNoTracking()
+                    .Where(stage => approvedIds.Contains(stage.ProjectId) && stage.StageCode == StageCodes.AON)
+                    .Select(stage => new { stage.ProjectId, stage.Status })
+                    .ToListAsync(cancellationToken))
+                .GroupBy(stage => stage.ProjectId)
+                .ToDictionary(group => group.Key, group => group.Select(stage => stage.Status).ToList());
+            bool IsAonSkipped(ArppFyProjectUpdateRow row) =>
+                !row.AonDate.HasValue
+                && aonStatuses.TryGetValue(row.ProjectId, out var statuses)
+                && !statuses.Contains(StageStatus.Completed)
+                && statuses.Contains(StageStatus.Skipped);
+            bool IsPastAon(ArppFyProjectUpdateRow row)
+            {
+                if (row.AonDate.HasValue)
+                {
+                    return true;
+                }
+
+                if (aonStatuses.TryGetValue(row.ProjectId, out var statuses))
+                {
+                    return statuses.Contains(StageStatus.Completed) || statuses.Contains(StageStatus.Skipped);
+                }
+
+                return IsInWork(row)
+                    && !string.IsNullOrWhiteSpace(row.CurrentStageCode)
+                    && StagePhases.Of(row.CurrentStageCode) != StagePhase.PreAon;
+            }
+
+            var pastAon = updates.Where(IsPastAon).ToList();
             // "Supply order placed" is a milestone of projects still in work: a supply-order date, or the
             // project having reached the Supply Order stage or beyond. A resolved amount alone can be an L1
             // or PNC cost recorded before any order exists. Completed projects are not in this count; their
             // supply-order value is reported on its own (CompletedSupplyOrderValue).
             var withSo = updates.Where(row => IsInWork(row) && HasSupplyOrderEvidence(row)).ToList();
             var completedUpdates = updates.Where(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed).ToList();
-            // The rest: ongoing listed projects that have not reached a supply order (cancelled projects are in no card).
+            // The rest: ongoing listed projects that have not reached a supply order, split by AoN: past it
+            // ("AoN to SO stage") or not yet (Pre-AoN: FS, IPA, SoW, and the AoN stage until it is completed).
+            // Cancelled projects are in no card. The ARPP page carries no PDC figures (owner, 6 Nov 2026).
             var beforeSo = updates.Where(row => IsInWork(row) && !HasSupplyOrderEvidence(row)).ToList();
-            // PDC milestones concern projects still in work: a completed, cancelled or archived project has no
-            // development PDC to meet. "Due" is a PDC still ahead and within the year; once the year has closed
-            // nothing is ahead, and the row says so instead of showing an empty window as a zero.
-            var isYearClosed = fyEnd < today;
-            var pdcDue = updates.Where(row => IsInWork(row) && row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value >= today && row.DevelopmentPdcDate.Value <= fyEnd).ToList();
-            var pdcOverdue = updates.Where(row => IsInWork(row) && row.DevelopmentPdcDate.HasValue && row.DevelopmentPdcDate.Value < today).ToList();
+            var aonToSo = beforeSo.Where(IsPastAon).ToList();
+            var preAon = beforeSo.Where(row => !IsPastAon(row)).ToList();
 
             static AnalyticsBoardGroupVm Milestone(string key, string name, IReadOnlyList<ArppFyProjectUpdateRow> rows, Func<ArppFyProjectUpdateRow, string?> detail) =>
                 new(key, name, rows.Count, rows.OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase).Select(row => new AnalyticsBoardProjectVm(row.ProjectId, row.ProjectName, detail(row))).ToList());
 
             var milestoneBoard = new[]
             {
-                Milestone("AON", "Past AoN", pastAon, row => row.AonDate?.ToString("d MMM yyyy")),
-                Milestone("SO", "Supply order placed", withSo, row => row.SupplyOrderAmountInRupees is > 0m ? IndianCurrencyFormatter.FormatCompact(row.SupplyOrderAmountInRupees.Value) : row.SupplyOrderDate?.ToString("d MMM yyyy")),
-                Milestone("PDC_DUE", isYearClosed ? $"PDC due by {fyEnd:d MMM yyyy} (year closed)" : $"PDC due by {fyEnd:d MMM yyyy}", pdcDue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy")),
-                Milestone("PDC_OVERDUE", "PDC overdue", pdcOverdue, row => row.DevelopmentPdcDate?.ToString("d MMM yyyy"))
+                Milestone("AON", "Past AoN", pastAon, row => row.AonDate?.ToString("d MMM yyyy") ?? (IsAonSkipped(row) ? "AoN skipped" : "date not recorded")),
+                Milestone("SO", "Supply order placed", withSo, row => row.SupplyOrderAmountInRupees is > 0m ? IndianCurrencyFormatter.FormatCompact(row.SupplyOrderAmountInRupees.Value) : row.SupplyOrderDate?.ToString("d MMM yyyy"))
             };
 
             return new ArppAnalyticsVm
@@ -219,7 +249,6 @@ namespace ProjectManagement.Services.Analytics
                 FinancialYearDisplay = FinancialYearHelper.Format(selected),
                 AvailableFinancialYears = available,
                 IsCurrentFinancialYear = selected == currentFy,
-                IsFinancialYearClosed = isYearClosed,
                 FallbackNote = fallbackNote,
                 ListedCount = approved.Count,
                 ListedIpaValue = position.ApprovedIpaValue,
@@ -246,9 +275,8 @@ namespace ProjectManagement.Services.Analytics
                 SupplyOrderValue = withSo.Sum(row => row.SupplyOrderAmountInRupees ?? 0m),
                 CompletedSupplyOrderValue = completedUpdates.Sum(row => row.SupplyOrderAmountInRupees ?? 0m),
                 BeforeSupplyOrderCount = beforeSo.Count,
-                BeforeAonCount = beforeSo.Count(row => StagePhases.Of(row.CurrentStageCode) == StagePhase.PreAon),
-                PdcDueInYearCount = pdcDue.Count,
-                PdcOverdueCount = pdcOverdue.Count,
+                AonToSupplyOrderCount = aonToSo.Count,
+                PreAonCount = preAon.Count,
                 MilestoneBoard = milestoneBoard
             };
         }

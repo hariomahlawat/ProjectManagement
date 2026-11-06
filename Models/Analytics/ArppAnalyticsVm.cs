@@ -18,8 +18,6 @@ public sealed class ArppAnalyticsVm
 
     /// <summary>True when the year shown is the financial year of the "as of" date.</summary>
     public bool IsCurrentFinancialYear { get; init; }
-    /// <summary>True when the year shown ended before the "as of" date, so no PDC can still be "due" in it.</summary>
-    public bool IsFinancialYearClosed { get; init; }
     /// <summary>Set when the current financial year has no published ARPP and an earlier year is shown instead.</summary>
     public string? FallbackNote { get; init; }
 
@@ -55,7 +53,8 @@ public sealed class ArppAnalyticsVm
     public IReadOnlyList<ArppValueGroupVm> ByCostBand { get; init; } = Array.Empty<ArppValueGroupVm>();
     public IReadOnlyList<ArppValueGroupVm> ByParentCategory { get; init; } = Array.Empty<ArppValueGroupVm>();
 
-    // Milestones (approved listed projects; the supply-order and PDC figures count projects still in work)
+    // Milestones (approved listed projects; the supply-order figures count projects still in work)
+    /// <summary>Listed projects whose AoN stage is completed (dated or not) or skipped.</summary>
     public int PastAonCount { get; init; }
     /// <summary>Ongoing listed projects with a supply order placed (a supply-order date, or a stage beyond Supply Order).</summary>
     public int SupplyOrderCount { get; init; }
@@ -64,16 +63,13 @@ public sealed class ArppAnalyticsVm
     /// <summary>The recorded supply-order value of the completed listed projects, reported on its own.</summary>
     public decimal CompletedSupplyOrderValue { get; init; }
     public decimal TotalSupplyOrderValue => SupplyOrderValue + CompletedSupplyOrderValue;
-    /// <summary>Ongoing listed projects that have not reached a supply order: the "AoN to SO stage" card (cancelled projects are in no card).</summary>
+    /// <summary>Ongoing listed projects that have not reached a supply order (cancelled projects are in no card).</summary>
     public int BeforeSupplyOrderCount { get; init; }
-    /// <summary>How many of those are still before AoN (FS, IPA, SoW), so the card can say so.</summary>
-    public int BeforeAonCount { get; init; }
-    public int PdcDueInYearCount { get; init; }
-    public int PdcOverdueCount { get; init; }
+    /// <summary>Of those, the ones past AoN: the "AoN to SO stage" card.</summary>
+    public int AonToSupplyOrderCount { get; init; }
+    /// <summary>Of those, the ones not yet past AoN (FS, IPA, SoW, or the AoN stage itself): the "Pre-AoN stage" card.</summary>
+    public int PreAonCount { get; init; }
     public IReadOnlyList<AnalyticsBoardGroupVm> MilestoneBoard { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
-
-    /// <summary>All supply-order value (ongoing and completed) against the listed IPA value.</summary>
-    public double SupplyOrderShareOfIpa => ListedIpaValue > 0 ? (double)(TotalSupplyOrderValue / ListedIpaValue) : 0;
 }
 
 public sealed record ArppStageCountVm(string StageCode, string StageName, int Count);

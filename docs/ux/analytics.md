@@ -65,10 +65,11 @@ the page; only the ARPP mode checks a further policy.
     drawn only for a user its tracker's own view policy admits (ViewProliferationTracker,
     ViewTrainingTracker), checked server-side on the page. Each group lists completed projects first, oldest completion first, then ongoing with
     their current stage, then cancelled. These are not part of the CoE counts.
-  - ARPP: listed projects (IPA value, New / CL / CF split, delisted), completed (their supply-order
-    value), supply orders placed (ongoing projects, their value) and "AoN to SO stage" (ongoing
-    projects not yet at a supply order, noting how many are still before AoN). Cancelled projects
-    are in no card; the standing board lists them.
+  - ARPP (five cards): listed projects (IPA value, New / CL / CF split, delisted), completed (their
+    supply-order value), supply orders placed (ongoing projects, their value), "AoN to SO stage"
+    (ongoing, AoN completed, no supply order yet) and "Pre-AoN stage" (ongoing, AoN not yet
+    completed). Cancelled projects are in no card; the standing board lists them. On two columns
+    the Listed card takes the full row.
   - Insights: the three slowest stages (median days, ratio to the portfolio median, project
     count) and the portfolio median (median of the stage medians) with the number of stages
     measured.
@@ -121,13 +122,15 @@ the page; only the ARPP mode checks a further policy.
   current financial year when it has a published ARPP, else on the latest published year with a
   note. Cards: where the projects stand (ongoing by stage, with Completed / stage / Cancelled rows),
   by sanctioning authority (CFA), by category and IPA cost band, milestones (past AoN, supply
-  orders and their value against listed IPA, development PDC due and overdue), and fund, DFPDS
-  schedule and parent category rows. The rules (year choice, cost bands, standing by
-  lifecycle, milestone eligibility: a supply order counts as placed for a project still in work, on a
-  supply-order date or a stage beyond Supply Order, not on a resolved amount alone; completed
-  projects are not in that count and carry their own supply-order value, shown on the Completed card
-  and in the meter beside the ongoing value; PDC due and overdue count only projects still in work,
-  and a closed year says so rather than showing an empty due window) live in
+  orders placed, and the supply-order amounts beside the listed IPA, no percentage), and fund,
+  DFPDS schedule and parent category rows. No PDC figures: they are development tracking (Command
+  desk, officer conference). The rules (year choice, cost bands, standing by lifecycle, milestone
+  eligibility: past AoN is the AoN stage marked Completed, with or without its date ("date not
+  recorded" in the list), or Skipped ("AoN skipped"), and a workflow without an AoN stage is past
+  AoN once its stage is beyond Pre-AoN; a supply order counts as placed for a project still in
+  work, on a supply-order date or a stage beyond Supply Order, not on a resolved amount alone;
+  completed projects are not in that count and carry their own supply-order value, shown on the
+  Completed card and beside the ongoing value) live in
   `Services/Analytics/ArppAnalyticsService.cs` over `IArppLibraryService.GetCurrentPositionAsync` and
   `IArppFyProjectUpdateService.BuildAsync`; the page only binds the year.
 
@@ -173,7 +176,7 @@ stage codes) are the organisation's own and stay as they are. The owner's decisi
 
 PRs:
 
-1. **Cards and rules.** Past AoN by stage status; the Pre-AoN card; "AoN to SO" narrowed to AoN
+1. **Cards and rules.** Done (this change). Past AoN by stage status; the Pre-AoN card; "AoN to SO" narrowed to AoN
    completed without a supply order; PDC rows and the percentage bar removed; "1 published row"
    singular. Tests in `ArppAnalyticsServiceTests`.
 2. **Position on a date.** One resolver for "where was this project on date D"
