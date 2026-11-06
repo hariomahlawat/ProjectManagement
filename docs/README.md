@@ -37,6 +37,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Chat](chat.md) | Person-to-person chat: buddy list, docked windows, API/hub contract, privacy position and configuration. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
 | [Projects repository](ux/projects-register.md) | The `/Projects` list today (tabs, live search, filters, view choice) and the approved register redesign with its PR plan. |
+| [Administration](ux/admin-module.md) | The Administration redesign: findable pages and settings (search, every-page index), a task-based Home and sidebar, plain wording, and the PR plan. |
 | [Transfer of Technology](ux/tot.md) | The one ToT page (overview and register) and the shared project drawer, the review findings, and the redesign's PR plan. |
 | [Project Officer briefing desk](ux/project-officer-briefing-desk.md) | PO landing page: brief-ready rules, inline posts and the services they reuse. |
 | [Command desk](ux/command-desk.md) | HoD/Comdt desk: what moved forward, what waits on the viewer, what is lagging and which registers have gone quiet. |
