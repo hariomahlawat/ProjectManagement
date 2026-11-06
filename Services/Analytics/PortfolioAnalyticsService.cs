@@ -669,6 +669,7 @@ namespace ProjectManagement.Services.Analytics
             }
 
             var coeProjectsQuery = CoeProjectsQuery(coeCategoryIds);
+            var coeParentIds = await LoadCoeParentCategoryIdsAsync(coeCategoryIds, cancellationToken);
 
             var totalCoeProjects = await coeProjectsQuery.CountAsync(cancellationToken);
             if (totalCoeProjects == 0)
@@ -677,8 +678,8 @@ namespace ProjectManagement.Services.Analytics
             }
 
             var stageBuckets = await BuildCoeStageBucketsAsync(coeCategoryIds, referenceDateIst, cancellationToken);
-            var subcategoryBreakdown = await BuildCoeSubcategoryBreakdownAsync(coeProjectsQuery, cancellationToken);
-            var subcategoryProjects = await BuildCoeSubcategoryProjectsAsync(coeProjectsQuery, referenceDateIst, cancellationToken);
+            var subcategoryBreakdown = await BuildCoeSubcategoryBreakdownAsync(coeProjectsQuery, coeParentIds, cancellationToken);
+            var subcategoryProjects = await BuildCoeSubcategoryProjectsAsync(coeProjectsQuery, coeParentIds, referenceDateIst, cancellationToken);
 
             // SECTION: Headline figures
             var currentYear = referenceDateIst.Year;
@@ -899,12 +900,14 @@ namespace ProjectManagement.Services.Analytics
 
         private static async Task<IReadOnlyList<CoeSubcategoryLifecycleVm>> BuildCoeSubcategoryBreakdownAsync(
             IQueryable<Project> coeProjectsQuery,
+            IReadOnlySet<int> coeParentIds,
             CancellationToken cancellationToken)
         {
             // SECTION: CoE sub-category aggregation
             var lifecycleSnapshots = await coeProjectsQuery
                 .Select(p => new
                 {
+                    p.CategoryId,
                     CategoryName = p.Category != null ? p.Category.Name : null,
                     p.LifecycleStatus
                 })
@@ -913,7 +916,7 @@ namespace ProjectManagement.Services.Analytics
             var groupedBuckets = lifecycleSnapshots
                 .Select(item => new
                 {
-                    Subcategory = NormalizeCoeSubcategoryName(item.CategoryName),
+                    Subcategory = CoeSubcategoryName(item.CategoryId, item.CategoryName, coeParentIds),
                     item.LifecycleStatus
                 })
                 .GroupBy(item => item.Subcategory)
@@ -972,6 +975,7 @@ namespace ProjectManagement.Services.Analytics
 
         private async Task<IReadOnlyList<CoeSubcategoryProjectsVm>> BuildCoeSubcategoryProjectsAsync(
             IQueryable<Project> coeProjectsQuery,
+            IReadOnlySet<int> coeParentIds,
             DateOnly referenceDateIst,
             CancellationToken cancellationToken)
         {
@@ -981,6 +985,7 @@ namespace ProjectManagement.Services.Analytics
                 {
                     p.Id,
                     p.Name,
+                    p.CategoryId,
                     CategoryName = p.Category != null ? p.Category.Name : null,
                     p.LifecycleStatus,
                     p.WorkflowVersion,
@@ -1014,7 +1019,8 @@ namespace ProjectManagement.Services.Analytics
 
                     return new
                     {
-                        Subcategory = NormalizeCoeSubcategoryName(row.CategoryName),
+                        Subcategory = CoeSubcategoryName(row.CategoryId, row.CategoryName, coeParentIds),
+                        WithoutSubcategory = row.CategoryId.HasValue && coeParentIds.Contains(row.CategoryId.Value),
                         row.LifecycleStatus,
                         Project = new CoeProjectSummaryVm(
                             row.Id,
@@ -1032,7 +1038,8 @@ namespace ProjectManagement.Services.Analytics
                         .ToList(),
                     OngoingCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Active),
                     CompletedCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Completed),
-                    CancelledCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Cancelled)))
+                    CancelledCount: group.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Cancelled),
+                    WithoutSubcategory: group.All(item => item.WithoutSubcategory)))
                 .OrderBy(bucket => bucket.SubcategoryName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             // END SECTION
@@ -1115,6 +1122,20 @@ namespace ProjectManagement.Services.Analytics
                 .ToList();
         }
 
+        /// <summary>
+        /// The CoE parent categories: CoE categories whose own parent is not a CoE category. A project
+        /// filed directly under one has no sub-category.
+        /// </summary>
+        private async Task<IReadOnlySet<int>> LoadCoeParentCategoryIdsAsync(List<int> coeCategoryIds, CancellationToken cancellationToken)
+        {
+            var parents = await _db.ProjectCategories
+                .AsNoTracking()
+                .Where(c => coeCategoryIds.Contains(c.Id) && (!c.ParentId.HasValue || !coeCategoryIds.Contains(c.ParentId.Value)))
+                .Select(c => c.Id)
+                .ToListAsync(cancellationToken);
+            return parents.ToHashSet();
+        }
+
         private static bool IsCoeCategory(
             CoeCategoryDescriptor descriptor,
             IReadOnlyDictionary<int, CoeCategoryDescriptor> lookup)
@@ -1158,6 +1179,13 @@ namespace ProjectManagement.Services.Analytics
 
         private static string NormalizeCoeSubcategoryName(string? name) =>
             string.IsNullOrWhiteSpace(name) ? DefaultCoeSubcategoryName : name.Trim();
+
+        // A project filed straight under a CoE parent category is labelled as having no sub-category,
+        // so the parent does not read as one more sub-category beside its children.
+        private static string CoeSubcategoryName(int? categoryId, string? categoryName, IReadOnlySet<int> coeParentIds) =>
+            categoryId.HasValue && coeParentIds.Contains(categoryId.Value)
+                ? NormalizeCoeSubcategoryName(categoryName) + CoeAnalyticsVm.WithoutSubcategorySuffix
+                : NormalizeCoeSubcategoryName(categoryName);
 
         private static string FormatCoeLifecycleStatus(ProjectLifecycleStatus status) => status switch
         {

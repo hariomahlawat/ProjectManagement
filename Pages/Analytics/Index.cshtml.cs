@@ -290,7 +290,12 @@ namespace ProjectManagement.Pages.Analytics
                         new HeadlineFigure("CoE projects", Coe.TotalCoeProjects.ToString(), "all time"),
                         new HeadlineFigure("Ongoing", Coe.OngoingCount.ToString(), "CoE projects in progress"),
                         new HeadlineFigure("Completed", Coe.CompletedCount.ToString(), $"{Coe.CompletedThisYearCount} this year"),
-                        new HeadlineFigure("Sub-categories", Coe.SubcategoryProjects.Count.ToString(), "with at least one project")
+                        new HeadlineFigure("Sub-categories", Coe.SubcategoryCount.ToString(), Coe.ProjectsWithoutSubcategoryCount switch
+                        {
+                            0 => "with at least one project",
+                            1 => "with at least one project · 1 project in none",
+                            var n => $"with at least one project · {n} projects in none"
+                        })
                     };
 
                 case AnalyticsTab.Insights when Insights is not null:
