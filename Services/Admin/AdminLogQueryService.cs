@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Search;
 
 namespace ProjectManagement.Services.Admin;
 
@@ -202,7 +203,7 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
             var term = request.UserName.Trim();
             if (_db.Database.IsNpgsql())
             {
-                var pattern = $"%{term}%";
+                var pattern = SearchLikePattern.Contains(term);
                 query = query.Where(log => log.UserName != null && EF.Functions.ILike(log.UserName, pattern));
             }
             else
@@ -217,7 +218,7 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
             var term = request.Ip.Trim();
             if (_db.Database.IsNpgsql())
             {
-                var pattern = $"%{term}%";
+                var pattern = SearchLikePattern.Contains(term);
                 query = query.Where(log => log.Ip != null && EF.Functions.ILike(log.Ip, pattern));
             }
             else
@@ -232,7 +233,7 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
             var term = request.Contains.Trim();
             if (_db.Database.IsNpgsql())
             {
-                var pattern = $"%{term}%";
+                var pattern = SearchLikePattern.Contains(term);
                 query = query.Where(log =>
                     (log.Message != null && EF.Functions.ILike(log.Message, pattern))
                     || (log.DataJson != null && EF.Functions.ILike(log.DataJson, pattern))
@@ -278,6 +279,10 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
                 || log.Action.Contains("Purge")
                 || log.Action.Contains("Recycle")),
             "master-data" => query.Where(log => log.Action.StartsWith("MasterData")),
+            // Maintenance runs log one action per stage (Started/Completed/Failed/Cancelled,
+            // Committed), so their "Audit history" links filter by prefix, not exact action.
+            "pdf-ingestion" => query.Where(log => log.Action.StartsWith("PdfIngestion")),
+            "legacy-import" => query.Where(log => log.Action.StartsWith("LegacyImport")),
             _ => query
         };
     }

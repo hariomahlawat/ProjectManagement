@@ -68,6 +68,8 @@
                     <option value="calendar">Calendar</option>
                     <option value="recovery">Recovery</option>
                     <option value="master-data">Master data</option>
+                    <option value="pdf-ingestion">PDF ingestion</option>
+                    <option value="legacy-import">Legacy import</option>
                 </select>
             </div>
 
@@ -144,10 +146,11 @@
             </div>
         </details>
 
-        @if (Model.HasFilters)
+        @if (Model.HasFilters || Model.UsesDefaultWindow)
         {
             <div class="admin-active-filters" aria-label="Active filters">
                 <span class="admin-active-filters__label">Active filters</span>
+                @if (Model.UsesDefaultWindow) { <span class="admin-filter-chip">Last @ProjectManagement.Areas.Admin.Pages.Logs.IndexModel.DefaultWindowDays days</span> <a class="admin-filter-chip" href="@Model.AllHistoryUrl()">Show all history</a> }
                 @if (!string.IsNullOrWhiteSpace(Model.Level)) { <span class="admin-filter-chip">Severity: @Model.Level</span> }
                 @if (!string.IsNullOrWhiteSpace(Model.Category)) { <span class="admin-filter-chip">Category: @Model.Category.Replace('-', ' ')</span> }
                 @if (!string.IsNullOrWhiteSpace(Model.Action)) { <span class="admin-filter-chip">Action: @Model.Action</span> }

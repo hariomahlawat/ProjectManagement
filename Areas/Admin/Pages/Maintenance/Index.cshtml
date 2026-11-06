@@ -36,7 +36,7 @@
         </div>
         <footer class="admin-maintenance-card__footer">
             <a class="btn btn-primary" href="@Model.Path(AdminNavigationKeys.PdfIngestion)"><i class="bi bi-play-circle"></i> Open PDF ingestion</a>
-            <a class="btn btn-outline-secondary" asp-area="Admin" asp-page="/Logs/Index" asp-route-Action="PdfIngestion">Audit history</a>
+            <a class="btn btn-outline-secondary" asp-area="Admin" asp-page="/Logs/Index" asp-route-Category="pdf-ingestion">Audit history</a>
         </footer>
     </section>
 
@@ -59,7 +59,7 @@
         </div>
         <footer class="admin-maintenance-card__footer">
             <a class="btn btn-primary" href="@Model.Path(AdminNavigationKeys.LegacyImport)"><i class="bi bi-file-earmark-spreadsheet"></i> Validate workbook</a>
-            <a class="btn btn-outline-secondary" asp-area="Admin" asp-page="/Logs/Index" asp-route-Action="LegacyImport">Audit history</a>
+            <a class="btn btn-outline-secondary" asp-area="Admin" asp-page="/Logs/Index" asp-route-Category="legacy-import">Audit history</a>
         </footer>
     </section>
 </div>

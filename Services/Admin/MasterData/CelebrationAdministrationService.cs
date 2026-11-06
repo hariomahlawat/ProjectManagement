@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Search;
 
 namespace ProjectManagement.Services.Admin.MasterData;
 
@@ -107,7 +108,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         if (search.Length > 0)
         {
             source = source.Where(item =>
-                EF.Functions.ILike(item.Name, $"%{search}%")
+                EF.Functions.ILike(item.Name, SearchLikePattern.Contains(search))
                 || (item.SpouseName != null && EF.Functions.ILike(item.SpouseName, $"%{search}%")));
         }
 

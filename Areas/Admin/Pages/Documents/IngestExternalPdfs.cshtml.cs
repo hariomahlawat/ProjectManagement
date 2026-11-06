@@ -110,7 +110,7 @@ public sealed class IngestExternalPdfsModel : PageModel
                 new AdminPageActionModel
                 {
                     Text = "Audit logs",
-                    Href = Url.Page("/Logs/Index", new { area = "Admin", Action = "PdfIngestion" }) ?? "#",
+                    Href = Url.Page("/Logs/Index", new { area = "Admin", Category = "pdf-ingestion" }) ?? "#",
                     Icon = "bi-journal-text"
                 }
             }
