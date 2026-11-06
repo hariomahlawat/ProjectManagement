@@ -42,6 +42,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/navigation-shell.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
     @if (!SignInManager.IsSignedIn(User))
     {
         <link rel="stylesheet" href="~/css/public-shell.css" asp-append-version="true" />
@@ -410,6 +411,9 @@
          =========================== -->
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    @* One confirmation dialog for every page: window.PrismConfirm.show (docs/ux/confirm-dialogs.md). *@
+    <partial name="_PrismConfirmDialog" />
+    <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true"></script>
     <script src="~/lib/microsoft/signalr/signalr.min.js" asp-append-version="true"></script>
     <script src="~/js/theme-colors.js" asp-append-version="true"></script>
     <script type="module" src="~/js/site.js" asp-append-version="true"></script>

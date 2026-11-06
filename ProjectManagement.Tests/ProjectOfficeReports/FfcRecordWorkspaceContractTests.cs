@@ -33,7 +33,8 @@ public sealed class FfcRecordWorkspaceContractTests
         Assert.Contains("_WorkspaceProjects.cshtml", details, StringComparison.Ordinal);
         Assert.Contains("_WorkspaceAttachments.cshtml", details, StringComparison.Ordinal);
         Assert.Contains("ffc-project-editor-data", details, StringComparison.Ordinal);
-        Assert.Contains("_PrismConfirmDialog.cshtml", details, StringComparison.Ordinal);
+        // The confirmation dialog comes from _Layout; a second copy would duplicate its element ids.
+        Assert.DoesNotContain("_PrismConfirmDialog.cshtml", details, StringComparison.Ordinal);
         Assert.Contains("data-bs-backdrop=\"static\"", projectEditor, StringComparison.Ordinal);
         Assert.Contains("data-bs-keyboard=\"false\"", projectEditor, StringComparison.Ordinal);
         Assert.Contains("same canonical external remark", projectEditor, StringComparison.Ordinal);
