@@ -1343,7 +1343,7 @@
             addManualRow();
             return;
         }
-        if (event.key === "Escape" && !document.querySelector(".modal.show")) {
+        if (event.key === "Escape" && !document.querySelector(".modal.show, dialog[open]")) {
             if (root.classList.contains("has-details-open")) {
                 setDetailsOpen(false);
                 return;

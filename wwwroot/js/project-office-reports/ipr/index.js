@@ -64,8 +64,12 @@
 
   // Keeps Tab and Shift+Tab inside an open panel (it is a modal dialog over the register).
   // A Bootstrap modal opened from the panel (the patent/copyright guidance) manages its own focus.
+  // A Bootstrap modal or a native <dialog> (the shared PRISM confirmation) owns the keyboard
+  // while it is open: the editor neither traps Tab nor handles Escape then.
+  const overlayOpen = () => Boolean(document.querySelector('.modal.show, dialog[open]'));
+
   const trapFocus = (container, event) => {
-    if (event.key !== 'Tab' || document.querySelector('.modal.show')) return;
+    if (event.key !== 'Tab' || overlayOpen()) return;
     const items = Array.from(container.querySelectorAll(FOCUSABLE))
       .filter(item => !item.closest('[hidden], .d-none') && window.getComputedStyle(item).display !== 'none');
     if (items.length === 0) return;
@@ -128,7 +132,7 @@
 
     document.addEventListener('keydown', event => {
       trapFocus(element, event);
-      if (event.key !== 'Escape' || document.querySelector('.modal.show')) return;
+      if (event.key !== 'Escape' || overlayOpen()) return;
       if (event.target.closest?.('[data-ipr-project-picker]')) return;
       event.preventDefault();
       close();

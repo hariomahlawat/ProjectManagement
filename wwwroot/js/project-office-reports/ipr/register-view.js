@@ -590,7 +590,7 @@
   document.addEventListener('keydown', event => {
     if (!panel || panel.hidden) return;
     if (event.key === 'Tab') window.iprTrapFocus?.(panel, event);
-    if (event.key === 'Escape' && !document.querySelector('.offcanvas.show, .modal.show')) {
+    if (event.key === 'Escape' && !document.querySelector('.offcanvas.show, .modal.show, dialog[open]')) {
       closePanel();
     }
   });
