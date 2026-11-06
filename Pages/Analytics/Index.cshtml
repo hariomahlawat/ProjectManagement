@@ -25,7 +25,7 @@
         AnalyticsTab.Coe => "Centre of Excellence (AR/VR) projects by stage, sub-category and lifecycle",
         AnalyticsTab.Insights => "How long each workflow stage takes, from finished stages across ongoing and completed projects",
         AnalyticsTab.Arpp => Model.Arpp is { HasData: true }
-            ? $"The {Model.Arpp.ListedCount} projects listed in the FY {Model.Arpp.FinancialYearDisplay} ARPP and where they stand today"
+            ? $"The {Model.Arpp.ListedCount} projects listed in the FY {Model.Arpp.FinancialYearDisplay} ARPP and {(Model.Arpp.AsOfDate is { } asOf ? $"where they stood on {asOf:d MMM yyyy}, the end of that year" : "where they stand today")}"
             : "Projects listed in the year's ARPP and where they stand today",
         _ => Model.IsOngoingFiltered
             ? $"Where {Model.Ongoing?.TotalOngoingProjects ?? 0} of the {Model.OngoingCount} ongoing projects (selected parent categories) stand, by phase and stage"

@@ -308,6 +308,10 @@ namespace ProjectManagement.Pages.Analytics
                 }
 
                 case AnalyticsTab.Arpp when Arpp is not null && Arpp.HasData:
+                {
+                    // A past year counts where the projects stood on its 31 March; the current year, today.
+                    var when = Arpp.AsOfDate is { } asOf ? $"on {asOf:d MMM}" : "ongoing";
+                    var notKnown = Arpp.CardNotKnownCount > 0 ? $" · {Arpp.CardNotKnownCount} not known {when}" : string.Empty;
                     return new[]
                     {
                         // Listed, then where they stand: completed, supply order placed, then the rest split by AoN
@@ -315,7 +319,7 @@ namespace ProjectManagement.Pages.Analytics
                         new HeadlineFigure(
                             "Listed projects",
                             Arpp.ListedCount.ToString(),
-                            $"IPA {IndianCurrencyFormatter.FormatCompact(Arpp.ListedIpaValue)} · New {Arpp.NewCount} · CL {Arpp.CommittedLiabilityCount} · CF {Arpp.CarryForwardCount} · delisted {Arpp.DelistedCount}"),
+                            $"IPA {IndianCurrencyFormatter.FormatCompact(Arpp.ListedIpaValue)} · New {Arpp.NewCount} · CL {Arpp.CommittedLiabilityCount} · CF {Arpp.CarryForwardCount} · delisted {Arpp.DelistedCount}{notKnown}"),
                         new HeadlineFigure(
                             "Completed",
                             Arpp.CompletedCount.ToString(),
@@ -326,17 +330,18 @@ namespace ProjectManagement.Pages.Analytics
                             "Supply orders placed",
                             Arpp.SupplyOrderCount.ToString(),
                             Arpp.SupplyOrderValue > 0
-                                ? $"supply orders {IndianCurrencyFormatter.FormatCompact(Arpp.SupplyOrderValue)} · ongoing"
-                                : "ongoing; no value recorded yet"),
+                                ? $"supply orders {IndianCurrencyFormatter.FormatCompact(Arpp.SupplyOrderValue)} · {when}"
+                                : $"{when}; no value recorded yet"),
                         new HeadlineFigure(
                             "AoN to SO stage",
                             Arpp.AonToSupplyOrderCount.ToString(),
-                            "ongoing, AoN completed, supply order not yet placed"),
+                            $"{when}, AoN completed, supply order not yet placed"),
                         new HeadlineFigure(
                             "Pre-AoN stage",
                             Arpp.PreAonCount.ToString(),
-                            "ongoing, AoN not yet completed")
+                            $"{when}, AoN not yet completed")
                     };
+                }
 
                 default:
                     return Array.Empty<HeadlineFigure>();

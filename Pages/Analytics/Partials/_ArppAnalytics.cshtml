@@ -13,6 +13,8 @@
     static string Crore(decimal rupees) => IndianCurrencyFormatter.FormatCompact(rupees);
     var maxStanding = Model.StandingBoard.Count > 0 ? Model.StandingBoard.Max(group => group.Count) : 0;
     var maxMilestone = Model.ListedCount;
+    // A past year shows where its projects stood on 31 March (the year's end); the current year, today.
+    var onDate = Model.AsOfDate is { } asOf ? $"on {asOf:d MMM yyyy}" : null;
 }
 
 <section class="analytics-panel analytics-panel--arpp" aria-label="ARPP listed projects analytics">
@@ -42,8 +44,8 @@
     <article class="analytics-card">
       <header class="analytics-card__head">
         <div class="analytics-card__text">
-          <h2 class="analytics-card__title">Where the FY @Model.FinancialYearDisplay projects stand</h2>
-          <p class="analytics-card__meta">The @Model.ListedCount listed projects today: @Model.CompletedCount completed, @Model.OngoingCount ongoing by current stage@(Model.CancelledCount > 0 ? $", {Model.CancelledCount} cancelled" : ""). Click a bar or a row to see the projects.</p>
+          <h2 class="analytics-card__title">@(onDate is null ? $"Where the FY {Model.FinancialYearDisplay} projects stand" : $"Where the FY {Model.FinancialYearDisplay} projects stood {onDate}")</h2>
+          <p class="analytics-card__meta">The @Model.ListedCount listed projects @(onDate ?? "today"): @Model.CompletedCount completed, @Model.OngoingCount ongoing by @(onDate is null ? "current stage" : "stage")@(Model.NotKnownCount > 0 ? $", {Model.NotKnownCount} not known" : "")@(Model.CancelledCount > 0 ? $", {Model.CancelledCount} cancelled" : "").@(onDate is null ? "" : " Worked out from the stage dates and the stage change log; a project the records cannot place is listed as not known.") Click a bar or a row to see the projects.</p>
         </div>
         <div class="analytics-card__actions">
           @await Html.PartialAsync("Partials/_ArppYearFilter", Model)
@@ -55,7 +57,7 @@
       <div class="analytics-card__chart">
         <canvas id="arpp-by-stage-chart"
                 role="img"
-                aria-label="Ongoing ARPP-listed projects by current stage"
+                aria-label="@(onDate is null ? "Ongoing ARPP-listed projects by current stage" : $"ARPP-listed projects in work {onDate}, by stage")"
                 data-empty-message="No ongoing listed projects."
                 data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, json))'></canvas>
       </div>
@@ -153,7 +155,7 @@
         <header class="analytics-card__head">
           <div class="analytics-card__text">
             <h2 class="analytics-card__title">Milestones</h2>
-            <p class="analytics-card__meta">How far the listed projects have moved, from the project records. Supply orders count projects still in work; completed projects carry their own supply-order value.</p>
+            <p class="analytics-card__meta">How far the listed projects @(onDate is null ? "have moved" : $"had moved {onDate}"), from the project records. Supply orders count projects still in work; completed projects carry their own supply-order value.</p>
           </div>
         </header>
         <div class="analytics-minis analytics-minis--2">

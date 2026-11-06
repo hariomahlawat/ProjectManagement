@@ -13,6 +13,7 @@ using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Reports.ArppFyProjectUpdate;
+using ProjectManagement.Services.Stages;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -177,6 +178,70 @@ public sealed class ArppAnalyticsServiceTests
         Assert.Equal(new[] { "AON", "SO" }, vm.MilestoneBoard.Select(group => group.Key).ToArray());
     }
 
+    [Fact]
+    public async Task BuildAsync_APastYear_CountsWhereTheProjectsStoodOn31March()
+    {
+        await using var db = CreateDb();
+        var library = new FakeLibrary(2025,
+            Row(1, "Was at Bid", ArppCategory.New, 10_000_000m),
+            Row(2, "Was before AoN", ArppCategory.New, 10_000_000m),
+            Row(3, "SoW or AoN", ArppCategory.New, 10_000_000m),
+            Row(4, "Ordered by then", ArppCategory.New, 10_000_000m),
+            Row(5, "Done by then", ArppCategory.New, 10_000_000m),
+            Row(6, "Completed, year only", ArppCategory.New, 10_000_000m));
+        // Today every one of them is further on; the page must not use today's position for a past year.
+        var fy = new FakeFyUpdate(new[] { 2026, 2025 },
+            Update(1, "Was at Bid", ProjectLifecycleStatus.Active, StageCodes.DEVP, supplyOrderAmount: 7_000_000m),
+            Update(2, "Was before AoN", ProjectLifecycleStatus.Active, StageCodes.TEC),
+            Update(3, "SoW or AoN", ProjectLifecycleStatus.Active, StageCodes.BID),
+            Update(4, "Ordered by then", ProjectLifecycleStatus.Completed, null, supplyOrderAmount: 6_000_000m),
+            Update(5, "Done by then", ProjectLifecycleStatus.Completed, null, supplyOrderAmount: 5_000_000m),
+            Update(6, "Completed, year only", ProjectLifecycleStatus.Completed, null));
+        var yearEnd = new DateOnly(2026, 3, 31);
+        var positions = new FakePositions(
+            Position(1, LifecycleAsOf.Active, Known(StageCodes.BID), pastAon: true, supplyOrder: false, aonDate: new DateOnly(2026, 2, 24)),
+            Position(2, LifecycleAsOf.Active, Known(StageCodes.SOW), pastAon: false, supplyOrder: false),
+            Position(3, LifecycleAsOf.Active, Range(StageCodes.SOW, StageCodes.AON), pastAon: false, supplyOrder: false),
+            Position(4, LifecycleAsOf.Active, Known(StageCodes.DEVP), pastAon: true, supplyOrder: true, soDate: new DateOnly(2026, 1, 5)),
+            Position(5, LifecycleAsOf.Completed, StagePositionAsOf.None, pastAon: true, supplyOrder: null),
+            Position(6, LifecycleAsOf.NotKnown, StagePositionAsOf.None, pastAon: null, supplyOrder: null));
+
+        var vm = await new ArppAnalyticsService(db, library, fy, positions).BuildAsync(2025, Today);
+
+        Assert.Equal(yearEnd, positions.AskedFor);
+        Assert.Equal(yearEnd, vm.AsOfDate);
+        Assert.Equal(1, vm.CompletedCount);
+        Assert.Equal(5_000_000m, vm.CompletedSupplyOrderValue);
+        Assert.Equal(1, vm.SupplyOrderCount);                // ordered by then, though completed today
+        Assert.Equal(6_000_000m, vm.SupplyOrderValue);
+        Assert.Equal(1, vm.AonToSupplyOrderCount);           // was at Bid
+        Assert.Equal(2, vm.PreAonCount);                     // before AoN, and SoW-or-AoN (both before AoN)
+        Assert.Equal(1, vm.NotKnownCount);                   // completed, year only
+        Assert.Equal(1, vm.CardNotKnownCount);
+        Assert.Equal(vm.ListedCount, vm.CompletedCount + vm.SupplyOrderCount + vm.AonToSupplyOrderCount + vm.PreAonCount + vm.CardNotKnownCount);
+
+        var notKnown = vm.StandingBoard.Single(group => group.Key == "NOT_KNOWN");
+        Assert.Equal("Not known on 31 Mar 2026", notKnown.Name);
+        Assert.Contains(notKnown.Projects, project => project.ProjectName == "SoW or AoN" && project.Detail!.Contains("(dates not recorded)"));
+        Assert.Equal("Past AoN on 31 Mar 2026", vm.MilestoneBoard.Single(group => group.Key == "AON").Name);
+        Assert.Equal("24 Feb 2026", vm.MilestoneBoard.Single(group => group.Key == "AON").Projects.Single(project => project.ProjectName == "Was at Bid").Detail);
+    }
+
+    [Fact]
+    public async Task BuildAsync_TheCurrentYear_StaysOnToday()
+    {
+        await using var db = CreateDb();
+        var positions = new FakePositions();
+        var library = new FakeLibrary(2026, Row(1, "Now", ArppCategory.New, 10_000_000m));
+        var fy = new FakeFyUpdate(new[] { 2026 }, Update(1, "Now", ProjectLifecycleStatus.Active, StageCodes.SOW));
+
+        var vm = await new ArppAnalyticsService(db, library, fy, positions).BuildAsync(2026, Today);
+
+        Assert.Null(vm.AsOfDate);
+        Assert.Null(positions.AskedFor);
+        Assert.Equal(1, vm.PreAonCount);
+    }
+
     // SECTION: Fixtures
     private static ApplicationDbContext CreateDb()
     {
@@ -203,6 +268,29 @@ public sealed class ArppAnalyticsServiceTests
 
     private static ProjectStage Stage(int projectId, StageStatus status, DateOnly? completedOn) =>
         new() { ProjectId = projectId, StageCode = StageCodes.AON, SortOrder = 3, Status = status, CompletedOn = completedOn };
+
+    private static StagePositionAsOf Known(string code) =>
+        new(true, code, StageCodes.DisplayNameOf(code), new[] { new ProjectLifecycleStageSnapshot(code, StageCodes.DisplayNameOf(code), StageStatus.InProgress, 0, null, true) }, false);
+
+    private static StagePositionAsOf Range(string from, string to) =>
+        new(false, null, $"{StageCodes.DisplayNameOf(from)} or {StageCodes.DisplayNameOf(to)}",
+            new[] { from, to }.Select((code, index) => new ProjectLifecycleStageSnapshot(code, StageCodes.DisplayNameOf(code), StageStatus.InProgress, index, null, true)).ToArray(), false);
+
+    private static ProjectPositionAsOf Position(int projectId, LifecycleAsOf lifecycle, StagePositionAsOf stage, bool? pastAon, bool? supplyOrder, DateOnly? aonDate = null, DateOnly? soDate = null) =>
+        new(projectId, lifecycle, stage, pastAon, aonDate, false, supplyOrder, soDate);
+
+    private sealed class FakePositions : IProjectPositionAsOfService
+    {
+        private readonly IReadOnlyDictionary<int, ProjectPositionAsOf> _positions;
+        public FakePositions(params ProjectPositionAsOf[] positions) => _positions = positions.ToDictionary(position => position.ProjectId);
+        public DateOnly? AskedFor { get; private set; }
+
+        public Task<IReadOnlyDictionary<int, ProjectPositionAsOf>> ResolveAsync(IReadOnlyCollection<int> projectIds, DateOnly asOf, CancellationToken cancellationToken = default)
+        {
+            AskedFor = asOf;
+            return Task.FromResult(_positions);
+        }
+    }
 
     private sealed class FakeLibrary : IArppLibraryService
     {

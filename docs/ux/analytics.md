@@ -118,7 +118,8 @@ the page; only the ARPP mode checks a further policy.
 
 - **ARPP** (fifth mode, added 2026-10-25): the projects listed in one financial year's published
   ARPP (the latest published row per project, as the ARPP library's current position) joined to
-  where each project stands today. A Financial year chip picks the year; the page opens on the
+  where each project stands today (for a past year: where it stood on 31 March, the last day of that
+  year, worked out by `ProjectPositionAsOfService`). A Financial year chip picks the year; the page opens on the
   current financial year when it has a published ARPP, else on the latest published year with a
   note. Cards: where the projects stand (ongoing by stage, with Completed / stage / Cancelled rows),
   by sanctioning authority (CFA), by category and IPA cost band, milestones (past AoN, supply
@@ -179,7 +180,14 @@ PRs:
 1. **Cards and rules.** Done (this change). Past AoN by stage status; the Pre-AoN card; "AoN to SO" narrowed to AoN
    completed without a supply order; PDC rows and the percentage bar removed; "1 published row"
    singular. Tests in `ArppAnalyticsServiceTests`.
-2. **Position on a date.** One resolver for "where was this project on date D"
+2. **Position on a date.** Done (this change): `StageStateAsOfResolver` (pure rule) and
+   `ProjectPositionAsOfService` in `Services/Stages`, tests in `StageStateAsOfResolverTests`. A past
+   year's cards, standing list, chart and milestones count the position on 31 March; a project the
+   records cannot place in one stage is listed under "Not known on 31 Mar" (with its range, such as
+   "SOW Vetting or Acceptance of Necessity (dates not recorded)") and still counts in its card when
+   every candidate stage sits in one; one whose card cannot be told is counted on the Listed card
+   ("N not known on 31 Mar"). Supply-order values are today's (a placed order's PNC/L1 value does
+   not change). One resolver for "where was this project on date D"
    (`Services/Stages`, with its own tests: dated stages, the next-stage start, the change log,
    parallel branches, skipped stages, the one-card range and Not known). The ARPP mode uses it for
    a past year's 31 March; nothing else changes.
