@@ -11,21 +11,6 @@ const read = (relative) => fs.readFileSync(path.join(repoRoot, relative), 'utf8'
 
 // view -> { script: handler file, selector: text the handler must contain, hosts: pages that load the handler }
 const registry = {
-  'Areas/ProjectOfficeReports/Pages/SocialMedia/_PhotoGallery.cshtml': {
-    script: 'wwwroot/js/pages/project-office-reports/social-media.js',
-    selector: "form[data-confirm]",
-    hosts: ['Areas/ProjectOfficeReports/Pages/SocialMedia/Details.cshtml', 'Areas/ProjectOfficeReports/Pages/SocialMedia/Edit.cshtml'],
-  },
-  'Areas/ProjectOfficeReports/Pages/Visits/_PhotosPartial.cshtml': {
-    script: 'wwwroot/js/pages/project-office-reports/visits.js',
-    selector: "form[data-confirm]",
-    hosts: ['Areas/ProjectOfficeReports/Pages/Visits/Details.cshtml', 'Areas/ProjectOfficeReports/Pages/Visits/Edit.cshtml', 'Areas/ProjectOfficeReports/Pages/Visits/New.cshtml'],
-  },
-  'Areas/ProjectOfficeReports/Pages/Visits/Details.cshtml': {
-    script: 'wwwroot/js/pages/project-office-reports/visits.js',
-    selector: "form[data-confirm]",
-    hosts: ['Areas/ProjectOfficeReports/Pages/Visits/Details.cshtml'],
-  },
   'Pages/Tasks/_TaskList.cshtml': {
     script: 'wwwroot/js/todo.js',
     selector: '.js-confirm-delete',

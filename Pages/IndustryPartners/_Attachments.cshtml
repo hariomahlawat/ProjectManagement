@@ -81,7 +81,7 @@ else
                     </a>
                     @if (Model.CanEditOrganisation)
                     {
-                        <form method="post" asp-page-handler="DeleteAttachment" data-confirm-form="Remove this file from the organisation record?">
+                        <form method="post" asp-page-handler="DeleteAttachment" data-confirm="Remove this file from the organisation record?" data-confirm-action="Remove file">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="partnerId" value="@partner.Id" />
                             <input type="hidden" name="attachmentId" value="@attachment.Id" />

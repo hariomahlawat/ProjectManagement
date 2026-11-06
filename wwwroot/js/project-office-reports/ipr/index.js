@@ -1,6 +1,11 @@
 (() => {
   'use strict';
 
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askConfirm = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
   const normalizeText = value => (value || '')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -107,8 +112,16 @@
     form?.addEventListener('input', () => { dirty = true; });
     form?.addEventListener('change', () => { dirty = true; });
 
-    const close = () => {
-      if (dirty && !submitting && !window.confirm('Discard your changes to this record?')) return;
+    const confirmDiscard = () => askConfirm({
+      tone: 'warning',
+      title: 'Discard your changes to this record?',
+      message: 'Your edits have not been saved.',
+      confirmText: 'Discard changes',
+      cancelText: 'Keep editing'
+    });
+
+    const close = async () => {
+      if (dirty && !submitting && !(await confirmDiscard())) return;
       leaving = true;
       window.location.assign(closeUrl);
     };
@@ -123,11 +136,17 @@
 
     document.querySelectorAll('[data-ipr-editor-close]').forEach(link => {
       link.addEventListener('click', event => {
-        if (dirty && !submitting && !window.confirm('Discard your changes to this record?')) {
-          event.preventDefault();
+        if (!dirty || submitting) {
+          leaving = true;
           return;
         }
-        leaving = true;
+        // Hold the link, ask, and follow it only on yes.
+        event.preventDefault();
+        confirmDiscard().then(accepted => {
+          if (!accepted) return;
+          leaving = true;
+          window.location.assign(link.href);
+        });
       });
     });
 
@@ -452,18 +471,6 @@
     buttons.forEach(button => button.addEventListener('click', () => apply(button.dataset.iprDensity)));
   };
 
-  const initialiseConfirmations = () => {
-    document.querySelectorAll('form[data-ipr-confirm]').forEach(form => {
-      form.addEventListener('submit', event => {
-        const message = form.dataset.iprConfirm || 'Are you sure?';
-        if (!window.confirm(message)) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-        }
-      });
-    });
-  };
-
   const initialiseTypeGuidance = () => {
     const guidanceByType = {
       patent: {
@@ -542,7 +549,6 @@
   initialiseProjectPickers();
   initialiseEditor();
   initialiseDensity();
-  initialiseConfirmations();
   initialiseTypeGuidance();
   initialiseGrantedDate();
 })();

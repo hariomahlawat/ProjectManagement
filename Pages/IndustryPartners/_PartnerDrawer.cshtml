@@ -86,7 +86,7 @@
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li>
-                        <form method="post" asp-page-handler="DeletePartner" data-confirm-form="Permanently delete this organisation and all of its contacts and files? This cannot be undone.">
+                        <form method="post" asp-page-handler="DeletePartner" data-confirm="Delete this organisation permanently? All of its contacts and files are deleted too. This cannot be undone." data-confirm-action="Delete organisation">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="partnerId" value="@partner.Id" />
                             <input type="hidden" name="q" value="@Model.Q" />

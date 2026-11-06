@@ -1,5 +1,11 @@
 /* global bootstrap, ProliferationProjectPicker */
 (() => {
+
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askConfirm = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
   const Modal = window.bootstrap?.Modal ?? null;
   const Collapse = window.bootstrap?.Collapse ?? null;
 
@@ -249,12 +255,19 @@
     return Boolean(editorBaseline) && serializeEditorState() !== editorBaseline;
   }
 
+  // Resolves true when there is nothing to lose or the user agrees to discard it.
   function confirmDiscardChanges() {
     if (!isEditorDirty()) {
-      return true;
+      return Promise.resolve(true);
     }
 
-    return window.confirm('You have unsaved changes. Continue without saving them?');
+    return askConfirm({
+      tone: 'warning',
+      title: 'Discard your unsaved changes?',
+      message: 'The entry in the editor has not been saved.',
+      confirmText: 'Discard changes',
+      cancelText: 'Keep editing'
+    });
   }
 
   function updateLegacyProjectWarning(project) {
@@ -262,9 +275,9 @@
     editor.legacyProjectWarning?.classList.toggle('d-none', !isLegacyRepeatBuild);
   }
 
-  function beginNewEntry(kind, options = {}) {
+  async function beginNewEntry(kind, options = {}) {
     const target = kind === 'yearly' ? 'yearly' : 'granular';
-    if (!confirmDiscardChanges()) {
+    if (!(await confirmDiscardChanges())) {
       return false;
     }
 
@@ -2146,7 +2159,14 @@
 
   async function clearOverride(row) {
     if (!row) return;
-    const confirmed = window.confirm('Return this project-year to its source default counting rule?');
+    const confirmed = await askConfirm({
+      tone: 'warning',
+      icon: 'bi-arrow-counterclockwise',
+      title: 'Return to the source default rule?',
+      message: 'This project-year will be counted by its source default counting rule again.',
+      confirmText: 'Use source default',
+      cancelText: 'Keep override'
+    });
     if (!confirmed) return;
     try {
       const payload = {
@@ -2190,7 +2210,13 @@
     const fallbackMessage = `Are you sure you want to delete this ${fallbackType}${fallbackProject}${fallbackDate}?`;
 
     if (!deleteModalElements?.element || !deleteModalElements?.confirm || !Modal) {
-      return Promise.resolve(window.confirm(fallbackMessage));
+      return askConfirm({
+        tone: 'danger',
+        title: `Delete this ${fallbackType}?`,
+        message: fallbackMessage,
+        confirmText: 'Delete',
+        cancelText: 'Cancel'
+      });
     }
 
     const instance = Modal.getOrCreateInstance(deleteModalElements.element, {
@@ -2559,12 +2585,12 @@
     fetchList();
   });
 
-  listEl?.addEventListener('click', (event) => {
+  listEl?.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-id][data-kind]');
     if (!button) return;
     const id = button.getAttribute('data-id');
     const kind = button.getAttribute('data-kind');
-    if (!id || !kind || !confirmDiscardChanges()) return;
+    if (!id || !kind || !(await confirmDiscardChanges())) return;
 
     const metadata = {
       updated: button.dataset.updated || ''
@@ -2665,9 +2691,9 @@
   });
 
   document.querySelectorAll('[data-new-proliferation]').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       const kind = button.dataset.newProliferation === 'yearly' ? 'yearly' : 'granular';
-      if (!beginNewEntry(kind, { preserveContext: true })) return;
+      if (!(await beginNewEntry(kind, { preserveContext: true }))) return;
       document.querySelector('#pf-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       (editor.projectSearch || editor.project)?.focus();
     });
@@ -2738,7 +2764,7 @@
 
   approvalElements.amendmentOpen?.addEventListener('click', async () => {
     const targetId = approvalElements.amendmentOpen.dataset.targetId;
-    if (!targetId || !confirmDiscardChanges()) return;
+    if (!targetId || !(await confirmDiscardChanges())) return;
     try {
       await loadIntoEditor(currentRecord.kind === 'yearly' ? 'yearly' : 'granular', targetId);
     } catch (error) {
@@ -2804,7 +2830,7 @@
     if (!canApproveRecords || !currentRecord.id) {
       return false;
     }
-    if (!confirmDiscardChanges()) {
+    if (!(await confirmDiscardChanges())) {
       return false;
     }
 
@@ -2892,14 +2918,14 @@
     return payload;
   }
 
-  editor.btnReset?.addEventListener('click', () => {
-    if (!confirmDiscardChanges()) return;
+  editor.btnReset?.addEventListener('click', async () => {
+    if (!(await confirmDiscardChanges())) return;
     const currentKind = editor.kind.value;
     resetEditor(currentKind);
   });
 
-  editor.btnAddAnother?.addEventListener('click', () => {
-    beginNewEntry(editor.kind?.value || 'granular', { preserveContext: true });
+  editor.btnAddAnother?.addEventListener('click', async () => {
+    if (!(await beginNewEntry(editor.kind?.value || 'granular', { preserveContext: true }))) return;
     (editor.kind?.value === 'yearly' ? editor.qty : editor.date)?.focus();
   });
 
@@ -3028,10 +3054,10 @@
     return '';
   }
 
-  function handleHashChange() {
+  async function handleHashChange() {
     const kind = getHashKind();
     if (!kind || kind === editor.kind?.value) return;
-    if (!beginNewEntry(kind, { preserveContext: true })) {
+    if (!(await beginNewEntry(kind, { preserveContext: true }))) {
       window.history.replaceState(null, '', `#${editor.kind?.value || 'granular'}`);
     }
   }
@@ -3111,14 +3137,29 @@
     updateSaveButtonState();
   }
 
+  // The tab switch is held while the user decides, then replayed once on yes.
+  const approvedWorkspaceTabs = new WeakSet();
   pageRoot?.querySelectorAll('[data-workspace]').forEach((tab) => {
     tab.addEventListener('click', (event) => {
+      if (approvedWorkspaceTabs.has(tab)) {
+        approvedWorkspaceTabs.delete(tab);
+        return;
+      }
       const requested = tab.dataset.workspace || 'records';
       if (requested === activeWorkspace || requested !== 'approvals' || !isEditorDirty()) return;
-      if (!window.confirm('You have unsaved changes. Open the approval queue and discard them?')) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      askConfirm({
+        tone: 'warning',
+        title: 'Open the approval queue and discard your changes?',
+        message: 'The entry in the editor has not been saved.',
+        confirmText: 'Discard and open',
+        cancelText: 'Keep editing'
+      }).then((accepted) => {
+        if (!accepted) return;
+        approvedWorkspaceTabs.add(tab);
+        tab.click();
+      });
     }, true);
   });
 
@@ -3129,8 +3170,21 @@
   window.addEventListener('proliferation:reviewrecord', async (event) => {
     const id = event.detail?.id;
     const kind = event.detail?.kind === 'yearly' ? 'yearly' : 'granular';
-    if (!id || !confirmDiscardChanges()) {
+    if (!id) {
       event.preventDefault();
+      return;
+    }
+    if (isEditorDirty() && event.detail?.discardApproved !== true) {
+      // Other listeners read defaultPrevented straight away: hold the review, ask, and send
+      // it again (marked approved) only on yes.
+      event.preventDefault();
+      const accepted = await confirmDiscardChanges();
+      if (accepted) {
+        window.dispatchEvent(new CustomEvent('proliferation:reviewrecord', {
+          cancelable: true,
+          detail: { ...event.detail, discardApproved: true }
+        }));
+      }
       return;
     }
     try {

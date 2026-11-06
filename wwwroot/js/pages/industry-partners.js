@@ -217,13 +217,7 @@
   }
 
   function initConfirmationsAndSubmissionState() {
-    root.querySelectorAll('[data-confirm-form]').forEach((form) => {
-      form.addEventListener('submit', (event) => {
-        const message = form.dataset.confirmForm || 'Continue with this action?';
-        if (!window.confirm(message)) event.preventDefault();
-      });
-    });
-
+    // Confirmations use the data-confirm attribute, which core/declarative-actions.js shows in the shared PRISM dialog.
     root.querySelectorAll('form').forEach((form) => {
       form.addEventListener('submit', (event) => {
         if (event.defaultPrevented) return;

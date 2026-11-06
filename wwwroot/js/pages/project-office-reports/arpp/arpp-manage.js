@@ -1,6 +1,11 @@
 (() => {
     "use strict";
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
     const root = document.querySelector("[data-arpp-workspace]");
     const form = root?.querySelector("[data-arpp-form]");
     const body = root?.querySelector("[data-arpp-entry-body]");
@@ -1312,16 +1317,14 @@
         if (!dirty) return;
         event.preventDefault();
         const link = event.currentTarget;
-        const accepted = window.PrismConfirm?.show
-            ? await window.PrismConfirm.show({
-                title: "Discard unsaved changes?",
-                message: "Your changes to the ARPP working copy have not been saved.",
-                detail: "The last saved document remains unchanged.",
-                confirmText: "Discard and return",
-                cancelText: "Continue editing",
-                tone: "warning"
-            })
-            : window.confirm("Discard your unsaved changes and return to the record?");
+        const accepted = await askConfirm({
+            title: "Discard unsaved changes?",
+            message: "Your changes to the ARPP working copy have not been saved.",
+            detail: "The last saved document remains unchanged.",
+            confirmText: "Discard and return",
+            cancelText: "Continue editing",
+            tone: "warning"
+        });
         if (accepted && link instanceof HTMLAnchorElement) {
             dirty = false;
             window.location.assign(link.href);
