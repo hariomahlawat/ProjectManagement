@@ -87,10 +87,11 @@
         is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
     var standardNeedsProjectBrief = deck?.NarrativeMode
         is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
-    // The Template picker: the preset the deck started from, and whether it was changed since.
+    // The Template picker: the deck's slide design (every deck has one), and whether its settings
+    // moved from that template's since.
     var templateTitle = deck?.Preset is { } titlePreset
         ? ProjectBriefingDeckPresets.Get(titlePreset).Title
-        : "Set up by hand";
+        : string.Empty;
     var templateCustomised = deck?.Preset is not null && deck.PresetAdjusted;
     var presetStatus = deck?.Preset is { } currentPreset
         ? deck.PresetAdjusted
@@ -443,7 +444,8 @@
                                 </div>
 
                                 <div id="pbd-inspector-deck" role="tabpanel" aria-labelledby="pbd-inspector-tab-deck" class="pbd-inspector__panel" data-pbd-inspector-panel="deck" hidden>
-                                    @* Template: the purpose presets, as one compact picker (docs/ux/briefing-decks.md, Plan: Deck settings). *@
+                                    @* Template: the slide design, as one compact picker; it also sets the design's recommended
+                                       settings (docs/ux/briefing-decks.md, Templates are slide designs). *@
                                     <h4 class="pbd-inspector__heading pbd-inspector__heading--first" id="pbd-template-heading">Template</h4>
                                     <div class="pbd-template-picker" data-pbd-template-picker>
                                         <button type="button" class="pbd-template-picker__current" aria-expanded="false" aria-controls="pbd-template-list" data-pbd-template-toggle>
@@ -455,7 +457,7 @@
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </button>
                                         <div class="pbd-presets" id="pbd-template-list" role="group" aria-labelledby="pbd-template-heading" data-pbd-template-list hidden>
-                                            @foreach (var preset in ProjectBriefingDeckPresets.All)
+                                            @foreach (var preset in ProjectBriefingDeckPresets.Templates)
                                             {
                                                 var isCurrent = deck.Preset == preset.Preset;
                                                 <button type="button" class="pbd-preset @(isCurrent ? "is-current" : null)" data-pbd-preset="@preset.Preset" aria-pressed="@(isCurrent ? "true" : "false")">
@@ -482,7 +484,9 @@
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </summary>
                                         <div class="pbd-step__body">
-                                <fieldset class="pbd-choice-group">
+                                @* The layout is the template's slide design and is chosen with the Template picker above;
+                                   the inputs stay so the form and the step summaries keep reading it. *@
+                                <fieldset class="pbd-choice-group" hidden>
                                     <legend>Layout</legend>
                                             <div class="pbd-seg">
                                                 <label class="pbd-seg__option"><input type="radio" name="Layout" value="StandardBriefing" checked="@(deck.Layout == ProjectBriefingLayout.StandardBriefing)" data-help="Status table, summaries and slides for each project." data-pbd-layout-choice /><span>Standard briefing</span></label>
@@ -1091,10 +1095,10 @@
                         </div>
                         <div class="modal-body">
                             <label class="form-label"><span>Deck name</span><input class="form-control" name="Name" maxlength="160" minlength="3" required placeholder="For example: Monthly review, November" data-pbd-new-name /></label>
-                            @* The template decides the slides, costs and look; it can be changed or customised later. *@
+                            @* The template is the slide design, with its recommended settings; any setting can be changed later. *@
                             <fieldset class="pbd-new-templates">
-                                <legend class="form-label">Start from a template</legend>
-                                @foreach (var (preset, index) in ProjectBriefingDeckPresets.All.Select((preset, index) => (preset, index)))
+                                <legend class="form-label">Template</legend>
+                                @foreach (var (preset, index) in ProjectBriefingDeckPresets.Templates.Select((preset, index) => (preset, index)))
                                 {
                                     <label class="pbd-preset pbd-preset--choice">
                                         <input type="radio" name="Template" value="@preset.Preset" checked="@(index == 0)" />
@@ -1102,11 +1106,6 @@
                                         <small>@preset.Summary</small>
                                     </label>
                                 }
-                                <label class="pbd-preset pbd-preset--choice">
-                                    <input type="radio" name="Template" value="" />
-                                    <strong>Set up by hand</strong>
-                                    <small>Start from the standard settings and choose each one yourself.</small>
-                                </label>
                             </fieldset>
                             <label class="form-label"><span>Description <small>optional</small></span><textarea class="form-control" name="Description" maxlength="600" rows="2" placeholder="Purpose, audience or review context"></textarea></label>
                             <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Shared with every Comdt and HoD workspace user. The slides are rebuilt from current PRISM data each time; next you choose the projects.</p>

@@ -21,7 +21,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Manage individually", page, StringComparison.Ordinal);
         Assert.Contains("Cost (R&amp;D)", page, StringComparison.Ordinal);
         Assert.Contains("Generate PowerPoint", page, StringComparison.Ordinal);
-        Assert.Contains("Start from a template", page, StringComparison.Ordinal);
+        Assert.Contains("<legend class=\"form-label\">Template</legend>", page, StringComparison.Ordinal);
         Assert.Contains("Shared decks", page, StringComparison.Ordinal);
         Assert.Contains("Add projects", page, StringComparison.Ordinal);
         Assert.Contains("recommended chart", page, StringComparison.Ordinal);
@@ -78,7 +78,8 @@ public sealed class ProjectBriefingContractTests
 
         // New deck: name and template, then the Studio opens on Add projects.
         Assert.Contains("<input type=\"radio\" name=\"Template\" value=\"@preset.Preset\"", page, StringComparison.Ordinal);
-        Assert.Contains("<strong>Set up by hand</strong>", page, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingDeckPresets.Templates.Select((preset, index) => (preset, index))", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Set up by hand", page, StringComparison.Ordinal);
         Assert.Contains("Create and add projects", page, StringComparison.Ordinal);
         Assert.Contains("return RedirectToPage(new { deckId, start = \"projects\" });", model, StringComparison.Ordinal);
         Assert.Contains("data-pbd-start=\"@(Model.StartWithAddProjects ? \"projects\" : null)\"", page, StringComparison.Ordinal);

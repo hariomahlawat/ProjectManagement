@@ -170,7 +170,7 @@ test('removing an additional slide asks first, then waits for a pending settings
 });
 
 test('templates apply on the server and the picker shows the current one', () => {
-  assert.match(viewSource, /@foreach \(var preset in ProjectBriefingDeckPresets\.All\)/);
+  assert.match(viewSource, /@foreach \(var preset in ProjectBriefingDeckPresets\.Templates\)/);
   assert.match(viewSource, /data-pbd-preset="@preset\.Preset"/);
   assert.match(viewSource, /data-preset-url=/);
   assert.match(source, /body: JSON\.stringify\(\{ deckId, preset: button\.dataset\.pbdPreset, rowVersion: currentRowVersion\(\) \}\)/);

@@ -1359,7 +1359,7 @@ public sealed class IndexModel : PageModel
         [StringLength(600)]
         public string? Description { get; set; }
 
-        // The template the deck starts from; none means "Set up by hand".
+        // The template (slide design) the deck starts from; none gives the standard settings.
         public ProjectBriefingDeckPreset? Template { get; set; }
     }
 

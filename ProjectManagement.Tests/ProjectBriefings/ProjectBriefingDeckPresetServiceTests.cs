@@ -21,42 +21,18 @@ public sealed class ProjectBriefingDeckPresetServiceTests
     private const string UserId = "user-1";
 
     [Fact]
-    public async Task VisitPreset_OnANewDeck_DropsTheEmptyPartnershipsModule_AndLaterSavesWork()
+    public async Task TheRetiredVisitPreset_CannotBeAppliedOrCreatedFrom()
     {
+        // A template is a slide design; the visit preset was only settings.
         await using var db = CreateDb();
         var deck = await SeedAsync(db, configurationJson: null);
         var service = Service(db);
 
-        await service.ApplyPresetAsync(
-            deck.Id, UserId, ProjectBriefingDeckPreset.VisitOrExternalAudience, Version(deck));
-
-        var profile = Configuration(deck).InstitutionalProfileOptions;
-        Assert.True(profile.IncludeSlide);
-        Assert.DoesNotContain(ProjectBriefingInstitutionalProfileModule.Partnerships, profile.Modules);
-        Assert.Contains(ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped, profile.Modules);
-
-        await service.UpdateSettingsAsync(deck.Id, UserId, RenameCommand(deck, "Visit deck renamed"));
-        Assert.Equal("Visit deck renamed", deck.Name);
-    }
-
-    [Fact]
-    public async Task VisitPreset_KeepsPartnerships_WhenTheDeckHasPartners()
-    {
-        await using var db = CreateDb();
-        var withPartners = ProjectBriefingInstitutionalProfileOptions.Default with
-        {
-            PartnershipEntries = new[] { "IIT Delhi" }
-        };
-        var deck = await SeedAsync(
-            db,
-            ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(null, withPartners));
-
-        await Service(db).ApplyPresetAsync(
-            deck.Id, UserId, ProjectBriefingDeckPreset.VisitOrExternalAudience, Version(deck));
-
-        var profile = Configuration(deck).InstitutionalProfileOptions;
-        Assert.True(profile.IncludeSlide);
-        Assert.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships, profile.Modules);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ApplyPresetAsync(
+            deck.Id, UserId, ProjectBriefingDeckPreset.VisitOrExternalAudience, Version(deck)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(
+            UserId, "Visit deck", description: null, preset: ProjectBriefingDeckPreset.VisitOrExternalAudience));
+        Assert.Null(Configuration(deck).Preset);
     }
 
     [Fact]
@@ -140,8 +116,8 @@ public sealed class ProjectBriefingDeckPresetServiceTests
         var before = Configuration(deck);
 
         var applied = await service.ApplyPresetAsync(
-            deck.Id, UserId, ProjectBriefingDeckPreset.VisitOrExternalAudience, Version(deck));
-        Assert.True(Configuration(deck).InstitutionalProfileOptions.IncludeSlide);
+            deck.Id, UserId, ProjectBriefingDeckPreset.ProjectUpdateSheets, Version(deck));
+        Assert.Equal(ProjectBriefingLayout.ProjectUpdateSheet, deck.Layout);
         Assert.Equal(Version(deck), applied.Undo.AppliedRowVersion);
 
         await service.UndoPresetAsync(UserId, applied.Undo);
@@ -149,6 +125,7 @@ public sealed class ProjectBriefingDeckPresetServiceTests
         var after = Configuration(deck);
         Assert.Equal(ProjectBriefingCostMode.None, deck.CostMode);
         Assert.Equal(ProjectBriefingPresentationTheme.GraphiteDark, deck.PresentationTheme);
+        Assert.Equal(ProjectBriefingLayout.StandardBriefing, deck.Layout);
         Assert.Null(after.Preset);
         Assert.False(after.InstitutionalProfileOptions.IncludeSlide);
         Assert.Equal(before.InstitutionalProfileOptions.Modules, after.InstitutionalProfileOptions.Modules);
