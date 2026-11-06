@@ -89,13 +89,26 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         {
             (canvas, page) => RenderOverview(canvas, arpp, year, when, categories, leftLogo, rightLogo, page, today)
         };
-        var columnPages = PaginateColumns(arpp);
+        var columnPages = PaginateColumns(arpp, Columns);
+        // Cancelled and not-known projects: named in the footer when that fits on two lines, otherwise
+        // listed on their own slide (or slides) after the columns, never cut off.
+        var others = OtherProjectsText(arpp, when);
+        var othersFitFooter = others is null || WrapCount(others, FooterTextWidth, FooterSize) <= 2;
+        var otherPages = othersFitFooter ? new List<IReadOnlyList<ColumnPage>>() : PaginateColumns(arpp, OtherColumns);
         for (var index = 0; index < columnPages.Count; index++)
         {
             var pageColumns = columnPages[index];
             var isFirst = index == 0;
-            var isLast = index == columnPages.Count - 1;
-            renders.Add((canvas, page) => RenderProjects(canvas, arpp, year, when, shownOn, categories, pageColumns, isFirst, isLast, leftLogo, rightLogo, page, today));
+            var footerOthers = index == columnPages.Count - 1
+                ? othersFitFooter ? others : "Cancelled and not-known projects: on the next slide"
+                : null;
+            renders.Add((canvas, page) => RenderProjects(canvas, arpp, year, when, shownOn, categories, pageColumns, isFirst ? ProjectsTitle(year) : $"{ProjectsTitle(year)} (continued)", isFirst, footerOthers, leftLogo, rightLogo, page, today));
+        }
+        for (var index = 0; index < otherPages.Count; index++)
+        {
+            var pageColumns = otherPages[index];
+            var isFirst = index == 0;
+            renders.Add((canvas, page) => RenderProjects(canvas, arpp, year, when, shownOn, categories, pageColumns, isFirst ? $"ARPP {year}: cancelled and not known" : $"ARPP {year}: cancelled and not known (continued)", isFirst, null, leftLogo, rightLogo, page, today));
         }
 
         var templateBytes = File.ReadAllBytes(_templatePath);
@@ -264,14 +277,43 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         (ArppProgressBucket.Completed, "Completed", "EAF5EE")
     };
 
+    // Their own slide when they do not fit the footer: same column widths, two columns.
+    private static readonly (ArppProgressBucket Bucket, string Title, string Fill)[] OtherColumns =
+    {
+        (ArppProgressBucket.Cancelled, "Cancelled", "F6EEEE"),
+        (ArppProgressBucket.NotKnown, "Not known", "F1F2F4")
+    };
+
+    private const double FooterSize = 9;
+    private static double FooterTextWidth => SlideWidth - 2 * Margin - 3.3;
+
+    private static string ProjectsTitle(string year) => $"ARPP {year}: where each project stands";
+
+    private static string? OtherProjectsText(ArppAnalyticsVm arpp, string when)
+    {
+        var cancelled = arpp.ProjectLines.Where(line => line.Bucket == ArppProgressBucket.Cancelled).Select(line => line.ProjectName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+        var notKnown = arpp.ProjectLines.Where(line => line.Bucket == ArppProgressBucket.NotKnown).Select(line => line.ProjectName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+        var parts = new List<string>();
+        if (cancelled.Count > 0)
+        {
+            parts.Add($"Cancelled: {string.Join("; ", cancelled)}");
+        }
+        if (notKnown.Count > 0)
+        {
+            parts.Add($"Not known {when}: {string.Join("; ", notKnown)}");
+        }
+
+        return parts.Count == 0 ? null : string.Join(" · ", parts);
+    }
+
     private static double ColumnWidth => (SlideWidth - 2 * Margin - ColumnGap * (Columns.Length - 1)) / Columns.Length;
 
     private sealed record ColumnPage(ArppProgressBucket Bucket, string Title, string Fill, int Total, IReadOnlyList<ArppProjectLineVm> Lines);
 
-    private static List<IReadOnlyList<ColumnPage>> PaginateColumns(ArppAnalyticsVm arpp)
+    private static List<IReadOnlyList<ColumnPage>> PaginateColumns(ArppAnalyticsVm arpp, IReadOnlyList<(ArppProgressBucket Bucket, string Title, string Fill)> columns)
     {
         // Furthest along first (by stage, or the latest completion), then by name.
-        var queues = Columns.Select(column =>
+        var queues = columns.Select(column =>
         {
             var lines = arpp.ProjectLines.Where(line => line.Bucket == column.Bucket);
             lines = column.Bucket == ArppProgressBucket.Completed
@@ -320,7 +362,12 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
     }
 
     // Development rows carry no stage tag (owner, 6 Nov 2026); the others keep a tag on the right.
-    private static double TagWidth(ArppProgressBucket bucket) => bucket == ArppProgressBucket.UnderDevelopment ? 0 : bucket == ArppProgressBucket.Completed ? .7 : .45;
+    private static double TagWidth(ArppProgressBucket bucket) => bucket switch
+    {
+        ArppProgressBucket.UnderDevelopment or ArppProgressBucket.Cancelled or ArppProgressBucket.NotKnown => 0,
+        ArppProgressBucket.Completed => .7,
+        _ => .45
+    };
 
     private static double NameWidth(ArppProgressBucket bucket) => ColumnWidth - .22 - TagWidth(bucket);
 
@@ -332,14 +379,14 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         DateOnly shownOn,
         IReadOnlyList<string> categories,
         IReadOnlyList<ColumnPage> columns,
+        string title,
         bool isFirst,
-        bool isLast,
+        string? footerOthers,
         byte[]? leftLogo,
         byte[]? rightLogo,
         int page,
         DateOnly today)
     {
-        var title = isFirst ? $"ARPP {year}: where each project stands" : $"ARPP {year}: where each project stands (continued)";
         var subtitle = $"{arpp.ListedCount} listed projects by where they stand, {when}";
         RenderHeader(canvas, title, subtitle, leftLogo, rightLogo, categories);
 
@@ -382,18 +429,9 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         }
 
         var footer = new List<string>();
-        if (isLast)
+        if (footerOthers is not null)
         {
-            var cancelled = arpp.ProjectLines.Where(line => line.Bucket == ArppProgressBucket.Cancelled).Select(line => line.ProjectName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
-            var notKnown = arpp.ProjectLines.Where(line => line.Bucket == ArppProgressBucket.NotKnown).Select(line => line.ProjectName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
-            if (cancelled.Count > 0)
-            {
-                footer.Add($"Cancelled: {string.Join("; ", cancelled)}");
-            }
-            if (notKnown.Count > 0)
-            {
-                footer.Add($"Not known {when}: {string.Join("; ", notKnown)}");
-            }
+            footer.Add(footerOthers);
         }
         if (arpp.ProjectLines.Any(line => line.PdcOverdue))
         {
@@ -440,7 +478,7 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
     private static void RenderFooter(SlideCanvas canvas, string text, int page, DateOnly generatedOn)
     {
         canvas.AddLine(Margin, 6.98, SlideWidth - Margin, 6.98, Rule, .5);
-        canvas.AddText(Margin, 7.0, SlideWidth - 2 * Margin - 3.3, .4, text, 9, Faint, false, "l", anchor: "t", wrap: true);
+        canvas.AddText(Margin, 7.0, FooterTextWidth, .4, text, FooterSize, Faint, false, "l", anchor: "t", wrap: true);
         canvas.AddText(SlideWidth - Margin - 3.2, 7.0, 2.6, .25, $"Generated by PRISM ERP on {generatedOn:d MMM yyyy}", 9, Faint, false, "r", anchor: "t");
         canvas.AddText(SlideWidth - Margin - .5, 7.0, .5, .25, page.ToString(CultureInfo.InvariantCulture), 9, Faint, false, "r", anchor: "t");
     }

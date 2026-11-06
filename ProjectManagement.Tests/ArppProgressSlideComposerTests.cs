@@ -72,6 +72,33 @@ public sealed class ArppProgressSlideComposerTests
         Assert.Contains("Pre-AoN project number 20 with a fairly long name to wrap", string.Join(" ", slides.Skip(1)));
     }
 
+    [Fact]
+    public void Compose_LongCancelledAndNotKnownLists_GetTheirOwnSlide()
+    {
+        var arpp = Sample();
+        var extra = Enumerable.Range(100, 12)
+            .Select(index => Line(index, $"Cancelled project number {index} with a long descriptive name", "CoE", ArppProgressBucket.Cancelled, null))
+            .Concat(new[] { Line(200, "Project whose position cannot be told", "CoE", ArppProgressBucket.NotKnown, null) });
+        arpp = new ArppAnalyticsVm
+        {
+            FinancialYearStart = arpp.FinancialYearStart,
+            FinancialYearDisplay = arpp.FinancialYearDisplay,
+            ListedCount = arpp.ListedCount + 13,
+            ProjectLines = arpp.ProjectLines.Concat(extra).ToList(),
+            ByStageByCategory = arpp.ByStageByCategory,
+            StageCategoryOrder = arpp.StageCategoryOrder
+        };
+
+        var (content, slideCount) = CreateComposer().Compose(arpp, Today);
+
+        Assert.Equal(3, slideCount);
+        var slides = SlideTexts(content);
+        Assert.Contains("Cancelled and not-known projects: on the next slide", slides[1]);
+        Assert.Contains("ARPP FY 2026-27: cancelled and not known", slides[2]);
+        Assert.Contains("Cancelled project number 111 with a long descriptive name", slides[2]);
+        Assert.Contains("Project whose position cannot be told", slides[2]);
+    }
+
     [Theory]
     [InlineData("NIRBHAY", 2.3, 10, 1)]
     [InlineData("VR based Physiological Response Evaluation System (Stress Detection Simulator)", 2.3, 10, 3)]

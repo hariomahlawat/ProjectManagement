@@ -257,24 +257,22 @@ namespace ProjectManagement.Services.Analytics
                 LifecycleAsOf.Active when preAonIds.Contains(item.ProjectId) => ArppProgressBucket.PreAon,
                 _ => ArppProgressBucket.NotKnown
             };
-            string? CompletedOn(int projectId)
-            {
-                if (!completion.TryGetValue(projectId, out var done))
-                {
-                    return null;
-                }
-
-                if (done.CompletedOn is { } on)
-                {
-                    return on.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
-                }
-
-                return done.CompletedYear is { } year
-                    ? done.CompletedMonth is { } month and >= 1 and <= 12
-                        ? new DateOnly(year, month, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
-                        : year.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                    : null;
-            }
+            // The completion that placed a project in Completed: on a past date, the one the position service
+            // read (a project completed then and reactivated since keeps it); today, the project's record.
+            (DateOnly? On, int? Year, short? Month) CompletionOf(Standing item) =>
+                item.Completion is { } fromPosition
+                    ? fromPosition
+                    : completion.TryGetValue(item.ProjectId, out var done) ? (done.CompletedOn, done.CompletedYear, done.CompletedMonth) : (null, null, null);
+            static string? CompletionLabel((DateOnly? On, int? Year, short? Month) done) =>
+                done.On is { } on
+                    ? on.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                    : done.Year is { } year
+                        ? done.Month is { } month and >= 1 and <= 12
+                            ? new DateOnly(year, month, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                            : year.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        : null;
+            static DateOnly? CompletionSort((DateOnly? On, int? Year, short? Month) done) =>
+                done.On ?? (done.Year is { } y ? new DateOnly(y, done.Month is { } m and >= 1 and <= 12 ? m : 1, 1) : null);
 
             var projectLines = standings
                 .Select(item =>
@@ -293,10 +291,8 @@ namespace ProjectManagement.Services.Analytics
                         item.Lifecycle == LifecycleAsOf.Active ? Array.IndexOf(StageCodes.All, item.StageCode) : -1,
                         pdc,
                         pdc is { } pdcDate && pdcDate < shownOnDate,
-                        bucket == ArppProgressBucket.Completed ? CompletedOn(item.ProjectId) : null,
-                        bucket == ArppProgressBucket.Completed && completion.TryGetValue(item.ProjectId, out var c)
-                            ? c.CompletedOn ?? (c.CompletedYear is { } y ? new DateOnly(y, c.CompletedMonth is { } m and >= 1 and <= 12 ? m : 1, 1) : null)
-                            : null);
+                        bucket == ArppProgressBucket.Completed ? CompletionLabel(CompletionOf(item)) : null,
+                        bucket == ArppProgressBucket.Completed ? CompletionSort(CompletionOf(item)) : null);
                 })
                 .ToList();
 
@@ -373,7 +369,8 @@ namespace ProjectManagement.Services.Analytics
             string? AonDetail,
             bool? SupplyOrderPlaced,
             decimal? SupplyOrderValue,
-            string? SupplyOrderDetail);
+            string? SupplyOrderDetail,
+            (DateOnly? On, int? Year, short? Month)? Completion = null);
 
         private static string? SupplyOrderDetail(decimal? amount, DateOnly? date) =>
             amount is > 0m ? IndianCurrencyFormatter.FormatCompact(amount.Value) : date?.ToString("d MMM yyyy");
@@ -498,7 +495,8 @@ namespace ProjectManagement.Services.Analytics
                     at.AonDate?.ToString("d MMM yyyy") ?? (at.AonSkipped ? "AoN skipped" : "date not recorded"),
                     at.Lifecycle == LifecycleAsOf.Active ? at.SupplyOrderPlaced : null,
                     value,
-                    SupplyOrderDetail(value, at.SupplyOrderDate)));
+                    SupplyOrderDetail(value, at.SupplyOrderDate),
+                    at.Lifecycle == LifecycleAsOf.Completed ? (at.CompletedOn, at.CompletedYear, at.CompletedMonth) : null));
             }
 
             return result;

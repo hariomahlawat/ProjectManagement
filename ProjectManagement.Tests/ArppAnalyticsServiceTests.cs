@@ -326,6 +326,22 @@ public sealed class ArppAnalyticsServiceTests
     }
 
     [Fact]
+    public async Task BuildAsync_APastYear_TakesTheCompletionFromTheDatesPosition()
+    {
+        await using var db = CreateDb();
+        // Completed in Feb 2026, reactivated and completed again in Aug 2026: today's record says Aug 2026.
+        db.Projects.Add(new Project { Id = 1, Name = "Redone", LifecycleStatus = ProjectLifecycleStatus.Completed, CompletedOn = new DateOnly(2026, 8, 10) });
+        await db.SaveChangesAsync();
+        var library = new FakeLibrary(2025, Row(1, "Redone", ArppCategory.New, 10_000_000m));
+        var fy = new FakeFyUpdate(new[] { 2026, 2025 }, Update(1, "Redone", ProjectLifecycleStatus.Completed, null));
+        var positions = new FakePositions(Position(1, LifecycleAsOf.Completed, StagePositionAsOf.None, pastAon: true, supplyOrder: null, completedOn: new DateOnly(2026, 2, 14)));
+
+        var vm = await new ArppAnalyticsService(db, library, fy, positions).BuildAsync(2025, Today);
+
+        Assert.Equal("Feb 2026", vm.ProjectLines.Single().CompletedLabel);
+    }
+
+    [Fact]
     public async Task BuildAsync_TheCurrentYear_StaysOnToday()
     {
         await using var db = CreateDb();
@@ -375,8 +391,8 @@ public sealed class ArppAnalyticsServiceTests
         new(false, null, $"{StageCodes.DisplayNameOf(from)} or {StageCodes.DisplayNameOf(to)}",
             new[] { from, to }.Select((code, index) => new ProjectLifecycleStageSnapshot(code, StageCodes.DisplayNameOf(code), StageStatus.InProgress, index, null, true)).ToArray(), false);
 
-    private static ProjectPositionAsOf Position(int projectId, LifecycleAsOf lifecycle, StagePositionAsOf stage, bool? pastAon, bool? supplyOrder, DateOnly? aonDate = null, DateOnly? soDate = null) =>
-        new(projectId, lifecycle, stage, pastAon, aonDate, false, supplyOrder, soDate);
+    private static ProjectPositionAsOf Position(int projectId, LifecycleAsOf lifecycle, StagePositionAsOf stage, bool? pastAon, bool? supplyOrder, DateOnly? aonDate = null, DateOnly? soDate = null, DateOnly? completedOn = null) =>
+        new(projectId, lifecycle, stage, pastAon, aonDate, false, supplyOrder, soDate, completedOn);
 
     private sealed class FakePositions : IProjectPositionAsOfService
     {

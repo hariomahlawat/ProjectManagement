@@ -35,7 +35,11 @@ public sealed record ProjectPositionAsOf(
     bool AonSkipped,
     /// <summary>True when a supply order had been placed by the date; null when that cannot be told.</summary>
     bool? SupplyOrderPlaced,
-    DateOnly? SupplyOrderDate);
+    DateOnly? SupplyOrderDate,
+    /// <summary>The completion that placed the project in Completed on the date (from the record, or from the event before a later reactivation).</summary>
+    DateOnly? CompletedOn = null,
+    int? CompletedYear = null,
+    short? CompletedMonth = null);
 
 public interface IProjectPositionAsOfService
 {
@@ -159,9 +163,13 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
             var rows = stages.GetValueOrDefault(project.Id) ?? new List<ProjectStage>();
             workflows.TryGetValue(project.Id, out var workflow);
             var lifecycle = LifecycleOn(project.LifecycleStatus, project.CompletedOn, project.CompletedYear, project.CompletedMonth, project.CancelledOn, asOf);
-            if (lifecycleEvents.TryGetValue(project.Id, out var events) && LifecycleBeforeReactivation(events, asOf) is { } before)
+            (DateOnly? On, int? Year, short? Month) completedBy = (project.CompletedOn, project.CompletedYear, project.CompletedMonth);
+            if (lifecycleEvents.TryGetValue(project.Id, out var events)
+                && LifecycleAndEventBeforeReactivation(events, asOf) is ({ } before, var beforeEvent))
             {
+                // Reactivated after the date: the event before it says how the project stood, and when it completed.
                 lifecycle = before;
+                completedBy = beforeEvent is null ? (null, null, null) : (beforeEvent.Date, beforeEvent.Year, beforeEvent.Month);
             }
             var soDate = supplyOrderDates.TryGetValue(project.Id, out var recordedSo) ? recordedSo : (DateOnly?)null;
             var aonRow = rows.FirstOrDefault(stage => string.Equals(stage.StageCode, StageCodes.AON, StringComparison.OrdinalIgnoreCase));
@@ -180,7 +188,10 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
                     aonRow?.CompletedOn is { } aonEnd && aonEnd <= asOf ? aonEnd : null,
                     aonRow?.Status == StageStatus.Skipped,
                     null,
-                    soDate is { } so && so <= asOf ? so : null);
+                    soDate is { } so && so <= asOf ? so : null,
+                    lifecycle == LifecycleAsOf.Completed ? completedBy.On : null,
+                    lifecycle == LifecycleAsOf.Completed ? completedBy.Year : null,
+                    lifecycle == LifecycleAsOf.Completed ? completedBy.Month : null);
                 continue;
             }
 
@@ -250,12 +261,16 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
     /// completion or cancellation event recorded before that reactivation (not known when there is none).
     /// Null when no reactivation came after the date, so today's fields decide.
     /// </summary>
-    public static LifecycleAsOf? LifecycleBeforeReactivation(IReadOnlyList<LifecycleEvent> events, DateOnly asOf)
+    public static LifecycleAsOf? LifecycleBeforeReactivation(IReadOnlyList<LifecycleEvent> events, DateOnly asOf) =>
+        LifecycleAndEventBeforeReactivation(events, asOf).Lifecycle;
+
+    /// <summary>As <see cref="LifecycleBeforeReactivation"/>, with the event that decided it (null when none).</summary>
+    public static (LifecycleAsOf? Lifecycle, LifecycleEvent? Event) LifecycleAndEventBeforeReactivation(IReadOnlyList<LifecycleEvent> events, DateOnly asOf)
     {
         var reactivation = events.FirstOrDefault(item => item.Action == Reactivated && item.RecordedOn > asOf);
         if (reactivation is null)
         {
-            return null;
+            return (null, null);
         }
 
         var before = events
@@ -264,12 +279,12 @@ public sealed class ProjectPositionAsOfService : IProjectPositionAsOfService
             .LastOrDefault();
         if (before is null)
         {
-            return LifecycleAsOf.NotKnown;
+            return (LifecycleAsOf.NotKnown, null);
         }
 
-        return before.Action == "Project.LifecycleCancelled"
+        return (before.Action == "Project.LifecycleCancelled"
             ? LifecycleOn(ProjectLifecycleStatus.Cancelled, null, null, null, before.Date, asOf)
-            : LifecycleOn(ProjectLifecycleStatus.Completed, before.Date, before.Year, before.Month, null, asOf);
+            : LifecycleOn(ProjectLifecycleStatus.Completed, before.Date, before.Year, before.Month, null, asOf), before);
     }
 
     /// <summary>One lifecycle audit event and the dates it carries.</summary>
