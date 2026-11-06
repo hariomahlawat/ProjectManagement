@@ -63,6 +63,17 @@ public sealed class ToastActionTests
         Assert.Contains("Url.Page(\"/ProjectIdeas/Deleted\", \"Restore\")", page, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BriefingStudio_OffersUndoAfterDeckDelete()
+    {
+        var page = ReadRepoFile("Pages", "Workspace", "BriefingDecks", "Index.cshtml.cs");
+
+        // Undo posts to the same Restore handler as Recently deleted, with the same field.
+        Assert.Contains("Url.Page(\"/Workspace/BriefingDecks/Index\", \"Restore\")", page, StringComparison.Ordinal);
+        Assert.Contains("[\"deckId\"] = deckId.ToString(", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("StatusMessage = $\"Briefing deck deleted.", page, StringComparison.Ordinal);
+    }
+
     private static TempDataDictionary NewTempData() => new(new DefaultHttpContext(), new NullTempDataProvider());
 
     private sealed class NullTempDataProvider : ITempDataProvider
