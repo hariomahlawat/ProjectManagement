@@ -393,6 +393,37 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Library_PolishOneMainLandmarkOwnScriptsAndAFriendlyNewDeckForm()
+    {
+        var page = Read("Index.cshtml");
+        var decks = Read("project-briefing-decks.js");
+        var css = Read("project-briefing-decks.css");
+
+        // The layout owns the page's <main>; the workspace content is a div.
+        Assert.DoesNotContain("<main", page, StringComparison.Ordinal);
+        Assert.Contains("<div class=\"cw-workspace-content pbd-shell\" data-pbd-root", page, StringComparison.Ordinal);
+
+        // The library loads only its own script; the Studio's and Sortable come with a deck.
+        var scripts = page[page.IndexOf("@section Scripts", StringComparison.Ordinal)..];
+        var studioAt = scripts.IndexOf("project-briefing-studio.js", StringComparison.Ordinal);
+        var libraryAt = scripts.IndexOf("project-briefing-library.js", StringComparison.Ordinal);
+        Assert.True(studioAt > 0 && libraryAt > studioAt);
+        Assert.Contains("else", scripts[studioAt..libraryAt], StringComparison.Ordinal);
+        Assert.True(scripts.IndexOf("@if (deck is not null)", StringComparison.Ordinal) < scripts.IndexOf("Sortable.min.js", StringComparison.Ordinal));
+
+        // New deck: the name rule is said under the field, and closing starts the next one fresh.
+        Assert.Contains("asp-page-handler=\"Create\" novalidate data-pbd-new-form", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-new-name-error hidden", page, StringComparison.Ordinal);
+        Assert.Contains("newDeckModal?.addEventListener('hidden.bs.modal', () => {\n    newDeckForm?.reset();", decks.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.Contains("'The name needs at least 3 characters.'", decks, StringComparison.Ordinal);
+        Assert.Contains(".pbd-modal .form-label small {\n    color: var(--pbd-muted);\n    font-size: .75rem;", css.Replace("\r\n", "\n"), StringComparison.Ordinal);
+
+        // Deck links take the shared focus ring.
+        Assert.Contains(".pbd-library__name:focus-visible,\n.pbd-library__moved:focus-visible,", css.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.Contains("box-shadow: var(--pm-focus-ring);", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Library_TableShowsOnePowerPointStatusAndExplainsEmptyResults()
     {
         var library = Read("_DeckLibrary.cshtml");

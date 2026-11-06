@@ -177,7 +177,7 @@
                         </td>
                         @* data-label: on a phone the table becomes cards, and each value carries its label. *@
                         <td class="is-date" data-label="Template">@deck.Purpose</td>
-                        <td class="is-number" data-label="Projects">@deck.ProjectCount</td>
+                        <td class="is-number" data-label="Projects">@deck.ProjectCount<span class="pbd-library__unit"> @(deck.ProjectCount == 1 ? "project" : "projects")</span></td>
                         <td class="is-edited" data-label="Edited" title="@WhenFull(deck.UpdatedAtUtc) · created by @deck.CreatedByDisplay">
                             @WhenShort(deck.UpdatedAtUtc)<small>@deck.LastModifiedByDisplay</small>
                         </td>

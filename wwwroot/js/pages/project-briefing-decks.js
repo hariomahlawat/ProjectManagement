@@ -2161,8 +2161,41 @@ if (root) {
     }
   });
 
-  document.getElementById('pbd-new-deck-modal')?.addEventListener('shown.bs.modal', () => {
-    document.querySelector('[data-pbd-new-name]')?.focus();
+  // New deck: the name rule is said under the field, and every opening starts from a fresh form.
+  const newDeckModal = document.getElementById('pbd-new-deck-modal');
+  const newDeckForm = newDeckModal?.querySelector('[data-pbd-new-form]');
+  const newDeckName = newDeckModal?.querySelector('[data-pbd-new-name]');
+  const newDeckError = newDeckModal?.querySelector('[data-pbd-new-name-error]');
+  const showNewDeckError = (message) => {
+    if (!newDeckName || !newDeckError) return;
+    newDeckError.textContent = message;
+    newDeckError.hidden = !message;
+    if (message) {
+      newDeckName.setAttribute('aria-invalid', 'true');
+      newDeckName.setAttribute('aria-describedby', 'pbd-new-name-help pbd-new-name-error');
+    } else {
+      newDeckName.removeAttribute('aria-invalid');
+      newDeckName.setAttribute('aria-describedby', 'pbd-new-name-help');
+    }
+  };
+  newDeckModal?.addEventListener('shown.bs.modal', () => {
+    newDeckName?.focus();
+  });
+  newDeckModal?.addEventListener('hidden.bs.modal', () => {
+    newDeckForm?.reset();
+    showNewDeckError('');
+  });
+  newDeckName?.addEventListener('input', () => {
+    if (newDeckName.value.trim().length >= 3) showNewDeckError('');
+  });
+  newDeckForm?.addEventListener('submit', (event) => {
+    if (!newDeckName) return;
+    const name = newDeckName.value.trim();
+    if (name.length < 3) {
+      event.preventDefault();
+      showNewDeckError(name.length === 0 ? 'Give the deck a name.' : 'The name needs at least 3 characters.');
+      newDeckName.focus();
+    }
   });
 
 }
