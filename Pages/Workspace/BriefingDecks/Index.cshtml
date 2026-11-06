@@ -122,7 +122,8 @@
      data-workspace-nav-scope="@(deck is null ? null : "studio")">
     @await Html.PartialAsync("/Pages/Workspace/_CommandWorkspaceRail.cshtml", Model.CommandRail)
 
-    <main class="cw-workspace-content pbd-shell" data-pbd-root
+    @* A div, not a second main element: the layout already gives the page its main landmark. *@
+    <div class="cw-workspace-content pbd-shell" data-pbd-root
           data-search-url="@Url.Page("/Workspace/BriefingDecks/Index", "SearchProjects")"
           data-reorder-url="@Url.Page("/Workspace/BriefingDecks/Index", "Reorder")"
           data-membership-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateMembership")"
@@ -1083,7 +1084,8 @@
         <div class="modal fade" id="pbd-new-deck-modal" tabindex="-1" aria-labelledby="pbd-new-deck-title" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content pbd-modal">
-                    <form method="post" asp-page-handler="Create">
+                    @* novalidate: the name rule is said under the field (decks.js), not in a browser bubble. *@
+                    <form method="post" asp-page-handler="Create" novalidate data-pbd-new-form>
                         <div class="modal-header">
                             <div><span class="pbd-eyebrow">Shared command deck</span><h2 class="modal-title" id="pbd-new-deck-title">Create briefing deck</h2></div>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1091,6 +1093,7 @@
                         <div class="modal-body">
                             <label class="form-label"><span>Deck name <small>required, at least 3 characters</small></span><input class="form-control" name="Name" maxlength="160" minlength="3" required aria-describedby="pbd-new-name-help" placeholder="For example: Monthly review, November" data-pbd-new-name /></label>
                             <small class="pbd-form-help" id="pbd-new-name-help">Shown in the deck library and on the cover slide.</small>
+                            <small class="pbd-form-error" id="pbd-new-name-error" data-pbd-new-name-error hidden></small>
                             @* The template is the slide design, with its recommended settings; any setting can be changed later. *@
                             <fieldset class="pbd-new-templates">
                                 <legend class="form-label">Template</legend>
@@ -1111,7 +1114,7 @@
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 </div>
 
 @if (deck is not null)
@@ -1163,10 +1166,20 @@
 </dialog>
 
 @section Scripts {
-    <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>
+    @* The library needs only its own script; the Studio's (and Sortable) load with a deck. *@
+    @if (deck is not null)
+    {
+        <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>
+    }
     <script type="module" src="~/js/pages/command-workspace.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/project-briefing-decks.js" asp-append-version="true"></script>
-    <script type="module" src="~/js/pages/project-briefing-additional-slides.js" asp-append-version="true"></script>
-    <script type="module" src="~/js/pages/project-briefing-studio.js" asp-append-version="true"></script>
-    <script type="module" src="~/js/pages/project-briefing-library.js" asp-append-version="true"></script>
+    @if (deck is not null)
+    {
+        <script type="module" src="~/js/pages/project-briefing-additional-slides.js" asp-append-version="true"></script>
+        <script type="module" src="~/js/pages/project-briefing-studio.js" asp-append-version="true"></script>
+    }
+    else
+    {
+        <script type="module" src="~/js/pages/project-briefing-library.js" asp-append-version="true"></script>
+    }
 }

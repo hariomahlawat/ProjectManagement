@@ -283,6 +283,7 @@
 
 .pbd-modal .form-label small {
     color: var(--pbd-muted);
+    font-size: .75rem;
     font-weight: 500;
 }
 
@@ -5240,6 +5241,17 @@ span.pbd-additional-slide-row__handle {
     text-decoration: underline;
 }
 
+/* Deck links take the app's shared focus ring. */
+.pbd-library__name:focus-visible,
+.pbd-library__moved:focus-visible,
+.pbd-continue__title a:focus-visible,
+.pbd-attention__name:focus-visible,
+.pbd-attention__open:focus-visible {
+    border-radius: .25rem;
+    outline: none;
+    box-shadow: var(--pm-focus-ring);
+}
+
 .pbd-library__description {
     display: block;
     max-width: 30rem;
@@ -5956,6 +5968,64 @@ span.pbd-additional-slide-row__handle {
     .pbd-library__table .is-powerpoint .pbd-library__moved {
         display: inline;
         margin-left: .3rem;
+    }
+}
+
+/* Library polish (library PR 3). New deck says a too-short name under the field. Projects carry
+   their unit on phone cards, which drop the editor's name and the value labels Template and
+   Projects, so each card is three short lines; the Continue card loses its icon and puts its two
+   buttons side by side. */
+.pbd-form-error {
+    display: block;
+    color: var(--pbd-red);
+    font-size: .78rem;
+    font-weight: 600;
+}
+
+.pbd-form-error[hidden],
+.pbd-library__unit {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    .pbd-library__table td[data-label="Template"]::before,
+    .pbd-library__table td[data-label="Projects"]::before,
+    .pbd-library__table .is-edited small {
+        display: none;
+    }
+
+    .pbd-library__unit {
+        display: inline;
+    }
+
+    .pbd-continue {
+        gap: .75rem;
+        padding: .9rem 1rem;
+    }
+
+    .pbd-continue__mark {
+        display: none;
+    }
+
+    .pbd-continue__title a {
+        font-size: 1.05rem;
+    }
+
+    .pbd-continue__description,
+    .pbd-continue__meta {
+        font-size: .82rem;
+    }
+
+    .pbd-continue__actions {
+        flex: 1 1 100%;
+        flex-wrap: nowrap;
+    }
+
+    .pbd-continue__actions .btn {
+        flex: 1 1 0;
+        padding: .4rem .5rem;
+        font-size: .85rem;
+        white-space: nowrap;
     }
 }
 

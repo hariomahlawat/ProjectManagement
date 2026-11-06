@@ -600,16 +600,20 @@ An independent UI/UX review of the deck library (`/Workspace/BriefingDecks`) at 
    is dropped from the address. A deck with no projects offers **Add projects** (opening the
    Studio on Add projects) instead of a greyed-out Generate. The server's Generate handler stays
    for compatibility.
-2. **The table.** Done (this change). Five columns: Deck (the widest), Template, Projects,
+2. **The table.** Done (#2952). Five columns: Deck (the widest), Template, Projects,
    **Edited** (when, and who below; the creator in the tooltip) and one **PowerPoint** status:
    "Not generated" (or "No projects yet"), else "05 Nov · 54 slides" with "up to date", "3 changes
    since" (linking to the deck, the tooltip saying what moved) or "changes not tracked yet". The
    heading reads "My decks" under Mine; an empty list says why ("You have not created or edited a
    deck yet…" or "No deck matches …") with **Show all decks** / **Clear search**. Search, Mine/All
    and sort are kept for the browser tab. The library and its header stop widening at 84rem.
-3. **Polish.** Phone cards and the Continue card shorter; New deck hints at 12 px with an inline
-   error and a fresh form each time; one `<main>`; the shared focus ring on deck links; the library without the
-   Studio's scripts.
+3. **Polish.** Done (this change). Phone cards are three short lines (Template and Projects
+   without labels, "50 projects", no editor name); the Continue card drops its icon on phones and
+   puts its two buttons side by side. New deck: the hints are 12 px, a too-short name is said under
+   the field (not a browser bubble), and closing the dialog resets it. The workspace content is a
+   `div`, so the page has one `<main>` (the layout's). Deck links take the shared focus ring
+   (`--pm-focus-ring`). The library loads only its own script; Sortable and the Studio's scripts
+   load with a deck.
 
 Outside this module: the shared "What's new" announcement can cover the page's top-right buttons
 on a first visit.
