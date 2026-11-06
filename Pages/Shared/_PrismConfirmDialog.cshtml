@@ -1,30 +1,72 @@
+@*
+    The PRISM confirmation dialog, rendered once by _Layout for every page.
+    Script: wwwroot/js/components/prism-confirm-dialog.js (window.PrismConfirm.show).
+    Styles: wwwroot/css/components/prism-confirm-dialog.css. Wording: docs/ux/confirm-dialogs.md.
+*@
 <dialog class="prism-confirm-dialog"
         data-prism-confirm-dialog
+        data-tone="primary"
         aria-labelledby="prism-confirm-dialog-title"
         aria-describedby="prism-confirm-dialog-message">
     <div class="prism-confirm-dialog__surface">
-        <div class="prism-confirm-dialog__icon" data-prism-confirm-icon aria-hidden="true">
-            <span class="bi bi-exclamation-triangle"></span>
-        </div>
-        <div class="prism-confirm-dialog__content">
-            <h2 id="prism-confirm-dialog-title" data-prism-confirm-title>Confirm action</h2>
-            <p id="prism-confirm-dialog-message" data-prism-confirm-message></p>
-            <p class="prism-confirm-dialog__detail" data-prism-confirm-detail hidden></p>
-        </div>
+        <span class="prism-confirm-dialog__grabber" aria-hidden="true"></span>
         <button type="button"
                 class="prism-confirm-dialog__close"
                 data-prism-confirm-cancel
-                aria-label="Close confirmation">
+                aria-label="Close">
             <span class="bi bi-x-lg" aria-hidden="true"></span>
         </button>
+
+        <div class="prism-confirm-dialog__head">
+            <div class="prism-confirm-dialog__icon" data-prism-confirm-icon aria-hidden="true">
+                <span class="bi bi-question-circle"></span>
+            </div>
+            <div class="prism-confirm-dialog__content">
+                <h2 id="prism-confirm-dialog-title" data-prism-confirm-title>Confirm action</h2>
+                <p id="prism-confirm-dialog-message" data-prism-confirm-message></p>
+                <p class="prism-confirm-dialog__detail" data-prism-confirm-detail hidden></p>
+            </div>
+        </div>
+
+        @* What the action applies to, so nobody acts on the wrong record. *@
+        <div class="prism-confirm-dialog__subject" data-prism-confirm-subject hidden>
+            <span class="bi bi-file-earmark" data-prism-confirm-subject-icon aria-hidden="true"></span>
+            <div>
+                <b data-prism-confirm-subject-name></b>
+                <span data-prism-confirm-subject-meta></span>
+            </div>
+        </div>
+
+        <div class="prism-confirm-dialog__field" data-prism-confirm-field hidden>
+            <label for="prism-confirm-dialog-input" data-prism-confirm-field-label></label>
+            <textarea id="prism-confirm-dialog-input"
+                      class="prism-confirm-dialog__input"
+                      rows="3"
+                      maxlength="1000"
+                      data-prism-confirm-reason
+                      hidden></textarea>
+            <input id="prism-confirm-dialog-phrase"
+                   class="prism-confirm-dialog__input"
+                   type="text"
+                   autocomplete="off"
+                   spellcheck="false"
+                   data-prism-confirm-phrase
+                   hidden />
+        </div>
+
+        <p class="prism-confirm-dialog__note" data-prism-confirm-note hidden>
+            <span class="bi" data-prism-confirm-note-icon aria-hidden="true"></span>
+            <span data-prism-confirm-note-text></span>
+        </p>
+
         <div class="prism-confirm-dialog__actions">
             <button type="button"
-                    class="btn btn-outline-secondary"
+                    class="prism-confirm-dialog__btn prism-confirm-dialog__btn--quiet"
                     data-prism-confirm-cancel>
                 Cancel
             </button>
             <button type="button"
-                    class="btn btn-primary"
+                    class="prism-confirm-dialog__btn prism-confirm-dialog__btn--go"
                     data-prism-confirm-accept>
                 Confirm
             </button>

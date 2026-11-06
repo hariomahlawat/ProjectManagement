@@ -1,188 +1,483 @@
+/* =============================================================
+   PRISM CONFIRM DIALOG (Pages/Shared/_PrismConfirmDialog.cshtml)
+   Loaded on every page by _Layout. One glass sheet over a dimmed,
+   softly blurred page: frosted surface, bright top rim, a glow in
+   the tone's colour along the top edge, a tinted icon tile.
+   Tones: primary (ask), warning (amber), danger (red).
+   Phones get a bottom sheet with stacked buttons.
+
+   Site tokens only (--pm-*); colour literals appear only as var()
+   fallbacks for ::backdrop in browsers where it does not inherit
+   custom properties. Reduce Motion drops the spring; Reduce
+   Transparency makes the sheet solid. Wording: docs/ux/confirm-dialogs.md.
+   ============================================================= */
+
+:root {
+    --pcd-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --pcd-glass-mix: 76%;
+    --pcd-gleam: color-mix(in srgb, var(--pm-text-inverted) 22%, transparent);
+    --pcd-rim-hi: color-mix(in srgb, var(--pm-text-inverted) 85%, transparent);
+    --pcd-rim: color-mix(in srgb, var(--pm-text-strong) 10%, transparent);
+    --pcd-scrim: color-mix(in srgb, var(--pm-text-strong) 26%, transparent);
+    --pcd-shadow: color-mix(in srgb, var(--pm-text-strong) 34%, transparent);
+    --pcd-field: color-mix(in srgb, var(--pm-card) 70%, transparent);
+    --pcd-on-go: var(--pm-text-inverted);
+}
+
+:root[data-bs-theme="dark"] {
+    --pcd-glass-mix: 74%;
+    --pcd-gleam: color-mix(in srgb, var(--pm-text-strong) 7%, transparent);
+    --pcd-rim-hi: color-mix(in srgb, var(--pm-text-strong) 20%, transparent);
+    --pcd-rim: color-mix(in srgb, var(--pm-text-strong) 12%, transparent);
+    --pcd-scrim: color-mix(in srgb, var(--pm-page-bg) 58%, transparent);
+    --pcd-shadow: color-mix(in srgb, var(--pm-page-bg) 85%, transparent);
+    --pcd-field: color-mix(in srgb, var(--pm-page-bg) 45%, transparent);
+    --pcd-on-go: var(--pm-page-bg);
+}
+
+/* ---------- The dialog and the page behind it ---------- */
+
 .prism-confirm-dialog {
-    width: min(460px, calc(100vw - 2rem));
+    --pcd-tone: var(--pm-primary);
+    --pcd-tone-ink: var(--pm-primary-strong);
+    --pcd-go: var(--pm-primary);
+    width: min(27.5rem, calc(100vw - 2rem));
     max-width: none;
+    max-height: calc(100dvh - 2rem);
     padding: 0;
     overflow: visible;
     border: 0;
-    border-radius: 1rem;
     background: transparent;
-    color: var(--bs-body-color, #0f172a);
+    color: var(--pm-text);
+}
+
+.prism-confirm-dialog[data-tone="warning"] {
+    --pcd-tone: var(--pm-warning);
+    --pcd-tone-ink: var(--pm-warning-strong);
+    --pcd-go: color-mix(in srgb, var(--pm-warning) 30%, var(--pm-warning-strong));
+}
+
+.prism-confirm-dialog[data-tone="danger"] {
+    --pcd-tone: var(--pm-danger);
+    --pcd-tone-ink: var(--pm-danger);
+    --pcd-go: var(--pm-danger);
+}
+
+:root[data-bs-theme="dark"] .prism-confirm-dialog[data-tone="warning"] {
+    --pcd-go: var(--pm-warning);
 }
 
 .prism-confirm-dialog::backdrop {
-    background: rgba(15, 23, 42, .56);
-    backdrop-filter: blur(2px);
+    background: var(--pcd-scrim, rgb(15 23 42 / 0.26));
+    backdrop-filter: blur(6px) saturate(1.15);
+    -webkit-backdrop-filter: blur(6px) saturate(1.15);
 }
+
+.prism-confirm-dialog[open]::backdrop {
+    animation: pcd-fade 0.22s ease both;
+}
+
+/* ---------- The glass sheet ---------- */
 
 .prism-confirm-dialog__surface {
     position: relative;
-    display: grid;
-    grid-template-columns: 46px minmax(0, 1fr);
-    gap: .85rem;
-    padding: 1.15rem;
-    border: 1px solid rgba(15, 23, 42, .1);
-    border-radius: 1rem;
-    background: var(--bs-body-bg, #fff);
-    box-shadow: 0 26px 72px rgba(15, 23, 42, .3);
+    isolation: isolate;
+    max-height: calc(100dvh - 2rem);
+    padding: 1.5rem 1.5rem 1.25rem;
+    overflow-y: auto;
+    border: 1px solid var(--pcd-rim);
+    border-radius: 24px;
+    background:
+        linear-gradient(140deg, var(--pcd-gleam) 0%, transparent 42%),
+        color-mix(in srgb, var(--pm-card) var(--pcd-glass-mix), transparent);
+    box-shadow:
+        inset 0 1px 0 var(--pcd-rim-hi),
+        0 1px 2px color-mix(in srgb, var(--pm-text-strong) 6%, transparent),
+        0 40px 90px -30px var(--pcd-shadow),
+        0 30px 60px -40px color-mix(in srgb, var(--pcd-tone) 55%, transparent);
+    backdrop-filter: blur(30px) saturate(1.8);
+    -webkit-backdrop-filter: blur(30px) saturate(1.8);
+}
+
+.prism-confirm-dialog[open] .prism-confirm-dialog__surface {
+    animation: pcd-in 0.45s var(--pcd-ease) both;
+}
+
+/* The light that reached the sheet: a short glowing edge in the tone's colour. */
+.prism-confirm-dialog__surface::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 22%;
+    right: 22%;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, var(--pcd-tone), transparent);
+    box-shadow: 0 0 16px 1px color-mix(in srgb, var(--pcd-tone) 60%, transparent);
+    pointer-events: none;
+}
+
+.prism-confirm-dialog__grabber {
+    display: none;
+}
+
+.prism-confirm-dialog__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
 }
 
 .prism-confirm-dialog__icon {
     display: grid;
+    flex: 0 0 auto;
     place-items: center;
-    width: 46px;
-    height: 46px;
-    border-radius: .8rem;
-    background: #dbeafe;
-    color: #1d4ed8;
-    font-size: 1.15rem;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 15px;
+    background:
+        radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--pcd-tone) 30%, transparent), transparent 75%),
+        color-mix(in srgb, var(--pcd-tone) 12%, transparent);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--pcd-tone) 28%, transparent),
+        0 10px 22px -12px color-mix(in srgb, var(--pcd-tone) 80%, transparent);
+    color: var(--pcd-tone-ink);
+    font-size: 1.35rem;
 }
 
-.prism-confirm-dialog[data-tone="warning"] .prism-confirm-dialog__icon {
-    background: #fef3c7;
-    color: #a16207;
-}
-
-.prism-confirm-dialog[data-tone="danger"] .prism-confirm-dialog__icon {
-    background: #fee2e2;
-    color: #b91c1c;
+.prism-confirm-dialog[open] .prism-confirm-dialog__icon {
+    animation: pcd-pop 0.55s var(--pcd-ease) 0.08s both;
 }
 
 .prism-confirm-dialog__content {
     min-width: 0;
-    padding-right: 1.5rem;
+    padding-right: 1.25rem;
 }
 
 .prism-confirm-dialog__content h2 {
-    margin: .05rem 0 .35rem;
-    font-size: 1rem;
-    font-weight: 750;
-    letter-spacing: -.01em;
+    margin: 0.15rem 0 0.4rem;
+    color: var(--pm-text-strong);
+    font-size: 1.18rem;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
 }
 
 .prism-confirm-dialog__content p {
     margin: 0;
-    color: var(--bs-secondary-color, #64748b);
-    font-size: .84rem;
+    color: var(--pm-text-secondary);
+    font-size: 0.92rem;
     line-height: 1.55;
     white-space: pre-line;
 }
 
-.prism-confirm-dialog__detail {
-    margin-top: .5rem !important;
-    padding: .55rem .65rem;
-    border-radius: .55rem;
-    background: var(--bs-tertiary-bg, #f8fafc);
-    font-size: .76rem !important;
+.prism-confirm-dialog__content .prism-confirm-dialog__detail {
+    margin-top: 0.5rem;
+    color: var(--pm-text-muted);
+    font-size: 0.82rem;
 }
 
 .prism-confirm-dialog__close {
     position: absolute;
-    top: .75rem;
-    right: .75rem;
+    top: 0.85rem;
+    right: 0.85rem;
+    z-index: 1;
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 32px;
+    width: 2rem;
+    height: 2rem;
     padding: 0;
     border: 0;
-    border-radius: .55rem;
+    border-radius: 50%;
     background: transparent;
-    color: var(--bs-secondary-color, #64748b);
+    color: var(--pm-text-muted);
 }
 
 .prism-confirm-dialog__close:hover,
 .prism-confirm-dialog__close:focus-visible {
-    background: var(--bs-tertiary-bg, #f1f5f9);
-    color: var(--bs-body-color, #0f172a);
+    background: var(--pcd-field);
+    color: var(--pm-text-strong);
 }
+
+/* ---------- Subject, field and note ---------- */
+
+.prism-confirm-dialog__subject {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.1rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--pcd-rim);
+    border-radius: 14px;
+    background: var(--pcd-field);
+}
+
+.prism-confirm-dialog__subject[hidden],
+.prism-confirm-dialog__field[hidden],
+.prism-confirm-dialog__note[hidden],
+.prism-confirm-dialog__input[hidden] {
+    display: none;
+}
+
+.prism-confirm-dialog__subject > .bi {
+    color: var(--pcd-tone-ink);
+    font-size: 1.4rem;
+}
+
+.prism-confirm-dialog__subject > div {
+    min-width: 0;
+}
+
+.prism-confirm-dialog__subject b {
+    display: block;
+    overflow: hidden;
+    color: var(--pm-text-strong);
+    font-size: 0.9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.prism-confirm-dialog__subject span:not(.bi) {
+    display: block;
+    color: var(--pm-text-muted);
+    font-size: 0.78rem;
+}
+
+.prism-confirm-dialog__field {
+    margin-top: 1rem;
+}
+
+.prism-confirm-dialog__field label {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.35rem;
+    color: var(--pm-text-strong);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.prism-confirm-dialog__field label span {
+    color: var(--pm-text-muted);
+    font-weight: 600;
+}
+
+.prism-confirm-dialog__field code {
+    padding: 0.05rem 0.35rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--pcd-tone) 12%, transparent);
+    color: var(--pcd-tone-ink);
+    font-size: 0.85em;
+}
+
+.prism-confirm-dialog__input {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--pcd-rim);
+    border-radius: 12px;
+    background: var(--pcd-field);
+    color: var(--pm-text-strong);
+    font: inherit;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+textarea.prism-confirm-dialog__input {
+    min-height: 5rem;
+    resize: vertical;
+}
+
+.prism-confirm-dialog__input:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--pcd-tone) 70%, transparent);
+    background: var(--pm-card);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--pcd-tone) 18%, transparent);
+}
+
+.prism-confirm-dialog__input.is-match {
+    border-color: color-mix(in srgb, var(--pm-success) 70%, transparent);
+}
+
+.prism-confirm-dialog__note {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    margin: 0.85rem 0 0;
+    color: var(--pm-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.prism-confirm-dialog__note.is-final {
+    color: var(--pcd-tone-ink);
+    font-weight: 600;
+}
+
+/* ---------- Buttons ---------- */
 
 .prism-confirm-dialog__actions {
-    grid-column: 1 / -1;
     display: flex;
     justify-content: flex-end;
-    gap: .5rem;
-    margin-top: .25rem;
-    padding-top: .8rem;
-    border-top: 1px solid rgba(15, 23, 42, .09);
+    gap: 0.6rem;
+    margin-top: 1.4rem;
 }
 
-.prism-confirm-dialog[data-tone="danger"] [data-prism-confirm-accept] {
-    --bs-btn-bg: #dc2626;
-    --bs-btn-border-color: #dc2626;
-    --bs-btn-hover-bg: #b91c1c;
-    --bs-btn-hover-border-color: #b91c1c;
-    --bs-btn-active-bg: #991b1b;
-    --bs-btn-active-border-color: #991b1b;
+.prism-confirm-dialog__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0 1.15rem;
+    border: 1px solid transparent;
+    border-radius: 13px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    transition: transform 0.18s var(--pcd-ease), box-shadow 0.2s ease, background-color 0.2s ease, opacity 0.2s ease;
 }
 
-.prism-confirm-dialog[data-tone="warning"] [data-prism-confirm-accept] {
-    --bs-btn-bg: #b45309;
-    --bs-btn-border-color: #b45309;
-    --bs-btn-hover-bg: #92400e;
-    --bs-btn-hover-border-color: #92400e;
-    --bs-btn-active-bg: #78350f;
-    --bs-btn-active-border-color: #78350f;
+.prism-confirm-dialog__btn:active {
+    transform: scale(0.97);
 }
+
+.prism-confirm-dialog__btn:focus-visible {
+    outline: 2px solid var(--pcd-tone);
+    outline-offset: 3px;
+}
+
+.prism-confirm-dialog__btn--quiet {
+    border-color: var(--pcd-rim);
+    background: var(--pcd-field);
+    color: var(--pm-text-strong);
+}
+
+.prism-confirm-dialog__btn--quiet:hover {
+    background: var(--pm-card);
+}
+
+.prism-confirm-dialog__btn--go {
+    background: var(--pcd-go);
+    color: var(--pcd-on-go);
+    box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--pm-text-inverted) 25%, transparent),
+        0 10px 22px -10px color-mix(in srgb, var(--pcd-go) 85%, transparent);
+}
+
+.prism-confirm-dialog__btn--go:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--pm-text-inverted) 25%, transparent),
+        0 14px 26px -10px color-mix(in srgb, var(--pcd-go) 95%, transparent);
+}
+
+.prism-confirm-dialog__btn--go:disabled {
+    opacity: 0.45;
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+}
+
+/* ---------- Motion ---------- */
+
+@keyframes pcd-fade {
+    from { opacity: 0; }
+}
+
+@keyframes pcd-in {
+    from { opacity: 0; filter: blur(6px); transform: translateY(10px) scale(0.955); }
+}
+
+@keyframes pcd-pop {
+    from { opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes pcd-sheet {
+    from { transform: translateY(105%); }
+}
+
+/* ---------- Phones: a bottom sheet ---------- */
 
 @media (max-width: 575.98px) {
-    .prism-confirm-dialog__surface {
-        grid-template-columns: 40px minmax(0, 1fr);
-        gap: .7rem;
-        padding: 1rem;
+    .prism-confirm-dialog {
+        width: calc(100vw - 1rem);
+        margin: auto auto max(0.5rem, env(safe-area-inset-bottom));
     }
 
-    .prism-confirm-dialog__icon {
-        width: 40px;
-        height: 40px;
+    .prism-confirm-dialog__surface {
+        padding: 0.6rem 1.25rem 1.1rem;
+        border-radius: 28px;
+    }
+
+    .prism-confirm-dialog[open] .prism-confirm-dialog__surface {
+        animation: pcd-sheet 0.5s var(--pcd-ease) both;
+    }
+
+    .prism-confirm-dialog__grabber {
+        display: block;
+        width: 2.4rem;
+        height: 5px;
+        margin: 0 auto 1rem;
+        border-radius: 5px;
+        background: color-mix(in srgb, var(--pm-text-muted) 40%, transparent);
+    }
+
+    .prism-confirm-dialog__close {
+        display: none;
+    }
+
+    .prism-confirm-dialog__head {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        text-align: center;
+    }
+
+    .prism-confirm-dialog__content {
+        padding-right: 0;
     }
 
     .prism-confirm-dialog__actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        flex-direction: column-reverse;
+        gap: 0.5rem;
+    }
+
+    .prism-confirm-dialog__btn {
+        width: 100%;
+        min-height: 50px;
+        font-size: 1rem;
     }
 }
 
-/* ============================================================
-   Dark theme (generated by tools/theme-dark-codemod.js, then reviewed).
-   Light is unchanged; these rules only apply under data-bs-theme="dark".
-   Palette: docs/ux/dark-theme-palette.md
-   ============================================================ */
-:where([data-bs-theme="dark"]) .prism-confirm-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.72);
+/* ---------- Accessibility ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .prism-confirm-dialog[open]::backdrop,
+    .prism-confirm-dialog[open] .prism-confirm-dialog__surface,
+    .prism-confirm-dialog[open] .prism-confirm-dialog__icon {
+        animation: none;
+    }
+
+    .prism-confirm-dialog__btn,
+    .prism-confirm-dialog__input {
+        transition: none;
+    }
 }
 
-:where([data-bs-theme="dark"]) .prism-confirm-dialog__surface {
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 26px 72px rgba(0, 0, 0, 0.6);
+@media (prefers-reduced-transparency: reduce) {
+    .prism-confirm-dialog__surface {
+        background: var(--pm-card);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .prism-confirm-dialog::backdrop {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
 }
 
-:where([data-bs-theme="dark"]) .prism-confirm-dialog__icon {
-    background: color-mix(in srgb, #6ea8fe 13%, #16181b);
-    color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .prism-confirm-dialog[data-tone="warning"] .prism-confirm-dialog__icon {
-    background: color-mix(in srgb, #fbbf24 17%, #16181b);
-    color: #fbbf24;
-}
-
-:where([data-bs-theme="dark"]) .prism-confirm-dialog[data-tone="danger"] .prism-confirm-dialog__icon {
-    background: color-mix(in srgb, #f87171 11%, #16181b);
-    color: #f87171;
-}
-
-:where([data-bs-theme="dark"]) .prism-confirm-dialog__actions {
-    border-top: 1px solid rgba(255, 255, 255, 0.11);
-}
-
-:where([data-bs-theme="dark"]) .prism-confirm-dialog[data-tone="danger"] [data-prism-confirm-accept] {
-    --bs-btn-border-color: #f87171;
-    --bs-btn-hover-border-color: #f87171;
-    --bs-btn-active-border-color: #f87171;
-}
-
-:where([data-bs-theme="dark"]) .prism-confirm-dialog[data-tone="warning"] [data-prism-confirm-accept] {
-    --bs-btn-border-color: #f7a96e;
-    --bs-btn-hover-border-color: #f2a373;
-    --bs-btn-active-border-color: #eea277;
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .prism-confirm-dialog__surface {
+        background: var(--pm-card);
+    }
 }
