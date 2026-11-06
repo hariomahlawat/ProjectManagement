@@ -161,7 +161,15 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
                     && log.UserId != "System" && log.UserId != "PRISM system")
                 || (log.UserName != null && log.UserName != string.Empty
                     && log.UserName != "System" && log.UserName != "PRISM system" && log.UserName != "PRISM"))
-            .Select(log => log.UserId != null && log.UserId != string.Empty ? log.UserId : log.UserName)
+            // A row that kept only the user name (a failed sign-in, say) is keyed by the
+            // matching account's id, so it joins that person's other rows.
+            .Select(log => log.UserId != null && log.UserId != string.Empty
+                ? log.UserId
+                : _db.Users
+                    .Where(user => user.NormalizedUserName != null
+                        && user.NormalizedUserName == log.UserName!.ToUpper())
+                    .Select(user => user.Id)
+                    .FirstOrDefault() ?? log.UserName)
             .Distinct()
             .CountAsync(cancellationToken);
         var affectedRecords = await summaryQuery.CountAsync(
@@ -231,8 +239,13 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
                     .Where(user => EF.Functions.ILike(user.FullName, pattern)
                         || (user.UserName != null && EF.Functions.ILike(user.UserName, pattern)))
                     .Select(user => user.Id);
+                var matchingNames = _db.Users
+                    .Where(user => EF.Functions.ILike(user.FullName, pattern)
+                        && user.NormalizedUserName != null)
+                    .Select(user => user.NormalizedUserName);
                 query = query.Where(log =>
                     (log.UserName != null && EF.Functions.ILike(log.UserName, pattern))
+                    || (log.UserName != null && matchingNames.Contains(log.UserName.ToUpper()))
                     || (log.UserId != null && matchingIds.Contains(log.UserId)));
             }
             else
@@ -242,8 +255,13 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
                     .Where(user => user.FullName.ToLower().Contains(normalized)
                         || (user.UserName != null && user.UserName.ToLower().Contains(normalized)))
                     .Select(user => user.Id);
+                var matchingNames = _db.Users
+                    .Where(user => user.FullName.ToLower().Contains(normalized)
+                        && user.NormalizedUserName != null)
+                    .Select(user => user.NormalizedUserName);
                 query = query.Where(log =>
                     (log.UserName != null && log.UserName.ToLower().Contains(normalized))
+                    || (log.UserName != null && matchingNames.Contains(log.UserName.ToUpper()))
                     || (log.UserId != null && matchingIds.Contains(log.UserId)));
             }
         }

@@ -77,27 +77,44 @@ public sealed class AuditLogWhoDidWhatTests
     }
 
     [Fact]
-    public async Task ActorFilter_FindsRowsThatKeptOnlyTheUserId_ByFullName()
+    public async Task ActorFilter_FindsRowsThatKeptOnlyTheUserIdOrUserName_ByFullName()
     {
         await using var db = CreateDb();
-        db.Users.Add(new ApplicationUser { Id = "user-1", UserName = "hariomahlawat", FullName = "Hari Om Ahlawat" });
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "user-1",
+            UserName = "hariomahlawat",
+            NormalizedUserName = "HARIOMAHLAWAT",
+            FullName = "Hari Om Ahlawat"
+        });
         db.AuditLogs.AddRange(
             Log("Mine", userId: "user-1"),
+            Log("MyFailedSignIn", userName: "HariOmAhlawat"),
             Log("Someone else", userId: "user-9", userName: "other"));
         await db.SaveChangesAsync();
 
         var result = await CreateService(db).GetAsync(
             new AdminLogQuery(null, null, "Om Ahl", null, null, null, null, null));
 
-        Assert.Equal(new[] { "Mine" }, result.Rows.Select(row => row.Action).ToArray());
+        Assert.Equal(
+            new[] { "Mine", "MyFailedSignIn" },
+            result.Rows.Select(row => row.Action).OrderBy(action => action).ToArray());
     }
 
     [Fact]
     public async Task ActorsSummary_CountsEachPersonOnce_AndNotPrism()
     {
         await using var db = CreateDb();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "user-1",
+            UserName = "hariomahlawat",
+            NormalizedUserName = "HARIOMAHLAWAT",
+            FullName = "Hari Om Ahlawat"
+        });
         db.AuditLogs.AddRange(
             Log("A", userId: "user-1", userName: "hariomahlawat"),
+            Log("FailedSignInFirst", userName: "hariomahlawat"),
             Log("B", userId: "user-1"),
             Log("C", userId: "user-2", userName: "other"),
             Log("D", userName: "PRISM system"),
