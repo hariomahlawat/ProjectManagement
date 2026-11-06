@@ -1,6 +1,11 @@
 (() => {
     "use strict";
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
     const modal = document.getElementById("assignExistingModal");
     if (modal) {
         modal.addEventListener("show.bs.modal", event => {
@@ -33,14 +38,32 @@
         });
     }
 
+    // "Question? Consequence." in data-confirm-message: hold the click, ask, and press the button
+    // again on yes.
+    const approvedControls = new WeakSet();
     document.querySelectorAll("[data-confirm-message]").forEach(control => {
         if (!(control instanceof HTMLButtonElement)) return;
         control.addEventListener("click", event => {
-            const message = control.dataset.confirmMessage?.trim();
-            if (message && !window.confirm(message)) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
+            if (approvedControls.has(control)) {
+                approvedControls.delete(control);
+                return;
             }
+            const text = control.dataset.confirmMessage?.trim();
+            if (!text) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const split = /^([^?]{1,160}\?)\s+([\s\S]+)$/.exec(text);
+            askConfirm({
+                tone: /not (a )?face|suppress|remove/i.test(text) ? "danger" : "primary",
+                title: split ? split[1] : text,
+                message: split ? split[2] : "",
+                confirmText: /not (a )?face/i.test(text) ? "Mark not a face" : "Continue",
+                cancelText: "Cancel"
+            }).then(accepted => {
+                if (!accepted) return;
+                approvedControls.add(control);
+                control.click();
+            });
         });
     });
 

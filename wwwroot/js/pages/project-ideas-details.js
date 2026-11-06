@@ -1,3 +1,8 @@
+// Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+const askIdeaConfirm = options => (window.PrismConfirm?.show
+    ? window.PrismConfirm.show(options)
+    : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
 // SECTION: Project Ideas attachment preview interactions
 (() => {
     const modal = document.getElementById('previewDocumentModal');
@@ -60,10 +65,25 @@
 (() => {
     document.querySelectorAll('.js-confirm-delete-attachment').forEach(form => {
         form.addEventListener('submit', event => {
-            const fileName = form.getAttribute('data-file-name') || 'this attachment';
-            if (!window.confirm(`Delete “${fileName}”? This action cannot be undone.`)) {
-                event.preventDefault();
+            if (form.dataset.attachmentDeleteApproved === 'true') {
+                delete form.dataset.attachmentDeleteApproved;
+                return;
             }
+            event.preventDefault();
+            const submitter = event.submitter;
+            askIdeaConfirm({
+                tone: 'danger',
+                title: 'Delete this attachment?',
+                message: 'It is removed from the idea.',
+                subject: { icon: 'bi-paperclip', name: form.getAttribute('data-file-name') || 'This attachment' },
+                irreversible: true,
+                confirmText: 'Delete attachment',
+                cancelText: 'Keep attachment'
+            }).then(accepted => {
+                if (!accepted) return;
+                form.dataset.attachmentDeleteApproved = 'true';
+                form.requestSubmit(submitter && submitter.form === form ? submitter : undefined);
+            });
         });
     });
 })();
@@ -224,9 +244,7 @@
                     tone: 'danger'
                 };
 
-            const accepted = window.PrismConfirm?.show
-                ? await window.PrismConfirm.show(options)
-                : window.confirm(`${options.title}\n\n${options.message}`);
+            const accepted = await askIdeaConfirm(options);
 
             if (!accepted) return;
             confirmed = true;

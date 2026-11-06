@@ -1,4 +1,10 @@
 (() => {
+
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
     const toolbar = document.getElementById('classification-review-toolbar');
     const page = document.getElementById('select-page');
     const boxes = [...document.querySelectorAll('.js-classification-select')];
@@ -53,23 +59,45 @@
     boxes.forEach(box => box.addEventListener('change', sync));
     clear?.addEventListener('click', clearSelection);
 
+    // The bulk submit is held while the user decides, then sent once (with the pressed button) on yes.
+    let bulkApproved = false;
     form?.addEventListener('submit', event => {
+        if (bulkApproved) {
+            bulkApproved = false;
+            return;
+        }
         const selected = boxes.filter(box => box.checked).length;
         if (!selected) {
             event.preventDefault();
             return;
         }
+        const images = `${selected} image${selected === 1 ? '' : 's'}`;
+        let question = null;
         if (bulkClassification?.value === 'Photograph') {
-            const confirmed = confirm(
-                `Classify ${selected} image(s) as natural photographs? ` +
-                'This does not approve biometric face processing; each image will require separate admission.'
-            );
-            if (!confirmed) event.preventDefault();
-            return;
+            question = {
+                tone: 'warning',
+                icon: 'bi-camera',
+                title: `Classify ${images} as natural photographs?`,
+                message: 'This does not approve biometric face processing; each image will still need separate admission.',
+                confirmText: 'Classify as photographs',
+                cancelText: 'Cancel'
+            };
+        } else if (selected > 10) {
+            question = {
+                title: `Apply this classification to ${images}?`,
+                message: 'Every selected image takes the chosen classification.',
+                confirmText: 'Apply classification',
+                cancelText: 'Cancel'
+            };
         }
-        if (selected > 10 && !confirm(`Apply this classification to ${selected} images?`)) {
-            event.preventDefault();
-        }
+        if (!question) return;
+        event.preventDefault();
+        const submitter = event.submitter;
+        askConfirm(question).then(accepted => {
+            if (!accepted) return;
+            bulkApproved = true;
+            form.requestSubmit(submitter && submitter.form === form ? submitter : undefined);
+        });
     });
 
     document.querySelectorAll('[data-manual-form]').forEach(manualForm => {

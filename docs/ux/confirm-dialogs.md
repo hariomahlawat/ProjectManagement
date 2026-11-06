@@ -99,7 +99,8 @@ check: every action it guards must be validated and authorized server-side.
 
 ## Conversion plan
 
-Surveyed 6 Nov 2026. PRs 1 (#2926), 2 (#2929), 3 (#2931) and 4 are done; the 8 `data-confirm` elements
+Surveyed 6 Nov 2026. PRs 1 (#2926), 2 (#2929), 3 (#2931), 4 (#2933) and 5 are done: no PRISM
+script calls the browser `confirm()` box any more; the 8 `data-confirm` elements
 marked `data-page-handled` follow their page scripts in the PRs below. The rest move one area
 at a time so each change stays testable.
 
@@ -124,10 +125,10 @@ to wait for the answer rather than simply swap the function:
 | 2 | `data-confirm` (about 32 places, `core/declarative-actions.js`) through `PrismConfirm`, with `data-confirm-title` / `-tone` / `-action` for better wording |
 | 3 | Browser `confirm()` in Projects: plan edit, remarks, Overview (ToT, multi-JDP), content, brochure, compendium, completed summary, photo reorder |
 | 4 | Browser `confirm()` in Office records: IPR, visits, social media, ARPP, proliferation, industry partners. Visits and Social media drop their own Bootstrap confirm modals; their forms, IPR's and Industry partners' now use `data-confirm` |
-| 5 | Browser `confirm()` in Teamwork and media: calendar, comments, to-do (and the layout's `appConfirmModal`), tasks, activities, photos, video library, PDF tools, admin media |
+| 5 | Browser `confirm()` in Teamwork and media: calendar, comments, to-do (the layout's `appConfirmModal` is removed), action-task remarks, activities, photos, video library, PDF tools, admin media; the last fallbacks in Project Ideas and the Briefing library |
 | 6 | Bootstrap confirm modals (about 19): convert the simple ones; give the ones with forms the same glass look; move the Notebook and Briefing Studio dialogs onto `PrismConfirm` |
 
-Converted areas are guarded by `npm test` checks that fail on a direct browser `confirm()`:
-`notebook-no-native-confirm.test.js`, `projects/projects-no-native-confirm.test.js` and
-`projects/office-records-no-native-confirm.test.js`. After
-PR 5 one app-wide check replaces them.
+`npm test` fails if any PRISM script calls the browser `confirm()` directly
+(`projects/app-no-native-confirm.test.js`); only the one-line `askConfirm` fallbacks and the
+`data-confirm` fallback in `core/declarative-actions.js` are allowed. The Notebook keeps its own
+check (`notebook-no-native-confirm.test.js`) until PR 6 moves its dialog onto `PrismConfirm`.

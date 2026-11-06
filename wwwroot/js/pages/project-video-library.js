@@ -1,3 +1,8 @@
+// Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+const askConfirm = options => (window.PrismConfirm?.show
+    ? window.PrismConfirm.show(options)
+    : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
 const dialog = document.querySelector('[data-video-remove-dialog]');
 const removeForm = document.querySelector('[data-video-remove-form]');
 const titleTarget = dialog?.querySelector('[data-video-remove-title]');
@@ -18,9 +23,16 @@ for (const button of document.querySelectorAll('[data-video-remove]')) {
             return;
         }
 
-        if (window.confirm(`Remove “${title}”?`)) {
-            submitRemoval();
-        }
+        askConfirm({
+            tone: 'danger',
+            title: 'Remove this video?',
+            message: 'It is removed from the project video library.',
+            subject: { icon: 'bi-film', name: title },
+            confirmText: 'Remove video',
+            cancelText: 'Keep video'
+        }).then(accepted => {
+            if (accepted) submitRemoval();
+        });
     });
 }
 

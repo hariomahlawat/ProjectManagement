@@ -17,13 +17,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  const confirmForms = document.querySelectorAll('form[data-comments-confirm]');
-  confirmForms.forEach(form => {
-    form.addEventListener('submit', event => {
-      const message = form.getAttribute('data-comments-confirm');
-      if (message && !window.confirm(message)) {
-        event.preventDefault();
-      }
-    });
-  });
+  // Remark deletes ask through the data-confirm attribute (core/declarative-actions.js).
 });

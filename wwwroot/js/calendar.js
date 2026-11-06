@@ -1,4 +1,10 @@
 (function () {
+
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askConfirm = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
   // FullCalendar globals from index.global.min.js (bundle or individual files)
   const FC = window.FullCalendar;
   const Calendar = FC && FC.Calendar;
@@ -2049,7 +2055,15 @@
 
     btnDelete?.addEventListener('click', async () => {
       const id = idBox.value;
-      if (!id || !confirm('Delete this event?')) return;
+      if (!id) return;
+      const accepted = await askConfirm({
+        tone: 'danger',
+        title: 'Delete this event?',
+        message: 'It is removed from the calendar for everyone.',
+        confirmText: 'Delete event',
+        cancelText: 'Keep event'
+      });
+      if (!accepted || idBox.value !== id) return;
 
       clearFormAlert();
       btnDelete.disabled = true;

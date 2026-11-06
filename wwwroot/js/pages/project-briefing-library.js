@@ -1,3 +1,8 @@
+// Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+const askConfirm = options => (window.PrismConfirm?.show
+    ? window.PrismConfirm.show(options)
+    : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
 // Briefing deck library: narrows and orders the deck table in place. Search matches deck names,
 // descriptions and the names of the projects in each deck; "Mine" keeps decks the person owns
 // or last edited. Nothing is fetched: every row is already on the page.
@@ -57,7 +62,7 @@ if (library) {
         returnFocus: form.closest('.dropdown')?.querySelector('[data-bs-toggle]')
       });
     } catch {
-      confirmed = window.confirm(message);
+      confirmed = await askConfirm({ tone: 'danger', title: message, confirmText: 'Delete deck', cancelText: 'Keep deck' });
     }
     if (!confirmed) return;
     form.dataset.pbdConfirmed = 'true';

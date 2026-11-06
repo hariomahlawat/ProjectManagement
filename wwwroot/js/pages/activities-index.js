@@ -1,4 +1,10 @@
 (function () {
+
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askConfirm = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
   const moduleRoot = document.querySelector('[data-module="activities-index"]');
   if (!moduleRoot) return;
 
@@ -86,8 +92,21 @@
       pendingSubmitter = event.submitter || null;
       if (modalMessage) modalMessage.textContent = message;
       modalInstance.show();
-    } else if (message && !window.confirm(message)) {
+    } else if (message) {
+      // Without its modal, ask in the shared dialog and send the form again on yes.
       event.preventDefault();
+      const submitter = event.submitter || null;
+      askConfirm({
+        tone: 'danger',
+        title: message,
+        confirmText: 'Delete',
+        cancelText: 'Cancel'
+      }).then((accepted) => {
+        if (!accepted) return;
+        form.dataset.activitiesDeleteConfirmed = 'true';
+        if (form.requestSubmit) form.requestSubmit(submitter && submitter.form === form ? submitter : undefined);
+        else form.submit();
+      });
     }
   });
 
