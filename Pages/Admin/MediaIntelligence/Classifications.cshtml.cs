@@ -2,19 +2,29 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
+using ProjectManagement.Features.MediaLibrary.Admin;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Pages.Admin.MediaIntelligence;
 
-[Authorize(Roles = "Admin,HoD")]
+// Viewing needs Admin.Media.View; every change (classification overrides, face-processing
+// approval and revocation, reset, reclassify) needs Admin.Media.Classification.Manage, checked
+// before any POST handler runs. Both policies currently map to Admin and HoD.
+[Authorize(Policy = AdminPolicies.MediaView)]
 public sealed class ClassificationsModel : PageModel
 {
+    // One "Reclassify stale" request queues at most this many images; run it again for more.
+    public const int MaximumReclassifyBatch = 500;
+
     private static readonly string[] SupportedModes =
     {
         "review", "admission", "risk", "automatic", "manual", "nonphoto",
@@ -38,14 +48,23 @@ public sealed class ClassificationsModel : PageModel
     private readonly IFaceEligibilityPolicy _eligibility;
     private readonly IMediaContentChangeInvalidationService _contentInvalidation;
     private readonly MediaLibraryOptions _options;
+    private readonly IMediaAdminAccessService _access;
+    private readonly IAdminAuditService _adminAudit;
+    private readonly ILogger<ClassificationsModel> _logger;
 
     public ClassificationsModel(
         MediaLibraryDbContext db,
         IMediaClassificationOverrideService overrides,
         IFaceEligibilityPolicy eligibility,
         IMediaContentChangeInvalidationService contentInvalidation,
-        IOptions<MediaLibraryOptions> options)
+        IOptions<MediaLibraryOptions> options,
+        IMediaAdminAccessService access,
+        IAdminAuditService adminAudit,
+        ILogger<ClassificationsModel> logger)
     {
+        _access = access ?? throw new ArgumentNullException(nameof(access));
+        _adminAudit = adminAudit ?? throw new ArgumentNullException(nameof(adminAudit));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _overrides = overrides ?? throw new ArgumentNullException(nameof(overrides));
         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
@@ -300,13 +319,37 @@ public sealed class ClassificationsModel : PageModel
         return RedirectToCurrent();
     }
 
+    public override async Task OnPageHandlerExecutionAsync(
+        PageHandlerExecutingContext context,
+        PageHandlerExecutionDelegate next)
+    {
+        if (HttpMethods.IsPost(context.HttpContext.Request.Method)
+            && !await _access.IsAuthorizedAsync(AdminPolicies.MediaClassificationManage, context.HttpContext.RequestAborted))
+        {
+            context.Result = Forbid();
+            return;
+        }
+
+        await next();
+    }
+
     public async Task<IActionResult> OnPostReclassifyStaleAsync(CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
+        // Bounded: each request loads and resets at most MaximumReclassifyBatch images in one
+        // transaction, instead of the whole stale library at once.
         var staleAssets = await ReviewableAssets()
             .Where(asset => !asset.ClassificationIsManual
                             && asset.ClassifierVersion != MediaClassifier.ClassifierVersion)
+            .OrderBy(asset => asset.Id)
+            .Take(MaximumReclassifyBatch + 1)
             .ToListAsync(cancellationToken);
+        var moreRemain = staleAssets.Count > MaximumReclassifyBatch;
+        if (moreRemain)
+        {
+            staleAssets = staleAssets.Take(MaximumReclassifyBatch).ToList();
+        }
+
         if (staleAssets.Count == 0)
         {
             StatusMessage = "All automatic classifications already use the current classifier version.";
@@ -436,9 +479,18 @@ public sealed class ClassificationsModel : PageModel
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         var skipped = staleAssets.Count - queueable.Length;
-        StatusMessage = skipped == 0
+
+        // Per-image MediaClassificationAudit rows commit with the change above. This admin
+        // audit row summarises the library-wide operation in the admin log; it is written
+        // after the media commit (separate database context), best effort.
+        await AuditReclassifyBestEffortAsync(queueableIds.Length, skipped, moreRemain, userId, cancellationToken);
+
+        var message = skipped == 0
             ? $"Queued {queueable.Length} stale automatic classification(s) for {MediaClassifier.ClassifierVersion}."
             : $"Queued {queueable.Length} stale classification(s); {skipped} active item(s) were left unchanged.";
+        StatusMessage = moreRemain
+            ? $"{message} More stale images remain; run Reclassify stale again to continue."
+            : message;
         return RedirectToPage(new { Q, FilterClassification, Mode = "stale", P = 1 });
     }
 
@@ -527,6 +579,45 @@ public sealed class ClassificationsModel : PageModel
                                      && !asset.IsDeleted
                                      && !asset.IsArchived
                                      && asset.Kind == MediaAssetKind.Photo);
+
+    private async Task AuditReclassifyBestEffortAsync(
+        int queued,
+        int skipped,
+        bool moreRemain,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _adminAudit.RecordAsync(
+                new AdminAuditEntry(
+                    Action: "MediaClassificationsReclassifyStaleQueued",
+                    EntityType: "MediaAsset",
+                    After: new
+                    {
+                        Queued = queued,
+                        SkippedActive = skipped,
+                        MoreRemain = moreRemain,
+                        ClassifierVersion = MediaClassifier.ClassifierVersion,
+                        RequestedByUserId = userId
+                    },
+                    Origin: "Admin.MediaIntelligence.Classifications",
+                    Level: "Warning",
+                    Message: $"Queued {queued} stale image(s) for reclassification with {MediaClassifier.ClassifierVersion}; their face intelligence was retired."),
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogCritical(
+                exception,
+                "Reclassify stale queued {Queued} image(s) but its admin audit event could not be written.",
+                queued);
+        }
+    }
 
     private string CurrentUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier)

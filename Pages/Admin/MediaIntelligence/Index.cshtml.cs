@@ -1,10 +1,13 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using ProjectManagement.Configuration;
+using ProjectManagement.Features.MediaLibrary.Admin;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
@@ -12,7 +15,10 @@ using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Pages.Admin.MediaIntelligence;
 
-[Authorize(Roles = "Admin,HoD")]
+// Viewing (and refreshing the readiness check) needs Admin.Media.View; queueing face
+// processing and identity matching needs Admin.Media.OperateQueue, checked before those
+// handlers run. Both policies currently map to Admin and HoD.
+[Authorize(Policy = AdminPolicies.MediaView)]
 public sealed class IndexModel : PageModel
 {
     private static readonly string[] SafetyReferralReasonCodes =
@@ -37,6 +43,13 @@ public sealed class IndexModel : PageModel
     private readonly IFaceCandidateRefreshRuntimeState _candidateRuntime;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<IndexModel> _logger;
+    private readonly IMediaAdminAccessService _access;
+
+    private static readonly HashSet<string> QueueHandlers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Queue",
+        "RefreshIdentityCandidates"
+    };
 
     public IndexModel(
         MediaLibraryDbContext db,
@@ -48,8 +61,10 @@ public sealed class IndexModel : PageModel
         IFaceCandidateRefreshQueueService candidateQueue,
         IFaceCandidateRefreshRuntimeState candidateRuntime,
         IOptions<MediaLibraryOptions> options,
-        ILogger<IndexModel> logger)
+        ILogger<IndexModel> logger,
+        IMediaAdminAccessService access)
     {
+        _access = access ?? throw new ArgumentNullException(nameof(access));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _schema = schema ?? throw new ArgumentNullException(nameof(schema));
         _readiness = readiness ?? throw new ArgumentNullException(nameof(readiness));
@@ -289,6 +304,23 @@ public sealed class IndexModel : PageModel
             TelemetryWarning =
                 $"Media intelligence telemetry is temporarily unavailable. Reference {reference}.";
         }
+    }
+
+    public override async Task OnPageHandlerExecutionAsync(
+        PageHandlerExecutingContext context,
+        PageHandlerExecutionDelegate next)
+    {
+        var handler = context.HandlerMethod?.Name;
+        if (HttpMethods.IsPost(context.HttpContext.Request.Method)
+            && handler is not null
+            && QueueHandlers.Contains(handler)
+            && !await _access.IsAuthorizedAsync(AdminPolicies.MediaOperateQueue, context.HttpContext.RequestAborted))
+        {
+            context.Result = Forbid();
+            return;
+        }
+
+        await next();
     }
 
     public async Task<IActionResult> OnPostQueueAsync(
