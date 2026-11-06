@@ -84,6 +84,39 @@ public sealed class MediaIntelligenceAuthorizationTests
         Assert.True(refreshRan);
     }
 
+    // A reset image stays "stale" (ClassifierVersion null) until the worker classifies it, so
+    // running Reclassify stale again used to re-reset the same first batch. Images already
+    // waiting in the classification queue are now left out.
+    [Fact]
+    public async Task ReclassifyStale_LeavesImagesAlreadyQueuedAlone()
+    {
+        var db = CreateMediaDb();
+        var sourceId = Guid.NewGuid();
+        db.Assets.AddRange(
+            new ProjectManagement.Features.MediaLibrary.Domain.MediaAsset { Id = 1, SourceId = sourceId, Kind = ProjectManagement.Features.MediaLibrary.Domain.MediaAssetKind.Photo, ClassifierVersion = null },
+            new ProjectManagement.Features.MediaLibrary.Domain.MediaAsset { Id = 2, SourceId = sourceId, Kind = ProjectManagement.Features.MediaLibrary.Domain.MediaAssetKind.Photo, ClassifierVersion = null });
+        db.ProcessingJobs.AddRange(
+            new ProjectManagement.Features.MediaLibrary.Domain.MediaProcessingJob { Id = 1, MediaAssetId = 1, JobType = ProjectManagement.Features.MediaLibrary.Domain.MediaProcessingJobType.ClassifyMedia, Status = ProjectManagement.Features.MediaLibrary.Domain.MediaProcessingJobStatus.Pending },
+            new ProjectManagement.Features.MediaLibrary.Domain.MediaProcessingJob { Id = 2, MediaAssetId = 2, JobType = ProjectManagement.Features.MediaLibrary.Domain.MediaProcessingJobType.ClassifyMedia, Status = ProjectManagement.Features.MediaLibrary.Domain.MediaProcessingJobStatus.Pending });
+        await db.SaveChangesAsync();
+
+        // The invalidation and audit dependencies throw if called: nothing may be reset again.
+        var page = new ClassificationsModel(
+            db,
+            Unused<ProjectManagement.Features.MediaLibrary.Services.IMediaClassificationOverrideService>(),
+            Unused<ProjectManagement.Features.MediaLibrary.Services.IFaceEligibilityPolicy>(),
+            Unused<ProjectManagement.Features.MediaLibrary.Services.IMediaContentChangeInvalidationService>(),
+            Options.Create(new MediaLibraryOptions()),
+            new PolicyAccess(AdminPolicies.MediaView, AdminPolicies.MediaClassificationManage),
+            Unused<IAdminAuditService>(),
+            NullLogger<ClassificationsModel>.Instance);
+
+        var result = await page.OnPostReclassifyStaleAsync(CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("already queued", page.StatusMessage);
+    }
+
     private static async Task<(IActionResult? Result, bool HandlerRan)> RunHandlerAsync(
         PageModel page,
         string method,

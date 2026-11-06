@@ -337,13 +337,27 @@ public sealed class ClassificationsModel : PageModel
     {
         var now = DateTimeOffset.UtcNow;
         // Bounded: each request loads and resets at most MaximumReclassifyBatch images in one
-        // transaction, instead of the whole stale library at once.
-        var staleAssets = await ReviewableAssets()
+        // transaction, instead of the whole stale library at once. A reset image keeps
+        // matching the stale predicate (its ClassifierVersion is null) until the worker
+        // classifies it, so images that already wait in the classification queue are left
+        // out; otherwise running this again would re-reset the same first batch instead of
+        // continuing with the next one.
+        var staleCandidates = ReviewableAssets()
             .Where(asset => !asset.ClassificationIsManual
-                            && asset.ClassifierVersion != MediaClassifier.ClassifierVersion)
+                            && asset.ClassifierVersion != MediaClassifier.ClassifierVersion);
+        var staleAssets = await staleCandidates
+            .Where(asset => !_db.ProcessingJobs.Any(job =>
+                job.MediaAssetId == asset.Id
+                && job.JobType == MediaProcessingJobType.ClassifyMedia
+                && job.Status == MediaProcessingJobStatus.Pending))
             .OrderBy(asset => asset.Id)
             .Take(MaximumReclassifyBatch + 1)
             .ToListAsync(cancellationToken);
+        if (staleAssets.Count == 0 && await staleCandidates.AnyAsync(cancellationToken))
+        {
+            StatusMessage = "Every stale image is already queued for reclassification. The background worker will process them.";
+            return RedirectToCurrent();
+        }
         var moreRemain = staleAssets.Count > MaximumReclassifyBatch;
         if (moreRemain)
         {
