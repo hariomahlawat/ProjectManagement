@@ -48,6 +48,14 @@
           <p class="analytics-card__meta">The @Model.ListedCount listed projects @(onDate ?? "today"): @Model.CompletedCount completed, @Model.OngoingCount ongoing by @(onDate is null ? "current stage" : "stage")@(Model.NotKnownCount > 0 ? $", {Model.NotKnownCount} not known" : "")@(Model.CancelledCount > 0 ? $", {Model.CancelledCount} cancelled" : "").@(onDate is null ? "" : " Worked out from the stage dates and the stage change log; a project the records cannot place is listed as not known.") Click a bar or a row to see the projects.</p>
         </div>
         <div class="analytics-card__actions">
+          @if (Model.YearEndDate is { } yearEnd)
+          {
+            @* A past year: where its projects stood on 31 March, or where they stand today. *@
+            <nav class="analytics-seg" aria-label="Show the year's projects as of">
+              <a href="@Url.Page("/Analytics/Index", new { tab = "Arpp", financialYearStart = Model.FinancialYearStart })" aria-current="@(Model.ShowsToday ? null : "true")">On @yearEnd.ToString("d MMM yyyy")</a>
+              <a href="@Url.Page("/Analytics/Index", new { tab = "Arpp", financialYearStart = Model.FinancialYearStart, view = "today" })" aria-current="@(Model.ShowsToday ? "true" : null)">Today</a>
+            </nav>
+          }
           @await Html.PartialAsync("Partials/_ArppYearFilter", Model)
           <button type="button" class="analytics-icon-btn" data-chart-download-target="arpp-by-stage-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
             <i class="bi bi-download" aria-hidden="true"></i>

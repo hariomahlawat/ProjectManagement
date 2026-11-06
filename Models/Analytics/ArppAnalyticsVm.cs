@@ -23,6 +23,13 @@ public sealed class ArppAnalyticsVm
     /// financial year. Null: today.
     /// </summary>
     public DateOnly? AsOfDate { get; init; }
+    /// <summary>
+    /// Set for a past year (its 31 March), whichever view is shown: the page then offers the switch between
+    /// that date and today.
+    /// </summary>
+    public DateOnly? YearEndDate { get; init; }
+    /// <summary>A past year shown as of today (its Today switch).</summary>
+    public bool ShowsToday => YearEndDate.HasValue && AsOfDate is null;
     /// <summary>Set when the current financial year has no published ARPP and an earlier year is shown instead.</summary>
     public string? FallbackNote { get; init; }
 

@@ -28,7 +28,8 @@ namespace ProjectManagement.Services.Analytics
     {
         /// <param name="requestedFinancialYearStart">The year the user asked for, or null for the default rule.</param>
         /// <param name="today">The "as of" date (IST) that decides the current financial year.</param>
-        Task<ArppAnalyticsVm> BuildAsync(int? requestedFinancialYearStart, DateOnly today, CancellationToken cancellationToken = default);
+        /// <param name="showToday">For a past year: where its projects stand today instead of on its 31 March.</param>
+        Task<ArppAnalyticsVm> BuildAsync(int? requestedFinancialYearStart, DateOnly today, bool showToday = false, CancellationToken cancellationToken = default);
     }
 
     public sealed class ArppAnalyticsService : IArppAnalyticsService
@@ -54,7 +55,7 @@ namespace ProjectManagement.Services.Analytics
             _positionAsOf = positionAsOf;
         }
 
-        public async Task<ArppAnalyticsVm> BuildAsync(int? requestedFinancialYearStart, DateOnly today, CancellationToken cancellationToken = default)
+        public async Task<ArppAnalyticsVm> BuildAsync(int? requestedFinancialYearStart, DateOnly today, bool showToday = false, CancellationToken cancellationToken = default)
         {
             var available = await _arppFyUpdate.GetAvailableFinancialYearsAsync(cancellationToken);
             var currentFy = FinancialYearHelper.GetStartYear(today);
@@ -136,10 +137,12 @@ namespace ProjectManagement.Services.Analytics
             var byParentCategory = GroupBy(row => parentCategoryByProject.TryGetValue(row.ProjectId, out var name) ? name : "Uncategorized");
 
             // A past year shows where its projects stood on 31 March, the last day of that financial year
-            // (owner, 6 Nov 2026); the current year shows today. Either way each listed project gets one
-            // Standing, and every card, list and chart below is counted from those.
+            // (owner, 6 Nov 2026), or, on its Today switch, where they stand now; the current year shows today.
+            // Either way each listed project gets one Standing, and every card, list and chart below is
+            // counted from those.
             var fyEnd = FinancialYearHelper.GetEndDate(selected);
-            DateOnly? asOf = fyEnd < today && _positionAsOf is not null ? fyEnd : null;
+            var isPastYear = fyEnd < today;
+            DateOnly? asOf = isPastYear && !showToday && _positionAsOf is not null ? fyEnd : null;
             var standings = asOf is { } yearEnd
                 ? await StandingsOnAsync(approved, standing, yearEnd, cancellationToken)
                 : await StandingsTodayAsync(approved, standing, approvedIds, cancellationToken);
@@ -210,6 +213,7 @@ namespace ProjectManagement.Services.Analytics
                 AvailableFinancialYears = available,
                 IsCurrentFinancialYear = selected == currentFy,
                 AsOfDate = asOf,
+                YearEndDate = isPastYear && _positionAsOf is not null ? fyEnd : null,
                 FallbackNote = fallbackNote,
                 ListedCount = approved.Count,
                 ListedIpaValue = position.ApprovedIpaValue,

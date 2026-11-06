@@ -119,7 +119,7 @@ the page; only the ARPP mode checks a further policy.
 - **ARPP** (fifth mode, added 2026-10-25): the projects listed in one financial year's published
   ARPP (the latest published row per project, as the ARPP library's current position) joined to
   where each project stands today (for a past year: where it stood on 31 March, the last day of that
-  year, worked out by `ProjectPositionAsOfService`). A Financial year chip picks the year; the page opens on the
+  year, worked out by `ProjectPositionAsOfService`, with a Today switch beside the year). A Financial year chip picks the year; the page opens on the
   current financial year when it has a published ARPP, else on the latest published year with a
   note. Cards: where the projects stand (ongoing by stage, with Completed / stage / Cancelled rows),
   by sanctioning authority (CFA), by category and IPA cost band, milestones (past AoN, supply
@@ -191,8 +191,9 @@ PRs:
    (`Services/Stages`, with its own tests: dated stages, the next-stage start, the change log,
    parallel branches, skipped stages, the one-card range and Not known). The ARPP mode uses it for
    a past year's 31 March; nothing else changes.
-3. **Today switch** for a past year (As on 31 Mar | Today), kept in the address so a link opens the
-   same view.
+3. **Today switch** for a past year. Done (this change): beside the Financial year chip, "On 31 Mar 2026 |
+   Today" (links, `?view=today`, so a link opens the same view; the year chip keeps the Today view). The
+   current year has no switch.
 
 ## Staying on the page
 
