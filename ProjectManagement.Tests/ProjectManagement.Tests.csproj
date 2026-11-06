@@ -207,6 +207,9 @@
     <None Include="..\wwwroot\js\pages\project-briefing-decks.js"
           Link="TestData\ProjectBriefing\project-briefing-decks.js"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\js\pages\project-briefing-library.js"
+          Link="TestData\ProjectBriefing\project-briefing-library.js"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\wwwroot\js\pages\project-briefing-additional-slides.js"
           Link="TestData\ProjectBriefing\project-briefing-additional-slides.js"
           CopyToOutputDirectory="PreserveNewest" />

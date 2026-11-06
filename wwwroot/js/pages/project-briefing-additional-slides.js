@@ -291,6 +291,14 @@ if (root) {
     button.addEventListener('click', async () => { await closeDrawer(); });
   });
   backdrop?.addEventListener('click', async () => { await closeDrawer(); });
+  // Escape also works when focus is outside the drawer (the drawer's own handler covers inside).
+  document.addEventListener('keydown', async (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (!drawer?.classList.contains('is-open') || drawer.contains(event.target)) return;
+    if (document.querySelector('dialog[open]')) return;
+    event.preventDefault();
+    await closeDrawer();
+  });
 
   drawer?.addEventListener('keydown', async (event) => {
     if (event.key === 'Escape') {
@@ -434,7 +442,7 @@ if (root) {
     if (ffcPreviewNote instanceof HTMLElement) {
       ffcPreviewNote.textContent = mapDominant
         ? 'Full-width map with a compact top-country strip. Total quantity is the intensity metric; no internet map service or screenshot is used.'
-        : 'Map-led 72:28 composition with the top country positions. Total quantity is the intensity metric; no internet map service or screenshot is used.';
+        : 'A large map with the top countries beside it. Darker countries received more. The map is drawn inside PRISM; no online map is used.';
     }
 
     if (ffcSupportingEstimate instanceof HTMLElement) {
@@ -537,6 +545,13 @@ if (root) {
       ffcStatus.classList.add('is-saving');
     }
     ffcDirty = false;
+  });
+  document.addEventListener('keydown', async (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (!ffcDrawer?.classList.contains('is-open') || ffcDrawer.contains(event.target)) return;
+    if (document.querySelector('dialog[open]')) return;
+    event.preventDefault();
+    await closeFfcDrawer();
   });
   ffcDrawer?.addEventListener('keydown', async (event) => {
     if (event.key === 'Escape') {

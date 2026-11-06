@@ -42,7 +42,7 @@
 }
 
 .pbd-page-header h1,
-.pbd-deck-header h2,
+.pbd-deck-header h1,
 .pbd-section-header h3,
 .pbd-first-use h2 {
     margin: 0;
@@ -216,7 +216,7 @@
     font-size: 1.13rem;
 }
 
-.pbd-deck-header h2 {
+.pbd-deck-header h1 {
     font-size: 1.22rem;
 }
 
@@ -1094,7 +1094,7 @@
 .pbd-generate-action small {
     max-width: 17rem;
     color: var(--pbd-muted);
-    font-size: .62rem;
+    font-size: .75rem;
     line-height: 1.3;
     text-align: right;
 }
@@ -5601,7 +5601,8 @@ span.pbd-additional-slide-row__handle {
     border-radius: 50%;
     background: var(--pbd-canvas);
     color: var(--pbd-muted);
-    content: counter(pbd-progress);
+    /* No numbers: the Deck tab's settings steps are the numbered ones. A dot until done. */
+    content: "\2022";
     font-size: .68rem;
     font-weight: 800;
 }
@@ -5778,3 +5779,24 @@ span.pbd-additional-slide-row__handle {
 .pbd-outline__gaps > i {
     font-size: .62rem;
 }
+
+/* New deck: the name rule, shown before anything is typed. */
+.pbd-form-help {
+    display: block;
+    margin-top: -.35rem;
+    color: var(--pbd-muted);
+    font-size: .78rem;
+}
+
+/* Library search: which project in a deck matched. */
+.pbd-library__match {
+    display: block;
+    margin-top: .15rem;
+    color: var(--pbd-blue);
+    font-size: .78rem;
+}
+
+.pbd-library__match[hidden] {
+    display: none;
+}
+

@@ -146,7 +146,7 @@
                     <th scope="col">Owner</th>
                     <th scope="col">Last edited</th>
                     <th scope="col">Last generated</th>
-                    <th scope="col">Data since</th>
+                    <th scope="col" title="What changed in the projects' data since the deck's last PowerPoint">Changed since</th>
                     <th scope="col"><span class="visually-hidden">Actions</span></th>
                 </tr>
             </thead>
@@ -159,13 +159,15 @@
                         data-mine="@(deck.IsMine ? "true" : "false")"
                         data-name="@deck.Name"
                         data-edited="@deck.UpdatedAtUtc.ToUnixTimeSeconds()"
-                        data-generated="@(deck.LastGeneratedAtUtc?.ToUnixTimeSeconds() ?? 0)">
+                        data-generated="@(deck.LastGeneratedAtUtc?.ToUnixTimeSeconds() ?? 0)"
+                        data-projects="@(string.Join("\n", deck.ProjectNames))">
                         <td>
                             <a class="pbd-library__name" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">@deck.Name</a>
                             @if (!string.IsNullOrWhiteSpace(deck.Description))
                             {
                                 <small class="pbd-library__description">@deck.Description</small>
                             }
+                            <small class="pbd-library__match" data-pbd-library-match hidden></small>
                         </td>
                         <td class="is-date">@deck.Purpose</td>
                         <td class="is-number">@deck.ProjectCount</td>

@@ -26,7 +26,7 @@
             <div>
                 <span class="pbd-eyebrow">Additional slide</span>
                 <h3 id="pbd-ffc-footprint-drawer-title">Configure FFC Global Footprint</h3>
-                <p>Presentation choices are maintained here while country and quantity figures refresh from the authoritative FFC module.</p>
+                <p>Countries and quantities come from the FFC records and update by themselves. Here you choose how the slide looks.</p>
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-ffc-footprint-close aria-label="Close FFC Global Footprint editor">
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
@@ -61,7 +61,7 @@
                                    data-pbd-ffc-layout-option />
                             <span>
                                 <strong>Map with country-wise breakdown</strong>
-                                <small>Recommended 72:28 composition for normal briefings</small>
+                                <small>A large map with the country list beside it (recommended)</small>
                             </span>
                         </label>
                         <label class="pbd-choice-card">
@@ -138,8 +138,8 @@
                     <small data-pbd-ffc-preview-note>
                         @(options.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant
                             ? "Full-width map with a compact top-country strip."
-                            : "Map-led 72:28 composition with the top country positions.")
-                        Total quantity is the intensity metric; no internet map service or screenshot is used.
+                            : "A large map with the top countries beside it.")
+                        Darker countries received more. The map is drawn inside PRISM; no online map is used.
                     </small>
                 </div>
             </section>

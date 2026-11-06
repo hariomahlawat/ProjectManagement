@@ -567,8 +567,16 @@ the Studio.
   still open, placeholders such as "Not recorded"; *Present anyway* / *Review gaps*, which opens
   the Gaps tab), once per deck per browser session.
 - **D. Phone.** Header actions stacked, the slide first, the library as cards.
-- **E. Wording and accessibility.** The progress line's Generate step as status, settings steps
-  unnumbered, library dashes and search matches explained, text ≥ 12 px and ≥ 4.5:1, plain SDD
-  drawer copy and Escape, an `<h1>`, named Show buttons, the doubled Portfolio in the picker,
-  New deck validation, stage names in the outline.
+- **E. Wording and accessibility.** Done (this change). The progress line is three steps
+  (Projects, Gaps, Settings) with dots instead of numbers, so only the Deck tab's settings steps
+  are numbered (the owner's numbered steps stay); Generate is the button beside it. The deck name
+  is the Studio's `<h1>`. The SDD profile, Role & Charter and FFC drawers speak plainly ("The
+  figures come from PRISM and update by themselves", "Turn it on or off, and set its place, in the
+  Deck tab under Extra slides", "A large map with the country list beside it"), and Escape closes
+  each even when focus is outside it. The note under Generate is 12 px. Library: "Data since" is
+  "Changed since" (with a tooltip), and a search that found a deck through its projects says
+  which ("Matches: …"). New deck states its rule ("required, at least 3 characters"). Update-sheet
+  row checkboxes are named. Left as they are: the stage names in the outline (PRISM's own stage
+  names), the Template picker showing the current template above its list, and the rail's
+  contrast (a workspace-wide change).
 
