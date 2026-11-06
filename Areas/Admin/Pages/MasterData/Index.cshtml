@@ -48,7 +48,7 @@
                         <div><dt>Total</dt><dd>@domain.Total</dd></div>
                         <div><dt>Active</dt><dd>@domain.Active</dd></div>
                         <div><dt>Inactive</dt><dd>@domain.Inactive</dd></div>
-                        <div><dt>In use</dt><dd>@domain.InUse</dd></div>
+                        <div><dt>In use</dt><dd>@(domain.TracksUsage ? domain.InUse.ToString("N0") : "—")</dd></div>
                     </dl>
                     <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </a>

@@ -66,6 +66,12 @@ public sealed class AdminMasterDataIntegrityServiceTests
         Assert.Equal(new[] { 0, 1, 2 }, rows.Select(item => item.SortOrder));
         Assert.Single(audit.Entries);
         Assert.Equal("MasterData.IntegrityOrderNormalised", audit.Entries[0].Action);
+
+        // Each moved row's old and new position is recorded, so the repair can be reversed.
+        var before = System.Text.Json.JsonSerializer.Serialize(audit.Entries[0].Before);
+        var after = System.Text.Json.JsonSerializer.Serialize(audit.Entries[0].After);
+        Assert.Contains("\"Id\":1,\"SortOrder\":4", before);
+        Assert.Contains("\"Id\":1,\"SortOrder\":2", after);
     }
 
     private static ApplicationDbContext CreateContext()
