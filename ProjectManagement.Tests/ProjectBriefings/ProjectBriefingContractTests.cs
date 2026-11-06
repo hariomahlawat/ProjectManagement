@@ -261,6 +261,28 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Review_StudioHeaderCompactOutlineReadableAndKeysWork()
+    {
+        var page = Read("Index.cshtml");
+        var studio = Read("project-briefing-studio.js");
+        var css = Read("project-briefing-decks.css").Replace("\r\n", "\n");
+
+        // The progress line sits in the deck header with the last change, not in a row of its own.
+        var header = page[page.IndexOf("<header class=\"pbd-deck-header\">", StringComparison.Ordinal)..page.IndexOf("</header>", page.IndexOf("<header class=\"pbd-deck-header\">", StringComparison.Ordinal), StringComparison.Ordinal)];
+        Assert.Contains("<div class=\"pbd-deck-header__status\">", header, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-progress", header, StringComparison.Ordinal);
+
+        // Outline titles on two lines.
+        Assert.Contains("-webkit-line-clamp: 2;", css, StringComparison.Ordinal);
+
+        // Arrows from anywhere outside fields; the outline and the Checks filter survive a reload.
+        Assert.Contains("document.addEventListener('keydown', (event) => {\n    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;", studio.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain("root.addEventListener('keydown'", studio, StringComparison.Ordinal);
+        Assert.Contains("filter: filterGap || null", studio, StringComparison.Ordinal);
+        Assert.Contains("centreSelectedRow();", studio, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Studio_GivesTheSlideTheRoomOnLaptops()
     {
         var page = Read("Index.cshtml");

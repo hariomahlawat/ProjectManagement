@@ -709,7 +709,8 @@ if (root) {
         number: slides[current]?.number || null,
         projectId: entry?.projectId || null,
         view,
-        tab: tabs.find((tab) => tab.classList.contains('is-active'))?.dataset.pbdInspectorTab || 'slide'
+        tab: tabs.find((tab) => tab.classList.contains('is-active'))?.dataset.pbdInspectorTab || 'slide',
+        filter: filterGap || null
       }));
     } catch {
       // Private windows can refuse storage; the Studio then starts at the first slide.
@@ -950,6 +951,8 @@ if (root) {
   };
 
   const setFilter = (key) => {
+    filterGap = key;
+    rememberPlace();
     // Show narrows the outline; on a phone, open the sheet so the narrowed list is seen.
     if (key && outlineIsSheet()) setOutlineOpen(true);
     filterGap = key;
@@ -1118,6 +1121,27 @@ if (root) {
     slideBox?.replaceChildren(empty);
   };
 
+  // The side panels take the window's height below the header (see --pbd-studio-offset in the
+  // CSS); kept current as the header, the one-time note or the window change size.
+  const setStudioOffset = () => {
+    const top = root.getBoundingClientRect().top + window.scrollY;
+    root.style.setProperty('--pbd-studio-offset', `${Math.round(top)}px`);
+  };
+  setStudioOffset();
+  window.addEventListener('resize', setStudioOffset);
+  const editor = root.closest('.pbd-editor');
+  if (editor && typeof window.ResizeObserver === 'function') new window.ResizeObserver(setStudioOffset).observe(editor);
+
+  // After a reload the outline scrolls (itself, not the page) to the slide the Studio reopened on.
+  let outlinePlaced = false;
+  const centreSelectedRow = () => {
+    const row = outlineNav?.querySelector('.pbd-outline__row.is-selected');
+    if (!row || !outlineNav) return;
+    const listBox = outlineNav.getBoundingClientRect();
+    const rowBox = row.getBoundingClientRect();
+    outlineNav.scrollTop += (rowBox.top - listBox.top) - (listBox.height - rowBox.height) / 2;
+  };
+
   const loadPreview = async () => {
     lastBuiltAt = Date.now();
     // Cancel a running build so an obsolete response cannot restore old slides.
@@ -1178,6 +1202,10 @@ if (root) {
       selectedKey = sameProject ? sameProject.key : '';
       updateCounts(payload);
       renderOutline();
+      if (!outlinePlaced) {
+        outlinePlaced = true;
+        centreSelectedRow();
+      }
       if (view === 'grid') renderGrid();
       renderStage();
       renderChecksPanel();
@@ -1384,11 +1412,16 @@ if (root) {
   });
 
   // Arrow keys move between slides while the Studio has focus, except inside form fields.
-  root.addEventListener('keydown', (event) => {
-    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+  // Left and right arrows move between slides from anywhere on the page (after clicking the
+  // slide, focus is on the page itself), except in fields, tabs, menus, dialogs and drawers.
+  document.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if (!slides.length || view !== 'slide') return;
+    if (document.querySelector('.modal.show, dialog[open]')) return;
     const target = event.target;
-    if (target instanceof HTMLElement && (target.closest('input, textarea, select, [contenteditable="true"], [role="tablist"]'))) return;
+    if (target instanceof Element && target.closest(
+      'input, textarea, select, [contenteditable="true"], [role="tablist"], [role="menu"], .dropdown-menu, .modal, dialog, [class*="drawer"]')) return;
     event.preventDefault();
     selectIndex(current + (event.key === 'ArrowRight' ? 1 : -1));
   });
@@ -1471,6 +1504,13 @@ if (root) {
   };
   document.addEventListener('visibilitychange', rebuildOnReturn);
   window.addEventListener('focus', rebuildOnReturn);
+
+  // The Checks filter comes back with the place (shown once the outline is built).
+  if (savedPlace.filter && GAPS[savedPlace.filter]) {
+    filterGap = savedPlace.filter;
+    if (filterBox) filterBox.hidden = false;
+    if (filterText) filterText.textContent = `Projects missing ${GAPS[filterGap].label.toLowerCase()}`;
+  }
 
   // All slides is not brought back on narrow screens, where the grid runs to thousands of pixels.
   setView(savedPlace.view === 'grid' && !narrowScreen() ? 'grid' : 'slide');

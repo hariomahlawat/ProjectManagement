@@ -545,9 +545,15 @@ the Studio.
   deck's own projects (untick to remove, search to add); badges read **In deck** (saved),
   **Will be added** / **Will be removed** (pending until Apply), nothing for a project outside the
   deck; "Completed · Completed" is said once. The dialog's lead says which parts save at once.
-- **B. Studio fits the window.** The Studio sized to the window (only the three panels scroll),
-  a one-line header, outline titles on two lines, arrow keys wherever focus is not in a field,
-  the outline scrolled to the selected slide after a reload, the Checks filter kept.
+- **B. Studio fits the window.** Done (this change). The progress line moved into the deck
+  header, beside the last change, so the Studio starts about 100 px higher (slide top 317 px at
+  1366×768, was 358 after the one-time note). The side panels take the window's height below
+  the header (`--pbd-studio-offset`, measured by the Studio script and kept current as the header,
+  the note or the window change; at least 26rem), so the whole Studio fits 1366×768 and
+  1920×1080; only the site footer is below. Outline titles show two lines. Left/right arrows move
+  between slides from anywhere on the page (after clicking the slide focus is on the page), not
+  from fields, tabs, menus, dialogs or drawers. After a reload the outline scrolls itself (not the
+  page) to the slide the Studio reopened on, and the Checks filter comes back with the place.
 - **C. Gaps made honest.** Check only what the slides show for the project's stage (owner to
   confirm: proliferation cost before completion), one name for gaps, one row per field in This
   slide, a short gap summary before Present and Generate, a visible meaning for the outline badge.
