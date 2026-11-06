@@ -52,7 +52,7 @@ public sealed class SystemHealthStorageChecksTests
         Assert.Equal(expected, status);
         if (expected == AdminHealthStatus.Warning)
         {
-            Assert.Equal("The approved detector file is missing.", detail);
+            Assert.Equal("The approved detector file is missing.", detail); // the readiness message is passed through
         }
     }
 

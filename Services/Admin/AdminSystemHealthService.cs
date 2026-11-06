@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Services.Chat;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.SearchV2.Indexing;
@@ -185,7 +186,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 "Media library",
                 "Face recognition",
                 CheckFaceDetectorAsync,
-                "Open Media intelligence and install the approved detector file it names.",
+                "Open Media intelligence: it lists each model file that is missing or not approved.",
                 cancellationToken));
         }
 
@@ -647,8 +648,10 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             return (AdminHealthStatus.Healthy, "Face recognition is not in use.", null);
         }
 
-        var detector = await readiness.CheckDetectorAsync(cancellationToken);
-        return FaceDetectorResult(detector.IsEnabled, detector.IsReady, detector.Message);
+        // The full readiness covers face recognition in Photos (detector, embedder and the rest);
+        // CheckDetectorAsync only covers the classification assistant's detector.
+        var recognition = await readiness.CheckAsync(cancellationToken);
+        return FaceDetectorResult(recognition.IsEnabled, recognition.IsReady, recognition.Message);
     }
 
     internal static (AdminHealthStatus Status, string Summary, string? Detail) FaceDetectorResult(bool enabled, bool ready, string message)
@@ -660,7 +663,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
 
         return ready
             ? (AdminHealthStatus.Healthy, "Face recognition is ready.", null)
-            : (AdminHealthStatus.Warning, "Face recognition in Photos is not working: its detector is not ready.", message);
+            : (AdminHealthStatus.Warning, "Face recognition in Photos is not working: its model is not ready.", message);
     }
 
     // Chat stops accepting files below a free-space floor; warn while there is still room to act.
@@ -671,9 +674,10 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
 
         try
         {
-            var root = Path.GetPathRoot(Path.GetFullPath(path));
-            if (string.IsNullOrWhiteSpace(root)) return null;
-            var free = new DriveInfo(root).AvailableFreeSpace;
+            // The same measurement chat uploads are refused by (it picks the mount that holds the
+            // upload folder, not the system root).
+            var diskSpace = _services.GetService<IChatDiskSpace>();
+            if (diskSpace?.AvailableBytes(path) is not { } free) return null;
             var result = ChatUploadSpaceResult(free, attachments.MinimumFreeDiskBytes);
             return new(
                 "chat-upload-space",
