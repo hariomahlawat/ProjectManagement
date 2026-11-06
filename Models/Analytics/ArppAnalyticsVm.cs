@@ -62,6 +62,9 @@ public sealed class ArppAnalyticsVm
     /// <summary>The categories in the stage chart, in their own order: the legend and the row chips share it.</summary>
     public IReadOnlyList<string> StageCategoryOrder { get; init; } = Array.Empty<string>();
 
+    /// <summary>One line per listed project for the progress slides, in the same buckets as the cards.</summary>
+    public IReadOnlyList<ArppProjectLineVm> ProjectLines { get; init; } = Array.Empty<ArppProjectLineVm>();
+
     /// <summary>For each standing row (by its key): its parent categories, in order, with their projects.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ArppStandingCategoryVm>> StandingCategories { get; init; } =
         new Dictionary<string, IReadOnlyList<ArppStandingCategoryVm>>();
@@ -99,6 +102,35 @@ public sealed class ArppAnalyticsVm
 }
 
 public sealed record ArppStageCountVm(string StageCode, string StageName, int Count);
+
+/// <summary>Where a listed project sits on the progress slides (the same split as the headline cards).</summary>
+public enum ArppProgressBucket
+{
+    PreAon,
+    AonToSupplyOrder,
+    UnderDevelopment,
+    Completed,
+    Cancelled,
+    NotKnown
+}
+
+/// <summary>
+/// One listed project as the progress slides show it: its parent category, bucket, stage on the view's date
+/// (code, name and its place in the workflow), development PDC (only at the Development stage) and whether
+/// it is past, and for a completed project its completion month and year.
+/// </summary>
+public sealed record ArppProjectLineVm(
+    int ProjectId,
+    string ProjectName,
+    string Category,
+    ArppProgressBucket Bucket,
+    string? StageCode,
+    string? StageName,
+    int StageRank,
+    DateOnly? DevelopmentPdc,
+    bool PdcOverdue,
+    string? CompletedLabel,
+    DateOnly? CompletedSort);
 
 /// <summary>One parent category within a standing row: its count and its projects.</summary>
 public sealed record ArppStandingCategoryVm(string Name, int Count, IReadOnlyList<AnalyticsBoardProjectVm> Projects);

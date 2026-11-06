@@ -887,6 +887,7 @@ builder.Services.AddScoped<ProjectCategoryHierarchyService>();
 builder.Services.AddScoped<IProjectImportService, ProjectImportService>();
 builder.Services.AddScoped<IProjectAnalyticsService, ProjectAnalyticsService>();
 builder.Services.AddScoped<IArppAnalyticsService, ArppAnalyticsService>();
+builder.Services.AddSingleton<ProjectManagement.Services.Analytics.Presentation.IArppProgressSlideComposer, ProjectManagement.Services.Analytics.Presentation.ArppProgressSlideComposer>();
 builder.Services.AddScoped<IPortfolioAnalyticsService, PortfolioAnalyticsService>();
 builder.Services.AddScoped<IArVrImpactAnalyticsService, ArVrImpactAnalyticsService>();
 builder.Services.AddSingleton<IProjectTotExcelWorkbookBuilder, ProjectTotExcelWorkbookBuilder>();

@@ -42,17 +42,21 @@ namespace ProjectManagement.Services.Analytics
         private readonly IArppLibraryService _arppLibrary;
         private readonly IArppFyProjectUpdateService _arppFyUpdate;
         private readonly IProjectPositionAsOfService? _positionAsOf;
+        private readonly IProjectFormalUpdateFactsResolver _formalFacts;
 
         public ArppAnalyticsService(
             ApplicationDbContext db,
             IArppLibraryService arppLibrary,
             IArppFyProjectUpdateService arppFyUpdate,
-            IProjectPositionAsOfService? positionAsOf = null)
+            IProjectPositionAsOfService? positionAsOf = null,
+            IProjectFormalUpdateFactsResolver? formalFacts = null)
         {
             _db = db;
             _arppLibrary = arppLibrary;
             _arppFyUpdate = arppFyUpdate;
             _positionAsOf = positionAsOf;
+            // The one owner of the Development PDC (and the AoN and supply-order dates) for formal reports.
+            _formalFacts = formalFacts ?? new ProjectFormalUpdateFactsResolver(db);
         }
 
         public async Task<ArppAnalyticsVm> BuildAsync(int? requestedFinancialYearStart, DateOnly today, bool showToday = false, CancellationToken cancellationToken = default)
@@ -230,6 +234,67 @@ namespace ProjectManagement.Services.Analytics
             var aonToSo = beforeSo.Where(item => item.PastAon == true && item.SupplyOrderPlaced == false).ToList();
             var cardNotKnown = beforeSo.Count - preAon.Count - aonToSo.Count + lifecycleNotKnown.Count;
 
+            // One line per listed project for the progress slides, in the same buckets as the cards.
+            var shownOnDate = asOf ?? today;
+            // The Development PDC as every formal report resolves it (ProjectFormalUpdateFactsResolver).
+            var formalFacts = await _formalFacts.ResolveAsync(approvedIds, cancellationToken);
+            var completion = (await _db.Projects
+                    .AsNoTracking()
+                    .Where(project => approvedIds.Contains(project.Id))
+                    .Select(project => new { project.Id, project.CompletedOn, project.CompletedYear, project.CompletedMonth })
+                    .ToListAsync(cancellationToken))
+                .ToDictionary(project => project.Id);
+            var preAonIds = preAon.Select(item => item.ProjectId).ToHashSet();
+            var aonToSoIds = aonToSo.Select(item => item.ProjectId).ToHashSet();
+            var withSoIds = withSo.Select(item => item.ProjectId).ToHashSet();
+            ArppProgressBucket BucketOf(Standing item) => item.Lifecycle switch
+            {
+                LifecycleAsOf.Completed => ArppProgressBucket.Completed,
+                LifecycleAsOf.Cancelled => ArppProgressBucket.Cancelled,
+                LifecycleAsOf.Active when withSoIds.Contains(item.ProjectId) => ArppProgressBucket.UnderDevelopment,
+                LifecycleAsOf.Active when aonToSoIds.Contains(item.ProjectId) => ArppProgressBucket.AonToSupplyOrder,
+                LifecycleAsOf.Active when preAonIds.Contains(item.ProjectId) => ArppProgressBucket.PreAon,
+                _ => ArppProgressBucket.NotKnown
+            };
+            // The completion that placed a project in Completed: on a past date, the one the position service
+            // read (a project completed then and reactivated since keeps it); today, the project's record.
+            (DateOnly? On, int? Year, short? Month) CompletionOf(Standing item) =>
+                item.Completion is { } fromPosition
+                    ? fromPosition
+                    : completion.TryGetValue(item.ProjectId, out var done) ? (done.CompletedOn, done.CompletedYear, done.CompletedMonth) : (null, null, null);
+            static string? CompletionLabel((DateOnly? On, int? Year, short? Month) done) =>
+                done.On is { } on
+                    ? on.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                    : done.Year is { } year
+                        ? done.Month is { } month and >= 1 and <= 12
+                            ? new DateOnly(year, month, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                            : year.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        : null;
+            static DateOnly? CompletionSort((DateOnly? On, int? Year, short? Month) done) =>
+                done.On ?? (done.Year is { } y ? new DateOnly(y, done.Month is { } m and >= 1 and <= 12 ? m : 1, 1) : null);
+
+            var projectLines = standings
+                .Select(item =>
+                {
+                    var bucket = BucketOf(item);
+                    var atDevelopment = bucket == ArppProgressBucket.UnderDevelopment
+                        && string.Equals(item.StageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase);
+                    DateOnly? pdc = atDevelopment && formalFacts.TryGetValue(item.ProjectId, out var facts) ? facts.DevelopmentPdcDate : null;
+                    return new ArppProjectLineVm(
+                        item.ProjectId,
+                        item.ProjectName,
+                        ParentOf(item.ProjectId),
+                        bucket,
+                        item.Lifecycle == LifecycleAsOf.Active ? item.StageCode : null,
+                        item.Lifecycle == LifecycleAsOf.Active ? item.StageName : null,
+                        item.Lifecycle == LifecycleAsOf.Active ? Array.IndexOf(StageCodes.All, item.StageCode) : -1,
+                        pdc,
+                        pdc is { } pdcDate && pdcDate < shownOnDate,
+                        bucket == ArppProgressBucket.Completed ? CompletionLabel(CompletionOf(item)) : null,
+                        bucket == ArppProgressBucket.Completed ? CompletionSort(CompletionOf(item)) : null);
+                })
+                .ToList();
+
             static AnalyticsBoardGroupVm Milestone(string key, string name, IEnumerable<Standing> rows, Func<Standing, string?> detail) =>
                 new(key, name, rows.Count(), ByName(rows).Select(item => new AnalyticsBoardProjectVm(item.ProjectId, item.ProjectName, detail(item))).ToList());
 
@@ -270,6 +335,7 @@ namespace ProjectManagement.Services.Analytics
                     .ThenBy(name => name, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
                 StandingCategories = standingCategories,
+                ProjectLines = projectLines,
                 StandingBoard = standingBoard,
                 ByCategory = byCategory,
                 ByCfa = byCfa,
@@ -302,7 +368,8 @@ namespace ProjectManagement.Services.Analytics
             string? AonDetail,
             bool? SupplyOrderPlaced,
             decimal? SupplyOrderValue,
-            string? SupplyOrderDetail);
+            string? SupplyOrderDetail,
+            (DateOnly? On, int? Year, short? Month)? Completion = null);
 
         private static string? SupplyOrderDetail(decimal? amount, DateOnly? date) =>
             amount is > 0m ? IndianCurrencyFormatter.FormatCompact(amount.Value) : date?.ToString("d MMM yyyy");
@@ -427,7 +494,8 @@ namespace ProjectManagement.Services.Analytics
                     at.AonDate?.ToString("d MMM yyyy") ?? (at.AonSkipped ? "AoN skipped" : "date not recorded"),
                     at.Lifecycle == LifecycleAsOf.Active ? at.SupplyOrderPlaced : null,
                     value,
-                    SupplyOrderDetail(value, at.SupplyOrderDate)));
+                    SupplyOrderDetail(value, at.SupplyOrderDate),
+                    at.Lifecycle == LifecycleAsOf.Completed ? (at.CompletedOn, at.CompletedYear, at.CompletedMonth) : null));
             }
 
             return result;
