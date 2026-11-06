@@ -48,3 +48,50 @@ test('a repeated error is shown once and the stack keeps at most three toasts', 
   const texts = [...dom.window.document.querySelectorAll('.notebook-toast > span')].map((span) => span.textContent);
   assert.deepEqual(texts, ['One.', 'Two.', 'Three.'], 'oldest message gives way');
 });
+
+test('with the shared glass toast on the page, the Notebook shows its message there', () => {
+  const { api, dom } = load();
+  const shown = [];
+  dom.window.PrismToast = { show: (options) => { shown.push(options); return { element: dom.window.document.createElement('div'), dismiss: () => {} }; } };
+  api.initNotebookToastRegion();
+
+  let undone = 0;
+  const handle = api.showNotebookToast({ message: 'Note moved to Trash.', tone: 'success', actionText: 'Undo', onAction: () => { undone += 1; }, duration: 0 });
+
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].tone, 'success');
+  assert.equal(shown[0].text, 'Note moved to Trash.');
+  assert.equal(shown[0].sticky, true, 'duration 0 stays until dismissed');
+  assert.equal(shown[0].action.label, 'Undo');
+  shown[0].action.run();
+  assert.equal(undone, 1);
+  assert.equal(typeof handle.close, 'function');
+  assert.equal(dom.window.document.querySelector('.notebook-toast'), null, 'the Notebook region stays empty');
+});
+
+test('in the shared toast the Notebook still shows a repeated error once and keeps at most three', () => {
+  const { api, dom } = load();
+  const shown = [];
+  dom.window.PrismToast = {
+    show: (options) => {
+      const element = dom.window.document.createElement('div');
+      dom.window.document.body.appendChild(element);
+      const entry = { options, element, dismissed: false };
+      shown.push(entry);
+      return { element, dismiss: () => { entry.dismissed = true; element.remove(); } };
+    }
+  };
+  api.initNotebookToastRegion();
+
+  api.showNotebookToast({ message: 'Could not save the note.', tone: 'error', duration: 0 });
+  api.showNotebookToast({ message: 'Could not save the note.', tone: 'error', duration: 0 });
+  api.showNotebookToast({ message: 'Could not save the note.', tone: 'error', duration: 0 });
+  assert.equal(shown.length, 1, 'the same error is shown once');
+
+  api.showNotebookToast({ message: 'Label deleted.', tone: 'success' });
+  api.showNotebookToast({ message: 'Colour changed.', tone: 'success' });
+  api.showNotebookToast({ message: 'Note moved to Trash.', tone: 'success', actionText: 'Undo', onAction: () => {} });
+  assert.equal(shown.length, 4);
+  assert.equal(shown[0].dismissed, true, 'the oldest gives way so the new Undo is not buried');
+  assert.equal(shown.filter((entry) => !entry.dismissed).length, 3);
+});

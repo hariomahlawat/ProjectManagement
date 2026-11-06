@@ -1303,6 +1303,11 @@ if (root && Route) {
   }
 
   function showToast(message, variant = 'primary', delay = 4300) {
+    // The shared glass toast (docs/ux/toasts.md); the code below is the fallback.
+    if (window.PrismToast && message) {
+        window.PrismToast.show({ tone: ({ success: 'success', danger: 'danger', error: 'danger', warning: 'warning' }[String(variant || '').toLowerCase()] || 'info'), text: message, life: delay });
+        return;
+    }
     let container = document.getElementById('processToastContainer');
     if (!container) {
       container = document.createElement('div');

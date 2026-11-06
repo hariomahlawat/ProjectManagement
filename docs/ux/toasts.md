@@ -39,6 +39,7 @@ window.PrismToast.show({
 | `detail` | Optional smaller second line: what happens next, or why it failed. |
 | `action` | Optional `{ label, run }` or `{ label, href }`: one button such as **Undo**, **View**, **Retry**. |
 | `life` | Milliseconds before it fades: 4500 by default, 7000 with an action. |
+| `sticky` | `true`: no timer; it waits until dismissed or its action is used (Tasks "Task marked done." with Undo). |
 
 It returns `{ element, dismiss }`. Text is always set as text, never as markup.
 
@@ -69,5 +70,5 @@ It returns `{ element, dismiss }`. Text is always set as text, never as markup.
 | PR | Scope |
 | --- | --- |
 | 1 | `PrismToast` on every page; server messages (`_Toasts.cshtml`) in the glass toast; this guide |
-| 2 | The scripts that build their own toasts move onto `PrismToast` (visits, social media, proliferation, JDP, remarks, stages, process flow, calendar, Document Repository, Briefing desk, tasks) |
+| 2 | Done: the 14 scripts with their own toasts hand their messages to `PrismToast` and keep their old code only as a fallback (visits, social media, proliferation and its data-quality panel, JDP, remarks, stages, process flow, Document Repository and its upload queue, Briefing desk). Calendar (moved or edited events), Tasks (marked done) and the Notebook keep their **Undo** as the toast's action. The Document Repository used to wait for a global `showToast` that PRISM never defined; its messages now show. |
 | 3 | **Undo** where the server can restore (for example Document Repository trash) |

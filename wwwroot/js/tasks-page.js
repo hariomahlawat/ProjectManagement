@@ -42,6 +42,8 @@
     }
 
     function hide(options = {}) {
+      prismHandle?.dismiss();
+      prismHandle = null;
       const { immediate = false } = options;
       const wasVisible = root.classList.contains('is-visible');
       clearTimer();
@@ -69,7 +71,29 @@
       root.addEventListener('transitionend', onTransitionEnd);
     }
 
+    // The shared glass toast (docs/ux/toasts.md); Undo submits the page's undo form.
+    let prismHandle = null;
+    function showPrism({ message, undoId, autoDismiss }) {
+      prismHandle?.dismiss();
+      setUndoId(undoId);
+      prismHandle = window.PrismToast.show({
+        tone: 'success',
+        text: message,
+        sticky: !autoDismiss,
+        action: undoId && undoForm ? {
+          label: 'Undo',
+          run: () => {
+            if (undoInput && undoInput.value) undoForm.requestSubmit();
+          }
+        } : undefined
+      });
+    }
+
     function show({ message, undoId, autoDismiss = true } = {}) {
+      if (window.PrismToast && typeof message === 'string' && message) {
+        showPrism({ message, undoId, autoDismiss });
+        return;
+      }
       if (messageEl && typeof message === 'string') {
         messageEl.textContent = message;
       }

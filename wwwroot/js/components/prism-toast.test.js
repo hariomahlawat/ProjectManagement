@@ -169,3 +169,12 @@ test('closing a focused toast from the keyboard lets the others run out again', 
   advance(60000);
   assert.equal(toasts(document).length, 0, 'the remaining toast is not left paused');
 });
+
+test('sticky toasts have no timer and wait until dismissed', () => {
+  const { window, document, advance } = createDom();
+  window.PrismToast.show({ text: 'Task marked done.', sticky: true, action: { label: 'Undo', run: () => {} } });
+  const [toast] = toasts(document);
+  assert.equal(toast.querySelector('.prism-toast__timer'), null);
+  advance(120000);
+  assert.equal(toasts(document).length, 1);
+});

@@ -3922,6 +3922,26 @@ function initNotebookToastRegion(root = document.querySelector("[data-notebook-t
   return { show: showNotebookToast, clear: clearNotebookToasts };
 }
 function showNotebookToast({ message, tone = "neutral", actionText = "", onAction = null, duration = 3500 } = {}) {
+  if (typeof window !== "undefined" && window.PrismToast && message) {
+    const live = prismToasts.filter((entry) => entry.handle.element.isConnected && !entry.handle.element.classList.contains("is-leaving"));
+    prismToasts.length = 0;
+    prismToasts.push(...live);
+    if (tone === "error") {
+      const duplicate2 = prismToasts.find((entry) => entry.tone === tone && entry.message === message);
+      if (duplicate2) return { id: duplicate2.handle.element.id || "", close: duplicate2.handle.dismiss };
+    }
+    while (prismToasts.length >= MAX_VISIBLE_TOASTS) prismToasts.shift().handle.dismiss();
+    const prismTone = { success: "success", error: "danger", danger: "danger", warning: "warning" }[tone] || "info";
+    const handle = window.PrismToast.show({
+      tone: prismTone,
+      text: message,
+      sticky: !(duration > 0),
+      life: duration > 0 ? duration : void 0,
+      action: actionText && typeof onAction === "function" ? { label: actionText, run: () => onAction() } : void 0
+    });
+    prismToasts.push({ tone, message, handle });
+    return { id: handle.element.id || "", close: handle.dismiss };
+  }
   if (!region || !message) return null;
   const duplicate = [...region.querySelectorAll(".notebook-toast")].find((existing) => existing.dataset.tone === tone && existing.firstElementChild?.textContent === message);
   if (duplicate && tone === "error") return { id: duplicate.id, close: () => removeToast(duplicate) };
@@ -3971,12 +3991,13 @@ function removeToast(toast) {
   if (toast._notebookTimer) window.clearTimeout(toast._notebookTimer);
   toast.remove();
 }
-var region, nextId, MAX_VISIBLE_TOASTS;
+var region, nextId, MAX_VISIBLE_TOASTS, prismToasts;
 var init_notebook_toast = __esm({
   "wwwroot/js/notebook/notebook-toast.js"() {
     region = null;
     nextId = 0;
     MAX_VISIBLE_TOASTS = 3;
+    prismToasts = [];
   }
 });
 

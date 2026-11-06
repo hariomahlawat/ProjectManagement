@@ -1071,7 +1071,26 @@
     undoToast && undoToast.hide();
     calendar && calendar.refetchEvents();
   });
+  let calendarUndo = null;
   function showUndo(msg, handler) {
+    // The shared glass toast with a real Undo (docs/ux/toasts.md); the Bootstrap toast is the fallback.
+    // One Undo at a time, as before: a newer change replaces the older offer, so an already
+    // undone move can never be written back by a stale handler.
+    if (window.PrismToast) {
+      calendarUndo?.dismiss();
+      calendarUndo = window.PrismToast.show({
+        tone: 'success',
+        text: msg,
+        action: {
+          label: 'Undo',
+          run: async () => {
+            if (handler) await handler();
+            calendar && calendar.refetchEvents();
+          }
+        }
+      });
+      return;
+    }
     if (!undoToast || !undoMessageEl) return;
     undoHandler = handler;
     undoMessageEl.textContent = msg;
