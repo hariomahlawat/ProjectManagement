@@ -516,7 +516,7 @@
 @* SECTION: Archive confirmation modal *@
 @if (Model.CanArchive && !Model.IsArchived)
 {
-    <div class="modal fade" id="archiveIdeaModal" tabindex="-1" aria-labelledby="archiveIdeaModalLabel" aria-hidden="true">
+    <div class="modal prism-confirm-modal fade" id="archiveIdeaModal" tabindex="-1" aria-labelledby="archiveIdeaModalLabel" aria-hidden="true" data-tone="warning">
         <div class="modal-dialog">
             <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Idea.Id" class="modal-content">
                 <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
@@ -543,7 +543,7 @@
 @* SECTION: Controlled soft-delete modal *@
 @if (Model.CanDelete)
 {
-    <div class="modal fade" id="deleteIdeaModal" tabindex="-1" aria-labelledby="deleteIdeaModalLabel" aria-hidden="true">
+    <div class="modal prism-confirm-modal fade" id="deleteIdeaModal" tabindex="-1" aria-labelledby="deleteIdeaModalLabel" aria-hidden="true" data-tone="danger">
         <div class="modal-dialog modal-dialog-centered">
             <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Idea.Id" class="modal-content">
                 <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />

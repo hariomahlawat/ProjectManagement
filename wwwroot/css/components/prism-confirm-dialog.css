@@ -481,3 +481,231 @@ textarea.prism-confirm-dialog__input {
         background: var(--pm-card);
     }
 }
+
+/* =============================================================
+   BOOTSTRAP CONFIRM MODALS IN GLASS
+   Confirmation modals that carry their own form (reasons, row
+   versions, handlers) stay Bootstrap modals but wear the same
+   glass: <div class="modal fade prism-confirm-modal" data-tone="danger">.
+   Tones as above; site tokens only.
+   ============================================================= */
+
+.modal.prism-confirm-modal {
+    --pcd-tone: var(--pm-primary);
+    --pcd-tone-ink: var(--pm-primary-strong);
+    --pcd-go: var(--pm-primary);
+}
+
+.modal.prism-confirm-modal[data-tone="warning"] {
+    --pcd-tone: var(--pm-warning);
+    --pcd-tone-ink: var(--pm-warning-strong);
+    --pcd-go: color-mix(in srgb, var(--pm-warning) 30%, var(--pm-warning-strong));
+}
+
+:root[data-bs-theme="dark"] .modal.prism-confirm-modal[data-tone="warning"] {
+    --pcd-go: var(--pm-warning);
+}
+
+.modal.prism-confirm-modal[data-tone="danger"] {
+    --pcd-tone: var(--pm-danger);
+    --pcd-tone-ink: var(--pm-danger);
+    --pcd-go: var(--pm-danger);
+}
+
+/* The page behind dims and blurs, as for the dialog. */
+body:has(.modal.prism-confirm-modal.show) .modal-backdrop.show {
+    background: var(--pcd-scrim);
+    opacity: 1;
+    backdrop-filter: blur(6px) saturate(1.15);
+    -webkit-backdrop-filter: blur(6px) saturate(1.15);
+}
+
+.modal.prism-confirm-modal .modal-dialog {
+    max-width: min(30rem, calc(100vw - 2rem));
+}
+
+/* Only the closed state is offset; Bootstrap keeps .fade on an open modal. */
+.modal.prism-confirm-modal.fade .modal-dialog {
+    transition: transform 0.45s var(--pcd-ease);
+}
+
+.modal.prism-confirm-modal.fade:not(.show) .modal-dialog {
+    transform: translateY(10px) scale(0.955);
+}
+
+.modal.prism-confirm-modal.show .modal-dialog {
+    transform: none;
+}
+
+.modal.prism-confirm-modal .modal-content {
+    position: relative;
+    isolation: isolate;
+    overflow: visible;
+    border: 1px solid var(--pcd-rim);
+    border-radius: 24px;
+    background:
+        linear-gradient(140deg, var(--pcd-gleam) 0%, transparent 42%),
+        color-mix(in srgb, var(--pm-card) var(--pcd-glass-mix), transparent);
+    box-shadow:
+        inset 0 1px 0 var(--pcd-rim-hi),
+        0 40px 90px -30px var(--pcd-shadow),
+        0 30px 60px -40px color-mix(in srgb, var(--pcd-tone) 55%, transparent);
+    backdrop-filter: blur(30px) saturate(1.8);
+    -webkit-backdrop-filter: blur(30px) saturate(1.8);
+    color: var(--pm-text);
+}
+
+.modal.prism-confirm-modal .modal-content::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 22%;
+    right: 22%;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, var(--pcd-tone), transparent);
+    box-shadow: 0 0 16px 1px color-mix(in srgb, var(--pcd-tone) 60%, transparent);
+    pointer-events: none;
+}
+
+.modal.prism-confirm-modal .modal-header,
+.modal.prism-confirm-modal .modal-footer {
+    border: 0;
+    background: transparent;
+}
+
+.modal.prism-confirm-modal .modal-header {
+    padding: 1.4rem 1.5rem 0.25rem;
+}
+
+.modal.prism-confirm-modal .modal-body {
+    padding: 0.5rem 1.5rem 0.25rem;
+    color: var(--pm-text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+
+.modal.prism-confirm-modal .modal-footer {
+    gap: 0.6rem;
+    padding: 1rem 1.5rem 1.25rem;
+}
+
+.modal.prism-confirm-modal .modal-footer > * {
+    margin: 0;
+}
+
+.modal.prism-confirm-modal .modal-title {
+    color: var(--pm-text-strong);
+    font-size: 1.18rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+/* A dot in the tone's colour before the title. */
+.modal.prism-confirm-modal .modal-title::before {
+    content: "";
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    margin-right: 0.6rem;
+    border-radius: 50%;
+    background: var(--pcd-tone);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--pcd-tone) 18%, transparent);
+    vertical-align: 0.15em;
+}
+
+.modal.prism-confirm-modal .form-control,
+.modal.prism-confirm-modal .form-select {
+    border-color: var(--pcd-rim);
+    border-radius: 12px;
+    background-color: var(--pcd-field);
+    color: var(--pm-text-strong);
+}
+
+.modal.prism-confirm-modal .form-control:focus,
+.modal.prism-confirm-modal .form-select:focus {
+    border-color: color-mix(in srgb, var(--pcd-tone) 70%, transparent);
+    background-color: var(--pm-card);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--pcd-tone) 18%, transparent);
+}
+
+.modal.prism-confirm-modal .modal-footer .btn {
+    min-height: 44px;
+    padding: 0 1.15rem;
+    border-radius: 13px;
+    font-weight: 700;
+}
+
+.modal.prism-confirm-modal .modal-footer .btn-outline-secondary,
+.modal.prism-confirm-modal .modal-footer .btn-light,
+.modal.prism-confirm-modal .modal-footer .btn-secondary {
+    border-color: var(--pcd-rim);
+    background: var(--pcd-field);
+    color: var(--pm-text-strong);
+}
+
+.modal.prism-confirm-modal .modal-footer .btn-danger,
+.modal.prism-confirm-modal .modal-footer .btn-outline-danger,
+.modal.prism-confirm-modal .modal-footer .btn-warning,
+.modal.prism-confirm-modal .modal-footer .btn-primary,
+.modal.prism-confirm-modal .modal-footer .btn-success {
+    border-color: transparent;
+    background: var(--pcd-go);
+    color: var(--pcd-on-go);
+    box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--pm-text-inverted) 25%, transparent),
+        0 10px 22px -10px color-mix(in srgb, var(--pcd-go) 85%, transparent);
+}
+
+.modal.prism-confirm-modal .modal-footer .btn-danger:hover,
+.modal.prism-confirm-modal .modal-footer .btn-warning:hover,
+.modal.prism-confirm-modal .modal-footer .btn-primary:hover,
+.modal.prism-confirm-modal .modal-footer .btn-success:hover {
+    transform: translateY(-1px);
+}
+
+@media (max-width: 575.98px) {
+    .modal.prism-confirm-modal .modal-dialog {
+        display: flex;
+        align-items: flex-end;
+        min-height: calc(100% - 0.5rem);
+        margin: 0.25rem auto;
+    }
+
+    .modal.prism-confirm-modal.fade:not(.show) .modal-dialog {
+        transform: translateY(105%);
+    }
+
+    .modal.prism-confirm-modal .modal-content {
+        border-radius: 28px;
+    }
+
+    .modal.prism-confirm-modal .modal-footer {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+
+    .modal.prism-confirm-modal .modal-footer .btn {
+        width: 100%;
+        min-height: 50px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .modal.prism-confirm-modal.fade .modal-dialog {
+        transition: none;
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .modal.prism-confirm-modal .modal-content {
+        background: var(--pm-card);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    body:has(.modal.prism-confirm-modal.show) .modal-backdrop.show {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}

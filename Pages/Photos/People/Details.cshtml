@@ -271,7 +271,7 @@
 
     @if (Model.PrismUserLink is null)
     {
-        <div class="modal fade" id="prismUserLinkConfirmModal" tabindex="-1" aria-labelledby="prismUserLinkConfirmTitle" aria-hidden="true">
+        <div class="modal prism-confirm-modal fade" id="prismUserLinkConfirmModal" tabindex="-1" aria-labelledby="prismUserLinkConfirmTitle" aria-hidden="true" data-tone="primary">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content prism-user-link-confirm">
                     <form method="post" asp-page-handler="LinkUser" data-prism-link-confirm-form>

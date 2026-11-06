@@ -38,6 +38,7 @@ if (!confirmed) return;
 | `confirmText`, `cancelText` | Button labels. |
 | `reason` | `{ label, placeholder, hint, minLength }`: require a written reason (default 10 characters). The promise then resolves to the trimmed reason text instead of `true`. |
 | `confirmPhrase` | Text the user must type exactly (a username, a project code) before the action unlocks. |
+| `focus` | `"cancel"` focuses Cancel whatever the tone, so Enter never confirms (Briefing Studio uses it for every question). |
 
 It resolves `false` on Cancel, the close button, Esc or a click outside the sheet. Opening a
 second confirmation cancels the first. Inside an open Bootstrap modal or offcanvas the dialog
@@ -99,7 +100,7 @@ check: every action it guards must be validated and authorized server-side.
 
 ## Conversion plan
 
-Surveyed 6 Nov 2026. PRs 1 (#2926), 2 (#2929), 3 (#2931), 4 (#2933) and 5 are done: no PRISM
+Surveyed 6 Nov 2026. All six PRs are done (#2926, #2929, #2931, #2933, #2937 and PR 6): no PRISM
 script calls the browser `confirm()` box any more; the 8 `data-confirm` elements
 marked `data-page-handled` follow their page scripts in the PRs below. The rest move one area
 at a time so each change stays testable.
@@ -126,9 +127,28 @@ to wait for the answer rather than simply swap the function:
 | 3 | Browser `confirm()` in Projects: plan edit, remarks, Overview (ToT, multi-JDP), content, brochure, compendium, completed summary, photo reorder |
 | 4 | Browser `confirm()` in Office records: IPR, visits, social media, ARPP, proliferation, industry partners. Visits and Social media drop their own Bootstrap confirm modals; their forms, IPR's and Industry partners' now use `data-confirm` |
 | 5 | Browser `confirm()` in Teamwork and media: calendar, comments, to-do (the layout's `appConfirmModal` is removed), action-task remarks, activities, photos, video library, PDF tools, admin media; the last fallbacks in Project Ideas and the Briefing library |
-| 6 | Bootstrap confirm modals (about 19): convert the simple ones; give the ones with forms the same glass look; move the Notebook and Briefing Studio dialogs onto `PrismConfirm` |
+| 6 | The 18 Bootstrap confirm modals wear the same glass (`prism-confirm-modal`, below); the Notebook and Briefing Studio dialogs hand over to `PrismConfirm` and keep their own only as a fallback |
 
 `npm test` fails if any PRISM script calls the browser `confirm()` directly
 (`projects/app-no-native-confirm.test.js`); only the one-line `askConfirm` fallbacks and the
 `data-confirm` fallback in `core/declarative-actions.js` are allowed. The Notebook keeps its own
-check (`notebook-no-native-confirm.test.js`) until PR 6 moves its dialog onto `PrismConfirm`.
+check (`notebook-no-native-confirm.test.js`).
+
+## Confirmation modals that carry a form
+
+Some confirmations need more than yes or no: a required reason (Proliferation reject, Document
+Repository deletion requests), row versions and page handlers (FFC, Compendium, Project Ideas,
+Celebrations, Process checklist). They stay Bootstrap modals, so their forms and handlers are
+untouched, but wear the dialog's glass:
+
+```html
+<div class="modal fade prism-confirm-modal" data-tone="danger" id="…">
+```
+
+- `data-tone` is `primary`, `warning` or `danger`, as for the dialog. The Document Repository
+  dialog sets it per action in `docrepo-ui.js`.
+- The skin (in `prism-confirm-dialog.css`) gives the frosted sheet, the tone glow and a tone dot
+  before the title, glass fields and buttons, the dimmed and blurred page behind, the spring
+  entrance and, on phones, a bottom sheet with stacked buttons.
+- Use it for any new confirmation that needs a form. For a plain yes or no, use
+  `PrismConfirm.show` or `data-confirm` instead of adding a modal.

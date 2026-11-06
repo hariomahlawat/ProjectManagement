@@ -46,7 +46,7 @@
     }
 </section>
 
-<div class="modal fade" id="archiveRestoreModal" tabindex="-1" aria-labelledby="archiveRestoreTitle" aria-hidden="true">
+<div class="modal prism-confirm-modal fade" id="archiveRestoreModal" tabindex="-1" aria-labelledby="archiveRestoreTitle" aria-hidden="true" data-tone="primary">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-controlled-modal"><form method="post" asp-page-handler="Restore" data-archive-restore-form>
         <input type="hidden" asp-for="RestoreProjectId" data-archive-project-id /><input type="hidden" asp-for="Search" /><input type="hidden" asp-for="PageNumber" /><input type="hidden" asp-for="PageSize" />
         <div class="modal-header"><div><div class="admin-panel__eyebrow">Archive recovery</div><h2 class="modal-title fs-5" id="archiveRestoreTitle">Restore project</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>

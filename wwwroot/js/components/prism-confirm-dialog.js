@@ -18,6 +18,7 @@
 //   irreversible               true: show "This cannot be undone." as the note, in the tone colour
 //   reason                     { label, placeholder, hint, minLength }: require a written reason
 //   confirmPhrase              text the user must type exactly before confirming
+//   focus                      "cancel" to focus Cancel whatever the tone (Enter never confirms)
 //
 // Focus: the field when there is one; otherwise Cancel for "danger" (Enter never deletes by
 // accident) and the action for everything else. Wording rules: docs/ux/confirm-dialogs.md.
@@ -240,7 +241,7 @@
                     ? reasonInput
                     : phrase
                         ? phraseInput
-                        : tone === "danger" && cancelLabel ? cancelLabel : accept;
+                        : (tone === "danger" || settings.focus === "cancel") && cancelLabel ? cancelLabel : accept;
                 queueMicrotask(() => focusTarget?.focus({ preventScroll: true }));
             });
         }

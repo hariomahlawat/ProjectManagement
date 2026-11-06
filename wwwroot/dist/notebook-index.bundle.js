@@ -1945,6 +1945,17 @@ function initNotebookConfirmDialog(root = document.querySelector("[data-notebook
   return createController();
 }
 function confirmNotebookAction(options = {}) {
+  if (typeof window !== "undefined" && window.PrismConfirm?.show) {
+    const merged2 = { ...DEFAULTS, ...options };
+    return window.PrismConfirm.show({
+      title: merged2.title,
+      message: merged2.message,
+      detail: merged2.detail,
+      confirmText: merged2.confirmText,
+      cancelText: merged2.cancelText,
+      tone: merged2.tone
+    }).then(Boolean);
+  }
   const root = state2.root ?? document.querySelector("[data-notebook-confirm]");
   if (!root) return Promise.resolve(false);
   if (!state2.root) initNotebookConfirmDialog(root);
