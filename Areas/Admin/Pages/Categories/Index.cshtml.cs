@@ -85,9 +85,8 @@ public sealed class IndexModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Master data · Taxonomy",
             Title = "Project categories",
-            Description = "Maintain the hierarchy used to group projects, dashboards and management reports.",
+            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.ProjectCategories).Description,
             Icon = "bi-diagram-3",
             Actions = new[]
             {

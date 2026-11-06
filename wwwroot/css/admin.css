@@ -4505,3 +4505,16 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-health-domain__more a { font-weight: 700; text-decoration: none; }
 /* Data jobs: the one-line note below the two jobs. */
 .admin-data-jobs__note { margin: .9rem 0 0; align-items: center; }
+
+/* Administration guide: "How do I…" short answers (PR 8). */
+.admin-how-do-i__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+    gap: .2rem 1.2rem;
+    margin: 0;
+    padding: .4rem 1rem .9rem;
+}
+.admin-how-do-i__list > div { padding: .55rem 0; border-bottom: 1px solid var(--admin-border); }
+.admin-how-do-i__list dt { color: var(--admin-text); font-size: .88rem; font-weight: 780; }
+.admin-how-do-i__list dd { margin: .15rem 0 0; color: var(--admin-text-secondary); font-size: .82rem; line-height: 1.45; }
+.admin-how-do-i__list dd a { display: inline-block; margin-left: .2rem; font-weight: 700; text-decoration: none; white-space: nowrap; }

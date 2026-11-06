@@ -67,9 +67,8 @@ public sealed class IndexModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Master data · Reference list",
             Title = "Line directorates",
-            Description = "Maintain the controlled line directorates associated with project sponsorship.",
+            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.LineDirectorates).Description,
             Icon = "bi-diagram-2",
             Actions = new[]
             {

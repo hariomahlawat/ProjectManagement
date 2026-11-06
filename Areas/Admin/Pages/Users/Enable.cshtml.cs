@@ -140,7 +140,6 @@ public sealed class EnableModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Access control",
             Title = "Enable account",
             Description = Account is null
                 ? "Restore sign-in access."

@@ -93,9 +93,8 @@ public sealed class DetailsModel : PageModel
 
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "User account",
             Title = string.IsNullOrWhiteSpace(Account.FullName) ? Account.UserName : Account.FullName,
-            Description = $"Review identity, access state and recent security activity for @{Account.UserName}.",
+            Description = $"Who @{Account.UserName} is, what they can do in PRISM, and their recent sign-ins.",
             Icon = "bi-person-vcard",
             Actions = Account.AccountState.State == AdminUserAccountState.PendingDeletion
                 ? new[]

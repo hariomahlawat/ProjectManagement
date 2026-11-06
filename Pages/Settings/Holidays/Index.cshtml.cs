@@ -103,7 +103,7 @@ public sealed class IndexModel : PageModel
         {
             actions.Add(new AdminPageActionModel
             {
-                Text = "Master data centre",
+                Text = "Lists used in forms",
                 Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
                 Icon = "bi-arrow-left"
             });
@@ -119,9 +119,8 @@ public sealed class IndexModel : PageModel
 
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Master data · Office calendar",
             Title = "Holidays",
-            Description = "Maintain Gazetted Holidays, informational Restricted Holidays and office-observed Restricted Holidays from one governed calendar.",
+            Description = "Gazetted and restricted holidays for the year, and which restricted holidays the office observes. Stage dates skip office holidays.",
             Icon = "bi-calendar-week",
             Actions = actions
         };

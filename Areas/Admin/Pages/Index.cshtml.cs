@@ -123,7 +123,7 @@ public sealed class AdminIndexModel : PageModel
         var actions = new List<AdminPageActionModel>();
         if (hrefIfOpenable(AdminNavigationKeys.Help) is { } help)
         {
-            actions.Add(new AdminPageActionModel { Text = "Administration guide", Href = help, Icon = "bi-question-circle" });
+            actions.Add(new AdminPageActionModel { Text = "How do I…", Href = help + "#how-do-i", Icon = "bi-question-circle" });
         }
 
         var canAddUsers = (await _authorization.AuthorizeAsync(User, AdminPolicies.UsersManage)).Succeeded;

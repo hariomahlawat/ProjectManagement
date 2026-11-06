@@ -89,9 +89,8 @@ public sealed class IndexModel : PageModel
 
     private AdminPageHeaderModel BuildHeader() => new()
     {
-        Eyebrow = "Access & security",
         Title = "Who has which role",
-        Description = "Review privileged role holdings, policy coverage and account conditions requiring administrator attention.",
+        Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.AccessGovernance).Description,
         Icon = "bi-shield-check",
         Actions = new[]
         {

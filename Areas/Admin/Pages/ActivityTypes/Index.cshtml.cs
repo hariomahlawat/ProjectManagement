@@ -116,9 +116,8 @@ public sealed class IndexModel : PageModel
 
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Master data · Operational classification",
             Title = "Activity types",
-            Description = "Maintain the controlled activity classifications available in planning and reporting workflows.",
+            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.ActivityTypes).Description,
             Icon = "bi-list-task",
             Actions = actions
         };

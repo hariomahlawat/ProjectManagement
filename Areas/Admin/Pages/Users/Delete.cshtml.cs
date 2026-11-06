@@ -167,7 +167,6 @@ public sealed class DeleteModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Account lifecycle",
             Title = Account?.AccountState.State == AdminUserAccountState.PendingDeletion
                 ? "Review deletion request"
                 : "Delete mistaken account",

@@ -176,7 +176,6 @@ public sealed class DisableModel : PageModel
     {
         Header = new AdminPageHeaderModel
         {
-            Eyebrow = "Access control",
             Title = "Disable account",
             Description = Account is null
                 ? "Block sign-in access while preserving records."
