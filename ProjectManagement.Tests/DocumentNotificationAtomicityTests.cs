@@ -150,6 +150,7 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
         // rolls the deletion back and restores the quarantined file, instead of leaving a
         // committed deletion that nobody was told about.
         var documentId = await PublishDocumentAsync();
+        await MoveToRecycleBinAsync(documentId);
         string storageKey;
         await using (var read = new ApplicationDbContext(_options))
         {
@@ -172,6 +173,7 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
     public async Task HardDelete_CommitsWithItsNotification()
     {
         var documentId = await PublishDocumentAsync();
+        await MoveToRecycleBinAsync(documentId);
         await using var db = new ApplicationDbContext(_options);
 
         await CreateDocumentService(db, new QueueingNotifier(db, NotifierMode.Queue)).HardDeleteAsync(documentId, "approver", CancellationToken.None);
@@ -179,6 +181,24 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
         await using var verify = new ApplicationDbContext(_options);
         Assert.Equal(0, await verify.ProjectDocuments.CountAsync());
         Assert.Equal(NotificationKind.DocumentDeleted, (await verify.NotificationDispatches.SingleAsync()).Kind);
+    }
+
+    [Fact]
+    public async Task HardDelete_RefusesADocumentThatIsNotInTheRecycleBin()
+    {
+        // The admin recycle bin used to permanently delete every submitted id, including a
+        // document someone restored after the page was opened.
+        var documentId = await PublishDocumentAsync();
+        var storageKey = await StorageKeyAsync();
+        await using var db = new ApplicationDbContext(_options);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateDocumentService(db, new QueueingNotifier(db, NotifierMode.Queue)).HardDeleteAsync(documentId, "approver", CancellationToken.None));
+
+        await using var verify = new ApplicationDbContext(_options);
+        Assert.Equal(ProjectDocumentStatus.Published, (await verify.ProjectDocuments.SingleAsync()).Status);
+        Assert.True(File.Exists(StoredPath(storageKey)));
+        Assert.Equal(0, await verify.NotificationDispatches.CountAsync());
     }
 
     [Fact]
@@ -409,6 +429,16 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
         var request = await new DocumentRequestService(db, Clock(), new RecordingAudit())
             .CreateUploadRequestAsync(ProjectId, StageId, "Spec", null, temp, "requestor", CancellationToken.None);
         return request.Id;
+    }
+
+    private async Task MoveToRecycleBinAsync(int documentId)
+    {
+        // Set the state directly so the soft delete adds no notification of its own.
+        await using var db = new ApplicationDbContext(_options);
+        var document = await db.ProjectDocuments.SingleAsync(item => item.Id == documentId);
+        document.Status = ProjectDocumentStatus.SoftDeleted;
+        document.IsArchived = true;
+        await db.SaveChangesAsync();
     }
 
     private async Task<int> PublishDocumentAsync()

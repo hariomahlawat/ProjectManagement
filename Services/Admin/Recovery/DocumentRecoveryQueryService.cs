@@ -35,7 +35,8 @@ public sealed record DocumentRecoverySelectionSummary(
     int RequestedCount,
     int EligibleCount,
     long TotalBytes,
-    IReadOnlyList<string> Titles);
+    IReadOnlyList<string> Titles,
+    IReadOnlyList<int> EligibleIds);
 
 public sealed record DocumentRecoveryPage(
     IReadOnlyList<DocumentRecoveryRow> Items,
@@ -191,20 +192,21 @@ public sealed class DocumentRecoveryQueryService : IDocumentRecoveryQueryService
     {
         var requested = ids.Where(id => id > 0).Distinct().Take(_options.MaximumBulkDocuments + 1).ToArray();
         if (requested.Length == 0)
-            return new DocumentRecoverySelectionSummary(0, 0, 0, Array.Empty<string>());
+            return new DocumentRecoverySelectionSummary(0, 0, 0, Array.Empty<string>(), Array.Empty<int>());
 
         var rows = await _db.ProjectDocuments.AsNoTracking()
             .Where(document => requested.Contains(document.Id)
                 && document.Status == ProjectDocumentStatus.SoftDeleted)
             .OrderBy(document => document.Title)
-            .Select(document => new { document.Title, document.FileSize })
+            .Select(document => new { document.Id, document.Title, document.FileSize })
             .ToListAsync(cancellationToken);
 
         return new DocumentRecoverySelectionSummary(
             requested.Length,
             rows.Count,
             rows.Sum(row => row.FileSize),
-            rows.Take(10).Select(row => row.Title).ToArray());
+            rows.Take(10).Select(row => row.Title).ToArray(),
+            rows.Select(row => row.Id).ToArray());
     }
 
     private static string? Normalize(string? value, int maxLength)
