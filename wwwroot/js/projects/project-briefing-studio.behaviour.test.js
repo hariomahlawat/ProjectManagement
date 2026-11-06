@@ -159,11 +159,11 @@ test('the Checks badge counts the checks to review, not projects, and ignores le
   const badge = document.querySelector('[data-pbd-checks-badge]');
   assert.equal(badge.hidden, false);
   assert.equal(badge.textContent, '2');
-  assert.equal(badge.getAttribute('aria-label'), '2 checks to review');
+  assert.equal(badge.getAttribute('aria-label'), '2 kinds of gap to fill');
   const alphaBadge = outlineRow(document, 'Alpha simulator').querySelector('.pbd-outline__gaps');
-  assert.equal(alphaBadge.querySelector('[aria-hidden="true"]').textContent, '2');
-  assert.equal(alphaBadge.querySelector('.visually-hidden').textContent, ', 2 items missing: status remark, photograph');
-  assert.match(alphaBadge.title, /^2 items missing: status remark, photograph\. The PowerPoint shows a placeholder/);
+  assert.equal(alphaBadge.querySelector('span[aria-hidden="true"]').textContent, '2');
+  assert.equal(alphaBadge.querySelector('.visually-hidden').textContent, ' (2 gaps: status remark, photograph)');
+  assert.match(alphaBadge.title, /^2 gaps: status remark, photograph\. The slides show a placeholder/);
   assert.equal(outlineRow(document, 'Delta kit').querySelector('.pbd-outline__gaps'), null);
 });
 
@@ -349,7 +349,7 @@ test('the progress line counts the projects and the checks to review, and opens 
   await settle(window);
 
   assert.equal(document.querySelector('[data-pbd-progress-projects]').textContent, '4');
-  assert.equal(document.querySelector('[data-pbd-progress-checks]').textContent, '2 to review');
+  assert.equal(document.querySelector('[data-pbd-progress-checks]').textContent, '2 to fill');
   assert.ok(document.querySelector('[data-pbd-progress-step="checks"]').classList.contains('is-open'));
   assert.ok(document.querySelector('[data-pbd-progress-step="generate"]').classList.contains('is-ready'));
 
@@ -385,7 +385,7 @@ test('a project with nothing missing says so in This slide', async () => {
 
   const panel = document.querySelector('[data-pbd-inspector-panel="slide"]');
   assert.equal(panel.querySelector('.pbd-inspector__gaps'), null);
-  assert.match(panel.querySelector('.pbd-inspector__ready').textContent, /Everything these slides show is recorded/);
+  assert.match(panel.querySelector('.pbd-inspector__ready').textContent, /No gaps: everything these slides show is recorded/);
 });
 
 test('Present starts at the slide in view, with notes and the strip on request', async () => {
@@ -501,8 +501,26 @@ test('after a reload the Checks filter is still applied', async () => {
   await settle(window);
 
   assert.equal(document.querySelector('[data-pbd-outline-filter]').hidden, false);
-  assert.equal(document.querySelector('[data-pbd-outline-filter-text]').textContent, 'Projects missing status remark');
+  assert.equal(document.querySelector('[data-pbd-outline-filter-text]').textContent, 'Projects with a gap in status remark');
   const rows = [...document.querySelectorAll('.pbd-outline__row')].map((row) => row.textContent);
   assert.ok(rows.some((text) => text.includes('Alpha simulator')));
   assert.ok(!rows.some((text) => text.includes('Charlie range')), 'projects with the remark recorded are filtered out');
 });
+
+test('This slide leaves the proliferation cost out when the server says the slides do', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload({
+    projects: PROJECTS.map((item) => (item.projectId === 3
+      ? { ...item, showsProliferationCost: false, proliferationCost: { isAvailable: false } }
+      : { ...item, proliferationCost: { isAvailable: true, displayValue: '₹10 Lakh' } }))
+  }));
+  await settle(window);
+
+  outlineRow(document, 'Charlie range').click();
+  const labels = () => [...document.querySelectorAll('.pbd-inspector__facts dt')].map((node) => node.textContent);
+  assert.ok(!labels().includes('Proliferation'), 'an ongoing project without the cost does not list it');
+
+  outlineRow(document, 'Bravo trainer').click();
+  assert.ok(labels().includes('Proliferation'), 'a project the server shows it for still lists it');
+});
+

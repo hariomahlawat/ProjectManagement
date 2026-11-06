@@ -872,8 +872,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             }
             if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
             {
+                // The column stays; an ongoing project with no proliferation cost shows a dash.
                 cells.Add(Cell(
-                    CostCell(project.ProliferationCost, "Not recorded", includeBasis: false),
+                    CostCell(
+                        project.ProliferationCost,
+                        ProjectBriefingContentGaps.ExpectsProliferationCost(project.LifecycleStatus) ? "Not recorded" : "—",
+                        includeBasis: false),
                     10.0,
                     project.ProliferationCost.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
                     project.ProliferationCost.IsAvailable,
@@ -1952,7 +1956,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 canvas.Theme.AccentSoft,
                 project.CostRd.IsAvailable ? project.CostRd.BasisDisplay : string.Empty));
         }
-        if (mode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
+        if (mode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both
+            && ProjectBriefingContentGaps.ShowsProliferationCost(project.LifecycleStatus, project.ProliferationCost))
         {
             var proliferationAvailable = project.ProliferationCost.IsAvailable;
             result.Add(new CostCard(

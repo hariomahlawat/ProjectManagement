@@ -554,9 +554,18 @@ the Studio.
   between slides from anywhere on the page (after clicking the slide focus is on the page), not
   from fields, tabs, menus, dialogs or drawers. After a reload the outline scrolls itself (not the
   page) to the slide the Studio reopened on, and the Checks filter comes back with the place.
-- **C. Gaps made honest.** Check only what the slides show for the project's stage (owner to
-  confirm: proliferation cost before completion), one name for gaps, one row per field in This
-  slide, a short gap summary before Present and Generate, a visible meaning for the outline badge.
+- **C. Gaps made honest.** Done (this change). Proliferation cost is a gap only for a completed
+  project (owner, 6 Nov 2026; `ProjectBriefingContentGaps`, so the server count and the Studio
+  agree). The slides follow the same rule (`ShowsProliferationCost`): an ongoing project with no
+  proliferation cost has no proliferation card or key-fact entry, and a dash in the status
+  table's column; a recorded cost always shows, and a completed project without one still says
+  "Not recorded". The inspector's facts do the same. One word, **gaps**: the inspector tab and the progress step are "Gaps" ("5 to fill" /
+  "None"), This slide "Gaps · n", the outline badge "⚠ 3" with "3 gaps: …" on hover and to screen
+  readers, the note under Generate "Gaps show as placeholders on the slides.", and each Show
+  button is named for its gap. This slide shows each field once (a cost listed under Gaps is not
+  repeated in the facts). Present and Generate first say "Present/Generate with gaps?" (n kinds
+  still open, placeholders such as "Not recorded"; *Present anyway* / *Review gaps*, which opens
+  the Gaps tab), once per deck per browser session.
 - **D. Phone.** Header actions stacked, the slide first, the library as cards.
 - **E. Wording and accessibility.** The progress line's Generate step as status, settings steps
   unnumbered, library dashes and search matches explained, text ≥ 12 px and ≥ 4.5:1, plain SDD

@@ -51,7 +51,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 project,
                 data.StandardSlideOptions.ShowPresentStage,
                 data.StandardSlideOptions.ShowPresentStatus),
-            CostCardCount(data.CostMode));
+            CostCardCount(data.CostMode, project));
         var contentBottom = stripHeight > 0 ? BriefBottom - stripHeight - BriefSectionGap : BriefBottom;
 
         return PaginateProjectBrief(brief, panelWidth, contentBottom - BriefTop);
@@ -116,13 +116,16 @@ public sealed partial class ProjectBriefingSlideComposer
             BriefBottom - .94 - BriefSectionGap - BriefTop).Count;
 
     // The same cards CostCards() draws, counted without a canvas.
-    private static int CostCardCount(ProjectBriefingCostMode mode)
-        => mode switch
-        {
-            ProjectBriefingCostMode.Both => 2,
-            ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.ProliferationOnly => 1,
-            _ => 0
-        };
+    // The cost cards the slide draws for this project, by the same rule as CostCards: no
+    // proliferation card for an ongoing project without one (owner, 6 Nov 2026).
+    private static int CostCardCount(ProjectBriefingCostMode mode, ProjectBriefingPresentationProject project)
+    {
+        var count = 0;
+        if (mode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both) count++;
+        if (mode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both
+            && ProjectBriefingContentGaps.ShowsProliferationCost(project.LifecycleStatus, project.ProliferationCost)) count++;
+        return count;
+    }
 
     private static void RenderProjectBriefContinuation(
         SlideCanvas canvas,

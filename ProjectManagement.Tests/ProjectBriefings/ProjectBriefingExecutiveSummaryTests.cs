@@ -38,6 +38,180 @@ public sealed class ProjectBriefingExecutiveSummaryTests
     }
 
     [Fact]
+    public void Compose_LeavesProliferationOffAnOngoingProjectWithNone()
+    {
+        // Owner, 6 Nov 2026: a proliferation cost is expected only once a project is completed,
+        // so an ongoing project with none recorded shows no "Not recorded" proliferation figure.
+        var (content, _) = CreateComposer().Compose(BuildData());
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.Select(SlideText).ToArray();
+        var ongoing = Assert.Single(slides.Where(text => text.Contains("AURA", StringComparison.Ordinal) && !text.Contains("ASTRAE", StringComparison.Ordinal)));
+        var completed = Assert.Single(slides.Where(text => text.Contains("ASTRAE", StringComparison.Ordinal) && !text.Contains("AURA", StringComparison.Ordinal)));
+
+        Assert.DoesNotContain("PROLIFERATION", ongoing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("COST (R&D)", ongoing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PROLIFERATION", completed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("₹18.5 Lakh", completed, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BriefPagination_ReservesNoRoomForAProliferationCardTheSlideLeavesOut()
+    {
+        // Codex review on #2938: pagination must count the cost cards the slide draws.
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 1,
+            DeckName = "Pagination",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.ProliferationOnly,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with
+            {
+                ShowPresentStage = false,
+                ShowPresentStatus = false
+            },
+            GeneratedAtUtc = DateTimeOffset.UtcNow
+        };
+        ProjectBriefingPresentationProject Ongoing(bool recorded, string brief) => new()
+        {
+            ProjectId = 1,
+            ProjectName = "AURA",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = recorded
+                ? new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.Proliferation, "₹10 Lakh", "Proliferation")
+                : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            ProjectBrief = brief,
+            BriefDescription = "Capability overview.",
+            SortOrder = 1
+        };
+
+        var sentence = "The trainer reproduces the full engagement sequence for the crew in realistic conditions. ";
+        var fewer = false;
+        for (var sentences = 4; sentences <= 60; sentences++)
+        {
+            var brief = string.Concat(Enumerable.Repeat(sentence, sentences));
+            var slidesWithout = ProjectBriefingSlideComposer.ProjectBriefSlideCount(data, Ongoing(recorded: false, brief));
+            var slidesWith = ProjectBriefingSlideComposer.ProjectBriefSlideCount(data, Ongoing(recorded: true, brief));
+            Assert.True(slidesWithout <= slidesWith, $"{sentences} sentences: {slidesWithout} > {slidesWith}");
+            fewer |= slidesWithout < slidesWith;
+        }
+
+        Assert.True(fewer, "Some brief length should fit on fewer slides once the strip is not drawn.");
+    }
+
+    [Fact]
+    public void Movement_SeesAMissingProliferationCostAppearWhenAProjectIsCompleted()
+    {
+        // Codex review on #2938: an ongoing project without a proliferation cost has none drawn;
+        // once completed its slide says "Not recorded", so the library must see the change.
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 1,
+            DeckName = "Movement",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.ProliferationOnly,
+            IncludePortfolioSummarySlide = false,
+            IncludeStageSummary = false,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with { ShowPresentStage = false, ShowPresentStatus = false },
+            GeneratedAtUtc = DateTimeOffset.UtcNow
+        };
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 7,
+            ProjectName = "AURA",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            PresentStageCode = "DEVP",
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            ProjectBrief = "A short brief.",
+            SortOrder = 1
+        };
+        data = new ProjectBriefingPresentationData
+        {
+            DeckId = data.DeckId, DeckName = data.DeckName, PresentationMode = data.PresentationMode,
+            NarrativeMode = data.NarrativeMode, CostMode = data.CostMode,
+            IncludePortfolioSummarySlide = false, IncludeStageSummary = false,
+            StandardSlideOptions = data.StandardSlideOptions, GeneratedAtUtc = data.GeneratedAtUtc,
+            Projects = new[] { project }
+        };
+        var generatedFact = ProjectBriefingSlideFacts.FromPresentation(project, data);
+        var completedToday = new Dictionary<int, ProjectBriefingCurrentProjectFacts>
+        {
+            [7] = new(7, "AURA", ProjectLifecycleStatus.Completed, "DEVP", null, null,
+                ProjectBriefingCostValue.Missing(), ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
+                ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation))
+        };
+
+        var moved = ProjectBriefingSlideFacts.Compare(
+            new ProjectBriefingGeneratedFacts(data.Layout, data.CostMode, new[] { generatedFact }), completedToday);
+        Assert.True(moved.HasMoved);
+
+        // A deck generated before this rule kept facts without the lifecycle: not flagged by it.
+        var olderFact = generatedFact with { Shown = generatedFact.Shown & ~ProjectBriefingShownFacts.Lifecycle, Stage = null };
+        var olderMoved = ProjectBriefingSlideFacts.Compare(
+            new ProjectBriefingGeneratedFacts(data.Layout, data.CostMode, new[] { olderFact }), completedToday);
+        Assert.False(olderMoved.HasMoved);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void KeyPointSlide_TracksTheLifecycleSubtitleWhenTheProliferationLineIsLeftOut(bool recorded, bool drawsSubtitle)
+    {
+        // Codex review on #2938: with no meta line left (proliferation only, stage hidden, an
+        // ongoing project without the cost) the slide draws the lifecycle subtitle, and the facts
+        // tracking must know so.
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 1,
+            DeckName = "Key points",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
+            CostMode = ProjectBriefingCostMode.ProliferationOnly,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with
+            {
+                ShowPresentStage = false,
+                KeyPoints = ProjectBriefingKeyPointPlacement.CapabilitySlide
+            },
+            GeneratedAtUtc = DateTimeOffset.UtcNow
+        };
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 1,
+            ProjectName = "AURA",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = recorded
+                ? new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.Proliferation, "₹10 Lakh", "Proliferation")
+                : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            BriefDescription = "A short capability overview.",
+            SortOrder = 1
+        };
+
+        Assert.Equal(drawsSubtitle, ProjectBriefingSlideComposer.DrawsLifecycleSubtitle(data, project));
+    }
+
+    [Theory]
+    [InlineData(ProjectLifecycleStatus.Active, false, false)]
+    [InlineData(ProjectLifecycleStatus.Active, true, true)]
+    [InlineData(ProjectLifecycleStatus.Completed, false, true)]
+    [InlineData(ProjectLifecycleStatus.Completed, true, true)]
+    public void ProliferationCost_ShowsWhenRecordedOrExpected(ProjectLifecycleStatus status, bool recorded, bool shows)
+    {
+        var cost = recorded
+            ? new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.Proliferation, "₹10 Lakh", "Proliferation")
+            : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
+
+        Assert.Equal(shows, ProjectBriefingContentGaps.ShowsProliferationCost(status, cost));
+    }
+
+    [Fact]
     public void Compose_PortfolioUsesRecordedCostTerminologyAndCoverageBars()
     {
         var composer = CreateComposer();

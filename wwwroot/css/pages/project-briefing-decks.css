@@ -3412,6 +3412,9 @@ body.pbd-profile-drawer-open {
 }
 
 .pbd-outline__gaps {
+    display: inline-flex;
+    align-items: center;
+    gap: .15rem;
     flex: none;
     min-width: 1.25rem;
     padding: 0 .35rem;
@@ -5769,4 +5772,9 @@ span.pbd-additional-slide-row__handle {
         max-height: 60vh;
         overflow-y: auto;
     }
+}
+
+/* The outline's gap count carries a warning sign, so it reads as "gaps" without a hover. */
+.pbd-outline__gaps > i {
+    font-size: .62rem;
 }

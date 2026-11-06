@@ -665,8 +665,9 @@ if (root) {
             const badge = el('span', 'pbd-outline__gaps');
             const count = el('span', null, String(missing.length));
             count.setAttribute('aria-hidden', 'true');
-            badge.append(count, el('span', 'visually-hidden', `, ${plural(missing.length, 'item')} missing: ${names}`));
-            badge.title = `${plural(missing.length, 'item')} missing: ${names}. The PowerPoint shows a placeholder; select the slide to fix it.`;
+            badge.prepend(icon('bi-exclamation-triangle'));
+            badge.append(count, el('span', 'visually-hidden', ` (${plural(missing.length, 'gap')}: ${names})`));
+            badge.title = `${plural(missing.length, 'gap')}: ${names}. The slides show a placeholder until it is filled; select the slide to fill it.`;
             row.append(badge);
           }
           row.addEventListener('click', () => {
@@ -768,12 +769,12 @@ if (root) {
     const missing = project.isPresented ? gapsFor(project.projectId) : [];
     if (missing.length === 0) {
       const done = el('p', 'pbd-stage__check is-ready pbd-inspector__ready');
-      done.append(icon('bi-check-circle'), el('span', null, 'Everything these slides show is recorded.'));
+      done.append(icon('bi-check-circle'), el('span', null, 'No gaps: everything these slides show is recorded.'));
       return done;
     }
     const section = el('section', 'pbd-inspector__gaps');
-    section.setAttribute('aria-label', 'Missing on these slides');
-    section.append(el('h5', 'pbd-inspector__heading', `Missing · ${missing.length}`));
+    section.setAttribute('aria-label', 'Gaps on these slides');
+    section.append(el('h5', 'pbd-inspector__heading', `Gaps · ${missing.length}`));
     const list = el('ul');
     missing.forEach((key) => {
       const gap = GAPS[key] || { label: key, missing: 'Missing', href: (p) => p.openUrl };
@@ -795,7 +796,7 @@ if (root) {
       }
       list.append(item);
     });
-    section.append(list, el('p', 'pbd-inspector__note', 'Until then the PowerPoint shows a placeholder.'));
+    section.append(list, el('p', 'pbd-inspector__note', 'Until a gap is filled the slides show a placeholder.'));
     return section;
   };
 
@@ -829,8 +830,12 @@ if (root) {
         row.append(el('dt', null, label), dd);
         return row;
       };
-      facts.append(fact('Cost (R&D)', project.costRd?.displayValue || 'Not recorded', project.costRd?.basisDisplay));
-      facts.append(fact('Proliferation', project.proliferationCost?.displayValue || 'Not recorded'));
+      // Each field once: a cost listed under Gaps is not repeated here.
+      if (!missing.includes('costRd')) facts.append(fact('Cost (R&D)', project.costRd?.displayValue || 'Not recorded', project.costRd?.basisDisplay));
+      // Whether the proliferation cost shows is the server's resolved rule (an ongoing project's
+      // only when recorded); missing from older payloads, it is shown as before.
+      const showsProliferation = project.showsProliferationCost !== false;
+      if (showsProliferation && !missing.includes('proliferationCost')) facts.append(fact('Proliferation', project.proliferationCost?.displayValue || 'Not recorded'));
       facts.append(entry.indices.length
         ? fact('Slides', plural(entry.indices.length, 'slide'), entry.indices.map((index) => slides[index]?.number).join(', '))
         : fact('Slides', 'None', 'Not in the PowerPoint'));
@@ -895,7 +900,7 @@ if (root) {
     if (projectsValue) projectsValue.textContent = projects.size ? String(projects.size) : 'Add';
     setStepState('projects', projects.size ? 'is-done' : 'is-next');
     const checksValue = progress.querySelector('[data-pbd-progress-checks]');
-    if (checksValue) checksValue.textContent = presented === 0 ? '–' : (openChecks ? `${openChecks} to review` : 'All recorded');
+    if (checksValue) checksValue.textContent = presented === 0 ? '–' : (openChecks ? `${openChecks} to fill` : 'None');
     setStepState('checks', presented === 0 ? '' : (openChecks ? 'is-open' : 'is-done'));
     setStepState('generate', presented ? 'is-ready' : '');
   };
@@ -919,18 +924,18 @@ if (root) {
     if (checksBadge) {
       checksBadge.hidden = openChecks === 0;
       checksBadge.textContent = String(openChecks);
-      checksBadge.title = `${plural(openChecks, 'check')} to review`;
-      checksBadge.setAttribute('aria-label', `${plural(openChecks, 'check')} to review`);
+      checksBadge.title = `${openChecks} ${openChecks === 1 ? 'kind' : 'kinds'} of gap to fill`;
+      checksBadge.setAttribute('aria-label', `${openChecks} ${openChecks === 1 ? 'kind' : 'kinds'} of gap to fill`);
     }
     renderProgress(total, openChecks);
     if (total === 0) {
-      panel.replaceChildren(el('p', 'pbd-inspector__empty', 'Add projects to check the deck.'));
+      panel.replaceChildren(el('p', 'pbd-inspector__empty', 'Add projects to see the gaps.'));
       return;
     }
     const keys = Object.keys(GAPS).filter((key) => counts[key]);
     if (keys.length === 0) {
       const done = el('p', 'pbd-stage__check is-ready');
-      done.append(icon('bi-check-circle'), el('span', null, 'Everything this deck shows is recorded for every project.'));
+      done.append(icon('bi-check-circle'), el('span', null, 'No gaps: everything this deck shows is recorded for every project.'));
       panel.replaceChildren(done);
       return;
     }
@@ -938,16 +943,17 @@ if (root) {
     keys.forEach((key) => {
       const item = el('li');
       const text = el('span');
-      text.append(el('strong', null, GAPS[key].label), el('small', null, `${counts[key]} of ${plural(total, 'project')} missing`));
+      text.append(el('strong', null, GAPS[key].label), el('small', null, `${counts[key]} of ${plural(total, 'project')}`));
       const show = actionButton(filterGap === key ? 'Showing' : 'Show', () => setFilter(filterGap === key ? '' : key));
       show.setAttribute('aria-pressed', String(filterGap === key));
+      show.setAttribute('aria-label', `Show the projects with a gap in ${GAPS[key].label.toLowerCase()}`);
       item.append(text, show);
       list.append(item);
     });
     panel.replaceChildren(
-      el('p', 'pbd-inspector__note', `${plural(projectsWithGaps, 'project')} of ${total} lack something the deck shows. Placeholders fill the gaps.`),
+      el('p', 'pbd-inspector__note', `${plural(projectsWithGaps, 'project')} of ${total} ${projectsWithGaps === 1 ? 'has' : 'have'} gaps. The slides show placeholders until they are filled.`),
       list,
-      el('p', 'pbd-inspector__note', 'Show narrows the outline to those projects; fix each one from This slide.'));
+      el('p', 'pbd-inspector__note', 'Show narrows the outline to those projects; fill each one from This slide.'));
   };
 
   const setFilter = (key) => {
@@ -957,7 +963,7 @@ if (root) {
     if (key && outlineIsSheet()) setOutlineOpen(true);
     filterGap = key;
     if (filterBox) filterBox.hidden = !key;
-    if (filterText) filterText.textContent = key ? `Projects missing ${GAPS[key]?.label.toLowerCase() || key}` : '';
+    if (filterText) filterText.textContent = key ? `Projects with a gap in ${GAPS[key]?.label.toLowerCase() || key}` : '';
     renderOutline();
     renderChecksPanel();
   };
@@ -1509,7 +1515,7 @@ if (root) {
   if (savedPlace.filter && GAPS[savedPlace.filter]) {
     filterGap = savedPlace.filter;
     if (filterBox) filterBox.hidden = false;
-    if (filterText) filterText.textContent = `Projects missing ${GAPS[filterGap].label.toLowerCase()}`;
+    if (filterText) filterText.textContent = `Projects with a gap in ${GAPS[filterGap].label.toLowerCase()}`;
   }
 
   // All slides is not brought back on narrow screens, where the grid runs to thousands of pixels.

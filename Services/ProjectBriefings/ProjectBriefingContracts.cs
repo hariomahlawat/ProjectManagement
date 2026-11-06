@@ -150,6 +150,9 @@ public sealed class ProjectBriefingProjectVm
     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
     public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
     public ProjectBriefingCostValue ProliferationCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
+    // Whether slides and the Studio show the proliferation cost: resolved once on the server
+    // (ProjectBriefingContentGaps.ShowsProliferationCost) so the inspector never keeps its own rule.
+    public bool ShowsProliferationCost => ProjectBriefingContentGaps.ShowsProliferationCost(LifecycleStatus, ProliferationCost);
     public string? ExternalStatus { get; init; }
     public DateOnly? ExternalStatusDate { get; init; }
     // HasCoverPhoto now means the selected photograph is actually readable and PowerPoint-ready.
