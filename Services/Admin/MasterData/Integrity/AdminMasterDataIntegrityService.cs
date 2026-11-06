@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services.Admin;
@@ -44,6 +45,17 @@ public interface IAdminMasterDataIntegrityService
 {
     Task<MasterDataIntegritySnapshot> InspectAsync(CancellationToken cancellationToken = default);
     Task<AdminOperationResult> NormaliseOrderAsync(string checkKey, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Runs one display-order check on its own, so a list page can say when its own order has
+    /// gaps or repeats. Returns null for a key that is not an order check.
+    /// </summary>
+    async Task<MasterDataIntegrityCheck?> InspectOrderAsync(string checkKey, CancellationToken cancellationToken = default)
+    {
+        var snapshot = await InspectAsync(cancellationToken);
+        return snapshot.Checks.FirstOrDefault(check =>
+            string.Equals(check.Key, checkKey?.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityService
@@ -54,8 +66,28 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
         "technical-category-order",
         "project-type-order",
         "sponsoring-unit-order",
-        "line-directorate-order"
+        "line-directorate-order",
+        DocumentCategoryOrderKey,
+        OfficeCategoryOrderKey
     };
+
+    public const string ProjectTypeOrderKey = "project-type-order";
+    public const string SponsoringUnitOrderKey = "sponsoring-unit-order";
+    public const string LineDirectorateOrderKey = "line-directorate-order";
+    public const string DocumentCategoryOrderKey = "document-category-order";
+    public const string OfficeCategoryOrderKey = "office-category-order";
+
+    // The admin lists store positions from 0 and show them from 1. The Document Repository
+    // lists store and show the same number, so their first position is 1.
+    private static readonly IReadOnlyDictionary<string, FlatOrderDefinition> FlatOrderDefinitions =
+        new Dictionary<string, FlatOrderDefinition>(StringComparer.OrdinalIgnoreCase)
+        {
+            [ProjectTypeOrderKey] = new("Project type order", "Project types should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-tags", "Project type", 0),
+            [SponsoringUnitOrderKey] = new("Sponsoring unit order", "Sponsoring units should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-building", "Sponsoring unit", 0),
+            [LineDirectorateOrderKey] = new("Line directorate order", "Line directorates should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-diagram-2", "Line directorate", 0),
+            [DocumentCategoryOrderKey] = new("Document type order", "Document types in the Document Repository should be numbered 1, 2, 3… with no gaps or repeats, so lists show them in a fixed order.", "bi-folder2", "Document type", 1),
+            [OfficeCategoryOrderKey] = new("Office order", "Offices in the Document Repository should be numbered 1, 2, 3… with no gaps or repeats, so lists show them in a fixed order.", "bi-building", "Office", 1)
+        };
 
     private readonly ApplicationDbContext _db;
     private readonly IAdminAuditService _audit;
@@ -88,6 +120,8 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
         var lineDirectorates = await _db.LineDirectorates.AsNoTracking()
             .Select(item => new FlatProjection(item.Id, item.Name, item.IsActive, item.SortOrder, item.Projects.Any()))
             .ToListAsync(cancellationToken);
+        var documentCategories = await LoadDocumentCategoriesAsync(cancellationToken);
+        var officeCategories = await LoadOfficeCategoriesAsync(cancellationToken);
         var activityTypes = await _db.ActivityTypes.AsNoTracking()
             .Select(item => new ActivityProjection(item.Id, item.Name, item.IsActive, item.Activities.Any(activity => !activity.IsDeleted)))
             .ToListAsync(cancellationToken);
@@ -103,9 +137,11 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
         {
             BuildOrderCheck("project-category-order", "Project category order", "Categories under the same parent should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-diagram-3", CategoryOrderFindings(projectCategories, "Project category")),
             BuildOrderCheck("technical-category-order", "Technical category order", "Categories under the same parent should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-cpu", CategoryOrderFindings(technicalCategories, "Technical category")),
-            BuildOrderCheck("project-type-order", "Project type order", "Project types should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-tags", FlatOrderFindings(projectTypes, "Project type")),
-            BuildOrderCheck("sponsoring-unit-order", "Sponsoring unit order", "Sponsoring units should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-building", FlatOrderFindings(sponsoringUnits, "Sponsoring unit")),
-            BuildOrderCheck("line-directorate-order", "Line directorate order", "Line directorates should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-diagram-2", FlatOrderFindings(lineDirectorates, "Line directorate")),
+            BuildFlatOrderCheck(ProjectTypeOrderKey, projectTypes),
+            BuildFlatOrderCheck(SponsoringUnitOrderKey, sponsoringUnits),
+            BuildFlatOrderCheck(LineDirectorateOrderKey, lineDirectorates),
+            BuildFlatOrderCheck(DocumentCategoryOrderKey, documentCategories),
+            BuildFlatOrderCheck(OfficeCategoryOrderKey, officeCategories),
             BuildCheck("project-category-hierarchy", "Project category parents", "Every parent category must exist, and a category cannot sit inside itself.", "bi-bezier2", HierarchyFindings(projectCategories, "Project category"), critical: true),
             BuildCheck("technical-category-hierarchy", "Technical category parents", "Every parent category must exist, and a category cannot sit inside itself.", "bi-bezier2", HierarchyFindings(technicalCategories, "Technical category"), critical: true),
             BuildCheck("active-parent-state", "Categories under deactivated parents", "A category that is still offered should not sit under a parent that was deactivated.", "bi-node-plus", ActiveChildFindings(projectCategories, "Project category").Concat(ActiveChildFindings(technicalCategories, "Technical category")).ToArray()),
@@ -124,11 +160,46 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
             _time.UtcNow);
     }
 
+    public async Task<MasterDataIntegrityCheck?> InspectOrderAsync(
+        string checkKey,
+        CancellationToken cancellationToken = default)
+    {
+        var key = (checkKey?.Trim() ?? string.Empty).ToLowerInvariant();
+        if (!RepairableOrderChecks.Contains(key))
+        {
+            return null;
+        }
+
+        if (!FlatOrderDefinitions.ContainsKey(key))
+        {
+            // Category order is checked per parent; the full inspection already does that.
+            var snapshot = await InspectAsync(cancellationToken);
+            return snapshot.Checks.FirstOrDefault(check => check.Key == key);
+        }
+
+        var items = key switch
+        {
+            ProjectTypeOrderKey => await _db.ProjectTypes.AsNoTracking()
+                .Select(item => new FlatProjection(item.Id, item.Name, item.IsActive, item.SortOrder, false))
+                .ToListAsync(cancellationToken),
+            SponsoringUnitOrderKey => await _db.SponsoringUnits.AsNoTracking()
+                .Select(item => new FlatProjection(item.Id, item.Name, item.IsActive, item.SortOrder, false))
+                .ToListAsync(cancellationToken),
+            LineDirectorateOrderKey => await _db.LineDirectorates.AsNoTracking()
+                .Select(item => new FlatProjection(item.Id, item.Name, item.IsActive, item.SortOrder, false))
+                .ToListAsync(cancellationToken),
+            DocumentCategoryOrderKey => await LoadDocumentCategoriesAsync(cancellationToken),
+            _ => await LoadOfficeCategoriesAsync(cancellationToken)
+        };
+
+        return BuildFlatOrderCheck(key, items);
+    }
+
     public async Task<AdminOperationResult> NormaliseOrderAsync(
         string checkKey,
         CancellationToken cancellationToken = default)
     {
-        var normalizedKey = checkKey?.Trim() ?? string.Empty;
+        var normalizedKey = (checkKey?.Trim() ?? string.Empty).ToLowerInvariant();
         if (!RepairableOrderChecks.Contains(normalizedKey))
         {
             return AdminOperationResult.Failure("The selected integrity check does not support an automatic repair.", "unsupported-repair");
@@ -166,6 +237,14 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
                 "line-directorate-order" => await NormaliseFlatOrderAsync(
                     _db.LineDirectorates, item => item.SortOrder, item => item.Name,
                     item => item.SortOrder, (item, value) => item.SortOrder = value, cancellationToken),
+                DocumentCategoryOrderKey => await NormaliseFlatOrderAsync(
+                    _db.DocumentCategories, item => item.SortOrder, item => item.Name,
+                    item => item.SortOrder, (item, value) => item.SortOrder = value, cancellationToken,
+                    firstPosition: 1),
+                OfficeCategoryOrderKey => await NormaliseFlatOrderAsync(
+                    _db.OfficeCategories, item => item.SortOrder, item => item.Name,
+                    item => item.SortOrder, (item, value) => item.SortOrder = value, cancellationToken,
+                    firstPosition: 1),
                 _ => 0
             };
 
@@ -208,6 +287,29 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
             return AdminOperationResult.Failure("The data changed during the repair. Refresh the integrity review and try again.", "concurrency");
         }
     }
+
+    private static MasterDataIntegrityCheck BuildFlatOrderCheck(
+        string key,
+        IReadOnlyList<FlatProjection> items)
+    {
+        var definition = FlatOrderDefinitions[key];
+        return BuildOrderCheck(
+            key,
+            definition.Title,
+            definition.Description,
+            definition.Icon,
+            FlatOrderFindings(items, definition.Label, definition.FirstPosition));
+    }
+
+    private Task<List<FlatProjection>> LoadDocumentCategoriesAsync(CancellationToken cancellationToken) =>
+        _db.DocumentCategories.AsNoTracking()
+            .Select(item => new FlatProjection(item.Id, item.Name, item.IsActive, item.SortOrder, false))
+            .ToListAsync(cancellationToken);
+
+    private Task<List<FlatProjection>> LoadOfficeCategoriesAsync(CancellationToken cancellationToken) =>
+        _db.OfficeCategories.AsNoTracking()
+            .Select(item => new FlatProjection(item.Id, item.Name, item.IsActive, item.SortOrder, false))
+            .ToListAsync(cancellationToken);
 
     private static MasterDataIntegrityCheck BuildOrderCheck(
         string key,
@@ -264,14 +366,15 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
 
     private static IReadOnlyList<MasterDataIntegrityFinding> FlatOrderFindings(
         IReadOnlyList<FlatProjection> items,
-        string label)
+        string label,
+        int firstPosition = 0)
     {
         var ordered = items.OrderBy(item => item.SortOrder).ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ThenBy(item => item.Id).ToArray();
         return ordered.Select((item, index) => (item, index))
-            .Where(pair => pair.item.SortOrder != pair.index)
+            .Where(pair => pair.item.SortOrder != pair.index + firstPosition)
             .Select(pair => new MasterDataIntegrityFinding(
                 "non-contiguous-order",
-                $"{label} '{pair.item.Name}' has display order {pair.item.SortOrder + 1}; expected {pair.index + 1}.",
+                $"{label} '{pair.item.Name}' has display order {pair.item.SortOrder - firstPosition + 1}; expected {pair.index + 1}.",
                 label,
                 pair.item.Id.ToString(),
                 pair.item.Name))
@@ -513,9 +616,12 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
         System.Linq.Expressions.Expression<Func<T, string>> nameSelector,
         Func<T, int> getSort,
         Action<T, int> setSort,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int firstPosition = 0)
         where T : class
     {
+        // Same order the list pages show (position, then name, then Id), so the repair only
+        // closes gaps and splits repeats; it never reshuffles what people see.
         var items = await set.OrderBy(sortSelector)
             .ThenBy(nameSelector)
             .ThenBy(item => EF.Property<int>(item, "Id"))
@@ -523,9 +629,10 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
         var changed = 0;
         for (var index = 0; index < items.Count; index++)
         {
-            if (getSort(items[index]) != index)
+            var position = index + firstPosition;
+            if (getSort(items[index]) != position)
             {
-                setSort(items[index], index);
+                setSort(items[index], position);
                 changed++;
             }
         }
@@ -545,6 +652,7 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
 
     private sealed record CategoryProjection(int Id, string Name, int? ParentId, bool IsActive, int SortOrder, bool IsReferenced) : IReferenceProjection;
     private sealed record FlatProjection(int Id, string Name, bool IsActive, int SortOrder, bool IsReferenced) : IReferenceProjection;
+    private sealed record FlatOrderDefinition(string Title, string Description, string Icon, string Label, int FirstPosition);
     private sealed record ActivityProjection(int Id, string Name, bool IsActive, bool IsReferenced) : IReferenceProjection;
     private sealed record HolidayProjection(int Id, DateOnly Date, string Name, HolidayType Type, bool IsObservedAsOfficeHoliday);
     private sealed record CelebrationProjection(Guid Id, string Name, byte Day, byte Month, short? Year);

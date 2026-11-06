@@ -224,6 +224,10 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
   what happens: "Renumber this list 1, 2, 3… keeping its current order".
 - Every route, policy and action is unchanged. The Search index, Data jobs and Data checks
   pages keep their handlers.
+- Later (fix PR 9): Data checks also checks the order of the Document Repository's document
+  types and offices. Project types, sponsoring units, line directorates and those two lists
+  show "The order of this list has gaps or repeats." on their own page, with the same audited
+  renumber for people who hold the Data checks permission (`IListOrderNoticeService`).
 
 **Shipped in PR 8 (plain words):**
 - **One eyebrow per group.** `_AdminPageHeader` shows the page's sidebar group (People,

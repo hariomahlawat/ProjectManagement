@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Services.Admin.MasterData.Integrity;
 using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.OfficeCategories;
@@ -17,12 +18,17 @@ public class IndexModel : PageModel
 
     private readonly ApplicationDbContext _db;
     private readonly IDocRepoAuditService _audit;
+    private readonly IListOrderNoticeService _order;
 
-    public IndexModel(ApplicationDbContext db, IDocRepoAuditService audit)
+    public IndexModel(ApplicationDbContext db, IDocRepoAuditService audit, IListOrderNoticeService order)
     {
         _db = db;
         _audit = audit;
+        _order = order;
     }
+
+    /// <summary>Shown when positions have gaps or repeats (for example every row at 100).</summary>
+    public ListOrderNotice OrderNotice { get; private set; } = ListOrderNotice.None(AdminMasterDataIntegrityService.OfficeCategoryOrderKey);
 
     private string ActorUserId =>
         User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
@@ -40,8 +46,9 @@ public class IndexModel : PageModel
         [Required, MaxLength(120)]
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>Blank puts the new entry at the end of the list.</summary>
         [Range(-999, 9999)]
-        public int SortOrder { get; set; } = 100;
+        public int? SortOrder { get; set; }
     }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -57,6 +64,15 @@ public class IndexModel : PageModel
             .GroupBy(d => d.OfficeCategoryId)
             .Select(group => new { group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Key, item => item.Count, cancellationToken);
+
+        OrderNotice = await _order.GetAsync(User, AdminMasterDataIntegrityService.OfficeCategoryOrderKey, cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostRenumberOrderAsync(CancellationToken cancellationToken)
+    {
+        var result = await _order.RenumberAsync(User, AdminMasterDataIntegrityService.OfficeCategoryOrderKey, cancellationToken);
+        TempData["ToastMessage"] = result.UserMessage;
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
@@ -80,7 +96,10 @@ public class IndexModel : PageModel
         var category = new OfficeCategory
         {
             Name = trimmedName,
-            SortOrder = Input.SortOrder
+            // A new entry goes to the end unless a position is typed. The old default of 100
+            // gave every entry the same position, so the list had no real order.
+            SortOrder = Input.SortOrder ?? (await _db.OfficeCategories
+                .MaxAsync(c => (int?)c.SortOrder, cancellationToken) ?? 0) + 1
         };
 
         _db.OfficeCategories.Add(category);
