@@ -63,7 +63,16 @@ public sealed class ProjectRetentionWorker : BackgroundService
 
     private async Task<int> RunOnceAsync(CancellationToken cancellationToken)
     {
-        var retentionDays = Math.Max(0, _options.Value.TrashRetentionDays);
+        var options = _options.Value;
+        if (options.HasInvalidTrashRetentionDays)
+        {
+            _logger.LogWarning(
+                "Projects:Retention:TrashRetentionDays is {Configured}; it must be at least 1. Using {Effective} days instead.",
+                options.TrashRetentionDays,
+                options.EffectiveTrashRetentionDays);
+        }
+
+        var retentionDays = options.EffectiveTrashRetentionDays;
         var cutoff = _clock.UtcNow.AddDays(-retentionDays);
 
         using var scope = _serviceProvider.CreateScope();

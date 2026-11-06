@@ -30,6 +30,6 @@ public record ErpUsageHeartbeatRequest(string ModuleKey);
 
 public record TrashProjectRequest(string Reason);
 
-public record PurgeProjectRequest(bool RemoveAssets);
+public record PurgeProjectRequest(bool RemoveAssets, string? Reason = null);
 
 public partial class Program { }

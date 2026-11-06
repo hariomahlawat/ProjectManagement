@@ -51,7 +51,7 @@
 - `POST /projects/{id}/restore-archive`
 - `POST /projects/{id}/trash` (payload: `{ reason }`)
 - `POST /projects/{id}/restore-trash` (Admin only)
-- `POST /projects/{id}/purge` (Admin only)
+- `POST /projects/{id}/purge` (Admin only; payload: `{ removeAssets, reason }`. Current behaviour: the reason and the full retention period are enforced by `ProjectModerationService.PurgeAsync` for every caller, see [configuration reference](configuration-reference.md#project-trash-and-admin-recovery).)
 - `GET /projects?filter=archived` (HoD/Admin)
 - `GET /projects?filter=trash` (Admin only)
 - Apply existing role constants and policy handlers for authorization.
@@ -61,7 +61,7 @@
 - Only Admin can restore from Trash or purge.
 - Archiving is lifecycle-independent; archived projects are read-only until restored.
 - Moving to Trash sets `IsDeleted = 1`, timestamps, user IDs, `DeleteReason`, and `DeleteMethod = "Trash"`.
-- Purging first writes an audit record, then removes database rows and physical assets.
+- Purging removes database rows and writes its audit record in one transaction; physical assets are quarantined first and deleted only after the commit.
 
 ## Retention and Purge Job
 - Daily scheduled job:

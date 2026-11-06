@@ -119,7 +119,7 @@ public sealed class ProjectRecoveryQueryService : IProjectRecoveryQueryService
             _options.MaximumPageSize);
         var search = NormalizeSearch(query.Search);
         var now = _time.UtcNow;
-        var retentionDays = Math.Max(0, _retention.TrashRetentionDays);
+        var retentionDays = _retention.EffectiveTrashRetentionDays;
         var dueCutoff = now.AddDays(-retentionDays);
         var dueSoonCutoff = now.AddDays(-(Math.Max(0, retentionDays - _options.DueSoonDays)));
 
@@ -292,7 +292,7 @@ public sealed class ProjectRecoveryQueryService : IProjectRecoveryQueryService
         int projectId,
         CancellationToken cancellationToken = default)
     {
-        var retentionDays = Math.Max(0, _retention.TrashRetentionDays);
+        var retentionDays = _retention.EffectiveTrashRetentionDays;
         return await _db.Projects.IgnoreQueryFilters().AsNoTracking()
             .Where(project => project.Id == projectId && project.IsDeleted)
             .Select(project => new ProjectRecoveryPreview(

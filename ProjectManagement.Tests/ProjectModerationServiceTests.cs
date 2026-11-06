@@ -197,7 +197,7 @@ public sealed class ProjectModerationServiceTests
         await File.WriteAllTextAsync(Path.Combine(projectRoot, "asset.txt"), "asset");
         var service = CreateService(db, clock, temp);
 
-        var result = await service.PurgeAsync(12, "admin", includeAssets: true);
+        var result = await service.PurgeAsync(12, "admin", includeAssets: true, reason: "No longer required");
 
         Assert.Equal(ProjectModerationStatus.Success, result.Status);
         Assert.Null(await db.Projects.FindAsync(12));
@@ -233,7 +233,7 @@ public sealed class ProjectModerationServiceTests
 
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
         using var temp = new TempDirectory();
-        var result = await CreateService(db, clock, temp).PurgeAsync(14, "admin", includeAssets: false);
+        var result = await CreateService(db, clock, temp).PurgeAsync(14, "admin", includeAssets: false, reason: "No longer required");
 
         Assert.Equal(ProjectModerationStatus.Success, result.Status);
         Assert.False(await db.Projects.AnyAsync(project => project.Id == 14));
@@ -293,7 +293,7 @@ public sealed class ProjectModerationServiceTests
 
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
         using var temp = new TempDirectory();
-        var result = await CreateService(db, clock, temp).PurgeAsync(16, "admin", includeAssets: false);
+        var result = await CreateService(db, clock, temp).PurgeAsync(16, "admin", includeAssets: false, reason: "No longer required");
 
         Assert.Equal(ProjectModerationStatus.Success, result.Status);
         Assert.False(await db.ProliferationYearlies.AnyAsync(record => record.ProjectId == 16));
@@ -336,7 +336,7 @@ public sealed class ProjectModerationServiceTests
 
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
         using var temp = new TempDirectory();
-        var result = await CreateService(db, clock, temp).PurgeAsync(18, "admin", includeAssets: false);
+        var result = await CreateService(db, clock, temp).PurgeAsync(18, "admin", includeAssets: false, reason: "No longer required");
 
         Assert.Equal(ProjectModerationStatus.Success, result.Status);
         Assert.False(await db.Projects.AnyAsync(project => project.Id == 18));
@@ -387,11 +387,113 @@ public sealed class ProjectModerationServiceTests
         var service = CreateService(db, clock, temp, new ThrowingAuditService());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.PurgeAsync(13, "admin", includeAssets: true));
+            service.PurgeAsync(13, "admin", includeAssets: true, reason: "No longer required"));
 
         Assert.NotNull(await db.Projects.AsNoTracking().SingleOrDefaultAsync(project => project.Id == 13));
         Assert.True(File.Exists(assetPath));
     }
+
+    // Every caller of PurgeAsync, including the purge API, gets the same rules. The API used
+    // to purge a project minutes after it was trashed, with no reason recorded.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ok ")]
+    public async Task PurgeAsync_RequiresAReason(string? reason)
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Projects.Add(TrashedProject(20, new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero)));
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var result = await CreateService(db, clock, temp).PurgeAsync(20, "admin", includeAssets: false, reason);
+
+        Assert.Equal(ProjectModerationStatus.ValidationFailed, result.Status);
+        Assert.True(await db.Projects.AnyAsync(project => project.Id == 20));
+    }
+
+    [Fact]
+    public async Task PurgeAsync_RefusesAProjectStillInsideTheRetentionPeriod()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Projects.Add(TrashedProject(21, new DateTimeOffset(2024, 10, 10, 0, 0, 0, TimeSpan.Zero)));
+        await db.SaveChangesAsync();
+
+        // Trashed 5 days ago; the default retention period is 30 days.
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var result = await CreateService(db, clock, temp).PurgeAsync(21, "admin", includeAssets: false, "No longer required");
+
+        Assert.Equal(ProjectModerationStatus.InvalidState, result.Status);
+        Assert.True(await db.Projects.AnyAsync(project => project.Id == 21));
+    }
+
+    [Fact]
+    public async Task PurgeAsync_RefusesAProjectWithNoDeletionDate()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Projects.Add(TrashedProject(22, deletedAt: null));
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var result = await CreateService(db, clock, temp).PurgeAsync(22, "admin", includeAssets: false, "No longer required");
+
+        Assert.Equal(ProjectModerationStatus.InvalidState, result.Status);
+        Assert.True(await db.Projects.AnyAsync(project => project.Id == 22));
+    }
+
+    [Fact]
+    public async Task PurgeAsync_RecordsTheProjectNameAndPurgeReasonInItsAudit()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Projects.Add(TrashedProject(23, new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero)));
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var result = await CreateService(db, clock, temp).PurgeAsync(23, "admin", includeAssets: false, "  Duplicate of project 7  ");
+
+        Assert.Equal(ProjectModerationStatus.Success, result.Status);
+        var audit = await db.AuditLogs.AsNoTracking().SingleAsync(log => log.Action == "Projects.Purge");
+        Assert.Contains("Trashed project 23", audit.DataJson);
+        Assert.Contains("Duplicate of project 7", audit.DataJson);
+        Assert.Contains("Duplicate of project 7", audit.Message);
+    }
+
+    [Theory]
+    [InlineData(0, 30)]
+    [InlineData(-5, 30)]
+    [InlineData(1, 1)]
+    [InlineData(45, 45)]
+    public void RetentionOptions_FallBackToTheDefaultBelowOneDay(int configured, int expected)
+    {
+        // TrashRetentionDays = 0 used to make the daily worker purge every trashed project.
+        var options = new ProjectRetentionOptions { TrashRetentionDays = configured };
+
+        Assert.Equal(expected, options.EffectiveTrashRetentionDays);
+        Assert.Equal(configured < 1, options.HasInvalidTrashRetentionDays);
+    }
+
+    private static Project TrashedProject(int id, DateTimeOffset? deletedAt) => new()
+    {
+        Id = id,
+        Name = $"Trashed project {id}",
+        CreatedAt = new DateTime(2024, 1, 12),
+        CreatedByUserId = "creator",
+        IsDeleted = true,
+        DeletedAt = deletedAt,
+        DeleteReason = "Cleanup"
+    };
 
     private static ProjectModerationService CreateService(
         ApplicationDbContext db,
@@ -405,7 +507,8 @@ public sealed class ProjectModerationServiceTests
             NullLogger<ProjectModerationService>.Instance,
             new TestUploadRootProvider(temp.Path),
             Options.Create(new ProjectDocumentOptions()),
-            audit ?? new AuditService(db, new HttpContextAccessor()));
+            audit ?? new AuditService(db, new HttpContextAccessor()),
+            Options.Create(new ProjectRetentionOptions()));
     }
 
     private sealed class ThrowingAuditService : IAuditService
