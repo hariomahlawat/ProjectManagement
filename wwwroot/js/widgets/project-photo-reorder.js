@@ -1,4 +1,9 @@
 (function () {
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askConfirm = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
   function getItemCaption(item, fallbackIndex) {
     if (!item) {
       return 'photo';
@@ -411,9 +416,15 @@
     const dialog = document.querySelector('[data-photo-remove-dialog]');
     if (!dialog || typeof dialog.showModal !== 'function') {
       document.querySelectorAll('[data-remove-photo]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const message = button.getAttribute('data-remove-message') || 'Remove this photo?';
-          if (window.confirm(message)) {
+        button.addEventListener('click', async () => {
+          const accepted = await askConfirm({
+            tone: 'danger',
+            title: 'Remove this photo?',
+            message: button.getAttribute('data-remove-message') || '',
+            confirmText: 'Remove photo',
+            cancelText: 'Keep photo'
+          });
+          if (accepted) {
             const formId = button.getAttribute('data-remove-form');
             const form = formId ? document.getElementById(formId) : null;
             if (form) form.submit();

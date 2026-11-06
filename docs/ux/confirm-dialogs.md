@@ -99,12 +99,24 @@ check: every action it guards must be validated and authorized server-side.
 
 ## Conversion plan
 
-Surveyed 6 Nov 2026. PR 1 (the glass dialog on every page, #2926) and PR 2 (`data-confirm`)
-are done; the 8 `data-confirm` elements marked `data-page-handled` follow their page scripts
-in the PRs below. The rest move
-one area at a time so each change stays testable. The browser `confirm()` returns
-synchronously and the dialog does not, so each call site has to wait for the answer rather
-than simply swap the function.
+Surveyed 6 Nov 2026. PRs 1 (#2926), 2 (#2929) and 3 are done; the 8 `data-confirm` elements
+marked `data-page-handled` follow their page scripts in the PRs below. The rest move one area
+at a time so each change stays testable.
+
+The browser `confirm()` returns synchronously and the dialog does not, so each call site has
+to wait for the answer rather than simply swap the function:
+
+- **Plain handlers** become `async` and `await` the answer, then re-check that the action is
+  still possible (the page may have changed while the dialog was open).
+- **Events that need an answer now** (`hide.bs.offcanvas`, `show.bs.tab`, a form `submit`, a
+  link click) are always held (`preventDefault`), the question asked, and the action run again
+  on yes: `Offcanvas.hide()`, `Tab.show()`, `form.requestSubmit(submitter)` or
+  `location.assign(href)`. A one-shot flag lets the replay through.
+- **Timers** that the old blocking box froze must be held too. The planner pauses its
+  Durations autosave while it asks whether to post one tab only (`plan:hold-autosave`,
+  `plan:resume-autosave`), so a save cannot make the other tab's edit token stale.
+- Each converted script has a one-line `askConfirm` that falls back to the browser box only
+  if the dialog script is missing.
 
 | PR | Scope |
 | --- | --- |
@@ -115,5 +127,6 @@ than simply swap the function.
 | 5 | Browser `confirm()` in Teamwork and media: calendar, comments, to-do (and the layout's `appConfirmModal`), tasks, activities, photos, video library, PDF tools, admin media |
 | 6 | Bootstrap confirm modals (about 19): convert the simple ones; give the ones with forms the same glass look; move the Notebook and Briefing Studio dialogs onto `PrismConfirm` |
 
-After PR 5 an `npm test` check fails on any new browser `confirm()` (the Notebook already has
-one: `notebook-no-native-confirm.test.js`).
+Converted areas are guarded by `npm test` checks that fail on a direct browser `confirm()`:
+`notebook-no-native-confirm.test.js` and `projects/projects-no-native-confirm.test.js`. After
+PR 5 one app-wide check replaces them.

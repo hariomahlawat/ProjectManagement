@@ -1,5 +1,10 @@
 // SECTION: Unsaved-changes guard and remembered tab (discovery C3.6, PO Timeline Increment 2d)
 (function () {
+  // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+  const askConfirm = options => (window.PrismConfirm?.show
+      ? window.PrismConfirm.show(options)
+      : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
   const offcanvas = document.getElementById('offcanvasPlanEdit');
   if (!offcanvas) {
     return;
@@ -37,22 +42,55 @@
       }
       // Each tab posts only its own form, so edits on the other tab would be dropped silently.
       const otherDirty = forms.some((other) => other !== form && dirty.has(other));
-      if (otherDirty && !window.confirm('Your unsaved changes on the other tab will not be included. Continue?')) {
+      if (otherDirty) {
+        // Hold the post, ask, and send it again (with the same button) only if the user agrees.
         event.preventDefault();
         event.stopImmediatePropagation();
+        const submitter = event.submitter;
+        // No autosave while the question is open: a Durations save now would make this
+        // tab's edit token stale. A "no" lets it resume.
+        offcanvas.dispatchEvent(new CustomEvent('plan:hold-autosave'));
+        askConfirm({
+          tone: 'warning',
+          title: 'Save this tab only?',
+          message: 'Your unsaved changes on the other tab will not be included.',
+          confirmText: 'Save this tab',
+          cancelText: 'Go back'
+        }).then((accepted) => {
+          if (!accepted) {
+            offcanvas.dispatchEvent(new CustomEvent('plan:resume-autosave'));
+            return;
+          }
+          leaving = true;
+          if (typeof form.requestSubmit === 'function') form.requestSubmit(submitter && submitter.form === form ? submitter : undefined);
+          else form.submit();
+        });
         return;
       }
       leaving = true;
     });
   });
 
+  // Bootstrap needs the answer now, so the close is held, the question asked, and the planner
+  // closed again only if the user agrees.
+  let closeApproved = false;
   offcanvas.addEventListener('hide.bs.offcanvas', (event) => {
-    if (leaving || dirty.size === 0) {
+    if (leaving || dirty.size === 0 || closeApproved) {
+      closeApproved = false;
       return;
     }
-    if (!window.confirm('You have unsaved changes in the planner. Close it anyway?')) {
-      event.preventDefault();
-    }
+    event.preventDefault();
+    askConfirm({
+      tone: 'warning',
+      title: 'Close the planner with unsaved changes?',
+      message: 'Your entries stay on this page but are not saved.',
+      confirmText: 'Close planner',
+      cancelText: 'Keep editing'
+    }).then((accepted) => {
+      if (!accepted) return;
+      closeApproved = true;
+      window.bootstrap?.Offcanvas.getOrCreateInstance(offcanvas).hide();
+    });
     // Closing only hides the planner: the entries stay in the page and remain unsaved, so
     // a later close or leaving the page must still warn.
   });
@@ -235,5 +273,12 @@
     if (!event.defaultPrevented) pauseAutosave();
   });
   offcanvas.addEventListener('show.bs.offcanvas', () => { paused = false; });
+  // The unsaved-changes guard holds autosave while it asks whether to post one tab only.
+  offcanvas.addEventListener('plan:hold-autosave', cancelQueuedSave);
+  offcanvas.addEventListener('plan:resume-autosave', () => {
+    if (submitting || paused) return;
+    cancelQueuedSave();
+    timer = window.setTimeout(saveDraft, DEBOUNCE_MS);
+  });
   window.addEventListener('pagehide', pauseAutosave);
 })();

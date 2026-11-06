@@ -35,11 +35,25 @@ function setup(t, { restored = false, storedTab = null, activePane = 'exact' } =
   const { window } = dom;
   const confirms = [];
   let answer = true;
-  window.confirm = (message) => { confirms.push(message); return answer; };
+  // The shared PRISM dialog: records each question and answers with `answer`.
+  window.PrismConfirm = { show: (options) => { confirms.push(options.title); return Promise.resolve(answer); } };
   window.setTimeout = () => 0;
   window.clearTimeout = () => {};
   const shown = [];
-  window.bootstrap = { Tab: { getOrCreateInstance: (tab) => ({ show: () => shown.push(tab.id) }) } };
+  // Bootstrap's Offcanvas.hide() fires hide.bs.offcanvas again; record whether it went through.
+  const closes = [];
+  window.bootstrap = {
+    Tab: { getOrCreateInstance: (tab) => ({ show: () => shown.push(tab.id) }) },
+    Offcanvas: {
+      getOrCreateInstance: (node) => ({
+        hide: () => {
+          const replay = new window.Event('hide.bs.offcanvas', { cancelable: true });
+          node.dispatchEvent(replay);
+          closes.push(!replay.defaultPrevented);
+        }
+      })
+    }
+  };
   if (storedTab) window.localStorage.setItem('prism.planEditor.tab.1', storedTab);
   const submitted = [];
   window.eval(source);
@@ -49,7 +63,7 @@ function setup(t, { restored = false, storedTab = null, activePane = 'exact' } =
   }));
   const offcanvas = window.document.getElementById('offcanvasPlanEdit');
   return {
-    window, confirms, shown, submitted,
+    window, confirms, shown, submitted, closes,
     answer(value) { answer = value; },
     edit(formId) {
       const input = window.document.querySelector(`#${formId} input:not([type="hidden"])`);
@@ -67,25 +81,35 @@ function setup(t, { restored = false, storedTab = null, activePane = 'exact' } =
   };
 }
 
-test('closing with unsaved entries asks first and stays open when declined', (t) => {
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+test('closing with unsaved entries asks first and stays open when declined', async (t) => {
   const h = setup(t);
   h.edit('exact');
   h.answer(false);
-  assert.equal(h.hide(), true);
+  assert.equal(h.hide(), true, 'the close is held while the dialog is open');
+  await settle();
   assert.equal(h.confirms.length, 1);
+  assert.deepEqual(h.closes, [], 'declined: the planner stays open');
+
   h.answer(true);
-  assert.equal(h.hide(), false);
+  assert.equal(h.hide(), true);
+  await settle();
+  assert.deepEqual(h.closes, [true], 'accepted: the planner closes once');
 });
 
-test('closing keeps the entries unsaved, so leaving the page still warns', (t) => {
+test('closing keeps the entries unsaved, so leaving the page still warns', async (t) => {
   const h = setup(t);
   h.edit('exact');
   h.answer(true);
-  assert.equal(h.hide(), false);
+  h.hide();
+  await settle();
+  assert.deepEqual(h.closes, [true]);
   const leave = new h.window.Event('beforeunload', { cancelable: true });
   h.window.dispatchEvent(leave);
   assert.equal(leave.defaultPrevented, true);
   h.hide();
+  await settle();
   assert.equal(h.confirms.length, 2);
 });
 
@@ -102,14 +126,17 @@ test('closing without edits does not ask', (t) => {
   assert.equal(h.confirms.length, 0);
 });
 
-test('saving one tab while the other has unsaved edits asks first', (t) => {
+test('saving one tab while the other has unsaved edits asks first', async (t) => {
   const h = setup(t);
   h.edit('exact');
   h.answer(false);
   h.submit('durations');
+  await settle();
   assert.deepEqual(h.submitted, []);
   h.answer(true);
   h.submit('durations');
+  assert.deepEqual(h.submitted, [], 'held while the dialog is open');
+  await settle();
   assert.deepEqual(h.submitted, ['durations']);
 });
 

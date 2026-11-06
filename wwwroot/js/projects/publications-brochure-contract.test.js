@@ -249,7 +249,7 @@ test('phase 8 hard-copy institutional matter participates in authoritative prefl
   assert.match(policy, /PrintInstitutionalContentTooLong/);
   assert.match(view, /data-brochure-approved-print-content/);
   assert.match(js, /updatePrintMatterWordCounts/);
-  assert.match(js, /Restore all institutional publication text/);
+  assert.match(js, /Restore the approved wording\?/);
 });
 
 test('phase 8 exposes compact plan estimates in the same publication preflight panel', () => {
@@ -589,7 +589,8 @@ test('phase 16 explains Cover A identity ownership and hides non-rendered identi
 test('phase 16 simplifies publication order and protects clearing reviewed selections', () => {
   assert.match(view, />Clear selection</);
   assert.match(js, /dataset\.reorderButton/);
-  assert.match(js, /window\.confirm/);
+  assert.match(js, /Clear all \$\{count\} selected project/);
+  assert.match(js, /window\.PrismConfirm\.show/);
   assert.match(css, /\.brochure-selected-item__name[\s\S]{0,220}-webkit-line-clamp:\s*2/);
   assert.match(css, /\[data-reorder-button\]/);
   assert.match(css, /:focus-within/);

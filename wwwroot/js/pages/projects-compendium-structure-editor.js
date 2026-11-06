@@ -1,6 +1,12 @@
 (() => {
     "use strict";
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
+
     const root = document.querySelector("[data-compendium-structure-editor]");
     if (!(root instanceof HTMLElement)) return;
 
@@ -729,19 +735,28 @@
             const section = sectionByKey(key);
             if (!section) return;
             const count = orderedIds.filter(id => normalize(ensureConfig(id).customSectionKey) === normalize(key)).length;
-            if (!window.confirm(count
-                ? `Delete “${section.name}”? ${count} project${count === 1 ? "" : "s"} will move to Unassigned.`
-                : `Delete the empty section “${section.name}”?`)) return;
-            orderedIds.forEach(id => {
-                const config = ensureConfig(id);
-                if (normalize(config.customSectionKey) === normalize(key)) {
-                    config.customSectionKey = null;
-                    config.customSectionName = null;
-                }
+            askConfirm({
+                tone: "danger",
+                title: count ? "Delete this section?" : "Delete this empty section?",
+                message: count
+                    ? `${count} project${count === 1 ? "" : "s"} will move to Unassigned.`
+                    : "It has no projects.",
+                subject: { icon: "bi-collection", name: section.name },
+                confirmText: "Delete section",
+                cancelText: "Keep section"
+            }).then(accepted => {
+                if (!accepted || !sectionByKey(key)) return;
+                orderedIds.forEach(id => {
+                    const config = ensureConfig(id);
+                    if (normalize(config.customSectionKey) === normalize(key)) {
+                        config.customSectionKey = null;
+                        config.customSectionName = null;
+                    }
+                });
+                customSections = customSections.filter(item => normalize(item.sectionKey) !== normalize(key));
+                collapsedKeys.delete(key);
+                commit();
             });
-            customSections = customSections.filter(item => normalize(item.sectionKey) !== normalize(key));
-            collapsedKeys.delete(key);
-            commit();
         }
     });
 
@@ -824,10 +839,17 @@
         commit();
     });
 
-    bulkRemove?.addEventListener("click", () => {
+    bulkRemove?.addEventListener("click", async () => {
         if (editorSelection.size === 0) return;
         const count = editorSelection.size;
-        if (!window.confirm(`Remove ${count} project${count === 1 ? "" : "s"} from this Compendium? Project master data will not be changed.`)) return;
+        const accepted = await askConfirm({
+            tone: "danger",
+            title: `Remove ${count} project${count === 1 ? "" : "s"} from this Compendium?`,
+            message: "Project master data will not be changed.",
+            confirmText: count === 1 ? "Remove project" : "Remove projects",
+            cancelText: "Cancel"
+        });
+        if (!accepted || editorSelection.size === 0) return;
         orderedIds = orderedIds.filter(id => !editorSelection.has(id));
         editorSelection.clear();
         commit();
@@ -1031,7 +1053,13 @@
             return;
         }
         if (leaveModal) leaveModal.show();
-        else if (window.confirm("Return to the Compendium with these unsaved structure changes kept locally?")) navigateBack(false);
+        else askConfirm({
+            tone: "warning",
+            title: "Return with unsaved changes?",
+            message: "Your structure changes are kept on this device but not saved to the Compendium.",
+            confirmText: "Return",
+            cancelText: "Stay"
+        }).then(accepted => { if (accepted) navigateBack(false); });
     };
 
     saveButton?.addEventListener("click", saveStructure);

@@ -323,7 +323,7 @@ function createKeyPointDom() {
     return dom;
 }
 
-test('key points count characters per field and stay on one line', () => {
+test('key points count characters per field and stay on one line', async () => {
     const dom = createKeyPointDom();
     const { document, Event, KeyboardEvent } = dom.window;
     const [first, second] = document.querySelectorAll('[data-key-point]');
@@ -347,6 +347,7 @@ test('key points count characters per field and stay on one line', () => {
 
     dom.window.confirm = () => true;
     document.querySelector('[data-content-cancel]').click();
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(second.value, '');
     assert.equal(secondCount.textContent, '0 / 130');
     assert.equal(first.value, 'Gap');

@@ -1,6 +1,12 @@
 (() => {
     'use strict';
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
+
     if (typeof bootstrap === 'undefined') return;
 
     // The shared ToT drawer (Pages/Projects/_ProjectTotDrawer.cshtml). It talks to the hosting
@@ -407,12 +413,27 @@
         openProject(Number.parseInt(trigger.getAttribute('data-tot-open-project-id') || '0', 10), trigger.getAttribute('data-tot-project-name') || '');
     });
     offcanvas.addEventListener('show.bs.offcanvas', () => { setRemarkMode(false); setEditMode(false); lastLoad = loadDetails(); });
+    // Bootstrap needs the answer now, so the close is held, the question asked, and the
+    // drawer closed again only if the user agrees.
+    let closeApproved = false;
     offcanvas.addEventListener('hide.bs.offcanvas', (event) => {
         const hasRemarkDraft = remarking && (remarkBody?.value?.trim()?.length || 0) > 0;
-        if ((hasUnsavedDetails() || hasRemarkDraft) &&
-            !window.confirm('Discard the unsaved Transfer of Technology changes?')) {
-            event.preventDefault();
+        if (closeApproved || !(hasUnsavedDetails() || hasRemarkDraft)) {
+            closeApproved = false;
+            return;
         }
+        event.preventDefault();
+        askConfirm({
+            tone: 'warning',
+            title: 'Discard the unsaved Transfer of Technology changes?',
+            message: 'Your edits in this drawer have not been saved.',
+            confirmText: 'Discard changes',
+            cancelText: 'Keep editing'
+        }).then((accepted) => {
+            if (!accepted) return;
+            closeApproved = true;
+            bootstrap.Offcanvas.getOrCreateInstance(offcanvas).hide();
+        });
     });
 
     // ?tot=open opens the drawer; ?tot=edit also starts editing when this user may edit and

@@ -1,6 +1,12 @@
 (function (global) {
     'use strict';
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
+
     if (!global) {
         return;
     }
@@ -2154,7 +2160,14 @@
                 return;
             }
 
-            if (!window.confirm('Delete this remark?')) {
+            const accepted = await askConfirm({
+                tone: 'danger',
+                title: 'Delete this remark?',
+                message: 'It is removed from the project remarks.',
+                confirmText: 'Delete remark',
+                cancelText: 'Keep remark'
+            });
+            if (!accepted) {
                 return;
             }
 

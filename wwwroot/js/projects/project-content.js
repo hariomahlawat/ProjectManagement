@@ -1,6 +1,12 @@
 (() => {
     'use strict';
 
+    // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
+    const askConfirm = options => (window.PrismConfirm?.show
+        ? window.PrismConfirm.show(options)
+        : Promise.resolve(window.confirm([options.title, options.message].filter(Boolean).join(' '))));
+
+
     const root = document.querySelector('[data-project-content]');
     if (!root || root.dataset.projectContentInitialized === 'true') {
         return;
@@ -205,7 +211,7 @@
         form.querySelector('textarea, input:not([type="hidden"])')?.focus();
     };
 
-    const closeEditor = (pane, force = false) => {
+    const closeEditor = async (pane, force = false) => {
         if (!pane) {
             return true;
         }
@@ -222,7 +228,13 @@
 
         if (!force &&
             form.dataset.dirty === 'true' &&
-            !window.confirm('Discard the unsaved changes in this tab?')) {
+            !(await askConfirm({
+                tone: 'warning',
+                title: 'Discard the unsaved changes in this tab?',
+                message: 'Your edits here have not been saved.',
+                confirmText: 'Discard changes',
+                cancelText: 'Keep editing'
+            }))) {
             return false;
         }
 
@@ -891,13 +903,20 @@
                 return;
             }
 
-            if (!window.confirm(
-                'You have unsaved project-content changes. Discard them and change tabs?')) {
-                event.preventDefault();
-                return;
-            }
-
-            closeEditor(currentPane, true);
+            // Bootstrap needs the answer now: hold the switch, ask, and switch again on yes.
+            event.preventDefault();
+            const nextTab = event.target;
+            askConfirm({
+                tone: 'warning',
+                title: 'Discard your changes and change tabs?',
+                message: 'Your project-content edits have not been saved.',
+                confirmText: 'Discard and switch',
+                cancelText: 'Keep editing'
+            }).then(async (accepted) => {
+                if (!accepted) return;
+                await closeEditor(currentPane, true);
+                window.bootstrap?.Tab.getOrCreateInstance(nextTab).show();
+            });
         });
 
         tab.addEventListener('shown.bs.tab', (event) => {
