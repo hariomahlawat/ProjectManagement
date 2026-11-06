@@ -102,9 +102,13 @@ public sealed class RecycleModel : PageModel
         var actor = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(actor)) return Challenge();
 
+        // Act only on documents that are still in the recycle bin. Anything restored since the
+        // admin opened the page (or a hand-made id) is skipped, never permanently deleted.
+        var eligibleIds = selection.EligibleIds;
+        var skipped = ids.Count - eligibleIds.Count;
         var succeeded = 0;
         var failed = new List<int>();
-        foreach (var id in ids)
+        foreach (var id in eligibleIds)
         {
             try
             {
@@ -126,15 +130,18 @@ public sealed class RecycleModel : PageModel
         }
 
         var operation = action.StartsWith("restore", StringComparison.Ordinal) ? "restored" : "permanently deleted";
+        var skippedNote = skipped > 0
+            ? $" {skipped} selected document(s) were no longer in the recycle bin and were left unchanged."
+            : string.Empty;
         if (failed.Count == 0)
         {
             TempData[FlashMessageKeys.AdminRecoverySuccess] =
-                succeeded == 1 ? $"Document {operation}." : $"{succeeded} documents {operation}.";
+                (succeeded == 1 ? $"Document {operation}." : $"{succeeded} documents {operation}.") + skippedNote;
         }
         else
         {
             TempData[FlashMessageKeys.AdminRecoveryError] =
-                $"{succeeded} document(s) were {operation}; {failed.Count} could not be processed. Review the audit log and retry the failed records.";
+                $"{succeeded} document(s) were {operation}; {failed.Count} could not be processed. Review the audit log and retry the failed records." + skippedNote;
         }
 
         return RedirectToPage(RouteValues());

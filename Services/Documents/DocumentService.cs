@@ -681,6 +681,15 @@ public sealed class DocumentService : IDocumentService
             return;
         }
 
+        // Permanent deletion is only for documents in the recycle bin. A document restored
+        // after the caller listed it (or any id that never was in the bin) must survive. The
+        // row version on ProjectDocument covers a restore that lands after this check.
+        if (document.Status != ProjectDocumentStatus.SoftDeleted)
+        {
+            throw new InvalidOperationException(
+                "Only documents in the recycle bin can be permanently deleted.");
+        }
+
         var project = document.Project;
         var projectId = document.ProjectId;
         var storagePath = ResolveAbsolutePath(document.StorageKey);

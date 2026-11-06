@@ -87,7 +87,9 @@ public sealed class CalendarRecoveryService : ICalendarRecoveryService
         if (string.IsNullOrWhiteSpace(search)) search = null;
         else if (search.Length > 160) search = search[..160];
 
-        var events = _db.Events.AsNoTracking().Where(calendarEvent => calendarEvent.IsDeleted);
+        // Event has a global !IsDeleted query filter, so recovery queries must opt out of it
+        // explicitly or every deleted event is invisible here.
+        var events = _db.Events.IgnoreQueryFilters().AsNoTracking().Where(calendarEvent => calendarEvent.IsDeleted);
         if (search is not null)
         {
             var pattern = $"%{search}%";
@@ -186,7 +188,7 @@ public sealed class CalendarRecoveryService : ICalendarRecoveryService
         var traceId = _httpContextAccessor.HttpContext?.TraceIdentifier;
         try
         {
-            var calendarEvent = await _db.Events.AsNoTracking()
+            var calendarEvent = await _db.Events.IgnoreQueryFilters().AsNoTracking()
                 .SingleOrDefaultAsync(item => item.Id == eventId, cancellationToken);
             if (calendarEvent is null)
                 return AdminOperationResult.Failure("The calendar event could not be found.", "CalendarEventNotFound");
@@ -199,7 +201,7 @@ public sealed class CalendarRecoveryService : ICalendarRecoveryService
                 ? await _db.Database.BeginTransactionAsync(cancellationToken)
                 : null;
 
-            var affected = await _db.Events.Where(item => item.Id == eventId && item.IsDeleted)
+            var affected = await _db.Events.IgnoreQueryFilters().Where(item => item.Id == eventId && item.IsDeleted)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(item => item.IsDeleted, false)
                     .SetProperty(item => item.UpdatedAt, restoredAt)

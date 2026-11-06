@@ -365,6 +365,7 @@ public sealed class DocumentServicesTests : IDisposable
             var path = ResolvePath(root, document.StorageKey);
             Assert.True(File.Exists(path));
 
+            await documentService.SoftDeleteAsync(document.Id, "approver", CancellationToken.None);
             await documentService.HardDeleteAsync(document.Id, "approver", CancellationToken.None);
 
             Assert.Empty(db.ProjectDocuments);

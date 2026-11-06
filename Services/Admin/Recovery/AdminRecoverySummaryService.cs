@@ -70,7 +70,7 @@ public sealed class AdminRecoverySummaryService : IAdminRecoverySummaryService
         // sequentially instead of using Task.WhenAll.
         var trashedProjects = await projectQuery.CountAsync(cancellationToken);
         var recycledDocuments = await documentQuery.CountAsync(cancellationToken);
-        var deletedEvents = await _db.Events.AsNoTracking()
+        var deletedEvents = await _db.Events.IgnoreQueryFilters().AsNoTracking()
             .CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken);
         var archivedProjects = await _db.Projects.IgnoreQueryFilters().AsNoTracking()
             .CountAsync(project => project.IsArchived && !project.IsDeleted, cancellationToken);
