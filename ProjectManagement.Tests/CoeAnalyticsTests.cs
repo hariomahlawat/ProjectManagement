@@ -549,6 +549,46 @@ public sealed class CoeAnalyticsTests : IDisposable
         Assert.Equal("Completed 2021", repeat.Projects[0].Detail);
 
         Assert.Equal(1, result.TotalCoeProjects); // the lists are not part of the CoE counts
+
+        // Completed AR/VR projects by where they sit: the CoE first, then the three groups.
+        Assert.Equal(
+            new[] { ("CoE (AR/VR)", 0), ("Before the CoE nomination", 3), ("DCD · Fresh projects", 0), ("DCD · Repeat builds", 1) },
+            result.ArVrCompleted.Select(group => (group.Name, group.Completed)));
+        Assert.Equal(4, result.ArVrCompletedTotal);
+        Assert.Equal(
+            new[] { ("No category VR", (int?)2019), ("VR Medical", 2020), ("VR Sniper", 2022) },
+            result.ArVrCompleted[1].Projects.Select(project => (project.Name, project.Year)).OrderBy(item => item.Year));
+    }
+
+    [Fact]
+    public async Task BuildCoeAsync_CarriesTheCurrentStagePdc_ForOngoingProjects()
+    {
+        var coeRoot = new ProjectCategory { Name = "CoE" };
+        var mid = new ProjectCategory { Name = "CoE Mid Term", Parent = coeRoot };
+        _db.ProjectCategories.AddRange(coeRoot, mid);
+        await _db.SaveChangesAsync();
+
+        var pdc = Today.AddDays(120);
+        _db.Projects.Add(new Project
+        {
+            Name = "VR Gunnery",
+            CategoryId = mid.Id,
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            CreatedByUserId = "user",
+            WorkflowVersion = ProcurementWorkflow.VersionV1,
+            ProjectStages =
+            {
+                new ProjectStage { StageCode = StageCodes.FS, SortOrder = 10, Status = StageStatus.Completed, CompletedOn = Today.AddDays(-200) },
+                new ProjectStage { StageCode = StageCodes.DEVP, SortOrder = 20, Status = StageStatus.InProgress, ActualStart = Today.AddDays(-30), PlannedDue = pdc }
+            }
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.BuildCoeAsync(Today, CancellationToken.None);
+
+        var project = Assert.Single(Assert.Single(result.SubcategoryProjects).Projects);
+        Assert.Equal(StageCodes.DEVP, project.CurrentStageCode);
+        Assert.Equal(pdc, project.CurrentStagePdc);
     }
 
     [Fact]

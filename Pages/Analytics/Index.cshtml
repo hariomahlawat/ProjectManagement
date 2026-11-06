@@ -64,7 +64,16 @@
         <h1>Analytics</h1>
         <p class="analytics-header__scope">@scope</p>
       </div>
-      <span class="analytics-header__date" title="Figures read at @Model.AsOfIst.ToString("HH:mm") IST">As of @Model.AsOfIst.ToString("d MMMM yyyy", CultureInfo.InvariantCulture)</span>
+      <div class="analytics-header__aside">
+        @if (Model.ActiveTab == AnalyticsTab.Coe && Model.Coe is { HasCoeProjects: true })
+        {
+          <a class="analytics-header__download" asp-page="./Index" asp-page-handler="CoeSlides" download
+             title="Two slides: CoE projects by category, and the AR/VR summary (PowerPoint)">
+            <i class="bi bi-filetype-pptx" aria-hidden="true"></i><span>Download slides</span>
+          </a>
+        }
+        <span class="analytics-header__date" title="Figures read at @Model.AsOfIst.ToString("HH:mm") IST">As of @Model.AsOfIst.ToString("d MMMM yyyy", CultureInfo.InvariantCulture)</span>
+      </div>
     </header>
     <!-- END SECTION -->
 
