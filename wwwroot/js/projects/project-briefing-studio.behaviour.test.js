@@ -53,6 +53,11 @@ const payload = (extra = {}) => ({
 
 const MARKUP = `
 <div data-pbd-root>
+  <nav data-pbd-progress><ol>
+    <li data-pbd-progress-step="projects"><button type="button"><span data-pbd-progress-projects></span></button></li>
+    <li data-pbd-progress-step="checks"><button type="button" data-pbd-progress-tab="checks"><span data-pbd-progress-checks></span></button></li>
+    <li data-pbd-progress-step="generate"><button type="button" data-pbd-progress-generate>Generate</button></li>
+  </ol></nav>
   <div data-deck-id="7">
     <section data-pbd-studio data-preview-url="/preview" data-has-projects="true"
              data-layout="StandardBriefing" data-presentation-mode="Combined" data-uses-capability="false">
@@ -69,12 +74,14 @@ const MARKUP = `
       <button type="button" data-pbd-preview-refresh>Rebuild</button>
       <button type="button" data-pbd-preview-open disabled>Present</button>
       <p data-pbd-preview-status></p>
-      <div data-pbd-stage-slide></div><div data-pbd-stage-checks></div><ol data-pbd-stage-grid hidden></ol>
+      <div data-pbd-stage-slide></div><ol data-pbd-stage-grid hidden></ol>
       <div role="tablist">
         <button type="button" role="tab" data-pbd-inspector-tab="slide">This slide</button>
+        <button type="button" role="tab" data-pbd-inspector-tab="deck">Deck</button>
         <button type="button" role="tab" data-pbd-inspector-tab="checks">Checks <span data-pbd-checks-badge hidden></span></button>
       </div>
       <div data-pbd-inspector-panel="slide"></div>
+      <div data-pbd-inspector-panel="deck" hidden></div>
       <div data-pbd-inspector-panel="checks" hidden></div>
     </section>
   </div>
@@ -133,7 +140,10 @@ test('the Checks badge counts the checks to review, not projects, and ignores le
   assert.equal(badge.hidden, false);
   assert.equal(badge.textContent, '2');
   assert.equal(badge.getAttribute('aria-label'), '2 checks to review');
-  assert.equal(outlineRow(document, 'Alpha simulator').querySelector('.pbd-outline__gaps')?.textContent, '2');
+  const alphaBadge = outlineRow(document, 'Alpha simulator').querySelector('.pbd-outline__gaps');
+  assert.equal(alphaBadge.querySelector('[aria-hidden="true"]').textContent, '2');
+  assert.equal(alphaBadge.querySelector('.visually-hidden').textContent, ', 2 items missing: status remark, photograph');
+  assert.match(alphaBadge.title, /^2 items missing: status remark, photograph\. The PowerPoint shows a placeholder/);
   assert.equal(outlineRow(document, 'Delta kit').querySelector('.pbd-outline__gaps'), null);
 });
 
@@ -311,4 +321,49 @@ test('turning on the technical-category summary shows it, not the project-catego
   await settle(window);
 
   assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 3 of 4/);
+});
+
+test('the progress line counts the projects and the checks to review, and opens Checks', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload());
+  await settle(window);
+
+  assert.equal(document.querySelector('[data-pbd-progress-projects]').textContent, '4');
+  assert.equal(document.querySelector('[data-pbd-progress-checks]').textContent, '2 to review');
+  assert.ok(document.querySelector('[data-pbd-progress-step="checks"]').classList.contains('is-open'));
+  assert.ok(document.querySelector('[data-pbd-progress-step="generate"]').classList.contains('is-ready'));
+
+  document.querySelector('[data-pbd-progress-tab="checks"]').click();
+  assert.equal(document.querySelector('[data-pbd-inspector-panel="checks"]').hidden, false);
+  assert.equal(document.querySelector('[data-pbd-inspector-tab="checks"]').getAttribute('aria-selected'), 'true');
+});
+
+test('picking a slide in the outline opens This slide, with each gap listed once and where its fix lands', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload());
+  await settle(window);
+  document.querySelector('[data-pbd-inspector-tab="deck"]').click();
+  assert.equal(document.querySelector('[data-pbd-inspector-panel="slide"]').hidden, true);
+
+  outlineRow(document, 'Alpha simulator').click();
+
+  const panel = document.querySelector('[data-pbd-inspector-panel="slide"]');
+  assert.equal(panel.hidden, false);
+  const gaps = [...panel.querySelectorAll('.pbd-inspector__gaps li')];
+  assert.deepEqual(gaps.map((item) => item.querySelector('strong').textContent), ['Status remark', 'Photograph']);
+  assert.ok(gaps.every((item) => item.querySelector('a').textContent.trim() === 'Fix in project'));
+  // The status gap is not repeated as its own section further down.
+  assert.ok(![...panel.querySelectorAll('h5')].some((heading) => heading.textContent === 'Present status'));
+});
+
+test('a project with nothing missing says so in This slide', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload());
+  await settle(window);
+
+  outlineRow(document, 'Charlie range').click();
+
+  const panel = document.querySelector('[data-pbd-inspector-panel="slide"]');
+  assert.equal(panel.querySelector('.pbd-inspector__gaps'), null);
+  assert.match(panel.querySelector('.pbd-inspector__ready').textContent, /Everything these slides show is recorded/);
 });

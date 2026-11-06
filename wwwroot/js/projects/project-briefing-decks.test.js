@@ -100,7 +100,7 @@ test('deck settings save themselves in place, one save at a time', () => {
   assert.match(save, /'X-Requested-With': 'XMLHttpRequest'/);
   assert.match(save, /applyEditorState\(payload\?\.deck\);/);
   // A collision with someone else's change shows the one conflict banner.
-  assert.match(save, /if \(response\.status === 409\) \{\s*showConflict\(payload\?\.message\);/);
+  assert.match(save, /if \(reply\.status === 409\) \{\s*showConflict\(replyPayload\?\.message\);/);
   assert.match(source, /settingsForm\?\.addEventListener\('change', \(event\) => \{[\s\S]*?refreshSettingsSummary\(\);\s*refreshSettingsDirtyState\(400\);\s*\}\);/);
   assert.doesNotMatch(source, /data-pbd-settings-drawer|openSettingsDrawer|closeSettingsDrawer/);
   assert.doesNotMatch(viewSource, /data-pbd-settings-drawer|data-pbd-settings-save/);
@@ -405,7 +405,7 @@ test('projects without slides of their own are listed against the table page tha
   assert.match(build, /\(item\.listedProjectIds \|\| \[\]\)\.forEach\(\(projectId\) => \{\s*if \(byProject\.has\(projectId\)\) return;/);
   assert.doesNotMatch(build, /if \(!result\.some\(\(entry\) => entry\.section === 'project'\)\)/);
   // The row the person chose stays selected while several projects share one slide.
-  assert.match(studioSource, /row\.addEventListener\('click', \(\) => selectEntry\(entry\)\);/);
+  assert.match(studioSource, /row\.addEventListener\('click', \(\) => selectEntry\(entry, \{ openSlideTab: true \}\)\);/);
   assert.match(studioSource, /selectIndex\(entry\.indices\[0\], \{ from: 'outline', key: entry\.key \}\);/);
 });
 
