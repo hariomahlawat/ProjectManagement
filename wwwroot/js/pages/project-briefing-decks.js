@@ -1601,10 +1601,13 @@ if (root) {
     event.preventDefault();
     const button = event.submitter instanceof HTMLButtonElement ? event.submitter : form.querySelector('button[type="submit"]');
     button?.setAttribute('disabled', 'disabled');
-    const membersBefore = new Set(latestProjects.map((project) => Number(project.projectId)));
+    // Taken when this save starts in the queue, after any earlier save's reply is applied, so a
+    // second add made before the first finished undoes only its own projects.
+    let membersBefore = new Set();
     setState(addProjectsStatus, 'Adding projects…', 'saving');
     try {
       const payload = await runDeckMutation(async () => {
+        membersBefore = new Set(latestProjects.map((project) => Number(project.projectId)));
         const body = new FormData(form);
         body.set('RowVersion', currentRowVersion());
         const response = await fetch(form.action, {
@@ -1797,6 +1800,15 @@ if (root) {
   // After any membership change (search, quick add, categories, removals), mark search results
   // from the deck's actual members while keeping ticks the person has not applied yet.
   const reconcileSearchMembership = (projects) => {
+    // No search typed and no deck list showing yet (the deck was empty): show the members now.
+    const blankQuery = (searchInput?.value.trim() || '').length < 2;
+    if (blankQuery && !showingDeckRows) {
+      if (projects.length) {
+        showingDeckRows = true;
+        renderSearchResults(deckRowsFrom(projects));
+      }
+      return;
+    }
     if (searchRows.length === 0) return;
     const members = new Set(projects.map((project) => Number(project.projectId)));
     const pending = new Map();
@@ -1845,6 +1857,13 @@ if (root) {
     resultDesired.clear();
     searchResults?.replaceChildren();
     if (!rows.length) {
+      // The deck list emptied (every project removed): back to the prompt, ready to refill.
+      if (showingDeckRows) {
+        showingDeckRows = false;
+        setState(searchStatus, 'Type at least two letters of a project name to find it.');
+        updateMembershipSummary();
+        return;
+      }
       setState(searchStatus, 'No projects match this search.');
       updateMembershipSummary();
       return;

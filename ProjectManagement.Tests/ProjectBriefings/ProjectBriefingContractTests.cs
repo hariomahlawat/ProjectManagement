@@ -253,6 +253,11 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains(": (desired ? ['Will be added', 'is-pending-add'] : ['', '']);", script, StringComparison.Ordinal);
         Assert.DoesNotContain("'NOT IN DECK'", script, StringComparison.Ordinal);
         Assert.Contains("renderSearchResults(deckRowsFrom(latestProjects));", script, StringComparison.Ordinal);
+        // Codex review: the Undo baseline is taken inside the queued save; an empty deck's list fills in after an add.
+        var addHandler = script[script.IndexOf("let membersBefore = new Set();", StringComparison.Ordinal)..];
+        Assert.True(addHandler.IndexOf("membersBefore = new Set(latestProjects", StringComparison.Ordinal)
+            > addHandler.IndexOf("await runDeckMutation(async () => {", StringComparison.Ordinal));
+        Assert.Contains("if (blankQuery && !showingDeckRows) {", script, StringComparison.Ordinal);
     }
 
     [Fact]
