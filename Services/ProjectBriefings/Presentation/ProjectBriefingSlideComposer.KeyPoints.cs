@@ -81,13 +81,25 @@ public sealed partial class ProjectBriefingSlideComposer
             return true;
         }
 
-        var hasMetaLine = data.CostMode != ProjectBriefingCostMode.None
+        // The same parts KeyPointMetaRuns draws, so the facts a slide shows are tracked exactly.
+        var hasMetaLine = KeyPointMetaShowsCostRd(data)
+            || KeyPointMetaShowsProliferation(data, project)
             || (data.StandardSlideOptions.ShowPresentStage
                 && !string.IsNullOrWhiteSpace(NormalizePresentationText(project.PresentStage)));
         return !hasMetaLine
             || PaginateKeyPointCapability(data, project).Pages.Count > 1
             || briefContinues;
     }
+
+    // The cost parts of the key-point meta line, shared by the renderer and DrawsLifecycleSubtitle.
+    private static bool KeyPointMetaShowsCostRd(ProjectBriefingPresentationData data)
+        => data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
+
+    private static bool KeyPointMetaShowsProliferation(
+        ProjectBriefingPresentationData data,
+        ProjectBriefingPresentationProject project)
+        => data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both
+            && ProjectBriefingContentGaps.ShowsProliferationCost(project.LifecycleStatus, project.ProliferationCost);
 
     private sealed record KeyPointBandRow(string Label, string Text, bool IsStatus, double Height);
 
@@ -341,7 +353,7 @@ public sealed partial class ProjectBriefingSlideComposer
             parts.Add(new[] { new RichTextRun(stage, size, theme.TextPrimary, Bold: true) });
         }
 
-        if (data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both)
+        if (KeyPointMetaShowsCostRd(data))
         {
             var available = project.CostRd.IsAvailable;
             var cost = new List<RichTextRun>
@@ -357,8 +369,7 @@ public sealed partial class ProjectBriefingSlideComposer
             parts.Add(cost);
         }
 
-        if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both
-            && ProjectBriefingContentGaps.ShowsProliferationCost(project.LifecycleStatus, project.ProliferationCost))
+        if (KeyPointMetaShowsProliferation(data, project))
         {
             var available = project.ProliferationCost.IsAvailable;
             parts.Add(new[]

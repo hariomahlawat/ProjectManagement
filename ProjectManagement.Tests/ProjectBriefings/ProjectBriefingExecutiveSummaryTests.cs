@@ -104,6 +104,45 @@ public sealed class ProjectBriefingExecutiveSummaryTests
     }
 
     [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void KeyPointSlide_TracksTheLifecycleSubtitleWhenTheProliferationLineIsLeftOut(bool recorded, bool drawsSubtitle)
+    {
+        // Codex review on #2938: with no meta line left (proliferation only, stage hidden, an
+        // ongoing project without the cost) the slide draws the lifecycle subtitle, and the facts
+        // tracking must know so.
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 1,
+            DeckName = "Key points",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
+            CostMode = ProjectBriefingCostMode.ProliferationOnly,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with
+            {
+                ShowPresentStage = false,
+                KeyPoints = ProjectBriefingKeyPointPlacement.CapabilitySlide
+            },
+            GeneratedAtUtc = DateTimeOffset.UtcNow
+        };
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 1,
+            ProjectName = "AURA",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = recorded
+                ? new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.Proliferation, "₹10 Lakh", "Proliferation")
+                : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            BriefDescription = "A short capability overview.",
+            SortOrder = 1
+        };
+
+        Assert.Equal(drawsSubtitle, ProjectBriefingSlideComposer.DrawsLifecycleSubtitle(data, project));
+    }
+
+    [Theory]
     [InlineData(ProjectLifecycleStatus.Active, false, false)]
     [InlineData(ProjectLifecycleStatus.Active, true, true)]
     [InlineData(ProjectLifecycleStatus.Completed, false, true)]
