@@ -84,3 +84,24 @@ test('starting a second confirmation safely cancels the first', async () => {
   dom.window.document.querySelector('[data-confirm-accept]').click();
   assert.equal(await second, true);
 });
+
+test('with the shared PRISM dialog on the page, the Notebook asks there instead', async () => {
+  const { api, dom } = load();
+  const asked = [];
+  dom.window.PrismConfirm = { show: (options) => { asked.push(options); return Promise.resolve(true); } };
+  api.initNotebookConfirmDialog();
+
+  const result = await api.confirmNotebookAction({
+    title: 'Delete this note?',
+    message: 'It moves to Trash.',
+    confirmText: 'Delete note',
+    tone: 'danger'
+  });
+
+  assert.equal(result, true);
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].title, 'Delete this note?');
+  assert.equal(asked[0].confirmText, 'Delete note');
+  assert.equal(asked[0].tone, 'danger');
+  assert.equal(dom.window.document.querySelector('[data-notebook-confirm]').hidden, true, 'the Notebook dialog stays closed');
+});

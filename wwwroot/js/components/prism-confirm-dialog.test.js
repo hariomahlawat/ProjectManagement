@@ -186,3 +186,11 @@ test('opening a second confirmation cancels the first and clears its fields', as
   assert.equal($(dom, '[data-prism-confirm-reason]').value, '');
   assert.equal($(dom, '[data-prism-confirm-accept]').disabled, false);
 });
+
+test('focus: "cancel" keeps Enter away from the action for any tone', async () => {
+  const dom = createDom();
+
+  dom.window.PrismConfirm.show({ title: 'Discard notes?', tone: 'warning', focus: 'cancel' });
+  await flush();
+  assert.equal(dom.window.document.activeElement, $(dom, '.prism-confirm-dialog__btn--quiet'));
+});

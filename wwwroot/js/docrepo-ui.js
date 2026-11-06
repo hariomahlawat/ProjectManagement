@@ -704,6 +704,7 @@
             body: "It disappears from the library for everyone except the people who manage it. You can activate it again at any time.",
             confirm: "Deactivate",
             style: "btn-outline-danger",
+            tone: "warning",
             focusCancel: true
         },
         "activate": {
@@ -711,14 +712,16 @@
             title: "Activate this document again?",
             body: "Everyone will be able to find and open it again.",
             confirm: "Activate",
-            style: "btn-primary"
+            style: "btn-primary",
+            tone: "primary"
         },
         "retry-ocr": {
             handler: "RetryOcr",
             title: "Read this PDF's text again?",
             body: "The document goes back into the reading queue. Its contents become searchable once reading succeeds.",
             confirm: "Read again",
-            style: "btn-primary"
+            style: "btn-primary",
+            tone: "primary"
         },
         "request-delete": {
             handler: "RequestDelete",
@@ -726,6 +729,7 @@
             body: "An approver decides in the Decision Centre. Until then the document stays in the library.",
             confirm: "Send request",
             style: "btn-danger",
+            tone: "danger",
             reason: true
         }
     };
@@ -742,6 +746,7 @@
         url.searchParams.set("handler", action.handler);
         url.searchParams.set("returnUrl", trigger.dataset.returnUrl || window.location.pathname + window.location.search);
         dialogForm.action = url.pathname + url.search;
+        dialogElement.dataset.tone = action.tone || "primary";
         dialogForm.querySelector("[data-dialog-title]").textContent = action.title;
         dialogForm.querySelector("[data-dialog-subject]").textContent = trigger.dataset.docSubject || "";
         dialogForm.querySelector("[data-dialog-body]").textContent = action.body;

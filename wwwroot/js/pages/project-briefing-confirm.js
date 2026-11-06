@@ -63,6 +63,26 @@ export const prismConfirm = ({
   tone = 'danger',
   returnFocus = document.activeElement
 } = {}) => {
+  // The shared PRISM dialog (docs/ux/confirm-dialogs.md) when it is on the page; the Studio's
+  // own dialog below only if it is not. Cancel keeps the initial focus either way.
+  if (window.PrismConfirm?.show) {
+    return window.PrismConfirm.show({
+      title: title || 'Confirm action',
+      message: message || '',
+      confirmText,
+      cancelText,
+      tone,
+      focus: 'cancel'
+    }).then((result) => {
+      window.requestAnimationFrame(() => {
+        if (returnFocus instanceof HTMLElement && returnFocus.isConnected) {
+          returnFocus.focus({ preventScroll: true });
+        }
+      });
+      return Boolean(result);
+    });
+  }
+
   const ui = elements();
   if (!ui) {
     console.error('PRISM confirmation dialog is not available.');

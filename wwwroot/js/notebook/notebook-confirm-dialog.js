@@ -33,6 +33,20 @@ export function initNotebookConfirmDialog(root = document.querySelector('[data-n
 }
 
 export function confirmNotebookAction(options = {}) {
+  // The shared PRISM dialog (docs/ux/confirm-dialogs.md) when it is on the page; the Notebook's
+  // own dialog below only if it is not.
+  if (typeof window !== 'undefined' && window.PrismConfirm?.show) {
+    const merged = { ...DEFAULTS, ...options };
+    return window.PrismConfirm.show({
+      title: merged.title,
+      message: merged.message,
+      detail: merged.detail,
+      confirmText: merged.confirmText,
+      cancelText: merged.cancelText,
+      tone: merged.tone
+    }).then(Boolean);
+  }
+
   const root = state.root ?? document.querySelector('[data-notebook-confirm]');
   if (!root) return Promise.resolve(false);
   if (!state.root) initNotebookConfirmDialog(root);

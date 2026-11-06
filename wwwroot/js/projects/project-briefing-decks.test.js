@@ -285,6 +285,9 @@ test('briefing workflows use the reusable PRISM confirmation dialog instead of b
   assert.match(confirmSource, /event\.target === ui\.dialog/);
   assert.match(viewSource, /data-pbd-confirm-dialog/);
   assert.match(viewSource, /data-pbd-confirm-cancel autofocus/);
+  // The shared PRISM dialog takes over when it is on the page, keeping Cancel focused.
+  assert.match(confirmSource, /window\.PrismConfirm\?\.show/);
+  assert.match(confirmSource, /focus: 'cancel'/);
 });
 
 test('institution slides live in the Extra slides step; their forms sit outside the settings form', () => {

@@ -11,12 +11,12 @@
        value="@tokens.RequestToken"
        data-project-moderation-token />
 
-<div class="modal fade"
+<div class="modal prism-confirm-modal fade"
      id="projectArchiveModal"
      tabindex="-1"
      aria-labelledby="projectArchiveModalLabel"
      aria-hidden="true"
-     data-project-id="@project.Id">
+     data-project-id="@project.Id" data-tone="warning">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -40,12 +40,12 @@
     </div>
 </div>
 
-<div class="modal fade"
+<div class="modal prism-confirm-modal fade"
      id="projectRestoreArchiveModal"
      tabindex="-1"
      aria-labelledby="projectRestoreArchiveModalLabel"
      aria-hidden="true"
-     data-project-id="@project.Id">
+     data-project-id="@project.Id" data-tone="primary">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
