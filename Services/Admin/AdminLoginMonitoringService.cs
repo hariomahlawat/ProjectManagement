@@ -162,9 +162,11 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
             else
             {
                 var selectedId = selectedUser.Id;
-                var selectedLogin = selectedUser.UserName;
+                // Typed user names are matched case-insensitively, as Identity signs in.
+                var selectedLogin = (selectedUser.UserName ?? string.Empty).ToUpperInvariant();
                 auditQuery = auditQuery.Where(audit =>
-                    audit.UserId == selectedId || audit.UserName == selectedLogin);
+                    audit.UserId == selectedId
+                    || (audit.UserName != null && audit.UserName.ToUpper() == selectedLogin));
             }
         }
 
@@ -178,10 +180,37 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
             .Select(authEvent => authEvent.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);
-        var auditUserKeys = await auditQuery
-            .Select(audit => audit.UserId ?? ("login:" + (audit.UserName ?? "unknown")))
+        // A failed attempt carries no user id, only the name as typed. Resolve typed names to
+        // the account they sign in to (case-insensitively, through Identity's normalised name)
+        // so "ADMIN" and "admin" are one affected account, and a person with both a success and
+        // a failure counts once among active users.
+        var auditKeyRows = await auditQuery
+            .Select(audit => new
+            {
+                audit.UserId,
+                Login = audit.UserName == null ? null : audit.UserName.ToUpper()
+            })
             .Distinct()
             .ToListAsync(cancellationToken);
+        var typedLogins = auditKeyRows
+            .Where(row => row.UserId == null && row.Login != null)
+            .Select(row => row.Login!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var accountByLogin = typedLogins.Length == 0
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : (await _db.Users.AsNoTracking()
+                    .Where(user => user.NormalizedUserName != null && typedLogins.Contains(user.NormalizedUserName))
+                    .Select(user => new { user.Id, user.NormalizedUserName })
+                    .ToListAsync(cancellationToken))
+                .ToDictionary(user => user.NormalizedUserName!, user => user.Id, StringComparer.Ordinal);
+        var auditUserKeys = auditKeyRows
+            .Select(row => row.UserId
+                ?? (row.Login is not null && accountByLogin.TryGetValue(row.Login, out var accountId)
+                    ? accountId
+                    : "login:" + (row.Login ?? "UNKNOWN")))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var uniqueUsers = successfulUserKeys
             .Concat(auditUserKeys)
             .Distinct(StringComparer.OrdinalIgnoreCase)

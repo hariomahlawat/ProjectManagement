@@ -18,14 +18,17 @@ public sealed class DetailsModel : PageModel
     private readonly IAuditActionPresentationCatalog _auditActions;
     private readonly IAdminClientDescriptorService _clients;
     private readonly IAdminTimeService _time;
+    private readonly IUserManagementService _users;
 
     public DetailsModel(
         IAdminUserQueryService queries,
         IAdminRoleDescriptorCatalog roles,
         IAuditActionPresentationCatalog auditActions,
         IAdminClientDescriptorService clients,
-        IAdminTimeService time)
+        IAdminTimeService time,
+        IUserManagementService users)
     {
+        _users = users ?? throw new ArgumentNullException(nameof(users));
         _queries = queries ?? throw new ArgumentNullException(nameof(queries));
         _roles = roles ?? throw new ArgumentNullException(nameof(roles));
         _auditActions = auditActions ?? throw new ArgumentNullException(nameof(auditActions));
@@ -45,6 +48,23 @@ public sealed class DetailsModel : PageModel
 
     public IReadOnlyList<AdminUserAdministrativeActivity> RecentAdministrativeActivity { get; private set; } =
         Array.Empty<AdminUserAdministrativeActivity>();
+
+    // An account locked after repeated failed sign-ins used to stay locked until the lockout
+    // expired: nothing in Administration could clear it, and a password reset did not either.
+    public async Task<IActionResult> OnPostUnlockAsync(string id)
+    {
+        var result = await _users.UnlockAsync(id);
+        if (result.Succeeded)
+        {
+            TempData[FlashMessageKeys.AdminUsersSuccess] = "The lockout was cleared. The user can sign in again.";
+        }
+        else
+        {
+            TempData[FlashMessageKeys.AdminUsersError] = string.Join(" ", result.Errors.Select(error => error.Description));
+        }
+
+        return RedirectToPage(new { id });
+    }
 
     public bool IsCurrentUser => string.Equals(
         User.FindFirstValue(ClaimTypes.NameIdentifier),

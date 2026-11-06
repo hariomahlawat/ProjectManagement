@@ -180,6 +180,17 @@
                     </a>
                 }
 
+                @if (Model.Account.AccountState.State == AdminUserAccountState.TemporarilyLocked)
+                {
+                    <form method="post" asp-page-handler="Unlock" asp-route-id="@Model.Account.Id">
+                        <button type="submit" class="admin-account-action admin-account-action--success">
+                            <span class="admin-account-action__icon"><i class="bi bi-unlock" aria-hidden="true"></i></span>
+                            <span><strong>Clear lockout</strong><small>Let the user sign in again now instead of waiting for the lockout to expire.</small></span>
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </button>
+                    </form>
+                }
+
                 @if (!Model.IsCurrentUser && Model.Account.AccountState.State == AdminUserAccountState.Disabled)
                 {
                     <a asp-page="./Enable" asp-route-id="@Model.Account.Id" class="admin-account-action admin-account-action--success">

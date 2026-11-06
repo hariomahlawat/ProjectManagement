@@ -1598,6 +1598,10 @@
 .admin-account-action-list { display: grid; }
 .admin-account-action { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .66rem .78rem; border-bottom: 1px solid #edf1f5; color: var(--admin-text); text-decoration: none; }
 .admin-account-action:last-child { border-bottom: 0; }
+/* A POST action (Clear lockout) renders as a button inside its own form; it looks like the link rows. */
+.admin-account-action-list > form { display: contents; }
+button.admin-account-action { width: 100%; font: inherit; text-align: start; cursor: pointer; background: transparent; border: 0; border-bottom: 1px solid var(--admin-border); }
+.admin-account-action-list > form:last-child > button.admin-account-action { border-bottom: 0; }
 .admin-account-action:hover { background: #fbfcff; color: var(--admin-primary); }
 .admin-account-action__icon { display: inline-grid; width: 1.8rem; height: 1.8rem; place-items: center; border-radius: .52rem; background: var(--admin-primary-soft); color: var(--admin-primary); }
 .admin-account-action--success .admin-account-action__icon { background: var(--admin-success-soft); color: var(--admin-success); }

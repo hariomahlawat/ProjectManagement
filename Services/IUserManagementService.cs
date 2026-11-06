@@ -26,10 +26,9 @@ namespace ProjectManagement.Services
             UserAccountKind? accountKind = null,
             string? expectedVersion = null);
 
-        // Retained for compatibility with existing callers. New UI flows should use UpdateUserAsync.
-        Task<IdentityResult> UpdateUserRolesAsync(string userId, IEnumerable<string> roles);
-        Task<IdentityResult> UpdateUserDetailsAsync(string userId, string fullName, string rank);
         Task<IdentityResult> ResetPasswordAsync(string userId, string newPassword);
-        Task<IdentityResult> DeleteUserAsync(string userId);
+
+        /// <summary>Clears a temporary lockout (failed sign-ins) on an enabled account.</summary>
+        Task<IdentityResult> UnlockAsync(string userId);
     }
 }
