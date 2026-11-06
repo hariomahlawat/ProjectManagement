@@ -131,6 +131,58 @@ the page; only the ARPP mode checks a further policy.
   `Services/Analytics/ArppAnalyticsService.cs` over `IArppLibraryService.GetCurrentPositionAsync` and
   `IArppFyProjectUpdateService.BuildAsync`; the page only binds the year.
 
+### ARPP review (6 Nov 2026): plan
+
+A review of the ARPP mode with dummy data covering every case (dev database: FY 2026-27 published,
+39 listed projects; scripts outside the repo). The money adds up: every grouping (CFA, category,
+cost band, fund, DFPDS schedule, parent category) sums to the listed IPA, an addendum's revised IPA
+replaces the original and a delisted project drops out. The codes (CL, CF, CFA, DFPDS schedules,
+stage codes) are the organisation's own and stay as they are. The owner's decisions:
+
+- **Past AoN is the AoN stage marked Completed**, with or without a date. Today the milestone needs
+  the completion date, so a project whose AoN is Completed without one (three in the dev data) is
+  missing from "Past AoN" while the cards count it as past AoN by stage. One rule for both; the
+  drill-down says "date not recorded".
+- **Cards**: Listed · Completed · Supply order placed · AoN to SO stage · **Pre-AoN stage**. "AoN to
+  SO stage" counts only projects with AoN completed and no supply order; Pre-AoN is FS, IPA, SoW and
+  the AoN stage itself (AoN not yet granted). Cancelled projects stay out of the cards (the standing
+  list shows them). A listed project cannot be archived while active, so archived projects need no
+  card.
+- **Supply-order value**: PNC/L1 is the order value once the supply order is placed (no change).
+  The amounts stay ("₹2.66 Cr ongoing · ₹1.42 Cr completed, of IPA ₹203.85 Cr listed"); the
+  percentage bar goes.
+- **No PDC on this page.** "PDC due" and "PDC overdue" are development tracking, already on the
+  Command desk and the officer conference view; the ARPP page is listing → AoN → supply order →
+  completed.
+- **A past year shows the position on 31 March**, the last day of that financial year, with a
+  **Today** switch to where those projects stand now. The current year is as of today (no switch).
+  The position on 31 March is worked out, never stored:
+  - a stage is finished by 31 March when its completion date is on or before it;
+  - a Completed stage with no date ended the day before the next stage started (stages run back to
+    back, the rule `StageStartInference` already applies forwards), and is finished by 31 March when
+    a later stage had started or finished by then;
+  - the stage change log (`StageChangeLogs`, kept since 27 Nov 2025) settles the rest: a stage
+    recorded In progress on a date means the stages after it were not finished on that date, and a
+    change recorded on or before 31 March happened by then;
+  - the project's own workflow graph decides "next" and "later" (parallel TEC and BM, skipped stages
+    looked past), as `StageStartInference` does;
+  - when the exact stage is still open but every candidate sits in one card ("SoW or AoN"), the
+    project counts in that card and the list says "SoW or AoN (dates not recorded)";
+  - what cannot be placed, and a project completed or cancelled with only a year (legacy data),
+    goes in a "Not known on 31 Mar" group, never guessed into a card.
+
+PRs:
+
+1. **Cards and rules.** Past AoN by stage status; the Pre-AoN card; "AoN to SO" narrowed to AoN
+   completed without a supply order; PDC rows and the percentage bar removed; "1 published row"
+   singular. Tests in `ArppAnalyticsServiceTests`.
+2. **Position on a date.** One resolver for "where was this project on date D"
+   (`Services/Stages`, with its own tests: dated stages, the next-stage start, the change log,
+   parallel branches, skipped stages, the one-card range and Not known). The ARPP mode uses it for
+   a past year's 31 March; nothing else changes.
+3. **Today switch** for a past year (As on 31 Mar | Today), kept in the address so a link opens the
+   same view.
+
 ## Staying on the page
 
 Nobody has to leave Analytics to see which projects a figure is made of. Every chart has
