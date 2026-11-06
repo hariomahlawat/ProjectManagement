@@ -80,6 +80,13 @@ public sealed class IndexModel : PageModel
         return Url.Page("./Index", values) ?? "#";
     }
 
+    public string RecentWindowUrl()
+    {
+        var values = QueryValues(1);
+        values[nameof(All)] = null;
+        return Url.Page("./Index", values) ?? "#";
+    }
+
     public AdminLogResult Result { get; private set; } = new(
         Array.Empty<AdminLogRow>(),
         Array.Empty<string>(),

@@ -33,6 +33,11 @@
         <input type="hidden" name="PageNo" value="1" />
         <input type="hidden" asp-for="Sort" />
         <input type="hidden" asp-for="Dir" />
+        @if (Model.All)
+        {
+            @* Keep "Show all history" when the administrator changes other filters. *@
+            <input type="hidden" name="All" value="true" />
+        }
         @if (!string.IsNullOrWhiteSpace(Model.UserId))
         {
             <input type="hidden" asp-for="UserId" />
@@ -146,11 +151,12 @@
             </div>
         </details>
 
-        @if (Model.HasFilters || Model.UsesDefaultWindow)
+        @if (Model.HasFilters || Model.UsesDefaultWindow || Model.All)
         {
             <div class="admin-active-filters" aria-label="Active filters">
                 <span class="admin-active-filters__label">Active filters</span>
                 @if (Model.UsesDefaultWindow) { <span class="admin-filter-chip">Last @ProjectManagement.Areas.Admin.Pages.Logs.IndexModel.DefaultWindowDays days</span> <a class="admin-filter-chip" href="@Model.AllHistoryUrl()">Show all history</a> }
+                @if (Model.All) { <span class="admin-filter-chip">All history</span> <a class="admin-filter-chip" href="@Model.RecentWindowUrl()">Last @ProjectManagement.Areas.Admin.Pages.Logs.IndexModel.DefaultWindowDays days only</a> }
                 @if (!string.IsNullOrWhiteSpace(Model.Level)) { <span class="admin-filter-chip">Severity: @Model.Level</span> }
                 @if (!string.IsNullOrWhiteSpace(Model.Category)) { <span class="admin-filter-chip">Category: @Model.Category.Replace('-', ' ')</span> }
                 @if (!string.IsNullOrWhiteSpace(Model.Action)) { <span class="admin-filter-chip">Action: @Model.Action</span> }
