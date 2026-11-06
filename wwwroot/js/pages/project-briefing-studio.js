@@ -1177,7 +1177,36 @@ if (root) {
     root.classList.remove('is-error', 'is-stale');
   };
 
-  // Present: the full-window viewer with a strip of every slide.
+  // Present: full screen where the browser allows it (otherwise the dialog fills the window),
+  // the slide as large as it fits. The strip of every slide and the speaker notes open on
+  // request; both choices are remembered on this browser.
+  const viewerNotes = viewer?.querySelector('[data-pbd-viewer-notes]');
+  const viewerNotesText = viewer?.querySelector('[data-pbd-viewer-notes-text]');
+  const notesToggle = viewer?.querySelector('[data-pbd-viewer-notes-toggle]');
+  const stripToggle = viewer?.querySelector('[data-pbd-viewer-strip-toggle]');
+  // Keys go to the slide area, so Space moves on rather than pressing the last toolbar button.
+  const viewerBody = viewer?.querySelector('[data-pbd-viewer-body]');
+  const focusSlide = () => viewerBody?.focus({ preventScroll: true });
+  const presentPrefsKey = 'prism.briefingDecks.present';
+  const readPresentPrefs = () => {
+    try { return JSON.parse(window.localStorage.getItem(presentPrefsKey) || 'null') || {}; } catch { return {}; }
+  };
+  const presentPrefs = { notes: false, strip: false, ...readPresentPrefs() };
+  const savePresentPrefs = () => {
+    try { window.localStorage.setItem(presentPrefsKey, JSON.stringify(presentPrefs)); } catch { /* not remembered */ }
+  };
+  // Whether this Present asked for full screen, so leaving full screen (Esc) ends it.
+  let enteredFullscreen = false;
+
+  // The notes the PowerPoint carries for the project on this slide (saved text, not a draft).
+  // The slide's own outline says whose it is; the Studio's selection may be a left-out project.
+  const viewerNotesFor = (index) => {
+    const projectId = outlineItems[index]?.projectId;
+    const project = projectId ? projects.get(projectId) : null;
+    if (!project) return 'No speaker notes: this slide is not about one project.';
+    return (project.speakerNotes || '').trim() || `No speaker notes for ${project.projectName}. Write them in This slide.`;
+  };
+
   const showViewerSlide = (index) => {
     if (!viewerStage || slides.length === 0) return;
     viewerIndex = Math.max(0, Math.min(index, slides.length - 1));
@@ -1186,12 +1215,13 @@ if (root) {
     viewerStage.replaceChildren(buildFrame(slide));
     if (viewerTitle) viewerTitle.textContent = slide.title;
     if (viewerCounter) viewerCounter.textContent = `${slide.number} / ${slides.length}`;
+    if (viewerNotesText) viewerNotesText.textContent = viewerNotesFor(viewerIndex);
     viewerStrip?.querySelectorAll('button').forEach((button, buttonIndex) => {
       const active = buttonIndex === viewerIndex;
       button.classList.toggle('is-active', active);
       if (active) {
         button.setAttribute('aria-current', 'true');
-        button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        if (!viewerStrip.hidden) button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       } else {
         button.removeAttribute('aria-current');
       }
@@ -1213,31 +1243,83 @@ if (root) {
     }));
   };
 
+  const setViewerPanels = () => {
+    if (viewerNotes) viewerNotes.hidden = !presentPrefs.notes;
+    if (viewerStrip) viewerStrip.hidden = !presentPrefs.strip;
+    notesToggle?.setAttribute('aria-pressed', String(presentPrefs.notes));
+    stripToggle?.setAttribute('aria-pressed', String(presentPrefs.strip));
+    viewer?.classList.toggle('has-notes', presentPrefs.notes);
+    viewer?.classList.toggle('has-strip', presentPrefs.strip);
+    if (presentPrefs.strip) viewerStrip?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
+  const toggleViewerPanel = (name) => {
+    presentPrefs[name] = !presentPrefs[name];
+    savePresentPrefs();
+    setViewerPanels();
+  };
+
   const openViewer = (index) => {
     if (!viewer || slides.length === 0) return;
     buildStrip();
+    setViewerPanels();
     if (!viewer.open) viewer.showModal();
     showViewerSlide(index);
+    focusSlide();
+    // Full screen needs this click's user activation; when refused, the dialog already fills the window.
+    enteredFullscreen = false;
+    const screenRoot = document.documentElement;
+    if (!document.fullscreenElement && typeof screenRoot.requestFullscreen === 'function') {
+      screenRoot.requestFullscreen({ navigationUI: 'hide' })
+        .then(() => { enteredFullscreen = true; })
+        .catch(() => { /* stays in the window */ });
+    }
   };
 
-  viewer?.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowRight' || event.key === 'PageDown') { event.preventDefault(); showViewerSlide(viewerIndex + 1); }
-    else if (event.key === 'ArrowLeft' || event.key === 'PageUp') { event.preventDefault(); showViewerSlide(viewerIndex - 1); }
-    else if (event.key === 'Home') { event.preventDefault(); showViewerSlide(0); }
-    else if (event.key === 'End') { event.preventDefault(); showViewerSlide(slides.length - 1); }
+  const closeViewer = () => {
+    if (viewer?.open) viewer.close();
+  };
+
+  // Esc first leaves full screen (the browser's own key); that also ends the presentation.
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && enteredFullscreen) {
+      enteredFullscreen = false;
+      closeViewer();
+    }
   });
-  viewer?.addEventListener('click', (event) => { if (event.target === viewer) viewer.close(); });
+
+  viewer?.addEventListener('keydown', (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    // Buttons keep Space and Enter for themselves.
+    const onButton = event.target instanceof Element && event.target.closest('button');
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'PageDown' || (event.key === ' ' && !onButton)) {
+      event.preventDefault(); showViewerSlide(viewerIndex + 1);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'PageUp') {
+      event.preventDefault(); showViewerSlide(viewerIndex - 1);
+    } else if (event.key === 'Home') { event.preventDefault(); showViewerSlide(0); }
+    else if (event.key === 'End') { event.preventDefault(); showViewerSlide(slides.length - 1); }
+    else if (event.key === 'n' || event.key === 'N') { event.preventDefault(); toggleViewerPanel('notes'); }
+  });
+  viewer?.addEventListener('click', (event) => { if (event.target === viewer) closeViewer(); });
   viewer?.addEventListener('close', () => {
+    if (document.fullscreenElement && enteredFullscreen) {
+      enteredFullscreen = false;
+      document.exitFullscreen?.().catch(() => {});
+    }
     [viewerStage, viewerStrip].forEach(releaseFrames);
     viewerStage?.replaceChildren();
     viewerStrip?.replaceChildren();
     // Return to the slide the presenter ended on.
     if (slides.length) selectIndex(viewerIndex);
+    presentButton?.focus();
   });
-  viewer?.querySelector('[data-pbd-viewer-close]')?.addEventListener('click', () => viewer.close());
+  viewer?.querySelector('[data-pbd-viewer-close]')?.addEventListener('click', closeViewer);
   viewer?.querySelector('[data-pbd-viewer-prev]')?.addEventListener('click', () => showViewerSlide(viewerIndex - 1));
   viewer?.querySelector('[data-pbd-viewer-next]')?.addEventListener('click', () => showViewerSlide(viewerIndex + 1));
+  viewer?.querySelector('[data-pbd-viewer-first]')?.addEventListener('click', () => { showViewerSlide(0); focusSlide(); });
+  notesToggle?.addEventListener('click', () => { toggleViewerPanel('notes'); focusSlide(); });
+  stripToggle?.addEventListener('click', () => { toggleViewerPanel('strip'); focusSlide(); });
 
+  // Present starts at the slide in view; "From the start" is in the presenter's toolbar.
   presentButton?.addEventListener('click', () => openViewer(current));
   refreshButton?.addEventListener('click', loadPreview);
   prevButton?.addEventListener('click', () => selectIndex(current - 1));

@@ -858,6 +858,8 @@
                         </section>
                         </div>
 
+                        @* Present: full screen where the browser allows it (else the whole window), the slide as
+                           large as it fits; the strip and the speaker notes open on request. *@
                         <dialog class="pbd-viewer" data-pbd-viewer aria-labelledby="pbd-viewer-title">
                             <div class="pbd-viewer__surface">
                                 <header class="pbd-viewer__header">
@@ -866,15 +868,33 @@
                                         <h2 id="pbd-viewer-title" data-pbd-viewer-title>Slide</h2>
                                     </div>
                                     <span class="pbd-viewer__counter" data-pbd-viewer-counter aria-live="polite"></span>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-viewer-close aria-label="Close viewer">
-                                        <i class="bi bi-x-lg" aria-hidden="true"></i>
-                                    </button>
+                                    <p class="pbd-viewer__keys" id="pbd-viewer-keys">
+                                        <kbd>&larr;</kbd><kbd>&rarr;</kbd> slides · <kbd>N</kbd> notes · <kbd>Esc</kbd> ends
+                                    </p>
+                                    <div class="pbd-viewer__tools">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-viewer-first>
+                                            <i class="bi bi-skip-start" aria-hidden="true"></i> From the start
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" aria-keyshortcuts="N" data-pbd-viewer-notes-toggle>
+                                            <i class="bi bi-card-text" aria-hidden="true"></i> Notes
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-pbd-viewer-strip-toggle>
+                                            <i class="bi bi-grid-3x2-gap" aria-hidden="true"></i> Slides
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-viewer-close aria-label="End the presentation" aria-keyshortcuts="Escape">
+                                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                                        </button>
+                                    </div>
                                 </header>
-                                <div class="pbd-viewer__body">
+                                <div class="pbd-viewer__body" tabindex="-1" aria-describedby="pbd-viewer-keys" data-pbd-viewer-body>
                                     <button type="button" class="pbd-viewer__nav" data-pbd-viewer-prev aria-label="Previous slide"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
                                     <div class="pbd-viewer__stage" data-pbd-viewer-stage></div>
                                     <button type="button" class="pbd-viewer__nav" data-pbd-viewer-next aria-label="Next slide"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
-                                    <ol class="pbd-viewer__strip" data-pbd-viewer-strip aria-label="All slides"></ol>
+                                    <section class="pbd-viewer__notes" aria-label="Speaker notes" data-pbd-viewer-notes hidden>
+                                        <h3>Speaker notes</h3>
+                                        <p data-pbd-viewer-notes-text></p>
+                                    </section>
+                                    <ol class="pbd-viewer__strip" data-pbd-viewer-strip aria-label="All slides" hidden></ol>
                                 </div>
                             </div>
                         </dialog>
