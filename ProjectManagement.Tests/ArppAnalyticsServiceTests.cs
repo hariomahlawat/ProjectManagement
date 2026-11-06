@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Arpp;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Arpp;
@@ -16,7 +17,7 @@ using Xunit;
 
 namespace ProjectManagement.Tests;
 
-/// <summary>Analytics → ARPP mode: the rules the service owns (year choice, cost bands, supply-order placement, PDC milestones).</summary>
+/// <summary>Analytics → ARPP mode: the rules the service owns (year choice, cost bands, supply-order placement, past AoN and the AoN split).</summary>
 public sealed class ArppAnalyticsServiceTests
 {
     private static readonly DateOnly Today = new(2026, 10, 25); // FY 2026-27
@@ -29,14 +30,12 @@ public sealed class ArppAnalyticsServiceTests
         var current = await onCurrent.BuildAsync(null, Today);
         Assert.Equal(2026, current.FinancialYearStart);
         Assert.True(current.IsCurrentFinancialYear);
-        Assert.False(current.IsFinancialYearClosed);
         Assert.Null(current.FallbackNote);
 
         var onlyOld = new ArppAnalyticsService(db, new FakeLibrary(2025), new FakeFyUpdate(new[] { 2025, 2024 }));
         var fallback = await onlyOld.BuildAsync(null, Today);
         Assert.Equal(2025, fallback.FinancialYearStart);
         Assert.False(fallback.IsCurrentFinancialYear);
-        Assert.True(fallback.IsFinancialYearClosed);
         Assert.Contains("showing FY 2025-26", fallback.FallbackNote);
 
         var requested = await onlyOld.BuildAsync(2024, Today);
@@ -115,55 +114,67 @@ public sealed class ArppAnalyticsServiceTests
         Assert.Equal(8_000_000m, vm.SupplyOrderValue); // only the dated order carries an amount
         Assert.Equal(5_000_000m, vm.CompletedSupplyOrderValue);
         Assert.Equal(13_000_000m, vm.TotalSupplyOrderValue);
-        Assert.Equal(13_000_000m / 70_000_000m, (decimal)vm.SupplyOrderShareOfIpa, 6);
         // The rest: ongoing without a supply order ("At SO", "Amount only", "Early"); the cancelled one is in no card.
+        // No AoN stage rows here, so the stage decides: SO and PNC are past AoN, SoW is not.
         Assert.Equal(3, vm.BeforeSupplyOrderCount);
-        Assert.Equal(1, vm.BeforeAonCount);
-        Assert.Equal(vm.OngoingCount, vm.SupplyOrderCount + vm.BeforeSupplyOrderCount);
+        Assert.Equal(2, vm.AonToSupplyOrderCount);
+        Assert.Equal(1, vm.PreAonCount);
+        Assert.Equal(vm.OngoingCount, vm.SupplyOrderCount + vm.AonToSupplyOrderCount + vm.PreAonCount);
     }
 
     [Fact]
-    public async Task BuildAsync_PdcMilestones_CountOnlyProjectsStillInWork()
+    public async Task BuildAsync_PastAonIsTheAonStageCompleted_WithOrWithoutADate()
     {
         await using var db = CreateDb();
+        db.ProjectStages.AddRange(
+            Stage(1, StageStatus.Completed, new DateOnly(2026, 5, 1)),
+            Stage(2, StageStatus.Completed, null),     // completed, date never entered
+            Stage(3, StageStatus.InProgress, null),    // at the AoN stage: AoN not yet granted
+            Stage(4, StageStatus.Skipped, null),       // AoN not required
+            Stage(5, StageStatus.NotStarted, null),
+            Stage(6, StageStatus.Completed, null));    // completed project
+        await db.SaveChangesAsync();
         var library = new FakeLibrary(2026,
-            Row(1, "Ahead", ArppCategory.New, 10_000_000m),
-            Row(2, "Late", ArppCategory.New, 10_000_000m),
-            Row(3, "Cancelled late", ArppCategory.New, 10_000_000m),
-            Row(4, "Completed late", ArppCategory.New, 10_000_000m),
-            Row(5, "Archived late", ArppCategory.New, 10_000_000m),
-            Row(6, "Next year", ArppCategory.New, 10_000_000m));
+            Row(1, "Dated", ArppCategory.New, 10_000_000m),
+            Row(2, "Undated", ArppCategory.New, 10_000_000m),
+            Row(3, "Awaiting AoN", ArppCategory.New, 10_000_000m),
+            Row(4, "Skipped", ArppCategory.New, 10_000_000m),
+            Row(5, "Early", ArppCategory.New, 10_000_000m),
+            Row(6, "Done", ArppCategory.New, 10_000_000m));
         var fy = new FakeFyUpdate(new[] { 2026 },
-            Update(1, "Ahead", ProjectLifecycleStatus.Active, StageCodes.DEVP, pdc: new DateOnly(2027, 1, 15)),
-            Update(2, "Late", ProjectLifecycleStatus.Active, StageCodes.DEVP, pdc: new DateOnly(2026, 9, 1)),
-            Update(3, "Cancelled late", ProjectLifecycleStatus.Cancelled, null, pdc: new DateOnly(2026, 9, 1)),
-            Update(4, "Completed late", ProjectLifecycleStatus.Completed, null, pdc: new DateOnly(2026, 9, 1)),
-            Update(5, "Archived late", ProjectLifecycleStatus.Active, StageCodes.DEVP, pdc: new DateOnly(2026, 9, 1), archived: true),
-            Update(6, "Next year", ProjectLifecycleStatus.Active, StageCodes.DEVP, pdc: new DateOnly(2027, 6, 1)));
+            Update(1, "Dated", ProjectLifecycleStatus.Active, StageCodes.TEC, aonDate: new DateOnly(2026, 5, 1)),
+            Update(2, "Undated", ProjectLifecycleStatus.Active, StageCodes.TEC),
+            Update(3, "Awaiting AoN", ProjectLifecycleStatus.Active, StageCodes.AON),
+            Update(4, "Skipped", ProjectLifecycleStatus.Active, StageCodes.BID),
+            Update(5, "Early", ProjectLifecycleStatus.Active, StageCodes.SOW),
+            Update(6, "Done", ProjectLifecycleStatus.Completed, null));
 
         var vm = await new ArppAnalyticsService(db, library, fy).BuildAsync(2026, Today);
 
-        Assert.Equal(1, vm.PdcDueInYearCount);
-        Assert.Equal("Ahead", vm.MilestoneBoard.Single(group => group.Key == "PDC_DUE").Projects.Single().ProjectName);
-        Assert.Equal(1, vm.PdcOverdueCount);
-        Assert.Equal("Late", vm.MilestoneBoard.Single(group => group.Key == "PDC_OVERDUE").Projects.Single().ProjectName);
-        Assert.Equal("PDC due by 31 Mar 2027", vm.MilestoneBoard.Single(group => group.Key == "PDC_DUE").Name);
+        var pastAon = vm.MilestoneBoard.Single(group => group.Key == "AON");
+        Assert.Equal(new[] { "Dated", "Done", "Skipped", "Undated" }, pastAon.Projects.Select(project => project.ProjectName).ToArray());
+        Assert.Equal("1 May 2026", pastAon.Projects.Single(project => project.ProjectName == "Dated").Detail);
+        Assert.Equal("date not recorded", pastAon.Projects.Single(project => project.ProjectName == "Undated").Detail);
+        Assert.Equal("AoN skipped", pastAon.Projects.Single(project => project.ProjectName == "Skipped").Detail);
+        Assert.Equal(4, vm.PastAonCount);
+
+        // The cards use the same rule: AoN to SO for the three ongoing past AoN, Pre-AoN for the other two.
+        Assert.Equal(3, vm.AonToSupplyOrderCount);
+        Assert.Equal(2, vm.PreAonCount);
+        Assert.Equal(vm.OngoingCount, vm.SupplyOrderCount + vm.AonToSupplyOrderCount + vm.PreAonCount);
     }
 
     [Fact]
-    public async Task BuildAsync_ClosedYear_SaysSoInsteadOfAnEmptyDueWindow()
+    public async Task BuildAsync_CarriesNoPdcMilestones()
     {
         await using var db = CreateDb();
-        var library = new FakeLibrary(2024, Row(1, "Old", ArppCategory.New, 10_000_000m));
-        var fy = new FakeFyUpdate(new[] { 2026, 2024 },
-            Update(1, "Old", ProjectLifecycleStatus.Active, StageCodes.DEVP, pdc: new DateOnly(2025, 1, 1)));
+        var library = new FakeLibrary(2026, Row(1, "Late", ArppCategory.New, 10_000_000m));
+        var fy = new FakeFyUpdate(new[] { 2026 },
+            Update(1, "Late", ProjectLifecycleStatus.Active, StageCodes.DEVP, pdc: new DateOnly(2026, 9, 1)));
 
-        var vm = await new ArppAnalyticsService(db, library, fy).BuildAsync(2024, Today);
+        var vm = await new ArppAnalyticsService(db, library, fy).BuildAsync(2026, Today);
 
-        Assert.True(vm.IsFinancialYearClosed);
-        Assert.Equal(0, vm.PdcDueInYearCount);
-        Assert.Equal("PDC due by 31 Mar 2025 (year closed)", vm.MilestoneBoard.Single(group => group.Key == "PDC_DUE").Name);
-        Assert.Equal(1, vm.PdcOverdueCount);
+        Assert.Equal(new[] { "AON", "SO" }, vm.MilestoneBoard.Select(group => group.Key).ToArray());
     }
 
     // SECTION: Fixtures
@@ -186,8 +197,12 @@ public sealed class ArppAnalyticsServiceTests
         DateOnly? pdc = null,
         DateOnly? supplyOrderDate = null,
         decimal? supplyOrderAmount = null,
-        bool archived = false) =>
-        new(projectId, projectId, null, name, null, null, null, "Est", null, supplyOrderAmount, ProjectSupplyOrderValueBasis.None, supplyOrderDate, pdc, ArppCategory.New, null, null, lifecycle, archived, stageCode, stageCode ?? "—", 0);
+        bool archived = false,
+        DateOnly? aonDate = null) =>
+        new(projectId, projectId, null, name, null, null, null, "Est", aonDate, supplyOrderAmount, ProjectSupplyOrderValueBasis.None, supplyOrderDate, pdc, ArppCategory.New, null, null, lifecycle, archived, stageCode, stageCode ?? "—", 0);
+
+    private static ProjectStage Stage(int projectId, StageStatus status, DateOnly? completedOn) =>
+        new() { ProjectId = projectId, StageCode = StageCodes.AON, SortOrder = 3, Status = status, CompletedOn = completedOn };
 
     private sealed class FakeLibrary : IArppLibraryService
     {

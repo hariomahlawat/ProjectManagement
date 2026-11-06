@@ -87,7 +87,7 @@
     <!-- SECTION: Headline figures -->
     @if (Model.Headlines.Count > 0)
     {
-      <section class="analytics-headlines" aria-label="Headline figures">
+      <section class="analytics-headlines @(Model.Headlines.Count == 5 ? "analytics-headlines--5" : null)" aria-label="Headline figures">
         @foreach (var figure in Model.Headlines)
         {
           var valueClass = figure.Value.Length > 7 ? "analytics-figure__value analytics-figure__value--text" : "analytics-figure__value";
