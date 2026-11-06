@@ -103,6 +103,61 @@ public sealed class ProjectBriefingExecutiveSummaryTests
         Assert.True(fewer, "Some brief length should fit on fewer slides once the strip is not drawn.");
     }
 
+    [Fact]
+    public void Movement_SeesAMissingProliferationCostAppearWhenAProjectIsCompleted()
+    {
+        // Codex review on #2938: an ongoing project without a proliferation cost has none drawn;
+        // once completed its slide says "Not recorded", so the library must see the change.
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 1,
+            DeckName = "Movement",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.ProliferationOnly,
+            IncludePortfolioSummarySlide = false,
+            IncludeStageSummary = false,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default with { ShowPresentStage = false, ShowPresentStatus = false },
+            GeneratedAtUtc = DateTimeOffset.UtcNow
+        };
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 7,
+            ProjectName = "AURA",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            PresentStageCode = "DEVP",
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            ProjectBrief = "A short brief.",
+            SortOrder = 1
+        };
+        data = new ProjectBriefingPresentationData
+        {
+            DeckId = data.DeckId, DeckName = data.DeckName, PresentationMode = data.PresentationMode,
+            NarrativeMode = data.NarrativeMode, CostMode = data.CostMode,
+            IncludePortfolioSummarySlide = false, IncludeStageSummary = false,
+            StandardSlideOptions = data.StandardSlideOptions, GeneratedAtUtc = data.GeneratedAtUtc,
+            Projects = new[] { project }
+        };
+        var generatedFact = ProjectBriefingSlideFacts.FromPresentation(project, data);
+        var completedToday = new Dictionary<int, ProjectBriefingCurrentProjectFacts>
+        {
+            [7] = new(7, "AURA", ProjectLifecycleStatus.Completed, "DEVP", null, null,
+                ProjectBriefingCostValue.Missing(), ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
+                ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation))
+        };
+
+        var moved = ProjectBriefingSlideFacts.Compare(
+            new ProjectBriefingGeneratedFacts(data.Layout, data.CostMode, new[] { generatedFact }), completedToday);
+        Assert.True(moved.HasMoved);
+
+        // A deck generated before this rule kept facts without the lifecycle: not flagged by it.
+        var olderFact = generatedFact with { Shown = generatedFact.Shown & ~ProjectBriefingShownFacts.Lifecycle, Stage = null };
+        var olderMoved = ProjectBriefingSlideFacts.Compare(
+            new ProjectBriefingGeneratedFacts(data.Layout, data.CostMode, new[] { olderFact }), completedToday);
+        Assert.False(olderMoved.HasMoved);
+    }
+
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]

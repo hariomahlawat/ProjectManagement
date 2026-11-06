@@ -182,8 +182,16 @@ public static class ProjectBriefingSlideFacts
         // stage and cost line), not on the first project-brief slide.
         var drawsSubtitle = hasOwnSlides && !updateSheet
             && ProjectBriefingSlideComposer.DrawsLifecycleSubtitle(data, project);
+        // A missing proliferation cost is drawn ("Not recorded", or a dash in the table) or left
+        // out depending on the lifecycle (ProjectBriefingContentGaps.ShowsProliferationCost), so
+        // the lifecycle is then part of what the slide shows. Compared through the facts a
+        // generation kept, so decks generated before this rule are not flagged by it.
+        var proliferationFollowsLifecycle = proliferationMode
+            && (inTable || hasOwnSlides)
+            && !project.ProliferationCost.IsAvailable;
         if (data.IncludePortfolioSummarySlide
             || drawsSubtitle
+            || proliferationFollowsLifecycle
             || (!updateSheet && data.IncludeStageSummary))
         {
             shown |= ProjectBriefingShownFacts.Lifecycle;
