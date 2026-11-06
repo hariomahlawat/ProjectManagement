@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Navigation.ModuleNav;
@@ -7,14 +6,14 @@ namespace ProjectManagement.ViewComponents;
 
 public sealed class AdminSidebarViewComponent : ViewComponent
 {
-    private readonly IAuthorizationService _authorizationService;
+    private readonly IAdminNavigationAccess _access;
     private readonly IAdminNavigationUrlBuilder _urlBuilder;
 
     public AdminSidebarViewComponent(
-        IAuthorizationService authorizationService,
+        IAdminNavigationAccess access,
         IAdminNavigationUrlBuilder urlBuilder)
     {
-        _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
+        _access = access ?? throw new ArgumentNullException(nameof(access));
         _urlBuilder = urlBuilder ?? throw new ArgumentNullException(nameof(urlBuilder));
     }
 
@@ -31,14 +30,11 @@ public sealed class AdminSidebarViewComponent : ViewComponent
         // it is open, the page that leads to it is highlighted instead.
         var activeKey = activeEntry?.SidebarParent ?? activeEntry?.Key;
 
-        var visibleEntries = new List<AdminSidebarItemViewModel>();
-        foreach (var entry in AdminNavigationCatalog.Entries.Where(entry => entry.InSidebar).OrderBy(entry => entry.Order))
-        {
-            if (!await IsAuthorizedAsync(entry))
-            {
-                continue;
-            }
+        var openable = await _access.GetOpenableEntriesAsync(HttpContext.User);
 
+        var visibleEntries = new List<AdminSidebarItemViewModel>();
+        foreach (var entry in openable.Where(entry => entry.InSidebar))
+        {
             visibleEntries.Add(new AdminSidebarItemViewModel
             {
                 Key = entry.Key,
@@ -54,13 +50,8 @@ public sealed class AdminSidebarViewComponent : ViewComponent
         // Pages reached through a hub are not in the sidebar, but its filter still finds them:
         // they are rendered as search-only links, shown only while the administrator types.
         var searchOnly = new List<AdminSidebarItemViewModel>();
-        foreach (var entry in AdminNavigationCatalog.Entries.Where(entry => !entry.InSidebar).OrderBy(entry => entry.Order))
+        foreach (var entry in openable.Where(entry => !entry.InSidebar))
         {
-            if (!await IsAuthorizedAsync(entry))
-            {
-                continue;
-            }
-
             searchOnly.Add(new AdminSidebarItemViewModel
             {
                 Key = entry.Key,
@@ -99,27 +90,6 @@ public sealed class AdminSidebarViewComponent : ViewComponent
         ViewContext.RouteData.Values.TryGetValue(key, out var value)
             ? value?.ToString()
             : null;
-
-    private async Task<bool> IsAuthorizedAsync(AdminNavigationEntry entry)
-    {
-        if (entry.Item.RequiredRoles is { Count: > 0 }
-            && !entry.Item.RequiredRoles.Any(User.IsInRole))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(entry.Item.AuthorizationPolicy))
-        {
-            return true;
-        }
-
-        var result = await _authorizationService.AuthorizeAsync(
-            HttpContext.User,
-            resource: null,
-            policyName: entry.Item.AuthorizationPolicy);
-
-        return result.Succeeded;
-    }
 }
 
 public sealed class AdminSidebarViewModel

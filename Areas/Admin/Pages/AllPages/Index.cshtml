@@ -1,0 +1,60 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.AllPages.IndexModel
+@{
+    ViewData["Title"] = Model.Header.Title;
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+<section class="admin-panel admin-page-index" data-admin-index>
+    <div class="admin-page-index__toolbar">
+        <div class="admin-page-index__search">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <label class="visually-hidden" for="admin-page-index-search">Find a page or setting</label>
+            <input id="admin-page-index-search"
+                   type="search"
+                   placeholder="Find a page or setting, such as &quot;trash&quot; or &quot;holiday&quot;"
+                   autocomplete="off"
+                   data-admin-index-search />
+        </div>
+        <p class="admin-page-index__count" role="status" aria-live="polite" data-admin-index-count
+           data-total="@Model.PageCount">@Model.PageCount pages</p>
+    </div>
+
+    @foreach (var group in Model.Groups)
+    {
+        var headingId = "admin-index-" + group.Name.ToLowerInvariant().Replace(" & ", "-").Replace(" ", "-");
+        <section class="admin-page-index__group" data-admin-index-group aria-labelledby="@headingId">
+            <h2 id="@headingId" class="admin-page-index__group-name">@group.Name</h2>
+            <ul class="admin-page-index__list">
+                @foreach (var entry in group.Pages)
+                {
+                    <li class="admin-page-index__item" data-admin-index-item data-admin-index-label="@entry.SearchLabel">
+                        <span class="admin-page-index__icon" aria-hidden="true"><i class="bi @(entry.Icon ?? "bi-circle")"></i></span>
+                        <div class="admin-page-index__copy">
+                            <a class="admin-page-index__link" href="@entry.Url">@entry.Text</a>
+                            <p class="admin-page-index__description">@entry.Description</p>
+                            @if (entry.OpensFrom is not null || entry.OwnModule is not null)
+                            {
+                                <p class="admin-page-index__meta">
+                                    @if (entry.OpensFrom is not null)
+                                    {
+                                        <span>Also reached from <strong>@entry.OpensFrom</strong>.</span>
+                                    }
+                                    @if (entry.OwnModule is not null)
+                                    {
+                                        <span>Opens in @entry.OwnModule.</span>
+                                    }
+                                </p>
+                            }
+                        </div>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    <p class="admin-page-index__empty" data-admin-index-empty hidden>
+        Nothing matches. Try another word, such as "trash", "password" or "holiday".
+    </p>
+</section>

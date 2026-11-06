@@ -35,6 +35,7 @@ public static class AdminNavigationKeys
     public const string ArchivedProjects = "archived-projects";
     public const string MaintenanceCentre = "maintenance-centre";
     public const string Help = "help";
+    public const string AllPages = "all-pages";
     public const string DocumentDeleteRequests = "document-delete-requests";
     public const string DocumentTypes = "document-types";
     public const string DocumentOffices = "document-offices";
@@ -342,6 +343,11 @@ public static class AdminNavigationCatalog
             exactPage: true),
 
         // Help
+        Entry(AdminNavigationKeys.AllPages, AdminNavigationGroups.Help, 395,
+            Item("Every admin page", "Admin", "/AllPages/Index", "bi-list-ul", AdminPolicies.Access),
+            "Every administration page you can open, with one sentence on what each is for.",
+            "all pages, index, site map, list of pages, everything, where is",
+            matchPagePattern: "/AllPages/"),
         Entry(AdminNavigationKeys.Help, AdminNavigationGroups.Help, 400,
             Item("Administration guide", "Admin", "/Help/Index", "bi-question-circle", AdminPolicies.Access),
             "How Administration works: access, monitoring, recovery, data jobs and reference lists.",

@@ -2,6 +2,9 @@
 @{
     var instance = ViewData["AdminSidebarInstance"] as string ?? "admin";
     var searchId = $"admin-navigation-search-{instance}";
+    var hintId = $"admin-navigation-search-hint-{instance}";
+    static string SearchLabel(ProjectManagement.ViewComponents.AdminSidebarItemViewModel item) =>
+        $"{item.Text} {item.Keywords} {item.Description}".ToLowerInvariant();
 }
 
 <div class="admin-sidebar__search" data-admin-sidebar-search-wrap>
@@ -11,11 +14,16 @@
            type="search"
            placeholder="Find a page or setting"
            autocomplete="off"
+           aria-describedby="@hintId"
+           aria-keyshortcuts="/"
            data-admin-sidebar-search />
+    <kbd class="admin-sidebar__search-key" aria-hidden="true" title="Press / to search" data-admin-sidebar-search-key>/</kbd>
     <button type="button" data-admin-sidebar-search-clear aria-label="Clear administration search" hidden>
         <i class="bi bi-x-lg" aria-hidden="true"></i>
     </button>
 </div>
+<p id="@hintId" class="visually-hidden">Matches page names, what each page is for and everyday words. Press Enter to open the first match; the arrow keys move through the results.</p>
+<p class="visually-hidden" role="status" aria-live="polite" data-admin-sidebar-search-status></p>
 
 <nav class="admin-sidebar__nav" aria-label="Administration sections" data-admin-sidebar-nav>
     @foreach (var group in Model.Groups)
@@ -45,7 +53,7 @@
                            aria-current="@(item.IsActive ? "page" : null)"
                            title="@item.Description"
                            data-admin-sidebar-link
-                           data-admin-sidebar-label="@($"{item.Text} {item.Keywords}".ToLowerInvariant())">
+                           data-admin-sidebar-label="@SearchLabel(item)">
                             <span class="admin-sidebar__item-icon" aria-hidden="true">
                                 <i class="bi @(item.Icon ?? "bi-circle")"></i>
                             </span>
@@ -77,7 +85,7 @@
                        title="@item.Description"
                        hidden
                        data-admin-sidebar-search-only-link
-                       data-admin-sidebar-label="@($"{item.Text} {item.Keywords}".ToLowerInvariant())">
+                       data-admin-sidebar-label="@SearchLabel(item)">
                         <span class="admin-sidebar__item-icon" aria-hidden="true">
                             <i class="bi @(item.Icon ?? "bi-circle")"></i>
                         </span>

@@ -86,6 +86,22 @@ A UI/UX review on 6 Nov 2026 (from the code and markup; no signed-in walkthrough
 - Document Repository and media pages keep their own module layout.
 - The Administration sidebar is shown only to Admins. HoD reaching Holidays, Celebrations or Activity types keeps the ordinary navigation.
 
+**Shipped in PR 3:**
+- "Find a page or setting" in the sidebar matches each page's name, its search words and its
+  one-line description. Every word typed must match ("public calendar" finds Holidays).
+- Keyboard:
+  - `/` on an Administration page jumps to the box. Ctrl+K still opens the app-wide search,
+    and on phones, where the sidebar is hidden, `/` keeps opening the app-wide search.
+  - Enter opens the first match.
+  - The arrow keys move through the results and back to the box.
+  - Escape clears the box.
+  - Screen readers hear how many pages match.
+- **Every admin page** (`/Admin/AllPages`) lists every page the viewer can open, grouped by task,
+  with its sentence. It says where a page is also reached from ("Also reached from Lists used in
+  forms") and when it opens in another module, and has the same filter.
+- The sidebar, its search and the index use one access check (`IAdminNavigationAccess`), so they
+  always show the same pages. The sidebar now has 20 entries (Every admin page joins Help).
+
 ### One catalogue drives everything
 
 `AdminNavigationCatalog` becomes the single source for the sidebar, the search, the "Every
