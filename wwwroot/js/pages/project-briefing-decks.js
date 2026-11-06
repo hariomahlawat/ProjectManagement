@@ -46,11 +46,19 @@ if (root) {
     return payload;
   };
 
+  const statusFadeTimers = new WeakMap();
   const setState = (element, message, state = '') => {
     if (!element) return;
+    window.clearTimeout(statusFadeTimers.get(element));
     element.textContent = message || '';
     element.classList.remove('is-saving', 'is-saved', 'is-error', 'is-success');
     if (state) element.classList.add(`is-${state}`);
+    // A confirmation under the outline ("49 projects added …") clears itself; errors stay.
+    if (state === 'saved' && element.matches('[data-pbd-membership-status]')) {
+      statusFadeTimers.set(element, window.setTimeout(() => {
+        if (element.classList.contains('is-saved')) setState(element, '');
+      }, 6000));
+    }
   };
 
   const rowVersionInputs = [...root.querySelectorAll('input[name="RowVersion"], input[name="rowVersion"]')];

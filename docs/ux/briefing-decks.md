@@ -520,7 +520,12 @@ template change) found:
    which the project page already opens). The cost gaps still open the project page; it has no
    cost section to land on.
 
-Left for later: the library table is cramped with the rail expanded at 1366 (owner and dates wrap;
-"Data since: Not generated yet" repeats "Last generated: Not yet"), the "… projects added" line
-stays in the outline, and Add projects has only × to finish.
+Then (follow-up):
+
+6. **Library rows stay one line at 1366 px.** Table dates drop this year's year ("05 Nov", "Today,
+   06:44"; other years "05 Nov 25") with the full date on hover; the owner truncates with the
+   full name on hover; "Data since" shows a dash before the first PowerPoint instead of repeating
+   "Not generated yet".
+7. **Loose ends.** The "… projects added" confirmation under the outline clears after six seconds
+   (errors stay), and Add projects has a **Done** button (adding saves at once; Done only closes).
 
