@@ -38,6 +38,39 @@ public sealed class ProjectBriefingExecutiveSummaryTests
     }
 
     [Fact]
+    public void Compose_LeavesProliferationOffAnOngoingProjectWithNone()
+    {
+        // Owner, 6 Nov 2026: a proliferation cost is expected only once a project is completed,
+        // so an ongoing project with none recorded shows no "Not recorded" proliferation figure.
+        var (content, _) = CreateComposer().Compose(BuildData());
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.Select(SlideText).ToArray();
+        var ongoing = Assert.Single(slides.Where(text => text.Contains("AURA", StringComparison.Ordinal) && !text.Contains("ASTRAE", StringComparison.Ordinal)));
+        var completed = Assert.Single(slides.Where(text => text.Contains("ASTRAE", StringComparison.Ordinal) && !text.Contains("AURA", StringComparison.Ordinal)));
+
+        Assert.DoesNotContain("PROLIFERATION", ongoing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("COST (R&D)", ongoing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PROLIFERATION", completed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("₹18.5 Lakh", completed, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ProjectLifecycleStatus.Active, false, false)]
+    [InlineData(ProjectLifecycleStatus.Active, true, true)]
+    [InlineData(ProjectLifecycleStatus.Completed, false, true)]
+    [InlineData(ProjectLifecycleStatus.Completed, true, true)]
+    public void ProliferationCost_ShowsWhenRecordedOrExpected(ProjectLifecycleStatus status, bool recorded, bool shows)
+    {
+        var cost = recorded
+            ? new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.Proliferation, "₹10 Lakh", "Proliferation")
+            : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
+
+        Assert.Equal(shows, ProjectBriefingContentGaps.ShowsProliferationCost(status, cost));
+    }
+
+    [Fact]
     public void Compose_PortfolioUsesRecordedCostTerminologyAndCoverageBars()
     {
         var composer = CreateComposer();

@@ -357,7 +357,8 @@ public sealed partial class ProjectBriefingSlideComposer
             parts.Add(cost);
         }
 
-        if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
+        if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both
+            && ProjectBriefingContentGaps.ShowsProliferationCost(project.LifecycleStatus, project.ProliferationCost))
         {
             var available = project.ProliferationCost.IsAvailable;
             parts.Add(new[]

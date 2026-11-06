@@ -47,9 +47,9 @@ public static class ProjectBriefingContentGaps
         if (uses.Status && string.IsNullOrWhiteSpace(project.ExternalStatus)) gaps.Add(Status);
         if (uses.CostRd && !project.CostRd.IsAvailable) gaps.Add(CostRd);
         // A proliferation cost is only expected once a project is completed (owner, 6 Nov 2026);
-        // an ongoing project without one is not a gap.
+        // an ongoing project without one is not a gap (and its slides leave the cost out).
         if (uses.ProliferationCost
-            && project.LifecycleStatus == ProjectLifecycleStatus.Completed
+            && ExpectsProliferationCost(project.LifecycleStatus)
             && !project.ProliferationCost.IsAvailable) gaps.Add(ProliferationCost);
         if (uses.Photo && !project.HasCoverPhoto) gaps.Add(Photo);
         if (uses.CapabilityOverview && !HasCapabilityOverview(project.BriefDescription)) gaps.Add(CapabilityOverview);
@@ -62,6 +62,15 @@ public static class ProjectBriefingContentGaps
     // The cost columns a status table shows for a deck: update-sheet decks always show R&D cost.
     public static ProjectBriefingCostMode EffectiveTableCostMode(ProjectBriefingLayout layout, ProjectBriefingCostMode costMode)
         => layout == ProjectBriefingLayout.ProjectUpdateSheet ? ProjectBriefingCostMode.CostRdOnly : costMode;
+
+    // Owner, 6 Nov 2026: a proliferation cost is expected only once a project is completed.
+    public static bool ExpectsProliferationCost(ProjectLifecycleStatus lifecycleStatus)
+        => lifecycleStatus == ProjectLifecycleStatus.Completed;
+
+    // Whether a slide shows the proliferation cost: when recorded, or when it is expected
+    // ("Not recorded" for a completed project). An ongoing project with none leaves it out.
+    public static bool ShowsProliferationCost(ProjectLifecycleStatus lifecycleStatus, ProjectBriefingCostValue cost)
+        => cost.IsAvailable || ExpectsProliferationCost(lifecycleStatus);
 
     public static bool HasCapabilityOverview(string? value)
     {
