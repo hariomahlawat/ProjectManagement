@@ -77,7 +77,7 @@ A UI/UX review on 6 Nov 2026 (from the code and markup; no signed-in walkthrough
   - "Who has which role", "Sign-in activity" and "Audit log"
   - "Restore deleted items", "Lists used in forms", "Data jobs" and "Data checks"
   - "Chat file storage"
-- The sidebar has 17 entries, and every group starts open.
+- The sidebar has 19 entries, down from 29, and every group starts open.
 - Pages reached through a hub are out of the sidebar and highlight their hub instead. These are the bins, the individual lists, PDF ingestion and legacy import.
 - Until the merged pages land, a few things stay separate:
   - Holidays and Celebrations are two sidebar entries.
