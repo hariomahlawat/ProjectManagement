@@ -590,6 +590,9 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         var missing = 0;
         foreach (var path in paths)
         {
+            // File.Exists does not observe the token, so stop between files: on a slow share a
+            // timed-out check ends here and reports the timeout instead of finishing the batch.
+            cancellationToken.ThrowIfCancellationRequested();
             if (!await _docStorage.ExistsAsync(path ?? string.Empty, cancellationToken)) missing++;
         }
 
