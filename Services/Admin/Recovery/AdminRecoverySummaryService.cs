@@ -103,26 +103,29 @@ public sealed class AdminRecoverySummaryService : IAdminRecoverySummaryService
         CancellationToken cancellationToken)
     {
         var take = _options.RecentOperationCount;
-        var rows = await _db.AuditLogs.AsNoTracking()
-            .Where(log =>
-                log.Action.Contains("Restore")
-                || log.Action.Contains("Purge")
-                || log.Action.Contains("Trash")
-                || log.Action.Contains("HardDelete")
-                || log.Action.Contains("Archived")
-                || log.Action.StartsWith("Chat.Attachments"))
-            .OrderByDescending(log => log.TimeUtc)
-            .ThenByDescending(log => log.Id)
+        // A person restoring their own notebook page is not administration: those are left out.
+        var rows = await (
+                from log in _db.AuditLogs.AsNoTracking()
+                where (log.Action.Contains("Restore")
+                        || log.Action.Contains("Purge")
+                        || log.Action.Contains("Trash")
+                        || log.Action.Contains("HardDelete")
+                        || log.Action.Contains("Archived")
+                        || log.Action.StartsWith("Chat.Attachments"))
+                    && !log.Action.StartsWith("Notebook.")
+                join user in _db.Users on log.UserId equals user.Id into users
+                from user in users.DefaultIfEmpty()
+                orderby log.TimeUtc descending, log.Id descending
+                select new
+                {
+                    log.Action,
+                    log.Level,
+                    // The person's name when the log kept only their id.
+                    Actor = log.UserName ?? (user == null ? log.UserId : (user.FullName ?? user.UserName)),
+                    log.Message,
+                    log.TimeUtc
+                })
             .Take(take)
-            .Select(log => new
-            {
-                log.Action,
-                log.Level,
-                log.UserName,
-                log.UserId,
-                log.Message,
-                log.TimeUtc
-            })
             .ToListAsync(cancellationToken);
 
         var auditOperations = rows.Select(row =>
@@ -131,7 +134,7 @@ public sealed class AdminRecoverySummaryService : IAdminRecoverySummaryService
             return new AdminRecoveryOperation(
                 row.Action,
                 presentation.Label,
-                row.UserName ?? row.UserId,
+                row.Actor,
                 new DateTimeOffset(EnsureUtc(row.TimeUtc)),
                 presentation.Tone,
                 presentation.Icon,

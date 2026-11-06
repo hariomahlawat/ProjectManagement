@@ -81,7 +81,8 @@ public sealed class IndexModel : PageModel
     {
         AdminRestoreTabKeys.Projects => $"Kept {Summary.ProjectRetentionDays} days, then deleted for good automatically."
             + (Summary.DueSoon > 0 ? $" {Summary.DueSoon} will go within {Summary.DueSoonWindowDays} days." : string.Empty),
-        AdminRestoreTabKeys.ProjectDocuments => $"Kept until an administrator deletes them for good ({FormatBytes(Summary.RecycledDocumentBytes)}).",
+        AdminRestoreTabKeys.ProjectDocuments => "Kept until an administrator deletes them for good."
+            + (Summary.RecycledDocumentBytes > 0 ? $" They take {FormatBytes(Summary.RecycledDocumentBytes)}." : string.Empty),
         AdminRestoreTabKeys.RepositoryDocuments => _repositoryTrash.RetentionDays > 0
             ? $"Kept {_repositoryTrash.RetentionDays} days, then deleted for good automatically. Opens in the Document Repository."
             : "Kept until someone deletes them for good. Opens in the Document Repository.",

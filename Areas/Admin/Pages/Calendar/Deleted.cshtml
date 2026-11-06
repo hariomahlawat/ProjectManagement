@@ -23,7 +23,7 @@
     <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Recovery directory</div><h2 id="deleted-events-title">Deleted events</h2></div><span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span></header>
 
     <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar admin-recovery-filter-toolbar--calendar">
-        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-search-control"><i class="bi bi-search"></i><input asp-for="Search" class="form-control" placeholder="Title, location, creator or description" /></div></div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-input-with-icon"><i class="bi bi-search" aria-hidden="true"></i><input asp-for="Search" class="form-control" placeholder="Title, location, creator or description" /></div></div>
         <div class="admin-filter-toolbar__field"><label asp-for="Category">Category</label><select asp-for="Category" class="form-select"><option value="">All categories</option>@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></div>
         <div class="admin-filter-toolbar__field"><label asp-for="DeletedFrom">Deleted from</label><input asp-for="DeletedFrom" type="date" class="form-control" /></div>
         <div class="admin-filter-toolbar__field"><label asp-for="DeletedTo">Deleted to</label><input asp-for="DeletedTo" type="date" class="form-control" /></div>
