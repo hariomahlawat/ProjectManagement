@@ -79,7 +79,9 @@ public sealed class AdminDashboardService : IAdminDashboardService
     public async Task<AdminDashboardSnapshot> GetAsync(CancellationToken cancellationToken = default)
     {
         var nowUtc = _time.UtcNow;
-        var since7Days = nowUtc.AddDays(-7);
+        // "7 days" is today and the six IST calendar days before it, as Sign-in activity
+        // counts its 7-day period, so the two pages give the same figure.
+        var since7Days = _time.StartOfIstDayUtc(_time.TodayIst.AddDays(-6));
         var since24Hours = nowUtc.AddDays(-1).UtcDateTime;
 
         var totalUsers = await _db.Users.AsNoTracking().CountAsync(cancellationToken);
@@ -157,10 +159,18 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 audit.Level,
                 audit.Action,
                 Message = audit.Message ?? audit.Action,
-                Actor = audit.UserName ?? "System",
+                audit.UserId,
+                audit.UserName,
                 audit.TimeUtc
             })
             .ToListAsync(cancellationToken);
+
+        // People by display name, through the same lookup as the audit log.
+        var (byId, byUserName) = await AuditActorNames.LoadDirectoryAsync(
+            _db,
+            recentActions.Select(action => action.UserId),
+            recentActions.Select(action => action.UserName),
+            cancellationToken);
 
         return new AdminDashboardSnapshot(
             metrics,
@@ -169,7 +179,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
                     action.Level,
                     action.Action,
                     action.Message,
-                    action.Actor,
+                    AuditActorNames.Resolve(action.UserId, action.UserName, byId, byUserName),
                     _time.FormatIst(action.TimeUtc)))
                 .ToArray(),
             BuildAttention(metrics, _time.TodayIst.AddDays(-1)));
