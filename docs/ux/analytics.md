@@ -205,7 +205,8 @@ PRs:
 
 ### ARPP progress slides (6 Nov 2026)
 
-The **Slides** button beside the Financial year chip downloads the ARPP as two slides, or three when a
+The **Download slides** button in the page header (ARPP mode only, as the CoE mode's; moved out of the
+chart card on 7 Nov 2026 because the slides cover the whole mode, not the chart) downloads the ARPP as two slides, or three when a
 column runs long (`OnGetArppSlidesAsync`, the same ViewArpp check as the mode; the year and the 31 March
 / Today view of the page). `ArppProgressSlideComposer` (`Services/Analytics/Presentation`, tests in
 `ArppProgressSlideComposerTests`) draws them as PowerPoint shapes on the Briefing Studio template, with
