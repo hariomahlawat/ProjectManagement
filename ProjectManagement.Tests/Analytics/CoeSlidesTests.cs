@@ -51,10 +51,10 @@ public sealed class CoeSlidesTests
     [Fact]
     public void LineCount_WrapsAtWordBreaks()
     {
-        Assert.Equal(1, CoeSlideComposer.LineCount("VR Bailey Bridge Sml", 3.0, 11));
+        Assert.Equal(1, AnalyticsSlideFrame.LineCount("VR Bailey Bridge Sml", 3.0, 11));
         // About 39 characters a line at 11 pt in 3 in: this name takes two lines, and is never cut.
-        Assert.Equal(2, CoeSlideComposer.LineCount("Augmented Reality-based Unified Reconnaissance Trainer", 3.0, 11));
-        Assert.Equal(3, CoeSlideComposer.LineCount("VR based Physiological Response Evaluation System (Stress Detection Simulator)", 2.4, 11));
+        Assert.Equal(2, AnalyticsSlideFrame.LineCount("Augmented Reality-based Unified Reconnaissance Trainer", 3.0, 11));
+        Assert.Equal(3, AnalyticsSlideFrame.LineCount("VR based Physiological Response Evaluation System (Stress Detection Simulator)", 2.4, 11));
     }
 
     [Fact]

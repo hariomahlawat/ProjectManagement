@@ -55,7 +55,9 @@ public static class StageCodes
     private static readonly IReadOnlyDictionary<string, string> ShortLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [FS] = "FS", [IPA] = "IPA", [SOW] = "SoW", [AON] = "AoN", [BID] = "Bid", [TEC] = "TEC", [BM] = "BM", [COB] = "COB",
-        [PNC] = "PNC", [EAS] = "EAS", [SO] = "SO", [DEVP] = "Devp", [ATP] = "ATP", [PAYMENT] = "Pay", [TOT] = "ToT"
+        [PNC] = "PNC", [EAS] = "EAS", [SO] = "SO", [DEVP] = "Devp", [ATP] = "ATP", [PAYMENT] = "Pay", [TOT] = "ToT",
+        // Not stages: the buckets the ARPP chart adds for a project with no stage recorded, or not known.
+        ["UNASSIGNED"] = "Unassigned", ["NOT_KNOWN"] = "Not known"
     };
 
     /// <summary>The stage's short label ("Devp", "AoN"); an unknown code is returned as it is.</summary>

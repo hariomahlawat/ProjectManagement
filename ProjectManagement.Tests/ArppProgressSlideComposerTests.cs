@@ -199,9 +199,9 @@ public sealed class ArppProgressSlideComposerTests
     [Theory]
     [InlineData("NIRBHAY", 2.3, 10, 1)]
     [InlineData("VR based Physiological Response Evaluation System (Stress Detection Simulator)", 2.3, 10, 3)]
-    public void WrapCount_EstimatesTheLinesANameTakes(string name, double width, double points, int expected)
+    public void LineCount_EstimatesTheLinesANameTakes(string name, double width, double points, int expected)
     {
-        Assert.Equal(expected, ArppProgressSlideComposer.WrapCount(name, width, points));
+        Assert.Equal(expected, AnalyticsSlideFrame.LineCount(name, width, points));
     }
 
     // SECTION: Fixtures

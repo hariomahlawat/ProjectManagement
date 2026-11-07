@@ -9,7 +9,7 @@ using DocumentFormat.OpenXml.Presentation;
 
 namespace ProjectManagement.Services.Presentation;
 
-// SECTION: Shared PowerPoint drawing (one implementation for the generated FFC and CoE decks)
+// SECTION: Shared PowerPoint drawing (one implementation for the generated FFC, CoE and ARPP decks)
 /// <summary>
 /// One run of a <see cref="PptxTextParagraph"/>: its own size, colour and weight. A tab ("\t") in the text
 /// moves to the paragraph's right tab stop; <see cref="LineBreak"/> starts a new line in the same paragraph.
