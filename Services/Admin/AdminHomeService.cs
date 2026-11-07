@@ -161,6 +161,9 @@ public static class AdminHomeRules
 {
     public const string NoFigure = "";
 
+    /// <summary>At most this many system checks get their own "To look at" line.</summary>
+    public const int MaxHealthLines = 5;
+
     public static IReadOnlyList<AdminHomeLookAt> BuildLookAt(
         IReadOnlyList<AdminDashboardAttention> attention,
         AdminSystemHealthSnapshot? health,
@@ -168,25 +171,34 @@ public static class AdminHomeRules
     {
         var items = new List<AdminHomeLookAt>();
 
-        if (health is not null && health.OverallStatus == AdminHealthStatus.Critical)
+        // Each failed or warning check is its own line, in its own words, failed ones first: one
+        // line saying "5 checks need a look" hid the rest (docs/ux/admin-review-fixes.md, PR 3).
+        // Checks that have not run yet are not listed: there is nothing to do about them.
+        if (health is not null)
         {
-            var failed = health.Checks.First(check => check.Status == AdminHealthStatus.Critical);
-            items.Add(new AdminHomeLookAt(
-                Count(health.CriticalCount, "system check failed", "system checks failed"),
-                $"{failed.Label}: {failed.Summary}",
-                "Open System health",
-                AdminNavigationKeys.DatabaseHealth,
-                Urgent: true));
-        }
-        else if (health is not null && health.OverallStatus == AdminHealthStatus.Warning)
-        {
-            var count = health.WarningCount + health.UnavailableCount;
-            var first = health.Checks.First(check => check.Status is AdminHealthStatus.Warning or AdminHealthStatus.Unavailable);
-            items.Add(new AdminHomeLookAt(
-                Count(count, "system check needs a look", "system checks need a look"),
-                $"{first.Label}: {first.Summary}",
-                "Open System health",
-                AdminNavigationKeys.DatabaseHealth));
+            var problems = health.Checks
+                .Where(check => check.Status is AdminHealthStatus.Critical or AdminHealthStatus.Warning)
+                .OrderByDescending(check => check.Status == AdminHealthStatus.Critical)
+                .ToArray();
+            foreach (var check in problems.Take(MaxHealthLines))
+            {
+                var urgent = check.Status == AdminHealthStatus.Critical;
+                items.Add(new AdminHomeLookAt(
+                    check.Summary,
+                    check.RecommendedAction is { Length: > 0 } action ? $"{check.Label}. {action}" : check.Label,
+                    "Open System health",
+                    AdminNavigationKeys.DatabaseHealth,
+                    Urgent: urgent));
+            }
+
+            if (problems.Length > MaxHealthLines)
+            {
+                items.Add(new AdminHomeLookAt(
+                    Count(problems.Length - MaxHealthLines, "more system check needs a look", "more system checks need a look"),
+                    "System health lists every check and what to do.",
+                    "Open System health",
+                    AdminNavigationKeys.DatabaseHealth));
+            }
         }
 
         items.AddRange(attention.Select(item => new AdminHomeLookAt(

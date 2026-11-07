@@ -1,7 +1,12 @@
 using System.Diagnostics;
 using System.Reflection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
+using ProjectManagement.Data;
+using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Services.Chat;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.SearchV2.Indexing;
@@ -67,6 +72,9 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     private readonly IConfiguration _configuration;
     private readonly IAdminWorkerStatusRegistry _workers;
     private readonly ISearchIndexStore _searchIndex;
+    private readonly ApplicationDbContext _db;
+    private readonly IOptionsMonitor<ChatOptions> _chat;
+    private readonly IServiceProvider _services;
     private readonly IOptions<SearchV2Options> _searchOptions;
     private readonly IMemoryCache _cache;
     private readonly ILogger<AdminSystemHealthService> _logger;
@@ -79,6 +87,9 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         IConfiguration configuration,
         IAdminWorkerStatusRegistry workers,
         ISearchIndexStore searchIndex,
+        ApplicationDbContext db,
+        IOptionsMonitor<ChatOptions> chat,
+        IServiceProvider services,
         IOptions<SearchV2Options> searchOptions,
         IMemoryCache cache,
         ILogger<AdminSystemHealthService> logger)
@@ -90,6 +101,9 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _workers = workers ?? throw new ArgumentNullException(nameof(workers));
         _searchIndex = searchIndex ?? throw new ArgumentNullException(nameof(searchIndex));
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _chat = chat ?? throw new ArgumentNullException(nameof(chat));
+        _services = services ?? throw new ArgumentNullException(nameof(services));
         _searchOptions = searchOptions ?? throw new ArgumentNullException(nameof(searchOptions));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -143,6 +157,41 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             CheckSearchIndexAsync,
             "Open Search index to retry the items that failed, or rebuild the index.",
             cancellationToken));
+
+        // Problems that used to show only on their own pages (docs/ux/admin-review-fixes.md, PR 3):
+        // files the Document Repository cannot open, media PRISM cannot find, face recognition
+        // without its detector, and chat uploads about to stop for lack of disk space.
+        checks.Add(await RunAsync(
+            "document-repository-files",
+            "Storage",
+            "Document Repository files",
+            CheckRepositoryFilesAsync,
+            "Open Missing files (Document Repository) to see which documents have lost their file, then restore the files from backup.",
+            cancellationToken));
+
+        if (_configuration.GetValue<bool?>("MediaLibrary:Enabled") ?? true)
+        {
+            checks.Add(await RunAsync(
+                "media-availability",
+                "Media library",
+                "Photos and videos",
+                CheckMediaAvailabilityAsync,
+                "Open Media sources: check that the media folders are reachable, then use Recheck under Unavailable media.",
+                cancellationToken));
+            checks.Add(await RunAsync(
+                "media-face-detector",
+                "Media library",
+                "Face recognition",
+                CheckFaceDetectorAsync,
+                "Open Media intelligence: it lists each model file that is missing or not approved.",
+                cancellationToken));
+        }
+
+        var chatUploads = BuildChatUploadSpaceCheck(_uploads.RootPath);
+        if (chatUploads is not null)
+        {
+            checks.Add(chatUploads);
+        }
 
         checks.Add(BuildDiskSpaceCheck(_uploads.RootPath));
         checks.Add(BuildApplicationCheck());
@@ -516,6 +565,154 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         }
 
         return (AdminHealthStatus.Healthy, "Search is up to date.", detail);
+    }
+
+    // Each file check is a cheap existence test; the newest documents are checked first and the
+    // total is capped so a very large repository cannot hold the check past its time limit.
+    internal const int RepositoryFileCheckLimit = 5000;
+
+    private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckRepositoryFilesAsync(CancellationToken cancellationToken)
+    {
+        var paths = await _db.Documents
+            .AsNoTracking()
+            .Where(document => !document.IsDeleted)
+            .OrderByDescending(document => document.CreatedAtUtc)
+            .Select(document => document.StoragePath)
+            .Take(RepositoryFileCheckLimit + 1)
+            .ToListAsync(cancellationToken);
+
+        var capped = paths.Count > RepositoryFileCheckLimit;
+        if (capped) paths.RemoveAt(paths.Count - 1);
+
+        // Resolved here, inside the guarded check: the storage service creates its folder when it
+        // starts, and a failure there must become this check's warning, not stop System health
+        // and Home from loading.
+        var docStorage = _services.GetRequiredService<IDocStorage>();
+        var missing = 0;
+        foreach (var path in paths)
+        {
+            // File.Exists does not observe the token, so stop between files: on a slow share a
+            // timed-out check ends here and reports the timeout instead of finishing the batch.
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!await docStorage.ExistsAsync(path ?? string.Empty, cancellationToken)) missing++;
+        }
+
+        return RepositoryFilesResult(paths.Count, missing, capped);
+    }
+
+    internal static (AdminHealthStatus Status, string Summary, string? Detail) RepositoryFilesResult(int checkedCount, int missing, bool capped)
+    {
+        var scope = capped ? $"the newest {checkedCount:N0} documents" : $"{checkedCount:N0} document{(checkedCount == 1 ? "" : "s")}";
+        if (missing == 0)
+        {
+            return (AdminHealthStatus.Healthy, "Every document's file is on disk.", $"Checked {scope}.");
+        }
+
+        return (
+            AdminHealthStatus.Warning,
+            missing == 1
+                ? "1 document has lost its file, so it cannot be opened or downloaded."
+                : $"{missing:N0} documents have lost their file, so they cannot be opened or downloaded.",
+            $"Checked {scope}.");
+    }
+
+    private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckMediaAvailabilityAsync(CancellationToken cancellationToken)
+    {
+        var service = _services.GetService<IMediaAvailabilityRecoveryService>();
+        if (service is null)
+        {
+            return (AdminHealthStatus.Healthy, "The media library is not in use.", null);
+        }
+
+        var status = await service.GetStatusAsync(cancellationToken);
+        return MediaAvailabilityResult(status.AvailableAssets, status.UnavailableAssets);
+    }
+
+    internal static (AdminHealthStatus Status, string Summary, string? Detail) MediaAvailabilityResult(int available, int unavailable)
+    {
+        var total = available + unavailable;
+        if (unavailable == 0)
+        {
+            return (AdminHealthStatus.Healthy, "Every photo and video can be found.", $"{total:N0} items in the media library.");
+        }
+
+        return (
+            AdminHealthStatus.Warning,
+            unavailable == 1
+                ? "1 photo or video cannot be found where PRISM reads it, so it is hidden from Photos."
+                : $"{unavailable:N0} photos and videos cannot be found where PRISM reads them, so they are hidden from Photos.",
+            $"{unavailable:N0} of {total:N0} items unavailable.");
+    }
+
+    private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckFaceDetectorAsync(CancellationToken cancellationToken)
+    {
+        var readiness = _services.GetService<IFaceModelReadinessService>();
+        if (readiness is null)
+        {
+            return (AdminHealthStatus.Healthy, "Face recognition is not in use.", null);
+        }
+
+        // The full readiness covers face recognition in Photos (detector, embedder and the rest);
+        // CheckDetectorAsync only covers the classification assistant's detector.
+        var recognition = await readiness.CheckAsync(cancellationToken);
+        return FaceDetectorResult(recognition.IsEnabled, recognition.IsReady, recognition.Message);
+    }
+
+    internal static (AdminHealthStatus Status, string Summary, string? Detail) FaceDetectorResult(bool enabled, bool ready, string message)
+    {
+        if (!enabled)
+        {
+            return (AdminHealthStatus.Healthy, "Face recognition is switched off.", null);
+        }
+
+        return ready
+            ? (AdminHealthStatus.Healthy, "Face recognition is ready.", null)
+            : (AdminHealthStatus.Warning, "Face recognition in Photos is not working: its model is not ready.", message);
+    }
+
+    // Chat stops accepting files below a free-space floor; warn while there is still room to act.
+    private AdminSystemHealthCheck? BuildChatUploadSpaceCheck(string path)
+    {
+        var attachments = _chat.CurrentValue.Attachments;
+        if (!_chat.CurrentValue.Enabled || !attachments.Enabled) return null;
+
+        try
+        {
+            // The same measurement chat uploads are refused by (it picks the mount that holds the
+            // upload folder, not the system root).
+            var diskSpace = _services.GetService<IChatDiskSpace>();
+            if (diskSpace?.AvailableBytes(path) is not { } free) return null;
+            var result = ChatUploadSpaceResult(free, attachments.MinimumFreeDiskBytes);
+            return new(
+                "chat-upload-space",
+                "Storage",
+                "Space for chat files",
+                result.Status,
+                result.Summary,
+                result.Detail,
+                result.Status == AdminHealthStatus.Healthy ? null : "Free space on the upload disk, or remove old chat files in Chat file storage.",
+                -1,
+                DateTimeOffset.UtcNow);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogDebug(exception, "Free space for chat uploads could not be determined for {StoragePath}.", path);
+            return null;
+        }
+    }
+
+    internal static (AdminHealthStatus Status, string Summary, string? Detail) ChatUploadSpaceResult(long freeBytes, long minimumBytes)
+    {
+        var detail = $"{FormatBytes(freeBytes)} free; chat uploads stop below {FormatBytes(minimumBytes)}.";
+        if (freeBytes < minimumBytes)
+        {
+            return (AdminHealthStatus.Critical, "Chat file uploads have stopped: the upload disk is below its free-space limit.", detail);
+        }
+
+        // Warn within half the limit again (for a 20 GB limit, below 30 GB free).
+        return freeBytes < minimumBytes + minimumBytes / 2
+            ? (AdminHealthStatus.Warning, "The upload disk is close to the point where chat file uploads stop.", detail)
+            : (AdminHealthStatus.Healthy, "There is room for chat files.", detail);
     }
 
     internal static string EndSentence(string text) =>

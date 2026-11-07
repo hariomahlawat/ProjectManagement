@@ -53,9 +53,37 @@ public sealed class AdminHomeTests
         Assert.Equal("Needs attention", status.Label);
         var item = Assert.Single(lookAt);
         Assert.True(item.Urgent);
-        Assert.Equal("1 system check failed", item.Title);
-        Assert.Equal("Document repository storage: Not writable.", item.Detail);
+        Assert.Equal("Not writable.", item.Title);
+        Assert.Equal("Document repository storage", item.Detail);
         Assert.Equal(AdminNavigationKeys.DatabaseHealth, item.NavigationKey);
+    }
+
+    [Fact]
+    public void EachSystemProblem_GetsItsOwnLine_FailedFirst_AndNotRunYetIsLeftOut()
+    {
+        var checks = new List<AdminSystemHealthCheck>
+        {
+            new("files", "Storage", "Document Repository files", AdminHealthStatus.Warning, "110 documents have lost their file.", null, "Open Missing files.", 1, Checked),
+            new("worker", "Background services", "Audit retention", AdminHealthStatus.Unavailable, "Starting.", null, null, -1, Checked),
+            new("chat", "Storage", "Space for chat files", AdminHealthStatus.Critical, "Chat file uploads have stopped.", null, null, -1, Checked)
+        };
+        for (var index = 0; index < 5; index++)
+        {
+            checks.Add(new($"extra-{index}", "Storage", $"Extra {index}", AdminHealthStatus.Warning, $"Extra problem {index}.", null, null, 1, Checked));
+        }
+        var health = new AdminSystemHealthSnapshot(AdminHealthStatus.Critical, Checked, "Production", "1.0", checks,
+            new DatabaseHealthSnapshot(false, null, null, null, null, null, null, "(not available)", Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<DatabaseHealthCheck>()));
+
+        var lookAt = AdminHomeRules.BuildLookAt(Array.Empty<AdminDashboardAttention>(), health, null);
+
+        // Five lines (the failed check first), then one line for the rest; the not-run worker is absent.
+        Assert.Equal(AdminHomeRules.MaxHealthLines + 1, lookAt.Count);
+        Assert.Equal("Chat file uploads have stopped.", lookAt[0].Title);
+        Assert.True(lookAt[0].Urgent);
+        Assert.Equal("110 documents have lost their file.", lookAt[1].Title);
+        Assert.Equal("Document Repository files. Open Missing files.", lookAt[1].Detail);
+        Assert.Equal("2 more system checks need a look", lookAt[^1].Title);
+        Assert.DoesNotContain(lookAt, item => item.Title == "Starting.");
     }
 
     [Fact]

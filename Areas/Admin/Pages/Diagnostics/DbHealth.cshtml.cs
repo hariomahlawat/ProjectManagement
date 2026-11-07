@@ -166,7 +166,8 @@ public sealed class DbHealthModel : PageModel
         "Storage" => 1,
         "Application security" => 2,
         "Search" => 3,
-        "Background services" => 4,
+        "Media library" => 4,
+        "Background services" => 5,
         _ => 9
     };
 
