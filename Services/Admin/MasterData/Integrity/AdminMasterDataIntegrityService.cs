@@ -317,7 +317,7 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
         string description,
         string icon,
         IReadOnlyList<MasterDataIntegrityFinding> findings) =>
-        BuildCheck(key, title, description, icon, findings, critical: false, canRepair: findings.Count > 0, repairLabel: "Normalise order");
+        BuildCheck(key, title, description, icon, findings, critical: false, canRepair: findings.Count > 0, repairLabel: "Renumber 1, 2, 3…");
 
     private static MasterDataIntegrityCheck BuildCheck(
         string key,

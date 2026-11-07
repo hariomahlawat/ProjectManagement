@@ -114,7 +114,7 @@
                 @if (Model.Account.AccountState.State != AdminUserAccountState.PendingDeletion)
                 {
                     <a class="admin-panel__action" asp-page="./Edit" asp-route-id="@Model.Account.Id">
-                        Edit roles <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        Edit account <i class="bi bi-arrow-right" aria-hidden="true"></i>
                     </a>
                 }
             </header>
@@ -166,7 +166,7 @@
                 {
                     <a asp-page="./Edit" asp-route-id="@Model.Account.Id" class="admin-account-action">
                         <span class="admin-account-action__icon"><i class="bi bi-pencil-square" aria-hidden="true"></i></span>
-                        <span><strong>Edit account</strong><small>Update identity details and assigned roles.</small></span>
+                        <span><strong>Edit account</strong><small>Change their name, rank or roles.</small></span>
                         <i class="bi bi-chevron-right" aria-hidden="true"></i>
                     </a>
 

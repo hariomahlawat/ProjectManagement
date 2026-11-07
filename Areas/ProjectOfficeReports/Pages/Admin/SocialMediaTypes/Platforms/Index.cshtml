@@ -39,6 +39,7 @@
                             <div class="visit-type-card__header">
                                 <div>
                                     <h2 class="visit-type-card__title">@platform.Name</h2>
+                                    <p class="visit-type-card__meta">@platform.EventCount @("event" + (platform.EventCount == 1 ? string.Empty : "s")) logged</p>
                                 </div>
                                 <span class="visit-pill @(platform.IsActive ? string.Empty : "visit-pill--warning")">@(platform.IsActive ? "Active" : "Inactive")</span>
                             </div>
@@ -51,11 +52,18 @@
                                     <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(platform.RowVersion)" />
                                     <button type="submit" class="btn btn-outline-secondary btn-sm">@(platform.IsActive ? "Deactivate" : "Activate")</button>
                                 </form>
-                                <form method="post" asp-page-handler="Delete" class="visit-type-card__form">
-                                    <input type="hidden" name="id" value="@platform.Id" />
-                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(platform.RowVersion)" />
-                                    <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this social media platform?">Delete</button>
-                                </form>
+                                @if (platform.EventCount == 0)
+                                {
+                                    <form method="post" asp-page-handler="Delete" class="visit-type-card__form">
+                                        <input type="hidden" name="id" value="@platform.Id" />
+                                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(platform.RowVersion)" />
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this social media platform?">Delete</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <span class="small text-body-secondary align-self-center">In use, so it can only be deactivated</span>
+                                }
                             </div>
                         </article>
                     }

@@ -34,8 +34,8 @@ public class IndexModel : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
+        // Platforms have their own page; the platform handlers below stay for links already open.
         Items = await _service.GetSummariesAsync(cancellationToken);
-        Platforms = await _platformService.GetSummariesAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnPostToggleAsync(Guid id, bool enable, string rowVersion, CancellationToken cancellationToken)
@@ -154,6 +154,9 @@ public class IndexModel : PageModel
                 break;
             case SocialMediaPlatformDeletionOutcome.ConcurrencyConflict:
                 TempData["ToastError"] = "The social media platform was changed by someone else. Please reload the page.";
+                break;
+            case SocialMediaPlatformDeletionOutcome.InUse:
+                TempData["ToastError"] = "Events are logged on this platform, so it cannot be deleted. Deactivate it instead.";
                 break;
             default:
                 TempData["ToastError"] = "Social media platform not found.";

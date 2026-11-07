@@ -80,6 +80,9 @@ public class IndexModel : PageModel
             case SocialMediaPlatformDeletionOutcome.ConcurrencyConflict:
                 TempData["ToastError"] = "The social media platform was changed by someone else. Please reload the page.";
                 break;
+            case SocialMediaPlatformDeletionOutcome.InUse:
+                TempData["ToastError"] = "Events are logged on this platform, so it cannot be deleted. Deactivate it instead.";
+                break;
             default:
                 TempData["ToastError"] = "Social media platform not found.";
                 break;
