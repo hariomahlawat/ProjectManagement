@@ -526,76 +526,91 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     private IEnumerable<AdminSystemHealthCheck> BuildWorkerChecks()
     {
         var now = DateTimeOffset.UtcNow;
-        foreach (var worker in _workers.GetSnapshot())
+        return _workers.GetSnapshot().Select(worker => WorkerCheck(worker, now)).ToArray();
+    }
+
+    internal static AdminSystemHealthCheck WorkerCheck(AdminWorkerStatus worker, DateTimeOffset now)
+    {
+        var expected = worker.ExpectedInterval;
+        var staleAfter = expected.HasValue
+            ? expected.Value + TimeSpan.FromTicks(Math.Max(expected.Value.Ticks, TimeSpan.FromMinutes(15).Ticks))
+            : TimeSpan.FromHours(48);
+        var runningTooLong = worker.State == AdminWorkerState.Running
+            && worker.LastStartedUtc.HasValue
+            && now - worker.LastStartedUtc.Value > staleAfter;
+        var stale = worker.State == AdminWorkerState.Healthy
+            && worker.LastSucceededUtc.HasValue
+            && now - worker.LastSucceededUtc.Value > staleAfter;
+
+        var status = worker.State switch
         {
-            var expected = worker.ExpectedInterval;
-            var staleAfter = expected.HasValue
-                ? expected.Value + TimeSpan.FromTicks(Math.Max(expected.Value.Ticks, TimeSpan.FromMinutes(15).Ticks))
-                : TimeSpan.FromHours(48);
-            var runningTooLong = worker.State == AdminWorkerState.Running
-                && worker.LastStartedUtc.HasValue
-                && now - worker.LastStartedUtc.Value > staleAfter;
-            var stale = worker.State == AdminWorkerState.Healthy
-                && worker.LastSucceededUtc.HasValue
-                && now - worker.LastSucceededUtc.Value > staleAfter;
+            AdminWorkerState.Failed => AdminHealthStatus.Critical,
+            AdminWorkerState.Registered => AdminHealthStatus.Unavailable,
+            AdminWorkerState.Running when runningTooLong => AdminHealthStatus.Warning,
+            AdminWorkerState.Healthy when stale => AdminHealthStatus.Warning,
+            _ => AdminHealthStatus.Healthy
+        };
 
-            var status = worker.State switch
-            {
-                AdminWorkerState.Failed => AdminHealthStatus.Critical,
-                AdminWorkerState.Registered => AdminHealthStatus.Unavailable,
-                AdminWorkerState.Running when runningTooLong => AdminHealthStatus.Warning,
-                AdminWorkerState.Healthy when stale => AdminHealthStatus.Warning,
-                _ => AdminHealthStatus.Healthy
-            };
+        var summary = worker.State switch
+        {
+            AdminWorkerState.Registered => "Started with PRISM; it has not finished its first run yet.",
+            AdminWorkerState.Running when runningTooLong => "Its current run is taking longer than expected.",
+            AdminWorkerState.Running => "Running now.",
+            AdminWorkerState.Healthy when stale => "Its last good run is older than expected.",
+            AdminWorkerState.Healthy => "Its last run finished without problems.",
+            AdminWorkerState.Failed => "Its last run failed.",
+            AdminWorkerState.SwitchedOff => "Switched off.",
+            _ => "Its state is not known."
+        };
 
-            var summary = worker.State switch
-            {
-                AdminWorkerState.Registered => "Started with PRISM; it has not finished its first run yet.",
-                AdminWorkerState.Running when runningTooLong => "Its current run is taking longer than expected.",
-                AdminWorkerState.Running => "Running now.",
-                AdminWorkerState.Healthy when stale => "Its last good run is older than expected.",
-                AdminWorkerState.Healthy => "Its last run finished without problems.",
-                AdminWorkerState.Failed => "Its last run failed.",
-                _ => "Its state is not known."
-            };
+        var details = WorkerDetails(worker);
+        return new(
+            $"worker-{worker.Key}",
+            "Background jobs",
+            worker.Label,
+            status,
+            summary,
+            details.Count == 0 ? null : EndSentence(string.Join(" · ", details)),
+            status is AdminHealthStatus.Warning or AdminHealthStatus.Critical
+                ? "Look at the application log for the error, then check the job's schedule and settings."
+                : null,
+            -1,
+            now);
+    }
 
-            var details = new List<string>();
-            if (expected.HasValue)
-            {
-                details.Add($"Runs every {FormatDuration(expected.Value)}");
-            }
-            if (worker.LastSucceededUtc.HasValue)
-            {
-                details.Add($"Last good run: {FormatIst(worker.LastSucceededUtc.Value)}");
-            }
-            else if (worker.LastStartedUtc.HasValue)
-            {
-                details.Add($"Last started: {FormatIst(worker.LastStartedUtc.Value)}");
-            }
-            else
-            {
-                details.Add($"Started with PRISM: {FormatIst(worker.RegisteredUtc)}");
-            }
-            if (!string.IsNullOrWhiteSpace(worker.Detail))
-            {
-                details.Add(worker.State == AdminWorkerState.Failed
-                    ? $"What failed: {worker.Detail}"
-                    : worker.Detail);
-            }
-
-            yield return new(
-                $"worker-{worker.Key}",
-                "Background jobs",
-                worker.Label,
-                status,
-                summary,
-                EndSentence(string.Join(" · ", details)),
-                status is AdminHealthStatus.Warning or AdminHealthStatus.Critical
-                    ? "Look at the application log for the error, then check the job's schedule and settings."
-                    : null,
-                -1,
-                now);
+    private static List<string> WorkerDetails(AdminWorkerStatus worker)
+    {
+        var details = new List<string>();
+        if (worker.State == AdminWorkerState.SwitchedOff)
+        {
+            // Turned off in the settings: no schedule and no last run, only why it is off.
+            if (!string.IsNullOrWhiteSpace(worker.Detail)) details.Add(worker.Detail);
+            return details;
         }
+
+        if (worker.ExpectedInterval is { } expected)
+        {
+            details.Add($"Runs every {FormatDuration(expected)}");
+        }
+        if (worker.LastSucceededUtc.HasValue)
+        {
+            details.Add($"Last good run: {FormatIst(worker.LastSucceededUtc.Value)}");
+        }
+        else if (worker.LastStartedUtc.HasValue)
+        {
+            details.Add($"Last started: {FormatIst(worker.LastStartedUtc.Value)}");
+        }
+        else
+        {
+            details.Add($"Started with PRISM: {FormatIst(worker.RegisteredUtc)}");
+        }
+        if (!string.IsNullOrWhiteSpace(worker.Detail))
+        {
+            details.Add(worker.State == AdminWorkerState.Failed
+                ? $"What failed: {worker.Detail}"
+                : worker.Detail);
+        }
+        return details;
     }
 
     private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckSearchIndexAsync(CancellationToken cancellationToken)

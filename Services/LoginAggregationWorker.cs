@@ -21,7 +21,7 @@ public sealed class LoginAggregationWorker : BackgroundService
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _status = status;
-        _status?.Register(WorkerKey, "Login aggregation", TimeSpan.FromHours(24));
+        _status?.Register(WorkerKey, "Sign-in summary", TimeSpan.FromHours(24));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -71,7 +71,7 @@ public sealed class LoginAggregationWorker : BackgroundService
 
         var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
         var exists = await db.DailyLoginStats.AnyAsync(row => row.Date == date, cancellationToken);
-        if (exists) return $"Daily aggregate for {date:yyyy-MM-dd} already exists.";
+        if (exists) return BackgroundJobMessages.SignInSummaryUpToDate(date);
 
         var from = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
         var to = from.AddDays(1);
@@ -84,6 +84,6 @@ public sealed class LoginAggregationWorker : BackgroundService
 
         db.DailyLoginStats.Add(new DailyLoginStat { Date = date, Count = count });
         await db.SaveChangesAsync(cancellationToken);
-        return $"Stored {count} successful sign-in(s) for {date:yyyy-MM-dd}.";
+        return BackgroundJobMessages.SignInSummaryAdded(date, count);
     }
 }

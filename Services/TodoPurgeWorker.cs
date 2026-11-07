@@ -84,7 +84,7 @@ public sealed class TodoPurgeWorker : BackgroundService
                 _loggedMissingDeletedUtc = true;
                 _logger.LogWarning("TodoItems.DeletedUtc missing; skipping purge.");
             }
-            return "Skipped because TodoItems.DeletedUtc is unavailable.";
+            return "Skipped: this database cannot tell when tasks were deleted yet";
         }
 
         var cutoff = DateTimeOffset.UtcNow.AddDays(-_retentionDays);
@@ -93,6 +93,6 @@ public sealed class TodoPurgeWorker : BackgroundService
             .ExecuteDeleteAsync(cancellationToken);
 
         if (deleted > 0) _logger.LogInformation("Purged {Count} todo items", deleted);
-        return $"Purged {deleted} task record(s).";
+        return BackgroundJobMessages.Removed(deleted, "task", "tasks", "from the bin");
     }
 }

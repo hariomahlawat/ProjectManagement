@@ -7,7 +7,9 @@ public enum AdminWorkerState
     Registered = 0,
     Running = 1,
     Healthy = 2,
-    Failed = 3
+    Failed = 3,
+    /// <summary>Turned off in the settings, so it has nothing to do; not a fault.</summary>
+    SwitchedOff = 4
 }
 
 public sealed record AdminWorkerStatus(
@@ -27,6 +29,8 @@ public interface IAdminWorkerStatusRegistry
     void MarkStarted(string key);
     void MarkSucceeded(string key, string? detail = null);
     void MarkFailed(string key, Exception exception);
+    /// <summary>The job is turned off in the settings; System health shows "Switched off".</summary>
+    void MarkSwitchedOff(string key, string? detail = null);
     IReadOnlyList<AdminWorkerStatus> GetSnapshot();
 }
 
@@ -96,6 +100,16 @@ public sealed class AdminWorkerStatusRegistry : IAdminWorkerStatusRegistry
             state.LastFailedUtc = DateTimeOffset.UtcNow;
             // Never expose the exception message through the administrative UI.
             state.Detail = exception.GetType().Name;
+        }
+    }
+
+    public void MarkSwitchedOff(string key, string? detail = null)
+    {
+        if (!_workers.TryGetValue(key, out var state)) return;
+        lock (state.Sync)
+        {
+            state.State = AdminWorkerState.SwitchedOff;
+            state.Detail = string.IsNullOrWhiteSpace(detail) ? null : detail.Trim();
         }
     }
 

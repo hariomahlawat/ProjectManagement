@@ -16,7 +16,7 @@
             <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
             <h1>Missing files</h1>
             <p>Documents whose PDF is not in storage, so nobody can open or download them. Restore the file from backup to the storage path shown, or request the document's deletion.</p>
-            <p>System health shows the same check. Its result is kept for two minutes; use Check again after restoring files.</p>
+            <p>System health shows the same check. Its result is reused for @Model.CacheMinutesText, here and on System health; use Check again after restoring files.</p>
         </div>
     </header>
 
@@ -39,7 +39,7 @@
             <span>Include the trash</span>
         </label>
         <noscript><button class="btn btn-sm btn-primary" type="submit">Apply</button></noscript>
-        <span class="library-toolbar__count">Checked at @DocRepoFormat.DateTime(Model.CheckedUtc.UtcDateTime)</span>
+        <span class="library-toolbar__count">Checked at @Model.CheckedAtIst</span>
         <a class="btn btn-sm btn-outline-secondary" asp-route-includeDeleted="@Model.IncludeDeleted" asp-route-refresh="true">Check again</a>
         <span class="library-toolbar__spacer"></span>
         @if (Model.TotalPages > 1)

@@ -142,9 +142,27 @@ public sealed class AdminPlainWordsTests
         "Application runtime", "Primary upload storage", "Background services", "Application security"
     };
 
+    // The background jobs' last-run lines are written by the jobs themselves
+    // (docs/ux/admin-review-3-fixes.md, PR 6): no "(s)" plurals, no "Purged", no setting names.
+    private static readonly string[] JobJargon =
+    {
+        "(s)", "Purged", "aggregat", "already exists", "disabled by configuration", "retention is off",
+        "TrashRetentionDays", "bucket", "auto-marked", "Login aggregation"
+    };
+
     [Theory]
     [InlineData("Services/Admin/AdminSystemHealthService.cs")]
     [InlineData("Services/Admin/DatabaseHealthService.cs")]
+    [InlineData("Services/Admin/BackgroundJobMessages.cs")]
+    [InlineData("Hosted/NotebookTrashRetentionWorker.cs")]
+    [InlineData("Hosted/DocRepoTrashPurgeWorker.cs")]
+    [InlineData("Hosted/ChatAttachmentCleanupWorker.cs")]
+    [InlineData("Hosted/AuditRetentionWorker.cs")]
+    [InlineData("Services/Usage/UserActivityRetentionWorker.cs")]
+    [InlineData("Services/TodoPurgeWorker.cs")]
+    [InlineData("Services/LoginAggregationWorker.cs")]
+    [InlineData("Services/Notifications/NotificationRetentionService.cs")]
+    [InlineData("Services/Projects/ProjectRetentionWorker.cs")]
     public void SystemHealthMessages_UsePlainWords(string source)
     {
         var text = File.ReadAllText(Path.Combine(FindRepositoryRoot(), source));
@@ -152,11 +170,11 @@ public sealed class AdminPlainWordsTests
             .Select(match => match.Groups["text"].Value)
             .Where(literal => literal.Contains(' '))  // sentences and labels, not keys or log templates below
             .ToArray();
-        var logTemplates = Regex.Matches(text, @"_logger\.Log\w+\([^;]*;", RegexOptions.Singleline)
+        var logTemplates = Regex.Matches(text, @"_logger\.Log\w+\(.*?\);", RegexOptions.Singleline)
             .Select(match => match.Value)
             .ToArray();
 
-        var found = HealthJargon
+        var found = HealthJargon.Concat(JobJargon)
             .Where(word => literals.Any(literal => literal.Contains(word, StringComparison.OrdinalIgnoreCase)
                 && !logTemplates.Any(log => log.Contains(literal, StringComparison.Ordinal))))
             .ToArray();

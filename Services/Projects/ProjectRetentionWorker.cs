@@ -38,7 +38,7 @@ public sealed class ProjectRetentionWorker : BackgroundService
             try
             {
                 var purged = await RunOnceAsync(stoppingToken);
-                _status?.MarkSucceeded(WorkerKey, $"Purged {purged} project record(s).");
+                _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(purged, "project", "projects", "from the bin"));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

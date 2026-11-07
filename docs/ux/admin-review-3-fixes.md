@@ -154,3 +154,11 @@ parameter, not inlined), and compiled for use in memory.
   the old results first (lockout ended, lockout ending exactly now, no lockout, disabled and
   locked together, pending deletion with every other flag) and the refactor kept them; it also
   checks that each predicate translates for PostgreSQL.
+
+### PR 6 shipped: System health's jobs in plain words
+
+- Every background job writes its last-run line through one helper (`Services/Admin/BackgroundJobMessages.cs`): "Nothing to remove", "Removed 3 items from the notebook bin", "Sign-in summary for 6 Nov is up to date". Dates read "6 Nov".
+- "Login aggregation" is shown as "Sign-in summary". Its key `login-aggregation` is unchanged.
+- A job turned off in the settings shows "Switched off", with no schedule and no warning. This applies to the Document Repository bin clean-up when `DocRepo:TrashRetentionDays` is 0, to audit and notification retention when they are off, and to chat attachment clean-up while attachments are off.
+- Missing files shows its check time in IST with the zone. Its cache time is read from the check itself: 2 minutes, here and on System health. System health's own 45-second page cache is separate.
+- Job status is kept in memory, so the old wording disappears when PRISM restarts with this version.

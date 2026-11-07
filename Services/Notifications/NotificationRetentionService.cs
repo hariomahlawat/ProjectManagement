@@ -59,7 +59,7 @@ public sealed class NotificationRetentionService : BackgroundService
                     var result = await RunSweepAsync(stoppingToken);
                     _status?.MarkSucceeded(
                         WorkerKey,
-                        $"Removed {result.RemovedCount} notification record(s); auto-marked {result.AutoReadCount} as read.");
+                        BackgroundJobMessages.NotificationsTidied(result.RemovedCount, result.AutoReadCount));
                     if (result.RemovedCount > 0)
                     {
                         _logger.LogInformation("Notification retention removed {RemovedCount} notification records.", result.RemovedCount);
@@ -72,7 +72,7 @@ public sealed class NotificationRetentionService : BackgroundService
                 }
                 else
                 {
-                    _status?.MarkSucceeded(WorkerKey, "Retention is disabled by configuration.");
+                    _status?.MarkSwitchedOff(WorkerKey, "Notifications are kept until this is switched on");
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

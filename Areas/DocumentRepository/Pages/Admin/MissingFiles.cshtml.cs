@@ -54,6 +54,19 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
         /// <summary>When the files were checked; the result is reused for a short while.</summary>
         public DateTimeOffset CheckedUtc { get; private set; }
 
+        /// <summary>When the files were checked, in IST with the zone: "7 Nov 2026, 14:05 IST".</summary>
+        public string CheckedAtIst => FormatCheckedAt(CheckedUtc);
+
+        /// <summary>How long the shared check reuses its result, from the service's own setting.</summary>
+        public string CacheMinutesText => FormatCacheDuration(DocRepoMissingFilesService.CacheDuration);
+
+        internal static string FormatCheckedAt(DateTimeOffset utc) =>
+            ProjectManagement.Infrastructure.IstClock.ToIst(utc).ToString("d MMM yyyy, HH:mm", System.Globalization.CultureInfo.InvariantCulture) + " IST";
+
+        internal static string FormatCacheDuration(TimeSpan duration) => duration.TotalSeconds < 60
+            ? $"{(int)duration.TotalSeconds} seconds"
+            : (int)duration.TotalMinutes == 1 ? "1 minute" : $"{(int)duration.TotalMinutes} minutes";
+
         public int TotalPages => MissingCount == 0 || PageSize == 0 ? 1 : (int)Math.Ceiling(MissingCount / (double)PageSize);
 
         public bool HasPreviousPage => PageNumber > 1;
