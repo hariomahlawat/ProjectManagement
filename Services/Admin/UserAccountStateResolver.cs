@@ -29,47 +29,34 @@ public sealed class UserAccountStateResolver : IUserAccountStateResolver
     {
         ArgumentNullException.ThrowIfNull(user);
 
-        if (user.PendingDeletion)
+        return UserAccountStateRules.StateOf(user, nowUtc) switch
         {
-            return new(
+            AdminUserAccountState.PendingDeletion => new(
                 AdminUserAccountState.PendingDeletion,
                 "Pending deletion",
                 "text-bg-danger",
-                false);
-        }
-
-        if (user.IsDisabled)
-        {
-            return new(
+                false),
+            AdminUserAccountState.Disabled => new(
                 AdminUserAccountState.Disabled,
                 "Disabled",
                 "text-bg-secondary",
-                false);
-        }
-
-        if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > nowUtc)
-        {
-            return new(
+                false),
+            AdminUserAccountState.TemporarilyLocked => new(
                 AdminUserAccountState.TemporarilyLocked,
                 "Temporarily locked",
                 "text-bg-warning",
                 false,
-                user.LockoutEnd);
-        }
-
-        if (user.MustChangePassword)
-        {
-            return new(
+                user.LockoutEnd),
+            AdminUserAccountState.MustChangePassword => new(
                 AdminUserAccountState.MustChangePassword,
                 "Password change required",
                 "text-bg-info",
-                true);
-        }
-
-        return new(
-            AdminUserAccountState.Active,
-            "Active",
-            "text-bg-success",
-            true);
+                true),
+            _ => new(
+                AdminUserAccountState.Active,
+                "Active",
+                "text-bg-success",
+                true)
+        };
     }
 }

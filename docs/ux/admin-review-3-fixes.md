@@ -129,3 +129,22 @@ These are larger changes. None of the PRs above makes them without the owner's g
 4. Still open from the second review:
    - Test HoD, Test Project Officer and the two Claude Review accounts are marked as people, so ERP usage counts them.
    - Documents restored before second-review PR 2 stay hidden from readers and search.
+
+## PR 4 as shipped
+
+**Shipped.** `UserAccountStateRules` (Services/Admin) is the one account-state rule: pending
+deletion, then disabled, then temporarily locked (lockout ends after now), then must change
+password, then active. Each state is one predicate, written once, used two ways: as an
+EF-translatable `Expression<Func<ApplicationUser, bool>>` for a given now (bound as a query
+parameter, not inlined), and compiled for use in memory.
+
+- `UserAccountStateResolver` reads the state from the rule; its names, badges and sign-in flags
+  are unchanged.
+- The Users list's status filters, tiles and export filter through the rule. The tiles are now
+  one count query per state instead of one grouped query.
+- Home's account tiles count through the rule. Home's "Active" is now counted directly instead
+  of total minus the other four; the result is the same.
+- The three copies agreed before this change, so no count moves. `AccountStateRuleTests` pinned
+  the old results first (lockout ended, lockout ending exactly now, no lockout, disabled and
+  locked together, pending deletion with every other flag) and the refactor kept them; it also
+  checks that each predicate translates for PostgreSQL.
