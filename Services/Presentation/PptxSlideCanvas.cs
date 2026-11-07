@@ -10,10 +10,46 @@ using DocumentFormat.OpenXml.Presentation;
 namespace ProjectManagement.Services.Presentation;
 
 // SECTION: Shared PowerPoint drawing (one implementation for the generated FFC and CoE decks)
-/// <summary>A native PowerPoint table cell for <see cref="PptxSlideCanvas.AddNativeTable"/>.</summary>
-/// <summary>One paragraph of <see cref="PptxSlideCanvas.AddParagraphs"/>: its own size, colour and weight.</summary>
-public sealed record PptxParagraph(string Text, double FontSize, string Color, bool Bold = false);
+/// <summary>
+/// One run of a <see cref="PptxTextParagraph"/>: its own size, colour and weight. A tab ("\t") in the text
+/// moves to the paragraph's right tab stop; <see cref="LineBreak"/> starts a new line in the same paragraph.
+/// </summary>
+public sealed record PptxRun(string Text, double FontSize, string Color, bool Bold = false)
+{
+    public bool IsLineBreak { get; init; }
 
+    public static PptxRun LineBreak(double fontSize) => new(string.Empty, fontSize, "000000") { IsLineBreak = true };
+}
+
+/// <summary>
+/// A paragraph of <see cref="PptxSlideCanvas.AddTextBox"/>: a list item that edits as text in PowerPoint
+/// (Enter adds the next one, with the same bullet and tab stop).
+/// </summary>
+public sealed record PptxTextParagraph(IReadOnlyList<PptxRun> Runs)
+{
+    /// <summary>"l", "ctr" or "r".</summary>
+    public string Align { get; init; } = "l";
+
+    /// <summary>A round bullet in this colour, hanging by <see cref="BulletIndent"/>; null for none.</summary>
+    public string? BulletColor { get; init; }
+
+    public double BulletIndent { get; init; } = .2;
+
+    /// <summary>A right-aligned tab stop this far (inches) from the box's left inset: where a "\t" sends the rest of the line.</summary>
+    public double? RightTabAt { get; init; }
+
+    public double SpaceBeforePoints { get; init; }
+
+    public double SpaceAfterPoints { get; init; }
+}
+
+/// <summary>A text box's inner margins, in inches.</summary>
+public sealed record PptxInsets(double Left, double Top, double Right, double Bottom)
+{
+    public static readonly PptxInsets None = new(0, 0, 0, 0);
+}
+
+/// <summary>A native PowerPoint table cell for <see cref="PptxSlideCanvas.AddNativeTable"/>.</summary>
 public sealed record PptxTableCell(
     string Value,
     double FontSize,
@@ -298,18 +334,71 @@ public sealed class PptxSlideCanvas
     }
 
     /// <summary>
-    /// Several left-aligned paragraphs in one top-anchored text box (a wrapping name with a line
-    /// under it): PowerPoint lays them out together, so the second follows the first however it wraps.
+    /// One named shape holding whole paragraphs (a card, a column heading, a column of list items), so the
+    /// slide edits as text in PowerPoint instead of as a shape per line. <paramref name="shrinkOnOverflow"/>
+    /// lets PowerPoint shrink the text when an edit makes it overflow; <paramref name="columns"/> flows the
+    /// paragraphs through that many text columns.
     /// </summary>
-    public void AddParagraphs(double x, double y, double width, double height, IReadOnlyList<PptxParagraph> paragraphs)
+    public void AddTextBox(
+        double x,
+        double y,
+        double width,
+        double height,
+        IReadOnlyList<PptxTextParagraph> paragraphs,
+        string name,
+        string? fill = null,
+        bool rounded = false,
+        string anchor = "t",
+        PptxInsets? insets = null,
+        bool shrinkOnOverflow = false,
+        int columns = 1,
+        double columnGap = 0)
     {
-        var body = string.Join(string.Empty, paragraphs.Select(paragraph => $"""
-<a:p><a:pPr algn="l"/><a:r><a:rPr lang="en-US" sz="{FontSize(paragraph.FontSize)}" b="{(paragraph.Bold ? 1 : 0)}"><a:solidFill><a:srgbClr val="{CleanColor(paragraph.Color)}"/></a:solidFill><a:latin typeface="Aptos"/></a:rPr><a:t xml:space="preserve">{Escape(paragraph.Text)}</a:t></a:r><a:endParaRPr lang="en-US" sz="{FontSize(paragraph.FontSize)}"/></a:p>
-"""));
-        var textXml = $"""
-<p:txBody><a:bodyPr wrap="square" lIns="45720" rIns="45720" tIns="0" bIns="0" anchor="t"/><a:lstStyle/>{body}</p:txBody>
-""";
-        AddShapeXml(x, y, width, height, null, null, 0, "rect", textXml);
+        var inset = insets ?? PptxInsets.None;
+        var textColumns = columns > 1 ? $" numCol=\"{columns}\" spcCol=\"{Emu(columnGap)}\"" : string.Empty;
+        var anchorValue = anchor is "ctr" or "b" ? anchor : "t";
+        var body = string.Concat(paragraphs.Select(BuildParagraph));
+        var textXml = $"<p:txBody><a:bodyPr wrap=\"square\" lIns=\"{Emu(inset.Left)}\" tIns=\"{Emu(inset.Top)}\" rIns=\"{Emu(inset.Right)}\" bIns=\"{Emu(inset.Bottom)}\" anchor=\"{anchorValue}\"{textColumns}>{(shrinkOnOverflow ? "<a:normAutofit/>" : "<a:noAutofit/>")}</a:bodyPr><a:lstStyle/>{body}</p:txBody>";
+        AddShapeXml(x, y, width, height, fill, null, 0, rounded ? "roundRect" : "rect", textXml, name);
+    }
+
+    private static string BuildParagraph(PptxTextParagraph paragraph)
+    {
+        var alignment = paragraph.Align switch
+        {
+            "ctr" => "ctr",
+            "r" => "r",
+            _ => "l"
+        };
+        var attributes = new StringBuilder($" algn=\"{alignment}\"");
+        var properties = new StringBuilder();
+        if (paragraph.SpaceBeforePoints > 0)
+        {
+            properties.Append($"<a:spcBef><a:spcPts val=\"{FontSize(paragraph.SpaceBeforePoints)}\"/></a:spcBef>");
+        }
+        if (paragraph.SpaceAfterPoints > 0)
+        {
+            properties.Append($"<a:spcAft><a:spcPts val=\"{FontSize(paragraph.SpaceAfterPoints)}\"/></a:spcAft>");
+        }
+        if (paragraph.BulletColor is { } bullet)
+        {
+            attributes.Append($" marL=\"{Emu(paragraph.BulletIndent)}\" indent=\"{-Emu(paragraph.BulletIndent)}\"");
+            properties.Append($"<a:buClr><a:srgbClr val=\"{CleanColor(bullet)}\"/></a:buClr><a:buSzPct val=\"100000\"/><a:buFont typeface=\"Arial\"/><a:buChar char=\"●\"/>");
+        }
+        else
+        {
+            properties.Append("<a:buNone/>");
+        }
+        if (paragraph.RightTabAt is { } tab)
+        {
+            properties.Append($"<a:tabLst><a:tab pos=\"{Emu(tab)}\" algn=\"r\"/></a:tabLst>");
+        }
+
+        var runs = string.Concat(paragraph.Runs.Select(run => run.IsLineBreak
+            ? $"<a:br><a:rPr lang=\"en-US\" sz=\"{FontSize(run.FontSize)}\"/></a:br>"
+            : $"<a:r><a:rPr lang=\"en-US\" sz=\"{FontSize(run.FontSize)}\" b=\"{(run.Bold ? 1 : 0)}\"><a:solidFill><a:srgbClr val=\"{CleanColor(run.Color)}\"/></a:solidFill><a:latin typeface=\"Aptos\"/></a:rPr><a:t xml:space=\"preserve\">{Escape(run.Text)}</a:t></a:r>"));
+        var endSize = paragraph.Runs.Count > 0 ? paragraph.Runs[^1].FontSize : 10;
+        return $"<a:p><a:pPr{attributes}>{properties}</a:pPr>{runs}<a:endParaRPr lang=\"en-US\" sz=\"{FontSize(endSize)}\"/></a:p>";
     }
 
     private void AddShapeXml(
@@ -321,7 +410,8 @@ public sealed class PptxSlideCanvas
         string? line,
         double lineWidth,
         string geometry,
-        string textXml)
+        string textXml,
+        string? name = null)
     {
         var id = _nextShapeId++;
         var fillXml = string.IsNullOrWhiteSpace(fill)
@@ -333,7 +423,7 @@ public sealed class PptxSlideCanvas
 
         _elements.Add($"""
 <p:sp>
-  <p:nvSpPr><p:cNvPr id="{id}" name="Shape {id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+  <p:nvSpPr><p:cNvPr id="{id}" name="{Escape(name ?? $"Shape {id}")}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
   <p:spPr>
 <a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(width)}" cy="{Emu(height)}"/></a:xfrm>
 <a:prstGeom prst="{geometry}"><a:avLst/></a:prstGeom>
