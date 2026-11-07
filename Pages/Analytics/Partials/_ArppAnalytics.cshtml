@@ -57,13 +57,6 @@
             </nav>
           }
           @await Html.PartialAsync("Partials/_ArppYearFilter", Model)
-          @* The progress slides for this year and view (cards and chart, then every project by where it stands). *@
-          <a class="analytics-filter analytics-filter--link"
-             href="@Url.Page("/Analytics/Index", "ArppSlides", new { financialYearStart = Model.FinancialYearStart, view = Model.ShowsToday ? "today" : null })"
-             title="Download the progress slides (PowerPoint)">
-            <i class="bi bi-file-earmark-slides" aria-hidden="true"></i>
-            <span>Slides</span>
-          </a>
           <button type="button" class="analytics-icon-btn" data-chart-download-target="arpp-by-stage-chart" aria-label="Download chart as PNG" title="Download chart as PNG">
             <i class="bi bi-download" aria-hidden="true"></i>
           </button>

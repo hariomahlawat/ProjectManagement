@@ -72,6 +72,16 @@
             <i class="bi bi-filetype-pptx" aria-hidden="true"></i><span>Download slides</span>
           </a>
         }
+        @if (Model.ActiveTab == AnalyticsTab.Arpp && Model.Arpp is { HasData: true } arppSlides)
+        {
+          @* The ARPP progress slides cover the whole mode (cards, chart, every project), so they sit with the page,
+             not in the chart card; they follow the year and the On 31 Mar / Today view on screen. *@
+          <a class="analytics-header__download" download
+             href="@Url.Page("/Analytics/Index", "ArppSlides", new { financialYearStart = arppSlides.FinancialYearStart, view = arppSlides.ShowsToday ? "today" : null })"
+             title="The FY @arppSlides.FinancialYearDisplay progress: headline cards and stage chart, then every project by where it stands (PowerPoint)">
+            <i class="bi bi-filetype-pptx" aria-hidden="true"></i><span>Download slides</span>
+          </a>
+        }
         <span class="analytics-header__date" title="Figures read at @Model.AsOfIst.ToString("HH:mm") IST">As of @Model.AsOfIst.ToString("d MMMM yyyy", CultureInfo.InvariantCulture)</span>
       </div>
     </header>
