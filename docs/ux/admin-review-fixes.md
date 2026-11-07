@@ -202,3 +202,5 @@ Rules carried over from the redesign:
 
 Out of scope here: running PDF ingestion as a background job instead of inside the request (a
 hosting decision, noted by the code review).
+
+A second cold review after these PRs shipped, and its fix plan, are in `admin-review-2-fixes.md`.
