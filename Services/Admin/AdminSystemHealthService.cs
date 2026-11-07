@@ -165,7 +165,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             "document-repository-files",
             "Storage",
             "Document Repository files",
-            CheckRepositoryFilesAsync,
+            token => CheckRepositoryFilesAsync(forceRefresh, token),
             "Open Missing files (Document Repository) to see which documents have lost their file, then restore the files from backup.",
             cancellationToken));
 
@@ -569,35 +569,25 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
 
     // Each file check is a cheap existence test; the newest documents are checked first and the
     // total is capped so a very large repository cannot hold the check past its time limit.
-    internal const int RepositoryFileCheckLimit = 5000;
+    internal const int RepositoryFileCheckLimit = DocRepoMissingFilesService.CheckLimit;
 
-    private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckRepositoryFilesAsync(CancellationToken cancellationToken)
+    private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckRepositoryFilesAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
-        var paths = await _db.Documents
-            .AsNoTracking()
-            .Where(document => !document.IsDeleted)
-            .OrderByDescending(document => document.CreatedAtUtc)
-            .Select(document => document.StoragePath)
-            .Take(RepositoryFileCheckLimit + 1)
-            .ToListAsync(cancellationToken);
+        // The same check (and cached result) as the Missing files page, so both show the same
+        // number. Resolved here, inside the guarded check: the storage service creates its folder
+        // when it starts, and a failure there must become this check's warning, not stop System
+        // health and Home from loading. A forced refresh of System health checks the files again too.
+        return await RepositoryFilesCheckAsync(_services.GetRequiredService<IDocRepoMissingFilesService>(), forceRefresh, cancellationToken);
+    }
 
-        var capped = paths.Count > RepositoryFileCheckLimit;
-        if (capped) paths.RemoveAt(paths.Count - 1);
-
-        // Resolved here, inside the guarded check: the storage service creates its folder when it
-        // starts, and a failure there must become this check's warning, not stop System health
-        // and Home from loading.
-        var docStorage = _services.GetRequiredService<IDocStorage>();
-        var missing = 0;
-        foreach (var path in paths)
-        {
-            // File.Exists does not observe the token, so stop between files: on a slow share a
-            // timed-out check ends here and reports the timeout instead of finishing the batch.
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!await docStorage.ExistsAsync(path ?? string.Empty, cancellationToken)) missing++;
-        }
-
-        return RepositoryFilesResult(paths.Count, missing, capped);
+    internal static async Task<(AdminHealthStatus Status, string Summary, string? Detail)> RepositoryFilesCheckAsync(
+        IDocRepoMissingFilesService missingFiles,
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        // Not counting the trash, like the Missing files page's default view.
+        var scan = await missingFiles.ScanAsync(includeDeleted: false, forceRefresh, cancellationToken);
+        return RepositoryFilesResult(scan.CheckedCount, scan.MissingCount, scan.Capped);
     }
 
     internal static (AdminHealthStatus Status, string Summary, string? Detail) RepositoryFilesResult(int checkedCount, int missing, bool capped)

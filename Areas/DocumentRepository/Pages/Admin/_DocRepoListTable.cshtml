@@ -1,0 +1,79 @@
+@model ProjectManagement.Areas.DocumentRepository.Pages.Admin.DocRepoListPageModel
+@* The table shared by Repository document types and Repository offices. Every row form posts
+   the row's version; the switch posts the state wanted, so a repeated click cannot undo it. *@
+@{
+    var noun = Model.Noun;
+}
+
+<div class="library-tablescroll">
+    <table class="library-table">
+        <thead>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Position</th>
+                <th scope="col">Documents</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                var count = item.DocumentCount;
+                <tr>
+                    <td>
+                        <label class="visually-hidden" for="name-@item.Id">Name</label>
+                        <input class="form-control" id="name-@item.Id" type="text" name="name" value="@item.Name" maxlength="120" required form="edit-@item.Id" />
+                        @if (!item.IsActive)
+                        {
+                            <span class="library-pill library-pill--muted mt-1">Deactivated</span>
+                        }
+                    </td>
+                    <td data-label="Position">
+                        <label class="visually-hidden" for="sort-@item.Id">Position</label>
+                        <input class="form-control library-table__narrow" id="sort-@item.Id" type="number" name="sortOrder" value="@item.SortOrder" min="-999" max="9999" form="edit-@item.Id" />
+                    </td>
+                    <td data-label="Documents" class="library-table__num">
+                        <a href="@Url.Page("/Documents/Index", new Microsoft.AspNetCore.Routing.RouteValueDictionary { [Model.LibraryFilter] = item.Id })">@count.ToString("N0")</a>
+                        @if (item.TrashedDocumentCount > 0)
+                        {
+                            <span class="library-table__meta">+ @item.TrashedDocumentCount.ToString("N0") in the trash</span>
+                        }
+                    </td>
+                    <td class="library-table__actions">
+                        <button type="submit" class="btn btn-sm btn-outline-primary" form="edit-@item.Id">Save</button>
+                        <button type="submit" class="btn btn-sm btn-link library-table__quiet" form="toggle-@item.Id"
+                                data-confirm="@(item.IsActive && count > 0 ? $"Deactivate “{item.Name}”? {count} documents use it. They keep it, but it will no longer be offered for new documents." : null)">
+                            @(item.IsActive ? "Deactivate" : "Activate")
+                        </button>
+                        @if (item.CanDelete)
+                        {
+                            <button type="submit" class="btn btn-sm btn-link library-table__quiet text-danger" form="delete-@item.Id"
+                                    data-confirm="Delete the @noun “@item.Name”? No document uses it. This cannot be undone.">
+                                Delete
+                            </button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+@foreach (var item in Model.Items)
+{
+    <form method="post" asp-page-handler="Update" id="edit-@item.Id">
+        <input type="hidden" name="id" value="@item.Id" />
+        <input type="hidden" name="version" value="@item.Version" />
+    </form>
+    <form method="post" asp-page-handler="Toggle" id="toggle-@item.Id">
+        <input type="hidden" name="id" value="@item.Id" />
+        <input type="hidden" name="active" value="@(item.IsActive ? "false" : "true")" />
+        <input type="hidden" name="version" value="@item.Version" />
+    </form>
+    @if (item.CanDelete)
+    {
+        <form method="post" asp-page-handler="Delete" id="delete-@item.Id">
+            <input type="hidden" name="id" value="@item.Id" />
+            <input type="hidden" name="version" value="@item.Version" />
+        </form>
+    }
+}

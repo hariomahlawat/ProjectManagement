@@ -192,3 +192,38 @@ Recovery should list them, or say where they are restored, is left to the owner.
   events lift the query filter, as before). Home, Restore deleted items and its tabs all count from
   it. Tests check the rule, the guards with disabled, pending-deletion and locked admins, that Who
   has which role counts the same as the guards, and that the three pages give the same bin counts.
+
+## PR 6 as shipped
+
+- **One service for both lists:** `IDocRepoListService` (`Services/DocRepo/DocRepoListService.cs`)
+  lists, adds, renames, reorders, switches on/off and deletes repository document types and
+  offices. Both pages share one thin base (`Areas/DocumentRepository/Pages/Admin/DocRepoListPageModel.cs`)
+  and one table partial. Routes, handler names, form fields and the `DocRepo.ManageCategories`
+  policy are unchanged; the service checks the policy too.
+- **Switching takes the state wanted.** The form posts `active=true|false`, never a flip. A double
+  click, or two administrators deactivating together, leaves it deactivated ("already
+  deactivated"). A form without the state (a page open from before this release) is refused with
+  "reload and try again" instead of being flipped.
+- **Row version without a migration.** These tables had no version column. Adding one to a live
+  table was judged not worth the risk, and target state alone does not protect a rename. The
+  PostgreSQL model now maps the built-in `xmin` system column as the row version for the two
+  tables (the same way To-do items already do): no column is added, no migration runs. Every row
+  form posts its version; a change from an out-of-date page is refused with "someone else
+  changed this entry". The model snapshot lists `xmin` so a later migration does not try to add it.
+- **Delete only when unused.** A Delete button shows only when no document uses the value, the
+  trash included. The service checks again and refuses a value in use ("Deactivate it instead").
+  The documents' foreign key to these tables cascades, so the check and the delete run in one
+  transaction that first locks the row (`SELECT … FOR UPDATE`): an upload or edit filing a
+  document under it at that moment waits and then fails, rather than being deleted with it.
+- Names are compared ignoring case and extra spaces (as master data does); changes are audited
+  in the same save as before (`CategoryChanged`, now also "Deleted").
+- **Missing files and System health share one check:** `IDocRepoMissingFilesService`
+  (`Services/DocRepo/DocRepoMissingFilesService.cs`) checks the newest 5,000 documents (the limit
+  System health already had), newest first, stops between files when cancelled, and keeps the
+  result for two minutes. The page pages through that result and says when it checked, whether
+  it stopped at 5,000, and has "Check again". System health's "Document Repository files" row
+  uses the same result (not counting the trash, as the page by default), so both show the same
+  number; forcing a System health refresh checks again. Its limits and wording are unchanged.
+- Tests: `DocRepoListServiceTests`, `DocRepoMissingFilesServiceTests`, and a PostgreSQL test
+  (`DocRepoListPostgresIntegrationTests`, added to the database workflow) for the `xmin` version
+  and the locked delete.

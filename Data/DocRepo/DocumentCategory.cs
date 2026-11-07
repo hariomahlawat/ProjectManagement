@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ProjectManagement.Data.DocRepo;
 
-public class DocumentCategory
+public class DocumentCategory : IDocRepoListEntry
 {
     public int Id { get; set; }
 
