@@ -31,6 +31,7 @@ namespace ProjectManagement.Pages.Analytics
         private readonly IArVrImpactAnalyticsService? _arVrImpact;
         private readonly IAuthorizationService? _authorization;
         private readonly ICoeSlideComposer? _coeSlides;
+        private readonly ICoeSlideCostReader? _coeSlideCosts;
         private readonly Services.Analytics.Presentation.IArppProgressSlideComposer? _arppSlides;
 
         /// <summary>True when the signed-in user may see the ARPP mode (the ARPP report's ViewArpp policy). Decides the switcher item; the server check is in OnGetAsync.</summary>
@@ -44,8 +45,10 @@ namespace ProjectManagement.Pages.Analytics
             IAuthorizationService? authorization = null,
             IArVrImpactAnalyticsService? arVrImpact = null,
             ICoeSlideComposer? coeSlides = null,
-            Services.Analytics.Presentation.IArppProgressSlideComposer? arppSlides = null)
+            Services.Analytics.Presentation.IArppProgressSlideComposer? arppSlides = null,
+            ICoeSlideCostReader? coeSlideCosts = null)
         {
+            _coeSlideCosts = coeSlideCosts;
             _arVrImpact = arVrImpact;
             _coeSlides = coeSlides;
             _arppSlides = arppSlides;
@@ -283,7 +286,11 @@ namespace ProjectManagement.Pages.Analytics
             AsOfIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime);
             var coe = await _portfolioAnalytics.BuildCoeAsync(ReferenceDateIst, cancellationToken);
             var impact = await BuildCoeArVrImpactAsync(cancellationToken);
-            var content = _coeSlides.Compose(CoeSlidesDataBuilder.Build(ReferenceDateIst, coe, impact));
+            // Speaker notes: each project's cost (slide 1) and each AR/VR project's proliferation (slide 2).
+            var costs = _coeSlideCosts is null
+                ? null
+                : await _coeSlideCosts.ReadAsync(CoeSlidesDataBuilder.NoteProjectIds(coe, impact), cancellationToken);
+            var content = _coeSlides.Compose(CoeSlidesDataBuilder.Build(ReferenceDateIst, coe, impact, costs));
             return File(content, CoeSlidesContentType, $"CoE-ARVR-{ReferenceDateIst:yyyy-MM-dd}.pptx");
         }
 

@@ -54,7 +54,7 @@ namespace ProjectManagement.Services.Analytics
 
             var proliferation = includeProliferation
                 ? await BuildProliferationAsync(projects, referenceDateIst, cancellationToken)
-                : (Array.Empty<ArVrProliferationYearVm>(), Array.Empty<AnalyticsBoardGroupVm>(), 0, 0);
+                : (Array.Empty<ArVrProliferationYearVm>(), Array.Empty<AnalyticsBoardGroupVm>(), 0, 0, Array.Empty<ArVrProjectProliferationVm>());
             var training = includeTraining
                 ? await BuildTrainingAsync(projects, referenceDateIst, cancellationToken)
                 : (Array.Empty<ArVrTrainingYearVm>(), Array.Empty<AnalyticsBoardGroupVm>(), 0, 0);
@@ -70,6 +70,7 @@ namespace ProjectManagement.Services.Analytics
                 ProliferationCurrentYear = referenceDateIst.Year,
                 ProliferationByYear = proliferation.ByYear,
                 ProliferationBoard = proliferation.Board,
+                ProliferationByProject = proliferation.ByProject,
                 TrainingCourses = training.Courses,
                 TrainingPeople = training.ByYear.Sum(point => point.People),
                 TrainingProjects = training.ProjectCount,
@@ -99,7 +100,7 @@ namespace ProjectManagement.Services.Analytics
         // END SECTION
 
         // SECTION: Proliferation (the tracker's approved aggregates; receiving units from the approved granular ledger)
-        private async Task<(IReadOnlyList<ArVrProliferationYearVm> ByYear, IReadOnlyList<AnalyticsBoardGroupVm> Board, int ReceivingUnits, int ProjectCount)>
+        private async Task<(IReadOnlyList<ArVrProliferationYearVm> ByYear, IReadOnlyList<AnalyticsBoardGroupVm> Board, int ReceivingUnits, int ProjectCount, IReadOnlyList<ArVrProjectProliferationVm> ByProject)>
             BuildProliferationAsync(Dictionary<int, string> projects, DateOnly referenceDateIst, CancellationToken cancellationToken)
         {
             // A year the tracker's own policy rejects (a mistyped ledger date) is left out of the chart and the counts.
@@ -154,8 +155,19 @@ namespace ProjectManagement.Services.Analytics
                     $"{point.Projects} {Plural(point.Projects, "project")}" + (point.ReceivingUnits > 0 ? $" · {point.ReceivingUnits} receiving {Plural(point.ReceivingUnits, "unit")}" : "")))
                 .ToList();
 
+            var byProject = aggregates
+                .GroupBy(row => row.ProjectId)
+                .Select(group => new ArVrProjectProliferationVm(
+                    group.Key,
+                    projects[group.Key],
+                    group.Where(row => row.Source == ProliferationSource.Sdd).Sum(row => row.ReportedTotal),
+                    group.Where(row => row.Source == ProliferationSource.Abw515).Sum(row => row.ReportedTotal)))
+                .OrderByDescending(item => item.Total)
+                .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var receivingUnits = ledger.Select(entry => entry.UnitName.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count();
-            return (byYear, board, receivingUnits, aggregates.Select(row => row.ProjectId).Distinct().Count());
+            return (byYear, board, receivingUnits, byProject.Count, byProject);
         }
         // END SECTION
 

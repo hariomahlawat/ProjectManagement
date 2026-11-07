@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DocumentFormat.OpenXml.Packaging;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.FileProviders;
 using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Analytics.Presentation;
+using ProjectManagement.Services.Projects;
 using Xunit;
 
 namespace ProjectManagement.Tests.Analytics;
@@ -282,6 +284,103 @@ public sealed class CoeSlidesTests
         });
         Assert.All(slides.SelectMany(slide => slide.Descendants<DocumentFormat.OpenXml.Drawing.Extents>()), extents =>
             Assert.True(extents.Cx!.Value >= 0, $"A shape is {extents.Cx.Value} EMU wide.")); // the shape tree itself is 0 wide
+    }
+
+    private static CoeSlideCostFacts SampleCosts() => new(
+        new Dictionary<int, ProjectCostResolution>
+        {
+            [1] = new(2.5m, ProjectCostSource.Pnc),        // VR Driving: ₹2.5 Cr
+            [3] = new(0.45m, ProjectCostSource.Aon),       // VR Gunnery: ₹45 lakh
+            [5] = new(null, ProjectCostSource.None)        // VR Navigation: none
+        },
+        new Dictionary<int, decimal> { [1] = 12m, [10] = 150m });
+
+    private static ArVrImpactVm SampleImpact(bool proliferation = true) => new()
+    {
+        CanViewProliferation = proliferation,
+        ProliferationUnitsDelivered = proliferation ? 57 : 0,
+        ProliferationByProject = proliferation
+            ? new[]
+            {
+                new ArVrProjectProliferationVm(10, "VR Sniper", 30, 10),
+                new ArVrProjectProliferationVm(1, "VR Driving", 12, 0),
+                new ArVrProjectProliferationVm(20, "AR Field Kit", 5, 0)  // not completed: listed under "other"
+            }
+            : Array.Empty<ArVrProjectProliferationVm>()
+    };
+
+    [Fact]
+    public void ProjectsNotes_GiveEachProjectsLatestCost_ByColumn_WithTheTotal()
+    {
+        var data = CoeSlidesDataBuilder.Build(AsOf, SampleCoe(), SampleImpact(), SampleCosts());
+
+        var notes = data.ProjectsNotes;
+        Assert.Contains("CoE Mid Term (3)", notes, StringComparison.Ordinal);
+        Assert.Contains("• VR Driving: ₹2.5 Cr (PNC)", notes, StringComparison.Ordinal);
+        Assert.Contains("• VR Gunnery: ₹45 lakh (AoN)", notes, StringComparison.Ordinal);
+        Assert.Contains("• VR Navigation: cost not recorded", notes, StringComparison.Ordinal);
+        Assert.Contains("• AR Maint: cost not recorded", notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("VR Dropped", notes, StringComparison.Ordinal); // cancelled: not on the slide
+        Assert.Contains("Total of the costs shown: ₹2.95 Cr (2 of 5 projects have a cost).", notes, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SummaryNotes_GiveEachCompletedProjectsProliferation_AndCost_ThenOthers()
+    {
+        var notes = CoeSlidesDataBuilder.Build(AsOf, SampleCoe(), SampleImpact(), SampleCosts()).SummaryNotes;
+
+        Assert.Contains("• VR Sniper (2022): 40 units proliferated (SDD 30, 515 ABW 10) · proliferation cost ₹1.5 Cr", notes, StringComparison.Ordinal);
+        Assert.Contains("• VR Driving (2025): 12 units proliferated · proliferation cost ₹12 lakh", notes, StringComparison.Ordinal);
+        Assert.Contains("• VR Navigation (2026): none proliferated · proliferation cost not recorded", notes, StringComparison.Ordinal);
+        Assert.Contains("• VR Old: none proliferated", notes, StringComparison.Ordinal); // no completion year
+        Assert.Contains("Other AR/VR projects with proliferation recorded:" + Environment.NewLine + "• AR Field Kit: 5 units proliferated", notes, StringComparison.Ordinal);
+        Assert.EndsWith("Total: 57 units proliferated.", notes, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SummaryNotes_WithoutTrackerAccess_GiveTheCostOnly()
+    {
+        var notes = CoeSlidesDataBuilder.Build(AsOf, SampleCoe(), SampleImpact(proliferation: false), SampleCosts()).SummaryNotes;
+
+        Assert.Contains("shown to the proliferation tracker's viewers only", notes, StringComparison.Ordinal);
+        Assert.Contains("• VR Sniper (2022): proliferation cost ₹1.5 Cr", notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("units proliferated", notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("AR Field Kit", notes, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_WritesTheNotes_OnEachPartsFirstSlide()
+    {
+        var composer = new CoeSlideComposer(new TestEnvironment(Path.Combine(AppContext.BaseDirectory, "TestData", "Ffc", "PresentationRoot")));
+        var data = CoeSlidesDataBuilder.Build(AsOf, SampleCoe(), SampleImpact(), SampleCosts());
+
+        var content = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentation = document.PresentationPart!;
+        Assert.NotNull(presentation.NotesMasterPart);
+        var slides = presentation.Presentation.SlideIdList!.Elements<SlideId>()
+            .Select(id => (SlidePart)presentation.GetPartById(id.RelationshipId!.Value!))
+            .ToList();
+        Assert.Equal(2, slides.Count);
+        Assert.Contains("VR Driving: ₹2.5 Cr (PNC)", slides[0].NotesSlidePart!.NotesSlide.InnerText, StringComparison.Ordinal);
+        Assert.Contains("VR Sniper (2022): 40 units proliferated", slides[1].NotesSlidePart!.NotesSlide.InnerText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_WithoutCosts_LeavesTheNotesOut()
+    {
+        var data = CoeSlidesDataBuilder.Build(AsOf, SampleCoe(), SampleImpact());
+        Assert.Equal((string.Empty, string.Empty), (data.ProjectsNotes, data.SummaryNotes));
+    }
+
+    [Fact]
+    public void NoteProjectIds_SlideOneProjects_CompletedArVr_AndOthersWithProliferation()
+    {
+        var ids = CoeSlidesDataBuilder.NoteProjectIds(SampleCoe(), SampleImpact());
+        Assert.Equal(new[] { 1, 2, 3, 5, 6, 10, 11, 12, 20 }, ids.OrderBy(id => id));
+        Assert.DoesNotContain(4, ids); // cancelled
     }
 
     private static CoeAnalyticsVm SampleCoe() => new()
