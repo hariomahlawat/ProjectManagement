@@ -11,18 +11,25 @@
 
 @await Component.InvokeAsync("RestoreTabs", new { active = ProjectManagement.Services.Admin.Recovery.AdminRestoreTabKeys.ProjectDocuments })
 
+@if (!Model.BinIsEmpty)
+{
 <section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Document recovery summary">
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Deleted documents</span><small>Matching your filters</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-device-ssd"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.FormatBytes(Model.Result.TotalBytes)</strong><span>Space their files use</span><small>Freed when deleted for good</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-counterclockwise"></i></span><span class="admin-monitoring-metric__copy"><strong>Yes</strong><span>Can be restored</span><small>Back on the same project and stage</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__icon"><i class="bi bi-shield-exclamation"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.MaximumBulkDocuments</strong><span>At a time</span><small>The most you can restore or delete at once</small></span></article>
 </section>
+}
 
 <section class="admin-panel" aria-labelledby="document-recycle-title">
     <header class="admin-panel__header">
         <div><h2 id="document-recycle-title">Deleted documents</h2></div>
-        <span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span>
+        @if (!Model.BinIsEmpty) { <span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span> }
     </header>
+
+    @if (!Model.BinIsEmpty)
+
+    {
 
     <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar admin-recovery-filter-toolbar--documents">
         <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-input-with-icon"><i class="bi bi-search" aria-hidden="true"></i><input asp-for="Search" class="form-control" placeholder="Title, file name or project" /></div></div>
@@ -35,6 +42,8 @@
         <input type="hidden" asp-for="PageNumber" value="1" />
         <div class="admin-filter-toolbar__actions"><button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Apply</button><a asp-page="./Recycle" class="btn btn-outline-secondary">Clear</a></div>
     </form>
+
+    }
 
     <form method="post" asp-page-handler="Execute" id="documentRecoveryForm" data-document-recovery-form>
         <input type="hidden" asp-for="Search" /><input type="hidden" asp-for="ProjectId" /><input type="hidden" asp-for="StageCode" />
@@ -49,7 +58,7 @@
 
         @if (Model.Result.Items.Count == 0)
         {
-            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-recycle", Title = "No deleted documents", Description = "No deleted documents match these filters." })" />
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-recycle", Title = Model.BinIsEmpty ? "Nothing deleted" : "No deleted documents", Description = Model.BinIsEmpty ? "Documents removed from projects appear here until they are restored or deleted for good." : "No deleted documents match these filters." })" />
         }
         else
         {

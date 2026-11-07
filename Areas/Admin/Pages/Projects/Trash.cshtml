@@ -20,18 +20,25 @@
     <div class="admin-flash admin-flash--danger" role="alert" data-admin-flash><span class="admin-flash__icon"><i class="bi bi-exclamation-octagon"></i></span><div class="admin-flash__copy"><strong>Action not completed</strong><span>@errorMessage</span></div><button type="button" class="admin-flash__dismiss" data-admin-flash-dismiss aria-label="Dismiss"><i class="bi bi-x-lg"></i></button></div>
 }
 
+@if (!Model.BinIsEmpty)
+{
 <section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Project trash summary">
     <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Result.TotalCount > 0 ? "warning" : "success")"><span class="admin-monitoring-metric__icon"><i class="bi bi-trash3"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Deleted projects</span><small>Matching your filters</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.DueCount > 0 ? "danger" : "success")"><span class="admin-monitoring-metric__icon"><i class="bi bi-hourglass-bottom"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.DueCount</strong><span>Due to go for good</span><small>On this page · kept @Model.RetentionDays days</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-hdd"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.FormatBytes(Model.VisibleStoredBytes)</strong><span>Space their files use</span><small>Documents and videos on this page</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-shield-check"></i></span><span class="admin-monitoring-metric__copy"><strong>@(Model.RemoveAssetsByDefault ? "Yes" : "Your choice")</strong><span>Files deleted with the project</span><small>You confirm before anything goes</small></span></article>
 </section>
+}
 
 <section class="admin-panel" aria-labelledby="project-trash-title">
     <header class="admin-panel__header">
         <div><h2 id="project-trash-title">Deleted projects</h2></div>
-        <span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span>
+        @if (!Model.BinIsEmpty) { <span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span> }
     </header>
+
+    @if (!Model.BinIsEmpty)
+
+    {
 
     <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar">
         <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search">
@@ -57,9 +64,11 @@
         <div class="admin-filter-toolbar__actions"><button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Apply</button><a asp-page="./Trash" class="btn btn-outline-secondary">Clear</a></div>
     </form>
 
+    }
+
     @if (Model.Result.Items.Count == 0)
     {
-        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-trash3", Title = "No deleted projects", Description = "No deleted projects match these filters." })" />
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-trash3", Title = Model.BinIsEmpty ? "Nothing deleted" : "No deleted projects", Description = Model.BinIsEmpty ? $"Deleted projects appear here. They are kept {Model.RetentionDays} days, then deleted for good." : "No deleted projects match these filters." })" />
     }
     else
     {

@@ -57,7 +57,7 @@ public class IndexModel : PageModel
         var result = await _service.UpdateAsync(id, existing.Name, existing.Description, enable, bytes, userId, cancellationToken);
         if (result.Outcome == SocialMediaEventTypeMutationOutcome.Success)
         {
-            TempData["ToastMessage"] = enable ? "Social media event type enabled." : "Social media event type disabled.";
+            TempData["ToastMessage"] = enable ? "Social media event type activated." : "Social media event type deactivated.";
         }
         else if (result.Outcome == SocialMediaEventTypeMutationOutcome.ConcurrencyConflict)
         {
@@ -119,7 +119,7 @@ public class IndexModel : PageModel
         switch (result.Outcome)
         {
             case SocialMediaPlatformMutationOutcome.Success:
-                TempData["ToastMessage"] = enable ? "Social media platform enabled." : "Social media platform disabled.";
+                TempData["ToastMessage"] = enable ? "Social media platform activated." : "Social media platform deactivated.";
                 break;
             case SocialMediaPlatformMutationOutcome.ConcurrencyConflict:
                 TempData["ToastError"] = "The social media platform was updated by someone else. Please reload the page.";

@@ -50,12 +50,18 @@
     min-width: 0;
 }
 
+/* Long statuses ("Configured (opencv-yunet 2026may; YuNet)") wrap instead of being cut off
+   (docs/ux/admin-review-fixes.md, PR 11). */
+.readiness-item > .d-flex {
+    flex-wrap: wrap;
+}
+
 .readiness-item .badge {
     flex: 0 1 auto;
-    max-width: 10rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: 100%;
+    overflow-wrap: break-word;
+    text-align: left;
+    white-space: normal;
 }
 
 .metric-card {

@@ -50,7 +50,7 @@
                                     <input type="hidden" name="id" value="@item.Id" />
                                     <input type="hidden" name="enable" value="@(item.IsActive ? "false" : "true")" />
                                     <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
-                                    <button type="submit" class="btn btn-outline-secondary btn-sm">@(item.IsActive ? "Disable" : "Enable")</button>
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">@(item.IsActive ? "Deactivate" : "Activate")</button>
                                 </form>
                                 <form method="post" asp-page-handler="Delete" class="visit-type-card__form">
                                     <input type="hidden" name="id" value="@item.Id" />
@@ -109,7 +109,7 @@
                                     <input type="hidden" name="id" value="@platform.Id" />
                                     <input type="hidden" name="enable" value="@(platform.IsActive ? "false" : "true")" />
                                     <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(platform.RowVersion)" />
-                                    <button type="submit" class="btn btn-outline-secondary btn-sm">@(platform.IsActive ? "Disable" : "Enable")</button>
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">@(platform.IsActive ? "Deactivate" : "Activate")</button>
                                 </form>
                                 <form method="post" asp-page-handler="DeletePlatform" class="visit-type-card__form">
                                     <input type="hidden" name="id" value="@platform.Id" />

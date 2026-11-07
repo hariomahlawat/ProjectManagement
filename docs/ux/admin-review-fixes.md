@@ -182,6 +182,19 @@ What is left falls into three kinds:
   these pages free of the words the review found, outside `<details>`.
 - **Unchanged:** routes, form fields, export columns, stored values and audit actions.
 
+### PR 11 as shipped
+
+- **Users on phones:** below 576 px each person is a card, with the actions button in its
+  corner, instead of a table row that scrolls sideways.
+- **Media intelligence:** long status badges wrap by whole words instead of being cut off.
+- **Empty bins:** a bin with nothing in it, and no filter set, shows one plain empty state. It
+  has no zero tiles, no filters and no "Showing 0–0 of 0". With a filter set, the filters stay
+  and the message says nothing matches.
+- **`/` on Every admin page** goes to that page's own filter (Home's finder first, then the
+  page index, then the sidebar).
+- **Social media lists** say "Deactivate" and "Activate", like every other list.
+- **Celebrations** links back to Lists used in forms, as Holidays does.
+
 Rules carried over from the redesign:
 - every PR keeps routes, policies and data contracts;
 - every PR ships with tests and is checked on screen while signed in;
