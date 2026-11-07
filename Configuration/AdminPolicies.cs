@@ -16,6 +16,9 @@ public static class AdminPolicies
     public const string IntegrityManage = "Admin.MasterData.Integrity.Manage";
     public const string ActivityTypesManage = "Admin.ActivityTypes.Manage";
     public const string HolidaysManage = "Admin.Holidays.Manage";
+    // The social media event types and platforms lists (Project Office Reports). Admin and HoD,
+    // exactly as the pages' old [Authorize(Roles = "Admin,HoD")].
+    public const string SocialMediaListsManage = "Admin.SocialMediaLists.Manage";
     public const string IngestionManage = "Admin.Ingestion.Manage";
     // Media administration is split into explicit capabilities. MediaManage is retained
     // as a compatibility policy for existing navigation and older page attributes.

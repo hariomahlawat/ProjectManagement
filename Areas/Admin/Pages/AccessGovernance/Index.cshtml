@@ -8,27 +8,27 @@
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 <partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 
-<section class="admin-governance-metric-grid" aria-label="Access governance summary">
+<section class="admin-governance-metric-grid" aria-label="Roles at a glance">
     <article class="admin-monitoring-metric admin-monitoring-metric--info">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-person-lock"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.PrivilegedUserCount</strong><span>Privileged users</span><small>Accounts holding elevated roles</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.PrivilegedUserCount</strong><span>Accounts with senior roles</span><small>@Model.SeniorRoleNames</small></span>
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.AdministratorCount <= 1 ? "warning" : "success")">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-shield-lock"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.AdministratorCount</strong><span>Active Administrators</span><small>Critical system-control role</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.AdministratorCount</strong><span>Active Administrators</span><small>Keep at least two, so one can stand in</small></span>
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.UsersWithoutRoles > 0 ? "warning" : "neutral")">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-person-dash"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.UsersWithoutRoles</strong><span>Users without roles</span><small>Require access review</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.UsersWithoutRoles</strong><span>Accounts with no role</span><small>Give each a role, or disable it</small></span>
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.RestrictedPrivilegedUsers > 0 ? "warning" : "neutral")">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-person-exclamation"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.RestrictedPrivilegedUsers</strong><span>Restricted privileged</span><small>Disabled or pending deletion</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.RestrictedPrivilegedUsers</strong><span>Senior accounts not in use</span><small>Disabled or waiting to be deleted</small></span>
     </article>
     @* One holder is normal for a role such as Commandant, so this figure is information only. *@
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-person-check"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.SingleHolderCriticalRoles</strong><span>Single-holder roles</span><small>Privileged roles with one active holder</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.SingleHolderCriticalRoles</strong><span>Roles held by one person</span><small>Senior roles with one active holder</small></span>
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.AccessIssueCount > 0 ? "warning" : "success")">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-clipboard2-pulse"></i></span>
@@ -44,15 +44,15 @@
             <span class="admin-panel__meta">@Model.Snapshot.Findings.Count to look at</span>
         </header>
         <div class="admin-governance-finding-list">
-            @foreach (var finding in Model.Snapshot.Findings)
+            @foreach (var issue in Model.Snapshot.Findings)
             {
-                var tone = finding.Severity == AccessGovernanceFindingSeverity.Critical ? "danger" : finding.Severity == AccessGovernanceFindingSeverity.Review ? "warning" : "info";
+                var tone = issue.Severity == AccessGovernanceFindingSeverity.Critical ? "danger" : issue.Severity == AccessGovernanceFindingSeverity.Review ? "warning" : "info";
                 <article class="admin-governance-finding admin-governance-finding--@tone">
-                    <span aria-hidden="true"><i class="bi @(finding.Severity == AccessGovernanceFindingSeverity.Critical ? "bi-exclamation-octagon" : finding.Severity == AccessGovernanceFindingSeverity.Review ? "bi-exclamation-triangle" : "bi-info-circle")"></i></span>
-                    <div><strong>@finding.Title</strong><p>@finding.Description</p></div>
-                    @if (!string.IsNullOrWhiteSpace(finding.UserId))
+                    <span aria-hidden="true"><i class="bi @(issue.Severity == AccessGovernanceFindingSeverity.Critical ? "bi-exclamation-octagon" : issue.Severity == AccessGovernanceFindingSeverity.Review ? "bi-exclamation-triangle" : "bi-info-circle")"></i></span>
+                    <div><strong>@issue.Title</strong><p>@issue.Description</p></div>
+                    @if (!string.IsNullOrWhiteSpace(issue.UserId))
                     {
-                        <a href="@Model.UserUrl(finding.UserId)">Review account <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                        <a href="@Model.UserUrl(issue.UserId)">Review account <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                     }
                 </article>
             }
@@ -63,8 +63,8 @@
 <div class="admin-governance-layout">
     <section class="admin-panel" aria-labelledby="role-directory-title">
         <header class="admin-panel__header">
-            <div><div class="admin-panel__eyebrow">Identity roles</div><h2 id="role-directory-title">Role directory</h2></div>
-            <span class="admin-panel__meta">@Model.Snapshot.Roles.Count policy-defined roles</span>
+            <div><h2 id="role-directory-title">Roles</h2></div>
+            <span class="admin-panel__meta">@Model.Snapshot.Roles.Count roles</span>
         </header>
         <div class="admin-role-governance-list">
             @foreach (var role in Model.Snapshot.Roles)
@@ -74,27 +74,27 @@
                     <div class="admin-role-governance-card__main">
                         <div class="admin-role-governance-card__title">
                             <strong>@role.DisplayName</strong>
-                            @if (role.IsPrivileged) { <span class="admin-status-pill admin-status-pill--warning">Privileged</span> }
-                            @if (!role.IsConfigured) { <span class="admin-status-pill admin-status-pill--neutral">Not provisioned</span> }
+                            @if (role.IsPrivileged) { <span class="admin-status-pill admin-status-pill--warning">Senior role</span> }
+                            @if (!role.IsConfigured) { <span class="admin-status-pill admin-status-pill--neutral">Nobody holds it yet</span> }
                         </div>
                         <p>@role.Description</p>
                         @if (role.Capabilities.Count > 0)
                         {
-                            <div class="admin-role-capability-tags" aria-label="Capabilities granted by @role.DisplayName">
-                                @foreach (var capability in role.Capabilities.Take(6))
+                            <div class="admin-role-capability-tags" aria-label="What @role.DisplayName can do">
+                                @foreach (var permission in role.Capabilities.Take(6))
                                 {
-                                    <span><i class="bi @capability.Icon" aria-hidden="true"></i>@capability.Title</span>
+                                    <span><i class="bi @permission.Icon" aria-hidden="true"></i>@permission.Title</span>
                                 }
                             </div>
                         }
                         @if (role.UserNames.Count > 0)
                         {
                             var moreHolders = role.AssignedUsers - role.UserNames.Count;
-                            <small class="admin-role-governance-card__holders">Holders: @string.Join(", ", role.UserNames)@if (moreHolders > 0) {<text> and </text><a asp-area="Admin" asp-page="/Users/Index" asp-route-role="@role.Name">@moreHolders more</a>}</small>
+                            <small class="admin-role-governance-card__holders">Held by @string.Join(", ", role.UserNames)@if (moreHolders > 0) {<text> and </text><a asp-area="Admin" asp-page="/Users/Index" asp-route-role="@role.Name">@moreHolders more</a>}</small>
                         }
                     </div>
                     <dl class="admin-role-governance-card__facts">
-                        <div><dt>Assigned</dt><dd>@role.AssignedUsers</dd></div>
+                        <div><dt>People</dt><dd>@role.AssignedUsers</dd></div>
                         <div><dt>Active</dt><dd>@role.ActiveUsers</dd></div>
                     </dl>
                 </article>
@@ -104,13 +104,13 @@
 
     <aside class="admin-panel" aria-labelledby="privileged-review-title">
         <header class="admin-panel__header">
-            <div><div class="admin-panel__eyebrow">Privileged review</div><h2 id="privileged-review-title">Elevated accounts</h2></div>
+            <div><h2 id="privileged-review-title">Accounts with senior roles</h2></div>
             <a asp-area="Admin" asp-page="/Users/Index">All users</a>
         </header>
         @if (Model.Snapshot.PrivilegedUsers.Count == 0)
         {
             <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
-                     model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-shield-check", Title = "No privileged accounts found", Description = "No current account holds a role classified as privileged." })" />
+                     model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-shield-check", Title = "Nobody holds a senior role", Description = "No account is an Administrator, Commandant or Head of Department." })" />
         }
         else
         {
@@ -125,8 +125,8 @@
                             <span>@string.Join(" · ", user.PrivilegedRoles.Select(Model.RoleDisplayName))</span>
                             <small>@Model.AccountState(user) · Last sign-in @Model.FormatIst(user.LastLoginUtc)</small>
                         </span>
-                        <span class="admin-status-pill admin-status-pill--@(user.Findings.Any(f => f.Severity == AccessGovernanceFindingSeverity.Critical) ? "danger" : user.Findings.Count > 0 ? "warning" : "success")">
-                            @(user.Findings.Count == 0 ? "Clear" : $"{user.Findings.Count} finding{(user.Findings.Count == 1 ? string.Empty : "s")}")
+                        <span class="admin-status-pill admin-status-pill--@(user.Findings.Any(item => item.Severity == AccessGovernanceFindingSeverity.Critical) ? "danger" : user.Findings.Count > 0 ? "warning" : "success")">
+                            @(user.Findings.Count == 0 ? "Nothing to look at" : $"{user.Findings.Count} to look at")
                         </span>
                     </a>
                 }
@@ -137,41 +137,40 @@
 
 <section class="admin-panel admin-policy-matrix-panel" aria-labelledby="policy-matrix-title">
     <header class="admin-panel__header">
-        <div><div class="admin-panel__eyebrow">Authoritative policy catalogue</div><h2 id="policy-matrix-title">Capability matrix</h2></div>
-        <span class="admin-panel__meta">Generated from registered policy metadata</span>
+        <div><h2 id="policy-matrix-title">What each role can do</h2></div>
+        <span class="admin-panel__meta">A tick means the role can do it</span>
     </header>
     <div class="admin-data-table-wrap">
         <table class="admin-data-table admin-policy-matrix">
             <thead>
                 <tr>
-                    <th scope="col">Capability</th>
+                    <th scope="col">What</th>
                     @foreach (var roleName in Model.MatrixRoles)
                     {
-                        <th scope="col" title="@roleName">@Model.RoleDisplayName(roleName)</th>
+                        <th scope="col">@Model.RoleDisplayName(roleName)</th>
                     }
                 </tr>
             </thead>
             <tbody>
-                @foreach (var capability in Model.Snapshot.Capabilities)
+                @foreach (var permission in Model.Snapshot.Capabilities)
                 {
                     <tr>
                         <td>
                             <div class="admin-master-record">
-                                <strong><i class="bi @capability.Icon" aria-hidden="true"></i> @capability.Title</strong>
-                                <span>@capability.Description</span>
-                                <small>@capability.Policy</small>
+                                <strong><i class="bi @permission.Icon" aria-hidden="true"></i> @permission.Title</strong>
+                                <span>@permission.Description</span>
                             </div>
                         </td>
                         @foreach (var roleName in Model.MatrixRoles)
                         {
                             <td class="admin-policy-matrix__grant">
-                                @if (Model.RoleGrants(capability, roleName))
+                                @if (Model.RoleGrants(permission, roleName))
                                 {
-                                    <span class="admin-policy-granted" title="Granted"><i class="bi bi-check-lg" aria-hidden="true"></i><span class="visually-hidden">Granted</span></span>
+                                    <span class="admin-policy-granted" title="Can do this"><i class="bi bi-check-lg" aria-hidden="true"></i><span class="visually-hidden">Can do this</span></span>
                                 }
                                 else
                                 {
-                                    <span class="admin-policy-not-granted" aria-hidden="true">—</span>
+                                    <span class="admin-policy-not-granted" aria-hidden="true">—</span><span class="visually-hidden">Cannot</span>
                                 }
                             </td>
                         }
@@ -181,3 +180,25 @@
         </table>
     </div>
 </section>
+
+<details class="admin-panel admin-more-panel mt-3">
+    <summary><h2>Technical details</h2></summary>
+    <p class="text-muted small mb-2">The name each permission has in PRISM's code, and the role names stored with each account. Developers and support use these names.</p>
+    <div class="admin-data-table-wrap">
+        <table class="admin-data-table admin-policy-keys">
+            <thead>
+                <tr><th scope="col">What</th><th scope="col">Permission name</th><th scope="col">Role names</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var permission in Model.Snapshot.Capabilities)
+                {
+                    <tr>
+                        <td>@permission.Title</td>
+                        <td><code>@permission.Policy</code></td>
+                        <td><code>@string.Join(", ", permission.PermittedRoles)</code></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</details>

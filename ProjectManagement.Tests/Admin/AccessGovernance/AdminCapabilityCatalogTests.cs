@@ -58,6 +58,91 @@ public sealed class AdminCapabilityCatalogTests
         }
     }
 
+    // Who has which role (docs/ux/admin-review-2-fixes.md, PR 7) rewrote the matrix's words. This
+    // pins what each row grants, so wording changes can never move a permission.
+    public static IEnumerable<object[]> ExpectedGrants() => new[]
+    {
+        Row("administration-access", AdminPolicies.Access, "Admin"),
+        Row("users-manage", AdminPolicies.UsersManage, "Admin"),
+        Row("access-governance", AdminPolicies.AccessGovernanceView, "Admin"),
+        Row("security-view", AdminPolicies.SecurityView, "Admin"),
+        Row("erp-usage-view", Policies.Usage.View, "Admin", "Comdt", "HoD"),
+        Row("logs-view", AdminPolicies.LogsView, "Admin"),
+        Row("recovery-manage", AdminPolicies.RecoveryManage, "Admin"),
+        Row("master-data-manage", AdminPolicies.MasterDataManage, "Admin"),
+        Row("integrity-manage", AdminPolicies.IntegrityManage, "Admin"),
+        Row("activity-types-manage", AdminPolicies.ActivityTypesManage, "Admin", "HoD"),
+        Row("holidays-manage", AdminPolicies.HolidaysManage, "Admin", "HoD"),
+        Row("social-media-lists-manage", AdminPolicies.SocialMediaListsManage, "Admin", "HoD"),
+        Row("celebrations-manage", Policies.Calendar.ManageCelebrations, "Admin", "TA", "Main_Office_Clerk", "Main Office"),
+        Row("ingestion-manage", AdminPolicies.IngestionManage, "Admin"),
+        Row("media-manage", AdminPolicies.MediaManage, "Admin", "HoD"),
+        Row("media-view", AdminPolicies.MediaView, "Admin", "HoD"),
+        Row("media-configure", AdminPolicies.MediaConfigure, "Admin", "HoD"),
+        Row("media-operate", AdminPolicies.MediaOperateQueue, "Admin", "HoD"),
+        Row("media-recover", AdminPolicies.MediaRecover, "Admin", "HoD"),
+        Row("media-classification", AdminPolicies.MediaClassificationManage, "Admin", "HoD"),
+        Row("docrepo-delete-approve", Policies.Documents.DeleteApprove, "Admin", "HoD"),
+        Row("docrepo-categories", Policies.Documents.ManageCategories, "Admin"),
+        Row("docrepo-purge", Policies.Documents.Purge, "Admin"),
+    };
+
+    [Theory]
+    [MemberData(nameof(ExpectedGrants))]
+    public void EveryMatrixRow_KeepsItsPolicyAndRoles(string key, string policy, string[] roles)
+    {
+        var capability = Assert.Single(new AdminCapabilityCatalog().Capabilities, item => item.Key == key);
+
+        Assert.Equal(policy, capability.Policy);
+        Assert.Equal(
+            roles.OrderBy(item => item, StringComparer.OrdinalIgnoreCase),
+            capability.PermittedRoles.OrderBy(item => item, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ExpectedGrants_CoverEveryMatrixRow()
+    {
+        var pinned = ExpectedGrants().Select(row => (string)row[0]).ToHashSet(StringComparer.Ordinal);
+
+        Assert.Equal(
+            pinned.OrderBy(key => key, StringComparer.Ordinal),
+            new AdminCapabilityCatalog().Capabilities.Select(item => item.Key).OrderBy(key => key, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void SocialMediaListsPolicy_AllowsExactlyAdminAndHoD()
+    {
+        // Before PR 7 the pages said [Authorize(Roles = "Admin,HoD")]; the policy must be no wider
+        // and no narrower.
+        var options = new AuthorizationOptions();
+        AdminCapabilityCatalog.RegisterPolicies(options);
+
+        var policy = Assert.IsType<AuthorizationPolicy>(options.GetPolicy(AdminPolicies.SocialMediaListsManage));
+        var requirement = Assert.Single(policy.Requirements.OfType<RolesAuthorizationRequirement>());
+        Assert.Equal(new[] { "Admin", "HoD" }, requirement.AllowedRoles.OrderBy(role => role, StringComparer.Ordinal));
+        Assert.All(policy.Requirements, item => Assert.True(
+            item is RolesAuthorizationRequirement or DenyAnonymousAuthorizationRequirement,
+            $"Unexpected requirement {item.GetType().Name}."));
+    }
+
+    [Theory]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.IndexModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.NewModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.EditModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.IndexModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.NewModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.EditModel))]
+    public void SocialMediaListPages_RequireTheCataloguePolicyAndNoOtherGate(Type pageModel)
+    {
+        var authorize = Assert.Single(pageModel.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true).Cast<AuthorizeAttribute>());
+
+        Assert.Equal(AdminPolicies.SocialMediaListsManage, authorize.Policy);
+        Assert.Null(authorize.Roles);
+        Assert.Empty(pageModel.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    private static object[] Row(string key, string policy, params string[] roles) => new object[] { key, policy, roles };
+
     [Fact]
     public void CelebrationCapability_UsesTheExistingCalendarPolicyWithoutReregisteringIt()
     {

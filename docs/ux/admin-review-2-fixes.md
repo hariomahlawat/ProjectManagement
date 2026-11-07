@@ -192,3 +192,27 @@ Recovery should list them, or say where they are restored, is left to the owner.
   events lift the query filter, as before). Home, Restore deleted items and its tabs all count from
   it. Tests check the rule, the guards with disabled, pending-deletion and locked admins, that Who
   has which role counts the same as the guards, and that the three pages give the same bin counts.
+
+## PR 7 as shipped
+
+- **Who has which role in plain words.** Headings and tiles now read "What each role can do",
+  "Roles", "Accounts with senior roles", "Senior accounts not in use" (disabled or waiting to be
+  deleted) and "Roles held by one person". "Senior roles" are the roles the role catalogue marks
+  as privileged (Administrator, Commandant, Head of Department); the tile names them from the
+  catalogue. Permission names ("Admin.Access", "DocRepo.Purge") and stored role names moved into a
+  collapsed **Technical details** panel under the table.
+- The things to look at, the role descriptions (`AdminRoleDescriptorCatalog`) and the permission
+  descriptions (`AdminCapabilityCatalog`) were rewritten. The media rows that no page uses today
+  (Manage, Set up, Recover) say so. Keys, policy names and roles are unchanged; the finding codes
+  are unchanged too. The access guide's three bullets were reworded to match.
+- **Social media lists get a catalogue policy.** `AdminPolicies.SocialMediaListsManage`
+  ("Admin.SocialMediaLists.Manage") is registered by the capability catalogue with exactly the
+  roles the pages had (`Admin`, `HoD`). All six event type and platform pages use it, so the lists
+  now appear in the table, and the policy guard test no longer needs its exception for them.
+- Their entries in the Administration catalogue and the Lists used in forms hub now use the same
+  policy instead of `Admin.MasterData.Manage`. Who can **open** the pages is unchanged; a HoD can
+  now also see the links where the Administration catalogue is shown to them, like Activity types
+  and Holidays. The Project Office Reports menu links (Admin only) are left as they were.
+- Tests pin every row of the table to its policy and roles, check the new policy allows exactly
+  Admin and HoD and that each social media page requires it and nothing else, and widen the
+  plain-words test to this page, its permission descriptions and the role descriptions.

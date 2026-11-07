@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using ProjectManagement.Configuration;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -11,7 +12,7 @@ using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes;
 
-[Authorize(Roles = "Admin,HoD")]
+[Authorize(Policy = AdminPolicies.SocialMediaListsManage)]
 public class IndexModel : PageModel
 {
     private readonly SocialMediaEventTypeService _service;

@@ -90,6 +90,20 @@ public sealed class IndexModel : PageModel
 
     public string RoleDisplayName(string roleName) => _roles.Describe(roleName).DisplayName;
 
+    // "Senior roles" are the roles the role catalogue marks as privileged, named in plain words:
+    // "Administrator, Commandant or Head of Department".
+    public string SeniorRoleNames => JoinWithOr(MatrixRoles
+        .Where(name => _roles.Describe(name).IsPrivileged)
+        .Select(RoleDisplayName)
+        .ToArray());
+
+    private static string JoinWithOr(IReadOnlyList<string> names) => names.Count switch
+    {
+        0 => "None defined",
+        1 => names[0],
+        _ => string.Join(", ", names.Take(names.Count - 1)) + " or " + names[^1]
+    };
+
     public string FormatIst(DateTimeOffset? value) => _time.FormatIst(value);
 
     public string AccountState(AccessGovernanceUserRow user) =>
