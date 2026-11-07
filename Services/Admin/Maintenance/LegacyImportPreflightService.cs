@@ -508,7 +508,30 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
     /// </summary>
     internal const string StagingFolderName = "admin-import-staging";
 
-    private string StagingRoot() => Path.Combine(_uploadRoot.RootPath, StagingFolderName);
+    /// <remarks>
+    /// When no upload root is configured it defaults to <c>wwwroot/uploads</c>, which the static
+    /// file middleware serves without sign-in. Staged workbooks must never be reachable that way,
+    /// so an upload root inside the web root falls back to the private app-folder location.
+    /// </remarks>
+    private string StagingRoot()
+    {
+        var uploadRoot = _uploadRoot.RootPath;
+        return IsWithin(uploadRoot, _environment.WebRootPath)
+            ? LegacyStagingRoot()
+            : Path.Combine(uploadRoot, StagingFolderName);
+    }
+
+    internal static bool IsWithin(string path, string? root)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root))
+        {
+            return false;
+        }
+
+        var fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)) + Path.DirectorySeparatorChar;
+        var fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)) + Path.DirectorySeparatorChar;
+        return fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     /// Where previews were staged before this release. It is still read and swept for one

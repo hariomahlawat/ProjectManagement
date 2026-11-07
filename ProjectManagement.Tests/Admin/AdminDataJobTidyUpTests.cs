@@ -100,6 +100,39 @@ public sealed class AdminDataJobTidyUpTests : IDisposable
         Assert.False(Directory.Exists(OldStaging));
     }
 
+    // With no upload root configured it defaults to wwwroot/uploads, which is served without
+    // sign-in. Staged workbooks then stay in the private app folder (Codex review on #3010).
+    [Fact]
+    public async Task LegacyImport_NeverStagesInsideTheWebRoot()
+    {
+        await using var connection = await OpenAsync();
+        await using var db = await SeedAsync(connection);
+        var webRoot = Path.Combine(_root, "app", "wwwroot");
+        var service = new LegacyImportPreflightService(
+            db,
+            new ProjectImportService(db),
+            new DbAudit(db),
+            new TestWebHostEnvironment { ContentRootPath = Path.Combine(_root, "app"), WebRootPath = webRoot },
+            new TestUploadRootProvider(Path.Combine(webRoot, "uploads")),
+            Microsoft.Extensions.Options.Options.Create(new AdminRecoveryOptions()),
+            NullLogger<LegacyImportPreflightService>.Instance);
+
+        var preview = await PreviewAsync(service);
+
+        Assert.True(File.Exists(Path.Combine(OldStaging, $"{preview.Token:N}.xlsx")));
+        Assert.False(Directory.Exists(webRoot) && Directory.EnumerateFiles(webRoot, "*", SearchOption.AllDirectories).Any());
+        Assert.True((await service.CommitAsync(preview.Token, 1, 1, "admin")).Succeeded);
+    }
+
+    [Theory]
+    [InlineData("C:/site/wwwroot/uploads", "C:/site/wwwroot", true)]
+    [InlineData("C:/site/wwwroot", "C:/site/wwwroot/", true)]
+    [InlineData("C:/site/wwwroot-data/uploads", "C:/site/wwwroot", false)]
+    [InlineData("F:/ProjectManagementData/uploads", "C:/site/wwwroot", false)]
+    [InlineData("F:/ProjectManagementData/uploads", null, false)]
+    public void LegacyImport_WebRootCheck(string path, string? root, bool expected) =>
+        Assert.Equal(expected, LegacyImportPreflightService.IsWithin(path, root));
+
     // A preview checked on the previous release sits in the old app folder. For one release it
     // can still be imported.
     [Fact]
