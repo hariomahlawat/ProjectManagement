@@ -48,10 +48,10 @@ namespace ProjectManagement.Services
             }
 
             var admins = await _userManager.GetUsersInRoleAsync(RoleNames.Admin);
+            // One shared rule (ActiveAdministratorRule): a temporarily locked Admin still counts.
             return admins.Count(admin =>
                 admin.Id != target.Id
-                && !admin.IsDisabled
-                && !admin.PendingDeletion) == 0;
+                && ActiveAdministratorRule.IsActive(admin)) == 0;
         }
 
         public async Task DisableAsync(string targetUserId, string actorUserId, string reason)

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.Services.Admin;
@@ -146,12 +147,10 @@ public sealed class AdminDashboardService : IAdminDashboardService
             ErrorEventsLast24Hours = errorEvents,
             ArchivedProjects = await _db.Projects.AsNoTracking()
                 .CountAsync(project => !project.IsDeleted && project.IsArchived, cancellationToken),
-            TrashedProjects = await _db.Projects.IgnoreQueryFilters().AsNoTracking()
-                .CountAsync(project => project.IsDeleted, cancellationToken),
-            DeletedDocuments = await _db.ProjectDocuments.AsNoTracking()
-                .CountAsync(document => document.Status == ProjectDocumentStatus.SoftDeleted, cancellationToken),
-            DeletedEvents = await _db.Events.IgnoreQueryFilters().AsNoTracking()
-                .CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken)
+            // Bin counts come from the one place Restore deleted items also counts from.
+            TrashedProjects = await AdminBins.CountProjectsAsync(_db, cancellationToken),
+            DeletedDocuments = await AdminBins.CountProjectDocumentsAsync(_db, cancellationToken),
+            DeletedEvents = await AdminBins.CountEventsAsync(_db, cancellationToken)
         };
 
         var recentActions = await _db.AuditLogs.AsNoTracking()

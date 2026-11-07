@@ -81,15 +81,15 @@ public sealed class AdminRestoreTabsService : IAdminRestoreTabsService
         }
 
         await AddAsync(AdminRestoreTabKeys.Overview, "Overview", AdminNavigationKeys.RecoveryCentre, false, null);
+        // The bins are defined once (AdminBins), so these counts match Home and the overview.
         await AddAsync(AdminRestoreTabKeys.Projects, "Projects", AdminNavigationKeys.ProjectTrash, false,
-            () => _db.Projects.IgnoreQueryFilters().AsNoTracking().CountAsync(project => project.IsDeleted, cancellationToken));
+            () => AdminBins.CountProjectsAsync(_db, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.ProjectDocuments, "Project documents", AdminNavigationKeys.DocumentRecycle, false,
-            () => _db.ProjectDocuments.AsNoTracking().CountAsync(document => document.Status == ProjectDocumentStatus.SoftDeleted, cancellationToken));
+            () => AdminBins.CountProjectDocumentsAsync(_db, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.RepositoryDocuments, "Repository documents", AdminNavigationKeys.RepositoryTrash, true,
-            () => _db.Documents.AsNoTracking().CountAsync(document => document.IsDeleted, cancellationToken));
+            () => AdminBins.CountRepositoryDocumentsAsync(_db, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.CalendarEvents, "Calendar events", AdminNavigationKeys.DeletedEvents, false,
-            // Deleted events are hidden by a query filter everywhere else, so it is lifted here.
-            () => _db.Events.IgnoreQueryFilters().AsNoTracking().CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken));
+            () => AdminBins.CountEventsAsync(_db, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.ChatFiles, "Chat files", AdminNavigationKeys.ChatStorage, true,
             () => _chat.CountRestorableByAdministratorAsync(cancellationToken),
             // Chat files open at the clean-ups that can be undone, not at the top of the page.
