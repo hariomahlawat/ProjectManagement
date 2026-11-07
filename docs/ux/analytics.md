@@ -292,7 +292,7 @@ page (`CoeAnalyticsVm`, `ArVrImpactVm`); nothing is recomputed for the slides. T
 ARPP slide style: a white page, the formation crest (left) and SDD insignia (right) either side of the
 title over a navy rule, tinted column headings, and a footer note with the page number.
 
-1. **CoE (AR/VR) projects by category**: one column per CoE category (real sub-categories by name,
+1. **CoE (AR/VR) roadmap**: one column per CoE category (real sub-categories by name,
    then "(no sub-category)"), each listing its projects: ongoing first, furthest workflow stage
    first, then completed. Every name is shown in full, wrapping where needed; the stage's short label
    (the stage chart's axis label, `StageCodes.ShortLabelOf`) or "Completed" sits on the right of the
@@ -300,7 +300,7 @@ title over a navy rule, tinted column headings, and a footer note with the page 
    the project header) on the line under its name, in red with "overdue" once it has passed. One type
    size serves the whole slide: the largest at which the longest column fits. Cancelled projects are
    left out of the columns and named in the footer.
-2. **AR/VR at a glance**: three stat cards (AR/VR projects completed, in the CoE and outside it;
+2. **AR/VR completed projects, proliferation and user training**: three stat cards (AR/VR projects completed, in the CoE and outside it;
    people trained and courses; units proliferated and receiving units), then every completed AR/VR
    project by name with its completion year, newest first, in balanced columns
    (`CoeAnalyticsVm.ArVrCompleted`: the CoE, before the CoE nomination, DCD fresh, DCD repeat

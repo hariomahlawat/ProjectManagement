@@ -128,7 +128,7 @@ public sealed class CoeSlidesTests
 
         string SlideText(int index) => ((SlidePart)presentation.GetPartById(slideIds[index].RelationshipId!.Value!)).Slide.InnerText;
         var first = SlideText(0);
-        Assert.Contains("CoE (AR/VR) projects by category", first, StringComparison.Ordinal);
+        Assert.Contains("CoE (AR/VR) roadmap", first, StringComparison.Ordinal);
         Assert.Contains("CoE Mid Term", first, StringComparison.Ordinal);
         Assert.Contains("CoE (no sub-category)", first, StringComparison.Ordinal);
         Assert.Contains("Devp", first, StringComparison.Ordinal);
@@ -137,7 +137,7 @@ public sealed class CoeSlidesTests
         Assert.Contains("Cancelled: VR Dropped", first, StringComparison.Ordinal);
 
         var second = SlideText(1);
-        Assert.Contains("AR/VR at a glance", second, StringComparison.Ordinal);
+        Assert.Contains("AR/VR completed projects, proliferation and user training", second, StringComparison.Ordinal);
         Assert.Contains("AR/VR projects completed", second, StringComparison.Ordinal);
         Assert.Contains("in 1 AR/VR course", second, StringComparison.Ordinal);
         Assert.Contains("to 4 receiving units", second, StringComparison.Ordinal);
@@ -220,8 +220,8 @@ public sealed class CoeSlidesTests
             .ToList();
         Assert.True(slides.Count > 2);
 
-        var categorySlides = slides.Where(slide => slide.InnerText.Contains("CoE (AR/VR) projects by category", StringComparison.Ordinal)).ToList();
-        var summarySlides = slides.Where(slide => slide.InnerText.Contains("AR/VR at a glance", StringComparison.Ordinal)).ToList();
+        var categorySlides = slides.Where(slide => slide.InnerText.Contains("CoE (AR/VR) roadmap", StringComparison.Ordinal)).ToList();
+        var summarySlides = slides.Where(slide => slide.InnerText.Contains("AR/VR completed projects, proliferation and user training", StringComparison.Ordinal)).ToList();
         Assert.True(categorySlides.Count > 1);
         Assert.True(summarySlides.Count > 1);
         Assert.Contains("(continued)", categorySlides[1].InnerText, StringComparison.Ordinal);
@@ -270,7 +270,7 @@ public sealed class CoeSlidesTests
         var slides = presentation.Presentation.SlideIdList!.Elements<SlideId>()
             .Select(id => ((SlidePart)presentation.GetPartById(id.RelationshipId!.Value!)).Slide)
             .ToList();
-        var categorySlides = slides.Where(slide => slide.InnerText.Contains("CoE (AR/VR) projects by category", StringComparison.Ordinal)).ToList();
+        var categorySlides = slides.Where(slide => slide.InnerText.Contains("CoE (AR/VR) roadmap", StringComparison.Ordinal)).ToList();
         Assert.Equal(3, categorySlides.Count);
         Assert.Contains("(continued)", categorySlides[1].InnerText, StringComparison.Ordinal);
 
