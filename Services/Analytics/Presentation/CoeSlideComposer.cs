@@ -123,7 +123,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         return stream.ToArray();
     }
 
-    // SECTION: Slide 1 — CoE projects by category: one column per category, every name in full
+    // SECTION: Slide 1 — CoE (AR/VR) roadmap, the projects by category: one column per category, every name in full
     private const double ColumnHeaderHeight = .36;
     private const double CategoryGap = .2;
     // Below the smallest size the rows no longer fit; they carry on to continuation slides at a readable size instead.
@@ -212,7 +212,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         bool continued)
     {
         AddHeader(canvas, logos,
-            continued ? "CoE (AR/VR) projects by category (continued)" : "CoE (AR/VR) projects by category",
+            continued ? "CoE (AR/VR) roadmap (continued)" : "CoE (AR/VR) roadmap",
             $"as of {Date(data.AsOf)} · {data.OngoingCount} ongoing, {data.CompletedCount} completed · stage today; PDC for projects in development");
 
         var notes = new List<string>();
@@ -360,7 +360,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
     internal sealed record RowLayout(CoeSlideProject Project, double LineHeight, double Padding, double NameWidth, double TagWidth, double Height);
     // END SECTION
 
-    // SECTION: Slide 2 — AR/VR at a glance: stat cards, then every completed AR/VR project with its year
+    // SECTION: Slide 2 — AR/VR completed projects, proliferation and user training: stat cards, then every completed AR/VR project with its year
     private const double CardHeight = 1.42;
     private const double ListColumnGap = .3;
     private const int MaxListColumns = 4;
@@ -439,7 +439,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         bool continued)
     {
         AddHeader(canvas, logos,
-            continued ? "AR/VR at a glance (continued)" : "AR/VR at a glance",
+            continued ? "AR/VR completed projects, proliferation and user training (continued)" : "AR/VR completed projects, proliferation and user training",
             $"as of {Date(data.AsOf)} · completed projects, training and proliferation, all years");
         AddFooter(canvas, data.Training is null && data.Proliferation is null
             ? "Training and proliferation figures are shown to their trackers' viewers only."

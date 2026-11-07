@@ -8,7 +8,7 @@ using ProjectManagement.Models.Stages;
 namespace ProjectManagement.Services.Analytics.Presentation;
 
 // SECTION: CoE slides data (what the two slides show, resolved from the page's own view models)
-/// <summary>The two CoE (AR/VR) slides: projects by category, then the AR/VR summary.</summary>
+/// <summary>The two CoE (AR/VR) slides: the roadmap (projects by category), then AR/VR completed projects, proliferation and user training.</summary>
 public sealed record CoeSlidesData(
     DateOnly AsOf,
     IReadOnlyList<CoeSlideColumn> Columns,
