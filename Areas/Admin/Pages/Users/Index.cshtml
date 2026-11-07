@@ -78,7 +78,7 @@
             <select asp-for="Status" class="form-select" data-admin-auto-submit>
                 <option value="">All states</option>
                 <option value="active">Active</option>
-                <option value="must-change-password">Password change required</option>
+                <option value="must-change-password">Must change password</option>
                 <option value="locked">Temporarily locked</option>
                 <option value="disabled">Disabled</option>
                 <option value="pending-deletion">Pending deletion</option>
@@ -165,7 +165,7 @@
                     <tr>
                         <th scope="col">User</th>
                         <th scope="col">Roles</th>
-                        <th scope="col">Last activity</th>
+                        <th scope="col">Last signed in</th>
                         <th scope="col">Account state</th>
                         <th scope="col" class="admin-data-table__actions">Actions</th>
                     </tr>

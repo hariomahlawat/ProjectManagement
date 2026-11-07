@@ -61,11 +61,11 @@ public sealed class EditModel : PageModel
         [StringLength(32)]
         public string Rank { get; set; } = string.Empty;
 
-        [Required, Display(Name = "Account classification")]
+        [Required, Display(Name = "Kind of account")]
         [EnumDataType(typeof(UserAccountKind))]
         public UserAccountKind AccountKind { get; set; } = UserAccountKind.Human;
 
-        [MinLength(1, ErrorMessage = "Assign at least one role to the user.")]
+        [MinLength(1, ErrorMessage = "Choose at least one role.")]
         public List<string> Roles { get; set; } = new();
 
         /// <summary>The account version this form was opened with (see UserEditVersion).</summary>
@@ -190,8 +190,8 @@ public sealed class EditModel : PageModel
         {
             Title = title,
             Description = Account is null
-                ? "Update identity details and assigned roles."
-                : $"Update identity details and access for @{Account.UserName}.",
+                ? "Change their name, rank, kind of account and roles."
+                : $"Change the name, rank, kind of account and roles of @{Account.UserName}.",
             Icon = "bi-person-gear",
             Actions = Account is null
                 ? Array.Empty<AdminPageActionModel>()

@@ -41,7 +41,7 @@ public sealed class ObserveModel : PageModel
     {
         Item = await _holidays.GetAsync(Input.Id, cancellationToken);
         if (Item is null) return NotFound();
-        if (!Input.Confirmed) ModelState.AddModelError("Input.Confirmed", "Confirm the office-closure and schedule impact before continuing.");
+        if (!Input.Confirmed) ModelState.AddModelError("Input.Confirmed", "Tick the box to confirm the office will be closed.");
         if (!ModelState.IsValid) return Page();
 
         var result = await _holidays.DeclareOfficeObservanceAsync(
@@ -50,7 +50,7 @@ public sealed class ObserveModel : PageModel
         {
             ModelState.AddModelError(string.Empty, !string.IsNullOrWhiteSpace(result.TraceId)
                 ? $"{result.UserMessage} Trace reference: {result.TraceId}."
-                : result.UserMessage ?? "The office observance could not be declared.");
+                : result.UserMessage ?? "It could not be made an office holiday.");
             var latest = await _holidays.GetAsync(Input.Id, cancellationToken);
             if (latest is not null) { Item = latest; Input.RowVersion = latest.RowVersion; }
             return Page();
@@ -64,9 +64,9 @@ public sealed class ObserveModel : PageModel
     {
         [Required] public int Id { get; set; }
         [StringLength(240), Display(Name = "Authority / office order reference")] public string? AuthorityReference { get; set; }
-        [StringLength(1200), Display(Name = "Decision remarks")] public string? Remarks { get; set; }
+        [StringLength(1200), Display(Name = "Remarks")] public string? Remarks { get; set; }
         [Required] public string RowVersion { get; set; } = string.Empty;
-        [Display(Name = "I confirm that the office will remain closed and future working-day calculations will exclude this date.")]
+        [Display(Name = "I confirm the office will be closed on this day, and new stage dates will skip it.")]
         public bool Confirmed { get; set; }
     }
 }

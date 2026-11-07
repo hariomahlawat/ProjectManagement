@@ -99,7 +99,7 @@
                     <span asp-validation-for="Input.Password" class="text-danger"></span>
                     <div class="admin-password-actions">
                         <button type="button" id="generatePwd" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-stars" aria-hidden="true"></i> Generate secure password
+                            <i class="bi bi-stars" aria-hidden="true"></i> Generate a strong password
                         </button>
                         <button type="button" id="copyPwd" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-clipboard" aria-hidden="true"></i> Copy
@@ -109,7 +109,7 @@
                 <aside class="admin-security-note">
                     <span class="admin-security-note__icon"><i class="bi bi-shield-check" aria-hidden="true"></i></span>
                     <div>
-                        <strong>Password policy</strong>
+                        <strong>Password rules</strong>
                         <p>@Model.PasswordPolicyDescription</p>
                         <p>Give them the temporary password in person or another approved way. Do not put it in remarks or an email subject.</p>
                     </div>

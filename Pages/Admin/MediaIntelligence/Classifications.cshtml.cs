@@ -721,6 +721,23 @@ public sealed class ClassificationsModel : PageModel
             _ => "bg-secondary"
         };
 
+        // The sorter's scores as points out of 100, so a card reads "Score 37 of 100" and
+        // "Ahead by 1 point" instead of percentages that look like a chance of being right.
+        // The lead is the gap between the two scores as shown, so the card always adds up.
+        public string PredictedScoreText => $"Score {ToPoints((double)PredictedScore)} of 100";
+
+        public string RunnerUpScoreText => $"Score {ToPoints(RunnerUpScore)} of 100";
+
+        public string LeadText => (ToPoints((double)PredictedScore) - ToPoints(RunnerUpScore)) switch
+        {
+            <= 0 => "Less than 1 point",
+            1 => "1 point",
+            var points => $"{points} points"
+        };
+
+        private static int ToPoints(double score) =>
+            (int)Math.Round(Math.Clamp(score, 0d, 1d) * 100, MidpointRounding.AwayFromZero);
+
         public string DecisionReasonLabel => DecisionReasonCode switch
         {
             "AUTO_ACCEPTED_HIGH_CONFIDENCE" => "PRISM was sure",

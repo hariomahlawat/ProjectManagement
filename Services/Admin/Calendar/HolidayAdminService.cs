@@ -298,7 +298,7 @@ public sealed class HolidayAdminService : IHolidayAdminService
                 holiday.Id,
                 type == HolidayType.Gazetted
                     ? "Gazetted Holiday added as an office non-working day."
-                    : "Restricted Holiday added for calendar information. The office remains open unless observance is declared.");
+                    : "Restricted holiday added. It shows on the calendar; the office stays open unless you make it an office holiday.");
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
@@ -452,7 +452,7 @@ public sealed class HolidayAdminService : IHolidayAdminService
 
         if (holiday.IsObservedAsOfficeHoliday)
         {
-            return AdminOperationResult.Success("This Restricted Holiday is already observed as an office holiday.");
+            return AdminOperationResult.Success("This restricted holiday is already an office holiday.");
         }
 
         var before = AuditSnapshot(holiday);
@@ -468,7 +468,7 @@ public sealed class HolidayAdminService : IHolidayAdminService
             before,
             "RestrictedHolidayDeclaredOfficeHoliday",
             $"Declared Restricted Holiday '{holiday.Name}' as an office holiday.",
-            "Restricted Holiday declared as an office holiday. It now affects working-day calculations.",
+            "It is now an office holiday. New stage dates will skip it.",
             cancellationToken);
     }
 
@@ -502,7 +502,7 @@ public sealed class HolidayAdminService : IHolidayAdminService
         if (holiday.Type != HolidayType.Restricted)
         {
             return AdminOperationResult.Failure(
-                "Office observance cannot be withdrawn from a Gazetted Holiday.",
+                "A gazetted holiday is always an office holiday.",
                 "HolidayNotRestricted");
         }
 
@@ -523,7 +523,7 @@ public sealed class HolidayAdminService : IHolidayAdminService
             before,
             "RestrictedHolidayOfficeObservanceWithdrawn",
             $"Withdrew office observance of Restricted Holiday '{holiday.Name}'.",
-            "Office observance withdrawn. The Restricted Holiday remains visible for information and no longer affects future working-day calculations.",
+            "Office holiday stopped. It still shows on the calendar, and new stage dates count it as a working day.",
             cancellationToken);
     }
 
