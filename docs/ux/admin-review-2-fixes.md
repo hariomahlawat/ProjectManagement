@@ -215,6 +215,9 @@ Recovery should list them, or say where they are restored, is left to the owner.
   The documents' foreign key to these tables cascades, so the check and the delete run in one
   transaction that first locks the row (`SELECT … FOR UPDATE`): an upload or edit filing a
   document under it at that moment waits and then fails, rather than being deleted with it.
+  The office and type that automatic PDF imports are filed under (`DocRepo:IngestionOfficeCategoryId`
+  and `IngestionDocumentCategoryId`) cannot be deleted either, even before any import: the page
+  says "Imported PDFs are filed here" (Codex review).
 - Names are compared ignoring case and extra spaces (as master data does); changes are audited
   in the same save as before (`CategoryChanged`, now also "Deleted").
 - **Missing files and System health share one check:** `IDocRepoMissingFilesService`

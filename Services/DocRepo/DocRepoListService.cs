@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
@@ -33,10 +34,14 @@ public sealed record DocRepoListItem(
     bool IsActive,
     uint? Version,
     int DocumentCount,
-    int TrashedDocumentCount)
+    int TrashedDocumentCount,
+    bool UsedByIngestion = false)
 {
-    /// <summary>A value can be deleted only when no document uses it, in the library or the trash.</summary>
-    public bool CanDelete => DocumentCount == 0 && TrashedDocumentCount == 0;
+    /// <summary>
+    /// A value can be deleted only when no document uses it, in the library or the trash, and
+    /// automatic PDF ingestion is not set to file new documents under it.
+    /// </summary>
+    public bool CanDelete => DocumentCount == 0 && TrashedDocumentCount == 0 && !UsedByIngestion;
 }
 
 public sealed record DocRepoListResult(bool Succeeded, string Message, string? ErrorCode = null)
@@ -79,9 +84,11 @@ public sealed class DocRepoListService : IDocRepoListService
     private readonly ApplicationDbContext _db;
     private readonly IDocRepoAuditService _audit;
     private readonly IAuthorizationService _authorization;
+    private readonly DocRepoOptions _options;
 
-    public DocRepoListService(ApplicationDbContext db, IDocRepoAuditService audit, IAuthorizationService authorization)
+    public DocRepoListService(ApplicationDbContext db, IDocRepoAuditService audit, IAuthorizationService authorization, IOptions<DocRepoOptions> options)
     {
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
@@ -130,7 +137,7 @@ public sealed class DocRepoListService : IDocRepoListService
             .Select(row =>
             {
                 counts.TryGetValue(row.Id, out var usage);
-                return new DocRepoListItem(row.Id, row.Name, row.SortOrder, row.IsActive, row.Version, usage.Live, usage.Trashed);
+                return new DocRepoListItem(row.Id, row.Name, row.SortOrder, row.IsActive, row.Version, usage.Live, usage.Trashed, UsedByIngestion(kind, row.Id));
             })
             .ToList();
     }
@@ -304,6 +311,15 @@ public sealed class DocRepoListService : IDocRepoListService
         var entity = await set.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (entity is null) return NotFound(kind);
 
+        // Automatic ingestion (uploads from activities, ARPP and FFC) files new PDFs under the
+        // configured office and type by id; deleting either would make every later import fail.
+        if (UsedByIngestion(kind, id))
+        {
+            return DocRepoListResult.Failure(
+                $"“{entity.Name}” is where automatically imported PDFs are filed (DocRepo:Ingestion{(kind == DocRepoListKind.DocumentType ? "DocumentCategoryId" : "OfficeCategoryId")} in the settings), so it cannot be deleted.",
+                "UsedByIngestion");
+        }
+
         // Trashed documents count: they still point at the value and can be restored.
         var documents = _db.Documents.AsNoTracking();
         var inUse = kind == DocRepoListKind.DocumentType
@@ -346,6 +362,9 @@ public sealed class DocRepoListService : IDocRepoListService
         var allowed = user is not null && (await _authorization.AuthorizeAsync(user, null, Policies.Documents.ManageCategories)).Succeeded;
         return allowed ? null : DocRepoListResult.Failure("You are not allowed to change the repository lists.", "Forbidden");
     }
+
+    private bool UsedByIngestion(DocRepoListKind kind, int id) =>
+        (kind == DocRepoListKind.DocumentType ? _options.IngestionDocumentCategoryId : _options.IngestionOfficeCategoryId) == id;
 
     private bool HasVersion<T>() where T : class =>
         _db.Model.FindEntityType(typeof(T))?.FindProperty(VersionProperty) is not null;

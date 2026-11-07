@@ -143,6 +143,26 @@ public sealed class DocRepoListServiceTests
         Assert.False(row.CanDelete);
     }
 
+    [Theory]
+    [InlineData(DocRepoListKind.DocumentType)]
+    [InlineData(DocRepoListKind.Office)]
+    public async Task Delete_RefusesTheValueAutomaticImportsAreFiledUnder(DocRepoListKind kind)
+    {
+        await using var db = CreateDb();
+        SeedLookups(db);
+        await db.SaveChangesAsync();
+        // No document uses it yet, but ingestion is configured to file new PDFs under it.
+        var lists = Service(db, new DocRepoOptions { IngestionOfficeCategoryId = 1, IngestionDocumentCategoryId = 1 });
+
+        var result = await lists.DeleteAsync(kind, Admin, 1, version: null);
+
+        Assert.Equal("UsedByIngestion", result.ErrorCode);
+        Assert.True(kind == DocRepoListKind.DocumentType ? await db.DocumentCategories.AnyAsync() : await db.OfficeCategories.AnyAsync());
+        var row = Assert.Single(await lists.ListAsync(kind));
+        Assert.True(row.UsedByIngestion);
+        Assert.False(row.CanDelete);
+    }
+
     [Fact]
     public async Task Delete_RemovesAnUnusedValue_AndAuditsIt()
     {
@@ -226,8 +246,8 @@ public sealed class DocRepoListServiceTests
     /// <summary>Only administrators manage the repository lists (Policies.Documents.CategoryManagerRoles).</summary>
     private static System.Security.Claims.ClaimsPrincipal Admin => User("admin-user", ProjectManagement.Configuration.RoleNames.Admin);
 
-    private static DocRepoListService Service(ApplicationDbContext db) =>
-        new(db, new DocRepoAuditService(db), Authorization());
+    private static DocRepoListService Service(ApplicationDbContext db, DocRepoOptions? options = null) =>
+        new(db, new DocRepoAuditService(db), Authorization(), Microsoft.Extensions.Options.Options.Create(options ?? new DocRepoOptions()));
 
     private static async Task<bool> IsActiveAsync(ApplicationDbContext db, DocRepoListKind kind, int id) =>
         kind == DocRepoListKind.DocumentType

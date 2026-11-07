@@ -108,14 +108,14 @@ public sealed class DocRepoListPostgresIntegrationTests
     private static async Task<System.Collections.Generic.IReadOnlyList<DocRepoListItem>> ListAsync(string connectionString, DocRepoListKind kind)
     {
         await using var db = Create(connectionString);
-        return await new DocRepoListService(db, new DocRepoAuditService(db), DocRepoTestSupport.Authorization()).ListAsync(kind);
+        return await new DocRepoListService(db, new DocRepoAuditService(db), DocRepoTestSupport.Authorization(), Microsoft.Extensions.Options.Options.Create(new DocRepoOptions())).ListAsync(kind);
     }
 
     /// <summary>Each change in its own context, as each request has its own.</summary>
     private static async Task<DocRepoListResult> RunAsync(string connectionString, Func<DocRepoListService, Task<DocRepoListResult>> action)
     {
         await using var db = Create(connectionString);
-        return await action(new DocRepoListService(db, new DocRepoAuditService(db), DocRepoTestSupport.Authorization()));
+        return await action(new DocRepoListService(db, new DocRepoAuditService(db), DocRepoTestSupport.Authorization(), Microsoft.Extensions.Options.Options.Create(new DocRepoOptions())));
     }
 
     private static async Task ExecuteAsync(string connectionString, string sql)
