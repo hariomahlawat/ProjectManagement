@@ -319,10 +319,22 @@ public static class AdminNavigationCatalog
             "configuration integrity, integrity, validation, duplicates, order",
             matchPagePattern: "/MasterData/Integrity/", showOnDashboard: true),
         Entry(AdminNavigationKeys.DocumentDeleteRequests, AdminNavigationGroups.System, 330,
-            Item("Document deletion approvals", "DocumentRepository", "/Admin/DeleteRequests/Index", "bi-file-earmark-x", Policies.Documents.DeleteApprove),
-            "Approve or reject requests to delete Document Repository files.",
-            "document repository, docrepo, delete requests, approvals",
-            matchPagePattern: "/Admin/DeleteRequests/", usesAdminShell: false),
+            // Repository deletion requests are decided in the Decision Centre, filtered to them;
+            // the old Document Repository address redirects there.
+            new NavigationItem
+            {
+                Text = "Document deletion approvals",
+                Area = string.Empty,
+                Page = "/Approvals/Pending/Index",
+                Icon = "bi-file-earmark-x",
+                AuthorizationPolicy = Policies.Documents.DeleteApprove,
+                RouteValues = new Dictionary<string, object?> { ["Type"] = "RepositoryDocumentDelete" }
+            },
+            "Approve or reject requests to delete Document Repository files. They are decided in the Decision Centre.",
+            "document repository, docrepo, delete requests, approvals, decision centre",
+            exactPage: true,
+            requiredQuery: new Dictionary<string, string?> { ["Type"] = "RepositoryDocumentDelete" },
+            usesAdminShell: false),
         Entry(AdminNavigationKeys.UnreadablePdfs, AdminNavigationGroups.System, 335,
             Item("Unreadable PDFs", "DocumentRepository", "/Admin/OCRFailures/OcrFailures", "bi-file-earmark-break", Policies.Documents.DeleteApprove),
             "Document Repository PDFs whose text could not be read, so they cannot be searched; retry them.",

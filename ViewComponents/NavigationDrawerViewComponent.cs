@@ -98,16 +98,18 @@ public class NavigationDrawerViewComponent : ViewComponent
         return null;
     }
 
-    private static RouteValueDictionary? BuildRouteValues(NavigationItem item)
+    internal static RouteValueDictionary? BuildRouteValues(NavigationItem item)
     {
-        if (string.IsNullOrEmpty(item.Area) && (item.RouteValues is null || item.RouteValues.Count == 0))
+        if (item.Area is null && (item.RouteValues is null || item.RouteValues.Count == 0))
         {
             return null;
         }
 
         var values = new RouteValueDictionary();
 
-        if (!string.IsNullOrEmpty(item.Area))
+        // An explicit empty area is significant: it clears an ambient Admin area when
+        // linking to a root page (same rule as AdminNavigationUrlBuilder).
+        if (item.Area is not null)
         {
             values["area"] = item.Area;
         }

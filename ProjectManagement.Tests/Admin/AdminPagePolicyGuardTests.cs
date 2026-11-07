@@ -35,6 +35,10 @@ public sealed class AdminPagePolicyGuardTests
             // scope for a guard test.
             [AdminNavigationKeys.SocialMediaTypes] = "Roles: Admin,HoD",
             [AdminNavigationKeys.SocialMediaPlatforms] = "Roles: Admin,HoD",
+            // Repository deletion requests are decided in the Decision Centre (Admin and HoD).
+            // The old Document Repository address already redirected there, so linking to it
+            // directly changes nothing about who can open it.
+            [AdminNavigationKeys.DocumentDeleteRequests] = "Roles: Admin,HoD",
         };
 
     public static IEnumerable<object[]> AdminPageModels() =>
