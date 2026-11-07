@@ -42,8 +42,15 @@
             }
         </ul>
         <p class="admin-home-find__empty" data-admin-home-find-empty hidden>
-            Nothing matches. Try another word@if (Model.AllPagesHref is not null)
-            {<text>, or open <a href="@Model.AllPagesHref">Every admin page</a></text>}.
+            @* Keep each @if on its own: text such as "word" written straight before it reads as an e-mail address and the code shows on screen (H2). *@
+            @if (Model.AllPagesHref is not null)
+            {
+                <text>Nothing matches. Try another word, or open <a href="@Model.AllPagesHref">Every admin page</a>.</text>
+            }
+            else
+            {
+                <text>Nothing matches. Try another word.</text>
+            }
         </p>
 
         <div class="admin-home-find__try">
