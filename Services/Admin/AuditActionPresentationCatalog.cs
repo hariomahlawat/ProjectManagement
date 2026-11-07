@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace ProjectManagement.Services.Admin;
 
 public sealed record AuditActionPresentation(
@@ -14,7 +12,7 @@ public interface IAuditActionPresentationCatalog
     AuditActionPresentation Describe(string? action, string? level = null);
 }
 
-public sealed partial class AuditActionPresentationCatalog : IAuditActionPresentationCatalog
+public sealed class AuditActionPresentationCatalog : IAuditActionPresentationCatalog
 {
     private static readonly IReadOnlyDictionary<string, AuditActionPresentation> KnownActions =
         new Dictionary<string, AuditActionPresentation>(StringComparer.OrdinalIgnoreCase)
@@ -92,7 +90,64 @@ public sealed partial class AuditActionPresentationCatalog : IAuditActionPresent
             ["MasterData.Created"] = new("Master-data item created", "bi-plus-circle", "success", "Master data"),
             ["MasterData.Updated"] = new("Master-data item updated", "bi-pencil-square", "neutral", "Master data"),
             ["MasterData.Deactivated"] = new("Master-data item deactivated", "bi-slash-circle", "warning", "Master data"),
-            ["MasterData.IntegrityOrderNormalised"] = new("Display order normalised", "bi-arrow-down-up", "success", "Master data", "MasterDataIntegrity")
+            ["MasterData.IntegrityOrderNormalised"] = new("Display order normalised", "bi-arrow-down-up", "success", "Master data", "MasterDataIntegrity"),
+
+            // Common actions that used to show machine-made titles.
+            ["Projects.Created"] = new("Project created", "bi-plus-circle", "success", "Projects", "Project"),
+            ["Project.Create"] = new("Project created", "bi-plus-circle", "success", "Projects", "Project"),
+            ["Projects.PlanUpdated"] = new("Project plan updated", "bi-calendar-range", "neutral", "Projects", "Project"),
+            ["Projects.PlanGeneratedFromDurations"] = new("Project plan worked out from durations", "bi-calendar-range", "neutral", "Projects", "Project"),
+            ["Projects.StageBackfilled"] = new("Earlier project stage filled in", "bi-signpost-split", "neutral", "Projects", "Project"),
+            ["Projects.MetaChangedViaApproval"] = new("Project details changed after approval", "bi-pencil-square", "neutral", "Projects", "Project"),
+            ["Projects.MetaChangeApproved"] = new("Project details change approved", "bi-check2-circle", "success", "Projects", "Project"),
+            ["Projects.MetaChangeRejected"] = new("Project details change rejected", "bi-x-circle", "warning", "Projects", "Project"),
+            ["Projects.ActualCorrectionSubmitted"] = new("Correction to project actuals sent for approval", "bi-pencil", "neutral", "Projects", "Project"),
+            ["Projects.ActualCorrectionApproved"] = new("Correction to project actuals approved", "bi-check2-circle", "success", "Projects", "Project"),
+            ["Projects.ActualCorrectionRejected"] = new("Correction to project actuals rejected", "bi-x-circle", "warning", "Projects", "Project"),
+            ["Projects.ActualCorrectionWithdrawn"] = new("Correction to project actuals withdrawn", "bi-arrow-counterclockwise", "neutral", "Projects", "Project"),
+            ["Projects.HistoricalStageHistoryUpdated"] = new("Past stage history updated", "bi-clock-history", "neutral", "Projects", "Project"),
+            ["Stages.StageStatusChanged"] = new("Stage status changed", "bi-signpost-split", "neutral", "Projects", "Project"),
+            ["Stages.StageAutoCompleted"] = new("Stage completed by PRISM", "bi-check2-circle", "success", "Projects", "Project"),
+            ["Project.LifecycleCompleted"] = new("Project marked completed", "bi-flag", "success", "Projects", "Project"),
+            ["Project.LifecycleCancelled"] = new("Project cancelled", "bi-x-octagon", "warning", "Projects", "Project"),
+            ["Project.LifecycleReactivated"] = new("Project made active again", "bi-arrow-repeat", "success", "Projects", "Project"),
+            ["Project.LifecycleCompletionUpdated"] = new("Project completion details updated", "bi-flag", "neutral", "Projects", "Project"),
+            ["Project.LifecycleCompletionEndorsed"] = new("Project completion endorsed", "bi-patch-check", "success", "Projects", "Project"),
+            ["Project.Content.BriefUpdated"] = new("Project brief updated", "bi-card-text", "neutral", "Projects", "Project"),
+            ["Project.Content.DescriptionUpdated"] = new("Project description updated", "bi-card-text", "neutral", "Projects", "Project"),
+            ["Project.Content.KeyPointsUpdated"] = new("Project key points updated", "bi-list-check", "neutral", "Projects", "Project"),
+            ["Project.Content.CapabilitiesUpdated"] = new("Project capabilities updated", "bi-card-text", "neutral", "Projects", "Project"),
+            ["Project.Content.TechnicalSpecificationsUpdated"] = new("Project technical specifications updated", "bi-card-text", "neutral", "Projects", "Project"),
+            ["Project.PhotoAdded"] = new("Project photo added", "bi-image", "success", "Projects", "Project"),
+            ["Project.PhotoUpdated"] = new("Project photo updated", "bi-image", "neutral", "Projects", "Project"),
+            ["Project.PhotoRemoved"] = new("Project photo removed", "bi-image", "warning", "Projects", "Project"),
+            ["Project.PhotoReordered"] = new("Project photos reordered", "bi-images", "neutral", "Projects", "Project"),
+            ["Project.DocumentRequested"] = new("Project document sent for approval", "bi-file-earmark-arrow-up", "neutral", "Documents", "Document"),
+            ["Project.DocumentApproved"] = new("Project document approved", "bi-file-earmark-check", "success", "Documents", "Document"),
+            ["Project.DocumentRejected"] = new("Project document rejected", "bi-file-earmark-x", "warning", "Documents", "Document"),
+            ["Project.DocumentPublished"] = new("Project document published", "bi-file-earmark-check", "success", "Documents", "Document"),
+            ["Project.DocumentReplaced"] = new("Project document replaced", "bi-file-earmark-diff", "neutral", "Documents", "Document"),
+            ["Project.DocumentRemoved"] = new("Project document moved to trash", "bi-file-earmark-minus", "warning", "Recovery", "Document"),
+            ["Project.DocumentRestored"] = new("Project document restored", "bi-file-earmark-check", "success", "Recovery", "Document"),
+            ["Project.DocumentHardDeleted"] = new("Project document permanently deleted", "bi-file-earmark-x", "danger", "Recovery", "Document"),
+            ["ProjectBriefing.DeckCreated"] = new("Briefing deck created", "bi-easel", "success", "Projects", "ProjectBriefingDeck"),
+            ["ProjectBriefing.DeckUpdated"] = new("Briefing deck settings changed", "bi-easel", "neutral", "Projects", "ProjectBriefingDeck"),
+            ["ProjectBriefing.DeckDuplicated"] = new("Briefing deck copied", "bi-easel", "success", "Projects", "ProjectBriefingDeck"),
+            ["ProjectBriefing.DeckDeleted"] = new("Briefing deck deleted", "bi-easel", "warning", "Recovery", "ProjectBriefingDeck"),
+            ["ProjectBriefing.DeckRestored"] = new("Briefing deck restored", "bi-arrow-counterclockwise", "success", "Recovery", "ProjectBriefingDeck"),
+            ["ProjectBriefing.PowerPointGenerated"] = new("Briefing deck downloaded as PowerPoint", "bi-file-earmark-slides", "neutral", "Projects", "ProjectBriefingDeck"),
+            ["ProjectBriefing.ProjectsAdded"] = new("Projects added to a briefing deck", "bi-easel", "neutral", "Projects", "ProjectBriefingDeck"),
+            ["ProjectBriefing.ProjectRemoved"] = new("Project removed from a briefing deck", "bi-easel", "neutral", "Projects", "ProjectBriefingDeck"),
+            ["ProjectBriefing.ProjectsReordered"] = new("Briefing deck projects reordered", "bi-arrow-down-up", "neutral", "Projects", "ProjectBriefingDeck"),
+            ["ProjectBriefing.SpeakerNotesUpdated"] = new("Briefing deck speaker notes updated", "bi-easel", "neutral", "Projects", "ProjectBriefingDeck"),
+            ["ProjectBriefing.MembershipUpdated"] = new("Briefing deck sharing changed", "bi-people", "neutral", "Projects", "ProjectBriefingDeck"),
+            ["Arpp.IssueVerified"] = new("ARPP issue verified", "bi-patch-check", "success", "Projects", "ArppIssue"),
+            ["Arpp.EntriesReconciled"] = new("ARPP entries matched to projects", "bi-link-45deg", "neutral", "Projects", "ArppIssue"),
+            ["Arpp.IpaStageStartupReconciled"] = new("IPA stages brought in line with ARPP at start-up", "bi-arrow-repeat", "neutral", "Projects", "Project"),
+            ["Arpp.IpaStagePendingRequestsSuperseded"] = new("Pending IPA stage requests replaced by ARPP", "bi-arrow-repeat", "warning", "Projects", "Project"),
+            ["Arpp.IpaStageDataQualityIssue"] = new("IPA start date is later than the ARPP completion date", "bi-exclamation-triangle", "warning", "Projects", "Project"),
+            ["SearchIndex.RebuildRequested"] = new("Search index rebuild requested", "bi-arrow-clockwise", "neutral", "Maintenance", "SearchIndex"),
+            ["SearchIndex.RetryRequested"] = new("Failed search indexing retried", "bi-arrow-repeat", "neutral", "Maintenance", "SearchIndex")
         };
 
     public AuditActionPresentation Describe(string? action, string? level = null)
@@ -112,7 +167,7 @@ public sealed partial class AuditActionPresentationCatalog : IAuditActionPresent
                     : known;
         }
 
-        var label = Humanise(normalizedAction);
+        var label = AuditActionTitleFormatter.Format(normalizedAction);
         var tone = string.Equals(toneFromLevel, "neutral", StringComparison.Ordinal)
             ? InferTone(normalizedAction)
             : toneFromLevel;
@@ -123,18 +178,6 @@ public sealed partial class AuditActionPresentationCatalog : IAuditActionPresent
             tone,
             InferCategory(normalizedAction),
             InferEntityType(normalizedAction));
-    }
-
-    private static string Humanise(string? action)
-    {
-        if (string.IsNullOrWhiteSpace(action)) return "Administrative action";
-
-        var text = action.Replace('.', ' ').Replace('_', ' ').Replace('-', ' ');
-        text = PascalBoundaryRegex().Replace(text, "$1 $2");
-        text = MultiSpaceRegex().Replace(text, " ").Trim();
-        return text.Length == 0
-            ? "Administrative action"
-            : char.ToUpperInvariant(text[0]) + text[1..];
     }
 
     private static string ResolveTone(string? level) => level?.Trim().ToLowerInvariant() switch
@@ -195,10 +238,4 @@ public sealed partial class AuditActionPresentationCatalog : IAuditActionPresent
 
     private static bool ContainsAny(string value, params string[] tokens) =>
         tokens.Any(token => value.Contains(token, StringComparison.OrdinalIgnoreCase));
-
-    [GeneratedRegex("([a-z0-9])([A-Z])")]
-    private static partial Regex PascalBoundaryRegex();
-
-    [GeneratedRegex("\\s+")]
-    private static partial Regex MultiSpaceRegex();
 }

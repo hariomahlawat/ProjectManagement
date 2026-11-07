@@ -107,6 +107,7 @@ function initialiseDrawer() {
       setText(drawerElement, '[data-audit-outcome]', detail.outcome);
       setText(drawerElement, '[data-audit-reason]', detail.reason);
       setText(drawerElement, '[data-audit-trace]', detail.traceId || detail.origin);
+      setText(drawerElement, '[data-audit-action]', detail.rawAction);
 
       const status = drawerElement.querySelector('[data-audit-severity]');
       if (status) {

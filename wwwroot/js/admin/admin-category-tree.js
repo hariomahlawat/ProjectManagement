@@ -23,13 +23,19 @@
       byParent.get(parentId).push(row);
     });
 
+    // A malformed legacy row can be its own ancestor (ParentId = Id, or A and B pointing at each
+    // other). The seen set stops the walk visiting a row twice, so such a cycle cannot loop forever.
     const descendants = id => {
       const result = [];
+      const seen = new Set([String(id)]);
       const pending = [...(byParent.get(String(id)) || [])];
       while (pending.length) {
         const row = pending.shift();
+        const rowId = row.dataset.categoryId || '';
+        if (seen.has(rowId)) continue;
+        seen.add(rowId);
         result.push(row);
-        pending.push(...(byParent.get(row.dataset.categoryId || '') || []));
+        pending.push(...(byParent.get(rowId) || []));
       }
       return result;
     };

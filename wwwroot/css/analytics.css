@@ -129,6 +129,9 @@ button.analytics-figure { width: 100%; text-align: left; font: inherit; cursor: 
 /* ---------- Filter chip (the same control on every tab) ---------- */
 .analytics-filter-form { position: relative; }
 .analytics-filter { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px 4px 12px; border: 1px solid var(--an-border); border-radius: 999px; background: var(--an-surface); color: var(--an-muted); font-size: .75rem; font-weight: 700; line-height: 1; cursor: pointer; transition: background-color 160ms var(--an-ease), border-color 160ms var(--an-ease); }
+.analytics-filter--link { text-decoration: none; cursor: pointer; }
+.analytics-filter--link:hover { color: var(--an-strong); border-color: var(--an-strong); }
+.analytics-filter--link:focus-visible { outline: none; box-shadow: var(--an-focus); }
 .analytics-filter:hover, .analytics-filter[aria-expanded="true"] { border-color: var(--an-border-strong); background: var(--an-inset); }
 .analytics-filter:focus-visible, .analytics-filter:has(:focus-visible) { outline: none; box-shadow: var(--an-focus); }
 .analytics-filter b { color: var(--an-strong); font-weight: 800; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

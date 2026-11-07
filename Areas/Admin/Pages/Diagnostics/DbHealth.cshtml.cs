@@ -34,11 +34,12 @@ public sealed class DbHealthModel : PageModel
         return Page();
     }
 
+    // The fresh results are cached, so the page the redirect opens shows them; reloading it no
+    // longer posts the form again and re-runs every check.
     public async Task<IActionResult> OnPostRefreshAsync(CancellationToken cancellationToken)
     {
-        Snapshot = await _health.CheckAsync(forceRefresh: true, cancellationToken);
-        BuildPresentation();
-        return Page();
+        await _health.CheckAsync(forceRefresh: true, cancellationToken);
+        return RedirectToPage();
     }
 
     public IEnumerable<IGrouping<string, AdminSystemHealthCheck>> CheckGroups => Snapshot.Checks

@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Diagnostics.SearchIndexModel
+@inject ProjectManagement.Services.Admin.IAdminTimeService Time
 @{
     ViewData["Title"] = "Search index";
     var ready = Model.Health.IsReady && Model.Health.IndexVersion == Model.ConfiguredProjectionVersion;
@@ -28,21 +29,21 @@
 }
 
 <section class="admin-monitoring-metric-grid" aria-label="Search index summary">
-    <article class="admin-monitoring-metric">
-        <span class="admin-monitoring-metric__icon"><i class="bi @(ready ? "bi-check-circle" : "bi-exclamation-triangle")"></i></span>
-        <div><small>Status</small><strong>@(ready ? "Ready" : "Attention required")</strong><span>Active generation @Model.Health.ActiveGeneration</span></div>
+    <article class="admin-monitoring-metric admin-monitoring-metric--@(ready ? "success" : "warning")">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi @(ready ? "bi-check-circle" : "bi-exclamation-triangle")"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@(ready ? "Working" : "Not ready")</strong><span>Search</span><small>Index build @Model.Health.ActiveGeneration</small></span>
     </article>
     <article class="admin-monitoring-metric">
-        <span class="admin-monitoring-metric__icon"><i class="bi bi-diagram-3"></i></span>
-        <div><small>Projection</small><strong>@Model.Health.IndexVersion / @Model.ConfiguredProjectionVersion</strong><span>Active / required projection version</span></div>
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Health.IndexVersion</strong><span>Index version</span><small>This version of PRISM needs @Model.ConfiguredProjectionVersion</small></span>
     </article>
     <article class="admin-monitoring-metric">
-        <span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span>
-        <div><small>Entries</small><strong>@Model.Health.EntryCount.ToString("N0")</strong><span>Schema generation @Model.SearchSchemaVersion</span></div>
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-files"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Health.EntryCount.ToString("N0")</strong><span>Items searchable</span><small>Index format @Model.SearchSchemaVersion</small></span>
     </article>
     <article class="admin-monitoring-metric">
-        <span class="admin-monitoring-metric__icon"><i class="bi bi-hourglass-split"></i></span>
-        <div><small>Indexing queue</small><strong>@Model.Health.PendingItems.ToString("N0") pending</strong><span>@Model.Health.FailedItems.ToString("N0") failed</span></div>
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-hourglass-split"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Health.PendingItems.ToString("N0")</strong><span>Waiting to be indexed</span><small>@Model.Health.FailedItems.ToString("N0") failed</small></span>
     </article>
 </section>
 
@@ -51,8 +52,8 @@
         <div><div class="admin-panel__eyebrow">Generation lifecycle</div><h2>Current state</h2></div>
     </header>
     <div class="admin-health-facts">
-        <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-clock-history"></i></span><div><small>Last full rebuild</small><strong>@(Model.Health.LastFullRebuildUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</strong><span>Atomic generation activation</span></div></article>
-        <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-arrow-repeat"></i></span><div><small>Last reconciliation</small><strong>@(Model.Health.LastReconciliationUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</strong><span>Scheduled full assurance pass</span></div></article>
+        <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-clock-history"></i></span><div><small>Whole index last rebuilt</small><strong>@Time.FormatIst(Model.Health.LastFullRebuildUtc)</strong><span>Search keeps working while it rebuilds</span></div></article>
+        <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-arrow-repeat"></i></span><div><small>Last full check</small><strong>@Time.FormatIst(Model.Health.LastReconciliationUtc)</strong><span>Runs once a day</span></div></article>
     </div>
     @if (!string.IsNullOrWhiteSpace(Model.Health.LastError))
     {

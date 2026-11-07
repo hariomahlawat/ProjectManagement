@@ -37,6 +37,14 @@ Audit rows go to `DocRepoAudits` (`IDocRepoAuditService`). Changes are saved in 
 
 A failure to write a `Viewed` or `Downloaded` row is logged and never blocks reading the document.
 
+## Order of the document types and offices
+
+Document types and offices are listed by their position (`SortOrder`, lowest first), then by name. Positions run 1, 2, 3…
+
+- A new type or office goes to the end of the list (highest position + 1) unless a position is typed. Before November 2026 the form defaulted to 100, so older lists may have every row at 100.
+- Admin **Data checks** (`/Admin/MasterData/Integrity`) checks both lists for gaps and repeats (`document-category-order`, `office-category-order`). Its renumber repair keeps the order on screen (position, then name, then Id), runs in one transaction and is recorded in the admin audit log as `MasterData.IntegrityOrderNormalised` with each row's old and new position.
+- When a list has gaps or repeats, its page says so in one line. People with the Data checks permission (`Admin.MasterData.Integrity.Manage`) can renumber it there; others are told an administrator can.
+
 ## Upload rules
 
 - PDF only: `.pdf` extension, `application/pdf` content type and a `%PDF-` header.

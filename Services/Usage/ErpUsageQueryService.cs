@@ -117,6 +117,15 @@ public interface IErpUsageQueryService
         ErpUsageQuery query,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Every row that matches the query's filters, in the same order as the paged list, capped at
+    /// <see cref="ErpUsageOptions.MaximumExportRows"/>. The figures are computed once, not per page;
+    /// the query's Page and PageSize are ignored.
+    /// </summary>
+    Task<IReadOnlyList<ErpUsageUserRow>> GetExportRowsAsync(
+        ErpUsageQuery query,
+        CancellationToken cancellationToken = default);
+
     Task<ErpUsageCommandSummary> GetCommandSummaryAsync(
         CancellationToken cancellationToken = default);
 
@@ -160,9 +169,26 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         _options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
-    public async Task<ErpUsageResult> GetAsync(
+    public Task<ErpUsageResult> GetAsync(
+        ErpUsageQuery query,
+        CancellationToken cancellationToken = default) =>
+        BuildAsync(query, exportRowLimit: null, cancellationToken);
+
+    public async Task<IReadOnlyList<ErpUsageUserRow>> GetExportRowsAsync(
         ErpUsageQuery query,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var result = await BuildAsync(query, Math.Max(0, _options.Value.MaximumExportRows), cancellationToken);
+        return result.Users;
+    }
+
+    // exportRowLimit is null for the paged list. For an export it is the row cap, and the result's
+    // Users holds every matching row up to that cap instead of one page.
+    private async Task<ErpUsageResult> BuildAsync(
+        ErpUsageQuery query,
+        int? exportRowLimit,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
 
@@ -568,7 +594,9 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         var totalUsers = rows.Count;
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalUsers / (double)pageSize));
         page = Math.Min(page, totalPages);
-        var pagedRows = rows.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
+        var pagedRows = exportRowLimit is int limit
+            ? rows.Take(limit).ToArray()
+            : rows.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
 
         return new ErpUsageResult(
             selectedStartDate,

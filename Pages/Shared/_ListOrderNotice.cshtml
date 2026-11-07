@@ -1,0 +1,26 @@
+@model ProjectManagement.Services.Admin.MasterData.Integrity.ListOrderNotice
+@* One line on a list page whose display order has gaps or repeats, with the same audited
+   renumber that Data checks offers. The page needs an OnPostRenumberOrderAsync handler. *@
+@if (Model.HasProblem)
+{
+    var checkUrl = Url.Page("/MasterData/Integrity/Index", null, new { area = "Admin", focus = Model.CheckKey }, null, null, "integrity-" + Model.CheckKey);
+    <div class="alert alert-warning list-order-notice d-flex flex-wrap align-items-center gap-2" role="status" data-list-order-notice="@Model.CheckKey">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        <span class="me-auto">The order of this list has gaps or repeats.</span>
+        @if (Model.CanRenumber)
+        {
+            <form method="post" asp-page-handler="RenumberOrder" class="m-0"
+                  data-confirm="Renumber this list 1, 2, 3…?"
+                  data-confirm-detail="The list keeps its current order. The change is recorded in the audit log."
+                  data-confirm-action="Renumber"
+                  data-confirm-tone="warning">
+                <button type="submit" class="btn btn-sm btn-warning"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Renumber 1, 2, 3…</button>
+            </form>
+            <a class="btn btn-sm btn-link" href="@checkUrl">See the check</a>
+        }
+        else
+        {
+            <span>An administrator can renumber it on Data checks.</span>
+        }
+    </div>
+}

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Services.Search;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -459,9 +460,10 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         filtered = ApplyStatus(filtered, status, item => item.IsActive);
         if (search.Length > 0)
         {
+            var pattern = SearchLikePattern.Contains(search);
             filtered = filtered.Where(item =>
-                EF.Functions.ILike(item.Name, $"%{search}%")
-                || (item.Description != null && EF.Functions.ILike(item.Description, $"%{search}%")));
+                EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter)
+                || (item.Description != null && EF.Functions.ILike(item.Description, pattern, SearchLikePattern.EscapeCharacter)));
         }
 
         var filteredCount = await filtered.CountAsync(cancellationToken);
@@ -529,7 +531,11 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         var page = Math.Max(1, request.Page);
 
         IQueryable<ProjectType> filtered = ApplyStatus(all, status, item => item.IsActive);
-        if (search.Length > 0) filtered = filtered.Where(item => EF.Functions.ILike(item.Name, $"%{search}%"));
+        if (search.Length > 0)
+        {
+            var pattern = SearchLikePattern.Contains(search);
+            filtered = filtered.Where(item => EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter));
+        }
         var filteredCount = await filtered.CountAsync(cancellationToken);
         var totalPages = Math.Max(1, (int)Math.Ceiling(filteredCount / (double)pageSize));
         page = Math.Min(page, totalPages);
@@ -559,7 +565,11 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         var page = Math.Max(1, request.Page);
 
         IQueryable<SponsoringUnit> filtered = ApplyStatus(all, status, item => item.IsActive);
-        if (search.Length > 0) filtered = filtered.Where(item => EF.Functions.ILike(item.Name, $"%{search}%"));
+        if (search.Length > 0)
+        {
+            var pattern = SearchLikePattern.Contains(search);
+            filtered = filtered.Where(item => EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter));
+        }
         var filteredCount = await filtered.CountAsync(cancellationToken);
         var totalPages = Math.Max(1, (int)Math.Ceiling(filteredCount / (double)pageSize));
         page = Math.Min(page, totalPages);
@@ -589,7 +599,11 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         var page = Math.Max(1, request.Page);
 
         IQueryable<LineDirectorate> filtered = ApplyStatus(all, status, item => item.IsActive);
-        if (search.Length > 0) filtered = filtered.Where(item => EF.Functions.ILike(item.Name, $"%{search}%"));
+        if (search.Length > 0)
+        {
+            var pattern = SearchLikePattern.Contains(search);
+            filtered = filtered.Where(item => EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter));
+        }
         var filteredCount = await filtered.CountAsync(cancellationToken);
         var totalPages = Math.Max(1, (int)Math.Ceiling(filteredCount / (double)pageSize));
         page = Math.Min(page, totalPages);
@@ -703,8 +717,11 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         }
 
         // Preserve access to malformed legacy rows while preventing a cycle from failing the page.
-        foreach (var orphan in raw.Where(item => !visited.Contains(item.Id)).OrderBy(item => item.SortOrder).ThenBy(item => item.Name))
+        // The list is filtered once, before the loop, so check again inside it: in a cycle such as
+        // A -> B -> A, visiting A also visits B, and B must not then be listed a second time.
+        foreach (var orphan in raw.Where(item => !visited.Contains(item.Id)).OrderBy(item => item.SortOrder).ThenBy(item => item.Name).ToList())
         {
+            if (visited.Contains(orphan.Id)) continue;
             Visit(orphan, 0, "Unlinked");
         }
 

@@ -2,7 +2,6 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Admin;
@@ -15,18 +14,15 @@ public sealed class IndexModel : PageModel
 {
     private readonly IErpUsageQueryService _usage;
     private readonly IAdminTimeService _time;
-    private readonly IOptions<ErpUsageOptions> _options;
     private readonly IErpUsageModuleCatalog _moduleCatalog;
 
     public IndexModel(
         IErpUsageQueryService usage,
         IAdminTimeService time,
-        IOptions<ErpUsageOptions> options,
         IErpUsageModuleCatalog moduleCatalog)
     {
         _usage = usage ?? throw new ArgumentNullException(nameof(usage));
         _time = time ?? throw new ArgumentNullException(nameof(time));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
         _moduleCatalog = moduleCatalog ?? throw new ArgumentNullException(nameof(moduleCatalog));
     }
 
@@ -58,18 +54,7 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
     {
-        var maximumRows = _options.Value.MaximumExportRows;
-        var rows = new List<ErpUsageUserRow>();
-        var page = 1;
-        ErpUsageResult result;
-
-        do
-        {
-            result = await _usage.GetAsync(BuildQuery(page, 100), cancellationToken);
-            rows.AddRange(result.Users.Take(Math.Max(0, maximumRows - rows.Count)));
-            page++;
-        }
-        while (page <= result.TotalPages && rows.Count < maximumRows);
+        var rows = await _usage.GetExportRowsAsync(BuildQuery(), cancellationToken);
 
         var builder = new StringBuilder();
         SafeCsv.AppendRow(
@@ -159,7 +144,7 @@ public sealed class IndexModel : PageModel
         return hours > 0 ? $"{hours} h {remainder:D2} m" : $"{minutes} min";
     }
 
-    private ErpUsageQuery BuildQuery(int? page = null, int? pageSize = null) => new()
+    private ErpUsageQuery BuildQuery() => new()
     {
         Days = Days,
         Search = Search,
@@ -169,8 +154,8 @@ public sealed class IndexModel : PageModel
         QuickFilter = QuickFilter,
         IncludeDisabledAccounts = IncludeDisabledAccounts,
         IncludeNonHumanAccounts = IncludeNonHumanAccounts,
-        Page = page ?? PageNumber,
-        PageSize = pageSize ?? PageSize
+        Page = PageNumber,
+        PageSize = PageSize
     };
 
     private static ErpUsageResult EmptyResult() => new(

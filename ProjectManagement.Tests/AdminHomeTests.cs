@@ -144,7 +144,7 @@ public sealed class AdminHomeTests
                 "48 accounts · 2 locked",
                 "312 sign-ins in 7 days · 14 failed",
                 "9 deleted items can be restored",
-                "11 lists · 214 values in use",
+                "11 lists · 214 active values",
                 "All checks passed · 08:35",
                 "Last PDF run: completed · 08:35"
             },

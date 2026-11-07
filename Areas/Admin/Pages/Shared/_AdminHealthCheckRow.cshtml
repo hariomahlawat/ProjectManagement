@@ -1,4 +1,5 @@
 @model ProjectManagement.Services.Admin.AdminSystemHealthCheck
+@inject ProjectManagement.Services.Admin.IAdminTimeService Time
 @using ProjectManagement.Services.Admin
 @{
     var tone = Model.Status switch
@@ -42,6 +43,6 @@
         {
             <span>@Model.DurationMilliseconds ms</span>
         }
-        <time datetime="@Model.CheckedUtc.ToString("O")">@Model.CheckedUtc.ToString("HH:mm:ss") UTC</time>
+        <time datetime="@Model.CheckedUtc.ToString("O")">@Time.ToIst(Model.CheckedUtc).ToString("HH:mm:ss") IST</time>
     </div>
 </article>

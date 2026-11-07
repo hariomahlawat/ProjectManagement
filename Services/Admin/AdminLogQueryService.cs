@@ -33,7 +33,23 @@ public sealed record AdminLogRow(
     string? DataJson,
     long Id = 0,
     string? UserAgent = null,
-    AdminAuditPayload? Payload = null);
+    AdminAuditPayload? Payload = null,
+    string? ActorDisplayName = null)
+{
+    /// <summary>
+    /// The name shown as the actor: the person's full name (then user name) from the user
+    /// directory, or "PRISM" for events the application wrote by itself.
+    /// </summary>
+    public string Actor => ActorDisplayName
+        ?? AuditActorNames.Resolve(
+            Payload?.ActorUserId ?? UserId,
+            Payload?.ActorName ?? UserName,
+            EmptyDirectory,
+            EmptyDirectory);
+
+    private static readonly IReadOnlyDictionary<string, AuditActorDirectoryEntry> EmptyDirectory =
+        new Dictionary<string, AuditActorDirectoryEntry>();
+}
 
 public sealed record AdminLogSummary(
     int Total,
@@ -102,7 +118,7 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
-        var rows = entities.Select(Map).ToArray();
+        var rows = await MapAsync(entities, cancellationToken);
 
         var actionOptions = await _db.AuditLogs.AsNoTracking()
             .Select(log => log.Action)
@@ -138,9 +154,22 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
         var errors = levelCounts
             .Where(item => string.Equals(item.Level, "Error", StringComparison.OrdinalIgnoreCase))
             .Sum(item => item.Count);
+        // A person is counted once whether their rows kept the user id, the user name or
+        // both; events PRISM wrote by itself are not people.
         var actors = await summaryQuery
-            .Where(log => log.UserName != null && log.UserName != string.Empty)
-            .Select(log => log.UserName)
+            .Where(log => (log.UserId != null && log.UserId != string.Empty
+                    && log.UserId != "System" && log.UserId != "PRISM system")
+                || (log.UserName != null && log.UserName != string.Empty
+                    && log.UserName != "System" && log.UserName != "PRISM system" && log.UserName != "PRISM"))
+            // A row that kept only the user name (a failed sign-in, say) is keyed by the
+            // matching account's id, so it joins that person's other rows.
+            .Select(log => log.UserId != null && log.UserId != string.Empty
+                ? log.UserId
+                : _db.Users
+                    .Where(user => user.NormalizedUserName != null
+                        && user.NormalizedUserName == log.UserName!.ToUpper())
+                    .Select(user => user.Id)
+                    .FirstOrDefault() ?? log.UserName)
             .Distinct()
             .CountAsync(cancellationToken);
         var affectedRecords = await summaryQuery.CountAsync(
@@ -169,7 +198,7 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
         var entities = await ApplySort(ComposeQuery(request), "Time", "desc")
             .Take(safeMaximum)
             .ToListAsync(cancellationToken);
-        return entities.Select(Map).ToArray();
+        return await MapAsync(entities, cancellationToken);
     }
 
     private IQueryable<AuditLog> ComposeQuery(AdminLogQuery request)
@@ -200,16 +229,40 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
         }
         else if (!string.IsNullOrWhiteSpace(request.UserName))
         {
+            // The Actor box matches the stored sign-in name and the person's full name, so a
+            // search for "Hari" also finds rows that kept only the user id.
             var term = request.UserName.Trim();
             if (_db.Database.IsNpgsql())
             {
                 var pattern = SearchLikePattern.Contains(term);
-                query = query.Where(log => log.UserName != null && EF.Functions.ILike(log.UserName, pattern));
+                var matchingIds = _db.Users
+                    .Where(user => EF.Functions.ILike(user.FullName, pattern)
+                        || (user.UserName != null && EF.Functions.ILike(user.UserName, pattern)))
+                    .Select(user => user.Id);
+                var matchingNames = _db.Users
+                    .Where(user => EF.Functions.ILike(user.FullName, pattern)
+                        && user.NormalizedUserName != null)
+                    .Select(user => user.NormalizedUserName);
+                query = query.Where(log =>
+                    (log.UserName != null && EF.Functions.ILike(log.UserName, pattern))
+                    || (log.UserName != null && matchingNames.Contains(log.UserName.ToUpper()))
+                    || (log.UserId != null && matchingIds.Contains(log.UserId)));
             }
             else
             {
                 var normalized = term.ToLowerInvariant();
-                query = query.Where(log => log.UserName != null && log.UserName.ToLower().Contains(normalized));
+                var matchingIds = _db.Users
+                    .Where(user => user.FullName.ToLower().Contains(normalized)
+                        || (user.UserName != null && user.UserName.ToLower().Contains(normalized)))
+                    .Select(user => user.Id);
+                var matchingNames = _db.Users
+                    .Where(user => user.FullName.ToLower().Contains(normalized)
+                        && user.NormalizedUserName != null)
+                    .Select(user => user.NormalizedUserName);
+                query = query.Where(log =>
+                    (log.UserName != null && log.UserName.ToLower().Contains(normalized))
+                    || (log.UserName != null && matchingNames.Contains(log.UserName.ToUpper()))
+                    || (log.UserId != null && matchingIds.Contains(log.UserId)));
             }
         }
 
@@ -287,18 +340,43 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
         };
     }
 
-    private AdminLogRow Map(AuditLog log) => new(
-        log.TimeUtc,
-        log.Level,
-        log.Action,
-        log.UserId,
-        log.UserName,
-        log.Ip,
-        log.Message,
-        log.DataJson,
-        log.Id,
-        log.UserAgent,
-        _payloads.Parse(log.DataJson));
+    private async Task<IReadOnlyList<AdminLogRow>> MapAsync(
+        IReadOnlyList<AuditLog> logs,
+        CancellationToken cancellationToken)
+    {
+        var parsed = logs
+            .Select(log => (Log: log, Payload: _payloads.Parse(log.DataJson)))
+            .ToArray();
+
+        var (byId, byUserName) = await AuditActorNames.LoadDirectoryAsync(
+            _db,
+            parsed.SelectMany(item => new[] { item.Payload.ActorUserId, item.Log.UserId }),
+            parsed.SelectMany(item => new[] { item.Payload.ActorName, item.Log.UserName }),
+            cancellationToken);
+
+        return parsed
+            .Select(item => new AdminLogRow(
+                item.Log.TimeUtc,
+                item.Log.Level,
+                item.Log.Action,
+                item.Log.UserId,
+                item.Log.UserName,
+                item.Log.Ip,
+                item.Log.Message,
+                item.Log.DataJson,
+                item.Log.Id,
+                item.Log.UserAgent,
+                item.Payload,
+                AuditActorNames.Resolve(
+                    FirstPresent(item.Payload.ActorUserId, item.Log.UserId),
+                    FirstPresent(item.Payload.ActorName, item.Log.UserName),
+                    byId,
+                    byUserName)))
+            .ToArray();
+    }
+
+    private static string? FirstPresent(string? first, string? second) =>
+        string.IsNullOrWhiteSpace(first) ? second : first;
 
     private static IQueryable<AuditLog> ApplySort(
         IQueryable<AuditLog> query,

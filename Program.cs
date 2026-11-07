@@ -635,6 +635,7 @@ builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValid
 builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
 builder.Services.AddScoped<IMasterDataAdministrationQueryService, MasterDataAdministrationQueryService>();
 builder.Services.AddScoped<IAdminMasterDataIntegrityService, AdminMasterDataIntegrityService>();
+builder.Services.AddScoped<IListOrderNoticeService, ListOrderNoticeService>();
 builder.Services.AddScoped<ICelebrationAdministrationService, CelebrationAdministrationService>();
 builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
 builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
@@ -886,6 +887,7 @@ builder.Services.AddScoped<ProjectCategoryHierarchyService>();
 builder.Services.AddScoped<IProjectImportService, ProjectImportService>();
 builder.Services.AddScoped<IProjectAnalyticsService, ProjectAnalyticsService>();
 builder.Services.AddScoped<IArppAnalyticsService, ArppAnalyticsService>();
+builder.Services.AddSingleton<ProjectManagement.Services.Analytics.Presentation.IArppProgressSlideComposer, ProjectManagement.Services.Analytics.Presentation.ArppProgressSlideComposer>();
 builder.Services.AddScoped<IPortfolioAnalyticsService, PortfolioAnalyticsService>();
 builder.Services.AddScoped<IArVrImpactAnalyticsService, ArVrImpactAnalyticsService>();
 builder.Services.AddSingleton<IProjectTotExcelWorkbookBuilder, ProjectTotExcelWorkbookBuilder>();

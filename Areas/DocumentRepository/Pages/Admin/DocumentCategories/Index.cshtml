@@ -22,6 +22,8 @@
         </div>
     </header>
 
+    <partial name="~/Pages/Shared/_ListOrderNotice.cshtml" model="Model.OrderNotice" />
+
     <div class="library-columns library-columns--admin">
         <!-- SECTION: Add -->
         <section class="library-panel">
@@ -35,7 +37,8 @@
                 </div>
                 <div class="library-field">
                     <label asp-for="Input.SortOrder">Position in lists</label>
-                    <input asp-for="Input.SortOrder" class="form-control" type="number" />
+                    <input asp-for="Input.SortOrder" class="form-control" type="number" aria-describedby="sort-order-help" />
+                    <span class="library-field__hint" id="sort-order-help">Leave blank to add it at the end.</span>
                     <span class="library-field__error" asp-validation-for="Input.SortOrder"></span>
                 </div>
                 <div><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add</button></div>
