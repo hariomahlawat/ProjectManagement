@@ -204,6 +204,8 @@ export const valueLabelsPlugin = {
     const t = chartTokens();
     const { ctx } = chart;
     const format = typeof options?.format === 'function' ? options.format : (v) => String(v);
+    // The stack total may read differently from its segments ("7 so far"); it is given the bar index.
+    const formatTotal = typeof options?.formatTotal === 'function' ? options.formatTotal : format;
     const type = chart.config.type;
     const s = Number(options?.scale) || 1;
     const font = (weight, size) => `${weight} ${size * s}px ${t.font}`;
@@ -307,10 +309,10 @@ export const valueLabelsPlugin = {
       ctx.fillStyle = t.label;
       if (horizontal) {
         ctx.textAlign = 'left';
-        ctx.fillText(format(total), outerEdge + 8 * s, anchor.y);
+        ctx.fillText(formatTotal(total, index), outerEdge + 8 * s, anchor.y);
       } else {
         ctx.textAlign = 'center';
-        ctx.fillText(format(total), anchor.x, outerEdge - 10 * s);
+        ctx.fillText(formatTotal(total, index), anchor.x, outerEdge - 10 * s);
       }
     }
     ctx.restore();

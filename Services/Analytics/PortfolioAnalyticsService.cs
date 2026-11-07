@@ -362,6 +362,7 @@ namespace ProjectManagement.Services.Analytics
                 PerYear = perYear,
                 PerYearByParentCategory = perYearByParentCategory,
                 YearBoard = yearBoard,
+                YearBands = BuildYearBands(yearBoard, currentYear),
                 TotalCompletedProjects = await completedQuery.CountAsync(cancellationToken),
                 CompletedThisYear = perYear.FirstOrDefault(point => point.Year == currentYear)?.Count ?? 0,
                 RecentYearlyAverage = recentAverage,
@@ -406,6 +407,63 @@ namespace ProjectManagement.Services.Analytics
             var count = perYear.Where(point => point.Year >= fromYear && point.Year <= toYear).Sum(point => point.Count);
             var years = toYear - fromYear + 1;
             return new CompletedYearlyAverageVm(fromYear, toYear, count, (double)count / years);
+        }
+        // END SECTION
+
+        // SECTION: Five-year bands (the "5-year average" view of the per-year chart)
+        /// <summary>
+        /// The current year on its own, then five-year bands counting back from the year before it
+        /// (2021–2025, 2016–2020, …) to the band that holds the first completion; oldest first. The bands
+        /// move forward with the current year. A band's average always divides by five, so a year with no
+        /// completions counts as zero. Completions dated after the current year are left out.
+        /// </summary>
+        internal static IReadOnlyList<CompletedYearBandVm> BuildYearBands(
+            IReadOnlyList<CompletedYearBoardItemVm> yearBoard,
+            int currentYear)
+        {
+            var years = yearBoard.Where(item => item.Year <= currentYear).ToList();
+            if (years.Count == 0)
+            {
+                return Array.Empty<CompletedYearBandVm>();
+            }
+
+            var firstYear = years.Min(item => item.Year);
+            var bands = new List<CompletedYearBandVm> { Band(years, currentYear, currentYear, isCurrentYear: true) };
+            for (var toYear = currentYear - 1; toYear >= firstYear; toYear -= YearlyAverageWindow)
+            {
+                bands.Add(Band(years, toYear - (YearlyAverageWindow - 1), toYear, isCurrentYear: false));
+            }
+
+            bands.Reverse();
+            return bands;
+        }
+
+        private static CompletedYearBandVm Band(IReadOnlyList<CompletedYearBoardItemVm> years, int fromYear, int toYear, bool isCurrentYear)
+        {
+            var span = toYear - fromYear + 1;
+            var inBand = years
+                .Where(item => item.Year >= fromYear && item.Year <= toYear)
+                .OrderByDescending(item => item.Year)
+                .ToList();
+
+            // Most recent year first inside each category, as in the year rows.
+            var categories = inBand
+                .SelectMany(item => item.Categories)
+                .GroupBy(category => category.ParentCategoryName, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    var count = group.Sum(category => category.CategoryCount);
+                    return new CompletedYearBandCategoryVm(
+                        group.First().ParentCategoryName,
+                        count,
+                        (double)count / span,
+                        group.SelectMany(category => category.Projects).ToList());
+                })
+                .ToList();
+
+            var total = inBand.Sum(item => item.YearCount);
+            return new CompletedYearBandVm(fromYear, toYear, isCurrentYear, total, (double)total / span, categories);
         }
         // END SECTION
 

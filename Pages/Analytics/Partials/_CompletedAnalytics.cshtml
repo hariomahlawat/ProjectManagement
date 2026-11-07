@@ -8,7 +8,11 @@
     var completedJson = JsonSerializer.Serialize(Model, json);
     var years = Model.YearBoard.OrderByDescending(item => item.Year).ToList();
     var maxYearCount = years.Count > 0 ? years.Max(item => item.YearCount) : 0;
+    var bands = Model.YearBands.OrderByDescending(band => band.FromYear).ToList();
+    var maxBandCount = bands.Count > 0 ? bands.Max(band => band.Count) : 0;
     var overviewUrl = Url.Page("/Projects/Overview");
+    const string perYearMeta = "By parent category; click a year to see its projects below.";
+    const string bandMeta = "Average a year in each five-year band, and the current year so far; click a band to see its projects below.";
 }
 
 <section class="analytics-panel analytics-panel--completed"
@@ -19,9 +23,16 @@
     <header class="analytics-card__head">
       <div class="analytics-card__text">
         <h2 class="analytics-card__title">Projects completed per year</h2>
-        <p class="analytics-card__meta">By parent category; click a year to see its projects below.</p>
+        <p class="analytics-card__meta" data-completed-view-meta data-meta-year="@perYearMeta" data-meta-band="@bandMeta">@perYearMeta</p>
       </div>
       <div class="analytics-card__actions">
+        @if (bands.Count > 0)
+        {
+          <div class="analytics-seg" role="group" aria-label="Show" data-completed-view>
+            <button type="button" data-value="year" aria-pressed="true">Per year</button>
+            <button type="button" data-value="band" aria-pressed="false">5-year average</button>
+          </div>
+        }
         <button type="button" class="analytics-icon-btn" data-chart-download-target="completedPerYearChart" aria-label="Download chart as PNG" title="Download chart as PNG">
           <i class="bi bi-download" aria-hidden="true"></i>
         </button>
@@ -35,7 +46,7 @@
     <!-- SECTION: Year drill-down (year → category → projects), most recent first -->
     @if (years.Count > 0)
     {
-      <section class="analytics-drill" aria-label="Completed projects by year">
+      <section class="analytics-drill" aria-label="Completed projects by year" data-completed-view-section="year">
         <h3 class="analytics-drill__title">Projects completed in each year</h3>
         @foreach (var year in years)
         {
@@ -55,6 +66,58 @@
             </summary>
             <div class="analytics-drill__body">
               @foreach (var category in year.Categories)
+              {
+                <div class="analytics-drill__group">
+                  <h4><i class="analytics-dot" data-category-dot="@category.ParentCategoryName" aria-hidden="true"></i>@category.ParentCategoryName <span>@category.CategoryCount</span></h4>
+                  <ol>
+                    @foreach (var project in category.Projects)
+                    {
+                      <li>
+                        <a href="@overviewUrl?id=@project.ProjectId">@project.ProjectName</a>
+                        @if (project.CompletedOn.HasValue)
+                        {
+                          <time datetime="@project.CompletedOn.Value.ToString("yyyy-MM-dd")">@project.CompletedOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</time>
+                        }
+                      </li>
+                    }
+                  </ol>
+                </div>
+              }
+            </div>
+          </details>
+        }
+      </section>
+    }
+    <!-- END SECTION -->
+
+    <!-- SECTION: Band drill-down (band → category → projects), shown in the 5-year average view -->
+    @if (bands.Count > 0)
+    {
+      <section class="analytics-drill" aria-label="Completed projects by five-year band" data-completed-view-section="band" hidden>
+        <h3 class="analytics-drill__title">Projects completed in each band</h3>
+        @foreach (var band in bands)
+        {
+          var width = maxBandCount > 0 ? (int)Math.Round(100.0 * band.Count / maxBandCount) : 0;
+          <details class="analytics-drill__row" data-drill-key="band:@band.FromYear">
+            <summary class="analytics-drill__summary">
+              <span class="analytics-drill__name">@band.Label</span>
+              <span class="analytics-drill__bar" aria-hidden="true"><i style="--w:@(width)%"></i></span>
+              <span class="analytics-drill__chips">
+                @foreach (var category in band.Categories)
+                {
+                  <span class="analytics-drill__chip"><i class="analytics-dot" data-category-dot="@category.ParentCategoryName" aria-hidden="true"></i>@category.ParentCategoryName <b>@category.CategoryCount</b></span>
+                }
+                <span class="analytics-drill__chip">@(band.IsCurrentYear ? "so far this year" : $"{band.PerYear.ToString("0.0", CultureInfo.InvariantCulture)} a year")</span>
+              </span>
+              <span class="analytics-drill__count">@band.Count</span>
+              <i class="bi bi-chevron-down analytics-drill__caret" aria-hidden="true"></i>
+            </summary>
+            <div class="analytics-drill__body">
+              @if (band.Count == 0)
+              {
+                <p class="analytics-drill__empty">No projects were completed in these years.</p>
+              }
+              @foreach (var category in band.Categories)
               {
                 <div class="analytics-drill__group">
                   <h4><i class="analytics-dot" data-category-dot="@category.ParentCategoryName" aria-hidden="true"></i>@category.ParentCategoryName <span>@category.CategoryCount</span></h4>
