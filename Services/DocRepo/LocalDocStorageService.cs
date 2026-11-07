@@ -86,6 +86,21 @@ public class LocalDocStorageService : IDocStorage
         return Task.CompletedTask;
     }
 
+    public Task MoveAsync(string sourcePath, string destinationPath, CancellationToken ct)
+    {
+        var source = Path.Combine(_rootPath, sourcePath);
+        var destination = Path.Combine(_rootPath, destinationPath);
+        var folder = Path.GetDirectoryName(destination);
+        if (!string.IsNullOrEmpty(folder))
+        {
+            Directory.CreateDirectory(folder);
+        }
+
+        // Same volume (both under the root), so this is a rename; never overwrites.
+        File.Move(source, destination, overwrite: false);
+        return Task.CompletedTask;
+    }
+
     public string? TryGetLocalPath(string storagePath)
         => string.IsNullOrWhiteSpace(storagePath) ? null : Path.Combine(_rootPath, storagePath);
 
