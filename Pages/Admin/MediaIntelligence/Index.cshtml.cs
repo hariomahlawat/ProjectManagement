@@ -90,6 +90,7 @@ public sealed class IndexModel : PageModel
     public int NeedsReview { get; private set; }
     public int ConfirmedNonPhotographs { get; private set; }
     public int LowConfidence { get; private set; }
+    public int NeedsReviewOtherReasons => NeedsReview - LowConfidence;
     public int FaceAdmissionPending { get; private set; }
     public int PendingClassification { get; private set; }
     public int FailedClassification { get; private set; }
@@ -181,13 +182,11 @@ public sealed class IndexModel : PageModel
                     && asset.ClassifierVersion == MediaClassifier.ClassifierVersion
                     && asset.Classification != MediaClassification.Unknown
                     && asset.Classification != MediaClassification.Photograph), cancellationToken);
-            NeedsReview = await available.CountAsync(asset =>
-                asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.NeedsReview
-                || (!asset.ClassificationIsManual && asset.Classification == MediaClassification.Unknown), cancellationToken);
-            LowConfidence = await available.CountAsync(asset =>
-                !asset.ClassificationIsManual
-                && asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.NeedsReview
-                && asset.ClassificationDecisionReasonCode == "BELOW_CATEGORY_THRESHOLD", cancellationToken);
+            // "Scored too low" is part of "Not sure", not a second group: one query gives both
+            // (docs/ux/admin-review-2-fixes.md, PR 9).
+            var needsALook = await MediaLibraryFigures.GetNeedsALookAsync(available, cancellationToken);
+            NeedsReview = needsALook.Total;
+            LowConfidence = needsALook.ScoredTooLow;
             FaceAdmissionPending = await available.CountAsync(asset =>
                 asset.ClassificationIsManual
                 && asset.Classification == MediaClassification.Photograph

@@ -179,6 +179,7 @@ public sealed record MediaSourcesAdminPage
     public MediaLibraryHealthReport? CatalogueHealth { get; init; }
     public IReadOnlyList<MediaLibraryDiagnosticEvent> CatalogueDiagnostics { get; init; } = Array.Empty<MediaLibraryDiagnosticEvent>();
     public long PrismAssetCount { get; init; }
+    public MediaReadyInPhotosFigures ReadyInPhotos { get; init; } = new(0, 0, 0);
     public int PrismCatalogueRecordCount { get; init; }
     public int PrismUnavailableCatalogueCount { get; init; }
     public int PrismOrphanedCatalogueCount { get; init; }

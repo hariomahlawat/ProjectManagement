@@ -79,6 +79,7 @@ public sealed class IndexModel : PageModel
         = Array.Empty<MediaLibraryDiagnosticEvent>();
     public int ExternalSourceCount => Sources.Count(source => source.Type == MediaLibrarySourceType.FileSystem);
     public long PrismAssetCount { get; private set; }
+    public MediaReadyInPhotosFigures ReadyInPhotos { get; private set; } = new(0, 0, 0);
     public int PrismCatalogueRecordCount { get; private set; }
     public int PrismUnavailableCatalogueCount { get; private set; }
     public int PrismOrphanedCatalogueCount { get; private set; }
@@ -374,6 +375,7 @@ public sealed class IndexModel : PageModel
         CatalogueHealth = state.CatalogueHealth;
         CatalogueDiagnostics = state.CatalogueDiagnostics;
         PrismAssetCount = state.PrismAssetCount;
+        ReadyInPhotos = state.ReadyInPhotos;
         PrismCatalogueRecordCount = state.PrismCatalogueRecordCount;
         PrismUnavailableCatalogueCount = state.PrismUnavailableCatalogueCount;
         PrismOrphanedCatalogueCount = state.PrismOrphanedCatalogueCount;
