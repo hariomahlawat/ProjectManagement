@@ -591,7 +591,7 @@
                                         </td>
                                         <td>
                                             <div class="fw-medium">@asset.SourceLabel</div>
-                                            <div class="small text-muted">@asset.Origin</div>
+                                            <div class="small text-muted">@asset.OriginLabel</div>
                                         </td>
                                         <td>
                                             <span class="badge text-bg-secondary">@asset.StatusLabel</span>
@@ -639,7 +639,7 @@
                     <div class="card-header bg-body border-bottom d-flex align-items-center justify-content-between gap-3 py-3">
                         <div>
                             <h2 class="h5 mb-1">Configured sources</h2>
-                            <p class="small text-muted mb-0">Original files are always opened read-only.</p>
+                            <p class="small text-muted mb-0">PRISM only reads the files in these folders; it never changes them.</p>
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -827,7 +827,7 @@
                                     <span asp-validation-for="Input.AllowedExtensions" class="text-danger small"></span>
                                 </div>
                                 <div>
-                                    <label asp-for="Input.ScanIntervalMinutes" class="form-label">Scan interval (minutes)</label>
+                                    <label asp-for="Input.ScanIntervalMinutes" class="form-label">Look for new files every (minutes)</label>
                                     <input asp-for="Input.ScanIntervalMinutes" class="form-control" min="1" max="10080" />
                                     <span asp-validation-for="Input.ScanIntervalMinutes" class="text-danger small"></span>
                                 </div>

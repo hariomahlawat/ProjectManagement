@@ -20,15 +20,15 @@
             <div class="text-primary small text-uppercase fw-semibold mb-1">Media intelligence</div>
             <h1 class="h3 mb-1">Classification review</h1>
             <p class="text-muted mb-0">
-                Review ambiguous image types. A manual Photograph decision does not permit biometric processing until separately approved.
+                Check images PRISM was unsure about and say what each one is. Marking an image as a photograph does not let PRISM look for faces in it; that needs a separate approval below.
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <form method="post" asp-page-handler="ReclassifyStale"
-                  data-confirm="Queue all safe stale items for the current classifier?">
+                  data-confirm="Sort these images again with the current version of the sorting?">
                 <button type="submit" class="btn btn-outline-primary" disabled="@(Model.StaleCount == 0)">
                     <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
-                    Reclassify stale
+                    Sort older images again
                     @if (Model.StaleCount > 0)
                     {
                         <span class="badge text-bg-primary ms-1">@Model.StaleCount</span>
@@ -78,15 +78,15 @@
             <div class="col-xl-2 col-lg-3">
                 <label class="form-label" asp-for="Mode">Review set</label>
                 <select class="form-select" asp-for="Mode">
-                    <option value="review">Needs review (@Model.ReviewCounts.Review)</option>
-                    <option value="admission">Face admission pending (@Model.ReviewCounts.Admission)</option>
-                    <option value="risk">Safety conflicts (@Model.ReviewCounts.Risk)</option>
-                    <option value="automatic">Automatically accepted (@Model.ReviewCounts.Automatic)</option>
-                    <option value="manual">Manual decisions (@Model.ReviewCounts.Manual)</option>
-                    <option value="nonphoto">Confirmed non-photographs (@Model.ReviewCounts.NonPhoto)</option>
-                    <option value="failures">Processing failures (@Model.ReviewCounts.Failures)</option>
-                    <option value="stale">Stale classifier (@Model.ReviewCounts.Stale)</option>
-                    <option value="eligible">Face processing approved (@Model.ReviewCounts.Eligible)</option>
+                    <option value="review">Need a look (@Model.ReviewCounts.Review)</option>
+                    <option value="admission">Photos waiting for face approval (@Model.ReviewCounts.Admission)</option>
+                    <option value="risk">Unsure: checks disagree (@Model.ReviewCounts.Risk)</option>
+                    <option value="automatic">Sorted by PRISM (@Model.ReviewCounts.Automatic)</option>
+                    <option value="manual">Decided by a person (@Model.ReviewCounts.Manual)</option>
+                    <option value="nonphoto">Not photos (@Model.ReviewCounts.NonPhoto)</option>
+                    <option value="failures">Could not be sorted (@Model.ReviewCounts.Failures)</option>
+                    <option value="stale">Sorted by an older version (@Model.ReviewCounts.Stale)</option>
+                    <option value="eligible">Approved for face finding (@Model.ReviewCounts.Eligible)</option>
                     <option value="all">All images (@Model.ReviewCounts.All)</option>
                 </select>
             </div>
@@ -141,8 +141,8 @@
     {
         <div class="classification-empty card card-body border-0 shadow-sm text-center py-5">
             <i class="bi bi-check2-circle" aria-hidden="true"></i>
-            <h2 class="h5 mt-3">No images in this review set</h2>
-            <p class="text-muted mb-0">Change the filters or open the All images audit view.</p>
+            <h2 class="h5 mt-3">No images here</h2>
+            <p class="text-muted mb-0">Change the filters, or choose All images.</p>
         </div>
     }
     else
@@ -190,33 +190,33 @@
 
                         <div class="classification-card__body">
                             <div class="classification-evidence" aria-label="Classification evidence">
-                                <div title="Normalised classifier evidence score; it is not a calibrated probability.">
-                                    <span>Prediction</span>
+                                <div title="How strongly PRISM leaned this way; it is not a percentage chance.">
+                                    <span>PRISM's best guess</span>
                                     <strong>@ClassificationLabel(item.PredictedClassification)</strong>
-                                    <small>Evidence @item.PredictedScore.ToString("P0")</small>
+                                    <small>Strength @item.PredictedScore.ToString("P0")</small>
                                 </div>
-                                <div title="Normalised classifier evidence score; it is not a calibrated probability.">
-                                    <span>Runner-up</span>
+                                <div title="How strongly PRISM leaned this way; it is not a percentage chance.">
+                                    <span>Next best guess</span>
                                     <strong>@ClassificationLabel(item.RunnerUpClassification)</strong>
-                                    <small>Evidence @item.RunnerUpScore.ToString("P0")</small>
+                                    <small>Strength @item.RunnerUpScore.ToString("P0")</small>
                                 </div>
-                                <div title="Difference between the winning and runner-up normalised evidence scores.">
-                                    <span>Margin</span>
+                                <div title="How far ahead the best guess was. A small lead means PRISM was unsure.">
+                                    <span>Lead</span>
                                     <strong>@item.ScoreMargin.ToString("P0")</strong>
                                     <small>@item.DecisionReasonLabel</small>
                                 </div>
                             </div>
 
                             <div class="classification-decision-line">
-                                <span>Final</span>
+                                <span>Decided</span>
                                 <strong>@ClassificationLabel(item.Classification)</strong>
-                                <span class="text-muted">· @(item.IsManual ? "Human decision" : item.ClassifierVersion ?? "Not classified")</span>
+                                <span class="text-muted">· @(item.IsManual ? "by a person" : item.ClassifierVersion is null ? "not sorted yet" : "by PRISM")</span>
                             </div>
 
                             @if (item.FaceProbeAttempted || item.FaceEvidenceDetected || item.FaceEvidenceUsed)
                             {
                                 <div class="classification-assistance @item.FaceAssistanceCss"
-                                     title="Detector-only face assistance never creates embeddings or identity records.">
+                                     title="Looking for a face here only helps sort the image; it never works out who anyone is.">
                                     <i class="bi @(item.FaceEvidenceUsed ? "bi-person-check" : item.FaceEvidenceDetected ? "bi-person-x" : "bi-person-dash")"
                                        aria-hidden="true"></i>
                                     <span>@item.FaceAssistanceLabel</span>
@@ -226,7 +226,7 @@
                             <div class="classification-eligibility @(item.FaceEligible ? "classification-eligibility--eligible" : null)">
                                 <i class="bi @(item.FaceEligible ? "bi-check-circle" : "bi-shield-lock")" aria-hidden="true"></i>
                                 <div>
-                                    <strong>@(item.FaceEligible ? "Face processing eligible" : "Face processing blocked")</strong>
+                                    <strong>@(item.FaceEligible ? "Faces may be looked for" : "Faces will not be looked for")</strong>
                                     <span>@item.FaceEligibilityReason</span>
                                 </div>
                             </div>
@@ -318,8 +318,8 @@
                                     <div class="classification-admission-panel__heading">
                                         <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
                                         <div>
-                                            <strong>Separate biometric admission required</strong>
-                                            <span>Approve only when this is a real natural photograph of a person.</span>
+                                            <strong>Approval needed before faces are looked for</strong>
+                                            <span>Approve only if this is a real photograph of people.</span>
                                         </div>
                                     </div>
                                     <input class="form-control form-control-sm"
@@ -356,8 +356,8 @@
                                     <div class="classification-admission-panel__heading">
                                         <i class="bi bi-person-check" aria-hidden="true"></i>
                                         <div>
-                                            <strong>Manual face-processing approval active</strong>
-                                            <span>Approval is bound to the current source-content hash.</span>
+                                            <strong>Approved for face finding</strong>
+                                            <span>The approval covers this exact image; if the file changes, it must be approved again.</span>
                                         </div>
                                     </div>
                                     <div class="classification-revoke-row">

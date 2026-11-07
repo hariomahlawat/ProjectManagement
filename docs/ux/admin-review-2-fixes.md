@@ -287,3 +287,27 @@ Each mismatch was traced to its query before anything changed.
   service or test" and says where the marking is set (Edit user → Account classification). No user
   data was changed; marking those accounts as Test is the owner's call.
 - Routes, CSV columns and stored data are unchanged.
+
+## PR 8 as shipped
+
+- **System health:**
+  - The rows are in plain words, for example "Database updates on record", "Sign-in key folder" and "Disk space".
+  - Background jobs say "Runs every 1 day" and "Started with PRISM; it has not finished its first run yet".
+  - Setting names such as `DP_KEYS_DIR` appear only in the "what to do" text, where whoever runs the server needs them.
+  - The OK tile now says how many checks have run ("19 of 23 checks have run") instead of calling the unrun ones completed.
+  - The groups are "Security" and "Background jobs".
+- **Classification review:**
+  - The review sets, the reasons and the messages are in plain words: "Sort older images again", "Photos waiting for face approval", "The two best guesses were too close".
+  - The biometric confirmation wording is kept as it was.
+- **Media sources:** each unavailable item's source reads "Activity photo", "Project video" and so on. The raw value stays in Technical details.
+- **Add user and Edit user:**
+  - "Kind of account" with "A person", "Service account" and "Test account".
+  - The role panel says "What these roles can do".
+  - The account-state section points to the account page.
+- **Archived projects, Holidays, Celebrations and the guide:**
+  - Plain headings and plain notes.
+  - Celebrations drops the "Calendar source" column, which said the same thing on every row.
+  - The guide no longer shows a setting name.
+- **Guards:**
+  - `AdminPlainWordsTests` covers these pages.
+  - A new `SystemHealthMessages_UsePlainWords` test covers the health services' messages.

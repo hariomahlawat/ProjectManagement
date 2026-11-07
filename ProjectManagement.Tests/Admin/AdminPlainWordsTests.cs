@@ -95,7 +95,10 @@ public sealed class AdminPlainWordsTests
         "Search V2", "projection", "atomic", "ranker", "idempotent", "coordinator", "Outbox",
         "dead-letter", "Materially", "posture", "non-adoption", "effective scope",
         "Analytics classification", "telemetry", "embedding", "Current filter scope", "day(s)",
-        "soft-deleted", "Controlled", "Diagnostic", "heartbeat", "ingestion", "Deduplicated"
+        "soft-deleted", "Controlled", "Diagnostic", "heartbeat", "ingestion", "Deduplicated",
+        // Second review (docs/ux/admin-review-2-fixes.md, PR 8).
+        "Reclassify", "stale", "lifecycle", "capabilit", "Operational archive", "deletion retention",
+        "directory", "Independent of user profile", "admission", "human-account", "SessionRevalidation"
     };
 
     [Theory]
@@ -111,6 +114,15 @@ public sealed class AdminPlainWordsTests
     [InlineData("Areas/Admin/Pages/Documents/Recycle.cshtml")]
     [InlineData("Areas/Admin/Pages/Calendar/Deleted.cshtml")]
     [InlineData("Areas/Admin/Pages/AccessGovernance/Index.cshtml")]
+    [InlineData("Pages/Admin/MediaIntelligence/Classifications.cshtml")]
+    [InlineData("Areas/Admin/Pages/Users/Create.cshtml")]
+    [InlineData("Areas/Admin/Pages/Users/Edit.cshtml")]
+    [InlineData("Areas/Admin/Pages/Shared/_AdminRoleSelectionGrid.cshtml")]
+    [InlineData("Areas/Admin/Pages/Projects/Archived.cshtml")]
+    [InlineData("Pages/Settings/Holidays/Index.cshtml")]
+    [InlineData("Pages/Celebrations/Index.cshtml")]
+    [InlineData("Areas/Admin/Pages/Help/Index.cshtml")]
+    [InlineData("Areas/Admin/Pages/Diagnostics/DbHealth.cshtml")]
     public void SecondLevelPages_UsePlainWordsOutsideTechnicalDetails(string view)
     {
         var text = VisibleText(view);
@@ -118,6 +130,38 @@ public sealed class AdminPlainWordsTests
         var found = SecondLevelJargon.Where(word => text.Contains(word, StringComparison.OrdinalIgnoreCase)).ToArray();
 
         Assert.True(found.Length == 0, $"{view}: {string.Join(", ", found)}");
+    }
+
+    // System health's rows are written by the health services, not the page: their messages are
+    // plain words too (docs/ux/admin-review-2-fixes.md, PR 8). Setting names may appear only in
+    // the "what to do" text, where whoever runs the server needs them.
+    private static readonly string[] HealthJargon =
+    {
+        "migration(s)", "assembly", "cadence", "processing cycle", "Data Protection", "Storage capacity",
+        "Connectivity", "metadata", "diagnostic reference", "permitted execution", "lineage",
+        "Application runtime", "Primary upload storage", "Background services", "Application security"
+    };
+
+    [Theory]
+    [InlineData("Services/Admin/AdminSystemHealthService.cs")]
+    [InlineData("Services/Admin/DatabaseHealthService.cs")]
+    public void SystemHealthMessages_UsePlainWords(string source)
+    {
+        var text = File.ReadAllText(Path.Combine(FindRepositoryRoot(), source));
+        var literals = Regex.Matches(text, @"\$?""(?<text>[^""\r\n]*)""")
+            .Select(match => match.Groups["text"].Value)
+            .Where(literal => literal.Contains(' '))  // sentences and labels, not keys or log templates below
+            .ToArray();
+        var logTemplates = Regex.Matches(text, @"_logger\.Log\w+\([^;]*;", RegexOptions.Singleline)
+            .Select(match => match.Value)
+            .ToArray();
+
+        var found = HealthJargon
+            .Where(word => literals.Any(literal => literal.Contains(word, StringComparison.OrdinalIgnoreCase)
+                && !logTemplates.Any(log => log.Contains(literal, StringComparison.Ordinal))))
+            .ToArray();
+
+        Assert.True(found.Length == 0, $"{source}: {string.Join(", ", found)}");
     }
 
     // Who has which role (docs/ux/admin-review-2-fixes.md, PR 7): permission names such as

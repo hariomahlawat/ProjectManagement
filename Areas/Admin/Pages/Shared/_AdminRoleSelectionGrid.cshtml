@@ -59,13 +59,12 @@
              data-admin-role-access-reference>
         <header class="admin-role-access-reference__header">
             <div>
-                <span class="admin-role-access-reference__eyebrow">Effective permissions</span>
-                <h3 id="@($"{Model.IdPrefix}-access-title")">Access granted by selected roles</h3>
-                <p>Capabilities are grouped by module. Project assignment, record ownership and approval state may further restrict an action.</p>
+                <h3 id="@($"{Model.IdPrefix}-access-title")">What these roles can do</h3>
+                <p>Grouped by module. Some actions also depend on the project they are assigned to, who owns the record, or whether it is approved.</p>
             </div>
             <div class="admin-role-access-reference__summary">
                 <span data-admin-access-count>
-                    @visibleAccessCount capabilit@(visibleAccessCount == 1 ? "y" : "ies")
+                    @visibleAccessCount thing@(visibleAccessCount == 1 ? "" : "s") they can do
                 </span>
             </div>
         </header>
@@ -84,8 +83,8 @@
              hidden="@(selected.Count > 0)">
             <span aria-hidden="true"><i class="bi bi-person-check"></i></span>
             <div>
-                <strong>Select a role to review access</strong>
-                <p>The capability list updates immediately as roles are added or removed.</p>
+                <strong>Choose a role to see what it allows</strong>
+                <p>This list changes as you tick or untick roles.</p>
             </div>
         </div>
 

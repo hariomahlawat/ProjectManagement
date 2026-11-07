@@ -17,7 +17,7 @@ public sealed class SystemHealthSearchIndexTests
 
         Assert.Equal(AdminHealthStatus.Warning, status);
         Assert.Equal("27 items could not be added to search, so they are missing from results.", summary);
-        Assert.Equal("1,708 items searchable · 0 waiting to be indexed.", detail);
+        Assert.Equal("1,708 items searchable · 0 waiting to be added.", detail);
     }
 
     [Fact]

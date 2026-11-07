@@ -137,7 +137,20 @@ public sealed record UnavailableMediaAdminRow(
     DateTimeOffset? LastCheckedUtc,
     string LastCheckedDisplay,
     string ReasonSummary,
-    string ReasonDetail);
+    string ReasonDetail)
+{
+    /// <summary>Where the item came from, in plain words (the raw value stays in Technical details).</summary>
+    public string OriginLabel => Origin switch
+    {
+        MediaAssetOrigin.ProjectPhoto => "Project photo",
+        MediaAssetOrigin.ProjectVideo => "Project video",
+        MediaAssetOrigin.VisitPhoto => "Visit photo",
+        MediaAssetOrigin.SocialMediaEventPhoto => "Social media event photo",
+        MediaAssetOrigin.ActivityPhoto => "Activity photo",
+        MediaAssetOrigin.ExternalFile => "Outside folder",
+        _ => Origin.ToString()
+    };
+}
 
 public sealed record MediaSourcesAdminQuery(
     string? UnavailableQuery,

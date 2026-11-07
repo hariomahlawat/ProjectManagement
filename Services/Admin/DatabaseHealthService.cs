@@ -66,9 +66,9 @@ public sealed class DatabaseHealthService : IDatabaseHealthService
         {
             checks.Add(new(
                 "provider",
-                "Database provider",
+                "Database type",
                 AdminHealthStatus.Unavailable,
-                "The configured provider is not relational."));
+                "PRISM is not connected to the expected kind of database."));
             return new(false, _db.Database.ProviderName, null, null, null, null, null,
                 "(not available)", Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), checks);
         }
@@ -87,9 +87,9 @@ public sealed class DatabaseHealthService : IDatabaseHealthService
             latencyMs = stopwatch.ElapsedMilliseconds;
             checks.Add(new(
                 "connectivity",
-                "Connectivity",
+                "Connection",
                 canConnect ? AdminHealthStatus.Healthy : AdminHealthStatus.Critical,
-                canConnect ? $"Connected in {latencyMs} ms." : "The application could not connect to the database."));
+                canConnect ? $"Connected in {latencyMs} ms." : "PRISM could not connect to the database."));
         }
         catch (Exception exception)
         {
@@ -97,10 +97,10 @@ public sealed class DatabaseHealthService : IDatabaseHealthService
             _logger.LogError(exception, "Database health connectivity check failed.");
             checks.Add(new(
                 "connectivity",
-                "Connectivity",
+                "Connection",
                 AdminHealthStatus.Critical,
-                "The database connectivity check failed.",
-                "Review application logs for the diagnostic reference."));
+                "The connection check failed.",
+                "Look at the application log for the reference."));
         }
 
         IReadOnlyList<string> known = Array.Empty<string>();
@@ -118,20 +118,20 @@ public sealed class DatabaseHealthService : IDatabaseHealthService
 
             checks.Add(new(
                 "migration-lineage",
-                "Migration lineage",
+                "Database updates on record",
                 unknownApplied.Count == 0 ? AdminHealthStatus.Healthy : AdminHealthStatus.Critical,
                 unknownApplied.Count == 0
-                    ? $"All {applied.Count} applied migration(s) are present in the deployed assembly."
-                    : $"{unknownApplied.Count} applied migration(s) are missing from the deployed assembly.",
+                    ? $"All {applied.Count} updates the database has had are part of this version of PRISM."
+                    : $"The database has {unknownApplied.Count} update{(unknownApplied.Count == 1 ? "" : "s")} this version of PRISM does not know, so an older PRISM may be running against a newer database.",
                 unknownApplied.Count == 0 ? null : string.Join(", ", unknownApplied)));
 
             checks.Add(new(
                 "pending-migrations",
-                "Pending migrations",
+                "Database updates to run",
                 pending.Count == 0 ? AdminHealthStatus.Healthy : AdminHealthStatus.Warning,
                 pending.Count == 0
-                    ? "No pending migrations."
-                    : $"{pending.Count} migration(s) are pending.",
+                    ? "None: the database is up to date."
+                    : $"{pending.Count} database update{(pending.Count == 1 ? " has" : "s have")} not run yet.",
                 pending.Count == 0 ? null : string.Join(", ", pending)));
         }
         catch (Exception exception)
@@ -139,10 +139,10 @@ public sealed class DatabaseHealthService : IDatabaseHealthService
             _logger.LogError(exception, "Database health migration inspection failed.");
             checks.Add(new(
                 "migrations",
-                "Migrations",
+                "Database updates",
                 AdminHealthStatus.Critical,
-                "Migration state could not be inspected.",
-                "Review application logs for the diagnostic reference."));
+                "PRISM could not read which database updates have run.",
+                "Look at the application log for the reference."));
         }
 
         string? serverVersion = null;
@@ -152,10 +152,10 @@ public sealed class DatabaseHealthService : IDatabaseHealthService
             (serverVersion, databaseSize) = await ReadServerMetadataAsync(cancellationToken);
             checks.Add(new(
                 "server-metadata",
-                "Server metadata",
+                "Database server",
                 AdminHealthStatus.Healthy,
                 string.IsNullOrWhiteSpace(serverVersion)
-                    ? "Server metadata is available."
+                    ? "The database server answered."
                     : $"PostgreSQL {serverVersion}."));
         }
         catch (Exception exception)
@@ -163,9 +163,9 @@ public sealed class DatabaseHealthService : IDatabaseHealthService
             _logger.LogWarning(exception, "Database health server metadata check failed.");
             checks.Add(new(
                 "server-metadata",
-                "Server metadata",
+                "Database server",
                 AdminHealthStatus.Unavailable,
-                "Server version or database size could not be read."));
+                "The database server's version or size could not be read."));
         }
 
         return new DatabaseHealthSnapshot(

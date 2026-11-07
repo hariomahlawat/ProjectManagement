@@ -119,9 +119,10 @@ public sealed class DbHealthModel : PageModel
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Healthy checks",
+                Label = "OK",
                 Value = Snapshot.HealthyCount.ToString("N0"),
-                Detail = $"{Snapshot.Checks.Count:N0} checks completed",
+                // Checks that have not run yet are not "completed" (docs/ux/admin-review-2-fixes.md, PR 8).
+                Detail = $"{Snapshot.Checks.Count - Snapshot.UnavailableCount:N0} of {Snapshot.Checks.Count:N0} checks have run",
                 Icon = "bi-check2-circle",
                 Tone = "success"
             },
@@ -151,9 +152,9 @@ public sealed class DbHealthModel : PageModel
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Application",
+                Label = "PRISM version",
                 Value = Snapshot.ApplicationVersion,
-                Detail = Snapshot.EnvironmentName,
+                Detail = $"{Snapshot.EnvironmentName} settings",
                 Icon = "bi-box-seam",
                 Tone = "neutral"
             }
@@ -164,10 +165,10 @@ public sealed class DbHealthModel : PageModel
     {
         "Database" => 0,
         "Storage" => 1,
-        "Application security" => 2,
+        "Security" => 2,
         "Search" => 3,
         "Media library" => 4,
-        "Background services" => 5,
+        "Background jobs" => 5,
         _ => 9
     };
 
