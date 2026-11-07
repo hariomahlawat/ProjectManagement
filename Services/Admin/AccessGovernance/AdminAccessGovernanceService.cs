@@ -199,8 +199,11 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
                 findings));
         }
 
+        // One list, counted once (docs/ux/admin-review-fixes.md, PR 8): an account without a role
+        // is already covered by the "accounts without a role" line, so it is not listed again.
         var allFindings = globalFindings
-            .Concat(userRows.SelectMany(item => item.Findings))
+            .Concat(userRows.SelectMany(item => item.Findings).Where(item => item.Code != NoRoleCode))
+            .DistinctBy(item => (item.Code, item.UserId, item.RoleName))
             .OrderByDescending(item => item.Severity)
             .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -228,8 +231,10 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             usersWithoutRoles,
             restrictedPrivileged,
             singleHolderRoles,
-            allFindings.Count(item => item.Severity >= AccessGovernanceFindingSeverity.Review));
+            allFindings.Length);
     }
+
+    internal const string NoRoleCode = "user-no-role";
 
     private static IReadOnlyList<AccessGovernanceFinding> BuildGlobalFindings(
         IReadOnlyList<UserProjection> users,
@@ -281,7 +286,7 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
         if (roles.Count == 0)
         {
             findings.Add(new AccessGovernanceFinding(
-                "user-no-role",
+                NoRoleCode,
                 AccessGovernanceFindingSeverity.Review,
                 "No role assigned",
                 "The account has no authorised operational capability.",
@@ -336,15 +341,8 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
                 user.Id));
         }
 
-        if (privilegedRoles.Count > 1)
-        {
-            findings.Add(new AccessGovernanceFinding(
-                "multiple-privileged-roles",
-                AccessGovernanceFindingSeverity.Information,
-                "Multiple privileged roles assigned",
-                $"Assigned privileged roles: {string.Join(", ", privilegedRoles)}.",
-                user.Id));
-        }
+        // Holding more than one privileged role (an Administrator who is also HoD) is normal, so it
+        // is not a finding.
 
         return findings;
     }
