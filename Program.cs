@@ -499,6 +499,7 @@ builder.Services
 builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
 builder.Services.AddSingleton<IDocRepoCoverService, DocRepoCoverService>();
 builder.Services.AddScoped<DocRepoTrashPurgeService>();
+builder.Services.AddScoped<DocRepoTrashService>();
 builder.Services.AddHostedService<DocRepoTrashPurgeWorker>();
 builder.Services.AddSingleton<IUrlBuilder, UrlBuilder>();
 builder.Services.AddScoped<IDocumentOcrService, DocumentOcrService>();
