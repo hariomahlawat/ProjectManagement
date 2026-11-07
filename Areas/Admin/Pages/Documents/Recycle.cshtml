@@ -12,15 +12,15 @@
 @await Component.InvokeAsync("RestoreTabs", new { active = ProjectManagement.Services.Admin.Recovery.AdminRestoreTabKeys.ProjectDocuments })
 
 <section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Document recovery summary">
-    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Recoverable documents</span><small>Current filter scope</small></span></article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-device-ssd"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.FormatBytes(Model.Result.TotalBytes)</strong><span>Stored files</span><small>Measured recycle storage</small></span></article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-counterclockwise"></i></span><span class="admin-monitoring-metric__copy"><strong>Restorable</strong><span>Published state retained</span><small>Project and stage links preserved</small></span></article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__icon"><i class="bi bi-shield-exclamation"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.MaximumBulkDocuments</strong><span>Maximum batch</span><small>Per controlled operation</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Deleted documents</span><small>Matching your filters</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-device-ssd"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.FormatBytes(Model.Result.TotalBytes)</strong><span>Space their files use</span><small>Freed when deleted for good</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-counterclockwise"></i></span><span class="admin-monitoring-metric__copy"><strong>Yes</strong><span>Can be restored</span><small>Back on the same project and stage</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__icon"><i class="bi bi-shield-exclamation"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.MaximumBulkDocuments</strong><span>At a time</span><small>The most you can restore or delete at once</small></span></article>
 </section>
 
 <section class="admin-panel" aria-labelledby="document-recycle-title">
     <header class="admin-panel__header">
-        <div><div class="admin-panel__eyebrow">Recovery directory</div><h2 id="document-recycle-title">Recycled documents</h2></div>
+        <div><h2 id="document-recycle-title">Deleted documents</h2></div>
         <span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span>
     </header>
 
@@ -49,7 +49,7 @@
 
         @if (Model.Result.Items.Count == 0)
         {
-            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-recycle", Title = "No recycled documents", Description = "No soft-deleted documents match the current recovery filters." })" />
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-recycle", Title = "No deleted documents", Description = "No deleted documents match these filters." })" />
         }
         else
         {
@@ -85,9 +85,9 @@
         <div class="modal-header"><div><div class="admin-panel__eyebrow" data-document-operation-eyebrow>Recovery operation</div><h2 class="modal-title fs-5" id="documentRecoveryTitle" data-document-operation-title>Restore document</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
         <div class="modal-body">
             <div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-file-earmark"></i></span><div><strong data-document-summary-title>Selected document</strong><small data-document-summary-detail>Review the operation before continuing.</small></div></div>
-            <div data-document-restore-panel><p class="mb-0">The selected document will be republished with its project and stage links preserved.</p></div>
+            <div data-document-restore-panel><p class="mb-0">The document goes back on its project, in the same stage.</p></div>
             <div data-document-delete-panel hidden>
-                <div class="admin-destructive-warning"><i class="bi bi-exclamation-octagon"></i><div><strong>Permanent deletion cannot be undone</strong><p>The database record and stored file will be removed. Partial failures are reported without hiding successful operations.</p></div></div>
+                <div class="admin-destructive-warning"><i class="bi bi-exclamation-octagon"></i><div><strong>Permanent deletion cannot be undone</strong><p>The documents and their files are removed. If some cannot be removed, you are told which; the rest are still removed.</p></div></div>
                 <div class="mb-3"><label asp-for="Command.Confirmation" class="form-label">Type <strong>DELETE</strong> to confirm</label><input asp-for="Command.Confirmation" class="form-control" autocomplete="off" data-document-confirmation /></div>
                 <label class="form-check"><input asp-for="Command.Acknowledge" class="form-check-input" data-document-acknowledge /><span class="form-check-label">I understand that these documents and stored files cannot be recovered after deletion.</span></label>
             </div>

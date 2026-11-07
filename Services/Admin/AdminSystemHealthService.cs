@@ -758,9 +758,15 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
 
     private static string FormatDuration(TimeSpan duration)
     {
-        if (duration.TotalDays >= 1) return $"{duration.TotalDays:0.#} day(s)";
-        if (duration.TotalHours >= 1) return $"{duration.TotalHours:0.#} hour(s)";
-        return $"{Math.Max(1, duration.TotalMinutes):0} minute(s)";
+        if (duration.TotalDays >= 1) return Plural(duration.TotalDays, "day");
+        if (duration.TotalHours >= 1) return Plural(duration.TotalHours, "hour");
+        return Plural(Math.Max(1, Math.Round(duration.TotalMinutes)), "minute");
+    }
+
+    private static string Plural(double value, string unit)
+    {
+        var text = value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        return text == "1" ? $"1 {unit}" : $"{text} {unit}s";
     }
 
     private static string FormatBytes(long bytes)

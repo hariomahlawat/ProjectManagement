@@ -28,8 +28,8 @@
                 <strong>@Model.FormatIst(Model.Account.CreatedUtc)</strong>
             </div>
             <div>
-                <span>Analytics classification</span>
-                <strong>@Model.Account.AccountKind</strong>
+                <span>Kind of account</span>
+                <strong>@(Model.Account.AccountKind switch { ProjectManagement.Models.UserAccountKind.Human => "A person", ProjectManagement.Models.UserAccountKind.Service => "Service account", _ => "Test account" })</strong>
             </div>
         </div>
     </section>
@@ -38,8 +38,7 @@
         <section class="admin-panel" aria-labelledby="admin-account-state-title">
             <header class="admin-panel__header">
                 <div>
-                    <div class="admin-panel__eyebrow">Security state</div>
-                    <h2 id="admin-account-state-title">Account status</h2>
+                                        <h2 id="admin-account-state-title">Account status</h2>
                 </div>
             </header>
             <div class="admin-panel__body">
@@ -53,14 +52,14 @@
                         <dd>@(Model.Account.MustChangePassword ? "Required at next sign-in" : "Not required")</dd>
                     </div>
                     <div>
-                        <dt>Usage analytics</dt>
+                        <dt>Counted in ERP usage</dt>
                         <dd>
-                            @Model.Account.AccountKind account
-                            <span class="admin-definition-list__secondary">Only active human accounts are included in command adoption by default.</span>
+                            @(Model.Account.AccountKind == ProjectManagement.Models.UserAccountKind.Human ? "Yes, while the account is active" : $"No: {Model.Account.AccountKind.ToString().ToLowerInvariant()} account")
+                            <span class="admin-definition-list__secondary">ERP usage counts people's accounts, not service or test accounts.</span>
                         </dd>
                     </div>
                     <div>
-                        <dt>Failed access count</dt>
+                        <dt>Failed sign-ins in a row</dt>
                         <dd>@Model.Account.AccessFailedCount.ToString("N0")</dd>
                     </div>
                     @if (Model.Account.AccountState.State == AdminUserAccountState.TemporarilyLocked && Model.Account.LockoutEndUtc.HasValue)
@@ -110,8 +109,7 @@
         <section class="admin-panel" aria-labelledby="admin-account-roles-title">
             <header class="admin-panel__header">
                 <div>
-                    <div class="admin-panel__eyebrow">Authorisation</div>
-                    <h2 id="admin-account-roles-title">Assigned roles</h2>
+                                        <h2 id="admin-account-roles-title">Assigned roles</h2>
                 </div>
                 @if (Model.Account.AccountState.State != AdminUserAccountState.PendingDeletion)
                 {
@@ -160,8 +158,7 @@
         <section class="admin-panel admin-account-actions" aria-labelledby="admin-account-actions-title">
             <header class="admin-panel__header">
                 <div>
-                    <div class="admin-panel__eyebrow">Controlled operations</div>
-                    <h2 id="admin-account-actions-title">Account actions</h2>
+                                        <h2 id="admin-account-actions-title">Account actions</h2>
                 </div>
             </header>
             <div class="admin-account-action-list">
@@ -175,7 +172,7 @@
 
                     <a asp-page="./Reset" asp-route-id="@Model.Account.Id" class="admin-account-action">
                         <span class="admin-account-action__icon"><i class="bi bi-key" aria-hidden="true"></i></span>
-                        <span><strong>Reset password</strong><small>Issue a temporary password and end current sessions.</small></span>
+                        <span><strong>Reset password</strong><small>Give a temporary password and sign them out everywhere.</small></span>
                         <i class="bi bi-chevron-right" aria-hidden="true"></i>
                     </a>
                 }
@@ -204,7 +201,7 @@
                 {
                     <a asp-page="./Disable" asp-route-id="@Model.Account.Id" class="admin-account-action admin-account-action--warning">
                         <span class="admin-account-action__icon"><i class="bi bi-person-slash" aria-hidden="true"></i></span>
-                        <span><strong>Disable account</strong><small>Block access while preserving records and ownership history.</small></span>
+                        <span><strong>Disable account</strong><small>Stop them signing in. Their records and history stay.</small></span>
                         <i class="bi bi-chevron-right" aria-hidden="true"></i>
                     </a>
                 }
@@ -236,10 +233,9 @@
         <section class="admin-panel" aria-labelledby="admin-authentication-activity-title">
             <header class="admin-panel__header">
                 <div>
-                    <div class="admin-panel__eyebrow">Authentication</div>
-                    <h2 id="admin-authentication-activity-title">Recent sign-in activity</h2>
+                                        <h2 id="admin-authentication-activity-title">Recent sign-in activity</h2>
                 </div>
-                <a class="admin-panel__action" asp-area="Admin" asp-page="/Analytics/Logins" asp-route-UserId="@Model.Account.Id">
+                <a class="admin-panel__action" asp-area="Admin" asp-page="/Analytics/Logins" asp-route-UserId="@Model.Account.Id" asp-route-Days="@Model.SignInPeriodDays">
                     View all sign-ins <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </a>
             </header>

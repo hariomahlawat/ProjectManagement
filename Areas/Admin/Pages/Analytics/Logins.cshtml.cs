@@ -257,17 +257,17 @@ public sealed class LoginsModel : PageModel
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Affected accounts",
+                Label = "Accounts with failures",
                 Value = Snapshot.AffectedAccounts.ToString("N0"),
-                Detail = $"{Snapshot.UniqueUsers:N0} active user{(Snapshot.UniqueUsers == 1 ? "" : "s")} · {Snapshot.UniqueSourceIps:N0} source{(Snapshot.UniqueSourceIps == 1 ? "" : "s")}",
+                Detail = $"{Snapshot.UniqueUsers:N0} {(Snapshot.UniqueUsers == 1 ? "person" : "people")} signed in from {Snapshot.UniqueSourceIps:N0} computer{(Snapshot.UniqueSourceIps == 1 ? "" : "s")}",
                 Icon = "bi-person-exclamation",
                 Tone = Snapshot.AffectedAccounts > 0 ? "warning" : "neutral"
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Review incidents",
+                Label = "To look at",
                 Value = Snapshot.ReviewSignals.ToString("N0"),
-                Detail = "Deduplicated review queue",
+                Detail = "Listed under Sign-ins to look at",
                 Icon = "bi-eye",
                 Tone = Snapshot.ReviewSignals > 0 ? "warning" : "success",
                 Href = FilterUrl(Outcome, true),

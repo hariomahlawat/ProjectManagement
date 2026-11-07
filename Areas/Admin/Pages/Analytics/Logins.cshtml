@@ -41,8 +41,7 @@
 <section class="admin-panel admin-monitoring-filter-panel" aria-labelledby="login-filter-title">
     <header class="admin-panel__header admin-panel__header--compact">
         <div>
-            <div class="admin-panel__eyebrow">Monitoring scope</div>
-            <h2 id="login-filter-title">Filters and review rules</h2>
+                        <h2 id="login-filter-title">Filters</h2>
         </div>
         <span class="admin-panel__meta">@Model.Snapshot.FromDate.ToString("dd MMM yyyy") – @Model.Snapshot.ToDate.ToString("dd MMM yyyy")</span>
     </header>
@@ -95,11 +94,11 @@
         <div class="admin-filter-toolbar__checks">
             <label class="form-check">
                 <input asp-for="ReviewOnly" class="form-check-input" data-admin-monitoring-submit />
-                <span class="form-check-label">Review signals only</span>
+                <span class="form-check-label">Only sign-ins to look at</span>
             </label>
             <label class="form-check">
                 <input asp-for="MarkWeekends" class="form-check-input" data-admin-monitoring-submit />
-                <span class="form-check-label">Include weekend context</span>
+                <span class="form-check-label">Include weekend sign-ins</span>
             </label>
         </div>
 
@@ -116,10 +115,10 @@
     </form>
 
     <div class="admin-rule-summary">
-        <span><i class="bi bi-clock" aria-hidden="true"></i> Expected hours: @Model.Snapshot.WorkdayStart.ToString(@"hh\:mm")–@Model.Snapshot.WorkdayEnd.ToString(@"hh\:mm") IST</span>
-        <span><i class="bi bi-calendar-week" aria-hidden="true"></i> Weekend and routine outside-hours activity is informational context</span>
-        <span><i class="bi bi-shield-check" aria-hidden="true"></i> Failed attempts require review; lockouts are critical</span>
-        <span><i class="bi bi-collection" aria-hidden="true"></i> Equivalent incidents are consolidated within the configured window</span>
+        <span><i class="bi bi-clock" aria-hidden="true"></i> Working hours: @Model.Snapshot.WorkdayStart.ToString(@"hh\:mm")–@Model.Snapshot.WorkdayEnd.ToString(@"hh\:mm") IST</span>
+        <span><i class="bi bi-calendar-week" aria-hidden="true"></i> Weekend and evening sign-ins are shown, but are not problems on their own</span>
+        <span><i class="bi bi-shield-check" aria-hidden="true"></i> Failed sign-ins are worth a look; lockouts need one</span>
+        <span><i class="bi bi-collection" aria-hidden="true"></i> Repeats of the same thing close together are shown as one row</span>
     </div>
 </section>
 
@@ -133,8 +132,7 @@
     <article class="admin-panel" aria-labelledby="login-trend-title">
         <header class="admin-panel__header">
             <div>
-                <div class="admin-panel__eyebrow">Authentication volume</div>
-                <h2 id="login-trend-title">Sign-ins over time</h2>
+                                <h2 id="login-trend-title">Sign-ins over time</h2>
             </div>
             <span class="admin-panel__meta">IST calendar days</span>
         </header>
@@ -162,25 +160,24 @@
     <aside class="admin-panel" aria-labelledby="login-profile-title">
         <header class="admin-panel__header">
             <div>
-                <div class="admin-panel__eyebrow">Observed pattern</div>
-                <h2 id="login-profile-title">Time profile</h2>
+                                <h2 id="login-profile-title">Usual sign-in times</h2>
             </div>
         </header>
         <dl class="admin-monitoring-definition-list">
             <div>
-                <dt>Median successful sign-in</dt>
+                <dt>Typical sign-in time</dt>
                 <dd>@Model.FormatMinutes(Model.Snapshot.MedianMinutesOfDay) IST</dd>
             </div>
             <div>
-                <dt>90th percentile</dt>
+                <dt>Most sign-ins are before</dt>
                 <dd>@Model.FormatMinutes(Model.Snapshot.P90MinutesOfDay) IST</dd>
             </div>
             <div>
-                <dt>Source IPs</dt>
+                <dt>Computers (IP addresses)</dt>
                 <dd>@Model.Snapshot.UniqueSourceIps.ToString("N0")</dd>
             </div>
             <div>
-                <dt>Analysed events</dt>
+                <dt>Sign-ins in this period</dt>
                 <dd>@Model.Snapshot.AnalysedEvents.Count.ToString("N0")</dd>
             </div>
         </dl>
@@ -188,7 +185,7 @@
         {
             <div class="admin-inline-notice admin-inline-notice--warning">
                 <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                <span>The point set reached the configured safety limit. Summary totals remain complete; charts show the most recent bounded sample.</span>
+                <span>There are too many sign-ins to draw them all. The totals count every one; the charts show the most recent.</span>
             </div>
         }
     </aside>
@@ -197,12 +194,11 @@
 <section id="login-patterns" class="admin-panel" aria-labelledby="login-patterns-title">
     <header class="admin-panel__header">
         <div>
-            <div class="admin-panel__eyebrow">Time analysis</div>
-            <h2 id="login-patterns-title">Sign-in time patterns</h2>
+                        <h2 id="login-patterns-title">Sign-in time patterns</h2>
         </div>
         <div class="admin-chart-legend" aria-label="Chart legend">
-            <span><i class="admin-chart-dot admin-chart-dot--primary"></i> Expected pattern</span>
-            <span><i class="admin-chart-dot admin-chart-dot--warning"></i> Informational / review context</span>
+            <span><i class="admin-chart-dot admin-chart-dot--primary"></i> In working hours</span>
+            <span><i class="admin-chart-dot admin-chart-dot--warning"></i> Evening or weekend</span>
             <span><i class="admin-chart-dot admin-chart-dot--danger"></i> Failed or locked</span>
         </div>
     </header>
@@ -235,8 +231,7 @@
 <section id="login-review" class="admin-panel admin-review-queue" aria-labelledby="login-review-title">
     <header class="admin-panel__header">
         <div>
-            <div class="admin-panel__eyebrow">Administrator review</div>
-            <h2 id="login-review-title">Review queue</h2>
+                        <h2 id="login-review-title">Sign-ins to look at</h2>
         </div>
         <span class="admin-panel__meta">@Model.Snapshot.ReviewTotal.ToString("N0") event@(Model.Snapshot.ReviewTotal == 1 ? string.Empty : "s")</span>
     </header>
@@ -293,7 +288,7 @@
                                 </span>
                                 @if (row.OccurrenceCount > 1)
                                 {
-                                    <span class="admin-occurrence-badge" title="@row.OccurrenceCount equivalent events were consolidated">×@row.OccurrenceCount</span>
+                                    <span class="admin-occurrence-badge" title="The same thing happened @row.OccurrenceCount times close together">×@row.OccurrenceCount</span>
                                 }
                             </td>
                             <td>

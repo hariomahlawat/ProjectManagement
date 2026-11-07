@@ -460,26 +460,26 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
 
         if (outcome == AdminLoginOutcome.Failed)
         {
-            reasons.Add("Failed authentication event");
+            reasons.Add("Failed sign-in");
             reviewLevel = AdminLoginReviewLevel.Review;
         }
         else if (outcome == AdminLoginOutcome.LockedOut)
         {
-            reasons.Add("Account lockout event");
+            reasons.Add("Account locked");
             reviewLevel = AdminLoginReviewLevel.Critical;
         }
         else
         {
             var outsideHours = local.TimeOfDay < _options.WorkdayStart || local.TimeOfDay > _options.WorkdayEnd;
             var weekend = markWeekends && local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-            if (outsideHours) reasons.Add("Outside configured working hours");
+            if (outsideHours) reasons.Add("Outside working hours");
             if (weekend) reasons.Add("Weekend sign-in");
 
             // Routine outside-hours activity remains informational. Only materially
             // abnormal successful sign-ins enter the administrator review queue.
             if (local.TimeOfDay < TimeSpan.FromHours(5) || local.TimeOfDay >= TimeSpan.FromHours(22))
             {
-                reasons.Add("Materially abnormal sign-in time");
+                reasons.Add("Late at night (between 22:00 and 05:00)");
                 reviewLevel = AdminLoginReviewLevel.Review;
             }
         }

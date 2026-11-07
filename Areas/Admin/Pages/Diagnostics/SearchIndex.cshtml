@@ -31,25 +31,25 @@
 <section class="admin-monitoring-metric-grid" aria-label="Search index summary">
     <article class="admin-monitoring-metric admin-monitoring-metric--@(ready ? "success" : "warning")">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi @(ready ? "bi-check-circle" : "bi-exclamation-triangle")"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@(ready ? "Working" : "Not ready")</strong><span>Search</span><small>Index build @Model.Health.ActiveGeneration</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@(ready ? "Working" : "Not ready")</strong><span>Search</span><small>@(ready ? "Results are up to date" : "Results may be missing or out of date")</small></span>
     </article>
     <article class="admin-monitoring-metric">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Health.IndexVersion</strong><span>Index version</span><small>This version of PRISM needs @Model.ConfiguredProjectionVersion</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@(Model.Health.IndexVersion == Model.ConfiguredProjectionVersion ? "Yes" : "No")</strong><span>Built for this PRISM version</span><small>@(Model.Health.IndexVersion == Model.ConfiguredProjectionVersion ? "Nothing to do" : "Rebuild the search index")</small></span>
     </article>
     <article class="admin-monitoring-metric">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-files"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Health.EntryCount.ToString("N0")</strong><span>Items searchable</span><small>Index format @Model.SearchSchemaVersion</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Health.EntryCount.ToString("N0")</strong><span>Items searchable</span><small>Projects, documents and other records</small></span>
     </article>
     <article class="admin-monitoring-metric">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-hourglass-split"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Health.PendingItems.ToString("N0")</strong><span>Waiting to be indexed</span><small>@Model.Health.FailedItems.ToString("N0") failed</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Health.PendingItems.ToString("N0")</strong><span>Waiting to be added</span><small>@Model.Health.FailedItems.ToString("N0") could not be added</small></span>
     </article>
 </section>
 
 <section class="admin-panel mt-3">
     <header class="admin-panel__header">
-        <div><div class="admin-panel__eyebrow">Generation lifecycle</div><h2>Current state</h2></div>
+        <div><h2>Rebuilds and checks</h2></div>
     </header>
     <div class="admin-health-facts">
         <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-clock-history"></i></span><div><small>Whole index last rebuilt</small><strong>@Time.FormatIst(Model.Health.LastFullRebuildUtc)</strong><span>Search keeps working while it rebuilds</span></div></article>
@@ -61,20 +61,24 @@
     }
 </section>
 
-<section class="admin-panel mt-3">
-    <header class="admin-panel__header">
-        <div><div class="admin-panel__eyebrow">Relevance diagnostics</div><h2>Ranking inspector</h2></div>
-    </header>
-    <p class="text-muted small mb-2">Runs the production Search V2 ranker with your current authorization context and shows the first ten canonical results, including the winning relevance tier and contributing retrieval channels. It does not write search analytics.</p>
-    <form method="get" class="row g-2 align-items-end" role="search" aria-label="Inspect Search V2 ranking">
+@* Technical detail stays one click away (docs/ux/admin-review-fixes.md, PR 10). *@
+<details class="admin-panel admin-more-panel mt-3" @(Model.InspectionRequested ? "open" : null)>
+    <summary><h2>Technical details: why results come in this order</h2></summary>
+    <p class="text-muted small mb-2">Search as you normally would to see the first ten results in order, and where each one matched. You see only what you are allowed to open, and nothing is recorded.</p>
+    <dl class="admin-more-panel__facts small">
+        <div><dt>Index build</dt><dd>@Model.Health.ActiveGeneration</dd></div>
+        <div><dt>Search data version</dt><dd>@Model.Health.IndexVersion (this PRISM needs @Model.ConfiguredProjectionVersion)</dd></div>
+        <div><dt>Index format</dt><dd>@Model.SearchSchemaVersion</dd></div>
+    </dl>
+    <form method="get" class="row g-2 align-items-end" role="search" aria-label="See why search results come in this order">
         <div class="col-lg-8">
-            <label class="form-label small" for="searchRankInspectQuery">Query</label>
+            <label class="form-label small" for="searchRankInspectQuery">Search for</label>
             <input id="searchRankInspectQuery" name="InspectQuery" value="@Model.InspectQuery" class="form-control" autocomplete="off" placeholder="e.g. high tech" />
         </div>
-        <div class="col-auto"><button type="submit" class="btn btn-outline-primary"><i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Inspect ranking</button></div>
+        <div class="col-auto"><button type="submit" class="btn btn-outline-primary"><i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Show results</button></div>
         @if (Model.InspectionRequested)
         {
-            <div class="col-12 small text-muted">@(Model.InspectionReady ? $"{Model.InspectionTotalHits:N0} result(s) · {Model.InspectionLatencyMs:N0} ms" : "Search V2 is not ready for inspection.")</div>
+            <div class="col-12 small text-muted">@(Model.InspectionReady ? $"{Model.InspectionTotalHits:N0} result(s) · {Model.InspectionLatencyMs:N0} ms" : "Search is not ready yet.")</div>
         }
     </form>
 
@@ -82,13 +86,13 @@
     {
         if (Model.InspectionResults.Count == 0)
         {
-            <div class="admin-compact-empty mt-3"><i class="bi bi-search"></i><span>No authorized Search V2 results for this query.</span></div>
+            <div class="admin-compact-empty mt-3"><i class="bi bi-search"></i><span>No results that you can open.</span></div>
         }
         else
         {
             <div class="table-responsive mt-3">
                 <table class="table table-sm align-middle mb-0">
-                    <thead><tr><th>Rank</th><th>Result</th><th>Source</th><th>Matched in</th><th>Tier</th><th>Channels</th><th>RRF score</th></tr></thead>
+                    <thead><tr><th>Rank</th><th>Result</th><th>Source</th><th>Matched in</th><th>Match</th><th>Found by</th><th>Score</th></tr></thead>
                     <tbody>
                     @foreach (var result in Model.InspectionResults)
                     {
@@ -107,11 +111,11 @@
             </div>
         }
     }
-</section>
+</details>
 
 <section class="admin-panel mt-3">
     <header class="admin-panel__header">
-        <div><div class="admin-panel__eyebrow">Recovery</div><h2>Failed indexing jobs</h2></div>
+        <div><h2>Items that could not be added to search</h2></div>
         @if (Model.CanMaintain && Model.FailedItems.Count > 0)
         {
             <form method="post" asp-page-handler="RetryAll"><button type="submit" class="btn btn-sm btn-outline-primary">Retry all failed</button></form>
@@ -119,18 +123,18 @@
     </header>
     @if (Model.FailedItems.Count == 0)
     {
-        <div class="admin-compact-empty"><i class="bi bi-check-circle"></i><span>No failed Search V2 indexing jobs.</span></div>
+        <div class="admin-compact-empty"><i class="bi bi-check-circle"></i><span>Nothing failed. Every item is in search.</span></div>
     }
     else
     {
         <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
-                <thead><tr><th>Entity</th><th>Key</th><th>Attempts</th><th>Requested</th><th>Last error</th><th></th></tr></thead>
+                <thead><tr><th>Kind</th><th>Record</th><th>Tries</th><th>First tried</th><th>What went wrong</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var item in Model.FailedItems)
                 {
                     <tr>
-                        <td>@item.EntityType</td><td><code>@item.EntityKey</code></td><td>@item.RetryCount</td><td>@item.RequestedAtUtc.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                        <td>@item.EntityType</td><td><code>@item.EntityKey</code></td><td>@item.RetryCount</td><td>@Time.FormatIst(item.RequestedAtUtc)</td>
                         <td class="text-break small">@(string.IsNullOrWhiteSpace(item.LastError) ? "—" : item.LastError)</td>
                         <td class="text-end">
                             @if (Model.CanMaintain)

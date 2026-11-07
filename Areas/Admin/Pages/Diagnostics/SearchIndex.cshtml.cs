@@ -82,7 +82,7 @@ public sealed class SearchIndexModel : PageModel
             RebuildRequestedAction,
             "SearchIndex",
             Message: "Full search index rebuild requested."), cancellationToken);
-        StatusMessage = "A full Search V2 rebuild has been queued. The current active generation will continue serving users until the replacement generation is complete.";
+        StatusMessage = "The search index will be rebuilt. Search keeps working on the current index until the new one is ready.";
         return RedirectToPage();
     }
 
@@ -94,7 +94,7 @@ public sealed class SearchIndexModel : PageModel
             RetryRequestedAction,
             "SearchIndex",
             Message: "All failed search indexing jobs sent back to the queue."), cancellationToken);
-        StatusMessage = "Failed Search V2 indexing jobs have been returned to the retry queue.";
+        StatusMessage = "The items that failed will be tried again in a moment.";
         return RedirectToPage();
     }
 
@@ -110,7 +110,7 @@ public sealed class SearchIndexModel : PageModel
                 EntityId: id.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 Message: $"Failed search indexing job {id} sent back to the queue."), cancellationToken);
         }
-        StatusMessage = "The selected Search V2 indexing job has been returned to the retry queue.";
+        StatusMessage = "That item will be tried again in a moment.";
         return RedirectToPage();
     }
 

@@ -55,7 +55,7 @@ public sealed class LegacyImportModel : PageModel
         await LoadPageAsync(cancellationToken);
         if (!ProjectCategoryId.HasValue) ModelState.AddModelError(nameof(ProjectCategoryId), "Select a project category.");
         if (!TechnicalCategoryId.HasValue) ModelState.AddModelError(nameof(TechnicalCategoryId), "Select a technical category.");
-        if (Upload is null || Upload.Length == 0) ModelState.AddModelError(nameof(Upload), "Upload a non-empty .xlsx workbook.");
+        if (Upload is null || Upload.Length == 0) ModelState.AddModelError(nameof(Upload), "Choose an Excel (.xlsx) file that is not empty.");
         if (!ModelState.IsValid) return Page();
 
         var operation = await _preflight.PreviewAsync(
@@ -65,7 +65,7 @@ public sealed class LegacyImportModel : PageModel
             cancellationToken);
         if (!operation.Succeeded || operation.Value is null)
         {
-            ModelState.AddModelError(string.Empty, operation.UserMessage ?? "The workbook could not be validated.");
+            ModelState.AddModelError(string.Empty, operation.UserMessage ?? "The file could not be checked.");
             return Page();
         }
 
@@ -79,12 +79,12 @@ public sealed class LegacyImportModel : PageModel
     {
         if (!ProjectCategoryId.HasValue || !TechnicalCategoryId.HasValue || PreviewToken == Guid.Empty)
         {
-            TempData[FlashMessageKeys.AdminMaintenanceError] = "The validated import is incomplete or has expired. Validate the workbook again.";
+            TempData[FlashMessageKeys.AdminMaintenanceError] = "The check has expired or is incomplete. Check the file again.";
             return RedirectToPage();
         }
         if (!ConfirmCommit)
         {
-            TempData[FlashMessageKeys.AdminMaintenanceError] = "Confirm that the validated row counts and category selections have been reviewed.";
+            TempData[FlashMessageKeys.AdminMaintenanceError] = "Tick the box to confirm you have checked the categories and the counts.";
             return RedirectToPage(new { ProjectCategoryId, TechnicalCategoryId });
         }
 
@@ -98,7 +98,7 @@ public sealed class LegacyImportModel : PageModel
         if (!result.Succeeded)
         {
             TempData[FlashMessageKeys.AdminMaintenanceError] = !string.IsNullOrWhiteSpace(result.TraceId)
-                ? $"{result.Message} Trace reference: {result.TraceId}."
+                ? $"{result.Message} Reference: {result.TraceId}."
                 : result.Message;
             return RedirectToPage(new { ProjectCategoryId, TechnicalCategoryId });
         }
@@ -110,7 +110,7 @@ public sealed class LegacyImportModel : PageModel
     public async Task<IActionResult> OnPostCancelAsync(CancellationToken cancellationToken)
     {
         if (PreviewToken != Guid.Empty) await _preflight.CancelAsync(PreviewToken, cancellationToken);
-        TempData[FlashMessageKeys.AdminMaintenanceSuccess] = "Validated workbook staging was cancelled and removed.";
+        TempData[FlashMessageKeys.AdminMaintenanceSuccess] = "The checked file was discarded. Nothing was imported.";
         return RedirectToPage(new { ProjectCategoryId, TechnicalCategoryId });
     }
 
@@ -161,7 +161,7 @@ public sealed class LegacyImportModel : PageModel
         {
             Eyebrow = "Controlled maintenance",
             Title = "Legacy project import",
-            Description = "Validate an approved Excel workbook without database mutation, review every proposed row and then commit one idempotent import.",
+            Description = "Add old projects from an Excel file. Check the file first: nothing is saved until you import, and the same projects cannot be imported twice.",
             Icon = "bi-database-up",
             Actions = new[]
             {

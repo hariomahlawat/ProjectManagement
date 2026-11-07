@@ -4545,3 +4545,15 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 @media (max-width: 575.98px) {
     .admin-governance-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* A panel whose content is technical detail, one click away (docs/ux/admin-review-fixes.md, PR 10). */
+.admin-panel.admin-more-panel { padding: 1rem 1.15rem; }
+.admin-more-panel > summary { display: flex; align-items: center; gap: .5rem; list-style: none; cursor: pointer; }
+.admin-more-panel > summary::-webkit-details-marker { display: none; }
+.admin-more-panel > summary::before { content: "\f285"; font-family: bootstrap-icons; color: var(--admin-text-muted); font-size: .9rem; line-height: 1; transition: transform .15s ease; }
+.admin-more-panel[open] > summary::before { transform: rotate(90deg); }
+.admin-more-panel > summary h2 { margin: 0; color: var(--admin-text); font-size: .95rem; font-weight: 750; }
+.admin-more-panel > summary + * { margin-top: .75rem; }
+.admin-more-panel__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .4rem .9rem; margin: .5rem 0 .9rem; }
+.admin-more-panel__facts dt { color: var(--admin-text-muted); font-weight: 600; }
+.admin-more-panel__facts dd { margin: 0; color: var(--admin-text); }

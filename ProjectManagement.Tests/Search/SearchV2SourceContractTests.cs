@@ -224,7 +224,7 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("ISearchV2Engine", model, StringComparison.Ordinal);
         Assert.Contains("InspectQuery", model, StringComparison.Ordinal);
         Assert.Contains("InspectionResults", model, StringComparison.Ordinal);
-        Assert.Contains("Ranking inspector", view, StringComparison.Ordinal);
+        Assert.Contains("why results come in this order", view, StringComparison.Ordinal); // the ranking inspector, behind Technical details
         Assert.Contains("MatchTier", contracts, StringComparison.Ordinal);
         Assert.Contains("MatchChannels", contracts, StringComparison.Ordinal);
         Assert.Contains("row.Tier", engine, StringComparison.Ordinal);
