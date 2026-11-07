@@ -202,8 +202,10 @@ Recovery should list them, or say where they are restored, is left to the owner.
   catalogue. Permission names ("Admin.Access", "DocRepo.Purge") and stored role names moved into a
   collapsed **Technical details** panel under the table.
 - The things to look at, the role descriptions (`AdminRoleDescriptorCatalog`) and the permission
-  descriptions (`AdminCapabilityCatalog`) were rewritten. The media rows that no page uses today
-  (Manage, Set up, Recover) say so. Keys, policy names and roles are unchanged; the finding codes
+  descriptions (`AdminCapabilityCatalog`) were rewritten. The media rows name the Media sources and
+  Media intelligence actions they allow (some are checked inside the media services, not on the
+  page); "Manage the media library" is the one no page or service checks, and says so. A test
+  keeps that claim true. Keys, policy names and roles are unchanged; the finding codes
   are unchanged too. The access guide's three bullets were reworded to match.
 - **Social media lists get a catalogue policy.** `AdminPolicies.SocialMediaListsManage`
   ("Admin.SocialMediaLists.Manage") is registered by the capability catalogue with exactly the

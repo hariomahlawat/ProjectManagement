@@ -141,6 +141,46 @@ public sealed class AdminCapabilityCatalogTests
         Assert.Empty(pageModel.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
     }
 
+    [Fact]
+    public void RowsSayingNoPageNeedsThem_AreReallyUnused()
+    {
+        // A permission can be checked inside a service rather than on a page (the media services
+        // do this), so search all application code, not only page attributes.
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "ProjectManagement.csproj")))
+        {
+            root = root.Parent;
+        }
+
+        Assert.NotNull(root);
+        var sources = Directory.EnumerateFiles(root!.FullName, "*.cs", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(root.FullName, "*.cshtml", SearchOption.AllDirectories))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}node_modules{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains("ProjectManagement.Tests", StringComparison.Ordinal)
+                && !path.EndsWith("AdminCapabilityCatalog.cs", StringComparison.Ordinal)
+                && !path.EndsWith("AdminPolicies.cs", StringComparison.Ordinal))
+            .Select(File.ReadAllText)
+            .ToArray();
+        var constants = typeof(AdminPolicies).GetFields()
+            .Where(field => field.IsLiteral)
+            .ToDictionary(field => (string)field.GetRawConstantValue()!, field => field.Name, StringComparer.Ordinal);
+
+        var unused = new AdminCapabilityCatalog().Capabilities
+            .Where(item => item.Description.Contains("No page needs it", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(unused);
+        foreach (var capability in unused)
+        {
+            var name = constants[capability.Policy];
+            Assert.False(
+                sources.Any(text => text.Contains($"AdminPolicies.{name}", StringComparison.Ordinal) || text.Contains($"\"{capability.Policy}\"", StringComparison.Ordinal)),
+                $"{capability.Key} says no page needs it, but AdminPolicies.{name} is checked in application code.");
+        }
+    }
+
     private static object[] Row(string key, string policy, params string[] roles) => new object[] { key, policy, roles };
 
     [Fact]
