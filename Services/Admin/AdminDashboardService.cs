@@ -85,28 +85,17 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var since24Hours = nowUtc.AddDays(-1).UtcDateTime;
 
         var totalUsers = await _db.Users.AsNoTracking().CountAsync(cancellationToken);
-        var pendingDeletionUsers = await _db.Users.AsNoTracking()
-            .CountAsync(user => user.PendingDeletion, cancellationToken);
-        var disabledUsers = await _db.Users.AsNoTracking()
-            .CountAsync(user => !user.PendingDeletion && user.IsDisabled, cancellationToken);
-        var lockedUsers = await _db.Users.AsNoTracking()
-            .CountAsync(user =>
-                !user.PendingDeletion
-                && !user.IsDisabled
-                && user.LockoutEnd.HasValue
-                && user.LockoutEnd > nowUtc,
-                cancellationToken);
-        var mustChangePasswordUsers = await _db.Users.AsNoTracking()
-            .CountAsync(user =>
-                !user.PendingDeletion
-                && !user.IsDisabled
-                && (!user.LockoutEnd.HasValue || user.LockoutEnd <= nowUtc)
-                && user.MustChangePassword,
-                cancellationToken);
-        var activeUsers = Math.Max(
-            0,
-            totalUsers - pendingDeletionUsers - disabledUsers - lockedUsers - mustChangePasswordUsers);
-
+        var users = _db.Users.AsNoTracking();
+        var pendingDeletionUsers = await users
+            .CountAsync(UserAccountStateRules.PendingDeletion(nowUtc), cancellationToken);
+        var disabledUsers = await users
+            .CountAsync(UserAccountStateRules.Disabled(nowUtc), cancellationToken);
+        var lockedUsers = await users
+            .CountAsync(UserAccountStateRules.TemporarilyLocked(nowUtc), cancellationToken);
+        var mustChangePasswordUsers = await users
+            .CountAsync(UserAccountStateRules.MustChangePassword(nowUtc), cancellationToken);
+        var activeUsers = await users
+            .CountAsync(UserAccountStateRules.Active(nowUtc), cancellationToken);
         var successfulLoginQuery = _db.AuthEvents.AsNoTracking()
             .Where(authEvent =>
                 authEvent.Event == AuthenticationEventNames.LoginSucceeded

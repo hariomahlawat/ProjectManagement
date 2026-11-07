@@ -158,6 +158,25 @@ These are larger changes. None of the PRs above makes them without the owner's g
 - **Home (C7).** `AdminDashboardService` counts its 7 days as today and the six IST calendar days before it, the same period as Sign-in activity's 7 days. Recent changes show people through `AuditActorNames`, as the audit log does: full name, then user name, and "PRISM" for rows the application wrote. The account-state counts are left for PR 4.
 - Tests: `AdminSignInCountsWhatItShowsTests` (filtered outcome and review rows older than the cap, export matches the list, the review rule translates to PostgreSQL, Home's IST window at a day boundary, Home's display names).
 
+## PR 4 as shipped
+
+**Shipped.** `UserAccountStateRules` (Services/Admin) is the one account-state rule: pending
+deletion, then disabled, then temporarily locked (lockout ends after now), then must change
+password, then active. Each state is one predicate, written once, used two ways: as an
+EF-translatable `Expression<Func<ApplicationUser, bool>>` for a given now (bound as a query
+parameter, not inlined), and compiled for use in memory.
+
+- `UserAccountStateResolver` reads the state from the rule; its names, badges and sign-in flags
+  are unchanged.
+- The Users list's status filters, tiles and export filter through the rule. The tiles are now
+  one count query per state instead of one grouped query.
+- Home's account tiles count through the rule. Home's "Active" is now counted directly instead
+  of total minus the other four; the result is the same.
+- The three copies agreed before this change, so no count moves. `AccountStateRuleTests` pinned
+  the old results first (lockout ended, lockout ending exactly now, no lockout, disabled and
+  locked together, pending deletion with every other flag) and the refactor kept them; it also
+  checks that each predicate translates for PostgreSQL.
+
 ### PR 6 shipped: System health's jobs in plain words
 
 - Every background job writes its last-run line through one helper (`Services/Admin/BackgroundJobMessages.cs`): "Nothing to remove", "Removed 3 items from the notebook bin", "Sign-in summary for 6 Nov is up to date". Dates read "6 Nov".

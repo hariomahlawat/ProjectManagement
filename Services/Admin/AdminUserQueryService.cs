@@ -486,71 +486,45 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
         IQueryable<ApplicationUser> query,
         string? status)
     {
-        var nowUtc = _time.UtcNow;
-        return status?.Trim().ToLowerInvariant() switch
-        {
-            "active" => query.Where(user =>
-                !user.PendingDeletion
-                && !user.IsDisabled
-                && (!user.LockoutEnd.HasValue || user.LockoutEnd <= nowUtc)
-                && !user.MustChangePassword),
-            "must-change-password" => query.Where(user =>
-                !user.PendingDeletion
-                && !user.IsDisabled
-                && (!user.LockoutEnd.HasValue || user.LockoutEnd <= nowUtc)
-                && user.MustChangePassword),
-            "locked" => query.Where(user =>
-                !user.PendingDeletion
-                && !user.IsDisabled
-                && user.LockoutEnd.HasValue
-                && user.LockoutEnd > nowUtc),
-            "disabled" => query.Where(user => !user.PendingDeletion && user.IsDisabled),
-            "pending-deletion" => query.Where(user => user.PendingDeletion),
-            _ => query
-        };
+        var state = StateForStatus(status);
+        return state.HasValue
+            ? query.Where(UserAccountStateRules.For(state.Value, _time.UtcNow))
+            : query;
     }
+
+    private static AdminUserAccountState? StateForStatus(string? status) =>
+        status?.Trim().ToLowerInvariant() switch
+        {
+            "active" => AdminUserAccountState.Active,
+            "must-change-password" => AdminUserAccountState.MustChangePassword,
+            "locked" => AdminUserAccountState.TemporarilyLocked,
+            "disabled" => AdminUserAccountState.Disabled,
+            "pending-deletion" => AdminUserAccountState.PendingDeletion,
+            _ => null
+        };
 
     private async Task<AdminUserSummary> BuildSummaryAsync(
         IQueryable<ApplicationUser> query,
         CancellationToken cancellationToken)
     {
         var nowUtc = _time.UtcNow;
-        var projection = await query
-            .GroupBy(_ => 1)
-            .Select(group => new SummaryProjection
-            {
-                Total = group.Count(),
-                PendingDeletion = group.Count(user => user.PendingDeletion),
-                Disabled = group.Count(user => !user.PendingDeletion && user.IsDisabled),
-                TemporarilyLocked = group.Count(user =>
-                    !user.PendingDeletion
-                    && !user.IsDisabled
-                    && user.LockoutEnd.HasValue
-                    && user.LockoutEnd > nowUtc),
-                MustChangePassword = group.Count(user =>
-                    !user.PendingDeletion
-                    && !user.IsDisabled
-                    && (!user.LockoutEnd.HasValue || user.LockoutEnd <= nowUtc)
-                    && user.MustChangePassword),
-                Active = group.Count(user =>
-                    !user.PendingDeletion
-                    && !user.IsDisabled
-                    && (!user.LockoutEnd.HasValue || user.LockoutEnd <= nowUtc)
-                    && !user.MustChangePassword)
-            })
-            .SingleOrDefaultAsync(cancellationToken);
+        var total = await query.CountAsync(cancellationToken);
+        var counts = new Dictionary<AdminUserAccountState, int>();
+        foreach (var state in UserAccountStateRules.States)
+        {
+            counts[state] = total == 0
+                ? 0
+                : await query.CountAsync(UserAccountStateRules.For(state, nowUtc), cancellationToken);
+        }
 
-        return projection is null
-            ? new AdminUserSummary(0, 0, 0, 0, 0, 0)
-            : new AdminUserSummary(
-                projection.Total,
-                projection.Active,
-                projection.MustChangePassword,
-                projection.TemporarilyLocked,
-                projection.Disabled,
-                projection.PendingDeletion);
+        return new AdminUserSummary(
+            total,
+            counts[AdminUserAccountState.Active],
+            counts[AdminUserAccountState.MustChangePassword],
+            counts[AdminUserAccountState.TemporarilyLocked],
+            counts[AdminUserAccountState.Disabled],
+            counts[AdminUserAccountState.PendingDeletion]);
     }
-
     private async Task<IReadOnlyList<AdminUserRow>> BuildRowsAsync(
         IReadOnlyCollection<UserProjection> users,
         CancellationToken cancellationToken)
@@ -668,16 +642,6 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
         value.Kind == DateTimeKind.Utc
             ? value
             : DateTime.SpecifyKind(value, DateTimeKind.Utc);
-
-    private sealed class SummaryProjection
-    {
-        public int Total { get; init; }
-        public int Active { get; init; }
-        public int MustChangePassword { get; init; }
-        public int TemporarilyLocked { get; init; }
-        public int Disabled { get; init; }
-        public int PendingDeletion { get; init; }
-    }
 
     private class UserProjection
     {
