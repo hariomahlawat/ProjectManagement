@@ -57,7 +57,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.Admin,
                 "Administrator",
-                "Full control of system administration, security, recovery and controlled configuration.",
+                "Runs PRISM: accounts and roles, restoring deleted items, lists used in forms and system checks.",
                 "System control",
                 "bi-shield-lock",
                 privileged: true,
@@ -65,7 +65,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.Comdt,
                 "Commandant",
-                "Command-level visibility and decision authority across authorised operational workspaces.",
+                "Sees every project and module, and takes the decisions that need the Commandant.",
                 "Command oversight",
                 "bi-stars",
                 privileged: true,
@@ -73,7 +73,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.HoD,
                 "Head of Department",
-                "Department-level oversight, approvals and administrative access within authorised modules.",
+                "Oversees the department, approves requests and looks after some lists and media.",
                 "Command oversight",
                 "bi-person-check",
                 privileged: true,
@@ -81,7 +81,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.ProjectOfficer,
                 "Project Officer",
-                "Creates, updates and manages assigned projects and associated development activities.",
+                "Runs their own projects: stages, dates, documents and progress.",
                 "Project delivery",
                 "bi-kanban",
                 privileged: false,
@@ -89,7 +89,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.ProjectOffice,
                 "Project Office",
-                "Supports project records, reporting, documentation and project-office administration.",
+                "Keeps project records, reports and documents up to date for the project office.",
                 "Project delivery",
                 "bi-briefcase",
                 privileged: false,
@@ -97,7 +97,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.ProjectOfficeAlternate,
                 "Project Office (old role name)",
-                "Compatibility role for project-office administration in installations using the legacy role name.",
+                "The same as Project Office, under the role's old name. Some older accounts still use it.",
                 "Project delivery",
                 "bi-briefcase",
                 privileged: false,
@@ -105,7 +105,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.Mco,
                 "MCO",
-                "Monitoring and coordination access for authorised project and reporting workflows.",
+                "Follows projects and reports to keep work coordinated.",
                 "Technical & coordination",
                 "bi-diagram-2",
                 privileged: false,
@@ -113,7 +113,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.Ta,
                 "TA",
-                "Authorised coordination, metadata and workflow support functions.",
+                "Helps with coordination, document details and day-to-day records.",
                 "Coordination",
                 "bi-person-badge",
                 privileged: false,
@@ -121,7 +121,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.Ito,
                 "ITO",
-                "Information Technology Officer access for shared Brochure and Compendium publication management, FFC portfolio management and authorised technical operations. FFC Detailed Table inline overall-status and project-progress editing remains reserved for Admin, HoD and Comdt.",
+                "IT Officer: publishes the Brochure and Compendium and keeps the FFC projects up to date. Changing overall status and progress in the FFC detailed table is left to Admin, HoD and Commandant.",
                 "Technical & coordination",
                 "bi-pc-display-horizontal",
                 privileged: false,
@@ -129,7 +129,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.MainOfficeClerk,
                 "Main Office Clerk",
-                "Clerical access for authorised main-office records and document workflows.",
+                "Keeps the main office's records and documents.",
                 "Office support",
                 "bi-building",
                 privileged: false,
@@ -137,7 +137,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.MainOfficeAlternate,
                 "Main Office Clerk (old role name)",
-                "Compatibility role for authorised main-office workflows using the legacy display name.",
+                "The same as Main Office Clerk, under the role's old name. Some older accounts still use it.",
                 "Office support",
                 "bi-building",
                 privileged: false,
@@ -145,7 +145,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.McCellClerk,
                 "MC Cell Clerk",
-                "Clerical access for authorised MC Cell records and document workflows.",
+                "Keeps the MC Cell's records and documents.",
                 "Office support",
                 "bi-folder2-open",
                 privileged: false,
@@ -153,7 +153,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
             Descriptor(
                 RoleNames.ItCellClerk,
                 "IT Cell Clerk",
-                "Clerical access for authorised IT Cell records and document workflows.",
+                "Keeps the IT Cell's records and documents.",
                 "Office support",
                 "bi-folder2-open",
                 privileged: false,
