@@ -1,0 +1,19 @@
+@model ProjectManagement.ViewComponents.AdminReturnBarModel
+<nav class="admin-return-bar" aria-label="Administration">
+    <ol>
+        @foreach (var crumb in Model.Crumbs)
+        {
+            <li>
+                @if (crumb.Href is not null)
+                {
+                    <a href="@crumb.Href">@if (crumb == Model.Crumbs[0]){<i class="bi bi-arrow-left" aria-hidden="true"></i>} @crumb.Text</a>
+                }
+                else
+                {
+                    <span>@crumb.Text</span>
+                }
+            </li>
+        }
+        <li aria-current="page">@Model.Current</li>
+    </ol>
+</nav>

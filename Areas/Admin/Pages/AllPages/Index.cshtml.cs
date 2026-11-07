@@ -76,7 +76,9 @@ public sealed class IndexModel : PageModel
     }
 
     internal static string OwnModuleName(AdminNavigationEntry entry) =>
-        string.Equals(entry.Item.Area, "DocumentRepository", StringComparison.OrdinalIgnoreCase)
+        entry.Item.Page?.StartsWith("/Approvals/", StringComparison.OrdinalIgnoreCase) == true
+            ? "the Decision Centre"
+            : string.Equals(entry.Item.Area, "DocumentRepository", StringComparison.OrdinalIgnoreCase)
             ? "the Document Repository"
             : entry.Item.Page?.StartsWith("/Admin/Media", StringComparison.OrdinalIgnoreCase) == true
                 ? "the media library"

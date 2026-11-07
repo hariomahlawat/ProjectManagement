@@ -62,7 +62,8 @@ public sealed class AdminPageIndexTests
 
         Assert.Equal("Lists used in forms", pages[AdminNavigationKeys.SponsoringUnits].OpensFrom);
         Assert.Null(pages[AdminNavigationKeys.SponsoringUnits].OwnModule);
-        Assert.Equal("the Document Repository", pages[AdminNavigationKeys.DocumentDeleteRequests].OwnModule);
+        Assert.Equal("the Decision Centre", pages[AdminNavigationKeys.DocumentDeleteRequests].OwnModule);
+        Assert.Equal("the Document Repository", pages[AdminNavigationKeys.RepositoryTrash].OwnModule);
         Assert.Equal("the media library", pages[AdminNavigationKeys.MediaSources].OwnModule);
         Assert.Null(pages[AdminNavigationKeys.Users].OpensFrom);
     }

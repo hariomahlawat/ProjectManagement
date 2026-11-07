@@ -145,12 +145,26 @@ public sealed class AdminNavigationCatalogTests
 
     [Theory]
     [InlineData("DocumentRepository", "/Admin/Trash/Index")]
-    [InlineData("DocumentRepository", "/Admin/DeleteRequests/Index")]
+    [InlineData("DocumentRepository", "/Admin/OCRFailures/OcrFailures")]
     [InlineData("", "/Admin/MediaSources/Index")]
     public void PagesFromOtherModules_KeepTheirOwnLayout(string area, string page)
     {
         Assert.NotNull(AdminNavigationCatalog.FindActiveEntry(area, page, new QueryCollection()));
         Assert.False(AdminNavigationCatalog.IsInScope(area, page, null, null, new QueryCollection()));
+    }
+
+    [Fact]
+    public void DocumentDeletionApprovals_IsTheDecisionCentreFilteredToRepositoryDeletions()
+    {
+        var entry = AdminNavigationCatalog.GetEntry(AdminNavigationKeys.DocumentDeleteRequests);
+        var repositoryDeletions = new QueryCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues> { ["Type"] = "RepositoryDocumentDelete" });
+
+        Assert.Equal("/Approvals/Pending/Index", entry.Item.Page);
+        Assert.Equal("RepositoryDocumentDelete", entry.Item.RouteValues!["Type"]);
+        Assert.Same(entry, AdminNavigationCatalog.FindActiveEntry("", "/Approvals/Pending/Index", repositoryDeletions));
+        // The Decision Centre unfiltered is not an Administration page.
+        Assert.Null(AdminNavigationCatalog.FindActiveEntry("", "/Approvals/Pending/Index", new QueryCollection()));
+        Assert.False(AdminNavigationCatalog.IsInScope("", "/Approvals/Pending/Index", null, null, repositoryDeletions));
     }
 
     [Fact]
