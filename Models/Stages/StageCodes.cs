@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ProjectManagement.Models.Stages;
 
@@ -48,4 +49,15 @@ public static class StageCodes
     public static bool IsTot(string? code) => string.Equals(code, TOT, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsPayment(string? code) => string.Equals(code, PAYMENT, StringComparison.OrdinalIgnoreCase);
+
+    // The short labels every stage chart draws on its axis (wwwroot/js/analytics-projects.js keeps the
+    // same table for the charts); generated slides use them as stage tags.
+    private static readonly IReadOnlyDictionary<string, string> ShortLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [FS] = "FS", [IPA] = "IPA", [SOW] = "SoW", [AON] = "AoN", [BID] = "Bid", [TEC] = "TEC", [BM] = "BM", [COB] = "COB",
+        [PNC] = "PNC", [EAS] = "EAS", [SO] = "SO", [DEVP] = "Devp", [ATP] = "ATP", [PAYMENT] = "Pay", [TOT] = "ToT"
+    };
+
+    /// <summary>The stage's short label ("Devp", "AoN"); an unknown code is returned as it is.</summary>
+    public static string ShortLabelOf(string code) => ShortLabels.TryGetValue(code, out var label) ? label : code;
 }

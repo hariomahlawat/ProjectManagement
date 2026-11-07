@@ -14,6 +14,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Analytics;
+using ProjectManagement.Services.Analytics.Presentation;
 using ProjectManagement.Services.Projects;
 
 using ProjectManagement.Utilities;
@@ -29,6 +30,7 @@ namespace ProjectManagement.Pages.Analytics
         private readonly IArppAnalyticsService? _arppAnalytics;
         private readonly IArVrImpactAnalyticsService? _arVrImpact;
         private readonly IAuthorizationService? _authorization;
+        private readonly ICoeSlideComposer? _coeSlides;
         private readonly Services.Analytics.Presentation.IArppProgressSlideComposer? _arppSlides;
 
         /// <summary>True when the signed-in user may see the ARPP mode (the ARPP report's ViewArpp policy). Decides the switcher item; the server check is in OnGetAsync.</summary>
@@ -41,9 +43,11 @@ namespace ProjectManagement.Pages.Analytics
             IArppAnalyticsService? arppAnalytics = null,
             IAuthorizationService? authorization = null,
             IArVrImpactAnalyticsService? arVrImpact = null,
+            ICoeSlideComposer? coeSlides = null,
             Services.Analytics.Presentation.IArppProgressSlideComposer? arppSlides = null)
         {
             _arVrImpact = arVrImpact;
+            _coeSlides = coeSlides;
             _arppSlides = arppSlides;
             _db = db;
             _projectAnalyticsService = projectAnalyticsService;
@@ -210,15 +214,7 @@ namespace ProjectManagement.Pages.Analytics
                 case AnalyticsTab.Coe:
                     Coe = await _portfolioAnalytics.BuildCoeAsync(ReferenceDateIst, cancellationToken);
                     CoeCount = Coe.TotalCoeProjects;
-                    // The two trackers keep their own view policies on this page: a card is built and drawn only for a caller its tracker admits.
-                    if (_arVrImpact is not null)
-                    {
-                        var canViewProliferation = await PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewProliferationTracker);
-                        var canViewTraining = await PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewTrainingTracker);
-                        CoeArVrImpact = canViewProliferation || canViewTraining
-                            ? await _arVrImpact.BuildAsync(ReferenceDateIst, canViewProliferation, canViewTraining, cancellationToken)
-                            : null;
-                    }
+                    CoeArVrImpact = await BuildCoeArVrImpactAsync(cancellationToken);
                     break;
 
                 case AnalyticsTab.Insights:
@@ -271,6 +267,43 @@ namespace ProjectManagement.Pages.Analytics
             Headlines = BuildHeadlines();
             return Page();
         }
+
+        // SECTION: CoE (AR/VR) slides download: projects by category, then the AR/VR summary
+        /// <summary>
+        /// Two widescreen slides of the CoE tab, from the same figures the page shows. Training and
+        /// proliferation appear only for a caller their trackers admit, exactly as on the page.
+        /// </summary>
+        public async Task<IActionResult> OnGetCoeSlidesAsync(CancellationToken cancellationToken)
+        {
+            if (_coeSlides is null)
+            {
+                return NotFound();
+            }
+
+            AsOfIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IndiaStandardTime);
+            var coe = await _portfolioAnalytics.BuildCoeAsync(ReferenceDateIst, cancellationToken);
+            var impact = await BuildCoeArVrImpactAsync(cancellationToken);
+            var content = _coeSlides.Compose(CoeSlidesDataBuilder.Build(ReferenceDateIst, coe, impact));
+            return File(content, CoeSlidesContentType, $"CoE-ARVR-{ReferenceDateIst:yyyy-MM-dd}.pptx");
+        }
+
+        public const string CoeSlidesContentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+        /// <summary>The two trackers keep their own view policies: a figure is built only for a caller its tracker admits.</summary>
+        private async Task<ArVrImpactVm?> BuildCoeArVrImpactAsync(CancellationToken cancellationToken)
+        {
+            if (_arVrImpact is null)
+            {
+                return null;
+            }
+
+            var canViewProliferation = await PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewProliferationTracker);
+            var canViewTraining = await PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewTrainingTracker);
+            return canViewProliferation || canViewTraining
+                ? await _arVrImpact.BuildAsync(ReferenceDateIst, canViewProliferation, canViewTraining, cancellationToken)
+                : null;
+        }
+        // END SECTION
 
         private Task<bool> CanViewArppAsync() => PassesPolicyAsync(ProjectOfficeReportsPolicies.ViewArpp);
 

@@ -25,12 +25,14 @@ the page; only the ARPP mode checks a further policy.
 | Chart style, legend chips, value labels, click-through | `wwwroot/js/charts/pm-chart-defaults.js` |
 | Chart data wiring and PNG export | `wwwroot/js/analytics-projects.js` |
 | Chart colour tokens | `wwwroot/css/site.css` (`--pm-chart-*`, Light and Dark blocks) |
+| CoE slides download | `Services/Analytics/Presentation/CoeSlides.cs` (data, from the page's view models) and `CoeSlideComposer.cs` (drawing), on the shared canvas `Services/Presentation/PptxSlideCanvas.cs` that the FFC deck also uses (`ProjectManagement.Tests/Analytics/CoeSlidesTests.cs`) |
 
 ## Page structure
 
 - **Header**: the title "Analytics", one line saying what the active mode covers, the "As of" date
   (IST) on the right, and the 3px spectrum hairline under the title. That hairline is the only place
-  the whole rainbow appears on the page.
+  the whole rainbow appears on the page. On the CoE mode (when it has projects) a **Download slides**
+  button sits beside the date: see "CoE slides" below.
 - **Mode switcher**: one segmented control with five items and their counts (Ongoing, Completed,
   CoE, Insights, ARPP; ARPP only for users with the ViewArpp policy). The active pill is ink on the
   page colour, and its text takes the page colour too, so it reads in both themes. The content takes
@@ -65,6 +67,9 @@ the page; only the ARPP mode checks a further policy.
     drawn only for a user its tracker's own view policy admits (ViewProliferationTracker,
     ViewTrainingTracker), checked server-side on the page. Each group lists completed projects first, oldest completion first, then ongoing with
     their current stage, then cancelled. These are not part of the CoE counts.
+    A project filed straight under a CoE parent category (a CoE category whose own parent is not
+    one) reads "<parent> (no sub-category)" in the chart and the board, and is not counted as a
+    sub-category; the headline hint says how many projects are in none.
   - ARPP (five cards): listed projects (IPA value, New / CL / CF split, delisted), completed (their
     supply-order value), supply orders placed (ongoing projects, their value), "AoN to SO stage"
     (ongoing, AoN completed, no supply order yet) and "Pre-AoN stage" (ongoing, AoN not yet
@@ -278,3 +283,32 @@ Green, amber and red otherwise stay reserved for status.
   axis headroom).
 - Checked live on 2026-10-25 at 1920, 1400 and 375px in Light and Dark as an HoD user: no
   horizontal page scroll on phones, headline figures two-up, charts reflow.
+
+## CoE slides
+
+`?handler=CoeSlides` on the CoE mode downloads a two-slide widescreen PowerPoint (more, when a list needs continuation slides), built on the server
+from a bundled template (no network access). Both slides are drawn from the same view models as the
+page (`CoeAnalyticsVm`, `ArVrImpactVm`); nothing is recomputed for the slides. The look follows the
+ARPP slide style: a white page, the formation crest (left) and SDD insignia (right) either side of the
+title over a navy rule, tinted column headings, and a footer note with the page number.
+
+1. **CoE (AR/VR) projects by category**: one column per CoE category (real sub-categories by name,
+   then "(no sub-category)"), each listing its projects: ongoing first, furthest workflow stage
+   first, then completed. Every name is shown in full, wrapping where needed; the stage's short label
+   (the stage chart's axis label, `StageCodes.ShortLabelOf`) or "Completed" sits on the right of the
+   first line. A project in Development shows its PDC (the current stage's planned due date, as on
+   the project header) on the line under its name, in red with "overdue" once it has passed. One type
+   size serves the whole slide: the largest at which the longest column fits. Cancelled projects are
+   left out of the columns and named in the footer.
+2. **AR/VR at a glance**: three stat cards (AR/VR projects completed, in the CoE and outside it;
+   people trained and courses; units proliferated and receiving units), then every completed AR/VR
+   project by name with its completion year, newest first, in balanced columns
+   (`CoeAnalyticsVm.ArVrCompleted`: the CoE, before the CoE nomination, DCD fresh, DCD repeat
+   builds). The training and proliferation cards appear only for a user their tracker's view policy
+   admits, the same check as the page cards.
+
+Slide 1 holds at most four category columns (about 3 in each); more categories are spread evenly over
+slides ("(continued)"; 5 make 3 + 2). When a list will not fit even at 7.5 pt (row heights count every wrapped line of the name and of the
+PDC), it carries on to continuation slides at 10 pt, titled "(continued)": slide 1's columns keep
+their headings and totals, and the completed list fills four columns a page with the cards on the
+first page only. Nothing is drawn past the slide edge.

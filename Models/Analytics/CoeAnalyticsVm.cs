@@ -61,12 +61,29 @@ public sealed class CoeAnalyticsVm
     /// </summary>
     public IReadOnlyList<AnalyticsBoardGroupVm> ArVrOutsideCoe { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
 
+    /// <summary>
+    /// Completed AR/VR projects by where they sit: the CoE first, then the three groups above.
+    /// The one source for "AR/VR projects completed" on the page and in the slides.
+    /// </summary>
+    public IReadOnlyList<ArVrCompletedGroupVm> ArVrCompleted { get; init; } = Array.Empty<ArVrCompletedGroupVm>();
+
+    public int ArVrCompletedTotal => ArVrCompleted.Sum(group => group.Completed);
+
     public const string ArVrEarlierKey = "earlier";
     public const string ArVrDcdFreshKey = "dcd-fresh";
     public const string ArVrDcdRepeatKey = "dcd-repeat";
     // END SECTION
 }
 // END SECTION
+
+/// <summary>Completed AR/VR projects in one place (the CoE, or a group outside it), by name with their completion year.</summary>
+public sealed record ArVrCompletedGroupVm(string Name, IReadOnlyList<ArVrCompletedProjectVm> Projects)
+{
+    public int Completed => Projects.Count;
+}
+
+/// <param name="Year">The completion year (the recorded year, else the completion date's year); null when neither is recorded.</param>
+public sealed record ArVrCompletedProjectVm(int Id, string Name, int? Year);
 
 // SECTION: CoE stage dataset
 public sealed record CoeStageBucketVm(
@@ -104,5 +121,6 @@ public sealed record CoeProjectSummaryVm(
     string Name,
     string LifecycleStatus,
     string CurrentStage,
-    string? CurrentStageCode = null);
+    string? CurrentStageCode = null,
+    DateOnly? CurrentStagePdc = null);
 // END SECTION

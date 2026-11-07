@@ -662,10 +662,10 @@ namespace ProjectManagement.Services.Analytics
         public async Task<CoeAnalyticsVm> BuildCoeAsync(DateOnly referenceDateIst, CancellationToken cancellationToken = default)
         {
             var coeCategoryIds = await LoadCoeCategoryIdsAsync(cancellationToken);
-            var arVrOutsideCoe = await BuildArVrOutsideCoeAsync(coeCategoryIds, referenceDateIst, cancellationToken);
+            var (arVrOutsideCoe, arVrCompletedOutside) = await BuildArVrOutsideCoeAsync(coeCategoryIds, referenceDateIst, cancellationToken);
             if (coeCategoryIds.Count == 0)
             {
-                return BuildEmptyCoeAnalyticsVm(arVrOutsideCoe);
+                return BuildEmptyCoeAnalyticsVm(arVrOutsideCoe, arVrCompletedOutside);
             }
 
             var coeProjectsQuery = CoeProjectsQuery(coeCategoryIds);
@@ -674,7 +674,7 @@ namespace ProjectManagement.Services.Analytics
             var totalCoeProjects = await coeProjectsQuery.CountAsync(cancellationToken);
             if (totalCoeProjects == 0)
             {
-                return BuildEmptyCoeAnalyticsVm(arVrOutsideCoe);
+                return BuildEmptyCoeAnalyticsVm(arVrOutsideCoe, arVrCompletedOutside);
             }
 
             var stageBuckets = await BuildCoeStageBucketsAsync(coeCategoryIds, referenceDateIst, cancellationToken);
@@ -702,12 +702,13 @@ namespace ProjectManagement.Services.Analytics
                 OngoingCount = ongoingCount,
                 CompletedCount = completedCount,
                 CompletedThisYearCount = completedThisYear,
-                ArVrOutsideCoe = arVrOutsideCoe
+                ArVrOutsideCoe = arVrOutsideCoe,
+                ArVrCompleted = BuildArVrCompleted(await LoadCoeCompletedAsync(coeProjectsQuery, cancellationToken), arVrCompletedOutside)
             };
         }
 
         // SECTION: AR/VR projects started before the CoE nomination (outside the CoE categories; DCD fresh projects and repeat builds)
-        private async Task<IReadOnlyList<AnalyticsBoardGroupVm>> BuildArVrOutsideCoeAsync(
+        private async Task<(IReadOnlyList<AnalyticsBoardGroupVm> Groups, IReadOnlyList<ArVrCompletedGroupVm> Completed)> BuildArVrOutsideCoeAsync(
             List<int> coeCategoryIds,
             DateOnly referenceDateIst,
             CancellationToken cancellationToken)
@@ -756,6 +757,7 @@ namespace ProjectManagement.Services.Analytics
                 })
                 .ToList();
 
+            var completedByGroup = new List<ArVrCompletedGroupVm>();
             AnalyticsBoardGroupVm Group(string key, string name)
             {
                 var members = placed.Where(item => item.Key == key).Select(item => item.Row).ToList();
@@ -772,6 +774,10 @@ namespace ProjectManagement.Services.Analytics
                 var completed = members.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed);
                 var ongoing = members.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Active);
                 var cancelled = members.Count(row => row.LifecycleStatus == ProjectLifecycleStatus.Cancelled);
+                completedByGroup.Add(new ArVrCompletedGroupVm(name, members
+                    .Where(row => row.LifecycleStatus == ProjectLifecycleStatus.Completed)
+                    .Select(row => new ArVrCompletedProjectVm(row.Id, ProjectNameOf(row.Name), row.CompletedYear))
+                    .ToList()));
                 var hint = members.Count == 0
                     ? null
                     : string.Join(" · ", new[]
@@ -783,12 +789,13 @@ namespace ProjectManagement.Services.Analytics
                 return new AnalyticsBoardGroupVm(key, name, projects.Count, projects, hint);
             }
 
-            return new[]
+            var groups = new[]
             {
                 Group(CoeAnalyticsVm.ArVrEarlierKey, "Before the CoE nomination"),
                 Group(CoeAnalyticsVm.ArVrDcdFreshKey, "DCD · Fresh projects"),
                 Group(CoeAnalyticsVm.ArVrDcdRepeatKey, "DCD · Repeat builds")
             };
+            return (groups, completedByGroup);
         }
 
         private string DescribeArVrProject(ArVrProjectRow row, DateOnly referenceDateIst)
@@ -998,6 +1005,9 @@ namespace ProjectManagement.Services.Analytics
                             s.SortOrder,
                             s.ActualStart,
                             s.CompletedOn))
+                        .ToList(),
+                    PlannedDues = p.ProjectStages
+                        .Select(s => new { s.StageCode, s.PlannedDue })
                         .ToList()
                 })
                 .ToListAsync(cancellationToken);
@@ -1016,6 +1026,13 @@ namespace ProjectManagement.Services.Analytics
                     var stageName = string.IsNullOrWhiteSpace(stage.CurrentStageCode)
                         ? "—"
                         : stage.CurrentStageName ?? StageCodes.DisplayNameOf(stage.CurrentStageCode);
+                    // The PDC is the current stage's planned due date, as on the project's own header.
+                    var pdc = row.LifecycleStatus == ProjectLifecycleStatus.Active && !string.IsNullOrWhiteSpace(stage.CurrentStageCode)
+                        ? row.PlannedDues
+                            .Where(s => string.Equals(s.StageCode, stage.CurrentStageCode, StringComparison.OrdinalIgnoreCase))
+                            .Select(s => s.PlannedDue)
+                            .FirstOrDefault()
+                        : null;
 
                     return new
                     {
@@ -1027,7 +1044,8 @@ namespace ProjectManagement.Services.Analytics
                             row.Name,
                             FormatCoeLifecycleStatus(row.LifecycleStatus),
                             stageName,
-                            string.IsNullOrWhiteSpace(stage.CurrentStageCode) ? null : stage.CurrentStageCode.Trim())
+                            string.IsNullOrWhiteSpace(stage.CurrentStageCode) ? null : stage.CurrentStageCode.Trim(),
+                            pdc)
                     };
                 })
                 .GroupBy(item => item.Subcategory, StringComparer.OrdinalIgnoreCase)
@@ -1168,13 +1186,29 @@ namespace ProjectManagement.Services.Analytics
         }
         // END SECTION
 
-        private static CoeAnalyticsVm BuildEmptyCoeAnalyticsVm(IReadOnlyList<AnalyticsBoardGroupVm> arVrOutsideCoe) => new()
+        // Completed AR/VR projects: the CoE's own, then each group outside it.
+        private static IReadOnlyList<ArVrCompletedGroupVm> BuildArVrCompleted(IReadOnlyList<ArVrCompletedProjectVm> coeCompleted, IReadOnlyList<ArVrCompletedGroupVm> outside) =>
+            new[] { new ArVrCompletedGroupVm("CoE (AR/VR)", coeCompleted) }.Concat(outside).ToList();
+
+        private static async Task<IReadOnlyList<ArVrCompletedProjectVm>> LoadCoeCompletedAsync(IQueryable<Project> coeProjectsQuery, CancellationToken cancellationToken)
+        {
+            var rows = await coeProjectsQuery
+                .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+                .Select(p => new { p.Id, p.Name, Year = p.CompletedYear ?? (p.CompletedOn.HasValue ? p.CompletedOn.Value.Year : (int?)null) })
+                .ToListAsync(cancellationToken);
+            return rows.Select(row => new ArVrCompletedProjectVm(row.Id, ProjectNameOf(row.Name), row.Year)).ToList();
+        }
+
+        private static string ProjectNameOf(string? name) => string.IsNullOrWhiteSpace(name) ? "Untitled project" : name.Trim();
+
+        private static CoeAnalyticsVm BuildEmptyCoeAnalyticsVm(IReadOnlyList<AnalyticsBoardGroupVm> arVrOutsideCoe, IReadOnlyList<ArVrCompletedGroupVm> arVrCompletedOutside) => new()
         {
             ByStage = Array.Empty<CoeStageBucketVm>(),
             SubcategoriesByLifecycle = Array.Empty<CoeSubcategoryLifecycleVm>(),
             SubcategoryProjects = Array.Empty<CoeSubcategoryProjectsVm>(),
             TotalCoeProjects = 0,
-            ArVrOutsideCoe = arVrOutsideCoe
+            ArVrOutsideCoe = arVrOutsideCoe,
+            ArVrCompleted = BuildArVrCompleted(Array.Empty<ArVrCompletedProjectVm>(), arVrCompletedOutside)
         };
 
         private static string NormalizeCoeSubcategoryName(string? name) =>
