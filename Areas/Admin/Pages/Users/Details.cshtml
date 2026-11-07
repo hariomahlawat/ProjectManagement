@@ -286,8 +286,8 @@
                     <div class="admin-panel__eyebrow">Audit history</div>
                     <h2 id="admin-administrative-activity-title">Recent account changes</h2>
                 </div>
-                <a class="admin-panel__action" asp-area="Admin" asp-page="/Logs/Index" asp-route-Contains="@Model.Account.Id">
-                    View audit logs <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                <a class="admin-panel__action" asp-area="Admin" asp-page="/Logs/Index" asp-route-Contains="@Model.Account.Id" asp-route-All="true">
+                    View audit log <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </a>
             </header>
             @if (Model.RecentAdministrativeActivity.Count == 0)

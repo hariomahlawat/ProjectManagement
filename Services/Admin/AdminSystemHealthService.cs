@@ -65,6 +65,12 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(10);
 
+    // One run of the checks at a time in this process (docs/ux/admin-review-2-fixes.md, PR 11):
+    // when several administrators press "Run checks again", or the 45-second cache expires
+    // under them, the others wait for that run and reuse its result instead of starting
+    // their own scans of the database, the files and the media library.
+    private static readonly SemaphoreSlim RunGate = new(1, 1);
+
     private readonly IDatabaseHealthService _database;
     private readonly IUploadRootProvider _uploads;
     private readonly DocRepoOptions _docRepo;
@@ -119,6 +125,26 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             return cached;
         }
 
+        await RunGate.WaitAsync(cancellationToken);
+        try
+        {
+            // A run that finished while this request waited is fresh enough, even for "Run
+            // checks again": its result was produced after this request removed the old one.
+            if (_cache.TryGetValue(CacheKey, out AdminSystemHealthSnapshot? justRun) && justRun is not null)
+            {
+                return justRun;
+            }
+
+            return await RunChecksAsync(forceRefresh, cancellationToken);
+        }
+        finally
+        {
+            RunGate.Release();
+        }
+    }
+
+    private async Task<AdminSystemHealthSnapshot> RunChecksAsync(bool forceRefresh, CancellationToken cancellationToken)
+    {
         var checks = new List<AdminSystemHealthCheck>();
         var databaseSnapshot = await RunDatabaseChecksAsync(checks, cancellationToken);
 
@@ -128,7 +154,8 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             "Upload folder",
             token => CheckWritableDirectoryAsync(_uploads.RootPath, token),
             "Ask whoever runs the PRISM server to point uploads at a kept folder PRISM can write to (setting PM_UPLOAD_ROOT or ProjectPhotos:StorageRoot).",
-            cancellationToken));
+            cancellationToken,
+            touchesFileSystem: true));
 
         var docRepoRoot = ResolvePath(_docRepo.RootPath);
         checks.Add(await RunAsync(
@@ -137,7 +164,8 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             "Document Repository folder",
             token => CheckWritableDirectoryAsync(docRepoRoot, token),
             "Ask whoever runs the PRISM server to point the Document Repository at a kept folder PRISM can write to (setting DocRepo:RootPath).",
-            cancellationToken));
+            cancellationToken,
+            touchesFileSystem: true));
 
         var dataProtectionRoot = ResolveDataProtectionPath();
         checks.Add(await RunAsync(
@@ -146,7 +174,8 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             "Sign-in key folder",
             token => CheckDataProtectionDirectoryAsync(dataProtectionRoot, token),
             "Ask whoever runs the PRISM server to keep sign-in keys in a folder that survives restarts (setting DP_KEYS_DIR); without it everyone is signed out when PRISM restarts.",
-            cancellationToken));
+            cancellationToken,
+            touchesFileSystem: true));
 
         // Search is part of PRISM's health: items that could not be indexed are missing from
         // results until someone retries them (docs/ux/admin-module.md, PR 7).
@@ -187,13 +216,19 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 cancellationToken));
         }
 
-        var chatUploads = BuildChatUploadSpaceCheck(_uploads.RootPath);
+        // Free-space reads can block on an unreachable network share, so they run inside the
+        // same time limit as every other check.
+        var chatUploads = await RunWithinTimeLimitAsync(
+            "chat-upload-space", "Storage", "Space for chat files",
+            () => BuildChatUploadSpaceCheck(_uploads.RootPath), cancellationToken);
         if (chatUploads is not null)
         {
             checks.Add(chatUploads);
         }
 
-        checks.Add(BuildDiskSpaceCheck(_uploads.RootPath));
+        checks.Add((await RunWithinTimeLimitAsync(
+            "storage-capacity", "Storage", "Disk space",
+            () => BuildDiskSpaceCheck(_uploads.RootPath), cancellationToken))!);
         checks.Add(BuildApplicationCheck());
         checks.AddRange(BuildWorkerChecks());
 
@@ -283,14 +318,21 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         string label,
         Func<CancellationToken, Task<(AdminHealthStatus Status, string Summary, string? Detail)>> check,
         string recommendedAction,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool touchesFileSystem = false)
     {
         var stopwatch = Stopwatch.StartNew();
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(CheckTimeout);
-            var result = await check(timeout.Token);
+            // Folder checks start on the thread pool and are awaited with the time limit, so one
+            // that blocks before its first await (Directory.Exists on an unreachable share) cannot
+            // hold the page past the limit; it finishes in the background. Database checks stay
+            // inline so an abandoned one never shares the request's DbContext with the next.
+            var result = touchesFileSystem
+                ? await Task.Run(() => check(timeout.Token), timeout.Token).WaitAsync(timeout.Token)
+                : await check(timeout.Token);
             stopwatch.Stop();
             return new(
                 key,
@@ -330,6 +372,34 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 null,
                 recommendedAction,
                 stopwatch.ElapsedMilliseconds,
+                DateTimeOffset.UtcNow);
+        }
+    }
+
+    /// <summary>Runs a synchronous check on the thread pool and gives up after the time limit.</summary>
+    internal static async Task<AdminSystemHealthCheck?> RunWithinTimeLimitAsync(
+        string key,
+        string group,
+        string label,
+        Func<AdminSystemHealthCheck?> build,
+        CancellationToken cancellationToken,
+        TimeSpan? limit = null)
+    {
+        try
+        {
+            return await Task.Run(build, cancellationToken).WaitAsync(limit ?? CheckTimeout, cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            return new AdminSystemHealthCheck(
+                key,
+                group,
+                label,
+                AdminHealthStatus.Warning,
+                "The check took too long and was stopped.",
+                null,
+                "Check that the upload folder's disk or network share can be reached.",
+                (long)(limit ?? CheckTimeout).TotalMilliseconds,
                 DateTimeOffset.UtcNow);
         }
     }

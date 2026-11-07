@@ -65,6 +65,29 @@ public sealed class AdminLogWindowAndCategoryTests
         Assert.True(bySeverity.UsesDefaultWindow);
     }
 
+    // Typed searches scan every row ("contains"), so they keep the window until the
+    // administrator asks for all history (docs/ux/admin-review-2-fixes.md, PR 11).
+    [Theory]
+    [InlineData("text")]
+    [InlineData("name")]
+    [InlineData("ip")]
+    public void TypedSearches_KeepTheThirtyDayWindow(string field)
+    {
+        var page = CreatePage();
+        switch (field)
+        {
+            case "text": page.Contains = "budget"; break;
+            case "name": page.UserName = "rao"; break;
+            default: page.Ip = "172.24"; break;
+        }
+
+        Assert.True(page.UsesDefaultWindow);
+        Assert.Equal(new DateOnly(2026, 10, 8), BuildQuery(page).From);
+
+        page.All = true;
+        Assert.Null(BuildQuery(page).From);
+    }
+
     private static LogsIndexModel CreatePage() =>
         new(
             Unused<IAdminLogQueryService>(),

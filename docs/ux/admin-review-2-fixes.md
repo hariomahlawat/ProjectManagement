@@ -328,3 +328,17 @@ Each mismatch was traced to its query before anything changed.
   - The platform list shows how many events use each platform.
   - The event types page no longer repeats the whole platforms list; it links to its own page instead.
 - **Not done: one layout for every list.** The Document Repository lists keep the library's layout, and the social media lists keep the reports module's. These pages belong to those modules and keep their module's look, as decided in the first review (fix PR 5). Rebuilding them in the admin list layout is a larger change, left to the owner. Their words and Delete rules now match.
+
+## PR 11 as shipped
+
+- **Health checks keep to their time limit:**
+  - The folder checks (upload folder, Document Repository folder, sign-in keys) and the free-space reads run on the thread pool with the 10-second limit. A folder on an unreachable network share now shows "The check took too long and was stopped" instead of holding the page.
+  - Database checks stay inline, so an abandoned check never shares the request's database context with the next one.
+- **One run of the checks at a time:** per PRISM process. Administrators who press "Run checks again" at the same moment, or whose 45-second cache expires together, wait for that run and reuse its result.
+- **Legacy import:** each new preview removes staging files older than the preview lifetime plus an hour, so previews that were neither imported nor cancelled no longer pile up in `App_Data/AdminImportStaging`.
+- **Audit log:**
+  - Typed searches (text, a person's name, an IP) are "contains" scans, so they now keep the 30-day window. "Show all history" is one click away.
+  - Picking a person, record or action still searches all history.
+  - The account page's "View audit log" link asks for all history explicitly.
+- **Lists:** a refused save (another administrator's change or a duplicate name) clears the tracked changes, so nothing later in the request can save them.
+- **Unreadable PDFs:** the placeholder comment is replaced, and the page uses the policy constant (same policy).

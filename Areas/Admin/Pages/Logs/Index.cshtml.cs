@@ -62,16 +62,16 @@ public sealed class IndexModel : PageModel
     // With no dates and nothing that narrows the log to specific records, the page used to
     // count, group and chart the entire audit history on every load (one chart label per day
     // since go-live). It now shows the last 30 days unless the administrator asks for all.
-    // Searches for a user, record, action, IP or text keep their full history.
+    // Picking one person, record or action narrows the log, so those keep their full history.
+    // Typed searches (text, a name, an IP) are "contains" scans of every row, so they keep the
+    // 30-day window too, with "Show all history" one click away
+    // (docs/ux/admin-review-2-fixes.md, PR 11).
     public bool UsesDefaultWindow => !All
         && !From.HasValue
         && !To.HasValue
         && string.IsNullOrWhiteSpace(Action)
         && string.IsNullOrWhiteSpace(EntityType)
-        && string.IsNullOrWhiteSpace(UserName)
-        && string.IsNullOrWhiteSpace(UserId)
-        && string.IsNullOrWhiteSpace(Ip)
-        && string.IsNullOrWhiteSpace(Contains);
+        && string.IsNullOrWhiteSpace(UserId);
 
     public string AllHistoryUrl()
     {
