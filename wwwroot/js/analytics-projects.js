@@ -319,13 +319,200 @@ function initOngoingStageFilterPopover(panel) {
 }
 // END SECTION
 
+// SECTION: Completed per year, five-year average view
+// The bands come from the server (CompletedYearBandVm): the current year on its own, then five-year
+// bands counting back from it. Each band bar is the band's average a year, stacked by parent
+// category; the current-year bar is hatched and reads "so far"; a dashed line marks the latest full
+// band's average, so the current year can be read against it.
+const COMPLETED_VIEW_KEY = 'pm.analytics.completedView';
+
+function formatAverage(value) {
+  const rounded = Math.round(ensureNumber(value) * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function bandMarksPlugin() {
+  return {
+    id: 'pmBandMarks',
+    afterDatasetsDraw(chart, _args, options) {
+      const s = Number(options?.scale) || 1;
+      const t = chartTokens();
+      const { ctx, chartArea } = chart;
+      const currentIndex = Number.isInteger(options?.currentIndex) ? options.currentIndex : -1;
+
+      // Hatch the current-year bar: a partial year, not a finished one.
+      if (currentIndex >= 0) {
+        ctx.save();
+        ctx.strokeStyle = t.card;
+        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = 2 * s;
+        chart.getSortedVisibleDatasetMetas().forEach((meta) => {
+          const bar = meta.data[currentIndex];
+          if (!bar) return;
+          const { x, y, base, width } = bar.getProps(['x', 'y', 'base', 'width'], true);
+          const top = Math.min(y, base);
+          const height = Math.abs(base - y);
+          if (height < 1) return;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x - width / 2, top, width, height);
+          ctx.clip();
+          const step = 7 * s;
+          ctx.beginPath();
+          for (let offset = -height; offset < width + height; offset += step) {
+            ctx.moveTo(x - width / 2 + offset, top + height);
+            ctx.lineTo(x - width / 2 + offset + height, top);
+          }
+          ctx.stroke();
+          ctx.restore();
+        });
+        ctx.restore();
+      }
+
+      // The latest full band's average as a dashed line across the chart.
+      const reference = options?.reference;
+      const yScale = chart.scales?.y;
+      if (!reference || !yScale || !(ensureNumber(reference.value) > 0)) return;
+      const y = Math.round(yScale.getPixelForValue(ensureNumber(reference.value))) + 0.5;
+      ctx.save();
+      ctx.strokeStyle = t.textStrong;
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = 1.5 * s;
+      ctx.setLineDash([6 * s, 4 * s]);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      ctx.font = `700 ${12 * s}px ${t.font}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      const text = String(reference.label ?? '');
+      const width = ctx.measureText(text).width;
+      const lx = chartArea.left + 6 * s;
+      ctx.fillStyle = t.card;
+      ctx.fillRect(lx - 4 * s, y - 18 * s, width + 8 * s, 16 * s);
+      ctx.fillStyle = t.textStrong;
+      ctx.fillText(text, lx, y - 4 * s);
+      ctx.restore();
+    }
+  };
+}
+
+function drawCompletedBands(panel, canvas, legend, bands) {
+  return mount(canvas, () => {
+    const tokens = chartTokens();
+    const categories = orderCategories(bands.flatMap((band) => (band.categories ?? []).map((c) => c.parentCategoryName ?? 'Unassigned')));
+    const currentIndex = bands.findIndex((band) => band.isCurrentYear);
+    const latestFull = bands.filter((band) => !band.isCurrentYear).at(-1) ?? null;
+    const categoryOf = (band, category) => (band.categories ?? []).find((c) => (c.parentCategoryName ?? 'Unassigned') === category);
+    const datasets = categories.map((category) => ({
+      label: category,
+      data: bands.map((band) => ensureNumber(categoryOf(band, category)?.perYear)),
+      counts: bands.map((band) => ensureNumber(categoryOf(band, category)?.categoryCount)),
+      backgroundColor: categories.length === 1 ? tokens.primary : categoryColor(category, tokens),
+      stack: 'band'
+    }));
+    const projects = (count) => `${count} project${count === 1 ? '' : 's'}`;
+    const chart = new window.Chart(canvas, {
+      type: 'bar',
+      data: {
+        // Two-line axis labels: the band, then what it holds.
+        labels: bands.map((band) => [band.shortLabel, band.isCurrentYear ? 'so far' : projects(ensureNumber(band.count))]),
+        datasets
+      },
+      options: {
+        interaction: { mode: 'index', intersect: true },
+        scales: barScales({ stacked: true }),
+        plugins: {
+          pmValueLabels: {
+            format: formatAverage,
+            formatTotal: (total, index) => (index === currentIndex ? `${formatAverage(total)} so far` : formatAverage(total))
+          },
+          pmBandMarks: {
+            currentIndex,
+            reference: latestFull && latestFull.count > 0
+              ? { value: latestFull.perYear, label: `${latestFull.label} average · ${formatAverage(latestFull.perYear)} a year` }
+              : null
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const band = bands[items?.[0]?.dataIndex ?? -1];
+                if (!band) return '';
+                return band.isCurrentYear ? `Completed in ${band.label} so far` : `Completed in ${band.label}`;
+              },
+              label: (item) => {
+                const band = bands[item.dataIndex];
+                const count = item.dataset.counts[item.dataIndex];
+                return band?.isCurrentYear
+                  ? `${item.dataset.label}: ${count}`
+                  : `${item.dataset.label}: ${formatAverage(item.parsed.y)} a year (${count})`;
+              },
+              footer: (items) => {
+                const band = bands[items?.[0]?.dataIndex ?? -1];
+                if (!band) return '';
+                return band.isCurrentYear
+                  ? `Total: ${band.count}`
+                  : `Total: ${formatAverage(band.perYear)} a year · ${projects(ensureNumber(band.count))}`;
+              }
+            }
+          }
+        }
+      },
+      plugins: [bandMarksPlugin()]
+    });
+    renderLegend(legend, chart, datasets.map((dataset, index) => ({
+      label: dataset.label,
+      color: dataset.backgroundColor,
+      value: dataset.counts.reduce((sum, value) => sum + value, 0),
+      datasetIndex: index
+    })));
+    enableBarClick(chart, (index) => drillAction(panel, `band:${bands[index]?.fromYear ?? ''}`));
+    return chart;
+  });
+}
+
+// The "Per year | 5-year average" switch: redraws the chart, swaps the caption and the rows below,
+// and is remembered per browser.
+function initCompletedViews(panel, draws) {
+  const group = panel.querySelector('[data-completed-view]');
+  const meta = panel.querySelector('[data-completed-view-meta]');
+  const show = (view) => {
+    const chosen = draws[view] ? view : 'year';
+    draws[chosen]();
+    group?.querySelectorAll('button[data-value]').forEach((button) => {
+      button.setAttribute('aria-pressed', button.dataset.value === chosen ? 'true' : 'false');
+    });
+    panel.querySelectorAll('[data-completed-view-section]').forEach((section) => {
+      section.hidden = section.dataset.completedViewSection !== chosen;
+    });
+    if (meta) meta.textContent = chosen === 'band' ? meta.dataset.metaBand : meta.dataset.metaYear;
+    return chosen;
+  };
+
+  let saved = 'year';
+  try { saved = window.localStorage.getItem(COMPLETED_VIEW_KEY) || 'year'; } catch { /* storage blocked */ }
+  show(saved);
+
+  group?.querySelectorAll('button[data-value]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const chosen = show(button.dataset.value);
+      try { window.localStorage.setItem(COMPLETED_VIEW_KEY, chosen); } catch { /* storage blocked */ }
+    });
+  });
+}
+// END SECTION
+
 // SECTION: Completed mode
 function initCompleted(panel) {
   const data = readJson(panel, 'completedAnalytics', null);
   if (!data) return;
   paintCategoryDots(panel);
 
-  // Projects completed per year: the big chart, stacked by parent category.
+  // Projects completed per year: the big chart, stacked by parent category. A switch in the card
+  // head shows the same completions as five-year averages instead (see drawCompletedBands).
   const perYearCanvas = panel.querySelector('#completedPerYearChart');
   const perYearPoints = Array.isArray(data.perYearByParentCategory) && data.perYearByParentCategory.length
     ? data.perYearByParentCategory
@@ -336,8 +523,9 @@ function initCompleted(panel) {
     } else {
       const years = Array.from(new Set(perYearPoints.map((p) => p.year))).sort((a, b) => a - b);
       const categories = orderCategories(perYearPoints.map((p) => p.categoryName ?? 'Unassigned'));
+      const legend = panel.querySelector('[data-legend="completedPerYearChart"]');
       sizeChartHost(perYearCanvas.parentElement, { min: 340, max: 380 });
-      mount(perYearCanvas, () => {
+      const drawPerYear = () => mount(perYearCanvas, () => {
         const tokens = chartTokens();
         const datasets = categories.map((category) => ({
           label: category,
@@ -364,7 +552,7 @@ function initCompleted(panel) {
             }
           }
         });
-        renderLegend(panel.querySelector('[data-legend="completedPerYearChart"]'), chart, datasets.map((dataset, index) => ({
+        renderLegend(legend, chart, datasets.map((dataset, index) => ({
           label: dataset.label,
           color: dataset.backgroundColor,
           value: dataset.data.reduce((sum, value) => sum + value, 0),
@@ -372,6 +560,11 @@ function initCompleted(panel) {
         })));
         enableBarClick(chart, (index) => drillAction(panel, `year:${years[index]}`));
         return chart;
+      });
+      const bands = Array.isArray(data.yearBands) ? data.yearBands : [];
+      initCompletedViews(panel, {
+        year: drawPerYear,
+        band: bands.length ? () => drawCompletedBands(panel, perYearCanvas, legend, bands) : null
       });
     }
   }
@@ -1090,6 +1283,9 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   if (exportConfig.options.plugins.pmPhaseBrackets) {
     exportConfig.options.plugins.pmPhaseBrackets = { scale: labelScale };
     exportConfig.options.layout.padding.bottom += PHASE_BRACKET_HEIGHT * labelScale;
+  }
+  if (exportConfig.options.plugins.pmBandMarks) {
+    exportConfig.options.plugins.pmBandMarks = { ...exportConfig.options.plugins.pmBandMarks, scale: labelScale };
   }
   if (exportConfig.type === 'bar') {
     scaleExportBars(exportConfig, scale * EXPORT_BAR_GROWTH);

@@ -164,6 +164,8 @@ button.analytics-figure { width: 100%; text-align: left; font: inherit; cursor: 
 /* ---------- Drill-down rows (stage / year / sub-category → projects) ---------- */
 .analytics-drill { display: flex; flex-direction: column; margin-top: 6px; border-top: 1px solid var(--an-border); }
 .analytics-drill--flush { margin-top: 0; border-top: 0; }
+.analytics-drill[hidden] { display: none; }
+.analytics-drill__empty { margin: 0; color: var(--an-muted); font-size: .8125rem; }
 .analytics-drill__title { margin: 14px 0 4px; color: var(--an-muted); font-size: .6875rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .analytics-drill__row { border-bottom: 1px solid var(--an-border); }
 .analytics-drill__row:last-child { border-bottom: 0; }

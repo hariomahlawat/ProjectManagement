@@ -93,6 +93,70 @@ public sealed class CompletedAnalyticsTests : IDisposable
         Assert.Equal((null, null), PortfolioAnalyticsService.BuildYearlyAverages(PerYear(), currentYear: 2026));
     }
 
+    private static IReadOnlyList<CompletedYearBoardItemVm> Board(params (int Year, string Category, int Count)[] rows) => rows
+        .GroupBy(row => row.Year)
+        .OrderBy(group => group.Key)
+        .Select(group => new CompletedYearBoardItemVm(
+            group.Key,
+            group.Sum(row => row.Count),
+            group.Select(row => new CompletedYearBoardCategoryVm(
+                    row.Category,
+                    row.Count,
+                    Enumerable.Range(0, row.Count)
+                        .Select(i => new CompletedYearBoardProjectVm(group.Key * 100 + i, $"{row.Category} {group.Key}-{i}", null))
+                        .ToList()))
+                .ToList()))
+        .ToList();
+
+    [Fact]
+    public void YearBands_CurrentYearAlone_ThenFiveYearBandsBackToTheFirstCompletion()
+    {
+        var board = Board((1992, "Other", 1), (2014, "Other", 9), (2016, "Other", 7), (2020, "Other", 13),
+            (2021, "DCD", 5), (2021, "Other", 22), (2025, "CoE", 1), (2025, "DCD", 3), (2025, "Other", 1),
+            (2026, "DCD", 4), (2026, "Other", 2));
+
+        var bands = PortfolioAnalyticsService.BuildYearBands(board, currentYear: 2026);
+
+        Assert.Equal(
+            new[] { "1991–1995", "1996–2000", "2001–2005", "2006–2010", "2011–2015", "2016–2020", "2021–2025", "2026" },
+            bands.Select(band => band.Label));
+        Assert.Equal(new[] { "1991–95", "1996–2000", "2021–25", "2026" }, new[] { bands[0], bands[1], bands[6], bands[7] }.Select(band => band.ShortLabel));
+        Assert.True(bands[^1].IsCurrentYear);
+        Assert.Equal((6, 6.0), (bands[^1].Count, bands[^1].PerYear)); // one partial year, not averaged over five
+
+        var recent = bands[^2];
+        Assert.Equal((2021, 2025, 32, 5), (recent.FromYear, recent.ToYear, recent.Count, recent.Years));
+        Assert.Equal(6.4, recent.PerYear, 3); // 2022–2024 had none and count as zero
+        Assert.Equal(new[] { "CoE", "DCD", "Other" }, recent.Categories.Select(c => c.ParentCategoryName));
+        Assert.Equal((8, 1.6), (recent.Categories[1].CategoryCount, recent.Categories[1].PerYear));
+        Assert.Equal(2025, recent.Categories[1].Projects[0].ProjectId / 100); // most recent year first
+
+        Assert.Equal((0, 0.0), (bands[1].Count, bands[1].PerYear)); // an empty band stays on the axis
+        Assert.Equal(0.2, bands[0].PerYear, 3); // a single 1992 completion over five years
+    }
+
+    [Fact]
+    public void YearBands_MoveForwardWithTheCurrentYear()
+    {
+        var board = Board((2021, "Other", 3), (2026, "Other", 5), (2027, "Other", 1));
+
+        var bands = PortfolioAnalyticsService.BuildYearBands(board, currentYear: 2027);
+
+        Assert.Equal(new[] { "2017–2021", "2022–2026", "2027" }, bands.Select(band => band.Label));
+        Assert.Equal(1.0, bands[1].PerYear, 3);
+    }
+
+    [Fact]
+    public void YearBands_LeaveOutFutureYears_AndAreEmptyWithoutHistory()
+    {
+        Assert.Empty(PortfolioAnalyticsService.BuildYearBands(Board(), currentYear: 2026));
+
+        var bands = PortfolioAnalyticsService.BuildYearBands(Board((2026, "Other", 2), (2030, "Other", 9)), currentYear: 2026);
+
+        var only = Assert.Single(bands);
+        Assert.Equal(("2026", 2), (only.Label, only.Count));
+    }
+
     [Fact]
     public async Task BuildCompletedAsync_ReportsTheAverageFromTheCompletedProjects()
     {

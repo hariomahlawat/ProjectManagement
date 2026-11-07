@@ -53,6 +53,15 @@ the page; only the ARPP mode checks a further policy.
     years (the partial current year is left out; a year with none counts as zero; a shorter history
     averages over what it has) with the five years before it for comparison, and the median time
     from first stage start to completion.
+    The "Projects completed per year" card has a **Per year | 5-year average** switch (remembered
+    per browser). The 5-year average view shows the current year on its own, then five-year bands
+    counting back from the year before it (in 2026: 2021–2025, 2016–2020, … back to the band holding
+    the first completion); the bands move forward with the current year. Each band bar is its
+    average a year, stacked by parent category, always divided by five (an empty year or an empty
+    band counts as zero); the current-year bar is hatched and reads "so far". A dashed line marks
+    the latest full band's average. The bands are built once on the server
+    (`PortfolioAnalyticsService.BuildYearBands`, `CompletedYearBandVm`) and the rows below switch
+    to one row per band. Completions dated after the current year are left out of the bands.
   - CoE (AR/VR): total, ongoing, completed (with this year), sub-categories. The switcher item is
     "CoE (AR/VR)". Below the sub-category board, "AR/VR projects started before the CoE
     nomination" lists by name the AR/VR projects (technical category) that are not in a CoE
@@ -243,7 +252,7 @@ same standings as the cards.
 Nobody has to leave Analytics to see which projects a figure is made of. Every chart has
 expandable rows beneath it (`details[data-drill-key]`): a bar click opens and scrolls to its row
 (`drillAction` in `analytics-projects.js`), and the rows list the project names with links to
-each project's overview. Ongoing stages, completed years, completed categories and technical
+each project's overview. Ongoing stages, completed years and five-year bands, completed categories and technical
 categories, CoE stages (an "Unassigned" bar included) and sub-categories, and every ARPP grouping
 all have rows.
 
