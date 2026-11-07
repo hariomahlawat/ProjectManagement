@@ -84,8 +84,11 @@ public sealed class LoginsModel : PageModel
         return Page();
     }
 
-    public async Task<FileResult> OnGetExportCsvAsync(CancellationToken cancellationToken)
+    public async Task<FileResult> OnGetExportCsvAsync(
+        [FromServices] IAdminExportAuditService exportAudit,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(exportAudit);
         var snapshot = await _monitoring.GetAsync(
             BuildRequest() with { Page = 1, PageSize = 100 },
             cancellationToken);
@@ -94,6 +97,28 @@ public sealed class LoginsModel : PageModel
             .OrderByDescending(row => row.WhenUtc)
             .Take(MaximumExportRows)
             .ToArray();
+        var wasTruncated = snapshot.IsTruncated || snapshot.PatternPoints.Count > MaximumExportRows;
+
+        var csvRows = rows.Select(row => (IReadOnlyList<object?>)new object?[]
+        {
+            FormatIst(row.WhenUtc),
+            OutcomeLabel(row.Outcome),
+            row.DisplayName,
+            row.LoginName,
+            row.UserId,
+            row.Ip,
+            ClientDescriptor(row.UserAgent).Summary,
+            row.ReviewLevel.ToString(),
+            row.OccurrenceCount,
+            row.RequiresReview,
+            row.ReviewReason
+        });
+
+        if (wasTruncated)
+        {
+            // The header stays for scripts; the last row tells the person who opens the file.
+            csvRows = csvRows.Append(AdminExportNotice.TruncatedRow(rows.Length));
+        }
 
         var bytes = _csv.Write(
             new[]
@@ -101,22 +126,24 @@ public sealed class LoginsModel : PageModel
                 "WhenIST", "Outcome", "DisplayName", "LoginName", "UserId", "SourceIP",
                 "Client", "ReviewLevel", "OccurrenceCount", "RequiresReview", "ReviewReason"
             },
-            rows.Select(row => (IReadOnlyList<object?>)new object?[]
-            {
-                FormatIst(row.WhenUtc),
-                OutcomeLabel(row.Outcome),
-                row.DisplayName,
-                row.LoginName,
-                row.UserId,
-                row.Ip,
-                ClientDescriptor(row.UserAgent).Summary,
-                row.ReviewLevel.ToString(),
-                row.OccurrenceCount,
-                row.RequiresReview,
-                row.ReviewReason
-            }));
+            csvRows);
 
-        if (snapshot.IsTruncated || snapshot.PatternPoints.Count > MaximumExportRows)
+        await exportAudit.RecordAsync(
+            new AdminExportRecord(
+                AdminExportKind.SignIns,
+                rows.Length,
+                new Dictionary<string, string?>
+                {
+                    ["Days"] = snapshot.Days.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["UserId"] = UserId,
+                    ["Outcome"] = Outcome,
+                    ["ReviewOnly"] = ReviewOnly ? "true" : null,
+                    ["MarkWeekends"] = MarkWeekends ? "true" : "false"
+                },
+                wasTruncated),
+            cancellationToken);
+
+        if (wasTruncated)
         {
             Response.Headers["X-PRISM-Export-Truncated"] = "true";
         }

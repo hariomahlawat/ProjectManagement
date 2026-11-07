@@ -631,6 +631,7 @@ builder.Services.AddScoped<IAdminNavigationAccess, AdminNavigationAccess>();
 builder.Services.AddScoped<IUserAccountStateResolver, UserAccountStateResolver>();
 builder.Services.AddScoped<ISafeCsvWriter, SafeCsvWriter>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IAdminExportAuditService, AdminExportAuditService>();
 builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValidationService>();
 builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
 builder.Services.AddScoped<IMasterDataAdministrationQueryService, MasterDataAdministrationQueryService>();

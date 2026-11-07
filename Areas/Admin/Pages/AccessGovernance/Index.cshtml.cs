@@ -44,8 +44,11 @@ public sealed class IndexModel : PageModel
         Header = BuildHeader();
     }
 
-    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetExportAsync(
+        [FromServices] IAdminExportAuditService exportAudit,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(exportAudit);
         var snapshot = await _governance.GetSnapshotAsync(cancellationToken);
         var rows = snapshot.Users.Select(user => (IReadOnlyList<object?>)new object?[]
         {
@@ -67,6 +70,14 @@ public sealed class IndexModel : PageModel
                 "PrivilegedRoles", "LastLoginIST", "PasswordChangeRequired", "ReviewFindings"
             },
             rows);
+
+        // The access review always covers every account; it has no filters.
+        await exportAudit.RecordAsync(
+            new AdminExportRecord(
+                AdminExportKind.AccessReview,
+                snapshot.Users.Count,
+                new Dictionary<string, string?>()),
+            cancellationToken);
 
         return File(
             bytes,

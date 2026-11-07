@@ -134,3 +134,21 @@ reactivate them in a one-off step is the owner's call. PR 2 does not do it.
 **Owner decision needed:** the UX review found briefing decks deleted and restored in Recovery's
 recent activity, but they are not one of the kinds listed in Restore deleted items. Whether
 Recovery should list them, or say where they are restored, is left to the owner.
+
+## PR 4 as shipped
+
+- The five personal-data CSV exports (Users, access review, audit log, sign-in activity, ERP
+  usage) each write one audit event through `IAdminExportAuditService`
+  (`Services/Admin/AdminExportAuditService.cs`), which goes through the existing
+  `IAdminAuditService` path. The event records the signed-in user, which export, the filters that
+  were set and the row count. The audit log shows it as "Users exported", "Access review
+  exported", "Audit log exported", "Sign-in activity exported" or "ERP usage exported", under
+  the category "Exports".
+- The event is written before the file is returned. If the audit write fails, the request fails
+  and no file goes out — the same as every other admin action, where an audit failure is not
+  swallowed.
+- When the audit log export (50,000 rows) or the sign-in export (5,000 rows) is cut off, the
+  `X-PRISM-Export-Truncated` header stays and the file now ends with a plain row: "Export stopped
+  at N rows; narrow the filters to get the rest." Complete exports are unchanged.
+- Routes, policies and CSV columns are unchanged. Page constructors are unchanged: the service is
+  taken as a handler parameter.

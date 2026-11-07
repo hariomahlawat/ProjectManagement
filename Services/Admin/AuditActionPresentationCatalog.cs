@@ -147,7 +147,12 @@ public sealed class AuditActionPresentationCatalog : IAuditActionPresentationCat
             ["Arpp.IpaStagePendingRequestsSuperseded"] = new("Pending IPA stage requests replaced by ARPP", "bi-arrow-repeat", "warning", "Projects", "Project"),
             ["Arpp.IpaStageDataQualityIssue"] = new("IPA start date is later than the ARPP completion date", "bi-exclamation-triangle", "warning", "Projects", "Project"),
             ["SearchIndex.RebuildRequested"] = new("Search index rebuild requested", "bi-arrow-clockwise", "neutral", "Maintenance", "SearchIndex"),
-            ["SearchIndex.RetryRequested"] = new("Failed search indexing retried", "bi-arrow-repeat", "neutral", "Maintenance", "SearchIndex")
+            ["SearchIndex.RetryRequested"] = new("Failed search indexing retried", "bi-arrow-repeat", "neutral", "Maintenance", "SearchIndex"),
+            [AdminExportKind.Users.Action] = new(AdminExportKind.Users.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType),
+            [AdminExportKind.AccessReview.Action] = new(AdminExportKind.AccessReview.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType),
+            [AdminExportKind.AuditLog.Action] = new(AdminExportKind.AuditLog.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType),
+            [AdminExportKind.SignIns.Action] = new(AdminExportKind.SignIns.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType),
+            [AdminExportKind.ErpUsage.Action] = new(AdminExportKind.ErpUsage.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType)
         };
 
     public AuditActionPresentation Describe(string? action, string? level = null)

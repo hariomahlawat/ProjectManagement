@@ -52,8 +52,11 @@ public sealed class IndexModel : PageModel
         PageSize = Result.PageSize;
     }
 
-    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetExportAsync(
+        [FromServices] IAdminExportAuditService exportAudit,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(exportAudit);
         var rows = await _usage.GetExportRowsAsync(BuildQuery(), cancellationToken);
 
         var builder = new StringBuilder();
@@ -99,6 +102,23 @@ public sealed class IndexModel : PageModel
                 row.AdministrativeActionCount,
                 row.Posture);
         }
+
+        await exportAudit.RecordAsync(
+            new AdminExportRecord(
+                AdminExportKind.ErpUsage,
+                rows.Count,
+                new Dictionary<string, string?>
+                {
+                    ["Days"] = Days.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["Search"] = Search,
+                    ["Role"] = Role,
+                    ["Module"] = Module,
+                    ["Posture"] = Posture,
+                    ["QuickFilter"] = QuickFilter,
+                    ["IncludeDisabledAccounts"] = IncludeDisabledAccounts ? "true" : null,
+                    ["IncludeNonHumanAccounts"] = IncludeNonHumanAccounts ? "true" : null
+                }),
+            cancellationToken);
 
         return File(
             SafeCsv.ToUtf8WithBom(builder.ToString()),
