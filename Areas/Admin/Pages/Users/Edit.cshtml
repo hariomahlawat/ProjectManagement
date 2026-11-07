@@ -1,5 +1,6 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.EditModel
+@inject Microsoft.Extensions.Options.IOptions<Microsoft.AspNetCore.Identity.SecurityStampValidatorOptions> StampOptions
 @{
     ViewData["Title"] = "Edit user";
     var roleGrid = new AdminRoleSelectionGridModel
@@ -83,7 +84,7 @@
             <span class="admin-form-section__step">03</span>
             <div>
                 <h2 id="edit-user-roles-title">Roles</h2>
-                <p>Choose the roles their job needs. What they will be able to open is shown below. A change applies at their next page load.</p>
+                <p>Choose the roles their job needs. What they will be able to open is shown below. If they are signed in, a change reaches them @ProjectManagement.Infrastructure.SessionRevalidation.DescribeDelay(StampOptions.Value.ValidationInterval).</p>
             </div>
         </header>
         <div class="admin-form-section__body">
