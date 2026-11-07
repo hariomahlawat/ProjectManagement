@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -209,6 +210,54 @@ namespace ProjectManagement.Tests
             Assert.Equal(originalLockoutEnd, restored.LockoutEnd);
             Assert.Equal(3, restored.AccessFailedCount);
             Assert.False(restored.PendingDeletion);
+        }
+
+        // One rule for an active administrator (docs/ux/admin-review-2-fixes.md, PR 5).
+        [Fact]
+        public async Task Disable_RefusesTheLastActiveAdmin_WhenTheOthersAreDisabledOrPendingDeletion()
+        {
+            var svc = CreateService(null, out var ctx, out var um, out var rm);
+            await rm.CreateAsync(new IdentityRole(RoleNames.Admin));
+            var admin = new ApplicationUser { UserName = "admin", CreatedUtc = DateTime.UtcNow };
+            var disabled = new ApplicationUser { UserName = "disabled-admin", CreatedUtc = DateTime.UtcNow, IsDisabled = true };
+            var leaving = new ApplicationUser { UserName = "leaving-admin", CreatedUtc = DateTime.UtcNow, IsDisabled = true, PendingDeletion = true };
+            foreach (var user in new[] { admin, disabled, leaving })
+            {
+                await um.CreateAsync(user, "Passw0rd!");
+                await um.AddToRoleAsync(user, RoleNames.Admin);
+            }
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => svc.DisableAsync(admin.Id, "actor", "reason"));
+            Assert.Contains("last active Admin", error.Message);
+            Assert.False((await um.FindByIdAsync(admin.Id))!.IsDisabled);
+
+            var delete = await svc.RequestHardDeleteAsync(admin.Id, "actor");
+            Assert.False(delete.Allowed);
+            Assert.False((await um.FindByIdAsync(admin.Id))!.PendingDeletion);
+        }
+
+        [Fact]
+        public async Task Disable_Allowed_WhenTheOtherAdminIsOnlyTemporarilyLocked()
+        {
+            var svc = CreateService(null, out var ctx, out var um, out var rm);
+            await rm.CreateAsync(new IdentityRole(RoleNames.Admin));
+            var admin = new ApplicationUser { UserName = "admin", CreatedUtc = DateTime.UtcNow };
+            var locked = new ApplicationUser
+            {
+                UserName = "locked-admin",
+                CreatedUtc = DateTime.UtcNow,
+                LockoutEnabled = true,
+                LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(15)
+            };
+            foreach (var user in new[] { admin, locked })
+            {
+                await um.CreateAsync(user, "Passw0rd!");
+                await um.AddToRoleAsync(user, RoleNames.Admin);
+            }
+
+            await svc.DisableAsync(admin.Id, "actor", "reason");
+
+            Assert.True((await um.FindByIdAsync(admin.Id))!.IsDisabled);
         }
 
         private sealed class FixedClock : IClock

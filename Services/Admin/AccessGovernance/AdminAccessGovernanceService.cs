@@ -347,11 +347,14 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
         return findings;
     }
 
-    private bool IsActive(UserProjection user) =>
-        !user.IsDisabled && !user.PendingDeletion && !IsLocked(user);
+    // The same rule the last-Administrator guards enforce (ActiveAdministratorRule): a temporarily
+    // locked account still counts as active, so "No active Administrator" and "Only one active
+    // Administrator" agree with what the guards allow. A lock is reported as its own finding.
+    private static bool IsActive(UserProjection user) =>
+        ActiveAdministratorRule.IsActive(user.IsDisabled, user.PendingDeletion);
 
     private bool IsLocked(UserProjection user) =>
-        user.LockoutEnd.HasValue && user.LockoutEnd.Value > _time.UtcNow;
+        ActiveAdministratorRule.IsTemporarilyLocked(user.LockoutEnd, _time.UtcNow);
 
     private static string DisplayName(UserProjection user) =>
         string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName;

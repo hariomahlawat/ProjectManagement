@@ -61,17 +61,16 @@ public sealed class AdminRecoverySummaryService : IAdminRecoverySummaryService
         var purgeCutoff = now.AddDays(-retentionDays);
         var dueSoonCutoff = now.AddDays(-(Math.Max(0, retentionDays - _options.DueSoonDays)));
 
-        var projectQuery = _db.Projects.IgnoreQueryFilters().AsNoTracking().Where(project => project.IsDeleted);
-        var documentQuery = _db.ProjectDocuments.AsNoTracking()
-            .Where(document => document.Status == ProjectDocumentStatus.SoftDeleted);
+        // The bins are defined once (AdminBins), so Home, this page and its tabs agree.
+        var projectQuery = AdminBins.DeletedProjects(_db);
+        var documentQuery = AdminBins.DeletedProjectDocuments(_db);
 
         // All queries share the request-scoped DbContext. EF Core does not permit
         // concurrent operations on one context, so execute the bounded aggregates
         // sequentially instead of using Task.WhenAll.
         var trashedProjects = await projectQuery.CountAsync(cancellationToken);
         var recycledDocuments = await documentQuery.CountAsync(cancellationToken);
-        var deletedEvents = await _db.Events.IgnoreQueryFilters().AsNoTracking()
-            .CountAsync(calendarEvent => calendarEvent.IsDeleted, cancellationToken);
+        var deletedEvents = await AdminBins.CountEventsAsync(_db, cancellationToken);
         var archivedProjects = await _db.Projects.IgnoreQueryFilters().AsNoTracking()
             .CountAsync(project => project.IsArchived && !project.IsDeleted, cancellationToken);
         var dueForPurge = await projectQuery.CountAsync(

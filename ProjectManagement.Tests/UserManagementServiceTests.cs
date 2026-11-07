@@ -77,6 +77,52 @@ namespace ProjectManagement.Tests
             Assert.Contains("Admin", await userManager.GetRolesAsync(admin));
         }
 
+        // One rule for an active administrator (docs/ux/admin-review-2-fixes.md, PR 5): a disabled
+        // or pending-deletion Admin does not count, so the last active Admin keeps the role.
+        [Fact]
+        public async Task CannotRemoveAdminRole_WhenTheOtherAdminsAreDisabledOrPendingDeletion()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            await roleManager.CreateAsync(new IdentityRole("Admin"));
+            await roleManager.CreateAsync(new IdentityRole("HoD"));
+            var admin = new ApplicationUser { UserName = "admin" };
+            var disabled = new ApplicationUser { UserName = "disabled-admin", IsDisabled = true, LockoutEnabled = true, LockoutEnd = DateTimeOffset.MaxValue };
+            var leaving = new ApplicationUser { UserName = "leaving-admin", IsDisabled = true, PendingDeletion = true };
+            foreach (var user in new[] { admin, disabled, leaving })
+            {
+                await userManager.CreateAsync(user, "Passw0rd!");
+                await userManager.AddToRoleAsync(user, "Admin");
+            }
+
+            var result = await service.UpdateUserAsync(admin.Id, admin.FullName, admin.Rank, new[] { "HoD" });
+
+            Assert.False(result.Succeeded);
+            Assert.Contains("last active Admin", Assert.Single(result.Errors).Description);
+            Assert.Contains("Admin", await userManager.GetRolesAsync(admin));
+        }
+
+        // A temporary lockout ends by itself, so a locked Admin still counts and the other Admin
+        // can lose the role (the guard is not made stricter than before).
+        [Fact]
+        public async Task CanRemoveAdminRole_WhenTheOtherAdminIsOnlyTemporarilyLocked()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            await roleManager.CreateAsync(new IdentityRole("Admin"));
+            await roleManager.CreateAsync(new IdentityRole("HoD"));
+            var admin = new ApplicationUser { UserName = "admin" };
+            var locked = new ApplicationUser { UserName = "locked-admin", LockoutEnabled = true, LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(15) };
+            foreach (var user in new[] { admin, locked })
+            {
+                await userManager.CreateAsync(user, "Passw0rd!");
+                await userManager.AddToRoleAsync(user, "Admin");
+            }
+
+            var result = await service.UpdateUserAsync(admin.Id, admin.FullName, admin.Rank, new[] { "HoD" });
+
+            Assert.True(result.Succeeded);
+            Assert.DoesNotContain("Admin", await userManager.GetRolesAsync(admin));
+        }
+
         [Fact]
         public async Task Unlock_ClearsATemporaryLockoutAndFailedCount()
         {
