@@ -58,6 +58,131 @@ public sealed class AdminCapabilityCatalogTests
         }
     }
 
+    // Who has which role (docs/ux/admin-review-2-fixes.md, PR 7) rewrote the matrix's words. This
+    // pins what each row grants, so wording changes can never move a permission.
+    public static IEnumerable<object[]> ExpectedGrants() => new[]
+    {
+        Row("administration-access", AdminPolicies.Access, "Admin"),
+        Row("users-manage", AdminPolicies.UsersManage, "Admin"),
+        Row("access-governance", AdminPolicies.AccessGovernanceView, "Admin"),
+        Row("security-view", AdminPolicies.SecurityView, "Admin"),
+        Row("erp-usage-view", Policies.Usage.View, "Admin", "Comdt", "HoD"),
+        Row("logs-view", AdminPolicies.LogsView, "Admin"),
+        Row("recovery-manage", AdminPolicies.RecoveryManage, "Admin"),
+        Row("master-data-manage", AdminPolicies.MasterDataManage, "Admin"),
+        Row("integrity-manage", AdminPolicies.IntegrityManage, "Admin"),
+        Row("activity-types-manage", AdminPolicies.ActivityTypesManage, "Admin", "HoD"),
+        Row("holidays-manage", AdminPolicies.HolidaysManage, "Admin", "HoD"),
+        Row("social-media-lists-manage", AdminPolicies.SocialMediaListsManage, "Admin", "HoD"),
+        Row("celebrations-manage", Policies.Calendar.ManageCelebrations, "Admin", "TA", "Main_Office_Clerk", "Main Office"),
+        Row("ingestion-manage", AdminPolicies.IngestionManage, "Admin"),
+        Row("media-manage", AdminPolicies.MediaManage, "Admin", "HoD"),
+        Row("media-view", AdminPolicies.MediaView, "Admin", "HoD"),
+        Row("media-configure", AdminPolicies.MediaConfigure, "Admin", "HoD"),
+        Row("media-operate", AdminPolicies.MediaOperateQueue, "Admin", "HoD"),
+        Row("media-recover", AdminPolicies.MediaRecover, "Admin", "HoD"),
+        Row("media-classification", AdminPolicies.MediaClassificationManage, "Admin", "HoD"),
+        Row("docrepo-delete-approve", Policies.Documents.DeleteApprove, "Admin", "HoD"),
+        Row("docrepo-categories", Policies.Documents.ManageCategories, "Admin"),
+        Row("docrepo-purge", Policies.Documents.Purge, "Admin"),
+    };
+
+    [Theory]
+    [MemberData(nameof(ExpectedGrants))]
+    public void EveryMatrixRow_KeepsItsPolicyAndRoles(string key, string policy, string[] roles)
+    {
+        var capability = Assert.Single(new AdminCapabilityCatalog().Capabilities, item => item.Key == key);
+
+        Assert.Equal(policy, capability.Policy);
+        Assert.Equal(
+            roles.OrderBy(item => item, StringComparer.OrdinalIgnoreCase),
+            capability.PermittedRoles.OrderBy(item => item, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ExpectedGrants_CoverEveryMatrixRow()
+    {
+        var pinned = ExpectedGrants().Select(row => (string)row[0]).ToHashSet(StringComparer.Ordinal);
+
+        Assert.Equal(
+            pinned.OrderBy(key => key, StringComparer.Ordinal),
+            new AdminCapabilityCatalog().Capabilities.Select(item => item.Key).OrderBy(key => key, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void SocialMediaListsPolicy_AllowsExactlyAdminAndHoD()
+    {
+        // Before PR 7 the pages said [Authorize(Roles = "Admin,HoD")]; the policy must be no wider
+        // and no narrower.
+        var options = new AuthorizationOptions();
+        AdminCapabilityCatalog.RegisterPolicies(options);
+
+        var policy = Assert.IsType<AuthorizationPolicy>(options.GetPolicy(AdminPolicies.SocialMediaListsManage));
+        var requirement = Assert.Single(policy.Requirements.OfType<RolesAuthorizationRequirement>());
+        Assert.Equal(new[] { "Admin", "HoD" }, requirement.AllowedRoles.OrderBy(role => role, StringComparer.Ordinal));
+        Assert.All(policy.Requirements, item => Assert.True(
+            item is RolesAuthorizationRequirement or DenyAnonymousAuthorizationRequirement,
+            $"Unexpected requirement {item.GetType().Name}."));
+    }
+
+    [Theory]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.IndexModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.NewModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.EditModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.IndexModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.NewModel))]
+    [InlineData(typeof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.EditModel))]
+    public void SocialMediaListPages_RequireTheCataloguePolicyAndNoOtherGate(Type pageModel)
+    {
+        var authorize = Assert.Single(pageModel.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true).Cast<AuthorizeAttribute>());
+
+        Assert.Equal(AdminPolicies.SocialMediaListsManage, authorize.Policy);
+        Assert.Null(authorize.Roles);
+        Assert.Empty(pageModel.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    [Fact]
+    public void RowsSayingNoPageNeedsThem_AreReallyUnused()
+    {
+        // A permission can be checked inside a service rather than on a page (the media services
+        // do this), so search all application code, not only page attributes.
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "ProjectManagement.csproj")))
+        {
+            root = root.Parent;
+        }
+
+        Assert.NotNull(root);
+        var sources = Directory.EnumerateFiles(root!.FullName, "*.cs", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(root.FullName, "*.cshtml", SearchOption.AllDirectories))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}node_modules{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains("ProjectManagement.Tests", StringComparison.Ordinal)
+                && !path.EndsWith("AdminCapabilityCatalog.cs", StringComparison.Ordinal)
+                && !path.EndsWith("AdminPolicies.cs", StringComparison.Ordinal))
+            .Select(File.ReadAllText)
+            .ToArray();
+        var constants = typeof(AdminPolicies).GetFields()
+            .Where(field => field.IsLiteral)
+            .ToDictionary(field => (string)field.GetRawConstantValue()!, field => field.Name, StringComparer.Ordinal);
+
+        var unused = new AdminCapabilityCatalog().Capabilities
+            .Where(item => item.Description.Contains("No page needs it", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(unused);
+        foreach (var capability in unused)
+        {
+            var name = constants[capability.Policy];
+            Assert.False(
+                sources.Any(text => text.Contains($"AdminPolicies.{name}", StringComparison.Ordinal) || text.Contains($"\"{capability.Policy}\"", StringComparison.Ordinal)),
+                $"{capability.Key} says no page needs it, but AdminPolicies.{name} is checked in application code.");
+        }
+    }
+
+    private static object[] Row(string key, string policy, params string[] roles) => new object[] { key, policy, roles };
+
     [Fact]
     public void CelebrationCapability_UsesTheExistingCalendarPolicyWithoutReregisteringIt()
     {

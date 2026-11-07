@@ -249,8 +249,8 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             findings.Add(new AccessGovernanceFinding(
                 "no-active-admin",
                 AccessGovernanceFindingSeverity.Critical,
-                "No active Administrator remains",
-                "Administrative recovery and security operations may become inaccessible.",
+                "No active Administrator",
+                "Nobody can manage accounts, restore deleted items or change settings. Give the Administrator role to a trusted account.",
                 RoleName: RoleNames.Admin));
         }
         else if (activeAdmins == 1)
@@ -258,8 +258,8 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             findings.Add(new AccessGovernanceFinding(
                 "single-active-admin",
                 AccessGovernanceFindingSeverity.Review,
-                "Only one active Administrator remains",
-                "Review succession and emergency-access arrangements before changing this account.",
+                "Only one active Administrator",
+                "If this account is locked out or away, nobody can manage PRISM. Give the Administrator role to a second trusted person.",
                 RoleName: RoleNames.Admin));
         }
 
@@ -270,7 +270,7 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
                 "roleless-users",
                 AccessGovernanceFindingSeverity.Review,
                 $"{rolelessCount} user account{(rolelessCount == 1 ? string.Empty : "s")} without a role",
-                "Role-less accounts cannot access role-protected workflows and should be reviewed."));
+                "These people can sign in but cannot open pages that need a role. Give each a role, or disable the account."));
         }
 
         return findings;
@@ -288,8 +288,8 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             findings.Add(new AccessGovernanceFinding(
                 NoRoleCode,
                 AccessGovernanceFindingSeverity.Review,
-                "No role assigned",
-                "The account has no authorised operational capability.",
+                "No role given",
+                "This account can sign in but cannot open pages that need a role.",
                 user.Id));
         }
 
@@ -298,7 +298,7 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             findings.Add(new AccessGovernanceFinding(
                 "privileged-pending-deletion",
                 AccessGovernanceFindingSeverity.Critical,
-                "Privileged account pending deletion",
+                "Senior account waiting to be deleted",
                 "The account is deleted with its roles when the deletion window ends. Make sure another active account holds these responsibilities; to change this account's roles first, undo the deletion request.",
                 user.Id));
         }
@@ -307,8 +307,8 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             findings.Add(new AccessGovernanceFinding(
                 "privileged-disabled",
                 AccessGovernanceFindingSeverity.Review,
-                "Disabled account still holds privileged roles",
-                "The role assignment remains effective if the account is re-enabled.",
+                "Disabled account still has a senior role",
+                "If the account is enabled again, the role works again straight away.",
                 user.Id));
         }
         else if (privilegedRoles.Count > 0 && IsLocked(user))
@@ -316,8 +316,8 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             findings.Add(new AccessGovernanceFinding(
                 "privileged-locked",
                 AccessGovernanceFindingSeverity.Review,
-                "Privileged account is temporarily locked",
-                "Review failed authentication activity before relying on this account for administrative recovery.",
+                "Senior account is locked for now",
+                "It was locked after failed sign-ins. Check Sign-in activity before relying on this account.",
                 user.Id));
         }
 
@@ -326,8 +326,8 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             findings.Add(new AccessGovernanceFinding(
                 "privileged-never-signed-in",
                 AccessGovernanceFindingSeverity.Review,
-                "Privileged account has never signed in",
-                "Confirm that the access assignment remains necessary and that credentials were issued securely.",
+                "Senior account has never signed in",
+                "Check the person still needs this role and received their password safely.",
                 user.Id));
         }
 
@@ -336,8 +336,8 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
             findings.Add(new AccessGovernanceFinding(
                 "privileged-password-change",
                 AccessGovernanceFindingSeverity.Review,
-                "Privileged account requires a password change",
-                "The user must establish a personal password before normal access continues.",
+                "Senior account must change its password",
+                "The person must set their own password at their next sign-in.",
                 user.Id));
         }
 

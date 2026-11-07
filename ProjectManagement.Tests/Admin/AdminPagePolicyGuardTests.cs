@@ -29,12 +29,6 @@ public sealed class AdminPagePolicyGuardTests
     private static readonly IReadOnlyDictionary<string, string> CatalogPolicyExceptions =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            // The social media lists belong to Project Office Reports and gate on the Admin and HoD
-            // roles, not an admin policy; the catalog policy only decides who sees the link in
-            // Administration. Converging them would change who can open the page, so it is out of
-            // scope for a guard test.
-            [AdminNavigationKeys.SocialMediaTypes] = "Roles: Admin,HoD",
-            [AdminNavigationKeys.SocialMediaPlatforms] = "Roles: Admin,HoD",
             // Repository deletion requests are decided in the Decision Centre (Admin and HoD).
             // The old Document Repository address already redirected there, so linking to it
             // directly changes nothing about who can open it.

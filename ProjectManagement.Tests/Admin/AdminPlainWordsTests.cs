@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using ProjectManagement.Areas.Admin.Pages.Help;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Navigation.ModuleNav;
 using Xunit;
 
@@ -108,7 +110,64 @@ public sealed class AdminPlainWordsTests
     [InlineData("Areas/Admin/Pages/Projects/Trash.cshtml")]
     [InlineData("Areas/Admin/Pages/Documents/Recycle.cshtml")]
     [InlineData("Areas/Admin/Pages/Calendar/Deleted.cshtml")]
+    [InlineData("Areas/Admin/Pages/AccessGovernance/Index.cshtml")]
     public void SecondLevelPages_UsePlainWordsOutsideTechnicalDetails(string view)
+    {
+        var text = VisibleText(view);
+
+        var found = SecondLevelJargon.Where(word => text.Contains(word, StringComparison.OrdinalIgnoreCase)).ToArray();
+
+        Assert.True(found.Length == 0, $"{view}: {string.Join(", ", found)}");
+    }
+
+    // Who has which role (docs/ux/admin-review-2-fixes.md, PR 7): permission names such as
+    // "Admin.Access" and words such as "privileged" appear only inside Technical details.
+    private static readonly string[] RoleJargon =
+    {
+        "policy", "policies", "privileged", "capability", "capabilities", "provisioned", "elevated",
+        "authoritative", "metadata", "single-holder", "identity roles", "finding", "findings", "granted"
+    };
+
+    [Fact]
+    public void WhoHasWhichRole_ShowsNoPermissionNamesOutsideTechnicalDetails()
+    {
+        const string view = "Areas/Admin/Pages/AccessGovernance/Index.cshtml";
+        var raw = File.ReadAllText(Path.Combine(FindRepositoryRoot(), view));
+        Assert.Contains("<summary><h2>Technical details</h2></summary>", raw, StringComparison.Ordinal);
+
+        var text = VisibleText(view);
+        var found = RoleJargon
+            .Where(word => Regex.IsMatch(text, $@"(?<![\w-]){Regex.Escape(word)}(?![\w-])", RegexOptions.IgnoreCase))
+            .ToArray();
+
+        Assert.True(found.Length == 0, $"{view}: {string.Join(", ", found)}");
+    }
+
+    [Fact]
+    public void WhatEachRoleCanDo_DescribesRolesAndPermissionsInPlainWords()
+    {
+        string[] jargon =
+        {
+            "compatibility", "authorised", "authorized", "controlled", "metadata", "workflow",
+            "reconcile", "privileged", "provision", "maintain", "legacy", "capability"
+        };
+        var texts = new AdminCapabilityCatalog().Capabilities
+            .SelectMany(item => new[] { $"{item.Key}: {item.Title}", $"{item.Key}: {item.Description}" })
+            .Concat(new AdminRoleDescriptorCatalog()
+                .DescribeMany(RoleNames.AssignableRoles.Concat(RoleNames.LegacyAliases))
+                .Select(role => $"{role.Name}: {role.DisplayName}: {role.Description}"));
+
+        var offenders = texts
+            .SelectMany(text => jargon
+                .Where(word => text.Contains(word, StringComparison.OrdinalIgnoreCase))
+                .Select(word => $"'{word}' in \"{text}\""))
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, string.Join(Environment.NewLine, offenders));
+    }
+
+    // The page's text as a reader sees it: no comments, no Technical details, no markup or code.
+    private static string VisibleText(string view)
     {
         var text = File.ReadAllText(Path.Combine(FindRepositoryRoot(), view));
         text = Regex.Replace(text, @"@\*.*?\*@", " ", RegexOptions.Singleline);
@@ -116,10 +175,7 @@ public sealed class AdminPlainWordsTests
         text = Regex.Replace(text, @"<[^>]+>", " ");
         text = Regex.Replace(text, @"\b\w+\s*=\s*(?=[A-Za-z_])", " "); // route values such as posture = Model.Posture
         text = Regex.Replace(text, @"\b[A-Za-z_][\w]*(\.[A-Za-z_][\w]*)+", " "); // code such as Model.OutboxRuntime
-
-        var found = SecondLevelJargon.Where(word => text.Contains(word, StringComparison.OrdinalIgnoreCase)).ToArray();
-
-        Assert.True(found.Length == 0, $"{view}: {string.Join(", ", found)}");
+        return text;
     }
 
     private static string FindRepositoryRoot()
