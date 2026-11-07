@@ -21,7 +21,8 @@ public interface IArppProgressSlideComposer
 
 /// <summary>
 /// Analytics › ARPP as two or three slides (owner, 6 Nov 2026). Slide 1: the five headline cards and the
-/// stage chart stacked by parent category. Slide 2: every listed project in four columns (Pre-AoN, AoN to
+/// stage chart stacked by parent category, its stages banded as the cards group them (Pre-AoN, AoN to SO,
+/// Under development). Slide 2: every listed project in four columns (Pre-AoN, AoN to
 /// SO, Under development, Completed), full names wrapped, a stage tag before the supply order, the PDC for
 /// projects at Development (red when overdue) and the completion month and year; a column that does not fit
 /// continues on a further slide. Not-known projects, when there are any, get a slide of their own; cancelled
@@ -225,17 +226,49 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         }
 
         // Legend: only the categories present among the ongoing projects, with their counts.
-        RenderLegend(canvas, categories, arpp.ByStageByCategory.GroupBy(point => point.CategoryName).ToDictionary(group => group.Key, group => group.Sum(point => point.Count)), Margin, 2.66, SlideWidth - 2 * Margin, "l");
+        RenderLegend(canvas, categories, arpp.ProjectLines.Where(line => line.StageCode is not null).GroupBy(line => line.Category).ToDictionary(group => group.Key, group => group.Count()), Margin, 2.66, SlideWidth - 2 * Margin, "l");
 
-        // The stage chart: every workflow stage in order, then any other bucket present, stacked by category.
-        var codes = StageCodes.All
-            .Where(code => !StageCodes.IsTot(code) || arpp.ByStageByCategory.Any(point => Same(point.StageCode, code)))
-            .Concat(arpp.ByStageByCategory.Select(point => point.StageCode).Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase))
-            .ToList();
-        var totals = codes.Select(code => arpp.ByStageByCategory.Where(point => Same(point.StageCode, code)).Sum(point => point.Count)).ToList();
-        var top = NiceTop(totals.DefaultIfEmpty(0).Max());
-        const double plotLeft = .85, plotRight = 12.93, plotTop = 3.15, plotBottom = 6.45;
+        // The stage chart, grouped as the cards are (owner, 7 Nov 2026): a band each for Pre-AoN, AoN to SO and
+        // Under development holding the stages its projects stand at, the group's count at its foot, then any
+        // ongoing project no group holds (no stage recorded, or not known). Each bar is the projects of that
+        // group at that stage, so a band's bars always add up to its card. Empty stages are left out.
+        var ongoing = arpp.ProjectLines.Where(line => line.StageCode is not null).ToList();
+        var slots = new List<(string Code, ArppProgressBucket? Group, List<ArppProjectLineVm> Lines)>();
+        foreach (var group in ChartGroups.Select(item => (ArppProgressBucket?)item.Bucket).Append(null))
+        {
+            var inGroup = ongoing.Where(line => group is { } bucket ? line.Bucket == bucket : ChartGroups.All(item => item.Bucket != line.Bucket));
+            slots.AddRange(inGroup
+                .GroupBy(line => line.StageCode!, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(stage => StageOrder(stage.Key))
+                .Select(stage => (stage.Key, group, stage.ToList())));
+        }
+
+        var top = NiceTop(slots.Select(item => item.Lines.Count).DefaultIfEmpty(0).Max());
+        const double plotLeft = .85, plotRight = 12.93, plotTop = 3.2, plotBottom = 6.2;
         var plotHeight = plotBottom - plotTop;
+        var slot = (plotRight - plotLeft) / Math.Max(1, slots.Count);
+        var barWidth = Math.Min(.62, slot * .58);
+
+        // Bands first, behind the grid and bars: one shape each, its label anchored at the foot.
+        foreach (var (bucket, title, fill) in ChartGroups)
+        {
+            var first = slots.FindIndex(item => item.Group == bucket);
+            if (first < 0)
+            {
+                continue;
+            }
+
+            var last = slots.FindLastIndex(item => item.Group == bucket);
+            var count = slots.Where(item => item.Group == bucket).Sum(item => item.Lines.Count);
+            canvas.AddTextBox(
+                plotLeft + slot * first + .03, plotTop - .1, slot * (last - first + 1) - .06, plotBottom - plotTop + .72,
+                new[] { Para(Run(title, 10.5, Ink, bold: true) + Run($" · {count}", 10.5, Muted, bold: true), "ctr") },
+                name: $"{title} band",
+                fill: fill,
+                anchor: "b",
+                inset: (.05, 0, .05, .08));
+        }
+
         var step = top <= 5 ? 1 : top <= 10 ? 2 : top <= 25 ? 5 : 10;
         for (var tick = 0; tick <= top; tick += step)
         {
@@ -244,16 +277,14 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
             canvas.AddText(plotLeft - .5, y - .12, .42, .24, tick.ToString(CultureInfo.InvariantCulture), 9, Faint, false, "r");
         }
 
-        var slot = (plotRight - plotLeft) / Math.Max(1, codes.Count);
-        var barWidth = Math.Min(.62, slot * .58);
-        for (var index = 0; index < codes.Count; index++)
+        for (var index = 0; index < slots.Count; index++)
         {
-            var code = codes[index];
+            var (code, _, lines) = slots[index];
             var x = plotLeft + slot * index + (slot - barWidth) / 2;
             var y = plotBottom;
             foreach (var category in categories)
             {
-                var count = arpp.ByStageByCategory.Where(point => Same(point.StageCode, code) && point.CategoryName == category).Sum(point => point.Count);
+                var count = lines.Count(line => line.Category == category);
                 if (count == 0)
                 {
                     continue;
@@ -268,14 +299,27 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
                 }
             }
 
-            if (totals[index] > 0)
-            {
-                canvas.AddText(x - .2, y - .28, barWidth + .4, .26, totals[index].ToString(CultureInfo.InvariantCulture), 11, Ink, true, "ctr");
-            }
+            canvas.AddText(x - .2, y - .28, barWidth + .4, .26, lines.Count.ToString(CultureInfo.InvariantCulture), 11, Ink, true, "ctr");
             canvas.AddText(plotLeft + slot * index, plotBottom + .05, slot, .26, ShortOf(code), 10, Muted, false, "ctr");
         }
 
         RenderFooter(canvas, page, today);
+    }
+    // END SECTION
+
+    // The chart's bands, in the order of the cards they match.
+    private static readonly (ArppProgressBucket Bucket, string Title, string Fill)[] ChartGroups =
+    {
+        (ArppProgressBucket.PreAon, "Pre-AoN", "F4F5F8"),
+        (ArppProgressBucket.AonToSupplyOrder, "AoN to SO", "ECEFF4"),
+        (ArppProgressBucket.UnderDevelopment, "Under development", "E8F0FB")
+    };
+
+    // Workflow order; a bucket outside the workflow (no stage recorded, then not known) after it.
+    private static int StageOrder(string code)
+    {
+        var index = Array.FindIndex(StageCodes.All, stage => Same(stage, code));
+        return index >= 0 ? index : Same(code, "NOT_KNOWN") ? StageCodes.All.Length + 1 : StageCodes.All.Length;
     }
     // END SECTION
 

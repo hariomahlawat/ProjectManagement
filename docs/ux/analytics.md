@@ -214,7 +214,10 @@ the ARTRAC insignia left and the SDD insignia right, no handling marking, and "G
 
 - **Slide 1:** the five headline cards (`ArppHeadlines`, the same builder as the page; the supply-order
   card reads "Under development") and the stage chart stacked by parent category, its legend naming only
-  the categories present.
+  the categories present. The chart is banded as the cards group projects (owner, 7 Nov 2026): Pre-AoN,
+  AoN to SO and Under development, each band holding the stages its projects stand at, with the group's
+  count at its foot, so each band adds up to its card. Projects in no group (no stage recorded, not known)
+  come after the bands. Empty stages are left out on the slide.
 - **Slide 2:** every listed project in four columns (Pre-AoN, AoN to SO, Under development, Completed),
   full names wrapped, a category dot (legend in the header), the stage tag before the supply order, the
   PDC at Development (red when overdue; no stage tag in that column), and the completion month and year.

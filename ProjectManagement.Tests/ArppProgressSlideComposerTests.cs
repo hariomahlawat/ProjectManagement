@@ -158,6 +158,32 @@ public sealed class ArppProgressSlideComposerTests
     }
 
     [Fact]
+    public void Compose_TheChartIsBandedAsTheCards_EmptyStagesLeftOut()
+    {
+        var (content, _) = CreateComposer().Compose(Sample(), Today);
+
+        using var stream = new MemoryStream(content);
+        using var document = PresentationDocument.Open(stream, false);
+        var part = document.PresentationPart!;
+        var slide = (SlidePart)part.GetPartById(part.Presentation.SlideIdList!.Elements<DocumentFormat.OpenXml.Presentation.SlideId>().First().RelationshipId!.Value!);
+        var shapes = slide.Slide.Descendants<DocumentFormat.OpenXml.Presentation.Shape>().ToList();
+        string BandText(string name) => shapes.Single(shape => shape.NonVisualShapeProperties!.NonVisualDrawingProperties!.Name == name).InnerText;
+
+        // Each band's count is its card's: Pre-AoN 1, AoN to SO 2, Under development 3.
+        Assert.Equal("Pre-AoN · 1", BandText("Pre-AoN band"));
+        Assert.Equal("AoN to SO · 2", BandText("AoN to SO band"));
+        Assert.Equal("Under development · 3", BandText("Under development band"));
+
+        // Only the stages projects stand at, in workflow order within each band.
+        var labels = shapes.Select(shape => shape.InnerText).ToList();
+        Assert.DoesNotContain("FS", labels);
+        Assert.DoesNotContain("SoW", labels);
+        var order = new[] { "AoN", "Bid", "TEC", "Devp", "Pay" }.Select(label => labels.IndexOf(label)).ToList();
+        Assert.All(order, index => Assert.True(index >= 0));
+        Assert.Equal(order.OrderBy(index => index), order);
+    }
+
+    [Fact]
     public void Compose_IsAValidPresentation()
     {
         var (content, _) = CreateComposer().Compose(Sample(), Today);
