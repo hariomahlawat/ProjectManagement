@@ -52,7 +52,7 @@ public sealed class UserActivityRetentionWorker : BackgroundService
             {
                 _status?.MarkStarted(WorkerKey);
                 var removed = await RunOnceAsync(stoppingToken);
-                _status?.MarkSucceeded(WorkerKey, $"Removed {removed} expired detailed activity bucket(s); permanent daily summaries were retained.");
+                _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(removed, "old usage entry", "old usage entries") + "; daily totals are kept");
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

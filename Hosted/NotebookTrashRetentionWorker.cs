@@ -41,7 +41,7 @@ public sealed class NotebookTrashRetentionWorker : BackgroundService
                 var service = scope.ServiceProvider.GetRequiredService<INotebookService>();
                 var purged = await service.PurgeExpiredTrashAsync(cutoff, stoppingToken);
                 if (purged > 0) _logger.LogInformation("Purged {Count} expired Notebook Trash items.", purged);
-                _status?.MarkSucceeded(WorkerKey, $"Purged {purged} notebook trash item(s).");
+                _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(purged, "item", "items", "from the notebook bin"));
                 await Task.Delay(options.SweepInterval <= TimeSpan.Zero ? TimeSpan.FromHours(6) : options.SweepInterval, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
