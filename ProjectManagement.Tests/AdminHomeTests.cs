@@ -38,8 +38,81 @@ public sealed class AdminHomeTests
 
         Assert.Equal(AdminHomeTone.Unknown, status.Tone);
         Assert.Equal("Not checked yet", status.Label);
-        Assert.StartsWith("The system checks have not run since PRISM last started.", status.Summary);
+        Assert.Equal("The system checks have not run since PRISM last started. Open System health to run them.", status.Summary);
+        Assert.DoesNotContain("Nothing needs you", status.Summary);
     }
+
+    [Fact]
+    public void Status_BeforeTheChecksRun_StillCountsOtherThingsToLookAt()
+    {
+        var lookAt = AdminHomeRules.BuildLookAt(
+            AdminDashboardService.BuildAttention(new AdminDashboardMetrics { LockedUsers = 2 }), null, null);
+
+        var status = AdminHomeRules.ResolveStatus(lookAt, null, true, When);
+
+        Assert.Equal(AdminHomeTone.Attention, status.Tone);
+        Assert.Equal("Not checked yet", status.Label);
+        Assert.Equal("The system checks have not run since PRISM last started. Open System health to run them. 1 thing to look at below.", status.Summary);
+    }
+
+    [Theory]
+    [InlineData("document-repository-files", AdminNavigationKeys.MissingDocumentFiles, "Open Missing files")]
+    [InlineData("media-availability", AdminNavigationKeys.MediaSources, "Open Media sources")]
+    [InlineData("media-face-detector", AdminNavigationKeys.MediaIntelligence, "Open Media intelligence")]
+    [InlineData("chat-upload-space", AdminNavigationKeys.ChatStorage, "Open Chat file storage")]
+    [InlineData("search-index", AdminNavigationKeys.SearchIndex, "Open Search index")]
+    [InlineData("upload-root", AdminNavigationKeys.DatabaseHealth, "Open System health")]
+    public void SystemProblem_OpensThePageThatFixesIt(string checkKey, string expectedKey, string expectedLink)
+    {
+        var item = Assert.Single(AdminHomeRules.BuildLookAt(Array.Empty<AdminDashboardAttention>(), HealthWith(checkKey), null, _ => true));
+
+        Assert.Equal(expectedKey, item.NavigationKey);
+        Assert.Equal(expectedLink, item.LinkText);
+    }
+
+    [Fact]
+    public void SystemProblem_OpensSystemHealth_WhenTheViewerCannotOpenThePageThatFixesIt()
+    {
+        var item = Assert.Single(AdminHomeRules.BuildLookAt(
+            Array.Empty<AdminDashboardAttention>(),
+            HealthWith("document-repository-files"),
+            null,
+            key => key == AdminNavigationKeys.DatabaseHealth));
+
+        Assert.Equal(AdminNavigationKeys.DatabaseHealth, item.NavigationKey);
+        Assert.Equal("Open System health", item.LinkText);
+    }
+
+    [Fact]
+    public void EveryFixPage_IsInTheCatalogue()
+    {
+        Assert.All(AdminHomeRules.HealthCheckFixPages.Values, key => Assert.NotNull(AdminNavigationCatalog.GetEntry(key)));
+    }
+
+    [Fact]
+    public async Task Service_LinksASystemProblemToItsPage_OnlyWhenTheViewerCanOpenIt()
+    {
+        var withPage = CreateService(
+            new LatestOnlyHealth(HealthWith("media-availability")),
+            new AdminDashboardMetrics(),
+            AdminNavigationKeys.DatabaseHealth,
+            AdminNavigationKeys.MediaSources);
+        var withoutPage = CreateService(
+            new LatestOnlyHealth(HealthWith("media-availability")),
+            new AdminDashboardMetrics(),
+            AdminNavigationKeys.DatabaseHealth);
+
+        var linked = Assert.Single((await withPage.GetAsync(new ClaimsPrincipal(new ClaimsIdentity()))).LookAt);
+        var fallback = Assert.Single((await withoutPage.GetAsync(new ClaimsPrincipal(new ClaimsIdentity()))).LookAt);
+
+        Assert.Equal(AdminNavigationKeys.MediaSources, linked.NavigationKey);
+        Assert.Equal(AdminNavigationKeys.DatabaseHealth, fallback.NavigationKey);
+    }
+
+    private static AdminSystemHealthSnapshot HealthWith(string checkKey) =>
+        new(AdminHealthStatus.Warning, Checked, "Production", "1.0",
+            new[] { new AdminSystemHealthCheck(checkKey, "Storage", "A check", AdminHealthStatus.Warning, "Something needs a look.", null, null, 1, Checked) },
+            new DatabaseHealthSnapshot(true, null, null, null, null, null, null, "(test)", Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<DatabaseHealthCheck>()));
 
     [Fact]
     public void Status_IsRed_OnlyWhenASystemCheckFailed()

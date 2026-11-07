@@ -134,3 +134,17 @@ reactivate them in a one-off step is the owner's call. PR 2 does not do it.
 **Owner decision needed:** the UX review found briefing decks deleted and restored in Recovery's
 recent activity, but they are not one of the kinds listed in Restore deleted items. Whether
 Recovery should list them, or say where they are restored, is left to the owner.
+
+## PR 3 as shipped
+
+- The finder's "Nothing matches" text is written as two plain branches, so no Razor code shows
+  on screen. A test renders Home and reads that text, and a source test fails if any admin view
+  writes a word straight before `@if`, `@foreach` and the like.
+- Before the system checks have run, the status line says "Not checked yet. The system checks
+  have not run since PRISM last started. Open System health to run them." It never says
+  "Nothing needs you" until a check result exists; other things to look at are still counted.
+- A "To look at" row from a system check opens the page that fixes it: Missing files, Media
+  sources, Media intelligence, Chat file storage or Search index (`AdminHomeRules.HealthCheckFixPages`).
+  When the viewer cannot open that page, or there is no such page, it opens System health.
+- Not changed: Global Search writes `@related.Label@if (…)` straight after an expression. It is
+  outside Administration, so this PR leaves it alone and the source test does not cover it.
