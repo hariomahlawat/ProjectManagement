@@ -15,13 +15,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
     public sealed class MissingFilesModel : PageModel
     {
         private readonly ApplicationDbContext _db;
-        private readonly IDocStorage _storage;
+        private readonly IDocRepoMissingFilesService _missingFiles;
 
         // SECTION: Constructor
-        public MissingFilesModel(ApplicationDbContext db, IDocStorage storage)
+        public MissingFilesModel(ApplicationDbContext db, IDocRepoMissingFilesService missingFiles)
         {
             _db = db;
-            _storage = storage;
+            _missingFiles = missingFiles;
         }
 
         // SECTION: View data
@@ -46,6 +46,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
 
         public bool IncludeDeleted { get; private set; }
 
+        /// <summary>True when only the newest <see cref="CheckLimit"/> documents were checked.</summary>
+        public bool Capped { get; private set; }
+
+        public int CheckLimit { get; private set; }
+
+        /// <summary>When the files were checked; the result is reused for a short while.</summary>
+        public DateTimeOffset CheckedUtc { get; private set; }
+
         public int TotalPages => MissingCount == 0 || PageSize == 0 ? 1 : (int)Math.Ceiling(MissingCount / (double)PageSize);
 
         public bool HasPreviousPage => PageNumber > 1;
@@ -53,7 +61,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
         public bool HasNextPage => PageNumber < TotalPages;
 
         // SECTION: Handlers
-        public async Task OnGetAsync(int page = 1, int pageSize = 100, bool includeDeleted = false, CancellationToken cancellationToken = default)
+        public async Task OnGetAsync(int page = 1, int pageSize = 100, bool includeDeleted = false, bool refresh = false, CancellationToken cancellationToken = default)
         {
             // SECTION: Normalize inputs
             PageNumber = page < 1 ? 1 : page;
@@ -65,26 +73,24 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
             };
             IncludeDeleted = includeDeleted;
 
-            // SECTION: Check every document's file (a file-exists check is cheap), then page the missing ones
-            var documents = await _db.Documents
-                .AsNoTracking()
-                .Where(d => includeDeleted || !d.IsDeleted)
-                .OrderByDescending(d => d.CreatedAtUtc)
-                .Select(d => new { d.Id, d.StoragePath })
-                .ToListAsync(cancellationToken);
-
-            TotalCount = documents.Count;
-            var missingIds = new List<Guid>();
-            foreach (var document in documents)
+            // SECTION: The shared check (the same one System health reports), then this page of it
+            var scan = await _missingFiles.ScanAsync(includeDeleted, refresh, cancellationToken);
+            TotalCount = scan.CheckedCount;
+            MissingCount = scan.MissingCount;
+            Capped = scan.Capped;
+            CheckLimit = scan.Limit;
+            CheckedUtc = scan.CheckedUtc;
+            if (PageNumber > TotalPages)
             {
-                if (!await _storage.ExistsAsync(document.StoragePath ?? string.Empty, cancellationToken))
-                {
-                    missingIds.Add(document.Id);
-                }
+                PageNumber = TotalPages;
             }
 
-            MissingCount = missingIds.Count;
-            var pageIds = missingIds.Skip((PageNumber - 1) * PageSize).Take(PageSize).ToList();
+            var pageIds = scan.MissingIds.Skip((PageNumber - 1) * PageSize).Take(PageSize).ToList();
+            if (pageIds.Count == 0)
+            {
+                return;
+            }
+
             var rows = await _db.Documents
                 .AsNoTracking()
                 .Where(d => pageIds.Contains(d.Id))
@@ -98,6 +104,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
                     d.StoragePath ?? string.Empty))
                 .ToListAsync(cancellationToken);
 
+            // A document purged since the check is simply not listed.
             Items = rows.OrderBy(row => pageIds.IndexOf(row.Id)).ToList();
         }
     }

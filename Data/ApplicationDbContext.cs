@@ -421,6 +421,12 @@ namespace ProjectManagement.Data
                 e.Property(x => x.SortOrder).HasDefaultValue(100);
                 e.Property(x => x.IsActive).HasDefaultValue(true);
                 e.HasIndex(x => x.Name).IsUnique();
+                // Row version for the list pages (DocRepoListService): PostgreSQL's built-in xmin
+                // system column, so no column is added and no migration is needed.
+                if (Database.IsNpgsql())
+                {
+                    e.Property<uint>("xmin").IsRowVersion();
+                }
             });
 
             builder.Entity<DocumentCategory>(e =>
@@ -429,6 +435,12 @@ namespace ProjectManagement.Data
                 e.Property(x => x.SortOrder).HasDefaultValue(100);
                 e.Property(x => x.IsActive).HasDefaultValue(true);
                 e.HasIndex(x => x.Name).IsUnique();
+                // Row version for the list pages (DocRepoListService): PostgreSQL's built-in xmin
+                // system column, so no column is added and no migration is needed.
+                if (Database.IsNpgsql())
+                {
+                    e.Property<uint>("xmin").IsRowVersion();
+                }
             });
 
             builder.Entity<Tag>(e =>

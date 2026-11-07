@@ -16,6 +16,7 @@
             <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
             <h1>Missing files</h1>
             <p>Documents whose PDF is not in storage, so nobody can open or download them. Restore the file from backup to the storage path shown, or request the document's deletion.</p>
+            <p>System health shows the same check. Its result is kept for two minutes; use Check again after restoring files.</p>
         </div>
     </header>
 
@@ -23,7 +24,7 @@
         <div class="library-stat">
             <span class="library-stat__label">Checked</span>
             <span class="library-stat__figure"><strong>@Model.TotalCount.ToString("N0")</strong><span>documents</span></span>
-            <span class="library-stat__sub">@(Model.IncludeDeleted ? "Including the trash" : "Not counting the trash")</span>
+            <span class="library-stat__sub">@(Model.Capped ? $"The newest {Model.CheckLimit:N0} only" : "All of them"), @(Model.IncludeDeleted ? "including the trash" : "not counting the trash")</span>
         </div>
         <div class="library-stat">
             <span class="library-stat__label">Missing</span>
@@ -38,6 +39,8 @@
             <span>Include the trash</span>
         </label>
         <noscript><button class="btn btn-sm btn-primary" type="submit">Apply</button></noscript>
+        <span class="library-toolbar__count">Checked at @DocRepoFormat.DateTime(Model.CheckedUtc.UtcDateTime)</span>
+        <a class="btn btn-sm btn-outline-secondary" asp-route-includeDeleted="@Model.IncludeDeleted" asp-route-refresh="true">Check again</a>
         <span class="library-toolbar__spacer"></span>
         @if (Model.TotalPages > 1)
         {

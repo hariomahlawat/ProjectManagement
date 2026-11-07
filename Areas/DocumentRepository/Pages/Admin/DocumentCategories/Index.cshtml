@@ -47,7 +47,7 @@
 
         <!-- SECTION: Existing -->
         <section class="library-tablecard">
-            @if (!Model.Categories.Any())
+            @if (!Model.Items.Any())
             {
                 <div class="library-empty">
                     <i class="bi bi-tags" aria-hidden="true"></i>
@@ -57,53 +57,7 @@
             }
             else
             {
-                <div class="library-tablescroll">
-                    <table class="library-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Name</th>
-                                <th scope="col">Position</th>
-                                <th scope="col">Documents</th>
-                                <th scope="col"><span class="visually-hidden">Actions</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var category in Model.Categories)
-                            {
-                                var count = Model.DocumentCounts.TryGetValue(category.Id, out var value) ? value : 0;
-                                <tr>
-                                    <td>
-                                        <label class="visually-hidden" for="name-@category.Id">Name</label>
-                                        <input class="form-control" id="name-@category.Id" type="text" name="name" value="@category.Name" maxlength="120" required form="edit-@category.Id" />
-                                        @if (!category.IsActive)
-                                        {
-                                            <span class="library-pill library-pill--muted mt-1">Deactivated</span>
-                                        }
-                                    </td>
-                                    <td data-label="Position">
-                                        <label class="visually-hidden" for="sort-@category.Id">Position</label>
-                                        <input class="form-control library-table__narrow" id="sort-@category.Id" type="number" name="sortOrder" value="@category.SortOrder" form="edit-@category.Id" />
-                                    </td>
-                                    <td data-label="Documents" class="library-table__num">
-                                        <a href="@Url.Page("/Documents/Index", new { documentCategoryId = category.Id })">@count.ToString("N0")</a>
-                                    </td>
-                                    <td class="library-table__actions">
-                                        <button type="submit" class="btn btn-sm btn-outline-primary" form="edit-@category.Id">Save</button>
-                                        <button type="submit" class="btn btn-sm btn-link library-table__quiet" form="toggle-@category.Id"
-                                                data-confirm="@(category.IsActive && count > 0 ? $"Deactivate “{category.Name}”? {count} documents use it. They keep it, but it will no longer be offered for new documents." : null)">
-                                            @(category.IsActive ? "Deactivate" : "Activate")
-                                        </button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                @foreach (var category in Model.Categories)
-                {
-                    <form method="post" asp-page-handler="Update" id="edit-@category.Id"><input type="hidden" name="id" value="@category.Id" /></form>
-                    <form method="post" asp-page-handler="Toggle" id="toggle-@category.Id"><input type="hidden" name="id" value="@category.Id" /></form>
-                }
+                <partial name="../_DocRepoListTable" model="Model" />
             }
         </section>
     </div>

@@ -184,11 +184,11 @@ public sealed class ListOrderTests : IAsyncLifetime
             new DocumentCategory { Id = 1, Name = "Letter", SortOrder = 1 },
             new DocumentCategory { Id = 2, Name = "Minutes", SortOrder = 2 });
         await db.SaveChangesAsync();
-        var page = new DocumentCategoriesPage(db, new DocRepoAuditService(db), DeniedNotices(db))
+        var page = new DocumentCategoriesPage(new DocRepoListService(db, new DocRepoAuditService(db), DocRepoTestSupport.Authorization(), Microsoft.Extensions.Options.Options.Create(new DocRepoOptions())), DeniedNotices(db))
         {
             Input = new DocumentCategoriesPage.CreateInput { Name = "Policy" }
         };
-        DocRepoTestSupport.ConfigurePage(page, DocRepoTestSupport.Manager);
+        DocRepoTestSupport.ConfigurePage(page, DocRepoTestSupport.User("admin-user", ProjectManagement.Configuration.RoleNames.Admin));
 
         await page.OnPostCreateAsync(CancellationToken.None);
 
@@ -199,11 +199,11 @@ public sealed class ListOrderTests : IAsyncLifetime
     public async Task AddingTheFirstOffice_WithNoPosition_StartsAtOne()
     {
         await using var db = CreateInMemoryDb();
-        var page = new OfficeCategoriesPage(db, new DocRepoAuditService(db), DeniedNotices(db))
+        var page = new OfficeCategoriesPage(new DocRepoListService(db, new DocRepoAuditService(db), DocRepoTestSupport.Authorization(), Microsoft.Extensions.Options.Options.Create(new DocRepoOptions())), DeniedNotices(db))
         {
             Input = new OfficeCategoriesPage.CreateInput { Name = "North" }
         };
-        DocRepoTestSupport.ConfigurePage(page, DocRepoTestSupport.Manager);
+        DocRepoTestSupport.ConfigurePage(page, DocRepoTestSupport.User("admin-user", ProjectManagement.Configuration.RoleNames.Admin));
 
         await page.OnPostCreateAsync(CancellationToken.None);
 
