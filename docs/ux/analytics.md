@@ -25,7 +25,7 @@ the page; only the ARPP mode checks a further policy.
 | Chart style, legend chips, value labels, click-through | `wwwroot/js/charts/pm-chart-defaults.js` |
 | Chart data wiring and PNG export | `wwwroot/js/analytics-projects.js` |
 | Chart colour tokens | `wwwroot/css/site.css` (`--pm-chart-*`, Light and Dark blocks) |
-| CoE slides download | `Services/Analytics/Presentation/CoeSlides.cs` (data, from the page's view models) and `CoeSlideComposer.cs` (drawing), on the shared canvas `Services/Presentation/PptxSlideCanvas.cs` that the FFC deck also uses (`ProjectManagement.Tests/Analytics/CoeSlidesTests.cs`) |
+| CoE slides download | `Services/Analytics/Presentation/CoeSlides.cs` (data, from the page's view models) and `CoeSlideComposer.cs` (drawing), on the shared canvas `Services/Presentation/PptxSlideCanvas.cs` that the FFC deck also uses; speaker notes `CoeSlideNotes.cs` (costs read by `CoeSlideCostReader`) (`ProjectManagement.Tests/Analytics/CoeSlidesTests.cs`) |
 
 ## Page structure
 
@@ -312,3 +312,18 @@ slides ("(continued)"; 5 make 3 + 2). When a list will not fit even at 7.5 pt (r
 PDC), it carries on to continuation slides at 10 pt, titled "(continued)": slide 1's columns keep
 their headings and totals, and the completed list fills four columns a page with the cards on the
 first page only. Nothing is drawn past the slide edge.
+
+Speaker notes (on each part's first slide; `CoeSlideNotes.cs`):
+
+- Slide 1: every project on the slide, column by column, with its latest cost from
+  `ProjectCostResolver` (the Project Overview's figure and rule: PNC, then L1; then the recorded cost
+  for a completed project, otherwise AoN, then IPA), its source in brackets, and the total of the
+  costs shown.
+- Slide 2: every completed AR/VR project, in the slide's order, with its units proliferated (all
+  years, the same approved tracker rows as the card: `ArVrImpactVm.ProliferationByProject`, SDD and
+  515 ABW shown when both delivered) and its indicative proliferation cost (the project's recorded
+  proliferation cost); then any other AR/VR project with proliferation recorded, and the total. A
+  caller the proliferation tracker's policy does not admit gets the costs only.
+
+Money is written as on the Project Overview (`₹2.4 Cr`, `₹45 lakh`). The notes writer
+(`Services/Presentation/PptxSpeakerNotes.cs`) is shared with Briefing Studio.

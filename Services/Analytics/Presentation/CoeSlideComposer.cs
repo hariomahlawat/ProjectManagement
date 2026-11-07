@@ -79,7 +79,14 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         }
 
         var logos = new Logos(ReadAsset(_leftLogoPath), ReadAsset(_rightLogoPath));
-        var renderers = ProjectSlides(data, logos).Concat(SummarySlides(data, logos)).ToList();
+        var projectSlides = ProjectSlides(data, logos).ToList();
+        var renderers = projectSlides.Concat(SummarySlides(data, logos)).ToList();
+        // The notes go on each part's first slide (its continuation slides carry none).
+        var notesBySlide = new Dictionary<int, string>
+        {
+            [0] = data.ProjectsNotes,
+            [projectSlides.Count] = data.SummaryNotes
+        };
 
         var templateBytes = File.ReadAllBytes(_templatePath);
         using var stream = new MemoryStream(templateBytes.Length + 200_000);
@@ -110,6 +117,10 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
                 renderers[index](canvas, index + 1);
                 canvas.Commit();
                 slideIdList.Append(new SlideId { Id = nextSlideId++, RelationshipId = presentationPart.GetIdOfPart(slidePart) });
+                if (notesBySlide.TryGetValue(index, out var notes))
+                {
+                    PptxSpeakerNotes.Add(presentationPart, slidePart, notes);
+                }
             }
 
             presentationPart.Presentation.Save();

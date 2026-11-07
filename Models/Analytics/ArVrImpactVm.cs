@@ -26,6 +26,8 @@ public sealed class ArVrImpactVm
     public IReadOnlyList<ArVrProliferationYearVm> ProliferationByYear { get; init; } = Array.Empty<ArVrProliferationYearVm>();
     /// <summary>One row per year (latest first): units delivered, then the projects with their units and receiving units.</summary>
     public IReadOnlyList<AnalyticsBoardGroupVm> ProliferationBoard { get; init; } = Array.Empty<AnalyticsBoardGroupVm>();
+    /// <summary>Units delivered per project over all valid years (the same approved rows as the totals), most first; the CoE slides' notes.</summary>
+    public IReadOnlyList<ArVrProjectProliferationVm> ProliferationByProject { get; init; } = Array.Empty<ArVrProjectProliferationVm>();
     public bool HasProliferation => ProliferationByYear.Count > 0;
     // END SECTION
 
@@ -48,6 +50,12 @@ public sealed class ArVrImpactVm
 
 /// <summary>Units delivered in one calendar year, by source (SDD and ABW 515).</summary>
 public sealed record ArVrProliferationYearVm(int Year, int Sdd, int Abw515, int Projects, int ReceivingUnits)
+{
+    public int Total => Sdd + Abw515;
+}
+
+/// <summary>One AR/VR project's units delivered, all years, by source.</summary>
+public sealed record ArVrProjectProliferationVm(int ProjectId, string Name, int Sdd, int Abw515)
 {
     public int Total => Sdd + Abw515;
 }

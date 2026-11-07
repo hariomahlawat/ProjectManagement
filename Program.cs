@@ -927,6 +927,7 @@ builder.Services.AddScoped<IFfcPowerPointExportService, FfcPowerPointExportServi
 builder.Services.AddSingleton<IFfcPresentationMapRenderer, FfcPresentationMapRenderer>();
 builder.Services.AddSingleton<IFfcSlideComposer, FfcSlideComposer>();
 builder.Services.AddSingleton<ProjectManagement.Services.Analytics.Presentation.ICoeSlideComposer, ProjectManagement.Services.Analytics.Presentation.CoeSlideComposer>();
+builder.Services.AddScoped<ProjectManagement.Services.Analytics.Presentation.ICoeSlideCostReader, ProjectManagement.Services.Analytics.Presentation.CoeSlideCostReader>();
 builder.Services.AddScoped<IFfcProgressService, FfcProgressService>();
 builder.Services.AddScoped<IFfcQueryService, FfcQueryService>();
 builder.Services.AddSingleton<FfcDetailedWordDocumentBuilder>();
