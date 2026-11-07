@@ -47,8 +47,9 @@ namespace ProjectManagement.Services
             _notificationQueue = notificationQueue ?? new TransactionalNotificationQueue(db);
         }
 
+        // One shared rule (ActiveAdministratorRule): a temporarily locked Admin still counts.
         private static bool IsAdministrativelyActive(ApplicationUser user) =>
-            !user.IsDisabled && !user.PendingDeletion;
+            ActiveAdministratorRule.IsActive(user);
 
         private async Task<int> CountActiveAdminsAsync()
         {

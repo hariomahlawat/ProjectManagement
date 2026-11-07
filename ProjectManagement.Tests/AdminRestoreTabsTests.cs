@@ -87,6 +87,51 @@ public sealed class AdminRestoreTabsTests
         Assert.Contains(tabs, tab => tab.Key == AdminRestoreTabKeys.Projects);
     }
 
+    // Bin counts from one place (docs/ux/admin-review-2-fixes.md, PR 5): Home, Restore deleted
+    // items and its tabs give the same figures.
+    [Fact]
+    public async Task BinCounts_AreTheSameOnHome_TheOverview_AndTheTabs()
+    {
+        var now = new DateTimeOffset(2026, 11, 7, 6, 0, 0, TimeSpan.Zero);
+        await using var db = CreateDb();
+        db.Projects.AddRange(
+            new Project { Id = 1, Name = "Deleted one", CreatedByUserId = "po", IsDeleted = true, DeletedAt = now.AddDays(-2) },
+            new Project { Id = 2, Name = "Deleted two", CreatedByUserId = "po", IsDeleted = true, DeletedAt = now.AddDays(-40) },
+            new Project { Id = 3, Name = "Still here", CreatedByUserId = "po" },
+            new Project { Id = 4, Name = "Archived", CreatedByUserId = "po", IsArchived = true });
+        db.ProjectDocuments.AddRange(
+            new ProjectDocument { ProjectId = 3, Title = "Binned", Status = ProjectDocumentStatus.SoftDeleted, FileSize = 10 },
+            new ProjectDocument { ProjectId = 3, Title = "Binned too", Status = ProjectDocumentStatus.SoftDeleted, FileSize = 20 },
+            new ProjectDocument { ProjectId = 3, Title = "Kept", Status = ProjectDocumentStatus.Published });
+        db.Events.AddRange(
+            new Event { Id = Guid.NewGuid(), Title = "Removed", StartUtc = now, EndUtc = now.AddHours(1), IsDeleted = true },
+            new Event { Id = Guid.NewGuid(), Title = "Kept", StartUtc = now, EndUtc = now.AddHours(1) });
+        await db.SaveChangesAsync();
+
+        var time = new ProjectManagement.Services.Admin.AdminTimeService(ProjectManagement.Tests.Fakes.FakeClock.AtUtc(now));
+        var home = (await new ProjectManagement.Services.Admin.AdminDashboardService(db, time).GetAsync()).Metrics;
+        var overview = await new AdminRecoverySummaryService(
+            db,
+            time,
+            new ProjectManagement.Services.Admin.AuditActionPresentationCatalog(),
+            Microsoft.Extensions.Options.Options.Create(new ProjectManagement.Configuration.ProjectRetentionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new ProjectManagement.Configuration.AdminRecoveryOptions())).GetAsync();
+        var tabs = (await CreateService(db, AdminNavigationCatalog.Entries.Select(entry => entry.Key).ToArray())
+            .GetAsync(new ClaimsPrincipal(new ClaimsIdentity()))).ToDictionary(tab => tab.Key);
+
+        Assert.Equal(2, home.TrashedProjects);
+        Assert.Equal(home.TrashedProjects, overview.TrashedProjects);
+        Assert.Equal(home.TrashedProjects, tabs[AdminRestoreTabKeys.Projects].Count);
+
+        Assert.Equal(2, home.DeletedDocuments);
+        Assert.Equal(home.DeletedDocuments, overview.RecycledDocuments);
+        Assert.Equal(home.DeletedDocuments, tabs[AdminRestoreTabKeys.ProjectDocuments].Count);
+
+        Assert.Equal(1, home.DeletedEvents);
+        Assert.Equal(home.DeletedEvents, overview.DeletedEvents);
+        Assert.Equal(home.DeletedEvents, tabs[AdminRestoreTabKeys.CalendarEvents].Count);
+    }
+
     [Fact]
     public void EveryTabPage_IsReachedFromRestoreDeletedItems()
     {

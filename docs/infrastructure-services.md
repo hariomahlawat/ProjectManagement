@@ -21,7 +21,7 @@ Defines an abstraction for managing users and roles:
 * Create users with an initial role
 * Update a user's role
 * Toggle activation/lockout
-* Enforce that at least one administrator remains active. Operations that would disable, delete or remove the Admin role from the last active admin are rejected, and users cannot disable their own account.
+* Enforce that at least one administrator remains active. Operations that would disable, delete or remove the Admin role from the last active admin are rejected, and users cannot disable their own account. "Active" is one rule, `Services/Admin/ActiveAdministratorRule.cs`: not disabled and not pending deletion. A temporarily locked admin still counts (the lock ends by itself). The lifecycle service and Who has which role use the same rule.
 * Reset passwords (marking the user for a forced change)
 * Delete users
 
