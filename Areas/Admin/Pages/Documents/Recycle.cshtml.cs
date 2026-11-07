@@ -8,7 +8,6 @@ using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.Recovery;
-using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Navigation.ModuleNav;
 
@@ -18,25 +17,22 @@ namespace ProjectManagement.Areas.Admin.Pages.Documents;
 public sealed class RecycleModel : PageModel
 {
     private readonly IDocumentRecoveryQueryService _query;
-    private readonly IDocumentService _documents;
+    private readonly IDocumentRecycleService _recycle;
     private readonly IAdminNavigationUrlBuilder _navigation;
     private readonly IAdminTimeService _time;
-    private readonly ILogger<RecycleModel> _logger;
     private readonly AdminRecoveryOptions _options;
 
     public RecycleModel(
         IDocumentRecoveryQueryService query,
-        IDocumentService documents,
+        IDocumentRecycleService recycle,
         IAdminNavigationUrlBuilder navigation,
         IAdminTimeService time,
-        ILogger<RecycleModel> logger,
         IOptions<AdminRecoveryOptions> options)
     {
         _query = query ?? throw new ArgumentNullException(nameof(query));
-        _documents = documents ?? throw new ArgumentNullException(nameof(documents));
+        _recycle = recycle ?? throw new ArgumentNullException(nameof(recycle));
         _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
         _time = time ?? throw new ArgumentNullException(nameof(time));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
@@ -85,13 +81,7 @@ public sealed class RecycleModel : PageModel
             return RedirectToPage(RouteValues());
         }
 
-        var selection = await _query.GetSelectionSummaryAsync(ids, cancellationToken);
-        if (selection.EligibleCount == 0)
-        {
-            SetError("The selected documents are no longer available in the recycle bin.");
-            return RedirectToPage(RouteValues());
-        }
-
+        DocumentRecycleAction recycleAction;
         if (action is "delete" or "delete-selected")
         {
             if (!Command.Acknowledge || !string.Equals(Command.Confirmation?.Trim(), "DELETE", StringComparison.Ordinal))
@@ -99,8 +89,14 @@ public sealed class RecycleModel : PageModel
                 SetError("Type DELETE and acknowledge that permanent deletion cannot be undone.");
                 return RedirectToPage(RouteValues());
             }
+
+            recycleAction = DocumentRecycleAction.PermanentlyDelete;
         }
-        else if (action is not ("restore" or "restore-selected"))
+        else if (action is "restore" or "restore-selected")
+        {
+            recycleAction = DocumentRecycleAction.Restore;
+        }
+        else
         {
             SetError("The requested document recovery operation is not supported.");
             return RedirectToPage(RouteValues());
@@ -109,46 +105,26 @@ public sealed class RecycleModel : PageModel
         var actor = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(actor)) return Challenge();
 
-        // Act only on documents that are still in the recycle bin. Anything restored since the
-        // admin opened the page (or a hand-made id) is skipped, never permanently deleted.
-        var eligibleIds = selection.EligibleIds;
-        var skipped = ids.Count - eligibleIds.Count;
-        var succeeded = 0;
-        var failed = new List<int>();
-        foreach (var id in eligibleIds)
+        var result = await _recycle.ExecuteAsync(recycleAction, ids, actor, cancellationToken);
+        if (result.NothingEligible)
         {
-            try
-            {
-                if (action is "restore" or "restore-selected")
-                    await _documents.RestoreAsync(id, actor, cancellationToken);
-                else
-                    await _documents.HardDeleteAsync(id, actor, cancellationToken);
-                succeeded++;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                failed.Add(id);
-                _logger.LogError(exception, "Document recovery operation {Action} failed for document {DocumentId}", action, id);
-            }
+            SetError("The selected documents are no longer available in the recycle bin.");
+            return RedirectToPage(RouteValues());
         }
 
-        var operation = action.StartsWith("restore", StringComparison.Ordinal) ? "restored" : "permanently deleted";
-        var skippedNote = skipped > 0
-            ? $" {skipped} selected document(s) were no longer in the recycle bin and were left unchanged."
+        var operation = recycleAction == DocumentRecycleAction.Restore ? "restored" : "permanently deleted";
+        var skippedNote = result.Skipped > 0
+            ? $" {result.Skipped} selected document(s) were no longer in the recycle bin and were left unchanged."
             : string.Empty;
-        if (failed.Count == 0)
+        if (result.FailedIds.Count == 0)
         {
             TempData[FlashMessageKeys.AdminRecoverySuccess] =
-                (succeeded == 1 ? $"Document {operation}." : $"{succeeded} documents {operation}.") + skippedNote;
+                (result.Succeeded == 1 ? $"Document {operation}." : $"{result.Succeeded} documents {operation}.") + skippedNote;
         }
         else
         {
             TempData[FlashMessageKeys.AdminRecoveryError] =
-                $"{succeeded} document(s) were {operation}; {failed.Count} could not be processed. Review the audit log and retry the failed records." + skippedNote;
+                $"{result.Succeeded} document(s) were {operation}; {result.FailedIds.Count} could not be processed. Review the audit log and retry the failed records." + skippedNote;
         }
 
         return RedirectToPage(RouteValues());

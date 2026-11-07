@@ -40,7 +40,7 @@
             <header class="admin-panel__header"><div><h2 id="recent-ingestion-title">Recent runs</h2></div></header>
             @if (Model.RecentRuns.Count == 0)
             {
-                <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-clock-history", Title = "No completed runs", Description = "Runs are listed here until PRISM restarts." })" />
+                <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-clock-history", Title = "No completed runs", Description = "Each run is listed here once it finishes." })" />
             }
             else
             {
@@ -60,7 +60,7 @@
 }
 else
 {
-    <section class="admin-panel"><partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-file-earmark-arrow-up", Title = "Not run since PRISM started", Description = "Use Copy PDFs to add the FFC, IPR and activity PDFs to the repository." })" /></section>
+    <section class="admin-panel"><partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-file-earmark-arrow-up", Title = "Not run yet", Description = "Use Copy PDFs to add the FFC, IPR and activity PDFs to the repository." })" /></section>
 }
 
 @section Scripts { <script src="~/js/admin/admin-maintenance.js" asp-append-version="true" defer></script> }

@@ -236,6 +236,35 @@ namespace ProjectManagement.Tests
             Assert.False((await um.FindByIdAsync(admin.Id))!.PendingDeletion);
         }
 
+        // Disable account reads a typed outcome instead of exception text
+        // (docs/ux/admin-review-3-fixes.md, C8).
+        [Fact]
+        public async Task TryDisable_ReturnsATypedOutcomeForEverySafeguard()
+        {
+            var svc = CreateService(null, out var ctx, out var um, out var rm);
+            await rm.CreateAsync(new IdentityRole(RoleNames.Admin));
+            var admin = new ApplicationUser { UserName = "only-admin", CreatedUtc = DateTime.UtcNow };
+            var leaving = new ApplicationUser { UserName = "leaving", CreatedUtc = DateTime.UtcNow, PendingDeletion = true };
+            var user = new ApplicationUser { UserName = "user", CreatedUtc = DateTime.UtcNow };
+            foreach (var account in new[] { admin, leaving, user })
+            {
+                await um.CreateAsync(account, "Passw0rd!");
+            }
+            await um.AddToRoleAsync(admin, RoleNames.Admin);
+
+            Assert.Equal(UserDisableOutcome.SelfDisable, await svc.TryDisableAsync(user.Id, user.Id, "reason"));
+            Assert.Equal(UserDisableOutcome.NotFound, await svc.TryDisableAsync("missing", "actor", "reason"));
+            Assert.Equal(UserDisableOutcome.PendingDeletion, await svc.TryDisableAsync(leaving.Id, "actor", "reason"));
+            Assert.Equal(UserDisableOutcome.LastActiveAdmin, await svc.TryDisableAsync(admin.Id, "actor", "reason"));
+            Assert.False((await um.FindByIdAsync(admin.Id))!.IsDisabled);
+
+            Assert.Equal(UserDisableOutcome.Disabled, await svc.TryDisableAsync(user.Id, "actor", "reason"));
+            Assert.True((await um.FindByIdAsync(user.Id))!.IsDisabled);
+
+            // A second, duplicate request changes nothing and says so.
+            Assert.Equal(UserDisableOutcome.AlreadyDisabled, await svc.TryDisableAsync(user.Id, "actor", "reason"));
+        }
+
         [Fact]
         public async Task Disable_Allowed_WhenTheOtherAdminIsOnlyTemporarilyLocked()
         {

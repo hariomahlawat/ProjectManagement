@@ -242,7 +242,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     result = result with { Status = status };
                 }
 
-                _history.Record(new PdfIngestionRunRecord(
+                await TryRecordHistoryAsync(new PdfIngestionRunRecord(
                     result.RunId,
                     result.StartedAtUtc,
                     result.CompletedAtUtc,
@@ -255,7 +255,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     result.Failed,
                     result.Sources,
                     result.Failures,
-                    traceId));
+                    traceId), traceId);
 
                 return AdminOperationResult<PdfIngestionRunResult>.Success(
                     result,
@@ -309,7 +309,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     traceId);
 
                 var failedAt = _time.UtcNow;
-                _history.Record(new PdfIngestionRunRecord(
+                await TryRecordHistoryAsync(new PdfIngestionRunRecord(
                     runId,
                     startedAt,
                     failedAt,
@@ -322,7 +322,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     1,
                     Array.Empty<PdfIngestionSourceSummary>(),
                     Array.Empty<PdfIngestionFailure>(),
-                    traceId));
+                    traceId), traceId);
 
                 return AdminOperationResult<PdfIngestionRunResult>.Failure(
                     "PDF ingestion could not be completed. Quote the trace reference to the administrator.",
@@ -578,6 +578,27 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                 phase,
                 traceId);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Saves the run's summary for the history list. The run itself is already finished and
+    /// audited, so a failure here is logged and the run's result still stands.
+    /// </summary>
+    private async Task TryRecordHistoryAsync(PdfIngestionRunRecord run, string? traceId)
+    {
+        try
+        {
+            _db.ChangeTracker.Clear();
+            await _history.RecordAsync(run, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Could not save the PDF ingestion run summary. RunId={RunId}, TraceId={TraceId}",
+                run.RunId,
+                traceId);
         }
     }
 

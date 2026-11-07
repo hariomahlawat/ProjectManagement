@@ -3,9 +3,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
-using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
@@ -14,16 +11,27 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
     [Authorize(Policy = ProjectManagement.Configuration.Policies.Documents.DeleteApprove)]
     public class OcrFailuresModel : PageModel
     {
-        private readonly ApplicationDbContext _db;
+        private readonly IOcrFailureQueryService _failures;
         private readonly IDocumentOcrService _ocrService;
 
-        public OcrFailuresModel(ApplicationDbContext db, IDocumentOcrService ocrService)
+        public OcrFailuresModel(IOcrFailureQueryService failures, IDocumentOcrService ocrService)
         {
-            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _failures = failures ?? throw new ArgumentNullException(nameof(failures));
             _ocrService = ocrService ?? throw new ArgumentNullException(nameof(ocrService));
         }
 
-        public IList<Document> FailedDocuments { get; private set; } = new List<Document>();
+        [BindProperty(SupportsGet = true)]
+        public int PageNumber { get; set; } = 1;
+
+        [BindProperty(SupportsGet = true)]
+        public int PageSize { get; set; } = OcrFailureQueryService.DefaultPageSize;
+
+        public IReadOnlyList<int> PageSizes => OcrFailureQueryService.PageSizes;
+
+        public OcrFailurePage Result { get; private set; } =
+            new(Array.Empty<OcrFailureRow>(), 0, 1, OcrFailureQueryService.DefaultPageSize);
+
+        public IReadOnlyList<OcrFailureRow> FailedDocuments => Result.Items;
 
         [TempData]
         public string? StatusMessage { get; set; }
@@ -33,21 +41,34 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
 
         public async Task OnGetAsync(CancellationToken ct)
         {
-            FailedDocuments = await _db.Documents
-                .AsNoTracking()
-                .Include(d => d.OfficeCategory)
-                .Include(d => d.DocumentCategory)
-                .Where(d => d.OcrStatus == DocOcrStatus.Failed && !d.IsDeleted)
-                .OrderByDescending(d => d.CreatedAtUtc)
-                .ToListAsync(ct);
+            Result = await _failures.GetPageAsync(PageNumber, PageSize, ct);
+            PageNumber = Result.Page;
+            PageSize = Result.PageSize;
         }
+
+        /// <summary>The list with the current page size, on another page.</summary>
+        public string? PageUrl(int page) => Url.Page(null, new
+        {
+            pageNumber = page > 1 ? page : (int?)null,
+            pageSize = PageSize != OcrFailureQueryService.DefaultPageSize ? PageSize : (int?)null
+        });
+
+        /// <summary>The list from its first page with another number of rows per page.</summary>
+        public string? SizeUrl(int pageSize) => Url.Page(null, new
+        {
+            pageSize = pageSize != OcrFailureQueryService.DefaultPageSize ? pageSize : (int?)null
+        });
 
         public async Task<IActionResult> OnPostRequeueAsync(Guid id, CancellationToken ct)
         {
             StatusMessage = await _ocrService.RequeueAsync(id, ActorUserId, ct)
                 ? "Queued to be read again. The library shows it as not searchable until reading succeeds."
                 : "That document no longer exists.";
-            return RedirectToPage();
+            return RedirectToPage(new
+            {
+                pageNumber = PageNumber > 1 ? PageNumber : (int?)null,
+                pageSize = PageSize != OcrFailureQueryService.DefaultPageSize ? PageSize : (int?)null
+            });
         }
 
         public async Task<IActionResult> OnPostRequeueAllAsync(CancellationToken ct)

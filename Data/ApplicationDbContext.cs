@@ -57,6 +57,7 @@ namespace ProjectManagement.Data
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectType> ProjectTypes => Set<ProjectType>();
         public DbSet<ProjectLegacyImport> ProjectLegacyImports => Set<ProjectLegacyImport>();
+        public DbSet<PdfIngestionRun> PdfIngestionRuns => Set<PdfIngestionRun>();
         public DbSet<ProjectSowFact> ProjectSowFacts => Set<ProjectSowFact>();
         public DbSet<ProjectAonFact> ProjectAonFacts => Set<ProjectAonFact>();
         public DbSet<ProjectBenchmarkFact> ProjectBenchmarkFacts => Set<ProjectBenchmarkFact>();
@@ -1069,6 +1070,22 @@ namespace ProjectManagement.Data
                     e.HasIndex(x => x.IsDeleted)
                         .HasDatabaseName("IX_Projects_IsDeleted");
                 }
+            });
+
+            builder.Entity<PdfIngestionRun>(e =>
+            {
+                // Hand-written migration 20261226080013_AddPdfIngestionRuns.
+                e.ToTable("PdfIngestionRuns");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Id).ValueGeneratedNever();
+                e.Property(x => x.StartedAtUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.CompletedAtUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.InitiatedBy).HasMaxLength(256);
+                e.Property(x => x.Status).HasMaxLength(64).IsRequired();
+                e.Property(x => x.SourcesJson).HasColumnType("text").IsRequired();
+                e.Property(x => x.FailuresJson).HasColumnType("text").IsRequired();
+                e.Property(x => x.TraceId).HasMaxLength(128);
+                e.HasIndex(x => x.CompletedAtUtc).HasDatabaseName("IX_PdfIngestionRuns_CompletedAtUtc");
             });
 
             builder.Entity<ProjectLegacyImport>(e =>

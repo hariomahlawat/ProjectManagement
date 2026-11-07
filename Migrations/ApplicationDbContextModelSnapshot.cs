@@ -4385,6 +4385,61 @@ namespace ProjectManagement.Migrations
                     b.ToTable("UserProjectMutes");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.PdfIngestionRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AlreadyLinked")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Discovered")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Failed")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FailuresJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("IngestedOrLinked")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("InitiatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int>("Missing")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourcesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompletedAtUtc")
+                        .HasDatabaseName("IX_PdfIngestionRuns_CompletedAtUtc");
+
+                    b.ToTable("PdfIngestionRuns", (string)null);
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Plans.PlanApprovalLog", b =>
                 {
                     b.Property<int>("Id")

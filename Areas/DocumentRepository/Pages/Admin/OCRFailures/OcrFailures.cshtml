@@ -4,6 +4,8 @@
 @{
     ViewData["Title"] = "Unreadable PDFs";
     ViewData["UseFullWidth"] = true;
+    var firstPage = Math.Max(1, Model.Result.Page - 2);
+    var lastPage = Math.Min(Model.Result.TotalPages, Model.Result.Page + 2);
 }
 
 @section Styles {
@@ -17,7 +19,7 @@
             <h1>Unreadable PDFs</h1>
             <p>Documents whose text could not be read, so searching their contents finds nothing. They can still be opened and found by their details.</p>
         </div>
-        @if (Model.FailedDocuments.Count > 0)
+        @if (Model.Result.TotalCount > 0)
         {
             <div class="library-head__actions">
                 <form method="post" asp-page-handler="RequeueAll">
@@ -32,7 +34,7 @@
         <div class="library-banner" role="status"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>@Model.StatusMessage</strong></div></div>
     }
 
-    @if (Model.FailedDocuments.Count == 0)
+    @if (Model.Result.TotalCount == 0)
     {
         <div class="library-empty">
             <i class="bi bi-check2-circle" aria-hidden="true"></i>
@@ -59,7 +61,7 @@
                             <tr>
                                 <td>
                                     <a class="library-table__title" asp-page="/Documents/Reader" asp-route-id="@doc.Id">@doc.Subject</a>
-                                    <span class="library-table__meta">@doc.DocumentCategory?.Name · @doc.OfficeCategory?.Name · @DocRepoFormat.FileSize(doc.FileSizeBytes)</span>
+                                    <span class="library-table__meta">@doc.DocumentCategoryName · @doc.OfficeCategoryName · @DocRepoFormat.FileSize(doc.FileSizeBytes)</span>
                                 </td>
                                 <td data-label="What went wrong">
                                     <span>@DocRepoFormat.ExplainOcrFailure(doc.OcrFailureReason)</span>
@@ -73,7 +75,7 @@
                                 </td>
                                 <td data-label="Added" class="library-table__num">@DocRepoFormat.Date(doc.CreatedAtUtc)</td>
                                 <td class="library-table__actions">
-                                    <form method="post" asp-page-handler="Requeue" asp-route-id="@doc.Id">
+                                    <form method="post" asp-page-handler="Requeue" asp-route-id="@doc.Id" asp-route-pageNumber="@(Model.Result.Page > 1 ? Model.Result.Page : null)" asp-route-pageSize="@(Model.PageSize != ProjectManagement.Services.DocRepo.OcrFailureQueryService.DefaultPageSize ? Model.PageSize : null)">
                                         <button type="submit" class="btn btn-sm btn-outline-secondary">Read again</button>
                                     </form>
                                 </td>
@@ -83,5 +85,82 @@
                 </table>
             </div>
         </div>
+
+        <nav class="library-pager" aria-label="Pages">
+            <span class="library-pager__summary">Showing @Model.Result.FirstItem.ToString("N0")–@Model.Result.LastItem.ToString("N0") of @Model.Result.TotalCount.ToString("N0")</span>
+            @if (Model.Result.TotalPages > 1)
+            {
+                <ul>
+                    <li>
+                        @if (Model.Result.Page > 1)
+                        {
+                            <a href="@Model.PageUrl(Model.Result.Page - 1)" aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
+                        }
+                        else
+                        {
+                            <span class="is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+                        }
+                    </li>
+                    @if (firstPage > 1)
+                    {
+                        <li><a href="@Model.PageUrl(1)">1</a></li>
+                        @if (firstPage > 2)
+                        {
+                            <li><span class="is-gap" aria-hidden="true">…</span></li>
+                        }
+                    }
+                    @for (var p = firstPage; p <= lastPage; p++)
+                    {
+                        <li>
+                            @if (p == Model.Result.Page)
+                            {
+                                <span class="is-current" aria-current="page">@p</span>
+                            }
+                            else
+                            {
+                                <a href="@Model.PageUrl(p)">@p</a>
+                            }
+                        </li>
+                    }
+                    @if (lastPage < Model.Result.TotalPages)
+                    {
+                        @if (lastPage < Model.Result.TotalPages - 1)
+                        {
+                            <li><span class="is-gap" aria-hidden="true">…</span></li>
+                        }
+                        <li><a href="@Model.PageUrl(Model.Result.TotalPages)">@Model.Result.TotalPages</a></li>
+                    }
+                    <li>
+                        @if (Model.Result.Page < Model.Result.TotalPages)
+                        {
+                            <a href="@Model.PageUrl(Model.Result.Page + 1)" aria-label="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                        }
+                        else
+                        {
+                            <span class="is-disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                        }
+                    </li>
+                </ul>
+            }
+            @if (Model.Result.TotalCount > Model.PageSizes[0])
+            {
+                <ul class="library-pager__sizes" aria-label="Rows per page">
+                    <li><span class="library-pager__label">Rows</span></li>
+                    @foreach (var size in Model.PageSizes)
+                    {
+                        <li>
+                            @if (size == Model.PageSize)
+                            {
+                                <span class="is-current" aria-current="true">@size</span>
+                            }
+                            else
+                            {
+                                <a href="@Model.SizeUrl(size)">@size</a>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </nav>
     }
 </div>

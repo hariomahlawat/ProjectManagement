@@ -365,7 +365,7 @@ public static class AdminHomeRules
                     null => NoFigure,
                     { PdfIngestionRunning: true } => "A PDF run is in progress",
                     { LastPdfRun: { } run } => $"Last PDF run: {run.Status.ToLowerInvariant()} · {formatWhen(run.CompletedAtUtc)}",
-                    _ => "No PDF run since PRISM started"
+                    _ => "No PDF run yet"
                 })
         };
 
