@@ -130,39 +130,70 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
     private const double MinimumFontSize = 7.5;
     private const double ContinuationFontSize = 10;
 
-    /// <summary>Slide 1, plus continuation slides when a category's list will not fit even at the smallest type size.</summary>
+    // At most this many category columns share a slide, so a column stays about 3 in wide and every name has room.
+    internal const int MaxCategoriesPerSlide = 4;
+
+    /// <summary>
+    /// Slide 1, plus continuation slides: more than four categories are spread evenly over several slides,
+    /// and a category's list that will not fit even at the smallest type size carries on to the next.
+    /// </summary>
     private static IEnumerable<Action<PptxSlideCanvas, int>> ProjectSlides(CoeSlidesData data, Logos logos)
     {
         if (data.Columns.Count == 0)
         {
-            yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, Array.Empty<IReadOnlyList<RowLayout>>(), MinimumFontSize, continued: false);
+            yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, Array.Empty<CoeSlideColumn>(), Array.Empty<IReadOnlyList<RowLayout>>(), MinimumFontSize, continued: false);
             yield break;
         }
 
-        var width = CategoryColumnWidth(data.Columns.Count);
-        var available = BodyBottom - CategoryListTop;
-
-        // One type size for the whole slide: the largest that lets the longest column fit.
-        var layouts = data.Columns.Select(column => new ColumnLayout(column, width)).ToList();
-        var fontSize = FittingFontSize(layouts, available, 12.5);
-        if (layouts.All(layout => layout.Height(fontSize) <= available))
+        var continued = false;
+        foreach (var group in CategoryGroups(data.Columns))
         {
-            var rows = layouts.Select(layout => (IReadOnlyList<RowLayout>)layout.Rows(fontSize).ToList()).ToList();
-            yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, rows, fontSize, continued: false);
-            yield break;
+            var width = CategoryColumnWidth(group.Count);
+            var available = BodyBottom - CategoryListTop;
+
+            // One type size for the slide: the largest that lets its longest column fit.
+            var layouts = group.Select(column => new ColumnLayout(column, width)).ToList();
+            var fontSize = FittingFontSize(layouts, available, 12.5);
+            if (layouts.All(layout => layout.Height(fontSize) <= available))
+            {
+                var rows = layouts.Select(layout => (IReadOnlyList<RowLayout>)layout.Rows(fontSize).ToList()).ToList();
+                var isContinued = continued;
+                yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, group, rows, fontSize, isContinued);
+                continued = true;
+                continue;
+            }
+
+            // Too many to fit: each column carries its remaining rows onto the next slide, under the same headings.
+            var chunks = layouts.Select(layout => Chunk(layout.Rows(ContinuationFontSize).ToList(), available)).ToList();
+            var pageCount = chunks.Max(column => column.Count);
+            for (var page = 0; page < pageCount; page++)
+            {
+                var pageIndex = page;
+                var rows = chunks
+                    .Select(column => pageIndex < column.Count ? column[pageIndex] : (IReadOnlyList<RowLayout>)Array.Empty<RowLayout>())
+                    .ToList();
+                var isContinued = continued;
+                yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, group, rows, ContinuationFontSize, isContinued);
+                continued = true;
+            }
+        }
+    }
+
+    /// <summary>The categories split into as few slides as keep each to four columns, as evenly as possible (5 → 3 + 2).</summary>
+    internal static IReadOnlyList<IReadOnlyList<CoeSlideColumn>> CategoryGroups(IReadOnlyList<CoeSlideColumn> columns)
+    {
+        var slideCount = Math.Max(1, (int)Math.Ceiling(columns.Count / (double)MaxCategoriesPerSlide));
+        var groups = new List<IReadOnlyList<CoeSlideColumn>>();
+        var taken = 0;
+        for (var slide = 0; slide < slideCount; slide++)
+        {
+            // Earlier slides take the extra column when the split is uneven.
+            var size = (int)Math.Ceiling((columns.Count - taken) / (double)(slideCount - slide));
+            groups.Add(columns.Skip(taken).Take(size).ToList());
+            taken += size;
         }
 
-        // Too many to fit: each column carries its remaining rows onto the next slide, under the same headings.
-        var chunks = layouts.Select(layout => Chunk(layout.Rows(ContinuationFontSize).ToList(), available)).ToList();
-        var pageCount = chunks.Max(column => column.Count);
-        for (var page = 0; page < pageCount; page++)
-        {
-            var pageIndex = page;
-            var rows = chunks
-                .Select(column => pageIndex < column.Count ? column[pageIndex] : (IReadOnlyList<RowLayout>)Array.Empty<RowLayout>())
-                .ToList();
-            yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, rows, ContinuationFontSize, continued: pageIndex > 0);
-        }
+        return groups;
     }
 
     private static double CategoryListTop => BodyTop + ColumnHeaderHeight + .08;
@@ -175,6 +206,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         CoeSlidesData data,
         Logos logos,
         int number,
+        IReadOnlyList<CoeSlideColumn> columns,
         IReadOnlyList<IReadOnlyList<RowLayout>> columnRows,
         double fontSize,
         bool continued)
@@ -200,10 +232,10 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
             return;
         }
 
-        var width = CategoryColumnWidth(data.Columns.Count);
-        for (var index = 0; index < data.Columns.Count; index++)
+        var width = CategoryColumnWidth(columns.Count);
+        for (var index = 0; index < columns.Count; index++)
         {
-            var column = data.Columns[index];
+            var column = columns[index];
             var x = Left + (index * (width + CategoryGap));
             canvas.AddRect(x, BodyTop, width, ColumnHeaderHeight, HeaderTint);
             canvas.AddText(x + .06, BodyTop, width - .7, ColumnHeaderHeight, column.Name, 12, Navy, true, "l");

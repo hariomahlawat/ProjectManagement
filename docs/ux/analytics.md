@@ -307,7 +307,8 @@ title over a navy rule, tinted column headings, and a footer note with the page 
    builds). The training and proliferation cards appear only for a user their tracker's view policy
    admits, the same check as the page cards.
 
-When a list will not fit even at 7.5 pt (row heights count every wrapped line of the name and of the
+Slide 1 holds at most four category columns (about 3 in each); more categories are spread evenly over
+slides ("(continued)"; 5 make 3 + 2). When a list will not fit even at 7.5 pt (row heights count every wrapped line of the name and of the
 PDC), it carries on to continuation slides at 10 pt, titled "(continued)": slide 1's columns keep
 their headings and totals, and the completed list fills four columns a page with the cards on the
 first page only. Nothing is drawn past the slide edge.

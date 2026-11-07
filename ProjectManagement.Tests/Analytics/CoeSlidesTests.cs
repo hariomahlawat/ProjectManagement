@@ -237,6 +237,53 @@ public sealed class CoeSlidesTests
             Assert.True(offset.Y!.Value < slideHeight, $"An item starts at {offset.Y.Value} EMU, below the slide."));
     }
 
+    [Fact]
+    public void CategoryGroups_KeepFourASlide_SplitEvenly()
+    {
+        CoeSlideColumn Column(int index) => new($"Category {index}", new[] { new CoeSlideProject("P", "FS", false) });
+        int[] Sizes(int count) => CoeSlideComposer.CategoryGroups(Enumerable.Range(1, count).Select(Column).ToList()).Select(group => group.Count).ToArray();
+
+        Assert.Equal(new[] { 3 }, Sizes(3));
+        Assert.Equal(new[] { 4 }, Sizes(4));
+        Assert.Equal(new[] { 3, 2 }, Sizes(5));
+        Assert.Equal(new[] { 4, 4, 4 }, Sizes(12));
+    }
+
+    [Fact]
+    public void Compose_ManyCategories_SpreadOverSlides_AndNoShapeHasANegativeWidth()
+    {
+        var subcategories = Enumerable.Range(1, 12)
+            .Select(index => new CoeSubcategoryProjectsVm($"CoE Category {index:00}", new[]
+            {
+                new CoeProjectSummaryVm(index * 10, $"Finished project {index:00}", "Completed", "Completed"),
+                new CoeProjectSummaryVm((index * 10) + 1, $"Running project {index:00}", "Ongoing", "Development", StageCodes.DEVP, new DateOnly(2026, 6, 22))
+            }, OngoingCount: 1, CompletedCount: 1))
+            .ToArray();
+        var coe = new CoeAnalyticsVm { TotalCoeProjects = 24, OngoingCount = 12, CompletedCount = 12, SubcategoryProjects = subcategories };
+        var composer = new CoeSlideComposer(new TestEnvironment(Path.Combine(AppContext.BaseDirectory, "TestData", "Ffc", "PresentationRoot")));
+
+        var content = composer.Compose(CoeSlidesDataBuilder.Build(AsOf, coe, impact: null));
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentation = document.PresentationPart!;
+        var slides = presentation.Presentation.SlideIdList!.Elements<SlideId>()
+            .Select(id => ((SlidePart)presentation.GetPartById(id.RelationshipId!.Value!)).Slide)
+            .ToList();
+        var categorySlides = slides.Where(slide => slide.InnerText.Contains("CoE (AR/VR) projects by category", StringComparison.Ordinal)).ToList();
+        Assert.Equal(3, categorySlides.Count);
+        Assert.Contains("(continued)", categorySlides[1].InnerText, StringComparison.Ordinal);
+
+        var text = string.Join("\n", categorySlides.Select(slide => slide.InnerText));
+        Assert.All(subcategories, category =>
+        {
+            Assert.Contains(category.SubcategoryName, text, StringComparison.Ordinal);
+            Assert.All(category.Projects, project => Assert.Contains(project.Name, text, StringComparison.Ordinal));
+        });
+        Assert.All(slides.SelectMany(slide => slide.Descendants<DocumentFormat.OpenXml.Drawing.Extents>()), extents =>
+            Assert.True(extents.Cx!.Value >= 0, $"A shape is {extents.Cx.Value} EMU wide.")); // the shape tree itself is 0 wide
+    }
+
     private static CoeAnalyticsVm SampleCoe() => new()
     {
         TotalCoeProjects = 6,
