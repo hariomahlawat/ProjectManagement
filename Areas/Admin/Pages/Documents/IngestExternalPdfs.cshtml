@@ -60,7 +60,7 @@
 }
 else
 {
-    <section class="admin-panel"><partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-file-earmark-arrow-up", Title = "Not run since PRISM started", Description = "Use Copy PDFs to add the FFC, IPR and activity PDFs to the repository." })" /></section>
+    <section class="admin-panel"><partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-file-earmark-arrow-up", Title = "Not run yet", Description = "Use Copy PDFs to add the FFC, IPR and activity PDFs to the repository." })" /></section>
 }
 
 @section Scripts { <script src="~/js/admin/admin-maintenance.js" asp-append-version="true" defer></script> }
