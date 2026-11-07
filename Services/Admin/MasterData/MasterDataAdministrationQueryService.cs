@@ -142,7 +142,15 @@ public sealed record ActivityTypeAdminRow(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? UpdatedAtUtc,
     string? ChangedBy,
-    string RowVersion);
+    string RowVersion)
+{
+    /// <summary>The CreatedByUserId the initial migration gave the seeded activity types.</summary>
+    public const string SeedAuthor = "system";
+
+    /// <summary>Seeded with PRISM and never edited: there is no person to show, and the seed time means nothing.</summary>
+    public bool IsBuiltIn => UpdatedAtUtc is null
+        && string.Equals(ChangedBy, SeedAuthor, StringComparison.OrdinalIgnoreCase);
+}
 
 public sealed record ActivityTypeDirectoryResult(
     IReadOnlyList<ActivityTypeAdminRow> Rows,

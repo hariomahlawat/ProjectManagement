@@ -69,18 +69,18 @@
             <div class="alert alert-warning d-flex gap-2 align-items-start" role="alert">
                 <i class="bi bi-exclamation-triangle mt-1" aria-hidden="true"></i>
                 <div class="flex-grow-1">
-                    <strong>The catalogue is operational, but its migration metadata is not fully current.</strong>
+                    <strong>Photos and videos still work, but the media database is not fully up to date.</strong>
                     @if (Model.PendingMigrations.Count > 0)
                     {
-                        <span> @Model.PendingMigrations.Count migration(s) remain pending.</span>
+                        <span> @Model.PendingMigrations.Count update@(Model.PendingMigrations.Count == 1 ? " is" : "s are") still to be applied.</span>
                     }
                     @if (!Model.CatalogueMigrationHistoryConsistent)
                     {
-                        <span> The dedicated media migration history requires repair.</span>
+                        <span> Its record of past updates needs repair.</span>
                     }
                     <div class="small mt-1">Reference @Model.CatalogueDiagnosticReference</div>
                 </div>
-                <span class="badge text-bg-secondary">Recycle after full deployment</span>
+                <span class="badge text-bg-secondary">Fixed by restarting after a full deployment</span>
             </div>
         }
 
@@ -89,9 +89,9 @@
             <div class="alert alert-info d-flex gap-2 align-items-start">
                 <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
                 <div>
-                    <strong>Outside folders are switched off.</strong>
-                    Photos works as normal with the photos and videos stored in PRISM. To also read photos from
-                    other folders, ask whoever runs the PRISM server to switch outside folders on.
+                    <strong>Photos shows only what is stored in PRISM.</strong>
+                    Reading photos and videos from other folders is switched off. To add a folder, ask whoever
+                    runs the PRISM server to switch it on.
                     <details class="admin-technical-details mt-2"><summary>Technical details</summary>
                         <div class="p-2 small">Settings: <code>MediaLibrary:ExternalSources:Enabled</code> and <code>ScannerWorkerEnabled</code>.</div>
                     </details>
@@ -798,7 +798,7 @@
                     <div class="card-body">
                         @if (!Model.ExternalSourcesEnabled)
                         {
-                            <p class="text-muted mb-0">Enable external sources in production configuration before adding a folder.</p>
+                            <p class="text-muted mb-0">Reading from other folders is switched off, so a folder cannot be added yet.</p>
                         }
                         else
                         {

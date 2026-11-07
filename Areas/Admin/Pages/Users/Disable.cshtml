@@ -15,8 +15,8 @@
                 <div class="admin-operation-heading">
                     <span class="admin-operation-heading__icon admin-operation-heading__icon--warning"><i class="bi bi-person-slash" aria-hidden="true"></i></span>
                     <div>
-                        <h2 id="disable-account-title">Block account access</h2>
-                        <p>The user will be signed out @Model.SessionEndDelay and unable to sign in again. Existing project records, remarks and ownership history remain intact.</p>
+                        <h2 id="disable-account-title">Stop them signing in</h2>
+                        <p>They are signed out @Model.SessionEndDelay and cannot sign in again. Their projects, remarks and history stay as they are.</p>
                     </div>
                 </div>
 
@@ -25,8 +25,8 @@
 
                     <div class="admin-field">
                         <label asp-for="Reason"></label>
-                        <textarea asp-for="Reason" class="form-control" rows="4" maxlength="500" placeholder="Record the operational or administrative reason"></textarea>
-                        <span class="admin-field__hint">The reason is retained in the audit trail.</span>
+                        <textarea asp-for="Reason" class="form-control" rows="4" maxlength="500" placeholder="Why is this account being disabled?"></textarea>
+                        <span class="admin-field__hint">The reason is kept in the audit log.</span>
                         <span asp-validation-for="Reason" class="text-danger"></span>
                     </div>
 
@@ -42,7 +42,7 @@
 
                         <label class="admin-confirm-check">
                             <input asp-for="Acknowledge" class="form-check-input" data-admin-confirm-ack />
-                            <span>I understand that this immediately blocks new sign-ins and signs out the user’s open sessions @Model.SessionEndDelay.</span>
+                            <span>I understand this stops new sign-ins at once and signs them out @Model.SessionEndDelay.</span>
                         </label>
                         <span asp-validation-for="Acknowledge" class="text-danger"></span>
                     </div>
@@ -59,11 +59,11 @@
         </section>
 
         <aside class="admin-operation-guidance">
-            <h2>Use disable when</h2>
+            <h2>Disable an account when</h2>
             <ul>
-                <li>The user has moved appointments or no longer requires access.</li>
-                <li>The account must be suspended while records and attribution are preserved.</li>
-                <li>There is a security concern requiring immediate access revocation.</li>
+                <li>They have moved to another post or no longer need PRISM.</li>
+                <li>Their access must stop, but their records and their name on past work must stay.</li>
+                <li>There is a security concern and their access must stop now.</li>
             </ul>
         </aside>
     </div>
