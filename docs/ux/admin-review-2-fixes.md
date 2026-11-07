@@ -230,3 +230,34 @@ Recovery should list them, or say where they are restored, is left to the owner.
 - Tests: `DocRepoListServiceTests`, `DocRepoMissingFilesServiceTests`, and a PostgreSQL test
   (`DocRepoListPostgresIntegrationTests`, added to the database workflow) for the `xmin` version
   and the locked delete.
+
+## PR 9 as shipped
+
+Each mismatch was traced to its query before anything changed.
+
+- **Media sources, "18 ready in Photos" vs "Prepared 17":** the 18 was 17 images and 1 video.
+  Videos play as they are and get no thumbnails, so they are never prepared. "Prepared" also
+  counted finished processing *jobs*, not images; one image can have several jobs over time, so
+  that count would drift. The tiles now come from one query (`MediaLibraryFigures`,
+  `Features/MediaLibrary/Admin`): "18 · ready in Photos: 17 images · 1 video" and "Images prepared
+  17 of 17" (images whose thumbnails are made).
+- **Media intelligence, "Images 17":** the same 17 images; the tile now says videos are not sorted.
+- **Media intelligence, "Not sure: need a look 14" vs "Unsure guesses 13":** the 13 (scored too low
+  to decide) was part of the 14; the other 1 was sent to a person by a safety check. The separate
+  "Unsure guesses" tile is gone; "Not sure" shows "13 scored too low to decide · 1 for another
+  reason". Classification review's "review" list and its count use the same definition.
+- **ERP usage, "0 of 16 · 0%" with 20 min and 4 actions:** all of that use was on 20 Oct, which is
+  an observed holiday (Dussehra) in the calendar. Working-day counting was right: a holiday is not
+  a working day, and counting it would push the figure past 100%. The row now says "Also used on 1
+  non-working day (Sunday or holiday), not counted here". A day with use or an action on a working
+  day already counted, and a test now pins that.
+- **ERP usage, "Never recorded" vs Users "07 May 2026":** Users shows the last sign-in; ERP usage
+  counts use since counting began (14 Jul 2026). The words are now "No use since counting began",
+  and when the last sign-in is older than that, the row adds "Last signed in …, before counting
+  began". The "Show" filter option has the same name; its value (`never-recorded`) is unchanged.
+- **ERP usage, test accounts listed with "Include service and test accounts" unticked:** the
+  filter is right. Those accounts (Test HoD, Test Project Officer, the two Claude Review accounts)
+  are marked as *Human* on their user records. The checkbox now reads "Include accounts marked as
+  service or test" and says where the marking is set (Edit user → Account classification). No user
+  data was changed; marking those accounts as Test is the owner's call.
+- Routes, CSV columns and stored data are unchanged.

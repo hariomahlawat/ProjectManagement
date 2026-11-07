@@ -168,7 +168,7 @@
                 @if (Model.Result.SevenDayReviewAvailable)
                 {
                     <option value="no-use-7">No use in 7 working days</option>
-                    <option value="never-recorded">Never recorded</option>
+                    <option value="never-recorded">No use since counting began</option>
                 }
                 else
                 {
@@ -198,9 +198,9 @@
             </label>
             <label class="form-check">
                 <input asp-for="IncludeNonHumanAccounts" class="form-check-input" />
-                <span class="form-check-label">Include service and test accounts</span>
+                <span class="form-check-label">Include accounts marked as service or test</span>
             </label>
-            <small>Normally only active accounts of people are counted. Accounts waiting to be deleted are never counted.</small>
+            <small>Normally only active accounts of people are counted. Accounts waiting to be deleted are never counted. Whether an account is a person, a service or a test account is set on the account itself, under Edit user → Account classification.</small>
         </fieldset>
     </form>
 </section>
@@ -279,6 +279,10 @@
                                 <div class="erp-usage-today @(user.UsedToday ? "is-active" : null)">
                                     <span><i class="bi @(user.UsedToday ? "bi-check-circle-fill" : "bi-dash-circle")"></i>@(user.UsedToday ? "Used today" : "No use today")</span>
                                     <small>@Model.FormatLastActive(user.LastActiveUtc)</small>
+                                    @if (Model.ShouldShowLastSignIn(user))
+                                    {
+                                        <small>Last signed in @Model.FormatLastActive(user.LastSignInUtc), before counting began</small>
+                                    }
                                 </div>
                             </td>
                             <td>
@@ -289,6 +293,10 @@
                                               value="@user.ActivePercentage"
                                               aria-label="@user.ActivePercentage percent of working days counted">@user.ActivePercentage%</progress>
                                     <small>@user.ActivePercentage% of working days counted</small>
+                                    @if (user.ActiveNonWorkingDays > 0)
+                                    {
+                                        <small>Also used on @user.ActiveNonWorkingDays non-working day@(user.ActiveNonWorkingDays == 1 ? "" : "s") (Sunday or holiday), not counted here</small>
+                                    }
                                 </div>
                             </td>
                             <td title="An estimate from the pages this person opened since counting began.">

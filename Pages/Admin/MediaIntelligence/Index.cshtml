@@ -118,11 +118,11 @@
     </section>
 
     <div class="row g-3 mb-4">
-        <div class="col-6 col-xl"><div class="metric-card"><span>Images</span><strong>@Model.AvailableImages</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Images</span><strong>@Model.AvailableImages</strong><small>Videos are not sorted</small></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Photos ready for face finding</span><strong>@Model.Eligible</strong></div></div>
-        <div class="col-6 col-xl"><div class="metric-card"><span>Not sure: need a look</span><strong>@Model.NeedsReview</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Not sure: need a look</span><strong>@Model.NeedsReview</strong>@if (Model.NeedsReview > 0)
+            {<small>@Model.LowConfidence scored too low to decide · @Model.NeedsReviewOtherReasons for another reason</small>}</div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Not photos</span><strong>@Model.ConfirmedNonPhotographs</strong></div></div>
-        <div class="col-6 col-xl"><div class="metric-card"><span>Unsure guesses</span><strong>@Model.LowConfidence</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Waiting for face finding</span><strong>@Model.FaceAdmissionPending</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Waiting to be sorted</span><strong>@Model.PendingClassification</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Could not be sorted</span><strong>@Model.FailedClassification</strong></div></div>

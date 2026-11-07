@@ -511,10 +511,7 @@ public sealed class ClassificationsModel : PageModel
     private IQueryable<MediaAsset> ApplyMode(IQueryable<MediaAsset> query, string mode)
         => mode switch
         {
-            "review" => query.Where(asset => asset.ClassificationDecisionStatus
-                                             == MediaClassificationDecisionStatus.NeedsReview
-                                             || (!asset.ClassificationIsManual
-                                                 && asset.Classification == MediaClassification.Unknown)),
+            "review" => query.Where(MediaLibraryFigures.NeedsALook),
             "admission" => query.Where(asset => asset.ClassificationIsManual
                                                 && asset.Classification == MediaClassification.Photograph
                                                 && asset.ClassificationDecisionStatus
@@ -545,11 +542,7 @@ public sealed class ClassificationsModel : PageModel
         CancellationToken cancellationToken)
     {
         var all = await baseQuery.CountAsync(cancellationToken);
-        var review = await baseQuery.CountAsync(
-            asset => asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.NeedsReview
-                     || (!asset.ClassificationIsManual
-                         && asset.Classification == MediaClassification.Unknown),
-            cancellationToken);
+        var review = await baseQuery.CountAsync(MediaLibraryFigures.NeedsALook, cancellationToken);
         var admission = await baseQuery.CountAsync(
             asset => asset.ClassificationIsManual
                      && asset.Classification == MediaClassification.Photograph

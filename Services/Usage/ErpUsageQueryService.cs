@@ -81,7 +81,13 @@ public sealed record ErpUsageUserRow(
     int AdministrativeActionCount,
     string Posture,
     string PostureTone,
-    IReadOnlyList<ErpUsageHeatmapCell> Heatmap);
+    IReadOnlyList<ErpUsageHeatmapCell> Heatmap,
+    // Days with recorded use that are not working days (Sundays, observed holidays). They do not
+    // count towards ActiveWorkingDays, so the page says so instead of showing "0 of N" silently.
+    int ActiveNonWorkingDays = 0,
+    // The last successful sign-in, as the Users page shows it. Usage counting began at the
+    // tracking inception, so a person can have signed in before it and have no use since.
+    DateTime? LastSignInUtc = null);
 
 public sealed record ErpUsageResult(
     DateOnly StartDate,
@@ -259,7 +265,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 user.CreatedUtc,
                 user.IsDisabled,
                 user.PendingDeletion,
-                user.AccountKind))
+                user.AccountKind,
+                user.LastLoginUtc))
             .ToListAsync(cancellationToken);
 
         var roleRows = await (
@@ -417,6 +424,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             ? Array.Empty<DateOnly>()
             : allWorkingDays.Where(date => date >= trackingInceptionDate).ToArray();
         var selectedWorkingDays = allWorkingDays.Where(date => date >= selectedStartDate).ToArray();
+        var selectedWorkingDaySet = selectedWorkingDays.ToHashSet();
         var lastSevenTrackingWorkingDays = trackingWorkingDays.TakeLast(7).ToArray();
         var trackingWorkingDayCount = trackingWorkingDays.Length;
         var regularClassificationAvailable = trackingWorkingDayCount >= 7;
@@ -465,6 +473,12 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 .Where(date => date >= effectiveTrackingStart)
                 .ToArray();
             var activeWorkingDays = availableWorkingDays.Count(selectedTrackedActivityDates.Contains);
+            // A day of use on a Sunday or an observed holiday is real use, but not a working day:
+            // counting it would push the figure past 100%. It is reported beside the figure.
+            var activeNonWorkingDays = selectedTrackedActivityDates.Count(date =>
+                date >= effectiveTrackingStart
+                && date <= today
+                && !selectedWorkingDaySet.Contains(date));
             var activePercentage = availableWorkingDays.Length == 0
                 ? 0
                 : (int)Math.Round(
@@ -536,7 +550,9 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 administrativeActionCount,
                 posture.Label,
                 posture.Tone,
-                heatmap);
+                heatmap,
+                activeNonWorkingDays,
+                user.LastLoginUtc);
         }).ToList();
 
         if (!string.IsNullOrWhiteSpace(query.Posture))
@@ -776,7 +792,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 candidate.CreatedUtc,
                 candidate.IsDisabled,
                 candidate.PendingDeletion,
-                candidate.AccountKind))
+                candidate.AccountKind,
+                candidate.LastLoginUtc))
             .SingleOrDefaultAsync(cancellationToken);
 
         if (user is null)
@@ -1317,7 +1334,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         DateTime CreatedUtc,
         bool IsDisabled,
         bool PendingDeletion,
-        UserAccountKind AccountKind);
+        UserAccountKind AccountKind,
+        DateTime? LastLoginUtc);
 
     private sealed record DailyProjection(
         string UserId,
