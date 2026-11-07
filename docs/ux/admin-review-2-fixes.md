@@ -131,6 +131,14 @@ Rules carried over:
 PR 2 changes live data behaviour: documents restored before it stay inactive. Whether to
 reactivate them in a one-off step is the owner's call. PR 2 does not do it.
 
+**PR 2 as shipped.** `DocRepoTrashService` (Services/DocRepo) now lists the repository's deleted
+documents and restores them; the Trash page only calls it. Restore clears the delete details
+*and* sets `IsActive = true`, keeps the `RestoredFromTrash` audit entry in the same save, and
+checks `DocRepo.Purge` itself as well as on the page. Search needs no extra call: the Search V2
+trigger on `Documents` queues the reindex when the row is saved. The list is paged (10, 25, 50
+or 100 rows, 25 by default) with "Showing x–y of n"; Restore and Delete for good return to the
+same search, page and page size. Documents restored before PR 2 are left inactive, as decided.
+
 **Owner decision needed:** the UX review found briefing decks deleted and restored in Recovery's
 recent activity, but they are not one of the kinds listed in Restore deleted items. Whether
 Recovery should list them, or say where they are restored, is left to the owner.

@@ -4,6 +4,8 @@
 @{
     ViewData["Title"] = "Deleted repository documents";
     ViewData["UseFullWidth"] = true;
+    var firstPage = Math.Max(1, Model.Result.Page - 2);
+    var lastPage = Math.Min(Model.Result.TotalPages, Model.Result.Page + 2);
 }
 
 @section Styles {
@@ -45,11 +47,15 @@
             <i class="bi bi-search" aria-hidden="true"></i>
             <label class="visually-hidden" for="trashSearch">Search the trash</label>
             <input id="trashSearch" type="search" name="q" value="@Model.Query" placeholder="Search by title" />
+            @if (Model.PageSize != ProjectManagement.Services.DocRepo.DocRepoTrashService.DefaultPageSize)
+            {
+                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+            }
         </form>
         <span class="library-toolbar__count">
             @if (Model.Query is not null)
             {
-                <text>@Model.Items.Count of @DocRepoFormat.Count(Model.TotalCount, "document") · <a asp-page="./Index">Show all</a></text>
+                <text>@Model.Result.MatchCount.ToString("N0") of @DocRepoFormat.Count(Model.TotalCount, "document") · <a asp-page="./Index">Show all</a></text>
             }
             else
             {
@@ -97,10 +103,10 @@
                                 <td data-label="Reason">@(string.IsNullOrWhiteSpace(item.DeleteReason) ? "No reason given" : item.DeleteReason)</td>
                                 <td data-label="Deleted for good" class="library-table__num">@(due.HasValue ? DocRepoFormat.Date(due.Value) : "Not scheduled")</td>
                                 <td class="library-table__actions">
-                                    <form method="post" asp-page-handler="Restore" asp-route-id="@item.Id">
+                                    <form method="post" asp-page-handler="Restore" asp-route-id="@item.Id" asp-route-q="@Model.Query" asp-route-pageNumber="@(Model.Result.Page > 1 ? Model.Result.Page : null)" asp-route-pageSize="@(Model.PageSize != ProjectManagement.Services.DocRepo.DocRepoTrashService.DefaultPageSize ? Model.PageSize : null)">
                                         <button type="submit" class="btn btn-sm btn-outline-primary">Restore</button>
                                     </form>
-                                    <form method="post" asp-page-handler="Purge" asp-route-id="@item.Id"
+                                    <form method="post" asp-page-handler="Purge" asp-route-id="@item.Id" asp-route-q="@Model.Query" asp-route-pageNumber="@(Model.Result.Page > 1 ? Model.Result.Page : null)" asp-route-pageSize="@(Model.PageSize != ProjectManagement.Services.DocRepo.DocRepoTrashService.DefaultPageSize ? Model.PageSize : null)"
                                           data-confirm="Delete “@item.Subject” for good? Its file is removed from storage and this cannot be undone."
                                           data-confirm-action="Delete for good">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">Delete for good</button>
@@ -112,5 +118,83 @@
                 </table>
             </div>
         </div>
+
+        <!-- SECTION: Pages -->
+        <nav class="library-pager" aria-label="Pages">
+            <span class="library-pager__summary">Showing @Model.Result.FirstItem.ToString("N0")–@Model.Result.LastItem.ToString("N0") of @Model.Result.MatchCount.ToString("N0")</span>
+            @if (Model.Result.TotalPages > 1)
+            {
+                <ul>
+                    <li>
+                        @if (Model.Result.Page > 1)
+                        {
+                            <a href="@Model.PageUrl(Model.Result.Page - 1)" aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
+                        }
+                        else
+                        {
+                            <span class="is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+                        }
+                    </li>
+                    @if (firstPage > 1)
+                    {
+                        <li><a href="@Model.PageUrl(1)">1</a></li>
+                        @if (firstPage > 2)
+                        {
+                            <li><span class="is-gap" aria-hidden="true">…</span></li>
+                        }
+                    }
+                    @for (var p = firstPage; p <= lastPage; p++)
+                    {
+                        <li>
+                            @if (p == Model.Result.Page)
+                            {
+                                <span class="is-current" aria-current="page">@p</span>
+                            }
+                            else
+                            {
+                                <a href="@Model.PageUrl(p)">@p</a>
+                            }
+                        </li>
+                    }
+                    @if (lastPage < Model.Result.TotalPages)
+                    {
+                        @if (lastPage < Model.Result.TotalPages - 1)
+                        {
+                            <li><span class="is-gap" aria-hidden="true">…</span></li>
+                        }
+                        <li><a href="@Model.PageUrl(Model.Result.TotalPages)">@Model.Result.TotalPages</a></li>
+                    }
+                    <li>
+                        @if (Model.Result.Page < Model.Result.TotalPages)
+                        {
+                            <a href="@Model.PageUrl(Model.Result.Page + 1)" aria-label="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                        }
+                        else
+                        {
+                            <span class="is-disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                        }
+                    </li>
+                </ul>
+            }
+            @if (Model.Result.MatchCount > Model.PageSizes[0])
+            {
+                <ul class="library-pager__sizes" aria-label="Rows per page">
+                    <li><span class="library-pager__label">Rows</span></li>
+                    @foreach (var size in Model.PageSizes)
+                    {
+                        <li>
+                            @if (size == Model.PageSize)
+                            {
+                                <span class="is-current" aria-current="true">@size</span>
+                            }
+                            else
+                            {
+                                <a href="@Model.SizeUrl(size)">@size</a>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </nav>
     }
 </div>

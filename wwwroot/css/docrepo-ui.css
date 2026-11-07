@@ -982,6 +982,7 @@
 .library-pager .is-current { background: var(--pm-library-ink); color: var(--pm-library-card); }
 .library-pager .is-disabled,
 .library-pager .is-gap { color: var(--pm-library-faint); }
+.library-pager .library-pager__label { min-width: 0; padding: 0 4px; color: var(--pm-library-muted); font-size: .85rem; font-weight: 600; }
 
 /* SECTION: Reading pane (wide screens) */
 .library-pane {
