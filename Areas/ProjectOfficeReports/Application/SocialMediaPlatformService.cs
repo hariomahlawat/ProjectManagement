@@ -49,7 +49,8 @@ public sealed class SocialMediaPlatformService
                 x.CreatedByUserId,
                 x.LastModifiedAtUtc,
                 x.LastModifiedByUserId,
-                x.RowVersion))
+                x.RowVersion,
+                _db.SocialMediaEvents.Count(e => e.SocialMediaPlatformId == x.Id)))
             .ToListAsync(cancellationToken);
     }
 
@@ -160,6 +161,13 @@ public sealed class SocialMediaPlatformService
             return SocialMediaPlatformDeletionResult.NotFound();
         }
 
+        // Events keep the platform they were logged on (the foreign key restricts deletes), so a
+        // platform that is in use can only be deactivated (docs/ux/admin-review-2-fixes.md, PR 10).
+        if (await _db.SocialMediaEvents.AnyAsync(e => e.SocialMediaPlatformId == id, cancellationToken))
+        {
+            return SocialMediaPlatformDeletionResult.InUse();
+        }
+
         _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = rowVersion;
         _db.SocialMediaPlatforms.Remove(entity);
 
@@ -170,6 +178,12 @@ public sealed class SocialMediaPlatformService
         catch (DbUpdateConcurrencyException)
         {
             return SocialMediaPlatformDeletionResult.Concurrency();
+        }
+        catch (DbUpdateException)
+        {
+            // An event was logged on it between the check and the delete.
+            _db.ChangeTracker.Clear();
+            return SocialMediaPlatformDeletionResult.InUse();
         }
 
         await Audit.Events.SocialMediaPlatformDeleted(id, performedByUserId).WriteAsync(_audit);
@@ -211,13 +225,16 @@ public sealed record SocialMediaPlatformDeletionResult(SocialMediaPlatformDeleti
     public static SocialMediaPlatformDeletionResult NotFound() => new(SocialMediaPlatformDeletionOutcome.NotFound);
 
     public static SocialMediaPlatformDeletionResult Concurrency() => new(SocialMediaPlatformDeletionOutcome.ConcurrencyConflict);
+
+    public static SocialMediaPlatformDeletionResult InUse() => new(SocialMediaPlatformDeletionOutcome.InUse);
 }
 
 public enum SocialMediaPlatformDeletionOutcome
 {
     Success,
     NotFound,
-    ConcurrencyConflict
+    ConcurrencyConflict,
+    InUse
 }
 
 public sealed record SocialMediaPlatformSummary(
@@ -229,4 +246,5 @@ public sealed record SocialMediaPlatformSummary(
     string CreatedByUserId,
     DateTimeOffset? LastModifiedAtUtc,
     string? LastModifiedByUserId,
-    byte[] RowVersion);
+    byte[] RowVersion,
+    int EventCount = 0);

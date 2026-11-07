@@ -311,3 +311,20 @@ Each mismatch was traced to its query before anything changed.
 - **Guards:**
   - `AdminPlainWordsTests` covers these pages.
   - A new `SystemHealthMessages_UsePlainWords` test covers the health services' messages.
+
+## PR 10 as shipped
+
+- **One name per action:**
+  - "Edit account" everywhere: the Users list, the account page and the guide.
+  - "Renumber 1, 2, 3…" on Data checks, as on the lists.
+  - "Legacy project import" on Data jobs.
+  - Chat file storage is headed "Chat file storage" under "System".
+  - The media pages sit under "System", like the sidebar.
+- **Lists read the same:**
+  - The lookups, Activity types and the Document Repository lists all say "Order", "In use / Not used", "Inactive" and "Kept on old records".
+  - Delete appears only on values nothing uses; an in-use value says it can only be deactivated.
+- **Social media platforms:**
+  - Deleting a platform that events use was not checked, and the database refused it with an error page. The service now refuses it with a plain message, both when it checks and if an event is added at the same moment.
+  - The platform list shows how many events use each platform.
+  - The event types page no longer repeats the whole platforms list; it links to its own page instead.
+- **Not done: one layout for every list.** The Document Repository lists keep the library's layout, and the social media lists keep the reports module's. These pages belong to those modules and keep their module's look, as decided in the first review (fix PR 5). Rebuilding them in the admin list layout is a larger change, left to the owner. Their words and Delete rules now match.

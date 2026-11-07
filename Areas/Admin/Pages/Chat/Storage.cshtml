@@ -8,8 +8,8 @@
 
 <header class="admin-page-header">
     <div class="admin-page-header__content">
-        <div class="admin-page-header__eyebrow">Recovery</div>
-        <h1><i class="bi bi-paperclip me-2" aria-hidden="true"></i>Chat storage</h1>
+        <div class="admin-page-header__eyebrow">System</div>
+        <h1><i class="bi bi-paperclip me-2" aria-hidden="true"></i>Chat file storage</h1>
         <p>Space used by files sent in chat, and clean-ups. Sizes and people only: file names and conversations stay private. Every clean-up can be undone for @settings.UndoHours hours, and the people affected are told.</p>
     </div>
 </header>
@@ -27,7 +27,7 @@
     <div class="alert alert-secondary" role="status">Chat attachments are switched off (<code>Chat:Attachments:Enabled</code>). Files already sent are listed here and can still be cleaned up.</div>
 }
 
-<section class="admin-monitoring-metric-grid" aria-label="Chat storage summary">
+<section class="admin-monitoring-metric-grid" aria-label="Chat file storage summary">
     <article class="admin-monitoring-metric">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-files"></i></span>
         <span class="admin-monitoring-metric__copy"><strong>@Model.Totals.Files.ToString("N0")</strong><span>Files kept</span><small>@StorageModel.Size(Model.Totals.TotalBytes) in all</small></span>
