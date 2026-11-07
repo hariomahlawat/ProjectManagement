@@ -120,6 +120,79 @@ public sealed class AdminAccessGovernanceServiceTests
             capability.Policy == ProjectManagement.Configuration.Policies.Calendar.ManageCelebrations);
     }
 
+    // One rule for an active administrator (docs/ux/admin-review-2-fixes.md, PR 5): Who has which
+    // role counts what the last-Administrator guards count. A locked Admin is active (the lock ends
+    // by itself) and is shown as locked on its own; disabled and pending-deletion Admins are not.
+    [Fact]
+    public async Task Snapshot_CountsActiveAdministratorsByTheSameRuleAsTheGuards()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        var time = new FixedAdminTime();
+        var adminRole = Role("role-admin", RoleNames.Admin);
+        db.Roles.Add(adminRole);
+        var active = User("active", "Active Admin", disabled: false, lastLogin: true);
+        var locked = User("locked", "Locked Admin", disabled: false, lastLogin: true);
+        locked.LockoutEnabled = true;
+        locked.LockoutEnd = time.UtcNow.AddMinutes(15);
+        var disabled = User("disabled", "Disabled Admin", disabled: true, lastLogin: true);
+        disabled.LockoutEnd = DateTimeOffset.MaxValue;
+        var leaving = User("leaving", "Leaving Admin", disabled: true, lastLogin: true);
+        leaving.PendingDeletion = true;
+        var everyone = new[] { active, locked, disabled, leaving };
+        db.Users.AddRange(everyone);
+        db.UserRoles.AddRange(everyone.Select(user => new IdentityUserRole<string> { UserId = user.Id, RoleId = adminRole.Id }));
+        await db.SaveChangesAsync();
+
+        var snapshot = await new AdminAccessGovernanceService(
+            db,
+            new AdminRoleDescriptorCatalog(),
+            new AdminCapabilityCatalog(),
+            time).GetSnapshotAsync();
+
+        var guardCount = everyone.Count(ActiveAdministratorRule.IsActive);
+        Assert.Equal(2, guardCount);
+        Assert.Equal(guardCount, snapshot.AdministratorCount);
+        Assert.Equal(guardCount, snapshot.Roles.Single(role => role.Name == RoleNames.Admin).ActiveUsers);
+        Assert.DoesNotContain(snapshot.Findings, finding => finding.Code is "no-active-admin" or "single-active-admin");
+
+        var lockedRow = snapshot.Users.Single(user => user.Id == "locked");
+        Assert.True(lockedRow.IsLocked);
+        Assert.Contains(lockedRow.Findings, finding => finding.Code == "privileged-locked");
+    }
+
+    [Fact]
+    public async Task Snapshot_SaysNoActiveAdministrator_OnlyWhenTheGuardsWouldCountNone()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        var adminRole = Role("role-admin", RoleNames.Admin);
+        db.Roles.Add(adminRole);
+        var disabled = User("disabled", "Disabled Admin", disabled: true, lastLogin: true);
+        var leaving = User("leaving", "Leaving Admin", disabled: true, lastLogin: true);
+        leaving.PendingDeletion = true;
+        db.Users.AddRange(disabled, leaving);
+        db.UserRoles.AddRange(
+            new IdentityUserRole<string> { UserId = "disabled", RoleId = adminRole.Id },
+            new IdentityUserRole<string> { UserId = "leaving", RoleId = adminRole.Id });
+        await db.SaveChangesAsync();
+
+        var snapshot = await new AdminAccessGovernanceService(
+            db,
+            new AdminRoleDescriptorCatalog(),
+            new AdminCapabilityCatalog(),
+            new FixedAdminTime()).GetSnapshotAsync();
+
+        Assert.Equal(0, snapshot.AdministratorCount);
+        Assert.Contains(snapshot.Findings, finding => finding.Code == "no-active-admin");
+    }
+
     private sealed class FixedAdminTime : IAdminTimeService
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 7, 14, 0, 0, 0, TimeSpan.Zero);

@@ -134,3 +134,21 @@ reactivate them in a one-off step is the owner's call. PR 2 does not do it.
 **Owner decision needed:** the UX review found briefing decks deleted and restored in Recovery's
 recent activity, but they are not one of the kinds listed in Restore deleted items. Whether
 Recovery should list them, or say where they are restored, is left to the owner.
+
+## PR 5 as shipped
+
+- **One rule for an active administrator:** `Services/Admin/ActiveAdministratorRule.cs`. An account
+  is active when it is not disabled and not pending deletion. The last-administrator guards in user
+  management and the account lifecycle, and Who has which role, all use it. The guards still run in
+  a Serializable transaction.
+- **A temporarily locked administrator still counts as active.** A lock ends by itself, and an
+  administrator can clear it. Counting it as inactive would make the guards stricter exactly when
+  recovery matters. Before this PR, Who has which role left locked accounts out, so it could say
+  "No active Administrator" while the guards still counted one. It now counts what the guards count
+  and shows the lock as its own finding ("Privileged account is temporarily locked"). This also
+  applies to the "Active" figure on every role card.
+- **Bin counts from one place:** `Services/Admin/Recovery/AdminBins.cs` holds the queries for deleted
+  projects, project documents, repository documents and calendar events (deleted projects and
+  events lift the query filter, as before). Home, Restore deleted items and its tabs all count from
+  it. Tests check the rule, the guards with disabled, pending-deletion and locked admins, that Who
+  has which role counts the same as the guards, and that the three pages give the same bin counts.
