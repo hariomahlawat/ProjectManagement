@@ -109,7 +109,7 @@ const initialiseRoleGrids = () => {
             });
 
             if (accessCount) {
-                accessCount.textContent = `${visibleCapabilityCount} capabilit${visibleCapabilityCount === 1 ? "y" : "ies"}`;
+                accessCount.textContent = `${visibleCapabilityCount} thing${visibleCapabilityCount === 1 ? "" : "s"} they can do`;
             }
 
             const hasSelection = selectedRoleNames.size > 0;

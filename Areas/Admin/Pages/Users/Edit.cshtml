@@ -31,8 +31,8 @@
         <header class="admin-form-section__header">
             <span class="admin-form-section__step">01</span>
             <div>
-                <h2 id="edit-user-identity-title">Identity</h2>
-                <p>Update the official name and rank displayed in PRISM. The username remains permanent.</p>
+                <h2 id="edit-user-identity-title">Who they are</h2>
+                <p>Change the name and rank shown in PRISM. The username cannot be changed.</p>
             </div>
         </header>
         <div class="admin-form-section__body">
@@ -60,19 +60,19 @@
         <header class="admin-form-section__header">
             <span class="admin-form-section__step">02</span>
             <div>
-                <h2 id="edit-user-classification-title">Analytics classification</h2>
-                <p>Control whether this identity belongs to the default human-account population used for command adoption reporting.</p>
+                <h2 id="edit-user-classification-title">Kind of account</h2>
+                <p>Is this a person, or an account for a service or for testing? Only people are counted in ERP usage.</p>
             </div>
         </header>
         <div class="admin-form-section__body">
             <div class="admin-field admin-field--bounded">
                 <label asp-for="Input.AccountKind"></label>
                 <select asp-for="Input.AccountKind" class="form-select">
-                    <option value="Human">Human account</option>
+                    <option value="Human">A person</option>
                     <option value="Service">Service account</option>
                     <option value="Test">Test account</option>
                 </select>
-                <span class="admin-field__hint">Service and test accounts remain available to administrators but are excluded from adoption analytics by default.</span>
+                <span class="admin-field__hint">Service and test accounts still work; ERP usage just leaves them out by default.</span>
                 <span asp-validation-for="Input.AccountKind" class="text-danger"></span>
             </div>
         </div>
@@ -82,8 +82,8 @@
         <header class="admin-form-section__header">
             <span class="admin-form-section__step">03</span>
             <div>
-                <h2 id="edit-user-roles-title">Roles and access</h2>
-                <p>Select the required roles and review the resulting module access below. Role changes refresh the account security state.</p>
+                <h2 id="edit-user-roles-title">Roles</h2>
+                <p>Choose the roles their job needs. What they will be able to open is shown below. A change applies at their next page load.</p>
             </div>
         </header>
         <div class="admin-form-section__body">
@@ -97,7 +97,7 @@
             <span class="admin-form-section__step">04</span>
             <div>
                 <h2 id="edit-user-state-title">Account state</h2>
-                <p>Lifecycle controls are separated from profile editing to prevent accidental access changes.</p>
+                <p>Disabling, deleting, resetting a password and clearing a lockout are on their account page, so they are not done by accident here.</p>
             </div>
         </header>
         <div class="admin-form-section__body admin-form-section__body--state">
@@ -105,7 +105,7 @@
             {
                 <partial name="~/Areas/Admin/Pages/Shared/_AdminUserStateBadge.cshtml" model="Model.Account.AccountState" />
                 <a asp-page="./Details" asp-route-id="@Model.Account.Id" class="btn btn-sm btn-outline-secondary">
-                    Review lifecycle actions
+                    Open their account page
                 </a>
             }
         </div>

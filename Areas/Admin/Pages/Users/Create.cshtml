@@ -22,8 +22,8 @@
         <header class="admin-form-section__header">
             <span class="admin-form-section__step">01</span>
             <div>
-                <h2 id="create-user-identity-title">Identity</h2>
-                <p>Enter the official account identity used throughout PRISM records and audit history.</p>
+                <h2 id="create-user-identity-title">Who they are</h2>
+                <p>The name and rank shown on their records and in the audit log.</p>
             </div>
         </header>
         <div class="admin-form-section__body">
@@ -43,7 +43,7 @@
                 <div class="admin-field">
                     <label asp-for="Input.FullName"></label>
                     <input asp-for="Input.FullName" class="form-control" maxlength="100" autocomplete="name" />
-                    <span class="admin-field__hint">Displayed across workspaces, reports and audit entries.</span>
+                    <span class="admin-field__hint">Shown on pages, reports and the audit log.</span>
                     <span asp-validation-for="Input.FullName" class="text-danger"></span>
                 </div>
             </div>
@@ -54,19 +54,19 @@
         <header class="admin-form-section__header">
             <span class="admin-form-section__step">02</span>
             <div>
-                <h2 id="create-user-classification-title">Analytics classification</h2>
-                <p>Classify the identity explicitly so service and test accounts do not distort command adoption reporting.</p>
+                <h2 id="create-user-classification-title">Kind of account</h2>
+                <p>Is this a person, or an account for a service or for testing? Only people are counted in ERP usage.</p>
             </div>
         </header>
         <div class="admin-form-section__body">
             <div class="admin-field admin-field--bounded">
                 <label asp-for="Input.AccountKind"></label>
                 <select asp-for="Input.AccountKind" class="form-select">
-                    <option value="Human">Human account</option>
+                    <option value="Human">A person</option>
                     <option value="Service">Service account</option>
                     <option value="Test">Test account</option>
                 </select>
-                <span class="admin-field__hint">Human accounts are included in command adoption analytics by default. Changes are recorded in the administrative audit trail.</span>
+                <span class="admin-field__hint">ERP usage counts people by default. A change here is written to the audit log.</span>
                 <span asp-validation-for="Input.AccountKind" class="text-danger"></span>
             </div>
         </div>
@@ -77,7 +77,7 @@
             <span class="admin-form-section__step">03</span>
             <div>
                 <h2 id="create-user-password-title">Temporary password</h2>
-                <p>Issue a secure temporary password. The user will be required to replace it at first sign-in.</p>
+                <p>They sign in with it once and must then choose their own.</p>
             </div>
         </header>
         <div class="admin-form-section__body">
@@ -111,7 +111,7 @@
                     <div>
                         <strong>Password policy</strong>
                         <p>@Model.PasswordPolicyDescription</p>
-                        <p>Share the temporary password through an approved secure channel. Do not place it in remarks or email subject lines.</p>
+                        <p>Give them the temporary password in person or another approved way. Do not put it in remarks or an email subject.</p>
                     </div>
                 </aside>
             </div>
@@ -122,8 +122,8 @@
         <header class="admin-form-section__header">
             <span class="admin-form-section__step">04</span>
             <div>
-                <h2 id="create-user-roles-title">Roles and access</h2>
-                <p>Select the roles required for the user’s current duties. Review the effective module access below before creating the account.</p>
+                <h2 id="create-user-roles-title">Roles</h2>
+                <p>Choose the roles their job needs. What they will be able to open is shown below.</p>
             </div>
         </header>
         <div class="admin-form-section__body">

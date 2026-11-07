@@ -10,8 +10,8 @@
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
 <section class="admin-panel" aria-labelledby="archived-projects-title">
-    <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Operational archive</div><h2 id="archived-projects-title">Archived project directory</h2></div><span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span></header>
-    <div class="admin-definition-banner"><i class="bi bi-info-circle"></i><div><strong>Archive is not Trash</strong><p>Archived projects remain complete and are excluded from normal operational views. Restoring an archive is reversible and does not invoke deletion retention.</p></div></div>
+    <header class="admin-panel__header"><div><h2 id="archived-projects-title">Archived projects</h2></div><span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span></header>
+    <div class="admin-definition-banner"><i class="bi bi-info-circle"></i><div><strong>Archived is not deleted</strong><p>An archived project keeps everything; it is just left out of everyday lists. Restoring it puts it back, and nothing is ever deleted for good from here.</p></div></div>
     <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar">
         <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-input-with-icon"><i class="bi bi-search" aria-hidden="true"></i><input asp-for="Search" class="form-control" placeholder="Project or case file" /></div></div>
         <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label asp-for="PageSize">Rows</label><select asp-for="PageSize" class="form-select">@foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size">@size</option> }</select></div>
@@ -25,7 +25,7 @@
     }
     else
     {
-        <div class="admin-table-wrap"><table class="admin-data-table admin-recovery-table"><thead><tr><th>Project</th><th>Lifecycle</th><th>Responsibility</th><th>Archive record</th><th>Related records</th><th class="text-end">Action</th></tr></thead><tbody>
+        <div class="admin-table-wrap"><table class="admin-data-table admin-recovery-table"><thead><tr><th>Project</th><th>Stage</th><th>Responsibility</th><th>Archive record</th><th>Related records</th><th class="text-end">Action</th></tr></thead><tbody>
         @foreach (var row in Model.Result.Items)
         {
             <tr>
@@ -49,8 +49,8 @@
 <div class="modal prism-confirm-modal fade" id="archiveRestoreModal" tabindex="-1" aria-labelledby="archiveRestoreTitle" aria-hidden="true" data-tone="primary">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-controlled-modal"><form method="post" asp-page-handler="Restore" data-archive-restore-form>
         <input type="hidden" asp-for="RestoreProjectId" data-archive-project-id /><input type="hidden" asp-for="Search" /><input type="hidden" asp-for="PageNumber" /><input type="hidden" asp-for="PageSize" />
-        <div class="modal-header"><div><div class="admin-panel__eyebrow">Archive recovery</div><h2 class="modal-title fs-5" id="archiveRestoreTitle">Restore project</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-        <div class="modal-body"><div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-folder2-open"></i></span><div><strong data-archive-project-name>Selected project</strong><small>Return this project to normal operational views.</small></div></div><p class="mb-0">Lifecycle stages, assignments, documents and historical records remain unchanged. Only the archive state will be removed.</p></div>
+        <div class="modal-header"><div><h2 class="modal-title fs-5" id="archiveRestoreTitle">Restore project</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body"><div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-folder2-open"></i></span><div><strong data-archive-project-name>Selected project</strong><small>Put this project back in everyday lists.</small></div></div><p class="mb-0">Its stages, team, documents and history stay exactly as they are; only the archive is undone.</p></div>
         <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" data-archive-submit><i class="bi bi-arrow-counterclockwise"></i> Restore project</button></div>
     </form></div></div>
 </div>

@@ -201,8 +201,8 @@ public sealed class ClassificationsModel : PageModel
             StatusMessage = updated == 0
                 ? "No eligible images were updated."
                 : classification == MediaClassification.Photograph
-                    ? $"Classified and audited {updated} image(s) as natural photographs. Face processing remains blocked pending individual approval."
-                    : $"Updated and audited {updated} image classification(s).";
+                    ? $"Marked {updated} image{(updated == 1 ? "" : "s")} as photos. Faces will not be looked for until each is approved."
+                    : $"Updated {updated} image{(updated == 1 ? "" : "s")}.";
         }
         catch (MediaClassificationConcurrencyException exception)
         {
@@ -241,7 +241,7 @@ public sealed class ClassificationsModel : PageModel
                 CurrentUserId(),
                 reason ?? string.Empty,
                 cancellationToken);
-            StatusMessage = "Face-processing admission approved and audited for this exact image content.";
+            StatusMessage = "Approved for face finding. The approval covers this exact image.";
         }
         catch (MediaClassificationConcurrencyException exception)
         {
@@ -273,7 +273,7 @@ public sealed class ClassificationsModel : PageModel
                 CurrentUserId(),
                 reason ?? string.Empty,
                 cancellationToken);
-            StatusMessage = "Face-processing admission revoked. Existing face intelligence was retired.";
+            StatusMessage = "Face-finding approval withdrawn. Faces already found in this image were removed.";
         }
         catch (MediaClassificationConcurrencyException exception)
         {
@@ -305,7 +305,7 @@ public sealed class ClassificationsModel : PageModel
                 CurrentUserId(),
                 reason,
                 cancellationToken);
-            StatusMessage = "Automatic classification has been queued.";
+            StatusMessage = "PRISM will sort this image again shortly.";
         }
         catch (MediaClassificationConcurrencyException exception)
         {
@@ -355,7 +355,7 @@ public sealed class ClassificationsModel : PageModel
             .ToListAsync(cancellationToken);
         if (staleAssets.Count == 0 && await staleCandidates.AnyAsync(cancellationToken))
         {
-            StatusMessage = "Every stale image is already queued for reclassification. The background worker will process them.";
+            StatusMessage = "Every older image is already waiting to be sorted again. It happens in the background.";
             return RedirectToCurrent();
         }
         var moreRemain = staleAssets.Count > MaximumReclassifyBatch;
@@ -366,7 +366,7 @@ public sealed class ClassificationsModel : PageModel
 
         if (staleAssets.Count == 0)
         {
-            StatusMessage = "All automatic classifications already use the current classifier version.";
+            StatusMessage = "Every image PRISM sorted already uses the current version.";
             return RedirectToCurrent();
         }
 
@@ -500,10 +500,10 @@ public sealed class ClassificationsModel : PageModel
         await AuditReclassifyBestEffortAsync(queueableIds.Length, skipped, moreRemain, userId, cancellationToken);
 
         var message = skipped == 0
-            ? $"Queued {queueable.Length} stale automatic classification(s) for {MediaClassifier.ClassifierVersion}."
-            : $"Queued {queueable.Length} stale classification(s); {skipped} active item(s) were left unchanged.";
+            ? $"{queueable.Length} older image{(queueable.Length == 1 ? " is" : "s are")} waiting to be sorted again."
+            : $"{queueable.Length} older image{(queueable.Length == 1 ? " is" : "s are")} waiting to be sorted again; {skipped} already in progress {(skipped == 1 ? "was" : "were")} left alone.";
         StatusMessage = moreRemain
-            ? $"{message} More stale images remain; run Reclassify stale again to continue."
+            ? $"{message} More older images remain; use Sort older images again to continue."
             : message;
         return RedirectToPage(new { Q, FilterClassification, Mode = "stale", P = 1 });
     }
@@ -723,34 +723,34 @@ public sealed class ClassificationsModel : PageModel
 
         public string DecisionReasonLabel => DecisionReasonCode switch
         {
-            "AUTO_ACCEPTED_HIGH_CONFIDENCE" => "High evidence with clear score separation",
-            "BELOW_CATEGORY_THRESHOLD" => "Evidence below the acceptance threshold",
-            "AMBIGUOUS_SCORE_MARGIN" => "Winner too close to the runner-up",
-            "CONFLICTING_NON_PHOTO_EVIDENCE" => "Conflicting non-photograph evidence",
-            "CONFLICTING_BASE_NON_PHOTO_EVIDENCE" => "Strong non-photograph evidence exists before face assistance",
-            "EXPLICIT_NON_PHOTO_FILENAME_VETO" => "Filename strongly indicates non-photographic content",
-            "DOCUMENT_STRUCTURE_VETO" => "Page or document structure blocks Photograph admission",
-            "DIAGRAM_STRUCTURE_VETO" => "Diagram structure blocks Photograph admission",
-            "GRAPHIC_STRUCTURE_VETO" => "Designed-graphic structure blocks Photograph admission",
-            "PHOTO_BASELINE_INSUFFICIENT" => "Natural-photograph baseline is insufficient",
-            "FACE_EVIDENCE_NOT_NATURAL_PHOTO" => "Face-like structure was not accepted as natural-photo evidence",
-            "CATEGORY_DISABLED" => "This detector category is disabled",
-            "NO_RELIABLE_PREDICTION" => "No reliable prediction",
-            "CLASSIFIER_PROCESSING_FAILED" => "Classifier processing failed",
-            "MANUAL_CONFIRMATION" => "Human confirmed the prediction",
-            "MANUAL_CORRECTION" => "Human corrected the prediction",
-            "MANUAL_FACE_ADMISSION" => "Human separately approved biometric face processing",
-            "MANUAL_FACE_ADMISSION_REVOKED" => "Human revoked biometric face-processing approval",
-            _ => DecisionReasonCode ?? "No decision reason recorded"
+            "AUTO_ACCEPTED_HIGH_CONFIDENCE" => "PRISM was sure",
+            "BELOW_CATEGORY_THRESHOLD" => "PRISM was not sure enough",
+            "AMBIGUOUS_SCORE_MARGIN" => "The two best guesses were too close",
+            "CONFLICTING_NON_PHOTO_EVIDENCE" => "Some signs say it is not a photo",
+            "CONFLICTING_BASE_NON_PHOTO_EVIDENCE" => "Strong signs say it is not a photo",
+            "EXPLICIT_NON_PHOTO_FILENAME_VETO" => "The file name says it is not a photo",
+            "DOCUMENT_STRUCTURE_VETO" => "It looks like a page or document, so it is not treated as a photo",
+            "DIAGRAM_STRUCTURE_VETO" => "It looks like a diagram, so it is not treated as a photo",
+            "GRAPHIC_STRUCTURE_VETO" => "It looks like a designed graphic, so it is not treated as a photo",
+            "PHOTO_BASELINE_INSUFFICIENT" => "It does not look enough like a real photo",
+            "FACE_EVIDENCE_NOT_NATURAL_PHOTO" => "Something face-like was found, but not in a real photo",
+            "CATEGORY_DISABLED" => "This kind of image is switched off",
+            "NO_RELIABLE_PREDICTION" => "PRISM could not tell",
+            "CLASSIFIER_PROCESSING_FAILED" => "Sorting failed for this image",
+            "MANUAL_CONFIRMATION" => "A person agreed with PRISM",
+            "MANUAL_CORRECTION" => "A person corrected PRISM",
+            "MANUAL_FACE_ADMISSION" => "A person approved face finding",
+            "MANUAL_FACE_ADMISSION_REVOKED" => "A person withdrew the face-finding approval",
+            _ => DecisionReasonCode ?? "No reason recorded"
         };
 
         public string FaceAssistanceLabel => FaceEvidenceUsed
-            ? "Face evidence used"
+            ? "A face helped decide"
             : FaceEvidenceDetected
-                ? "Face-like structure blocked"
+                ? "Something face-like was ignored"
                 : FaceProbeAttempted
-                    ? "No verified face support"
-                    : "Face probe not required";
+                    ? "No face found to help decide"
+                    : "Not needed";
 
         public string FaceAssistanceCss => FaceEvidenceUsed
             ? "classification-assistance--used"

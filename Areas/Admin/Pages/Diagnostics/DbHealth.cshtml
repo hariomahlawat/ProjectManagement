@@ -50,15 +50,15 @@
     </article>
     <article class="admin-health-fact">
         <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-speedometer2"></i></span>
-        <div><small>Query latency</small><strong>@(database.QueryLatencyMilliseconds.HasValue ? $"{database.QueryLatencyMilliseconds:N0} ms" : "—")</strong><span>@(database.ServerVersion is { } version ? $"PostgreSQL {version}" : "Server version unavailable")</span></div>
+        <div><small>Database response</small><strong>@(database.QueryLatencyMilliseconds.HasValue ? $"{database.QueryLatencyMilliseconds:N0} ms" : "—")</strong><span>@(database.ServerVersion is { } version ? $"PostgreSQL {version}" : "Server version unavailable")</span></div>
     </article>
     <article class="admin-health-fact">
         <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-device-ssd"></i></span>
-        <div><small>Database size</small><strong>@Model.FormatBytes(database.DatabaseSizeBytes)</strong><span>@database.AppliedMigrations.Count applied migrations</span></div>
+        <div><small>Database size</small><strong>@Model.FormatBytes(database.DatabaseSizeBytes)</strong><span>@database.AppliedMigrations.Count updates on record</span></div>
     </article>
     <article class="admin-health-fact">
         <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></span>
-        <div><small>Migration state</small><strong>@database.PendingMigrations.Count pending</strong><span>@database.AppliedButMissingMigrations.Count missing from assembly</span></div>
+        <div><small>Database updates</small><strong>@database.PendingMigrations.Count to run</strong><span>@database.AppliedButMissingMigrations.Count not known to this PRISM</span></div>
     </article>
 </section>
 
@@ -110,7 +110,7 @@
     }
 </div>
 
-<section class="admin-health-migration-grid" aria-label="Migration lineage details">
+<section class="admin-health-migration-grid" aria-label="Database update details">
     <article class="admin-panel">
         <header class="admin-panel__header">
             <div>

@@ -15,15 +15,15 @@
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info">
         <span class="admin-monitoring-metric__icon"><i class="bi bi-info-square"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.RestrictedCount</strong><span>Restricted Holidays</span><small>Full notified list</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.RestrictedCount</strong><span>Restricted Holidays</span><small>The full list notified this year</small></span>
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--warning">
         <span class="admin-monitoring-metric__icon"><i class="bi bi-building-check"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.ObservedRestrictedCount</strong><span>RH office holidays</span><small>Declared by the office</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.ObservedRestrictedCount</strong><span>Restricted holidays the office keeps</span><small>The office closes on these</small></span>
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
         <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-x"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.OfficeHolidayDateCount</strong><span>Total office holidays</span><small>Distinct non-working dates</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.OfficeHolidayDateCount</strong><span>Total office holidays</span><small>Days the office is closed</small></span>
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info">
         <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-event"></i></span>
@@ -33,7 +33,7 @@
 
 <section class="admin-panel" aria-labelledby="holiday-directory-title">
     <header class="admin-panel__header">
-        <div><div class="admin-panel__eyebrow">Calendar year @Model.Year</div><h2 id="holiday-directory-title">Holiday directory</h2></div>
+        <div><h2 id="holiday-directory-title">Holidays in @Model.Year</h2></div>
         <span class="admin-panel__meta">@Model.Items.Count matching record@(Model.Items.Count == 1 ? string.Empty : "s")</span>
     </header>
 

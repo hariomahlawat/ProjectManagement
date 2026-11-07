@@ -114,7 +114,7 @@ public sealed class MediaIntelligenceAuthorizationTests
         var result = await page.OnPostReclassifyStaleAsync(CancellationToken.None);
 
         Assert.IsType<RedirectToPageResult>(result);
-        Assert.Contains("already queued", page.StatusMessage);
+        Assert.Contains("already waiting to be sorted again", page.StatusMessage);
     }
 
     private static async Task<(IActionResult? Result, bool HandlerRan)> RunHandlerAsync(

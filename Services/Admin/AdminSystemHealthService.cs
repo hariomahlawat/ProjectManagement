@@ -125,27 +125,27 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         checks.Add(await RunAsync(
             "upload-root",
             "Storage",
-            "Primary upload storage",
+            "Upload folder",
             token => CheckWritableDirectoryAsync(_uploads.RootPath, token),
-            "Configure PM_UPLOAD_ROOT or ProjectPhotos:StorageRoot to a writable persistent location.",
+            "Ask whoever runs the PRISM server to point uploads at a kept folder PRISM can write to (setting PM_UPLOAD_ROOT or ProjectPhotos:StorageRoot).",
             cancellationToken));
 
         var docRepoRoot = ResolvePath(_docRepo.RootPath);
         checks.Add(await RunAsync(
             "document-repository",
             "Storage",
-            "Document repository storage",
+            "Document Repository folder",
             token => CheckWritableDirectoryAsync(docRepoRoot, token),
-            "Configure DocRepo:RootPath to a writable persistent location.",
+            "Ask whoever runs the PRISM server to point the Document Repository at a kept folder PRISM can write to (setting DocRepo:RootPath).",
             cancellationToken));
 
         var dataProtectionRoot = ResolveDataProtectionPath();
         checks.Add(await RunAsync(
             "data-protection-keys",
-            "Application security",
-            "Data Protection key storage",
+            "Security",
+            "Sign-in key folder",
             token => CheckDataProtectionDirectoryAsync(dataProtectionRoot, token),
-            "Configure DP_KEYS_DIR to a persistent writable directory shared by the deployed application instance.",
+            "Ask whoever runs the PRISM server to keep sign-in keys in a folder that survives restarts (setting DP_KEYS_DIR); without it everyone is signed out when PRISM restarts.",
             cancellationToken));
 
         // Search is part of PRISM's health: items that could not be indexed are missing from
@@ -236,7 +236,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                     check.Summary,
                     check.Detail,
                     check.Status is AdminHealthStatus.Critical or AdminHealthStatus.Warning
-                        ? "Review the migration and database deployment guidance before the next release."
+                        ? "Ask whoever runs the PRISM server to finish the database update before anyone relies on this version."
                         : null,
                     -1,
                     DateTimeOffset.UtcNow));
@@ -250,11 +250,11 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             target.Add(new AdminSystemHealthCheck(
                 "database-timeout",
                 "Database",
-                "Database diagnostics",
+                "Database checks",
                 AdminHealthStatus.Critical,
-                "Database diagnostics exceeded the permitted execution time.",
+                "The database checks took too long and were stopped.",
                 null,
-                "Review database availability and application logs.",
+                "Check that the database server is running, then look at the application log.",
                 stopwatch.ElapsedMilliseconds,
                 DateTimeOffset.UtcNow));
             return EmptyDatabaseSnapshot();
@@ -266,11 +266,11 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             target.Add(new AdminSystemHealthCheck(
                 "database-failure",
                 "Database",
-                "Database diagnostics",
+                "Database checks",
                 AdminHealthStatus.Critical,
-                "Database diagnostics could not be completed.",
+                "The database checks could not finish.",
                 null,
-                "Review application logs for the diagnostic reference.",
+                "Look at the application log for the reference.",
                 stopwatch.ElapsedMilliseconds,
                 DateTimeOffset.UtcNow));
             return EmptyDatabaseSnapshot();
@@ -311,7 +311,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 group,
                 label,
                 AdminHealthStatus.Warning,
-                "The check exceeded the permitted execution time.",
+                "The check took too long and was stopped.",
                 null,
                 recommendedAction,
                 stopwatch.ElapsedMilliseconds,
@@ -326,7 +326,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 group,
                 label,
                 AdminHealthStatus.Warning,
-                "The check could not be completed.",
+                "The check could not finish.",
                 null,
                 recommendedAction,
                 stopwatch.ElapsedMilliseconds,
@@ -340,14 +340,14 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     {
         if (!Directory.Exists(path))
         {
-            return (AdminHealthStatus.Warning, "The configured directory does not exist.", null);
+            return (AdminHealthStatus.Warning, "The folder does not exist.", null);
         }
 
         var probe = Path.Combine(path, $".prism-health-{Guid.NewGuid():N}.tmp");
         try
         {
             await File.WriteAllTextAsync(probe, "ok", cancellationToken);
-            return (AdminHealthStatus.Healthy, "The directory is available and writable.", null);
+            return (AdminHealthStatus.Healthy, "The folder is there and PRISM can write to it.", null);
         }
         finally
         {
@@ -377,14 +377,14 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         {
             return (
                 AdminHealthStatus.Warning,
-                "Key storage is writable but is using the production fallback location.",
-                "Set DP_KEYS_DIR to an explicitly managed persistent location before deployment.");
+                "PRISM can save sign-in keys, but only in its fallback folder.",
+                "Set DP_KEYS_DIR to a folder that is kept and backed up.");
         }
 
         return (
             AdminHealthStatus.Healthy,
-            "The key directory is available and writable.",
-            explicitlyConfigured ? "Persistent key storage is explicitly configured." : "Development key storage is active.");
+            "The sign-in key folder is there and PRISM can write to it.",
+            explicitlyConfigured ? "The folder is set in the server settings." : "Using the development folder.");
     }
 
     private AdminSystemHealthCheck BuildDiskSpaceCheck(string path)
@@ -407,11 +407,11 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             return new(
                 "storage-capacity",
                 "Storage",
-                "Storage capacity",
+                "Disk space",
                 status,
-                $"{freePercent:0.#}% free on the volume containing the upload root.",
-                $"{FormatBytes(drive.AvailableFreeSpace)} available of {FormatBytes(drive.TotalSize)}.",
-                status == AdminHealthStatus.Healthy ? null : "Free storage capacity or move uploads to a larger persistent volume.",
+                $"{freePercent:0.#}% of the upload disk is free.",
+                $"{FormatBytes(drive.AvailableFreeSpace)} free of {FormatBytes(drive.TotalSize)}.",
+                status == AdminHealthStatus.Healthy ? null : "Free some space, or move uploads to a larger disk.",
                 stopwatch.ElapsedMilliseconds,
                 DateTimeOffset.UtcNow);
         }
@@ -422,9 +422,9 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             return new(
                 "storage-capacity",
                 "Storage",
-                "Storage capacity",
+                "Disk space",
                 AdminHealthStatus.Unavailable,
-                "Available storage capacity could not be determined.",
+                "Free space on the upload disk could not be read.",
                 null,
                 null,
                 stopwatch.ElapsedMilliseconds,
@@ -438,17 +438,17 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         var production = _environment.IsProduction();
         var status = production ? AdminHealthStatus.Healthy : AdminHealthStatus.Warning;
         var summary = production
-            ? "Production environment configuration is active."
-            : $"{_environment.EnvironmentName} environment configuration is active; this is not a production-readiness result.";
-        var detail = $"Version {ResolveApplicationVersion()} · Startup migrations {(migrationsOnStartup ? "enabled" : "disabled")}.";
+            ? "PRISM is using its live (Production) settings."
+            : $"PRISM is using its {_environment.EnvironmentName} settings, so this page does not show whether the live server is ready.";
+        var detail = $"Version {ResolveApplicationVersion()} · database updates at start-up {(migrationsOnStartup ? "on" : "off")}.";
         return new(
             "application-runtime",
             "Application security",
-            "Application runtime",
+            "PRISM version and settings",
             status,
             summary,
             detail,
-            production ? null : "Use the Production environment and production configuration when validating deployment readiness.",
+            production ? null : "To check the live server, open this page on it; it uses the Production settings.",
             -1,
             DateTimeOffset.UtcNow);
     }
@@ -480,23 +480,23 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
 
             var summary = worker.State switch
             {
-                AdminWorkerState.Registered => "Starting; no processing cycle has completed since application start.",
-                AdminWorkerState.Running when runningTooLong => "The current processing cycle has exceeded its expected completion window.",
-                AdminWorkerState.Running => "A processing cycle is currently running.",
-                AdminWorkerState.Healthy when stale => "The latest successful cycle is older than the expected schedule.",
-                AdminWorkerState.Healthy => "The latest processing cycle completed successfully.",
-                AdminWorkerState.Failed => "The latest processing cycle failed.",
-                _ => "Worker state is unavailable."
+                AdminWorkerState.Registered => "Started with PRISM; it has not finished its first run yet.",
+                AdminWorkerState.Running when runningTooLong => "Its current run is taking longer than expected.",
+                AdminWorkerState.Running => "Running now.",
+                AdminWorkerState.Healthy when stale => "Its last good run is older than expected.",
+                AdminWorkerState.Healthy => "Its last run finished without problems.",
+                AdminWorkerState.Failed => "Its last run failed.",
+                _ => "Its state is not known."
             };
 
             var details = new List<string>();
             if (expected.HasValue)
             {
-                details.Add($"Expected cadence: {FormatDuration(expected.Value)}");
+                details.Add($"Runs every {FormatDuration(expected.Value)}");
             }
             if (worker.LastSucceededUtc.HasValue)
             {
-                details.Add($"Last successful cycle: {FormatIst(worker.LastSucceededUtc.Value)}");
+                details.Add($"Last good run: {FormatIst(worker.LastSucceededUtc.Value)}");
             }
             else if (worker.LastStartedUtc.HasValue)
             {
@@ -504,24 +504,24 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             }
             else
             {
-                details.Add($"Registered: {FormatIst(worker.RegisteredUtc)}");
+                details.Add($"Started with PRISM: {FormatIst(worker.RegisteredUtc)}");
             }
             if (!string.IsNullOrWhiteSpace(worker.Detail))
             {
                 details.Add(worker.State == AdminWorkerState.Failed
-                    ? $"Failure type: {worker.Detail}"
+                    ? $"What failed: {worker.Detail}"
                     : worker.Detail);
             }
 
             yield return new(
                 $"worker-{worker.Key}",
-                "Background services",
+                "Background jobs",
                 worker.Label,
                 status,
                 summary,
                 EndSentence(string.Join(" · ", details)),
                 status is AdminHealthStatus.Warning or AdminHealthStatus.Critical
-                    ? "Review application logs and the worker schedule or configuration."
+                    ? "Look at the application log for the error, then check the job's schedule and settings."
                     : null,
                 -1,
                 now);
@@ -540,7 +540,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         ProjectManagement.Services.SearchV2.Models.SearchIndexHealth index,
         int requiredProjectionVersion)
     {
-        var detail = $"{index.EntryCount:N0} items searchable · {index.PendingItems:N0} waiting to be indexed.";
+        var detail = $"{index.EntryCount:N0} items searchable · {index.PendingItems:N0} waiting to be added.";
         if (index.IsReady && index.IndexVersion != requiredProjectionVersion)
         {
             return (
