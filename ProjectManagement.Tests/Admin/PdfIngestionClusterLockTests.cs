@@ -81,7 +81,7 @@ public sealed class PdfIngestionClusterLockTests
             gate,
             clusterLock,
             audit,
-            new PdfIngestionRunHistory(),
+            new PdfIngestionRunHistory(db),
             new AdminTimeService(FakeClock.AtUtc(new DateTimeOffset(2026, 11, 6, 6, 0, 0, TimeSpan.Zero))),
             new HttpContextAccessor(),
             NullLogger<PdfIngestionCoordinator>.Instance);

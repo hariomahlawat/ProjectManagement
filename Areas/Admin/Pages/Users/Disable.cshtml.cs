@@ -129,24 +129,10 @@ public sealed class DisableModel : PageModel
             return Page();
         }
 
+        UserDisableOutcome outcome;
         try
         {
-            await _lifecycle.DisableAsync(id, actorId, Reason);
-            TempData[FlashMessageKeys.AdminUsersSuccess] = $"@{Account.UserName} was disabled. Any open sessions will be signed out {SessionEndDelay}.";
-            return RedirectToPage("./Details", new { id });
-        }
-        catch (InvalidOperationException exception)
-        {
-            var reference = HttpContext.TraceIdentifier;
-            _logger.LogWarning(
-                exception,
-                "Disable request for user {UserId} was rejected by an account safeguard. Reference {Reference}.",
-                id,
-                reference);
-            ModelState.AddModelError(
-                string.Empty,
-                PublicDisableFailure(exception.Message, reference));
-            return Page();
+            outcome = await _lifecycle.TryDisableAsync(id, actorId, Reason);
         }
         catch (Exception exception)
         {
@@ -155,19 +141,33 @@ public sealed class DisableModel : PageModel
             ModelState.AddModelError(string.Empty, $"The account could not be disabled. Reference: {reference}.");
             return Page();
         }
+
+        if (outcome is UserDisableOutcome.Disabled or UserDisableOutcome.AlreadyDisabled)
+        {
+            TempData[FlashMessageKeys.AdminUsersSuccess] = $"@{Account.UserName} was disabled. Any open sessions will be signed out {SessionEndDelay}.";
+            return RedirectToPage("./Details", new { id });
+        }
+
+        _logger.LogWarning(
+            "Disable request for user {UserId} was stopped by an account safeguard: {Outcome}. Reference {Reference}.",
+            id,
+            outcome,
+            HttpContext.TraceIdentifier);
+        ModelState.AddModelError(string.Empty, PublicDisableFailure(outcome, HttpContext.TraceIdentifier));
+        return Page();
     }
 
-
-    private static string PublicDisableFailure(string? internalMessage, string reference) =>
-        internalMessage switch
+    /// <summary>The words shown for each safeguard, chosen by the service's typed outcome.</summary>
+    internal static string PublicDisableFailure(UserDisableOutcome outcome, string reference) =>
+        outcome switch
         {
-            "You cannot disable your own account." =>
+            UserDisableOutcome.SelfDisable =>
                 "You cannot disable your own signed-in account.",
-            "The account is pending deletion. Undo the deletion request before changing its status." =>
+            UserDisableOutcome.PendingDeletion =>
                 "Undo the deletion request before changing this account's state.",
-            "Cannot disable the last active Admin." =>
+            UserDisableOutcome.LastActiveAdmin =>
                 "This account is the last active Administrator and cannot be disabled.",
-            "User not found." =>
+            UserDisableOutcome.NotFound =>
                 "The account no longer exists or was removed by another administrator.",
             _ => $"The account could not be disabled. Reference: {reference}."
         };

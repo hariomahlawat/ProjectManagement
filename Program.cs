@@ -505,6 +505,7 @@ builder.Services.AddScoped<IDocRepoMissingFilesService, DocRepoMissingFilesServi
 builder.Services.AddHostedService<DocRepoTrashPurgeWorker>();
 builder.Services.AddSingleton<IUrlBuilder, UrlBuilder>();
 builder.Services.AddScoped<IDocumentOcrService, DocumentOcrService>();
+builder.Services.AddScoped<IOcrFailureQueryService, OcrFailureQueryService>();
 builder.Services.AddSingleton<IOcrmypdfInvoker, ProcessOcrmypdfInvoker>();
 builder.Services.AddSingleton<IPdfTextExtractor, PdfPigTextExtractor>();
 builder.Services.AddScoped<OcrmypdfSharedRunner>();
@@ -652,12 +653,13 @@ builder.Services.AddScoped<IErpUsagePatternQueryService, ErpUsagePatternQuerySer
 builder.Services.AddHostedService<UserActivityRetentionWorker>();
 builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
 builder.Services.AddScoped<IPdfIngestionClusterLock, PdfIngestionClusterLock>();
-builder.Services.AddSingleton<IPdfIngestionRunHistory, PdfIngestionRunHistory>();
+builder.Services.AddScoped<IPdfIngestionRunHistory, PdfIngestionRunHistory>();
 builder.Services.AddScoped<IPdfIngestionCoordinator, PdfIngestionCoordinator>();
 builder.Services.AddScoped<IAdminRecoverySummaryService, AdminRecoverySummaryService>();
 builder.Services.AddScoped<IAdminRestoreTabsService, AdminRestoreTabsService>();
 builder.Services.AddScoped<IProjectRecoveryQueryService, ProjectRecoveryQueryService>();
 builder.Services.AddScoped<IDocumentRecoveryQueryService, DocumentRecoveryQueryService>();
+builder.Services.AddScoped<IDocumentRecycleService, DocumentRecycleService>();
 builder.Services.AddScoped<IAdminMaintenanceSummaryService, AdminMaintenanceSummaryService>();
 builder.Services.AddScoped<ILegacyImportPreflightService, LegacyImportPreflightService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();

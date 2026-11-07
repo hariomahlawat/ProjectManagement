@@ -41,9 +41,9 @@ public sealed class IngestExternalPdfsModel : PageModel
     public IReadOnlyList<PdfIngestionRunRecord> RecentRuns { get; private set; } = Array.Empty<PdfIngestionRunRecord>();
     public bool IsRunning => _coordinator.IsRunning;
 
-    public void OnGet()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        Load();
+        await LoadAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnPostRunAsync()
@@ -64,9 +64,13 @@ public sealed class IngestExternalPdfsModel : PageModel
         return RedirectToPage(new { RunId = operation.Value.RunId });
     }
 
-    public IActionResult OnGetFailureReport(Guid runId)
+    public async Task<IActionResult> OnGetFailureReportAsync(
+        Guid runId,
+        [FromServices] IAdminExportAuditService exportAudit,
+        CancellationToken cancellationToken)
     {
-        var run = _history.Get(runId);
+        ArgumentNullException.ThrowIfNull(exportAudit);
+        var run = await _history.GetAsync(runId, cancellationToken);
         if (run is null || run.Failures.Count == 0) return NotFound();
 
         var csv = new StringBuilder();
@@ -75,6 +79,18 @@ public sealed class IngestExternalPdfsModel : PageModel
         {
             SafeCsv.AppendRow(csv, failure.Source, failure.SourceItemId, failure.FileName, failure.Message);
         }
+
+        // Audited like every other admin export, before the file leaves
+        // (docs/ux/admin-review-3-fixes.md, C8). If the audit write fails, no file is returned.
+        await exportAudit.RecordAsync(
+            new AdminExportRecord(
+                AdminExportKind.PdfIngestionFailures,
+                run.Failures.Count,
+                new Dictionary<string, string?>
+                {
+                    ["Run"] = run.RunId.ToString("N")
+                }),
+            cancellationToken);
 
         return File(
             SafeCsv.ToUtf8WithBom(csv.ToString()),
@@ -87,10 +103,12 @@ public sealed class IngestExternalPdfsModel : PageModel
         ? $"{duration.TotalMinutes:0.#} min"
         : $"{Math.Max(0, duration.TotalSeconds):0} sec";
 
-    private void Load()
+    private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        RecentRuns = _history.GetRecent(10);
-        Result = RunId.HasValue ? _history.Get(RunId.Value) : RecentRuns.FirstOrDefault();
+        RecentRuns = await _history.GetRecentAsync(10, cancellationToken);
+        Result = RunId.HasValue
+            ? RecentRuns.FirstOrDefault(run => run.RunId == RunId.Value) ?? await _history.GetAsync(RunId.Value, cancellationToken)
+            : RecentRuns.FirstOrDefault();
         Header = new AdminPageHeaderModel
         {
             Title = "Copy PDFs into the repository",

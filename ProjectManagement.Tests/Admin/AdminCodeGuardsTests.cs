@@ -68,11 +68,16 @@ public sealed class AdminCodeGuardsTests
     // The failure report used a private escaper that missed a leading tab, carriage return or
     // spaces before a formula character. It now uses SafeCsv like every other admin export.
     [Fact]
-    public void PdfIngestionFailureReport_NeutralisesFormulasAndQuotes()
+    public async Task PdfIngestionFailureReport_NeutralisesFormulasAndQuotes()
     {
-        var history = new PdfIngestionRunHistory();
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var history = new PdfIngestionRunHistory(db);
         var runId = Guid.NewGuid();
-        history.Record(new PdfIngestionRunRecord(
+        await history.RecordAsync(new PdfIngestionRunRecord(
             runId,
             new DateTimeOffset(2026, 11, 6, 6, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 11, 6, 6, 5, 0, TimeSpan.Zero),
@@ -90,13 +95,67 @@ public sealed class AdminCodeGuardsTests
             Unused<IAdminNavigationUrlBuilder>(),
             Unused<IHostApplicationLifetime>());
 
-        var file = Assert.IsType<FileContentResult>(page.OnGetFailureReport(runId));
+        var exportAudit = new RecordingExportAudit();
+        var file = Assert.IsType<FileContentResult>(await page.OnGetFailureReportAsync(runId, exportAudit, default));
         Assert.Equal(Encoding.UTF8.GetPreamble(), file.FileContents.Take(3));
 
         var lines = Encoding.UTF8.GetString(file.FileContents, 3, file.FileContents.Length - 3)
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal("Source,Source item,File name,Result", lines[0]);
         Assert.Equal("\"'\t=HYPERLINK(\"\"x\"\")\",\"  '+42\",\"'\rcmd.pdf\",\"Said \"\"no\"\", -1\"", lines[1]);
+
+        // The one admin export that had no audit record now has one, like the others (C8).
+        var export = Assert.Single(exportAudit.Records);
+        Assert.Same(AdminExportKind.PdfIngestionFailures, export.Kind);
+        Assert.Equal(1, export.RowCount);
+        Assert.Equal(runId.ToString("N"), export.Filters["Run"]);
+    }
+
+    // No file leaves unrecorded: if the export audit cannot be written, the download fails.
+    [Fact]
+    public async Task PdfIngestionFailureReport_ReturnsNoFile_WhenTheAuditFails()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var history = new PdfIngestionRunHistory(db);
+        var runId = Guid.NewGuid();
+        await history.RecordAsync(new PdfIngestionRunRecord(
+            runId,
+            new DateTimeOffset(2026, 11, 6, 6, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 11, 6, 6, 5, 0, TimeSpan.Zero),
+            "admin",
+            "Partially completed",
+            1, 0, 0, 0, 1,
+            Array.Empty<PdfIngestionSourceSummary>(),
+            new[] { new PdfIngestionFailure("FFC", "7", "a.pdf", "Source file is missing.") },
+            null));
+
+        var page = new IngestExternalPdfsModel(
+            Unused<IPdfIngestionCoordinator>(),
+            history,
+            new AdminTimeService(FakeClock.AtUtc(new DateTimeOffset(2026, 11, 6, 6, 0, 0, TimeSpan.Zero))),
+            Unused<IAdminNavigationUrlBuilder>(),
+            Unused<IHostApplicationLifetime>());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            page.OnGetFailureReportAsync(runId, new RecordingExportAudit { Fail = true }, default));
+    }
+
+    private sealed class RecordingExportAudit : IAdminExportAuditService
+    {
+        public bool Fail { get; init; }
+
+        public List<AdminExportRecord> Records { get; } = new();
+
+        public Task RecordAsync(AdminExportRecord export, CancellationToken cancellationToken = default)
+        {
+            if (Fail) throw new InvalidOperationException("Audit store unavailable.");
+            Records.Add(export);
+            return Task.CompletedTask;
+        }
     }
 
     // Admin searches build ILIKE patterns. A raw $"%{search}%" turns a typed % or _ into a

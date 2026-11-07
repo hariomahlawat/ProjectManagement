@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.Projects;
@@ -151,7 +152,10 @@ public class ProjectImportService : IProjectImportService
             return new ProjectImportResult(false, "No valid rows found in the file.", 0);
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync();
+        // A caller that records its own audit entry with the import (the legacy import page)
+        // opens the transaction first; the import then joins it through a savepoint, so the
+        // projects, the import record and the audit entry commit or roll back together.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database);
         try
         {
             if (await _db.ProjectLegacyImports.AnyAsync(x =>

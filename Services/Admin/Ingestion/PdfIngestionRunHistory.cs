@@ -1,4 +1,7 @@
-using System.Collections.Concurrent;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.Admin.Ingestion;
 
@@ -22,45 +25,160 @@ public sealed record PdfIngestionRunRecord(
 
 public interface IPdfIngestionRunHistory
 {
-    void Record(PdfIngestionRunRecord run);
-    PdfIngestionRunRecord? Get(Guid runId);
-    PdfIngestionRunRecord? GetLatest();
-    IReadOnlyList<PdfIngestionRunRecord> GetRecent(int count = 10);
+    /// <summary>
+    /// Saves a run's summary. Saving the same run again replaces it, so a retry never adds a
+    /// second row.
+    /// </summary>
+    Task RecordAsync(PdfIngestionRunRecord run, CancellationToken cancellationToken = default);
+
+    Task<PdfIngestionRunRecord?> GetAsync(Guid runId, CancellationToken cancellationToken = default);
+
+    Task<PdfIngestionRunRecord?> GetLatestAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PdfIngestionRunRecord>> GetRecentAsync(int count = 10, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Run summaries for "Copy PDFs into the repository", kept in the database (PdfIngestionRuns)
+/// so every application process shows the same history and it survives a restart. It used to be
+/// a per-process list in memory (docs/ux/admin-review-3-fixes.md, C8). Only the newest
+/// <see cref="Capacity"/> runs are kept.
+/// </summary>
 public sealed class PdfIngestionRunHistory : IPdfIngestionRunHistory
 {
-    private const int Capacity = 20;
-    private readonly ConcurrentDictionary<Guid, PdfIngestionRunRecord> _runs = new();
-    private readonly ConcurrentQueue<Guid> _order = new();
+    public const int Capacity = 50;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public void Record(PdfIngestionRunRecord run)
+    private readonly ApplicationDbContext _db;
+
+    public PdfIngestionRunHistory(ApplicationDbContext db)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+    }
+
+    public async Task RecordAsync(PdfIngestionRunRecord run, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(run);
-        if (!_runs.TryAdd(run.RunId, run))
+
+        var row = await _db.PdfIngestionRuns.SingleOrDefaultAsync(item => item.Id == run.RunId, cancellationToken);
+        if (row is null)
         {
-            _runs[run.RunId] = run;
+            row = new PdfIngestionRun { Id = run.RunId };
+            _db.PdfIngestionRuns.Add(row);
+        }
+
+        row.StartedAtUtc = run.StartedAtUtc.UtcDateTime;
+        row.CompletedAtUtc = run.CompletedAtUtc.UtcDateTime;
+        row.InitiatedBy = Truncate(run.InitiatedBy, 256);
+        row.Status = Truncate(run.Status, 64) ?? string.Empty;
+        row.Discovered = run.Discovered;
+        row.IngestedOrLinked = run.IngestedOrLinked;
+        row.AlreadyLinked = run.AlreadyLinked;
+        row.Missing = run.Missing;
+        row.Failed = run.Failed;
+        row.SourcesJson = JsonSerializer.Serialize(run.Sources ?? Array.Empty<PdfIngestionSourceSummary>(), JsonOptions);
+        row.FailuresJson = JsonSerializer.Serialize(run.Failures ?? Array.Empty<PdfIngestionFailure>(), JsonOptions);
+        row.TraceId = Truncate(run.TraceId, 128);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Leave the shared request-scoped context clean for the caller.
+            _db.Entry(row).State = EntityState.Detached;
+            throw;
+        }
+
+        await TrimAsync(cancellationToken);
+    }
+
+    public async Task<PdfIngestionRunRecord?> GetAsync(Guid runId, CancellationToken cancellationToken = default)
+    {
+        var row = await _db.PdfIngestionRuns.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == runId, cancellationToken);
+        return row is null ? null : ToRecord(row);
+    }
+
+    public async Task<PdfIngestionRunRecord?> GetLatestAsync(CancellationToken cancellationToken = default) =>
+        (await GetRecentAsync(1, cancellationToken)).FirstOrDefault();
+
+    public async Task<IReadOnlyList<PdfIngestionRunRecord>> GetRecentAsync(int count = 10, CancellationToken cancellationToken = default)
+    {
+        var take = Math.Clamp(count, 1, Capacity);
+        var rows = await _db.PdfIngestionRuns.AsNoTracking()
+            .OrderByDescending(item => item.CompletedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+        return rows.Select(ToRecord).ToArray();
+    }
+
+    /// <summary>Removes runs older than the newest <see cref="Capacity"/>. Safe to run twice.</summary>
+    private async Task TrimAsync(CancellationToken cancellationToken)
+    {
+        var expired = await _db.PdfIngestionRuns
+            .OrderByDescending(item => item.CompletedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Skip(Capacity)
+            .ToListAsync(cancellationToken);
+        if (expired.Count == 0)
+        {
             return;
         }
 
-        _order.Enqueue(run.RunId);
-        while (_order.Count > Capacity && _order.TryDequeue(out var expired))
+        _db.PdfIngestionRuns.RemoveRange(expired);
+        try
         {
-            _runs.TryRemove(expired, out _);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another process trimmed the same rows first; nothing is left to do.
+            foreach (var row in expired)
+            {
+                _db.Entry(row).State = EntityState.Detached;
+            }
         }
     }
 
-    public PdfIngestionRunRecord? Get(Guid runId) =>
-        _runs.TryGetValue(runId, out var run) ? run : null;
+    private static PdfIngestionRunRecord ToRecord(PdfIngestionRun row) =>
+        new(
+            row.Id,
+            AsUtc(row.StartedAtUtc),
+            AsUtc(row.CompletedAtUtc),
+            row.InitiatedBy,
+            row.Status,
+            row.Discovered,
+            row.IngestedOrLinked,
+            row.AlreadyLinked,
+            row.Missing,
+            row.Failed,
+            ReadList<PdfIngestionSourceSummary>(row.SourcesJson),
+            ReadList<PdfIngestionFailure>(row.FailuresJson),
+            row.TraceId);
 
-    public PdfIngestionRunRecord? GetLatest() => GetRecent(1).FirstOrDefault();
+    private static DateTimeOffset AsUtc(DateTime value) =>
+        new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 
-    public IReadOnlyList<PdfIngestionRunRecord> GetRecent(int count = 10)
+    private static IReadOnlyList<T> ReadList<T>(string? json)
     {
-        var take = Math.Clamp(count, 1, Capacity);
-        return _runs.Values
-            .OrderByDescending(run => run.CompletedAtUtc)
-            .Take(take)
-            .ToArray();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<T>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<T>>(json, JsonOptions) ?? (IReadOnlyList<T>)Array.Empty<T>();
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<T>();
+        }
     }
+
+    private static string? Truncate(string? value, int maxLength) =>
+        value is null || value.Length <= maxLength ? value : value[..maxLength];
 }

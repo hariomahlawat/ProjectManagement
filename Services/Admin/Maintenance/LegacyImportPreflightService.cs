@@ -7,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Admin.Maintenance;
 
@@ -75,6 +77,7 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
     private readonly IProjectImportService _import;
     private readonly IAdminAuditService _audit;
     private readonly IWebHostEnvironment _environment;
+    private readonly IUploadRootProvider _uploadRoot;
     private readonly AdminRecoveryOptions _options;
     private readonly ILogger<LegacyImportPreflightService> _logger;
 
@@ -83,6 +86,7 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
         IProjectImportService import,
         IAdminAuditService audit,
         IWebHostEnvironment environment,
+        IUploadRootProvider uploadRoot,
         IOptions<AdminRecoveryOptions> options,
         ILogger<LegacyImportPreflightService> logger)
     {
@@ -90,6 +94,7 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
         _import = import ?? throw new ArgumentNullException(nameof(import));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+        _uploadRoot = uploadRoot ?? throw new ArgumentNullException(nameof(uploadRoot));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -181,21 +186,22 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
         var traceId = Guid.NewGuid().ToString("N");
         try
         {
-            var staged = await LoadStagedAsync(token, cancellationToken);
-            if (staged is null)
+            var staging = FindStaging(token);
+            var staged = staging is null ? null : await LoadStagedAsync(staging, token, cancellationToken);
+            if (staging is null || staged is null)
                 return new(false, 0, "The validated import has expired or is no longer available.");
             if (staged.ProjectCategoryId != projectCategoryId
                 || staged.TechnicalCategoryId != technicalCategoryId)
                 return new(false, 0, "The selected categories do not match the validated import.");
             if (staged.ExpiresUtc <= DateTimeOffset.UtcNow)
             {
-                await DeleteStagedAsync(token);
+                DeleteStaged(staging, token);
                 return new(false, 0, "The validated import has expired. Validate the workbook again.");
             }
             if (staged.RejectedRows > 0 || staged.DuplicateCategoryImport)
                 return new(false, 0, "The validated import contains blocking issues and cannot be committed.");
 
-            var workbookPath = WorkbookPath(token);
+            var workbookPath = WorkbookPath(staging, token);
             if (!File.Exists(workbookPath))
                 return new(false, 0, "The staged workbook is no longer available.");
 
@@ -203,7 +209,7 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
             var stagedHash = Convert.ToHexString(SHA256.HashData(stagedBytes));
             if (!string.Equals(stagedHash, staged.FileHashSha256, StringComparison.OrdinalIgnoreCase))
             {
-                await DeleteStagedAsync(token);
+                DeleteStaged(staging, token);
                 return new(false, 0, "The staged workbook failed its integrity check. Validate the source file again.");
             }
 
@@ -213,34 +219,58 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
                 Headers = new HeaderDictionary(),
                 ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             };
-            var result = await _import.ImportLegacyProjectsAsync(
-                projectCategoryId,
-                technicalCategoryId,
-                formFile,
-                actorUserId);
 
-            if (!result.Success)
-                return new(false, 0, result.ErrorMessage ?? "The import could not be completed.", traceId);
+            // The projects, the import record and the audit entry commit together: if the audit
+            // write fails, nothing is imported, so "could not be completed" is the truth
+            // (docs/ux/admin-review-3-fixes.md, C5).
+            int rowsImported;
+            await using (var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken))
+            {
+                try
+                {
+                    var result = await _import.ImportLegacyProjectsAsync(
+                        projectCategoryId,
+                        technicalCategoryId,
+                        formFile,
+                        actorUserId);
 
-            await _audit.RecordAsync(
-                new AdminAuditEntry(
-                    Action: "LegacyImportCommitted",
-                    EntityType: "ProjectLegacyImport",
-                    EntityId: token.ToString("N"),
-                    After: new
+                    if (!result.Success)
                     {
-                        ProjectCategoryId = projectCategoryId,
-                        TechnicalCategoryId = technicalCategoryId,
-                        result.RowsImported,
-                        staged.FileHashSha256,
-                        staged.FileName
-                    },
-                    Origin: "Admin.Maintenance.LegacyImport",
-                    Message: $"Imported {result.RowsImported} legacy project(s)."),
-                cancellationToken);
+                        await transaction.RollbackAsync(CancellationToken.None);
+                        _db.ChangeTracker.Clear();
+                        return new(false, 0, result.ErrorMessage ?? "The import could not be completed.", traceId);
+                    }
 
-            await DeleteStagedAsync(token);
-            return new(true, result.RowsImported, $"Imported {result.RowsImported} legacy project(s).", traceId);
+                    await _audit.RecordAsync(
+                        new AdminAuditEntry(
+                            Action: "LegacyImportCommitted",
+                            EntityType: "ProjectLegacyImport",
+                            EntityId: token.ToString("N"),
+                            After: new
+                            {
+                                ProjectCategoryId = projectCategoryId,
+                                TechnicalCategoryId = technicalCategoryId,
+                                result.RowsImported,
+                                staged.FileHashSha256,
+                                staged.FileName
+                            },
+                            Origin: "Admin.Maintenance.LegacyImport",
+                            Message: $"Imported {result.RowsImported} legacy project(s)."),
+                        cancellationToken);
+
+                    await transaction.CommitAsync(cancellationToken);
+                    rowsImported = result.RowsImported;
+                }
+                catch
+                {
+                    // Leaving the scope without a commit rolls the import back.
+                    _db.ChangeTracker.Clear();
+                    throw;
+                }
+            }
+
+            DeleteStaged(staging, token);
+            return new(true, rowsImported, $"Imported {rowsImported} legacy project(s).", traceId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -249,14 +279,19 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
         catch (Exception exception)
         {
             _logger.LogError(exception, "Legacy import commit failed. Token={Token}, TraceId={TraceId}", token, traceId);
-            return new(false, 0, "The import could not be completed. Quote the trace reference to the administrator.", traceId);
+            return new(false, 0, "The import could not be completed, so nothing was imported. Quote the trace reference to the administrator.", traceId);
         }
     }
 
-    public async Task CancelAsync(Guid token, CancellationToken cancellationToken = default)
+    public Task CancelAsync(Guid token, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await DeleteStagedAsync(token);
+        foreach (var root in StagingRoots())
+        {
+            DeleteStaged(root, token);
+        }
+
+        return Task.CompletedTask;
     }
 
     private async Task<LegacyImportPreview> BuildPreviewAsync(
@@ -387,11 +422,17 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
         byte[] bytes,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(StagingRoot());
+        var root = StagingRoot();
+        Directory.CreateDirectory(root);
         // Previews that were never imported or cancelled leave their files behind; each new
-        // preview removes the ones that have expired (docs/ux/admin-review-2-fixes.md, PR 11).
-        SweepExpiredStaging(StagingRoot(), DateTimeOffset.UtcNow, TimeSpan.FromMinutes(_options.LegacyImportStagingMinutes));
-        await File.WriteAllBytesAsync(WorkbookPath(preview.Token), bytes, cancellationToken);
+        // preview removes the ones that have expired (docs/ux/admin-review-2-fixes.md, PR 11),
+        // in the data-root folder and in the old app-folder one.
+        foreach (var folder in StagingRoots())
+        {
+            SweepExpiredStaging(folder, DateTimeOffset.UtcNow, TimeSpan.FromMinutes(_options.LegacyImportStagingMinutes));
+        }
+
+        await File.WriteAllBytesAsync(WorkbookPath(root, preview.Token), bytes, cancellationToken);
         var metadata = new StagedLegacyImport(
             preview.Token,
             preview.FileName,
@@ -404,23 +445,26 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
             preview.RejectedRows,
             preview.DuplicateCategoryImport,
             preview.ExpiresUtc);
-        await using var metadataStream = File.Create(MetadataPath(preview.Token));
+        await using var metadataStream = File.Create(MetadataPath(root, preview.Token));
         await JsonSerializer.SerializeAsync(metadataStream, metadata, cancellationToken: cancellationToken);
     }
 
-    private async Task<StagedLegacyImport?> LoadStagedAsync(Guid token, CancellationToken cancellationToken)
+    /// <summary>The staging folder that holds this preview: the data root first, then the old app folder.</summary>
+    private string? FindStaging(Guid token) =>
+        StagingRoots().FirstOrDefault(root => File.Exists(MetadataPath(root, token)));
+
+    private static async Task<StagedLegacyImport?> LoadStagedAsync(string root, Guid token, CancellationToken cancellationToken)
     {
-        var path = MetadataPath(token);
+        var path = MetadataPath(root, token);
         if (!File.Exists(path)) return null;
         await using var stream = File.OpenRead(path);
         return await JsonSerializer.DeserializeAsync<StagedLegacyImport>(stream, cancellationToken: cancellationToken);
     }
 
-    private Task DeleteStagedAsync(Guid token)
+    private static void DeleteStaged(string root, Guid token)
     {
-        TryDelete(WorkbookPath(token));
-        TryDelete(MetadataPath(token));
-        return Task.CompletedTask;
+        TryDelete(WorkbookPath(root, token));
+        TryDelete(MetadataPath(root, token));
     }
 
     /// <summary>
@@ -457,9 +501,32 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
         return removed;
     }
 
-    private string StagingRoot() => Path.Combine(_environment.ContentRootPath, "App_Data", "AdminImportStaging");
-    private string WorkbookPath(Guid token) => Path.Combine(StagingRoot(), $"{token:N}.xlsx");
-    private string MetadataPath(Guid token) => Path.Combine(StagingRoot(), $"{token:N}.json");
+    /// <summary>
+    /// New previews are staged under the configured data root, which every application process
+    /// shares, so a preview made by one process can be imported by another during an overlapping
+    /// deployment (docs/ux/admin-review-3-fixes.md, C5).
+    /// </summary>
+    internal const string StagingFolderName = "admin-import-staging";
+
+    private string StagingRoot() => Path.Combine(_uploadRoot.RootPath, StagingFolderName);
+
+    /// <summary>
+    /// Where previews were staged before this release. It is still read and swept for one
+    /// release, so a preview checked just before the deployment can still be imported.
+    /// </summary>
+    private string LegacyStagingRoot() => Path.Combine(_environment.ContentRootPath, "App_Data", "AdminImportStaging");
+
+    private IReadOnlyList<string> StagingRoots()
+    {
+        var current = StagingRoot();
+        var legacy = LegacyStagingRoot();
+        return string.Equals(Path.GetFullPath(current), Path.GetFullPath(legacy), StringComparison.OrdinalIgnoreCase)
+            ? new[] { current }
+            : new[] { current, legacy };
+    }
+
+    private static string WorkbookPath(string root, Guid token) => Path.Combine(root, $"{token:N}.xlsx");
+    private static string MetadataPath(string root, Guid token) => Path.Combine(root, $"{token:N}.json");
 
     private static string? Get(IXLRow row, IReadOnlyDictionary<string, int> headers, string name) =>
         headers.TryGetValue(name, out var column) ? row.Cell(column).GetString().Trim() : null;

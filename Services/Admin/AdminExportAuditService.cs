@@ -10,9 +10,10 @@ public sealed record AdminExportKind(string Action, string Title)
     public static readonly AdminExportKind AuditLog = new("AdminExport.AuditLog", "Audit log exported");
     public static readonly AdminExportKind SignIns = new("AdminExport.SignIns", "Sign-in activity exported");
     public static readonly AdminExportKind ErpUsage = new("AdminExport.ErpUsage", "ERP usage exported");
+    public static readonly AdminExportKind PdfIngestionFailures = new("AdminExport.PdfIngestionFailures", "PDF copy failures exported");
 
     public static IReadOnlyList<AdminExportKind> All { get; } =
-        new[] { Users, AccessReview, AuditLog, SignIns, ErpUsage };
+        new[] { Users, AccessReview, AuditLog, SignIns, ErpUsage, PdfIngestionFailures };
 }
 
 /// <summary>What one export handed out: which export, the filters it used and how many rows.</summary>

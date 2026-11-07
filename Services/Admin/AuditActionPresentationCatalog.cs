@@ -152,7 +152,8 @@ public sealed class AuditActionPresentationCatalog : IAuditActionPresentationCat
             [AdminExportKind.AccessReview.Action] = new(AdminExportKind.AccessReview.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType),
             [AdminExportKind.AuditLog.Action] = new(AdminExportKind.AuditLog.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType),
             [AdminExportKind.SignIns.Action] = new(AdminExportKind.SignIns.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType),
-            [AdminExportKind.ErpUsage.Action] = new(AdminExportKind.ErpUsage.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType)
+            [AdminExportKind.ErpUsage.Action] = new(AdminExportKind.ErpUsage.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType),
+            [AdminExportKind.PdfIngestionFailures.Action] = new(AdminExportKind.PdfIngestionFailures.Title, "bi-download", "neutral", "Exports", AdminExportAuditService.EntityType)
         };
 
     public AuditActionPresentation Describe(string? action, string? level = null)

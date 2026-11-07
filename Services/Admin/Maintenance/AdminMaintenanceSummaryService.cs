@@ -66,9 +66,10 @@ public sealed class AdminMaintenanceSummaryService : IAdminMaintenanceSummarySer
             }
         }
 
+        var latestRun = await _history.GetLatestAsync(cancellationToken);
         return new AdminMaintenanceSummary(
             _runGate.IsRunning,
-            _history.GetLatest(),
+            latestRun,
             aggregate?.Runs ?? 0,
             aggregate?.Projects ?? 0,
             aggregate?.LastAt is DateTime utc

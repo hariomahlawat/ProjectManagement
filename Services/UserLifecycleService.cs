@@ -56,20 +56,46 @@ namespace ProjectManagement.Services
 
         public async Task DisableAsync(string targetUserId, string actorUserId, string reason)
         {
+            var outcome = await TryDisableAsync(targetUserId, actorUserId, reason);
+            switch (outcome)
+            {
+                case UserDisableOutcome.Disabled:
+                case UserDisableOutcome.AlreadyDisabled:
+                    return;
+                case UserDisableOutcome.SelfDisable:
+                    throw new InvalidOperationException("You cannot disable your own account.");
+                case UserDisableOutcome.NotFound:
+                    throw new InvalidOperationException("User not found.");
+                case UserDisableOutcome.PendingDeletion:
+                    throw new InvalidOperationException("The account is pending deletion. Undo the deletion request before changing its status.");
+                case UserDisableOutcome.LastActiveAdmin:
+                    throw new InvalidOperationException("Cannot disable the last active Admin.");
+                default:
+                    throw new InvalidOperationException($"Unexpected disable outcome {outcome}.");
+            }
+        }
+
+        public async Task<UserDisableOutcome> TryDisableAsync(string targetUserId, string actorUserId, string reason)
+        {
             if (targetUserId == actorUserId)
             {
-                throw new InvalidOperationException("You cannot disable your own account.");
+                return UserDisableOutcome.SelfDisable;
             }
 
-            var user = await FindRequiredUserAsync(targetUserId);
+            var user = await _userManager.FindByIdAsync(targetUserId);
+            if (user is null)
+            {
+                return UserDisableOutcome.NotFound;
+            }
+
             if (user.PendingDeletion)
             {
-                throw new InvalidOperationException("The account is pending deletion. Undo the deletion request before changing its status.");
+                return UserDisableOutcome.PendingDeletion;
             }
 
             if (user.IsDisabled)
             {
-                return;
+                return UserDisableOutcome.AlreadyDisabled;
             }
 
             var before = CaptureState(user);
@@ -82,7 +108,7 @@ namespace ProjectManagement.Services
                 if (await IsLastActiveAdminAsync(user))
                 {
                     await transaction.RollbackAsync();
-                    throw new InvalidOperationException("Cannot disable the last active Admin.");
+                    return UserDisableOutcome.LastActiveAdmin;
                 }
 
                 var now = _clock.UtcNow.UtcDateTime;
@@ -104,6 +130,7 @@ namespace ProjectManagement.Services
                     actorUserId);
 
                 await transaction.CommitAsync();
+                return UserDisableOutcome.Disabled;
             }
             catch
             {
