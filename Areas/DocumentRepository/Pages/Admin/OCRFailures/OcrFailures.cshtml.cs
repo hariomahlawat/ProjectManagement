@@ -10,7 +10,8 @@ using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
 {
-    [Authorize(Policy = "DocRepo.DeleteApprove")]   // use your actual admin policy
+    // Unreadable PDFs is reviewed by those who approve repository deletions.
+    [Authorize(Policy = ProjectManagement.Configuration.Policies.Documents.DeleteApprove)]
     public class OcrFailuresModel : PageModel
     {
         private readonly ApplicationDbContext _db;

@@ -388,6 +388,9 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(StagingRoot());
+        // Previews that were never imported or cancelled leave their files behind; each new
+        // preview removes the ones that have expired (docs/ux/admin-review-2-fixes.md, PR 11).
+        SweepExpiredStaging(StagingRoot(), DateTimeOffset.UtcNow, TimeSpan.FromMinutes(_options.LegacyImportStagingMinutes));
         await File.WriteAllBytesAsync(WorkbookPath(preview.Token), bytes, cancellationToken);
         var metadata = new StagedLegacyImport(
             preview.Token,
@@ -418,6 +421,40 @@ public sealed class LegacyImportPreflightService : ILegacyImportPreflightService
         TryDelete(WorkbookPath(token));
         TryDelete(MetadataPath(token));
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Deletes staged workbooks and their notes that are older than the preview lifetime plus an
+    /// hour's grace, so a preview still being read is never removed. Returns how many files went.
+    /// </summary>
+    internal static int SweepExpiredStaging(string root, DateTimeOffset now, TimeSpan previewLifetime)
+    {
+        if (!Directory.Exists(root)) return 0;
+
+        var cutoff = now.UtcDateTime - previewLifetime - TimeSpan.FromHours(1);
+        var removed = 0;
+        foreach (var path in Directory.EnumerateFiles(root))
+        {
+            var extension = Path.GetExtension(path);
+            if (!extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase)
+                && !extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            try
+            {
+                if (File.GetLastWriteTimeUtc(path) < cutoff)
+                {
+                    File.Delete(path);
+                    removed++;
+                }
+            }
+            catch (IOException) { /* In use or already gone; the next preview tries again. */ }
+            catch (UnauthorizedAccessException) { }
+        }
+
+        return removed;
     }
 
     private string StagingRoot() => Path.Combine(_environment.ContentRootPath, "App_Data", "AdminImportStaging");

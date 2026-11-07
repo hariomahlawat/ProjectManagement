@@ -1088,8 +1088,14 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is PostgresException postgres && postgres.SqlState == PostgresErrorCodes.UniqueViolation;
 
-    private static AdminOperationResult<T> Duplicate<T>(string message) =>
-        AdminOperationResult<T>.Failure(message, "DuplicateName");
+    // A refused save (another administrator's change, a duplicate name) leaves the edited
+    // entities tracked in this request's DbContext; clear them so nothing later in the request
+    // saves them by accident (docs/ux/admin-review-2-fixes.md, PR 11).
+    private AdminOperationResult<T> Duplicate<T>(string message)
+    {
+        _db.ChangeTracker.Clear();
+        return AdminOperationResult<T>.Failure(message, "DuplicateName");
+    }
 
     private static AdminOperationResult<T> NotFound<T>(string label) =>
         AdminOperationResult<T>.Failure($"{label} not found.", "NotFound");
@@ -1097,11 +1103,17 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
     private static AdminOperationResult NotFound(string label) =>
         AdminOperationResult.Failure($"{label} not found.", "NotFound");
 
-    private static AdminOperationResult<T> Concurrency<T>() =>
-        AdminOperationResult<T>.Failure("This record was changed by another administrator. Reload the page and try again.", "ConcurrencyConflict");
+    private AdminOperationResult<T> Concurrency<T>()
+    {
+        _db.ChangeTracker.Clear();
+        return AdminOperationResult<T>.Failure("This record was changed by another administrator. Reload the page and try again.", "ConcurrencyConflict");
+    }
 
-    private static AdminOperationResult Concurrency() =>
-        AdminOperationResult.Failure("This record was changed by another administrator. Reload the page and try again.", "ConcurrencyConflict");
+    private AdminOperationResult Concurrency()
+    {
+        _db.ChangeTracker.Clear();
+        return AdminOperationResult.Failure("This record was changed by another administrator. Reload the page and try again.", "ConcurrencyConflict");
+    }
 
     private static object Snapshot(ProjectCategory item) => new { item.Id, item.Name, item.ParentId, item.IsActive, item.SortOrder };
     private static object Snapshot(TechnicalCategory item) => new { item.Id, item.Name, item.ParentId, item.IsActive, item.SortOrder };
