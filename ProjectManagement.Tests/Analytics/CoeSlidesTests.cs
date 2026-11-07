@@ -180,6 +180,63 @@ public sealed class CoeSlidesTests
         });
     }
 
+    [Fact]
+    public void RowHeight_CountsEveryWrappedLineOfAnOverduePdc()
+    {
+        var oneLine = new CoeSlideProject("VR Gunnery", "Devp", false, "PDC 22 Jun 2026");
+        var overdue = oneLine with { Pdc = "PDC 22 Jun 2026 · overdue", PdcOverdue = true };
+
+        // Wide enough for both on one line: the same height.
+        Assert.Equal(CoeSlideComposer.RowHeight(oneLine, 4, 12), CoeSlideComposer.RowHeight(overdue, 4, 12), 6);
+        // Narrow: the overdue PDC wraps, and the row grows by its extra line.
+        Assert.True(CoeSlideComposer.RowHeight(overdue, 1.4, 12) > CoeSlideComposer.RowHeight(oneLine, 1.4, 12));
+    }
+
+    [Fact]
+    public void Compose_ListsTooLongForOneSlide_CarryOnToContinuationSlides_WithEveryName()
+    {
+        var ongoing = Enumerable.Range(1, 60)
+            .Select(index => new CoeProjectSummaryVm(index, $"Ongoing project {index:000}", "Ongoing", "Feasibility Study", StageCodes.FS))
+            .ToArray();
+        var completed = Enumerable.Range(1, 130)
+            .Select(index => new ArVrCompletedProjectVm(1000 + index, $"Completed project {index:000}", 2020 + (index % 6)))
+            .ToArray();
+        var coe = new CoeAnalyticsVm
+        {
+            TotalCoeProjects = 60,
+            OngoingCount = 60,
+            SubcategoryProjects = new[] { new CoeSubcategoryProjectsVm("CoE Mid Term", ongoing, OngoingCount: 60) },
+            ArVrCompleted = new[] { new ArVrCompletedGroupVm("CoE (AR/VR)", completed) }
+        };
+        var composer = new CoeSlideComposer(new TestEnvironment(Path.Combine(AppContext.BaseDirectory, "TestData", "Ffc", "PresentationRoot")));
+
+        var content = composer.Compose(CoeSlidesDataBuilder.Build(AsOf, coe, impact: null));
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentation = document.PresentationPart!;
+        var slides = presentation.Presentation.SlideIdList!.Elements<SlideId>()
+            .Select(id => ((SlidePart)presentation.GetPartById(id.RelationshipId!.Value!)).Slide)
+            .ToList();
+        Assert.True(slides.Count > 2);
+
+        var categorySlides = slides.Where(slide => slide.InnerText.Contains("CoE (AR/VR) projects by category", StringComparison.Ordinal)).ToList();
+        var summarySlides = slides.Where(slide => slide.InnerText.Contains("AR/VR at a glance", StringComparison.Ordinal)).ToList();
+        Assert.True(categorySlides.Count > 1);
+        Assert.True(summarySlides.Count > 1);
+        Assert.Contains("(continued)", categorySlides[1].InnerText, StringComparison.Ordinal);
+        Assert.DoesNotContain("AR/VR projects completed", summarySlides[1].InnerText, StringComparison.Ordinal); // the cards stay on the first
+
+        var text = string.Join("\n", slides.Select(slide => slide.InnerText));
+        Assert.All(ongoing, project => Assert.Contains(project.Name, text, StringComparison.Ordinal));
+        Assert.All(completed, project => Assert.Contains(project.Name, text, StringComparison.Ordinal));
+
+        // Nothing is drawn below the slide's bottom edge (7.5 in).
+        const long slideHeight = 6858000;
+        Assert.All(slides.SelectMany(slide => slide.Descendants<DocumentFormat.OpenXml.Drawing.Offset>()), offset =>
+            Assert.True(offset.Y!.Value < slideHeight, $"An item starts at {offset.Y.Value} EMU, below the slide."));
+    }
+
     private static CoeAnalyticsVm SampleCoe() => new()
     {
         TotalCoeProjects = 6,

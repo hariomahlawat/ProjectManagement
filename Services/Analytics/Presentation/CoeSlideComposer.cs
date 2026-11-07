@@ -19,7 +19,8 @@ public interface ICoeSlideComposer
 /// Draws the two CoE (AR/VR) slides on the shared PowerPoint canvas, in the ARPP slide style: a
 /// white page, the formation crest and SDD insignia either side of the title over a navy rule, then
 /// (1) the projects in each category as side-by-side columns, every name in full, and (2) the AR/VR
-/// summary as stat cards over their breakdowns. Built from a bundled template, so no network access.
+/// summary as stat cards over every completed project and its year. A list too long for one slide
+/// carries on to continuation slides. Built from a bundled template, so no network access.
 /// </summary>
 public sealed class CoeSlideComposer : ICoeSlideComposer
 {
@@ -78,11 +79,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         }
 
         var logos = new Logos(ReadAsset(_leftLogoPath), ReadAsset(_rightLogoPath));
-        var renderers = new Action<PptxSlideCanvas, int>[]
-        {
-            (canvas, number) => RenderProjects(canvas, data, logos, number),
-            (canvas, number) => RenderSummary(canvas, data, logos, number)
-        };
+        var renderers = ProjectSlides(data, logos).Concat(SummarySlides(data, logos)).ToList();
 
         var templateBytes = File.ReadAllBytes(_templatePath);
         using var stream = new MemoryStream(templateBytes.Length + 200_000);
@@ -105,7 +102,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
             }
 
             uint nextSlideId = 256;
-            for (var index = 0; index < renderers.Length; index++)
+            for (var index = 0; index < renderers.Count; index++)
             {
                 var slidePart = presentationPart.AddNewPart<SlidePart>();
                 slidePart.AddPart(layoutPart);
@@ -127,10 +124,63 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
     }
 
     // SECTION: Slide 1 — CoE projects by category: one column per category, every name in full
-    private static void RenderProjects(PptxSlideCanvas canvas, CoeSlidesData data, Logos logos, int number)
+    private const double ColumnHeaderHeight = .36;
+    private const double CategoryGap = .2;
+    // Below the smallest size the rows no longer fit; they carry on to continuation slides at a readable size instead.
+    private const double MinimumFontSize = 7.5;
+    private const double ContinuationFontSize = 10;
+
+    /// <summary>Slide 1, plus continuation slides when a category's list will not fit even at the smallest type size.</summary>
+    private static IEnumerable<Action<PptxSlideCanvas, int>> ProjectSlides(CoeSlidesData data, Logos logos)
+    {
+        if (data.Columns.Count == 0)
+        {
+            yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, Array.Empty<IReadOnlyList<RowLayout>>(), MinimumFontSize, continued: false);
+            yield break;
+        }
+
+        var width = CategoryColumnWidth(data.Columns.Count);
+        var available = BodyBottom - CategoryListTop;
+
+        // One type size for the whole slide: the largest that lets the longest column fit.
+        var layouts = data.Columns.Select(column => new ColumnLayout(column, width)).ToList();
+        var fontSize = FittingFontSize(layouts, available, 12.5);
+        if (layouts.All(layout => layout.Height(fontSize) <= available))
+        {
+            var rows = layouts.Select(layout => (IReadOnlyList<RowLayout>)layout.Rows(fontSize).ToList()).ToList();
+            yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, rows, fontSize, continued: false);
+            yield break;
+        }
+
+        // Too many to fit: each column carries its remaining rows onto the next slide, under the same headings.
+        var chunks = layouts.Select(layout => Chunk(layout.Rows(ContinuationFontSize).ToList(), available)).ToList();
+        var pageCount = chunks.Max(column => column.Count);
+        for (var page = 0; page < pageCount; page++)
+        {
+            var pageIndex = page;
+            var rows = chunks
+                .Select(column => pageIndex < column.Count ? column[pageIndex] : (IReadOnlyList<RowLayout>)Array.Empty<RowLayout>())
+                .ToList();
+            yield return (canvas, number) => RenderProjectsPage(canvas, data, logos, number, rows, ContinuationFontSize, continued: pageIndex > 0);
+        }
+    }
+
+    private static double CategoryListTop => BodyTop + ColumnHeaderHeight + .08;
+
+    private static double CategoryColumnWidth(int columnCount) =>
+        (ContentWidth - (CategoryGap * (columnCount - 1))) / columnCount;
+
+    private static void RenderProjectsPage(
+        PptxSlideCanvas canvas,
+        CoeSlidesData data,
+        Logos logos,
+        int number,
+        IReadOnlyList<IReadOnlyList<RowLayout>> columnRows,
+        double fontSize,
+        bool continued)
     {
         AddHeader(canvas, logos,
-            "CoE (AR/VR) projects by category",
+            continued ? "CoE (AR/VR) projects by category (continued)" : "CoE (AR/VR) projects by category",
             $"as of {Date(data.AsOf)} · {data.OngoingCount} ongoing, {data.CompletedCount} completed · stage today; PDC for projects in development");
 
         var notes = new List<string>();
@@ -150,34 +200,24 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
             return;
         }
 
-        const double gap = .2;
-        var columnCount = data.Columns.Count;
-        var width = (ContentWidth - (gap * (columnCount - 1))) / columnCount;
-        const double headerHeight = .36;
-        var listTop = BodyTop + headerHeight + .08;
-        var available = BodyBottom - listTop;
-
-        // One type size for the whole slide: the largest that lets the longest column fit.
-        var layouts = data.Columns.Select(column => new ColumnLayout(column, width)).ToList();
-        var fontSize = FittingFontSize(layouts, available, 12.5);
-
-        for (var index = 0; index < columnCount; index++)
+        var width = CategoryColumnWidth(data.Columns.Count);
+        for (var index = 0; index < data.Columns.Count; index++)
         {
-            var layout = layouts[index];
-            var x = Left + (index * (width + gap));
-            canvas.AddRect(x, BodyTop, width, headerHeight, HeaderTint);
-            canvas.AddText(x + .06, BodyTop, width - .7, headerHeight, layout.Column.Name, 12, Navy, true, "l");
-            canvas.AddText(x + width - .62, BodyTop, .56, headerHeight, layout.Column.Projects.Count.ToString(CultureInfo.InvariantCulture), 12, Navy, true, "r");
+            var column = data.Columns[index];
+            var x = Left + (index * (width + CategoryGap));
+            canvas.AddRect(x, BodyTop, width, ColumnHeaderHeight, HeaderTint);
+            canvas.AddText(x + .06, BodyTop, width - .7, ColumnHeaderHeight, column.Name, 12, Navy, true, "l");
+            canvas.AddText(x + width - .62, BodyTop, .56, ColumnHeaderHeight, column.Projects.Count.ToString(CultureInfo.InvariantCulture), 12, Navy, true, "r");
 
-            DrawRows(canvas, layout, x, listTop, width, fontSize);
+            DrawRows(canvas, columnRows[index], x, CategoryListTop, width, fontSize);
         }
     }
 
     /// <summary>One list column: a dot, the name (wrapping, its PDC under it) and the tag on the first line's right.</summary>
-    private static void DrawRows(PptxSlideCanvas canvas, ColumnLayout layout, double x, double top, double width, double fontSize)
+    private static void DrawRows(PptxSlideCanvas canvas, IEnumerable<RowLayout> rows, double x, double top, double width, double fontSize)
     {
         var y = top;
-        foreach (var row in layout.Rows(fontSize))
+        foreach (var row in rows)
         {
             var project = row.Project;
             var dot = project.IsCompleted ? Green : Blue;
@@ -186,21 +226,21 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
             var paragraphs = new List<PptxParagraph> { new(project.Name, fontSize, Text) };
             if (project.Pdc is not null)
             {
-                paragraphs.Add(new PptxParagraph(project.Pdc, fontSize - 1, project.PdcOverdue ? Red : Muted));
+                paragraphs.Add(new PptxParagraph(project.Pdc, PdcFontSize(fontSize), project.PdcOverdue ? Red : Muted));
             }
             canvas.AddParagraphs(x + .2, y + row.Padding, row.NameWidth, row.Height - (row.Padding * 2), paragraphs);
-            canvas.AddText(x + width - row.TagWidth, y + row.Padding - .02, row.TagWidth, row.LineHeight, project.Tag, fontSize - 1, layout.TagColor(project), false, "r");
+            canvas.AddText(x + width - row.TagWidth, y + row.Padding - .02, row.TagWidth, row.LineHeight, project.Tag, fontSize - 1, TagColor(project), false, "r");
 
             y += row.Height;
             canvas.AddLine(x + .2, y - .01, x + width, y - .01, Rule, .5);
         }
     }
 
-    /// <summary>The largest type size (from <paramref name="start"/> down to 7.5 pt) at which every column fits the height.</summary>
+    /// <summary>The largest type size (from <paramref name="start"/> down to the minimum) at which every column fits the height.</summary>
     private static double FittingFontSize(IReadOnlyList<ColumnLayout> layouts, double available, double start)
     {
         var fontSize = start;
-        while (fontSize > 7.5 && layouts.Any(layout => layout.Height(fontSize) > available))
+        while (fontSize > MinimumFontSize && layouts.Any(layout => layout.Height(fontSize) > available))
         {
             fontSize -= .5;
         }
@@ -208,8 +248,55 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         return fontSize;
     }
 
+    /// <summary>Splits rows into runs that each fit the height (a row taller than the height still gets a run of its own).</summary>
+    internal static List<IReadOnlyList<RowLayout>> Chunk(IReadOnlyList<RowLayout> rows, double available)
+    {
+        var chunks = new List<IReadOnlyList<RowLayout>>();
+        var current = new List<RowLayout>();
+        var used = 0d;
+        foreach (var row in rows)
+        {
+            if (current.Count > 0 && used + row.Height > available)
+            {
+                chunks.Add(current);
+                current = new List<RowLayout>();
+                used = 0;
+            }
+
+            current.Add(row);
+            used += row.Height;
+        }
+
+        if (current.Count > 0)
+        {
+            chunks.Add(current);
+        }
+
+        return chunks;
+    }
+
+    private static string TagColor(CoeSlideProject project) => project.IsCompleted ? Green : Muted;
+
+    private static double PdcFontSize(double fontSize) => fontSize - 1;
+
+    private static double LineHeightOf(double fontSize) => fontSize * 1.22 / 72;
+
+    /// <summary>A row's height: the wrapped name, then every wrapped line of its PDC at the PDC's own size.</summary>
+    internal static double RowHeight(CoeSlideProject project, double nameWidth, double fontSize, double padding = .05)
+    {
+        var nameLines = LineCount(project.Name, nameWidth - TextInset, fontSize);
+        var height = (padding * 2) + (nameLines * LineHeightOf(fontSize));
+        if (project.Pdc is not null)
+        {
+            var pdcSize = PdcFontSize(fontSize);
+            height += LineCount(project.Pdc, nameWidth - TextInset, pdcSize) * LineHeightOf(pdcSize);
+        }
+
+        return height;
+    }
+
     /// <summary>Row heights for one column at a given type size: names wrap, the stage tag sits on the first line.</summary>
-    private sealed class ColumnLayout
+    internal sealed class ColumnLayout
     {
         private readonly double _width;
 
@@ -221,90 +308,156 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
 
         public CoeSlideColumn Column { get; }
 
-        public string TagColor(CoeSlideProject project) => project.IsCompleted ? Green : Muted;
-
         public double Height(double fontSize) => Rows(fontSize).Sum(row => row.Height);
 
         public IEnumerable<RowLayout> Rows(double fontSize)
         {
-            var lineHeight = fontSize * 1.22 / 72;
-            var padding = .05;
+            const double padding = .05;
             // The widest tag in this column sets the tag slot, so every name wraps at the same edge.
             // Tags are short words in a wide face ("Completed"): measure them generously so one never wraps.
             var tagWidth = (Column.Projects.Max(project => TextWidth(project.Tag, fontSize - 1)) * 1.25) + TextInset + .08;
             var nameWidth = _width - .2 - tagWidth;
             foreach (var project in Column.Projects)
             {
-                var lines = LineCount(project.Name, nameWidth - TextInset, fontSize);
-                var height = (padding * 2) + (lines * lineHeight) + (project.Pdc is null ? 0 : lineHeight);
-                yield return new RowLayout(project, lines, lineHeight, padding, nameWidth, tagWidth, height);
+                var height = RowHeight(project, nameWidth, fontSize, padding);
+                yield return new RowLayout(project, LineHeightOf(fontSize), padding, nameWidth, tagWidth, height);
             }
         }
     }
 
-    private sealed record RowLayout(CoeSlideProject Project, int NameLines, double LineHeight, double Padding, double NameWidth, double TagWidth, double Height);
+    internal sealed record RowLayout(CoeSlideProject Project, double LineHeight, double Padding, double NameWidth, double TagWidth, double Height);
     // END SECTION
 
     // SECTION: Slide 2 — AR/VR at a glance: stat cards, then every completed AR/VR project with its year
-    private static void RenderSummary(PptxSlideCanvas canvas, CoeSlidesData data, Logos logos, int number)
+    private const double CardHeight = 1.42;
+    private const double ListColumnGap = .3;
+    private const int MaxListColumns = 4;
+
+    private static double SummaryListHeaderTop => BodyTop + CardHeight + .26;
+
+    private static double ListColumnWidth(int columnCount) =>
+        (ContentWidth - (ListColumnGap * (columnCount - 1))) / columnCount;
+
+    /// <summary>Slide 2, plus continuation slides for the completed list when it will not fit even at the smallest type size.</summary>
+    private static IEnumerable<Action<PptxSlideCanvas, int>> SummarySlides(CoeSlidesData data, Logos logos)
+    {
+        var projects = data.CompletedProjects;
+        var firstListTop = SummaryListHeaderTop + ColumnHeaderHeight + .08;
+        if (projects.Count == 0)
+        {
+            yield return (canvas, number) => RenderSummaryPage(canvas, data, logos, number, Array.Empty<IReadOnlyList<RowLayout>>(), 1, MinimumFontSize, continued: false);
+            yield break;
+        }
+
+        // Balanced columns, at the largest size that fits.
+        var columnCount = Math.Clamp((int)Math.Ceiling(projects.Count / 7d), 1, MaxListColumns);
+        columnCount = Math.Max(columnCount, Math.Min(3, projects.Count));
+        var columnWidth = ListColumnWidth(columnCount);
+        var perColumn = (int)Math.Ceiling(projects.Count / (double)columnCount);
+        var layouts = Enumerable.Range(0, columnCount)
+            .Select(index => projects.Skip(index * perColumn).Take(perColumn).ToList())
+            .Where(column => column.Count > 0)
+            .Select(column => new ColumnLayout(new CoeSlideColumn(string.Empty, column), columnWidth))
+            .ToList();
+        var available = BodyBottom - firstListTop;
+        var fontSize = FittingFontSize(layouts, available, 12);
+        if (layouts.All(layout => layout.Height(fontSize) <= available))
+        {
+            var rows = layouts.Select(layout => (IReadOnlyList<RowLayout>)layout.Rows(fontSize).ToList()).ToList();
+            yield return (canvas, number) => RenderSummaryPage(canvas, data, logos, number, rows, columnCount, fontSize, continued: false);
+            yield break;
+        }
+
+        // Too many to fit: fill four columns down, then carry on to continuation slides that give the list the whole page.
+        var allRows = new ColumnLayout(new CoeSlideColumn(string.Empty, projects), ListColumnWidth(MaxListColumns))
+            .Rows(ContinuationFontSize)
+            .ToList();
+        var next = 0;
+        var first = true;
+        while (next < allRows.Count)
+        {
+            var pageHeight = first ? available : BodyBottom - (BodyTop + ColumnHeaderHeight + .08);
+            var columns = new List<IReadOnlyList<RowLayout>>();
+            for (var column = 0; column < MaxListColumns && next < allRows.Count; column++)
+            {
+                var rows = new List<RowLayout>();
+                var used = 0d;
+                while (next < allRows.Count && (rows.Count == 0 || used + allRows[next].Height <= pageHeight))
+                {
+                    used += allRows[next].Height;
+                    rows.Add(allRows[next++]);
+                }
+                columns.Add(rows);
+            }
+
+            var continued = !first;
+            yield return (canvas, number) => RenderSummaryPage(canvas, data, logos, number, columns, MaxListColumns, ContinuationFontSize, continued);
+            first = false;
+        }
+    }
+
+    private static void RenderSummaryPage(
+        PptxSlideCanvas canvas,
+        CoeSlidesData data,
+        Logos logos,
+        int number,
+        IReadOnlyList<IReadOnlyList<RowLayout>> columns,
+        int columnCount,
+        double fontSize,
+        bool continued)
     {
         AddHeader(canvas, logos,
-            "AR/VR at a glance",
+            continued ? "AR/VR at a glance (continued)" : "AR/VR at a glance",
             $"as of {Date(data.AsOf)} · completed projects, training and proliferation, all years");
         AddFooter(canvas, data.Training is null && data.Proliferation is null
             ? "Training and proliferation figures are shown to their trackers' viewers only."
             : string.Empty, number);
 
-        var cards = new List<StatCard>
+        var listHeaderTop = BodyTop;
+        if (!continued)
         {
-            new(data.CompletedTotal, "AR/VR projects completed", "in the CoE and outside it", Green)
-        };
-        if (data.Training is { } training)
-        {
-            cards.Add(new(training.People, "People trained", $"in {training.Courses} AR/VR course{(training.Courses == 1 ? string.Empty : "s")}", Blue));
-        }
-        if (data.Proliferation is { } proliferation)
-        {
-            cards.Add(new(proliferation.UnitsDelivered, "Units proliferated", $"to {proliferation.ReceivingUnits} receiving unit{(proliferation.ReceivingUnits == 1 ? string.Empty : "s")}", Orange));
+            var cards = new List<StatCard>
+            {
+                new(data.CompletedTotal, "AR/VR projects completed", "in the CoE and outside it", Green)
+            };
+            if (data.Training is { } training)
+            {
+                cards.Add(new(training.People, "People trained", $"in {training.Courses} AR/VR course{(training.Courses == 1 ? string.Empty : "s")}", Blue));
+            }
+            if (data.Proliferation is { } proliferation)
+            {
+                cards.Add(new(proliferation.UnitsDelivered, "Units proliferated", $"to {proliferation.ReceivingUnits} receiving unit{(proliferation.ReceivingUnits == 1 ? string.Empty : "s")}", Orange));
+            }
+
+            // A three-column grid whatever the caller may see, so a card keeps its place and size.
+            const double gap = .24;
+            var cardWidth = (ContentWidth - (gap * 2)) / 3;
+            for (var index = 0; index < cards.Count; index++)
+            {
+                RenderCard(canvas, cards[index], Left + (index * (cardWidth + gap)), cardWidth, CardHeight);
+            }
+
+            listHeaderTop = SummaryListHeaderTop;
         }
 
-        // A three-column grid whatever the caller may see, so a card keeps its place and size.
-        const double gap = .24;
-        const double cardHeight = 1.42;
-        var cardWidth = (ContentWidth - (gap * 2)) / 3;
-        for (var index = 0; index < cards.Count; index++)
-        {
-            RenderCard(canvas, cards[index], Left + (index * (cardWidth + gap)), cardWidth, cardHeight);
-        }
+        // Every completed AR/VR project, newest first, in columns under one heading.
+        canvas.AddRect(Left, listHeaderTop, ContentWidth, ColumnHeaderHeight, HeaderTint);
+        canvas.AddText(Left + .06, listHeaderTop, ContentWidth - .8, ColumnHeaderHeight,
+            continued ? "Completed AR/VR projects, with the year of completion (continued)" : "Completed AR/VR projects, with the year of completion",
+            12, Navy, true, "l");
+        canvas.AddText(Right - .62, listHeaderTop, .56, ColumnHeaderHeight, data.CompletedProjects.Count.ToString(CultureInfo.InvariantCulture), 12, Navy, true, "r");
 
-        // Every completed AR/VR project, newest first, in balanced columns under one heading.
-        var listHeaderTop = BodyTop + cardHeight + .26;
-        const double headerHeight = .36;
-        canvas.AddRect(Left, listHeaderTop, ContentWidth, headerHeight, HeaderTint);
-        canvas.AddText(Left + .06, listHeaderTop, ContentWidth - .8, headerHeight, "Completed AR/VR projects, with the year of completion", 12, Navy, true, "l");
-        canvas.AddText(Right - .62, listHeaderTop, .56, headerHeight, data.CompletedProjects.Count.ToString(CultureInfo.InvariantCulture), 12, Navy, true, "r");
-
-        var listTop = listHeaderTop + headerHeight + .08;
+        var listTop = listHeaderTop + ColumnHeaderHeight + .08;
         if (data.CompletedProjects.Count == 0)
         {
             canvas.AddText(Left, listTop + .3, ContentWidth, .4, "No AR/VR project has been completed yet.", 13, Muted, false, "l");
             return;
         }
 
-        var columnCount = Math.Clamp((int)Math.Ceiling(data.CompletedProjects.Count / 7d), 1, 4);
-        columnCount = Math.Max(columnCount, Math.Min(3, data.CompletedProjects.Count));
-        const double columnGap = .3;
-        var columnWidth = (ContentWidth - (columnGap * (columnCount - 1))) / columnCount;
-        var perColumn = (int)Math.Ceiling(data.CompletedProjects.Count / (double)columnCount);
-        var layouts = Enumerable.Range(0, columnCount)
-            .Select(index => data.CompletedProjects.Skip(index * perColumn).Take(perColumn).ToList())
-            .Where(projects => projects.Count > 0)
-            .Select(projects => new ColumnLayout(new CoeSlideColumn(string.Empty, projects), columnWidth))
-            .ToList();
-        var fontSize = FittingFontSize(layouts, BodyBottom - listTop, 12);
-        for (var index = 0; index < layouts.Count; index++)
+        var columnWidth = ListColumnWidth(columnCount);
+        for (var index = 0; index < columns.Count; index++)
         {
-            DrawRows(canvas, layouts[index], Left + (index * (columnWidth + columnGap)), listTop, columnWidth, fontSize);
+            DrawRows(canvas, columns[index], Left + (index * (columnWidth + ListColumnGap)), listTop, columnWidth, fontSize);
         }
     }
 

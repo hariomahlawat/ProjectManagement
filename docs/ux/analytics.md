@@ -286,7 +286,7 @@ Green, amber and red otherwise stay reserved for status.
 
 ## CoE slides
 
-`?handler=CoeSlides` on the CoE mode downloads a two-slide widescreen PowerPoint, built on the server
+`?handler=CoeSlides` on the CoE mode downloads a two-slide widescreen PowerPoint (more, when a list needs continuation slides), built on the server
 from a bundled template (no network access). Both slides are drawn from the same view models as the
 page (`CoeAnalyticsVm`, `ArVrImpactVm`); nothing is recomputed for the slides. The look follows the
 ARPP slide style: a white page, the formation crest (left) and SDD insignia (right) either side of the
@@ -306,3 +306,8 @@ title over a navy rule, tinted column headings, and a footer note with the page 
    (`CoeAnalyticsVm.ArVrCompleted`: the CoE, before the CoE nomination, DCD fresh, DCD repeat
    builds). The training and proliferation cards appear only for a user their tracker's view policy
    admits, the same check as the page cards.
+
+When a list will not fit even at 7.5 pt (row heights count every wrapped line of the name and of the
+PDC), it carries on to continuation slides at 10 pt, titled "(continued)": slide 1's columns keep
+their headings and totals, and the completed list fills four columns a page with the cards on the
+first page only. Nothing is drawn past the slide edge.
