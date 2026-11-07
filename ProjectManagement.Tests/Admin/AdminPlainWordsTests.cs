@@ -139,7 +139,7 @@ public sealed class AdminPlainWordsTests
     {
         "migration(s)", "assembly", "cadence", "processing cycle", "Data Protection", "Storage capacity",
         "Connectivity", "metadata", "diagnostic reference", "permitted execution", "lineage",
-        "Application runtime", "Primary upload storage", "Background services"
+        "Application runtime", "Primary upload storage", "Background services", "Application security"
     };
 
     [Theory]

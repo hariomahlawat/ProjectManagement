@@ -443,7 +443,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         var detail = $"Version {ResolveApplicationVersion()} · database updates at start-up {(migrationsOnStartup ? "on" : "off")}.";
         return new(
             "application-runtime",
-            "Application security",
+            "Security",
             "PRISM version and settings",
             status,
             summary,
