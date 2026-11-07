@@ -97,6 +97,29 @@ public sealed class DocRepoTrashPurgeRaceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Purge_WhenTheSaveFailsAfterAnotherRunPurgedTheRow_LeavesNoOrphanFile()
+    {
+        var id = await SeedAsync(deletedDaysAgo: 3);
+        var storage = new HookedStorage(CreateStorage())
+        {
+            // Another run finds the file already set aside and purges the row.
+            AfterFirstMove = async () =>
+            {
+                await using var other = CreateDb();
+                Assert.Equal(DocRepoPurgeOutcome.Purged, (await CreateService(other, CreateStorage()).PurgeAsync(id, "other-admin")).Outcome);
+            }
+        };
+
+        // This run's DELETE then fails (a dropped connection, say).
+        await using var db = CreateDb(new FailingDeleteInterceptor());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(db, storage).PurgeAsync(id, "admin"));
+
+        await using var check = CreateDb();
+        Assert.Empty(await check.Documents.AsNoTracking().ToListAsync());
+        Assert.Empty(Directory.EnumerateFiles(_root, "*.pdf", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public async Task PurgeExpired_TwoOverlappingRuns_PurgeEachDocumentOnceWithoutThrowing()
     {
         var first = await SeedAsync(deletedDaysAgo: 40);
@@ -236,6 +259,18 @@ public sealed class DocRepoTrashPurgeRaceTests : IAsyncLifetime
             InterceptionResult<int> result,
             CancellationToken cancellationToken = default)
             => throw new InvalidOperationException(Message);
+    }
+
+    private sealed class FailingDeleteInterceptor : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            System.Data.Common.DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+            => command.CommandText.TrimStart().StartsWith("DELETE", StringComparison.OrdinalIgnoreCase)
+                ? throw new InvalidOperationException("The connection dropped.")
+                : base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     private sealed class StaticOptionsMonitor : IOptionsMonitor<DocRepoOptions>

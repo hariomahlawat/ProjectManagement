@@ -127,16 +127,16 @@ public sealed class DocRepoTrashPurgeService
         }
         catch (Exception ex)
         {
+            // This attempt's transaction rolled back, but another run may have purged the row
+            // meanwhile: the file follows the row (put back if it is there, or if unknown).
             _db.ChangeTracker.Clear();
+            await SettleFileAsync(document.Id, document.StoragePath, quarantinePath);
             if (ex is DbUpdateConcurrencyException)
             {
                 // Taken by another run (or restored) between the load and the save.
-                await SettleFileAsync(document.Id, document.StoragePath, quarantinePath);
                 return new DocRepoPurgeResult(DocRepoPurgeOutcome.NotFound);
             }
 
-            // The transaction rolled back: the row is still there, so its file goes back too.
-            await PutBackAsync(document.Id, document.StoragePath, quarantinePath);
             throw;
         }
 
