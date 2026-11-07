@@ -129,3 +129,9 @@ These are larger changes. None of the PRs above makes them without the owner's g
 4. Still open from the second review:
    - Test HoD, Test Project Officer and the two Claude Review accounts are marked as people, so ERP usage counts them.
    - Documents restored before second-review PR 2 stay hidden from readers and search.
+
+## PR 3 as shipped
+
+- **Sign-in activity (C3).** `AdminLoginMonitoringService` turns the Outcome filter and the review rule into the database query before the newest-5,000 cap. The review rule for a successful sign-in (between 22:00 and 05:00 IST) is `LateNightSuccessfulSignIn`, kept in step with `BuildEvent`; failed and locked-out attempts always need a look. The chart and the CSV export read the filtered set, and the "Sign-ins to look at" queue and its tile always read the review set, so an older failed sign-in is listed and counted even when newer successful ones fill the cap. "Too many to draw" now means a list on the page was cut off, and "Sign-ins in this period" shows the full count instead of the capped one. The usual sign-in times still come from the newest 5,000 events in the period.
+- **Home (C7).** `AdminDashboardService` counts its 7 days as today and the six IST calendar days before it, the same period as Sign-in activity's 7 days. Recent changes show people through `AuditActorNames`, as the audit log does: full name, then user name, and "PRISM" for rows the application wrote. The account-state counts are left for PR 4.
+- Tests: `AdminSignInCountsWhatItShowsTests` (filtered outcome and review rows older than the cap, export matches the list, the review rule translates to PostgreSQL, Home's IST window at a day boundary, Home's display names).

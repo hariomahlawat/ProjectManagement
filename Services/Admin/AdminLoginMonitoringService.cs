@@ -1,8 +1,10 @@
+using System.Linq.Expressions;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Admin;
@@ -260,89 +262,54 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
             lockedTrendRows.Select(row => (DateOnly.FromDateTime(row.Day), row.Count)));
 
         var maximumPoints = _options.MaximumChartPoints;
-        var successfulRows = await successfulQuery
-            .OrderByDescending(authEvent => authEvent.WhenUtc)
-            .Take(maximumPoints + 1)
-            .Select(authEvent => new
-            {
-                authEvent.WhenUtc,
-                authEvent.UserId,
-                authEvent.Ip,
-                authEvent.UserAgent
-            })
-            .ToListAsync(cancellationToken);
-        var failedRows = await auditQuery
-            .OrderByDescending(audit => audit.TimeUtc)
-            .ThenByDescending(audit => audit.Id)
-            .Take(maximumPoints + 1)
-            .Select(audit => new
-            {
-                audit.TimeUtc,
-                audit.UserId,
-                audit.UserName,
-                audit.Action,
-                audit.Ip,
-                audit.UserAgent
-            })
-            .ToListAsync(cancellationToken);
 
-        var identityIds = successfulRows.Select(row => row.UserId)
-            .Concat(failedRows.Where(row => !string.IsNullOrWhiteSpace(row.UserId)).Select(row => row.UserId!))
+        // Everything in the period, newest first: the "usual sign-in times" figures.
+        var analysed = await LoadNewestAsync(successfulQuery, auditQuery, maximumPoints, cancellationToken);
+
+        // The Outcome and "Only sign-ins to look at" filters run in the query, before the cap,
+        // so an older failed sign-in is still listed when newer successful ones would fill the
+        // cap (third review, C3). The review queue always uses the review rule; the chart and
+        // the export use it only when the filter asks for it.
+        var (filteredSuccessful, filteredAudit) = ApplyOutcomeFilter(successfulQuery, auditQuery, request.Outcome);
+        var hasOutcomeFilter = !ReferenceEquals(filteredSuccessful, successfulQuery)
+            || !ReferenceEquals(filteredAudit, auditQuery);
+
+        var review = await LoadNewestAsync(
+            filteredSuccessful?.Where(LateNightSuccessfulSignIn),
+            filteredAudit,
+            maximumPoints,
+            cancellationToken);
+        var filtered = request.ReviewOnly
+            ? review
+            : hasOutcomeFilter
+                ? await LoadNewestAsync(filteredSuccessful, filteredAudit, maximumPoints, cancellationToken)
+                : analysed;
+
+        var identityIds = analysed.Rows
+            .Concat(filtered.Rows)
+            .Concat(review.Rows)
+            .Where(row => !string.IsNullOrWhiteSpace(row.UserId))
+            .Select(row => row.UserId!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         var identities = await ResolveIdentitiesAsync(identityIds, cancellationToken);
 
-        var events = new List<AdminLoginEventRow>(successfulRows.Count + failedRows.Count);
-        foreach (var row in successfulRows.Take(maximumPoints))
-        {
-            var identity = ResolveIdentity(row.UserId, null, identities);
-            events.Add(BuildEvent(
-                row.WhenUtc,
-                row.UserId,
-                identity.LoginName,
-                identity.DisplayName,
-                AdminLoginOutcome.Successful,
-                row.Ip,
-                row.UserAgent,
-                markWeekends));
-        }
+        var analysedEvents = BuildEvents(analysed.Rows, identities, markWeekends);
+        var filteredEvents = ReferenceEquals(filtered, analysed)
+            ? analysedEvents
+            : BuildEvents(filtered.Rows, identities, markWeekends);
+        var reviewSource = ReferenceEquals(review, filtered)
+            ? filteredEvents
+            : BuildEvents(review.Rows, identities, markWeekends);
 
-        foreach (var row in failedRows.Take(maximumPoints))
-        {
-            var identity = ResolveIdentity(row.UserId, row.UserName, identities);
-            var outcome = row.Action == AuthenticationEventNames.AuditLoginLockedOut
-                ? AdminLoginOutcome.LockedOut
-                : AdminLoginOutcome.Failed;
-            events.Add(BuildEvent(
-                new DateTimeOffset(EnsureUtc(row.TimeUtc)),
-                row.UserId,
-                identity.LoginName,
-                identity.DisplayName,
-                outcome,
-                row.Ip,
-                row.UserAgent,
-                markWeekends));
-        }
-
-        var isTruncated = successfulRows.Count > maximumPoints
-            || failedRows.Count > maximumPoints
-            || events.Count > maximumPoints;
-        var analysedEvents = events
-            .OrderByDescending(row => row.WhenUtc)
-            .Take(maximumPoints)
-            .ToArray();
-
-        var filteredEvents = ApplyOutcomeFilter(analysedEvents, request.Outcome);
-        if (request.ReviewOnly)
-        {
-            filteredEvents = filteredEvents.Where(row => row.RequiresReview);
-        }
+        // Cut off means a list on the page (chart, export or review queue) lost rows to the cap.
+        var isTruncated = filtered.Truncated || review.Truncated;
 
         var patternPoints = filteredEvents
             .OrderBy(row => row.LocalTime)
             .ToArray();
         var reviewEvents = ConsolidateReviewEvents(
-                filteredEvents.Where(row => row.RequiresReview),
+                reviewSource.Where(row => row.RequiresReview),
                 _options.DuplicateWindowMinutes)
             .OrderByDescending(row => row.WhenUtc)
             .ToArray();
@@ -530,15 +497,117 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
         return address.ToString();
     }
 
-    private static IEnumerable<AdminLoginEventRow> ApplyOutcomeFilter(
-        IEnumerable<AdminLoginEventRow> source,
+    /// <summary>
+    /// The Outcome filter as queries. A null stream is left out entirely; an unknown value
+    /// leaves both streams as they are.
+    /// </summary>
+    private static (IQueryable<AuthEvent>? Successful, IQueryable<AuditLog>? Audit) ApplyOutcomeFilter(
+        IQueryable<AuthEvent> successful,
+        IQueryable<AuditLog> audit,
         string? outcome) => outcome?.Trim().ToLowerInvariant() switch
     {
-        "successful" or "success" => source.Where(row => row.Outcome == AdminLoginOutcome.Successful),
-        "failed" => source.Where(row => row.Outcome == AdminLoginOutcome.Failed),
-        "locked" or "locked-out" => source.Where(row => row.Outcome == AdminLoginOutcome.LockedOut),
-        _ => source
+        "successful" or "success" => (successful, null),
+        "failed" => (null, audit.Where(row => row.Action == AuthenticationEventNames.AuditLoginFailed)),
+        "locked" or "locked-out" => (null, audit.Where(row => row.Action == AuthenticationEventNames.AuditLoginLockedOut)),
+        _ => (successful, audit)
     };
+
+    /// <summary>
+    /// The review rule for a successful sign-in, as SQL: late at night in IST (22:00 to 05:00).
+    /// Failed and locked-out attempts always need a look. Keep in step with <see cref="BuildEvent"/>.
+    /// </summary>
+    internal static readonly Expression<Func<AuthEvent, bool>> LateNightSuccessfulSignIn =
+        authEvent => authEvent.WhenUtc.AddMinutes(IstOffsetMinutes).Hour < 5
+            || authEvent.WhenUtc.AddMinutes(IstOffsetMinutes).Hour >= 22;
+
+    /// <summary>
+    /// The newest sign-ins from both streams, at most <paramref name="maximum"/>. Each stream is
+    /// read newest first with one extra row, so the caller knows when the cap cut something off.
+    /// </summary>
+    private async Task<SignInSlice> LoadNewestAsync(
+        IQueryable<AuthEvent>? successfulQuery,
+        IQueryable<AuditLog>? auditQuery,
+        int maximum,
+        CancellationToken cancellationToken)
+    {
+        var rows = new List<RawSignIn>();
+        var truncated = false;
+
+        if (successfulQuery is not null)
+        {
+            var successful = await successfulQuery
+                .OrderByDescending(authEvent => authEvent.WhenUtc)
+                .Take(maximum + 1)
+                .Select(authEvent => new
+                {
+                    authEvent.WhenUtc,
+                    authEvent.UserId,
+                    authEvent.Ip,
+                    authEvent.UserAgent
+                })
+                .ToListAsync(cancellationToken);
+            truncated |= successful.Count > maximum;
+            rows.AddRange(successful.Take(maximum).Select(row => new RawSignIn(
+                row.WhenUtc,
+                row.UserId,
+                null,
+                AdminLoginOutcome.Successful,
+                row.Ip,
+                row.UserAgent)));
+        }
+
+        if (auditQuery is not null)
+        {
+            var audit = await auditQuery
+                .OrderByDescending(row => row.TimeUtc)
+                .ThenByDescending(row => row.Id)
+                .Take(maximum + 1)
+                .Select(row => new
+                {
+                    row.TimeUtc,
+                    row.UserId,
+                    row.UserName,
+                    row.Action,
+                    row.Ip,
+                    row.UserAgent
+                })
+                .ToListAsync(cancellationToken);
+            truncated |= audit.Count > maximum;
+            rows.AddRange(audit.Take(maximum).Select(row => new RawSignIn(
+                new DateTimeOffset(EnsureUtc(row.TimeUtc)),
+                row.UserId,
+                row.UserName,
+                row.Action == AuthenticationEventNames.AuditLoginLockedOut
+                    ? AdminLoginOutcome.LockedOut
+                    : AdminLoginOutcome.Failed,
+                row.Ip,
+                row.UserAgent)));
+        }
+
+        truncated |= rows.Count > maximum;
+        return new SignInSlice(
+            rows.OrderByDescending(row => row.WhenUtc).Take(maximum).ToArray(),
+            truncated);
+    }
+
+    private AdminLoginEventRow[] BuildEvents(
+        IEnumerable<RawSignIn> rows,
+        IReadOnlyDictionary<string, UserIdentity> identities,
+        bool markWeekends) => rows
+        .Select(row =>
+        {
+            var identity = ResolveIdentity(row.UserId, row.TypedLogin, identities);
+            return BuildEvent(
+                row.WhenUtc,
+                row.UserId,
+                identity.LoginName,
+                identity.DisplayName,
+                row.Outcome,
+                row.Ip,
+                row.UserAgent,
+                markWeekends);
+        })
+        .ToArray();
 
     private static IReadOnlyList<AdminLoginTrendPoint> BuildTrend(
         DateOnly fromDate,
@@ -600,4 +669,14 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
     };
 
     private sealed record UserIdentity(string Id, string LoginName, string DisplayName);
+
+    private sealed record RawSignIn(
+        DateTimeOffset WhenUtc,
+        string? UserId,
+        string? TypedLogin,
+        AdminLoginOutcome Outcome,
+        string? Ip,
+        string? UserAgent);
+
+    private sealed record SignInSlice(IReadOnlyList<RawSignIn> Rows, bool Truncated);
 }
