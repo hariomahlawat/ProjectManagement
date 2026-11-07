@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Users.IndexModel
+@inject ProjectManagement.Services.Admin.IAdminRoleDescriptorCatalog RoleNames
 @{
     ViewData["Title"] = "Users";
     var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -67,7 +68,7 @@
                 <option value="">All roles</option>
                 @foreach (var role in Model.AllRoles)
                 {
-                    <option value="@role">@role</option>
+                    <option value="@role">@RoleNames.Describe(role).DisplayName</option>
                 }
             </select>
         </div>
@@ -135,7 +136,7 @@
                    asp-route-q="@Model.Q"
                    asp-route-status="@Model.Status"
                    asp-route-pageSize="@Model.PageSize">
-                    Role: @Model.Role <i class="bi bi-x" aria-hidden="true"></i>
+                    Role: @RoleNames.Describe(Model.Role).DisplayName <i class="bi bi-x" aria-hidden="true"></i>
                 </a>
             }
             @if (!string.IsNullOrWhiteSpace(Model.Status))
@@ -194,7 +195,7 @@
                                     <div class="admin-role-badges">
                                         @foreach (var role in row.Roles.Take(3))
                                         {
-                                            <span class="admin-role-badge">@role</span>
+                                            <span class="admin-role-badge">@RoleNames.Describe(role).DisplayName</span>
                                         }
                                         @if (row.Roles.Count > 3)
                                         {
@@ -206,7 +207,7 @@
                             <td>
                                 <div class="admin-activity-value">
                                     <strong>@Model.FormatIst(row.LastLoginUtc)</strong>
-                                    <span>@row.LoginCount.ToString("N0") successful login@(row.LoginCount == 1 ? string.Empty : "s")</span>
+                                    <span>@row.LoginCount.ToString("N0") successful sign-in@(row.LoginCount == 1 ? string.Empty : "s")</span>
                                 </div>
                             </td>
                             <td>
@@ -297,7 +298,7 @@
                          ? "Change or clear the current filters to broaden the directory results."
                          : "Create the first account to begin managing PRISM access.",
                      Icon = Model.HasFilters ? "bi-search" : "bi-people",
-                     ActionText = Model.HasFilters ? "Clear filters" : "Create user",
+                     ActionText = Model.HasFilters ? "Clear filters" : "Add user",
                      ActionHref = Model.HasFilters ? Url.Page("./Index") : Url.Page("./Create")
                  })" />
     }

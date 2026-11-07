@@ -167,7 +167,7 @@ public sealed class LegacyImportModel : PageModel
             {
                 new AdminPageActionModel
                 {
-                    Text = "Maintenance centre",
+                    Text = "Data jobs",
                     Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.MaintenanceCentre),
                     Icon = "bi-arrow-left"
                 },

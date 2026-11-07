@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Search;
@@ -616,12 +617,18 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
         .Distinct()
         .ToListAsync(cancellationToken);
 
-    private async Task<IReadOnlyList<string>> GetAvailableRolesAsync(CancellationToken cancellationToken) =>
-        await _db.Roles.AsNoTracking()
+    // An old role name is offered only while someone still holds it.
+    private async Task<IReadOnlyList<string>> GetAvailableRolesAsync(CancellationToken cancellationToken)
+    {
+        var oldNames = RoleNames.LegacyAliases.ToArray();
+        return await _db.Roles.AsNoTracking()
             .Where(role => role.Name != null)
+            .Where(role => !oldNames.Contains(role.Name!)
+                || _db.UserRoles.Any(userRole => userRole.RoleId == role.Id))
             .Select(role => role.Name!)
             .OrderBy(role => role)
             .ToListAsync(cancellationToken);
+    }
 
     private AdminUserAccountStateInfo ResolveState(UserProjection user) =>
         _stateResolver.Resolve(

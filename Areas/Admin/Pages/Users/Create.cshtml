@@ -1,7 +1,7 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Users.CreateModel
 @{
-    ViewData["Title"] = "Create user";
+    ViewData["Title"] = "Add user";
     var roleGrid = new AdminRoleSelectionGridModel
     {
         Roles = Model.RoleOptions,
@@ -136,7 +136,7 @@
         <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
         <button class="btn btn-primary" type="submit">
             <i class="bi bi-person-plus" aria-hidden="true"></i>
-            Create user
+            Add user
         </button>
     </footer>
 </form>

@@ -49,11 +49,11 @@
                 Every row must map to a CFA, Fund and DFPDS value before a record can be verified, and at least one list has no active value.
                 @if (Model.CanManageReferenceData)
                 {
-                    <a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="alert-link">Add the values in ARPP reference data</a><text>.</text>
+                    <a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="alert-link">Add the values in ARPP values</a><text>.</text>
                 }
                 else
                 {
-                    <text>Ask an Admin to add them under Admin › Master data › ARPP reference data. Rows can still be entered as issued in the meantime.</text>
+                    <text>Ask an Admin to add them under Administration › Lists used in forms › ARPP values. Rows can still be entered as issued in the meantime.</text>
                 }
             </span>
         </div>

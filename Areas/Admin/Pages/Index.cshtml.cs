@@ -129,7 +129,7 @@ public sealed class AdminIndexModel : PageModel
         var canAddUsers = (await _authorization.AuthorizeAsync(User, AdminPolicies.UsersManage)).Succeeded;
         if (canAddUsers && Url.Page("/Users/Create", new { area = "Admin" }) is { } create)
         {
-            actions.Add(new AdminPageActionModel { Text = "Add a user", Href = create, Icon = "bi-person-plus", IsPrimary = true });
+            actions.Add(new AdminPageActionModel { Text = "Add user", Href = create, Icon = "bi-person-plus", IsPrimary = true });
         }
 
         return actions;

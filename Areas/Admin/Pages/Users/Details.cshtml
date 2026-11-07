@@ -240,7 +240,7 @@
                     <h2 id="admin-authentication-activity-title">Recent sign-in activity</h2>
                 </div>
                 <a class="admin-panel__action" asp-area="Admin" asp-page="/Analytics/Logins" asp-route-UserId="@Model.Account.Id">
-                    View all login activity <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    View all sign-ins <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </a>
             </header>
             @if (Model.RecentAuthentication.Count == 0)

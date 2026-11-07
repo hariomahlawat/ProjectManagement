@@ -52,12 +52,12 @@
                 <i class="bi bi-shield-check" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
-                <p>The Access Governance page explains which configured role grants each administrative capability and identifies privileged account conditions requiring review.</p>
+                <p>Who has which role shows which role grants each admin job, and which admin and HoD accounts need a look.</p>
                 <ul>
-                    <li>Role and policy composition remains code-defined; the governance page is a review surface, not a dynamic policy editor.</li>
+                    <li>What each role can do is set in PRISM itself; this page shows it but cannot change it. To change what a person can do, change their roles on Users.</li>
                     <li>Disabled or deletion-pending accounts may retain role assignments for historical and restoration purposes.</li>
                     <li>Maintain more than one active Administrator where organisational policy permits.</li>
-                    <li>Export the bounded access-review file for formal review or record keeping.</li>
+                    <li>Export the access review file for a formal review or your records.</li>
                 </ul>
             </div>
         </section>
@@ -68,12 +68,12 @@
                 <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
-                <p>Login Activity is a security view; ERP Usage is an adoption view. A user may remain signed in for several days, so login count must not be used as a proxy for daily ERP use.</p>
+                <p>Sign-in activity is for security; ERP usage shows how much PRISM is used. A person can stay signed in for several days, so the number of sign-ins does not show daily use.</p>
                 <ul>
-                    <li>ERP Usage records bounded navigation and interactive activity intervals without capturing keystrokes, page content or query text.</li>
+                    <li>ERP usage records which pages people open and when they are active. It never records keystrokes, page content or search text.</li>
                     <li>Approximate active time is an adoption indicator, not attendance or individual performance.</li>
-                    <li>Failed and lockout incidents remain in Login Activity and require security review.</li>
-                    <li>System Health reports readiness; a Starting or Unknown check is not equivalent to Healthy.</li>
+                    <li>Failed sign-ins and lockouts are listed in Sign-in activity; review them there.</li>
+                    <li>System health checks that PRISM is ready. A check that has not run yet is not the same as OK.</li>
                 </ul>
             </div>
         </section>
@@ -84,11 +84,11 @@
                 <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
-                <p><strong>Archive</strong> removes a record from active operational views without invoking deletion retention. <strong>Trash</strong> starts the configured recovery period. <strong>Purge</strong> is irreversible and may remove related stored assets.</p>
+                <p><strong>Archive</strong> takes a record out of everyday lists; nothing is deleted. <strong>Delete</strong> moves it to Restore deleted items, where it can be brought back until its time is up. <strong>Purge</strong> deletes it for good, with its stored files, and cannot be undone.</p>
                 <ul>
                     <li>Review dependent records and storage impact before permanent deletion.</li>
-                    <li>Use the exact-name and acknowledgement controls for destructive operations.</li>
-                    <li>Manual and background purge operations use the same governed command path.</li>
+                    <li>Before deleting for good, PRISM asks you to type the exact name and confirm.</li>
+                    <li>Purging by hand and the automatic purge when time is up follow the same checks.</li>
                 </ul>
             </div>
         </section>
@@ -99,7 +99,7 @@
                 <i class="bi bi-tools" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
-                <p>Before running PDF ingestion, check the last run on the ingestion page; a run starts at once, skips files already in the repository and finishes even if you leave the page. Legacy import must be validated and previewed before commit; the preview token, source digest and reconciliation report protect against accidental repeat imports.</p>
+                <p>Before you use Copy PDFs into the repository, check its last run on that page. A run starts at once, skips files already in the repository and finishes even if you leave the page. Legacy project import must be checked and previewed before it saves anything, so the same file cannot be imported twice by mistake.</p>
             </div>
         </section>
 
@@ -109,13 +109,13 @@
                 <i class="bi bi-sliders2" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
-                <p>Master data controls values used throughout PRISM. A change may affect current forms, historical reporting and future records.</p>
+                <p>These lists are the choices offered in forms across PRISM. A change shows in forms at once and in reports on past records.</p>
                 <ul>
                     <li>Deactivate referenced values instead of deleting them.</li>
                     <li>Category deletion is permitted only when no projects, children or descendants depend on the entry.</li>
-                    <li>Reordering changes presentation order; it does not rewrite historical project data.</li>
-                    <li>Celebrations are calendar records and are not automatically sourced from user-account profiles.</li>
-                    <li>Every create, update, status, reorder and delete operation is written to the audit trail.</li>
+                    <li>Moving a value changes only the order forms show it in; records that use it do not change.</li>
+                    <li>Celebrations are entered on their own page; they are not taken from user accounts.</li>
+                    <li>Every add, edit, deactivate, move and delete is written to the audit log.</li>
                 </ul>
             </div>
         </section>
@@ -131,12 +131,12 @@
                 <i class="bi bi-clipboard2-check" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
-                <p>Configuration Integrity checks hierarchy, naming, reference and display-order conditions without changing data.</p>
+                <p>Data checks looks for problems in the lists (categories inside themselves, repeated names, missing links, repeated order numbers). Looking changes nothing.</p>
                 <ul>
-                    <li>Automatic repair is deliberately limited to deterministic display-order normalisation.</li>
-                    <li>Hierarchy, duplicate-name and reference findings require record-level review.</li>
-                    <li>Every repair records the affected domain, changed-record count and actor in the audit trail.</li>
-                    <li>Run the integrity review after legacy import or significant taxonomy restructuring.</li>
+                    <li>The only automatic fix is renumbering a list's order.</li>
+                    <li>Other problems need you to open the list and fix the value yourself.</li>
+                    <li>Every fix is written to the audit log: which list, how many values and who.</li>
+                    <li>Run Data checks after a legacy import or a big change to the categories.</li>
                 </ul>
             </div>
         </section>

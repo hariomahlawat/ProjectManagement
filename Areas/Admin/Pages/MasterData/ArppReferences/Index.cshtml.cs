@@ -103,14 +103,14 @@ public sealed class IndexModel : PageModel
         Snapshot = await _referenceData.GetAdminSnapshotAsync(cancellationToken);
         Header = new AdminPageHeaderModel
         {
-            Title = "ARPP reference data",
+            Title = "ARPP values",
             Description = "The CFA, Fund and DFPDS values offered in the ARPP workspace. Deactivate a value instead of deleting it: entries that use it keep it.",
             Icon = "bi-list-check",
             Actions = new[]
             {
                 new AdminPageActionModel
                 {
-                    Text = "Back to master data",
+                    Text = "Lists used in forms",
                     Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
                     Icon = "bi-arrow-left"
                 },

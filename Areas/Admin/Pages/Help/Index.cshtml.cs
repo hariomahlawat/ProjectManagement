@@ -32,7 +32,7 @@ public sealed class IndexModel : PageModel
     /// <summary>The questions, in page order. Each names the exact button on its page.</summary>
     public static IReadOnlyList<(string Question, string Answer, string NavigationKey)> Questions { get; } = new[]
     {
-        ("Add a new user", "Users › Create user. They get a temporary password and must choose their own at first sign-in.", AdminNavigationKeys.Users),
+        ("Add a new user", "Users › Add user. They get a temporary password and must choose their own at first sign-in.", AdminNavigationKeys.Users),
         ("Help someone who is locked out", "Users › open the person › Clear lockout. If they forgot their password, use Reset password instead.", AdminNavigationKeys.Users),
         ("Change what someone can do", "Users › open the person › Edit account, then change their roles.", AdminNavigationKeys.Users),
         ("Stop someone signing in", "Users › open the person › Disable account. Their records and history stay.", AdminNavigationKeys.Users),

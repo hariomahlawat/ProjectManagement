@@ -2,7 +2,7 @@
 @model ProjectManagement.Areas.DocumentRepository.Pages.Admin.Trash.IndexModel
 @using ProjectManagement.Areas.DocumentRepository.Models
 @{
-    ViewData["Title"] = "Trash";
+    ViewData["Title"] = "Deleted repository documents";
     ViewData["UseFullWidth"] = true;
 }
 
@@ -14,7 +14,7 @@
     <header class="library-head">
         <div class="library-head__text">
             <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
-            <h1>Trash</h1>
+            <h1>Deleted repository documents</h1>
             <p>
                 Documents whose deletion was approved. Restore puts one back in the library; Delete for good removes it and its file.
                 @if (Model.RetentionDays > 0)
