@@ -1920,7 +1920,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-advanced-filters { border-top: 1px solid var(--admin-border); }
 .admin-advanced-filters > summary { display: flex; align-items: center; gap: .4rem; width: max-content; margin: .55rem .8rem; color: var(--admin-text-secondary); font-size: .62rem; font-weight: 720; cursor: pointer; list-style: none; }
 .admin-advanced-filters > summary::-webkit-details-marker { display: none; }
-.admin-advanced-filters > summary::after { font-family: "bootstrap-icons"; font-size: .55rem; content: "\\f282"; transition: transform .15s ease; }
+.admin-advanced-filters > summary::after { font-family: "bootstrap-icons"; font-size: .55rem; content: "\f282"; transition: transform .15s ease; }
 .admin-advanced-filters[open] > summary::after { transform: rotate(180deg); }
 .admin-advanced-filters__grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem; padding: .1rem .8rem .75rem; }
 .admin-advanced-filters small { display: block; margin-top: .2rem; color: var(--admin-text-muted); font-size: .54rem; }
