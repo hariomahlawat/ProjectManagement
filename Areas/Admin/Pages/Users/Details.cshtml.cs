@@ -134,6 +134,26 @@ public sealed class DetailsModel : PageModel
         return Page();
     }
 
+    /// <summary>
+    /// "View all sign-ins" opens a period long enough to include the person's last sign-in, so
+    /// the list it opens is never empty while this page shows sign-ins.
+    /// </summary>
+    public int SignInPeriodDays => PeriodIncluding(Account?.LastLoginUtc, _time.UtcNow);
+
+    // Sign-in activity counts a period of N days as today and the N - 1 IST calendar days before it.
+    private static readonly TimeSpan Ist = TimeSpan.FromMinutes(330);
+
+    internal static readonly int[] SignInPeriods = { 30, 90, 180, 365 };
+
+    internal static int PeriodIncluding(DateTime? lastSignInUtc, DateTimeOffset now)
+    {
+        if (lastSignInUtc is null) return SignInPeriods[0];
+        var lastDate = DateOnly.FromDateTime(DateTime.SpecifyKind(lastSignInUtc.Value, DateTimeKind.Utc).Add(Ist));
+        var today = DateOnly.FromDateTime(now.UtcDateTime.Add(Ist));
+        var daysAgo = today.DayNumber - lastDate.DayNumber;
+        return SignInPeriods.FirstOrDefault(period => daysAgo <= period - 1, SignInPeriods[^1]);
+    }
+
     public string FormatIst(DateTime? utc) => _time.FormatIst(utc);
 
     public string FormatIst(DateTimeOffset? utc) => _time.FormatIst(utc);

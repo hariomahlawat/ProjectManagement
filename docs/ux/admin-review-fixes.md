@@ -163,6 +163,25 @@ What is left falls into three kinds:
 - Holder lists end "and N more", linking to Users filtered by that role.
 - The tiles sit two per row on phones.
 
+### PR 10 as shipped
+
+- **Plain words** on Search index, Media sources, Media intelligence, Legacy project import, Copy
+  PDFs into the repository, Sign-in activity, ERP usage, a user's page and the three bins.
+- **Technical details.** Detail that only a technician needs sits in a collapsed "Technical
+  details" panel (`admin-more-panel`, or the smaller `admin-technical-details`):
+  - the search ranking inspector and index versions;
+  - how photos and videos are processed;
+  - the media readiness checks (open by themselves when something is not ready);
+  - how photos were sorted;
+  - the import file fingerprint;
+  - the settings that switch outside folders on.
+- **Times** on these pages are shown in IST.
+- **"View all sign-ins"** on a user's page opens the shortest period (30, 90, 180 or 365 days)
+  that includes the person's last sign-in.
+- **Guard.** `AdminPlainWordsTests.SecondLevelPages_UsePlainWordsOutsideTechnicalDetails` keeps
+  these pages free of the words the review found, outside `<details>`.
+- **Unchanged:** routes, form fields, export columns, stored values and audit actions.
+
 Rules carried over from the redesign:
 - every PR keeps routes, policies and data contracts;
 - every PR ships with tests and is checked on screen while signed in;
