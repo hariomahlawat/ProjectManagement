@@ -342,3 +342,5 @@ Each mismatch was traced to its query before anything changed.
   - The account page's "View audit log" link asks for all history explicitly.
 - **Lists:** a refused save (another administrator's change or a duplicate name) clears the tracked changes, so nothing later in the request can save them.
 - **Unreadable PDFs:** the placeholder comment is replaced, and the page uses the policy constant (same policy).
+
+A third cold review after these PRs shipped, and its fix plan, are in `admin-review-3-fixes.md`.
