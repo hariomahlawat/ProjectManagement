@@ -7,6 +7,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Presentation;
 using Microsoft.AspNetCore.Hosting;
 using ProjectManagement.Services.Presentation;
+using static ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame;
 
 namespace ProjectManagement.Services.Analytics.Presentation;
 
@@ -27,35 +28,13 @@ public interface ICoeSlideComposer
 /// </summary>
 public sealed class CoeSlideComposer : ICoeSlideComposer
 {
-    // SECTION: Slide geometry and palette
-    private const double Left = .45;
-    private const double Right = 12.88;
-    private const double ContentWidth = Right - Left;
-    private const double SlideWidth = 13.333333;
-    private const double SlideHeight = 7.5;
-    private const double BodyTop = 1.32;
-    private const double BodyBottom = 6.88;
-
-    private const string Navy = "1F2A44";
-    private const string Blue = "3B6FD8";
-    private const string Green = "2E9152";
-    private const string Orange = "D07A24";
-    private const string Red = "C83B3B";
-    private const string Text = "1F2937";
-    private const string Muted = "6B7280";
-    private const string HeaderTint = "E9EEF6";
-    private const string CardTint = "F1F4F8";
-    private const string Rule = "E3E8EF";
-
-    // Average Aptos character width as a share of the font size (a little generous, so text never overflows its box).
-    private const double CharacterWidthEm = .5;
+    // SECTION: Slide geometry (the page, palette and header come from AnalyticsSlideFrame)
     // Text boxes keep a 0.05 in inset each side.
     private const double TextInset = .1;
     // END SECTION
 
     private readonly string _templatePath;
-    private readonly string? _leftLogoPath;
-    private readonly string? _rightLogoPath;
+    private readonly LogoPaths _logoPaths;
 
     public CoeSlideComposer(IWebHostEnvironment environment)
     {
@@ -64,13 +43,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         _templatePath = Path.Combine(environment.ContentRootPath, "Resources", "FfcPresentation", "FfcPortfolioTemplate.pptx");
 
         // The briefing decks' two insignia: the formation crest on the left, the SDD insignia on the right.
-        var webRootPath = string.IsNullOrWhiteSpace(environment.WebRootPath)
-            ? Path.Combine(environment.ContentRootPath, "wwwroot")
-            : environment.WebRootPath;
-        var left = Path.Combine(webRootPath, "img", "logos", "artrac.png");
-        var right = Path.Combine(webRootPath, "img", "logos", "sdd.png");
-        _leftLogoPath = File.Exists(left) ? left : null;
-        _rightLogoPath = File.Exists(right) ? right : null;
+        _logoPaths = LogoPaths.Find(environment);
     }
 
     public byte[] Compose(CoeSlidesData data)
@@ -81,7 +54,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
             throw new FileNotFoundException("The PowerPoint template was not found.", _templatePath);
         }
 
-        var logos = new Logos(ReadAsset(_leftLogoPath), ReadAsset(_rightLogoPath));
+        var logos = Logos.From(_logoPaths);
         var projectSlides = ProjectSlides(data, logos).ToList();
         var renderers = projectSlides.Concat(SummarySlides(data, logos)).ToList();
         // The notes go on each part's first slide (its continuation slides carry none).
@@ -142,7 +115,6 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
     }
 
     // SECTION: Slide 1 — CoE (AR/VR) roadmap, the projects by category: one column per category, every name in full
-    private const double ColumnHeaderHeight = .36;
     private const double CategoryGap = .2;
     // Below the smallest size the rows no longer fit; they carry on to continuation slides at a readable size instead.
     private const double MinimumFontSize = 7.5;
@@ -214,7 +186,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         return groups;
     }
 
-    private static double CategoryListTop => BodyTop + ColumnHeaderHeight + .08;
+    private static double CategoryListTop => BodyTop + HeadingHeight + .08;
 
     private static double CategoryColumnWidth(int columnCount) =>
         (ContentWidth - (CategoryGap * (columnCount - 1))) / columnCount;
@@ -251,22 +223,6 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         }
     }
 
-    /// <summary>A heading bar: its title, and the count at a right tab stop.</summary>
-    private static void AddHeading(PptxSlideCanvas canvas, double x, double y, double width, string title, int count, string name) =>
-        canvas.AddTextBox(
-            x, y, width, ColumnHeaderHeight,
-            new[]
-            {
-                new PptxTextParagraph(new[] { new PptxRun(title, 12, Navy, true), new PptxRun("\t" + count.ToString(CultureInfo.InvariantCulture), 12, Navy, true) })
-                {
-                    RightTabAt = width - .12
-                }
-            },
-            name,
-            fill: HeaderTint,
-            anchor: "ctr",
-            insets: new PptxInsets(.06, 0, .06, 0));
-
     /// <summary>
     /// One list column as one text box: a paragraph per project, its bullet green when completed, the name,
     /// the tag at the right tab stop and, in Development, the PDC on the next line (red when overdue).
@@ -283,7 +239,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
             var project = row.Project;
             var runs = new List<PptxRun>
             {
-                new(project.Name, fontSize, Text),
+                new(project.Name, fontSize, Ink),
                 new("\t" + NoBreak(project.Tag), fontSize - 1, TagColor(project))
             };
             if (project.Pdc is not null)
@@ -302,9 +258,6 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         }).ToList();
         canvas.AddTextBox(x, top, width, BodyBottom - top, paragraphs, name, shrinkOnOverflow: true);
     }
-
-    // A tag never splits across lines ("Oct 2026").
-    private static string NoBreak(string text) => text.Replace(' ', '\u00A0');
 
     private const double BulletIndent = .2;
 
@@ -411,7 +364,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
     private static IEnumerable<Action<PptxSlideCanvas, int>> SummarySlides(CoeSlidesData data, Logos logos)
     {
         var projects = data.CompletedProjects;
-        var firstListTop = SummaryListHeaderTop + ColumnHeaderHeight + .08;
+        var firstListTop = SummaryListHeaderTop + HeadingHeight + .08;
         if (projects.Count == 0)
         {
             yield return (canvas, number) => RenderSummaryPage(canvas, data, logos, number, Array.Empty<IReadOnlyList<RowLayout>>(), 1, MinimumFontSize, continued: false);
@@ -445,7 +398,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         var first = true;
         while (next < allRows.Count)
         {
-            var pageHeight = first ? available : BodyBottom - (BodyTop + ColumnHeaderHeight + .08);
+            var pageHeight = first ? available : BodyBottom - (BodyTop + HeadingHeight + .08);
             var columns = new List<IReadOnlyList<RowLayout>>();
             for (var column = 0; column < MaxListColumns && next < allRows.Count; column++)
             {
@@ -501,7 +454,9 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
             var cardWidth = (ContentWidth - (gap * 2)) / 3;
             for (var index = 0; index < cards.Count; index++)
             {
-                RenderCard(canvas, cards[index], Left + (index * (cardWidth + gap)), cardWidth, CardHeight);
+                var card = cards[index];
+                AddCard(canvas, Left + (index * (cardWidth + gap)), BodyTop, cardWidth, CardHeight,
+                    card.Total.ToString("N0", CultureInfo.InvariantCulture), card.Label, card.Reach, card.Accent);
             }
 
             listHeaderTop = SummaryListHeaderTop;
@@ -512,7 +467,7 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
             continued ? "Completed AR/VR projects, with the year of completion (continued)" : "Completed AR/VR projects, with the year of completion",
             data.CompletedProjects.Count, "Completed projects heading");
 
-        var listTop = listHeaderTop + ColumnHeaderHeight + .08;
+        var listTop = listHeaderTop + HeadingHeight + .08;
         if (data.CompletedProjects.Count == 0)
         {
             canvas.AddText(Left, listTop + .3, ContentWidth, .4, "No AR/VR project has been completed yet.", 13, Muted, false, "l");
@@ -526,115 +481,9 @@ public sealed class CoeSlideComposer : ICoeSlideComposer
         }
     }
 
-    private static void RenderCard(PptxSlideCanvas canvas, StatCard card, double x, double width, double height)
-    {
-        // The card is one shape (figure, label, reach) beside its accent bar.
-        canvas.AddRect(x, BodyTop, .06, height, card.Accent);
-        canvas.AddTextBox(
-            x + .06, BodyTop, width - .06, height,
-            new[]
-            {
-                new PptxTextParagraph(new[] { new PptxRun(card.Total.ToString("N0", CultureInfo.InvariantCulture), 34, Navy, true) }),
-                new PptxTextParagraph(new[] { new PptxRun(card.Label, 13, Text, true) }),
-                new PptxTextParagraph(new[] { new PptxRun(card.Reach, 11, Muted) }) { SpaceBeforePoints = 2 }
-            },
-            $"{card.Label} card",
-            fill: CardTint,
-            insets: new PptxInsets(.16, .08, .08, .06));
-    }
-
     private sealed record StatCard(int Total, string Label, string Reach, string Accent);
-    // END SECTION
-
-    // SECTION: Shared slide furniture (the Briefing Studio header: crest left, SDD insignia right, navy rule)
-    private sealed record Logos(byte[]? Left, byte[]? Right);
-
-    private static void AddHeader(PptxSlideCanvas canvas, Logos logos, string title, string subtitle)
-    {
-        canvas.AddRect(0, 0, SlideWidth, SlideHeight, "FFFFFF");
-
-        var titleX = Left;
-        if (logos.Left is { Length: > 0 })
-        {
-            canvas.AddImageContained(logos.Left, Left - .03, .27, .66, .66, "Formation insignia");
-            titleX = Left + .78;
-        }
-
-        var titleRight = Right;
-        if (logos.Right is { Length: > 0 })
-        {
-            // The SDD insignia is slender: a taller box balances it against the denser crest.
-            canvas.AddImageContained(logos.Right, Right - .56, .2, .56, .8, "Division insignia");
-            titleRight = Right - .7;
-        }
-
-        canvas.AddTextBox(
-            titleX, .25, titleRight - titleX, .8,
-            new[]
-            {
-                new PptxTextParagraph(new[] { new PptxRun(title, 22, Navy, true) }),
-                new PptxTextParagraph(new[] { new PptxRun(subtitle, 11, Muted) }) { SpaceBeforePoints = 2 }
-            },
-            "Title",
-            insets: new PptxInsets(.05, 0, .05, 0));
-        canvas.AddLine(Left, 1.12, Right, 1.12, Navy, 1.25);
-    }
-
-    private static void AddFooter(PptxSlideCanvas canvas, DateOnly generatedOn, int number) =>
-        canvas.AddTextBox(
-            Right - 4, 7.0, 4, .26,
-            new[]
-            {
-                new PptxTextParagraph(new[] { new PptxRun($"Generated by PRISM ERP on {Date(generatedOn)}     {number.ToString(CultureInfo.InvariantCulture)}", 9, Muted) }) { Align = "r" }
-            },
-            "Footer");
 
     private static string JoinNotes(string? first, string? second) =>
         string.Join("\n\n", new[] { first, second }.Where(part => !string.IsNullOrWhiteSpace(part)));
-
-    private static string Date(DateOnly date) => date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
-
-    private static byte[]? ReadAsset(string? path) =>
-        string.IsNullOrWhiteSpace(path) || !File.Exists(path) ? null : File.ReadAllBytes(path);
-    // END SECTION
-
-    // SECTION: Text measuring (an estimate; generous, so wrapped text never runs past its box)
-    internal static double TextWidth(string text, double fontSize) =>
-        (text ?? string.Empty).Length * fontSize * CharacterWidthEm / 72;
-
-    /// <summary>Lines the text takes when wrapped at word breaks inside the width.</summary>
-    internal static int LineCount(string text, double widthInches, double fontSize)
-    {
-        var capacity = Math.Max(1, (int)(widthInches * 72 / (fontSize * CharacterWidthEm)));
-        var lines = 1;
-        var used = 0;
-        foreach (var word in (text ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var length = word.Length;
-            if (used == 0)
-            {
-                used = length;
-            }
-            else if (used + 1 + length <= capacity)
-            {
-                used += 1 + length;
-            }
-            else
-            {
-                lines++;
-                used = length;
-            }
-
-            // A single word longer than the line breaks across lines.
-            while (used > capacity)
-            {
-                lines++;
-                used -= capacity;
-            }
-        }
-
-        return lines;
-    }
-
     // END SECTION
 }
