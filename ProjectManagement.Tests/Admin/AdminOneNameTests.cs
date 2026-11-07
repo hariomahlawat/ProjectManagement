@@ -20,7 +20,10 @@ public sealed class AdminOneNameTests
         var root = FindRepositoryRoot();
         var offenders = new List<string>();
 
-        foreach (var entry in AdminNavigationCatalog.Entries.Where(entry => !OwnTitle.Contains(entry.Key)))
+        // A filtered view of another module's shared page (Document deletion approvals opens the
+        // Decision Centre on its repository deletions) keeps that page's own title.
+        foreach (var entry in AdminNavigationCatalog.Entries.Where(entry =>
+            !OwnTitle.Contains(entry.Key) && entry.Item.RouteValues is not { Count: > 0 }))
         {
             var basePath = Path.Combine(
                 new[] { root }
