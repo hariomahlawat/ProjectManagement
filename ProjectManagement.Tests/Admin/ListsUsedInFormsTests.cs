@@ -50,6 +50,25 @@ public sealed class ListsUsedInFormsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task EveryList_IsNamedAsItsOwnPageIsNamed()
+    {
+        // One name for each thing (docs/ux/admin-review-fixes.md, PR 7).
+        await using var db = new ApplicationDbContext(_options);
+        var overview = await new MasterDataAdministrationQueryService(db, new AuditActionPresentationCatalog()).GetOverviewAsync(2026);
+
+        var offenders = overview.Domains
+            .Select(domain => (domain, entry: ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.Entries.FirstOrDefault(entry =>
+                string.Equals(entry.Item.Area ?? string.Empty, domain.Area, StringComparison.Ordinal)
+                && string.Equals(entry.Item.Page, domain.Page, StringComparison.Ordinal))))
+            .Where(item => item.entry is not null && !item.domain.Title.StartsWith(item.entry.Item.Text, StringComparison.Ordinal))
+            .Select(item => $"{item.domain.Key}: \"{item.domain.Title}\" should be \"{item.entry!.Item.Text}\"")
+            .ToArray();
+
+        Assert.Empty(offenders);
+        Assert.Equal("ARPP values", overview.Domains.Single(domain => domain.Key == "arpp-reference-data").Title);
+    }
+
+    [Fact]
     public async Task EveryList_HasAGroupAndSaysWhichFormUsesIt()
     {
         await using var db = new ApplicationDbContext(_options);

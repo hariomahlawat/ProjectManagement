@@ -145,7 +145,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "Delete requests",
+                Text = "Document deletion approvals",
                 Area = "DocumentRepository",
                 Page = "/Admin/DeleteRequests/Index",
                 AuthorizationPolicy = "DocRepo.DeleteApprove",
@@ -153,7 +153,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "Trash",
+                Text = "Deleted repository documents",
                 Area = "DocumentRepository",
                 Page = "/Admin/Trash/Index",
                 AuthorizationPolicy = "DocRepo.Purge",

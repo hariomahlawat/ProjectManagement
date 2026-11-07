@@ -143,7 +143,7 @@ public sealed class CreateModel : PageModel
         RoleAccessGroups = _roleAccessCatalog.BuildForRoles(RoleOptions.Select(role => role.Name));
         Header = new AdminPageHeaderModel
         {
-            Title = "Create user",
+            Title = "Add user",
             Description = "Create an account, issue a temporary password and assign the minimum required access.",
             Icon = "bi-person-plus",
             Actions = new[]

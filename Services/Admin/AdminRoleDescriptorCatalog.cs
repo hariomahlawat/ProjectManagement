@@ -96,7 +96,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
                 sortOrder: 110),
             Descriptor(
                 RoleNames.ProjectOfficeAlternate,
-                "Project Office",
+                "Project Office (old role name)",
                 "Compatibility role for project-office administration in installations using the legacy role name.",
                 "Project delivery",
                 "bi-briefcase",
@@ -136,7 +136,7 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
                 sortOrder: 300),
             Descriptor(
                 RoleNames.MainOfficeAlternate,
-                "Main Office",
+                "Main Office Clerk (old role name)",
                 "Compatibility role for authorised main-office workflows using the legacy display name.",
                 "Office support",
                 "bi-building",

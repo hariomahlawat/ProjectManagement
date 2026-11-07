@@ -140,6 +140,12 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
 
+            // An old role name nobody holds is not a role anyone needs to review.
+            if (assignedIds.Length == 0 && RoleNames.IsLegacyAlias(roleName))
+            {
+                continue;
+            }
+
             var assignedNames = users
                 .Where(user => assignedIds.Contains(user.Id, StringComparer.Ordinal))
                 .Select(DisplayName)

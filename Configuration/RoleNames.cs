@@ -66,6 +66,10 @@ public static class RoleNames
         return AssignableRoleArray.Contains(normalized, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>Old role names kept only for existing installations.</summary>
+    public static IReadOnlyCollection<string> LegacyAliases { get; } =
+        Array.AsReadOnly(new[] { ProjectOfficeAlternate, MainOfficeAlternate });
+
     public static bool IsLegacyAlias(string? roleName) =>
         !string.IsNullOrWhiteSpace(roleName)
         && LegacyAliasMap.ContainsKey(roleName.Trim());

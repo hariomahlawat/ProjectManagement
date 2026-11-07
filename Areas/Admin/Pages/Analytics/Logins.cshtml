@@ -31,7 +31,7 @@
 
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-<section class="admin-monitoring-metric-grid" aria-label="Login activity summary">
+<section class="admin-monitoring-metric-grid" aria-label="Sign-in activity summary">
     @foreach (var metric in Model.Metrics)
     {
         <partial name="~/Areas/Admin/Pages/Shared/_AdminMonitoringMetric.cshtml" model="metric" />
@@ -123,7 +123,7 @@
     </div>
 </section>
 
-<nav class="admin-section-nav" aria-label="Login activity sections">
+<nav class="admin-section-nav" aria-label="Sign-in activity sections">
     <a href="#login-overview"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> Overview</a>
     <a href="#login-patterns"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i> Time patterns</a>
     <a href="#login-review"><i class="bi bi-eye" aria-hidden="true"></i> Review queue <span>@Model.Snapshot.ReviewTotal</span></a>
@@ -330,7 +330,7 @@
         {
             var firstPage = Math.Max(1, Model.Snapshot.ReviewPage - 2);
             var lastPage = Math.Min(Model.Snapshot.ReviewTotalPages, Model.Snapshot.ReviewPage + 2);
-            <nav class="admin-pagination" aria-label="Login review queue pages">
+            <nav class="admin-pagination" aria-label="Sign-ins to review, pages">
                 <span>Page @Model.Snapshot.ReviewPage of @Model.Snapshot.ReviewTotalPages</span>
                 <ul class="pagination pagination-sm mb-0">
                     <li class="page-item @(Model.Snapshot.ReviewPage <= 1 ? "disabled" : string.Empty)">

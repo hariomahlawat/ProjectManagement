@@ -465,7 +465,7 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
             Access(
                 "admin-security",
                 "Review security and access governance",
-                "Review privileged access, login activity, system health and audit logs.",
+                "Review privileged access, sign-in activity, system health and the audit log.",
                 Roles(RoleNames.Admin),
                 Group.Administration,
                 20),

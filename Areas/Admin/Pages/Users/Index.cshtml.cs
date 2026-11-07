@@ -153,7 +153,7 @@ public sealed class IndexModel : PageModel
         {
             new AdminPageActionModel
             {
-                Text = "Create user",
+                Text = "Add user",
                 Href = Url.Page("./Create"),
                 Icon = "bi-person-plus",
                 IsPrimary = true

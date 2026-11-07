@@ -10,7 +10,7 @@
 <div class="admin-maintenance-grid">
     <section class="admin-panel admin-maintenance-card" aria-labelledby="pdf-maintenance-title">
         <header class="admin-panel__header">
-            <div><h2 id="pdf-maintenance-title">Copy PDFs into the document repository</h2></div>
+            <div><h2 id="pdf-maintenance-title">Copy PDFs into the repository</h2></div>
             <span class="admin-status-pill admin-status-pill--@(Model.Summary.PdfIngestionRunning ? "warning" : Model.Summary.LastPdfRun?.Status switch { "Failed" => "danger", "Completed" or null => "success", _ => "warning" })">
                 @(Model.Summary.PdfIngestionRunning ? "Running" : Model.Summary.LastPdfRun?.Status ?? "Ready")
             </span>

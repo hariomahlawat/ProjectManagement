@@ -64,13 +64,13 @@
                                 }
                                 @if (Model.CanPurge)
                                 {
-                                    <li><a class="dropdown-item" asp-page="/Admin/Trash/Index"><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Trash</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Trash/Index"><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Deleted repository documents</a></li>
                                 }
                                 @if (Model.CanManageCategories)
                                 {
                                     <li><hr class="dropdown-divider" /></li>
-                                    <li><a class="dropdown-item" asp-page="/Admin/OfficeCategories/Index"><i class="bi bi-building me-2" aria-hidden="true"></i>Offices</a></li>
-                                    <li><a class="dropdown-item" asp-page="/Admin/DocumentCategories/Index"><i class="bi bi-tags me-2" aria-hidden="true"></i>Document types</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/OfficeCategories/Index"><i class="bi bi-building me-2" aria-hidden="true"></i>Repository offices</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/DocumentCategories/Index"><i class="bi bi-tags me-2" aria-hidden="true"></i>Repository document types</a></li>
                                 }
                             </ul>
                         </div>

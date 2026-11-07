@@ -131,6 +131,25 @@ What is left falls into three kinds:
 | 10 | **Plain words on the second-level pages.** Search index, Media sources, Media intelligence, Legacy import, PDF ingestion, Sign-in activity, ERP usage, the user page and the bin tiles; technical detail behind "Technical details"; the jargon test widened to these pages; "View all sign-ins" opens a period that includes the user's last sign-in | M9, M12 |
 | 11 | **Phone and empty-state polish.** Users table without sideways scroll; badges that wrap; empty bins show one plain empty state; `/` focuses the page's own filter on Every admin page; social media lists say "Deactivate"; then a signed-in recheck of every page at desktop, phone and dark | Low |
 
+### PR 7 as shipped
+
+- **Page names.** A page shows its catalogue name; `AdminOneNameTests` checks every catalogue
+  page's title, and the capability links on Who has which role. The lists on Lists used in forms
+  are checked too. Choices made:
+  - adding a user is "Add user" everywhere (Home, Users, the page itself and the guide);
+  - PDF ingestion is "Copy PDFs into the repository", the name Data jobs already used;
+  - ARPP reference data is "ARPP values";
+  - the Document Repository's own pages and menus use the admin names: "Deleted repository
+    documents", "Repository document types", "Repository offices" and "Document deletion
+    approvals".
+- **Role names.** Every page shows a role through `IAdminRoleDescriptorCatalog`: Users (badges,
+  filter, chip), ERP usage and Who has which role. The old role names `Main Office` and
+  `ProjectOffice` read "… (old role name)". They are left out of the Users filter and Who has
+  which role while nobody holds them. Exports keep the stored role names.
+- **Sign-in.** Visible text says "sign-in", not "login". Routes, export columns and stored audit
+  actions are unchanged.
+- **The guide.** Its body uses the current page names and plain words.
+
 Rules carried over from the redesign:
 - every PR keeps routes, policies and data contracts;
 - every PR ships with tests and is checked on screen while signed in;
