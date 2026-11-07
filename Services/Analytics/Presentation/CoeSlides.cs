@@ -8,7 +8,7 @@ using ProjectManagement.Models.Stages;
 namespace ProjectManagement.Services.Analytics.Presentation;
 
 // SECTION: CoE slides data (what the two slides show, resolved from the page's own view models)
-/// <summary>The two CoE (AR/VR) slides: projects by category, then the AR/VR summary.</summary>
+/// <summary>The two CoE (AR/VR) slides: the roadmap (projects by category), then AR/VR completed projects, proliferation and user training.</summary>
 public sealed record CoeSlidesData(
     DateOnly AsOf,
     IReadOnlyList<CoeSlideColumn> Columns,
@@ -21,12 +21,18 @@ public sealed record CoeSlidesData(
 {
     public int CompletedTotal => Completed.Sum(group => group.Completed);
 
+    /// <summary>Slide 1's speaker notes: each project's latest cost.</summary>
+    public string ProjectsNotes { get; init; } = string.Empty;
+
+    /// <summary>Slide 2's speaker notes: each AR/VR project's units proliferated and proliferation cost.</summary>
+    public string SummaryNotes { get; init; } = string.Empty;
+
     /// <summary>Every completed AR/VR project, in the CoE or outside it: newest completion first, then by name; the tag is the year.</summary>
     public IReadOnlyList<CoeSlideProject> CompletedProjects { get; } = Completed
         .SelectMany(group => group.Projects)
         .OrderByDescending(project => project.Year ?? int.MinValue)
         .ThenBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
-        .Select(project => new CoeSlideProject(project.Name, project.Year?.ToString(CultureInfo.InvariantCulture) ?? "—", IsCompleted: true))
+        .Select(project => new CoeSlideProject(project.Name, project.Year?.ToString(CultureInfo.InvariantCulture) ?? "—", IsCompleted: true, ProjectId: project.Id))
         .ToList();
 }
 
@@ -36,7 +42,8 @@ public sealed record CoeSlideColumn(string Name, IReadOnlyList<CoeSlideProject> 
 /// <param name="Tag">"Completed", or the current stage's short label ("Devp", "AoN"), as on the stage chart's axis.</param>
 /// <param name="Pdc">"PDC 31 Mar 2027" for a project in Development with a PDC set ("· overdue" once it has passed); otherwise null.</param>
 /// <param name="PdcOverdue">The Development PDC has passed (before the "as of" day): drawn in red.</param>
-public sealed record CoeSlideProject(string Name, string Tag, bool IsCompleted, string? Pdc = null, bool PdcOverdue = false);
+/// <param name="ProjectId">The project, for the speaker notes' costs; null in a hand-built row.</param>
+public sealed record CoeSlideProject(string Name, string Tag, bool IsCompleted, string? Pdc = null, bool PdcOverdue = false, int? ProjectId = null);
 
 public sealed record CoeSlideTraining(int Courses, int People, int Officers, int Jcos, int OtherRanks);
 
@@ -51,7 +58,8 @@ public static class CoeSlidesDataBuilder
 {
     public const string CompletedTag = "Completed";
 
-    public static CoeSlidesData Build(DateOnly asOf, CoeAnalyticsVm coe, ArVrImpactVm? impact)
+    /// <param name="costs">The costs the speaker notes quote; null leaves the notes out.</param>
+    public static CoeSlidesData Build(DateOnly asOf, CoeAnalyticsVm coe, ArVrImpactVm? impact, CoeSlideCostFacts? costs = null)
     {
         ArgumentNullException.ThrowIfNull(coe);
 
@@ -98,7 +106,7 @@ public static class CoeSlidesDataBuilder
                 impact.ProliferationByYear.Sum(year => year.Abw515))
             : null;
 
-        return new CoeSlidesData(
+        var data = new CoeSlidesData(
             asOf,
             columns,
             coe.OngoingCount,
@@ -107,6 +115,30 @@ public static class CoeSlidesDataBuilder
             coe.ArVrCompleted,
             training,
             proliferation);
+        if (costs is null)
+        {
+            return data;
+        }
+
+        return data with
+        {
+            ProjectsNotes = CoeSlideNotesBuilder.ProjectsNotes(columns, costs),
+            SummaryNotes = CoeSlideNotesBuilder.SummaryNotes(
+                data.CompletedProjects,
+                impact is { CanViewProliferation: true } ? impact.ProliferationByProject : null,
+                costs)
+        };
+    }
+
+    /// <summary>Every project the speaker notes quote a cost for: slide 1's projects, the completed AR/VR projects, and any other with proliferation.</summary>
+    public static IReadOnlyList<int> NoteProjectIds(CoeAnalyticsVm coe, ArVrImpactVm? impact)
+    {
+        ArgumentNullException.ThrowIfNull(coe);
+        return coe.SubcategoryProjects.SelectMany(bucket => bucket.Projects).Where(project => project.LifecycleStatus != "Cancelled").Select(project => project.Id)
+            .Concat(coe.ArVrCompleted.SelectMany(group => group.Projects).Select(project => project.Id))
+            .Concat(impact is { CanViewProliferation: true } ? impact.ProliferationByProject.Select(item => item.ProjectId) : Array.Empty<int>())
+            .Distinct()
+            .ToList();
     }
 
     /// <summary>
@@ -118,7 +150,7 @@ public static class CoeSlidesDataBuilder
         ArgumentNullException.ThrowIfNull(project);
         if (project.LifecycleStatus == "Completed")
         {
-            return new CoeSlideProject(NameOf(project), CompletedTag, IsCompleted: true);
+            return new CoeSlideProject(NameOf(project), CompletedTag, IsCompleted: true, ProjectId: project.Id);
         }
 
         var tag = string.IsNullOrWhiteSpace(project.CurrentStageCode)
@@ -128,12 +160,12 @@ public static class CoeSlidesDataBuilder
         var inDevelopment = string.Equals(project.CurrentStageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase);
         if (!inDevelopment || project.CurrentStagePdc is not { } pdc)
         {
-            return new CoeSlideProject(NameOf(project), tag, IsCompleted: false);
+            return new CoeSlideProject(NameOf(project), tag, IsCompleted: false, ProjectId: project.Id);
         }
 
         var overdue = pdc < asOf;
         var pdcText = $"PDC {pdc.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}{(overdue ? " · overdue" : string.Empty)}";
-        return new CoeSlideProject(NameOf(project), tag, IsCompleted: false, pdcText, overdue);
+        return new CoeSlideProject(NameOf(project), tag, IsCompleted: false, pdcText, overdue, project.Id);
     }
 
     private static string NameOf(CoeProjectSummaryVm project) =>

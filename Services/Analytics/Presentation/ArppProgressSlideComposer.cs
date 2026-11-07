@@ -161,11 +161,7 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
                 slideIds.Append(new SlideId { Id = nextId++, RelationshipId = presentationPart.GetIdOfPart(slidePart) });
                 if (slides[index].Notes is { } notes)
                 {
-                    var notesPart = slidePart.AddNewPart<NotesSlidePart>();
-                    notesPart.AddPart(ProjectBriefings.Presentation.ProjectBriefingSlideComposer.EnsureNotesMaster(presentationPart));
-                    notesPart.AddPart(slidePart);
-                    using var notesXml = new MemoryStream(Encoding.UTF8.GetBytes(ProjectBriefings.Presentation.ProjectBriefingSlideComposer.BuildNotesSlideXml(notes)));
-                    notesPart.FeedData(notesXml);
+                    Services.Presentation.PptxSpeakerNotes.Add(presentationPart, slidePart, notes);
                 }
             }
 

@@ -90,6 +90,11 @@ public sealed class ArVrImpactAnalyticsServiceTests : IDisposable
         Assert.Equal(165, vm.ProliferationUnitsDelivered);
         Assert.Equal(3, vm.ProliferationReceivingUnits); // 56 Inf Bde, 12 Armd Regt, AMC Centre
         Assert.Equal(2, vm.ProliferationProjects);
+        // Per project, all years, by source (the CoE slides' notes): the same rows as the totals.
+        Assert.Equal(
+            new[] { ("VR RL", 120, 0, 120), ("VR CMC", 5, 40, 45) },
+            vm.ProliferationByProject.Select(item => (item.Name, item.Sdd, item.Abw515, item.Total)));
+        Assert.Equal(vm.ProliferationUnitsDelivered, vm.ProliferationByProject.Sum(item => item.Total));
         Assert.Equal(2, vm.ProliferationThisYear);
         Assert.Equal(2026, vm.ProliferationCurrentYear);
 
