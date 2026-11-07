@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using ProjectManagement.Services;
@@ -26,7 +27,11 @@ public interface IAdminAuditService
 
 public sealed class AdminAuditService : IAdminAuditService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    // Before/After are stored inside the details JSON, so they keep letters unescaped too.
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     private readonly IAuditService _audit;
     private readonly IHttpContextAccessor _httpContextAccessor;

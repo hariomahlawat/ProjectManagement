@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +32,15 @@ namespace ProjectManagement.Services
             _clock = clock ?? new SystemClock();
             _logger = logger ?? NullLogger<AuditService>.Instance;
         }
+
+        // Details are stored with letters as they are ("R&D", "officer's", Hindi) so the audit
+        // log's text search finds them; older rows keep their \uXXXX escapes. The stored JSON is
+        // never written into a page as markup: Razor encodes it, and the audit drawer embeds it
+        // through a second, HTML-safe serialisation (docs/ux/admin-review-3-fixes.md, PR 5).
+        internal static readonly JsonSerializerOptions DetailsJsonOptions = new()
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
 
         private static readonly string[] SensitiveKeys =
         {
@@ -78,7 +88,7 @@ namespace ProjectManagement.Services
                 Ip = string.IsNullOrWhiteSpace(ip) ? null : ip,
                 UserAgent = ua,
                 Message = message,
-                DataJson = clean is null ? null : JsonSerializer.Serialize(clean)
+                DataJson = clean is null ? null : JsonSerializer.Serialize(clean, DetailsJsonOptions)
             };
 
             _db.AuditLogs.Add(log);

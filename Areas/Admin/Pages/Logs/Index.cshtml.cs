@@ -22,6 +22,7 @@ public sealed class IndexModel : PageModel
     private readonly IAdminAuditEntityLinkResolver _entityLinks;
     private readonly ISafeCsvWriter _csv;
     private readonly IAdminTimeService _time;
+    private readonly IAdminRoleDescriptorCatalog _roles;
 
     public IndexModel(
         IAdminLogQueryService queries,
@@ -29,7 +30,8 @@ public sealed class IndexModel : PageModel
         IAdminClientDescriptorService clients,
         IAdminAuditEntityLinkResolver entityLinks,
         ISafeCsvWriter csv,
-        IAdminTimeService time)
+        IAdminTimeService time,
+        IAdminRoleDescriptorCatalog roles)
     {
         _queries = queries ?? throw new ArgumentNullException(nameof(queries));
         _presentations = presentations ?? throw new ArgumentNullException(nameof(presentations));
@@ -37,6 +39,7 @@ public sealed class IndexModel : PageModel
         _entityLinks = entityLinks ?? throw new ArgumentNullException(nameof(entityLinks));
         _csv = csv ?? throw new ArgumentNullException(nameof(csv));
         _time = time ?? throw new ArgumentNullException(nameof(time));
+        _roles = roles ?? throw new ArgumentNullException(nameof(roles));
     }
 
     [BindProperty(SupportsGet = true)] public string? Level { get; set; }
@@ -214,6 +217,25 @@ public sealed class IndexModel : PageModel
     public AuditActionPresentation Presentation(AdminLogRow row) =>
         _presentations.Describe(row.Action, row.Level);
 
+    /// <summary>
+    /// The actor's roles in full ("Administrator, Head of Department"), from the role names
+    /// stored on the row ("Admin,HoD"). Null when the row kept no roles.
+    /// </summary>
+    public string? ActorRoles(AdminLogRow row)
+    {
+        var stored = row.Payload?.ActorRoles;
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            return null;
+        }
+
+        var names = _roles
+            .DescribeMany(stored.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Select(role => role.DisplayName)
+            .ToArray();
+        return names.Length == 0 ? null : string.Join(", ", names);
+    }
+
     public AdminClientDescriptor Client(AdminLogRow row) => _clients.Describe(row.UserAgent);
 
     public AdminAuditEntityLink? EntityLink(AdminLogRow row) => row.Payload is null
@@ -238,7 +260,7 @@ public sealed class IndexModel : PageModel
             FormatIst(row.TimeUtc),
             row.Actor,
             payload?.ActorUserId ?? row.UserId,
-            payload?.ActorRoles,
+            ActorRoles(row),
             payload?.EntityType,
             payload?.EntityId,
             payload?.AffectedRecord,
@@ -386,7 +408,7 @@ public sealed class IndexModel : PageModel
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Actors",
+                Label = summary.Actors == 1 ? "Person" : "People",
                 Value = summary.Actors.ToString("N0"),
                 Detail = summary.AffectedRecords == 1 ? "1 record changed" : $"{summary.AffectedRecords:N0} records changed",
                 Icon = "bi-person-check",

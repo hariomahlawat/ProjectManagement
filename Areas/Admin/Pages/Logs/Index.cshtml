@@ -48,7 +48,7 @@
                 <label asp-for="Contains">Search</label>
                 <div class="admin-input-with-icon">
                     <i class="bi bi-search" aria-hidden="true"></i>
-                    <input asp-for="Contains" class="form-control" placeholder="Event, message or record reference" />
+                    <input asp-for="Contains" class="form-control" placeholder="Event, message or record reference" aria-describedby="adminAuditSearchHint" />
                 </div>
             </div>
 
@@ -99,6 +99,9 @@
                 }
             </div>
         </div>
+        @* Entries saved before this change stored "&", apostrophes and Hindi as escape codes, so
+           text search cannot match those letters in them (docs/ux/admin-review-3-fixes.md, PR 5). *@
+        <p class="admin-audit-filter__hint" id="adminAuditSearchHint">Older entries may not match a search for &amp;, an apostrophe or Hindi text.</p>
 
         <details class="admin-advanced-filters" @(string.IsNullOrWhiteSpace(Model.Action) && string.IsNullOrWhiteSpace(Model.EntityType) && string.IsNullOrWhiteSpace(Model.UserName) && string.IsNullOrWhiteSpace(Model.Ip) && !Model.From.HasValue && !Model.To.HasValue ? null : "open")>
             <summary><i class="bi bi-sliders" aria-hidden="true"></i> More filters</summary>
@@ -241,7 +244,7 @@
                             <td>
                                 <div class="admin-activity-value">
                                     <strong>@row.Actor</strong>
-                                    <span>@(string.IsNullOrWhiteSpace(payload?.ActorRoles) ? presentation.Category : payload.ActorRoles)</span>
+                                    <span>@(Model.ActorRoles(row) ?? presentation.Category)</span>
                                 </div>
                             </td>
                             <td>

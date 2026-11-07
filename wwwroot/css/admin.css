@@ -1913,6 +1913,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 /* Audit logs */
 .admin-audit-filter { display: grid; }
 .admin-audit-filter__primary { display: grid; grid-template-columns: minmax(15rem, 1.6fr) minmax(7.5rem, .55fr) minmax(9rem, .65fr) minmax(4.5rem, .32fr) auto; align-items: end; gap: .6rem; padding: .72rem .8rem; }
+.admin-audit-filter__hint { margin: -.35rem .8rem .55rem; color: var(--admin-text-muted); font-size: .62rem; }
 .admin-input-with-icon { position: relative; }
 .admin-input-with-icon > i { position: absolute; top: 50%; left: .68rem; z-index: 1; color: var(--admin-text-muted); font-size: .72rem; transform: translateY(-50%); }
 .admin-input-with-icon .form-control { padding-left: 2rem; }
