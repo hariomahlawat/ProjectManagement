@@ -116,6 +116,28 @@ Rules carried over:
 
 PR 9 moves the legacy-import staging folder. It must keep reading the old folder for one release, so that a preview made before the deployment can still be committed.
 
+## PR 2 as shipped
+
+`DocRepoTrashPurgeService.PurgeAsync` (Services/DocRepo), used by the Trash page and the
+retention worker, now works in three steps:
+1. It moves the file to `<DocRepo:RootPath>/purge-quarantine/<document id>-<attempt>.pdf`
+   (new `IDocStorage.MoveAsync`; a rename on the same disk).
+2. In one transaction it deletes the row only while it is still in the trash (and, for the
+   worker, still past the cutoff), with a conditional `ExecuteDelete`, and saves the `Purged`
+   audit entry. The database's cascades remove the dependent rows, as before.
+3. Only after the commit does it delete the set-aside file.
+
+If no row was deleted (restored meanwhile, or taken by another run), or the save fails, the
+file is moved back; if another run already purged the row, the set-aside copy is deleted
+instead. A purge that loses the race returns NotFound, so the worker skips it rather than
+throwing. No migration, route, policy or audit change. Tests: `DocRepoTrashPurgeRaceTests`
+(SQLite and the real file store) cover purge racing a restore, a save that fails after the
+move and two overlapping runs.
+
+Left as is: if the process dies between the move and the commit, the file stays in
+`purge-quarantine` with the document id in its name, so an operator can move it back by hand.
+A move back that fails is written to the error log with both paths.
+
 ## Owner decisions
 
 These are larger changes. None of the PRs above makes them without the owner's go-ahead.
