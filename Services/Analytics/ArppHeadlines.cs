@@ -11,7 +11,7 @@ public sealed record ArppHeadline(string Key, string Label, string Value, string
 /// The five ARPP headline cards, built once from <see cref="ArppAnalyticsVm"/> so the Analytics page and the
 /// progress slides always say the same thing. Listed, then where the projects stand: completed, supply
 /// order placed, then the rest split by AoN (AoN to SO stage, Pre-AoN stage). Cancelled projects are in no
-/// card; the standing board lists them.
+/// card; the standing board lists them. The slides also leave them out of Listed (owner, 7 Nov 2026).
 /// </summary>
 public static class ArppHeadlines
 {
@@ -21,8 +21,11 @@ public static class ArppHeadlines
     public const string AonToSupplyOrder = "aonToSo";
     public const string PreAon = "preAon";
 
-    public static IReadOnlyList<ArppHeadline> Build(ArppAnalyticsVm arpp)
+    public static IReadOnlyList<ArppHeadline> Build(ArppAnalyticsVm arpp, bool excludeCancelled = false)
     {
+        var listing = excludeCancelled
+            ? arpp.ListedExcludingCancelled
+            : new ArppListingVm(arpp.ListedCount, arpp.ListedIpaValue, arpp.NewCount, arpp.CommittedLiabilityCount, arpp.CarryForwardCount);
         // A past year counts where the projects stood on its 31 March; the current year, today.
         var when = arpp.AsOfDate is { } asOf ? $"on {asOf:d MMM}" : "ongoing";
         var notKnown = arpp.CardNotKnownCount > 0 ? $" · {arpp.CardNotKnownCount} not known {when}" : string.Empty;
@@ -31,8 +34,8 @@ public static class ArppHeadlines
             new ArppHeadline(
                 Listed,
                 "Listed projects",
-                arpp.ListedCount.ToString(),
-                $"IPA {IndianCurrencyFormatter.FormatCompact(arpp.ListedIpaValue)} · New {arpp.NewCount} · CL {arpp.CommittedLiabilityCount} · CF {arpp.CarryForwardCount} · delisted {arpp.DelistedCount}{notKnown}"),
+                listing.Count.ToString(),
+                $"IPA {IndianCurrencyFormatter.FormatCompact(listing.IpaValue)} · New {listing.NewCount} · CL {listing.CommittedLiabilityCount} · CF {listing.CarryForwardCount} · delisted {arpp.DelistedCount}{notKnown}"),
             new ArppHeadline(
                 Completed,
                 "Completed",

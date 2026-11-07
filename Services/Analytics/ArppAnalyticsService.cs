@@ -227,6 +227,14 @@ namespace ProjectManagement.Services.Analytics
             // Cards and milestones. Supply orders count projects still in work; completed projects carry
             // their own supply-order value. The rest split by AoN; a project the records cannot place in one
             // card is counted as not known, never guessed.
+            var cancelledIds = cancelled.Select(item => item.ProjectId).ToHashSet();
+            static ArppListingVm Listing(IReadOnlyCollection<ArppLibraryCurrentRow> rows) => new(
+                rows.Count,
+                rows.Sum(row => row.IpaCost),
+                rows.Count(row => row.Category == ArppCategory.New),
+                rows.Count(row => row.Category == ArppCategory.CommittedLiability),
+                rows.Count(row => row.Category == ArppCategory.CarryForward));
+
             var pastAon = standings.Where(item => item.PastAon == true).ToList();
             var withSo = ongoing.Where(item => item.InWork && item.SupplyOrderPlaced == true).ToList();
             var beforeSo = ongoing.Where(item => item.InWork && item.SupplyOrderPlaced != true).ToList();
@@ -325,6 +333,7 @@ namespace ProjectManagement.Services.Analytics
                 OngoingCount = ongoing.Count,
                 CompletedCount = completed.Count,
                 CancelledCount = cancelled.Count,
+                ListedExcludingCancelled = Listing(approved.Where(row => !cancelledIds.Contains(row.ProjectId)).ToList()),
                 NotKnownCount = lifecycleNotKnown.Count,
                 ByStage = byStage,
                 ByStageByCategory = byStageByCategory,

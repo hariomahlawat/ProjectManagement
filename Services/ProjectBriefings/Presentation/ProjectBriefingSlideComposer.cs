@@ -152,7 +152,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         }
     }
 
-    private static NotesMasterPart EnsureNotesMaster(PresentationPart presentationPart)
+    // Shared with the ARPP progress slides (ArppProgressSlideComposer), which put cancelled projects in the notes.
+    internal static NotesMasterPart EnsureNotesMaster(PresentationPart presentationPart)
     {
         if (presentationPart.NotesMasterPart is { } existing)
         {
@@ -229,7 +230,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 """;
     }
 
-    private static string BuildNotesSlideXml(string notes)
+    internal static string BuildNotesSlideXml(string notes)
     {
         var paragraphs = notes
             .Replace("\r\n", "\n", StringComparison.Ordinal)
