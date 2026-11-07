@@ -152,7 +152,20 @@ public sealed class IndexModel : PageModel
     public bool IsTrackingInceptionDate(DateOnly date) =>
         date == TrackingInceptionDateIst;
 
-    public string FormatLastActive(DateTime? utc) => _time.FormatIst(utc, "Never recorded");
+    // Usage counting began at the tracking inception; nothing earlier is recorded here. A person
+    // with no use since then has not necessarily never used PRISM (the Users page shows the last
+    // sign-in, which can be older), so the words say exactly that.
+    public const string NoUseSinceCountingBegan = "No use since counting began";
+
+    public string FormatLastActive(DateTime? utc) => _time.FormatIst(utc, NoUseSinceCountingBegan);
+
+    public bool ShouldShowLastSignIn(ErpUsageUserRow user) =>
+        ShowLastSignIn(user, Result.TrackingInceptionUtc);
+
+    public static bool ShowLastSignIn(ErpUsageUserRow user, DateTimeOffset trackingInceptionUtc) =>
+        user.LastActiveUtc is null
+        && user.LastSignInUtc is { } signedIn
+        && DateTime.SpecifyKind(signedIn, DateTimeKind.Utc) < trackingInceptionUtc.UtcDateTime;
 
     public string FormatTrackingInception() => _time.FormatIst(Result.TrackingInceptionUtc);
 

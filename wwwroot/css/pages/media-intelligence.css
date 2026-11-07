@@ -85,6 +85,13 @@
     line-height: 1.2;
 }
 
+.metric-card small {
+    display: block;
+    margin-top: .25rem;
+    color: var(--bs-secondary-color);
+    font-size: .75rem;
+}
+
 .classification-filter-form {
     position: relative;
     z-index: 2;
