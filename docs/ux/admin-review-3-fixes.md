@@ -116,6 +116,28 @@ Rules carried over:
 
 PR 9 moves the legacy-import staging folder. It must keep reading the old folder for one release, so that a preview made before the deployment can still be committed.
 
+## PR 2 as shipped
+
+`DocRepoTrashPurgeService.PurgeAsync` (Services/DocRepo), used by the Trash page and the
+retention worker, now works in three steps:
+1. It moves the file to `<DocRepo:RootPath>/purge-quarantine/<document id>-<attempt>.pdf`
+   (new `IDocStorage.MoveAsync`; a rename on the same disk).
+2. In one transaction it deletes the row only while it is still in the trash (and, for the
+   worker, still past the cutoff), with a conditional `ExecuteDelete`, and saves the `Purged`
+   audit entry. The database's cascades remove the dependent rows, as before.
+3. Only after the commit does it delete the set-aside file.
+
+If no row was deleted (restored meanwhile, or taken by another run), or the save fails, the
+file is moved back; if another run already purged the row, the set-aside copy is deleted
+instead. A purge that loses the race returns NotFound, so the worker skips it rather than
+throwing. No migration, route, policy or audit change. Tests: `DocRepoTrashPurgeRaceTests`
+(SQLite and the real file store) cover purge racing a restore, a save that fails after the
+move and two overlapping runs.
+
+Left as is: if the process dies between the move and the commit, the file stays in
+`purge-quarantine` with the document id in its name, so an operator can move it back by hand.
+A move back that fails is written to the error log with both paths.
+
 ## Owner decisions
 
 These are larger changes. None of the PRs above makes them without the owner's go-ahead.
@@ -135,6 +157,25 @@ These are larger changes. None of the PRs above makes them without the owner's g
 - **Sign-in activity (C3).** `AdminLoginMonitoringService` turns the Outcome filter and the review rule into the database query before the newest-5,000 cap. The review rule for a successful sign-in (between 22:00 and 05:00 IST) is `LateNightSuccessfulSignIn`, kept in step with `BuildEvent`; failed and locked-out attempts always need a look. The chart and the CSV export read the filtered set, and the "Sign-ins to look at" queue and its tile always read the review set, so an older failed sign-in is listed and counted even when newer successful ones fill the cap. "Too many to draw" now means a list on the page was cut off, and "Sign-ins in this period" shows the full count instead of the capped one. The usual sign-in times still come from the newest 5,000 events in the period.
 - **Home (C7).** `AdminDashboardService` counts its 7 days as today and the six IST calendar days before it, the same period as Sign-in activity's 7 days. Recent changes show people through `AuditActorNames`, as the audit log does: full name, then user name, and "PRISM" for rows the application wrote. The account-state counts are left for PR 4.
 - Tests: `AdminSignInCountsWhatItShowsTests` (filtered outcome and review rows older than the cap, export matches the list, the review rule translates to PostgreSQL, Home's IST window at a day boundary, Home's display names).
+
+## PR 4 as shipped
+
+**Shipped.** `UserAccountStateRules` (Services/Admin) is the one account-state rule: pending
+deletion, then disabled, then temporarily locked (lockout ends after now), then must change
+password, then active. Each state is one predicate, written once, used two ways: as an
+EF-translatable `Expression<Func<ApplicationUser, bool>>` for a given now (bound as a query
+parameter, not inlined), and compiled for use in memory.
+
+- `UserAccountStateResolver` reads the state from the rule; its names, badges and sign-in flags
+  are unchanged.
+- The Users list's status filters, tiles and export filter through the rule. The tiles are now
+  one count query per state instead of one grouped query.
+- Home's account tiles count through the rule. Home's "Active" is now counted directly instead
+  of total minus the other four; the result is the same.
+- The three copies agreed before this change, so no count moves. `AccountStateRuleTests` pinned
+  the old results first (lockout ended, lockout ending exactly now, no lockout, disabled and
+  locked together, pending deletion with every other flag) and the refactor kept them; it also
+  checks that each predicate translates for PostgreSQL.
 
 ### PR 6 shipped: System health's jobs in plain words
 

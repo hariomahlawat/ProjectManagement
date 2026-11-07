@@ -35,7 +35,12 @@ public sealed class DocRepoTrashPurgeServiceTests
         Assert.Equal(2, purged);
         var remaining = await db.Documents.AsNoTracking().Select(d => d.Id).ToListAsync();
         Assert.Equal(new[] { recent, live, undated }.OrderBy(id => id), remaining.OrderBy(id => id));
-        Assert.Equal(new[] { $"docs/{old}.pdf", $"docs/{exactlyDue}.pdf" }.OrderBy(p => p), storage.Deleted.OrderBy(p => p));
+        Assert.False(storage.Exists($"docs/{old}.pdf"));
+        Assert.False(storage.Exists($"docs/{exactlyDue}.pdf"));
+        Assert.True(storage.Exists($"docs/{recent}.pdf"));
+        Assert.Equal(2, storage.Deleted.Count);
+        Assert.All(storage.Deleted, path => Assert.StartsWith(DocRepoTrashPurgeService.QuarantineFolder, path));
+        Assert.Empty(storage.Quarantined);
 
         var audits = await db.DocRepoAudits.AsNoTracking().ToListAsync();
         Assert.Equal(2, audits.Count);
@@ -204,13 +209,23 @@ public sealed class DocRepoTrashPurgeServiceTests
         public IDisposable? OnChange(Action<DocRepoOptions, string?> listener) => null;
     }
 
+    // Files under docs/ exist until moved or deleted; files moved elsewhere exist at their new path.
     private sealed class RecordingStorage : IDocStorage
     {
+        private readonly HashSet<string> _gone = new();
+        private readonly HashSet<string> _added = new();
+
         public List<string> Deleted { get; } = new();
 
         public HashSet<string> Failing { get; } = new();
 
         public HashSet<string> Denied { get; } = new();
+
+        public bool Exists(string storagePath)
+            => !_gone.Contains(storagePath) && (storagePath.StartsWith("docs/", StringComparison.Ordinal) || _added.Contains(storagePath));
+
+        public IEnumerable<string> Quarantined
+            => _added.Where(p => p.StartsWith(DocRepoTrashPurgeService.QuarantineFolder, StringComparison.Ordinal) && Exists(p));
 
         public Task<string> SaveAsync(Stream source, string safeFileName, DateTime utcNow, CancellationToken ct)
             => Task.FromResult(safeFileName);
@@ -218,22 +233,38 @@ public sealed class DocRepoTrashPurgeServiceTests
         public Task<Stream> OpenReadAsync(string storagePath, CancellationToken ct)
             => Task.FromResult<Stream>(new MemoryStream());
 
-        public Task DeleteAsync(string storagePath, CancellationToken ct)
+        public Task MoveAsync(string sourcePath, string destinationPath, CancellationToken ct)
         {
-            if (Failing.Contains(storagePath))
+            if (Failing.Contains(sourcePath))
             {
                 throw new IOException("The file is in use.");
             }
 
-            if (Denied.Contains(storagePath))
+            if (Denied.Contains(sourcePath))
             {
                 throw new UnauthorizedAccessException("Access to the path is denied.");
             }
 
-            Deleted.Add(storagePath);
+            if (!Exists(sourcePath))
+            {
+                throw new FileNotFoundException(sourcePath);
+            }
+
+            _gone.Add(sourcePath);
+            _added.Remove(sourcePath);
+            _gone.Remove(destinationPath);
+            _added.Add(destinationPath);
             return Task.CompletedTask;
         }
 
-        public Task<bool> ExistsAsync(string storagePath, CancellationToken ct) => Task.FromResult(true);
+        public Task DeleteAsync(string storagePath, CancellationToken ct)
+        {
+            Deleted.Add(storagePath);
+            _gone.Add(storagePath);
+            _added.Remove(storagePath);
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ExistsAsync(string storagePath, CancellationToken ct) => Task.FromResult(Exists(storagePath));
     }
 }
