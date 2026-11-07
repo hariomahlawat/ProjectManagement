@@ -180,6 +180,119 @@ public sealed class ErpUsageQueryServiceTests
         Assert.DoesNotContain(expandedResult.Users, row => row.UserId == "pending");
     }
 
+    // Admin review 2, PR 9: "Test HoD" showed "0 of 16 · 0%" beside 20 min and 4 actions. All of
+    // it was on 20 Oct, an observed holiday. Use on a Sunday or holiday stays out of the working-day
+    // figure (it would push it past 100%) and is reported beside it instead.
+    [Fact]
+    public async Task UseOnNonWorkingDays_IsReportedBesideTheWorkingDayFigure()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(User("u1", UserAccountKind.Human));
+        db.Holidays.Add(new Holiday
+        {
+            Date = new DateOnly(2026, 7, 10),
+            Name = "Observed holiday",
+            Type = HolidayType.Restricted,
+            IsObservedAsOfficeHoliday = true
+        });
+        db.UserActivityBuckets.AddRange(
+            Bucket("u1", new DateOnly(2026, 7, 10), 10, "projects", navigation: true),
+            Bucket("u1", new DateOnly(2026, 7, 12), 10, "projects", navigation: true)); // Sunday
+        db.AuditLogs.Add(new AuditLog
+        {
+            UserId = "u1",
+            UserName = "u1.user",
+            Action = "Projects.MetaChangedDirect",
+            TimeUtc = UtcFromIst(2026, 7, 10, 11),
+            Level = "Info"
+        });
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions { TrackingInceptionUtc = UtcOffsetFromIst(2026, 7, 1, 0) };
+        var service = CreateService(db, new DateTime(2026, 7, 14, 18, 0, 0), options);
+        var row = Assert.Single((await service.GetAsync(new ErpUsageQuery { Days = 7 })).Users);
+
+        Assert.Equal(5, row.AvailableWorkingDays);
+        Assert.Equal(0, row.ActiveWorkingDays);
+        Assert.Equal(2, row.ActiveNonWorkingDays);
+        Assert.Equal(10, row.ApproximateActiveMinutes);
+        Assert.Equal(1, row.OperationalActionCount);
+    }
+
+    [Fact]
+    public async Task UseOnAWorkingDay_FromAnActionAlone_CountsAsAnActiveWorkingDay()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(User("u1", UserAccountKind.Human));
+        db.AuditLogs.Add(new AuditLog
+        {
+            UserId = "u1",
+            UserName = "u1.user",
+            Action = "Projects.MetaChangedDirect",
+            TimeUtc = UtcFromIst(2026, 7, 13, 11),
+            Level = "Info"
+        });
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions { TrackingInceptionUtc = UtcOffsetFromIst(2026, 7, 1, 0) };
+        var service = CreateService(db, new DateTime(2026, 7, 14, 18, 0, 0), options);
+        var row = Assert.Single((await service.GetAsync(new ErpUsageQuery { Days = 7 })).Users);
+
+        Assert.Equal(1, row.ActiveWorkingDays);
+        Assert.Equal(0, row.ActiveNonWorkingDays);
+        Assert.Equal(0, row.ApproximateActiveMinutes);
+    }
+
+    // Admin review 2, PR 9: Anupam was "Never recorded" while Users showed a sign-in on 07 May 2026,
+    // before usage counting began. The row now carries the last sign-in and the page says
+    // "No use since counting began" with that sign-in, only when it is older than counting.
+    [Fact]
+    public async Task NoUseSinceCountingBegan_ShowsAnEarlierSignInOnly()
+    {
+        await using var db = CreateContext();
+        var before = User("before", UserAccountKind.Human);
+        before.LastLoginUtc = UtcFromIst(2026, 5, 7, 14);
+        var after = User("after", UserAccountKind.Human);
+        after.LastLoginUtc = UtcFromIst(2026, 7, 2, 9);
+        db.Users.AddRange(before, after);
+        await db.SaveChangesAsync();
+
+        var inception = UtcOffsetFromIst(2026, 7, 1, 0);
+        var service = CreateService(
+            db,
+            new DateTime(2026, 7, 14, 18, 0, 0),
+            new ErpUsageOptions { TrackingInceptionUtc = inception });
+        var rows = (await service.GetAsync(new ErpUsageQuery { Days = 7 })).Users;
+
+        var beforeRow = rows.Single(row => row.UserId == "before");
+        Assert.Null(beforeRow.LastActiveUtc);
+        Assert.Equal(before.LastLoginUtc, beforeRow.LastSignInUtc);
+        Assert.True(ProjectManagement.Pages.Usage.IndexModel.ShowLastSignIn(beforeRow, inception));
+        Assert.False(ProjectManagement.Pages.Usage.IndexModel.ShowLastSignIn(
+            rows.Single(row => row.UserId == "after"), inception));
+        Assert.Equal("No use since counting began", ProjectManagement.Pages.Usage.IndexModel.NoUseSinceCountingBegan);
+    }
+
+    // Admin review 2, PR 9: test and "Claude Review" accounts were listed with "Include service and
+    // test accounts" unticked. They are marked as people (Human) on their accounts; the filter goes
+    // by that classification, never by the name.
+    [Fact]
+    public async Task ServiceAndTestFilter_GoesByTheAccountClassificationNotTheName()
+    {
+        await using var db = CreateContext();
+        var namedLikeATest = User("named", UserAccountKind.Human);
+        namedLikeATest.FullName = "Test HoD";
+        db.Users.AddRange(namedLikeATest, User("marked", UserAccountKind.Test));
+        await db.SaveChangesAsync();
+
+        var service = CreateService(
+            db,
+            new DateTime(2026, 7, 14, 18, 0, 0),
+            new ErpUsageOptions { TrackingInceptionUtc = UtcOffsetFromIst(2026, 7, 1, 0) });
+
+        Assert.Equal("named", Assert.Single((await service.GetAsync(new ErpUsageQuery { Days = 7 })).Users).UserId);
+    }
+
     // The export used to ask GetAsync for page after page, recomputing every figure each time.
     // It now computes once; the rows must be exactly the paged rows, in order, up to the cap.
     [Fact]

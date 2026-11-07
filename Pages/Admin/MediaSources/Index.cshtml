@@ -104,7 +104,7 @@
                 <div class="border rounded-3 p-3 h-100 bg-body">
                     <div class="text-muted small">Photos and videos</div>
                     <div class="fs-3 fw-semibold">@Model.PrismAssetCount.ToString("N0")</div>
-                    <div class="small text-muted">ready in Photos</div>
+                    <div class="small text-muted">ready in Photos: @Model.ReadyInPhotos.Images.ToString("N0") image@(Model.ReadyInPhotos.Images == 1 ? "" : "s") · @Model.ReadyInPhotos.Videos.ToString("N0") video@(Model.ReadyInPhotos.Videos == 1 ? "" : "s")</div>
                     @if (Model.HistoricalAvailabilityCandidates > 0)
                     {
                         <div class="small text-warning mt-1">@Model.HistoricalAvailabilityCandidates older item@(Model.HistoricalAvailabilityCandidates == 1 ? "" : "s") still to be checked</div>
@@ -120,9 +120,9 @@
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">Prepared</div>
-                    <div class="fs-3 fw-semibold text-success">@Model.CompletedJobs</div>
-                    <div class="small text-muted">thumbnails and photo checks done</div>
+                    <div class="text-muted small">Images prepared</div>
+                    <div class="fs-3 fw-semibold text-success">@Model.ReadyInPhotos.ImagesPrepared.ToString("N0") of @Model.ReadyInPhotos.Images.ToString("N0")</div>
+                    <div class="small text-muted">images with thumbnails made · videos play as they are and need none</div>
                 </div>
             </div>
             <div class="col-sm-6 col-xl-3">

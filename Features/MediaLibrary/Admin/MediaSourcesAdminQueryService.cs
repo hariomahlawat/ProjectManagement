@@ -150,7 +150,12 @@ public sealed class MediaSourcesAdminQueryService : IMediaSourcesAdminQueryServi
                 .ToList();
 
             var consistency = await _consistencyService.CheckAsync(cancellationToken);
-            var prismAssetCount = (long)consistency.AvailableCatalogueRecords;
+            // "Ready in Photos", its image/video split and "Prepared" come from one query, so the
+            // tiles always add up (docs/ux/admin-review-2-fixes.md, PR 9).
+            var readyInPhotos = await MediaLibraryFigures.GetReadyInPhotosAsync(
+                _db.Assets.AsNoTracking(),
+                cancellationToken);
+            var prismAssetCount = (long)readyInPhotos.Total;
             sources = sources
                 .Select(source => source.Key == MediaSourceBootstrapper.PrismSourceKey
                     ? source with { AssetCount = prismAssetCount }
@@ -324,6 +329,7 @@ public sealed class MediaSourcesAdminQueryService : IMediaSourcesAdminQueryServi
                 CatalogueHealth = await _catalogueHealthService.CheckAsync(cancellationToken),
                 CatalogueDiagnostics = _catalogueDiagnostics.GetLatest(),
                 PrismAssetCount = prismAssetCount,
+                ReadyInPhotos = readyInPhotos,
                 PrismCatalogueRecordCount = consistency.CatalogueRecords,
                 PrismUnavailableCatalogueCount = consistency.UnavailableCatalogueRecords,
                 PrismOrphanedCatalogueCount = consistency.OrphanedCatalogueRecords,
