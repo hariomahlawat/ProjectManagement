@@ -125,11 +125,49 @@ public sealed class IndexModel : PageModel
         return Page();
     }
 
-    public async Task<FileResult> OnGetExportCsvAsync(CancellationToken cancellationToken)
+    public async Task<FileResult> OnGetExportCsvAsync(
+        [FromServices] IAdminExportAuditService exportAudit,
+        CancellationToken cancellationToken)
     {
-        var rows = await _queries.GetForExportAsync(BuildQuery(), MaximumExportRows + 1, cancellationToken);
+        ArgumentNullException.ThrowIfNull(exportAudit);
+        var query = BuildQuery();
+        var rows = await _queries.GetForExportAsync(query, MaximumExportRows + 1, cancellationToken);
         var wasTruncated = rows.Count > MaximumExportRows;
         var exported = rows.Take(MaximumExportRows).ToArray();
+
+        var csvRows = exported.Select(row =>
+        {
+            var presentation = Presentation(row);
+            var payload = row.Payload;
+            return (IReadOnlyList<object?>)new object?[]
+            {
+                FormatIst(row.TimeUtc),
+                row.Level,
+                presentation.Label,
+                row.Action,
+                presentation.Category,
+                row.Actor,
+                payload?.ActorUserId ?? row.UserId,
+                payload?.EntityType,
+                payload?.EntityId,
+                row.Ip,
+                Client(row).Summary,
+                row.Message,
+                payload?.Reason,
+                payload?.Outcome,
+                payload?.TraceId,
+                payload?.Origin,
+                payload?.BeforeJson,
+                payload?.AfterJson,
+                payload?.RawPrettyJson ?? row.DataJson
+            };
+        });
+
+        if (wasTruncated)
+        {
+            // The header stays for scripts; the last row tells the person who opens the file.
+            csvRows = csvRows.Append(AdminExportNotice.TruncatedRow(exported.Length));
+        }
 
         var bytes = _csv.Write(
             new[]
@@ -138,33 +176,27 @@ public sealed class IndexModel : PageModel
                 "AffectedEntityType", "AffectedEntityId", "SourceIP", "Client", "Message", "Reason",
                 "Outcome", "TraceId", "Origin", "Before", "After", "RawJson"
             },
-            exported.Select(row =>
-            {
-                var presentation = Presentation(row);
-                var payload = row.Payload;
-                return (IReadOnlyList<object?>)new object?[]
+            csvRows);
+
+        await exportAudit.RecordAsync(
+            new AdminExportRecord(
+                AdminExportKind.AuditLog,
+                exported.Length,
+                new Dictionary<string, string?>
                 {
-                    FormatIst(row.TimeUtc),
-                    row.Level,
-                    presentation.Label,
-                    row.Action,
-                    presentation.Category,
-                    row.Actor,
-                    payload?.ActorUserId ?? row.UserId,
-                    payload?.EntityType,
-                    payload?.EntityId,
-                    row.Ip,
-                    Client(row).Summary,
-                    row.Message,
-                    payload?.Reason,
-                    payload?.Outcome,
-                    payload?.TraceId,
-                    payload?.Origin,
-                    payload?.BeforeJson,
-                    payload?.AfterJson,
-                    payload?.RawPrettyJson ?? row.DataJson
-                };
-            }));
+                    ["Severity"] = query.Level,
+                    ["Action"] = query.Action,
+                    ["Category"] = query.Category,
+                    ["EntityType"] = query.EntityType,
+                    ["User"] = query.UserName,
+                    ["UserId"] = query.UserId,
+                    ["SourceIP"] = query.Ip,
+                    ["Contains"] = query.Contains,
+                    ["From"] = query.From?.ToString("yyyy-MM-dd"),
+                    ["To"] = query.To?.ToString("yyyy-MM-dd")
+                },
+                wasTruncated),
+            cancellationToken);
 
         if (wasTruncated)
         {

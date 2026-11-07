@@ -100,8 +100,11 @@ public sealed class IndexModel : PageModel
         Header = BuildHeader();
     }
 
-    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetExportAsync(
+        [FromServices] IAdminExportAuditService exportAudit,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(exportAudit);
         NormaliseRequest();
         var rows = await _queries.GetForExportAsync(
             BuildRequest() with { Page = 1, PageSize = 100 },
@@ -130,6 +133,18 @@ public sealed class IndexModel : PageModel
                 user.LoginCount,
                 _time.FormatIst(user.CreatedUtc)
             }));
+
+        await exportAudit.RecordAsync(
+            new AdminExportRecord(
+                AdminExportKind.Users,
+                rows.Count,
+                new Dictionary<string, string?>
+                {
+                    ["Search"] = Q,
+                    ["Role"] = Role,
+                    ["Status"] = Status
+                }),
+            cancellationToken);
 
         var fileName = $"prism-users-{_time.UtcNow:yyyyMMdd}.csv";
         return File(bytes, "text/csv; charset=utf-8", fileName);
