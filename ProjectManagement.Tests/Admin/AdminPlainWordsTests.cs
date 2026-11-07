@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using ProjectManagement.Areas.Admin.Pages.Help;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 using ProjectManagement.Services.Navigation.ModuleNav;
 using Xunit;
 
@@ -227,6 +228,77 @@ public sealed class AdminPlainWordsTests
 
         Assert.True(offenders.Length == 0, string.Join(Environment.NewLine, offenders));
     }
+
+    // Third review (docs/ux/admin-review-3-fixes.md, PR 7): formal and unclear phrases that were
+    // rewritten. Each file is checked whole, so the words cannot come back in a label or message.
+    [Theory]
+    [InlineData("Areas/Admin/Pages/Users/Edit.cshtml", "from this workflow")]
+    [InlineData("Areas/Admin/Pages/Users/Edit.cshtml.cs", "Update identity details", "Account classification", "Assign at least one role")]
+    [InlineData("Areas/Admin/Pages/Users/Reset.cshtml", "This operation", "approved secure channel", "temporary credential", "Security handling", "Password policy", "Issue a temporary password")]
+    [InlineData("Areas/Admin/Pages/Users/Reset.cshtml.cs", "Acknowledge the security impact", "Issue a new temporary password", "a password change is required")]
+    [InlineData("Areas/Admin/Pages/Users/Disable.cshtml", "Block account access", "operational or administrative", "retained in the audit trail", "requiring immediate access revocation", "attribution are preserved", "Use disable when")]
+    [InlineData("Areas/Admin/Pages/Users/Index.cshtml", "Last activity", "Password change required")]
+    [InlineData("Areas/Admin/Pages/Users/Index.cshtml.cs", "\"Password change\"")]
+    [InlineData("Areas/Admin/Pages/Users/Details.cshtml", "<dt>Password change</dt>")]
+    [InlineData("Areas/Admin/Pages/Shared/_AdminRoleSelectionGrid.cshtml", "Privileged access selected", "operational need")]
+    [InlineData("Pages/Settings/Holidays/Index.cshtml", "RH · Office holiday", "Declare as office holiday", "Withdraw office observance", "office observance are separate")]
+    [InlineData("Pages/Settings/Holidays/Observe.cshtml", "RH · Office holiday", "Declare", "Controlled decision", "persisted")]
+    [InlineData("Pages/Settings/Holidays/WithdrawObservance.cshtml", "RH · Office holiday", "Withdraw observance", "Withdraw RH", "Withdraw office observance", "Controlled decision", "persisted")]
+    [InlineData("Areas/Admin/Pages/Help/Index.cshtml", "Declare as office holiday", "Withdraw office observance")]
+    [InlineData("Services/Admin/Calendar/HolidayAdminService.cs", "Office observance withdrawn.", "observance is declared")]
+    [InlineData("Areas/Admin/Pages/MasterData/Integrity/Index.cshtml", "I looked at what was found")]
+    [InlineData("Pages/Admin/MediaIntelligence/Classifications.cshtml", "Strength @", "<span>Lead</span>", "btn-outline-secondary\" asp-page=\"/Admin/MediaIntelligence/Index\">Overview")]
+    [InlineData("Pages/Admin/MediaSources/Index.cshtml", "is operational, but", "migration(s)", "Outside folders are switched off", "Photos works as normal", "production configuration")]
+    public void ThirdReviewPhrases_StayGone(string file, params string[] phrases)
+    {
+        var text = File.ReadAllText(Path.Combine(FindRepositoryRoot(), file));
+
+        var found = phrases.Where(phrase => text.Contains(phrase, StringComparison.Ordinal)).ToArray();
+
+        Assert.True(found.Length == 0, $"{file}: {string.Join(" | ", found)}");
+    }
+
+    [Fact]
+    public void Holidays_OfficeHolidayActionsAreAMatchedPair()
+    {
+        var list = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Pages/Settings/Holidays/Index.cshtml"));
+
+        Assert.Contains(">Make it an office holiday</a>", list, StringComparison.Ordinal);
+        Assert.Contains(">Stop office holiday</a>", list, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ClassificationCards_ShowScoresAsPointsOutOf100()
+    {
+        var row = ClassificationRow(predicted: 0.37m, runnerUp: 0.36, margin: 0.01);
+
+        Assert.Equal("Score 37 of 100", row.PredictedScoreText);
+        Assert.Equal("Score 36 of 100", row.RunnerUpScoreText);
+        Assert.Equal("1 point", row.LeadText);
+        Assert.Equal("12 points", ClassificationRow(0.6m, 0.48, 0.12).LeadText);
+        // Both show as 37: the card says so instead of "ahead by 1 point".
+        Assert.Equal("Less than 1 point", ClassificationRow(0.374m, 0.366, 0.008).LeadText);
+    }
+
+    [Fact]
+    public void ActivityTypes_SeededAndNeverEditedReadsBuiltIn()
+    {
+        var seeded = new ActivityTypeAdminRow(1, "Misc", null, true, 0, DateTimeOffset.UnixEpoch, null, "system", "");
+        var edited = seeded with { UpdatedAtUtc = DateTimeOffset.UnixEpoch.AddDays(1), ChangedBy = "admin" };
+        var editedBySeed = seeded with { UpdatedAtUtc = DateTimeOffset.UnixEpoch.AddDays(1) };
+
+        Assert.True(seeded.IsBuiltIn);
+        Assert.False(edited.IsBuiltIn);
+        Assert.False(editedBySeed.IsBuiltIn);
+    }
+
+    private static ProjectManagement.Pages.Admin.MediaIntelligence.ClassificationsModel.Row ClassificationRow(
+        decimal predicted, double runnerUp, double margin) =>
+        new(1, "Image", "Context", "image.jpg",
+            default, predicted, default, runnerUp, margin,
+            default, null, false, null, Array.Empty<string>(), false, string.Empty, string.Empty,
+            default, DateTimeOffset.UnixEpoch, default, null, Guid.Empty,
+            0, 0, 0, 0, 0, false, false, false, null);
 
     // The page's text as a reader sees it: no comments, no Technical details, no markup or code.
     private static string VisibleText(string view)

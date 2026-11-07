@@ -16,8 +16,8 @@
                 <div class="admin-operation-heading">
                     <span class="admin-operation-heading__icon admin-operation-heading__icon--warning"><i class="bi bi-key" aria-hidden="true"></i></span>
                     <div>
-                        <h2 id="reset-password-title">Issue a temporary password</h2>
-                        <p>This operation signs out the user’s open sessions @Model.SessionEndDelay and requires a password change at the next sign-in.</p>
+                        <h2 id="reset-password-title">Set a temporary password</h2>
+                        <p>They are signed out @Model.SessionEndDelay and must choose a new password the next time they sign in.</p>
                     </div>
                 </div>
 
@@ -42,7 +42,7 @@
                         <span asp-validation-for="Input.Password" class="text-danger"></span>
                         <div class="admin-password-actions">
                             <button type="button" id="generatePwd" class="btn btn-sm btn-outline-secondary">
-                                <i class="bi bi-stars" aria-hidden="true"></i> Generate secure password
+                                <i class="bi bi-stars" aria-hidden="true"></i> Generate a strong password
                             </button>
                             <button type="button" id="copyPwd" class="btn btn-sm btn-outline-secondary">
                                 <i class="bi bi-clipboard" aria-hidden="true"></i> Copy
@@ -53,14 +53,14 @@
                     <div class="admin-inline-notice admin-inline-notice--warning">
                         <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
                         <div>
-                            <strong>Password policy</strong>
+                            <strong>Password rules</strong>
                             <span>@Model.PasswordPolicyDescription</span>
                         </div>
                     </div>
 
                     <label class="admin-confirm-check">
                         <input asp-for="Input.Acknowledge" class="form-check-input" />
-                        <span>I understand that the user's open sessions will be signed out @Model.SessionEndDelay and they must change this temporary password at next sign-in.</span>
+                        <span>I understand they will be signed out @Model.SessionEndDelay and must change this password the next time they sign in.</span>
                     </label>
                     <span asp-validation-for="Input.Acknowledge" class="text-danger"></span>
 
@@ -76,11 +76,11 @@
         </section>
 
         <aside class="admin-operation-guidance">
-            <h2>Security handling</h2>
+            <h2>Keep the password safe</h2>
             <ul>
-                <li>Use the generator unless an approved temporary credential has already been issued.</li>
-                <li>Share the password through an approved secure channel.</li>
-                <li>Do not retain the password in PRISM remarks, tickets or audit notes.</li>
+                <li>Use Generate, unless they have already been given a temporary password the approved way.</li>
+                <li>Give it to them only in an approved, safe way, such as in person.</li>
+                <li>Do not write it down in PRISM remarks, tickets or audit notes.</li>
             </ul>
         </aside>
     </div>

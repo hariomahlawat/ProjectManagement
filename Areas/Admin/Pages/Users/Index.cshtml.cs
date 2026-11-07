@@ -207,7 +207,7 @@ public sealed class IndexModel : PageModel
             new UserStatusFilter("active", "Active", summary.Active, "bi-check-circle", "success"),
             new UserStatusFilter(
                 "must-change-password",
-                "Password change",
+                "Must change password",
                 summary.MustChangePassword,
                 "bi-key",
                 "info"),

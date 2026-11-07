@@ -111,7 +111,7 @@ public sealed class ResetModel : PageModel
 
         if (!Input.Acknowledge)
         {
-            ModelState.AddModelError("Input.Acknowledge", "Acknowledge the security impact before resetting the password.");
+            ModelState.AddModelError("Input.Acknowledge", "Tick the box to confirm before resetting the password.");
         }
 
         if (!ModelState.IsValid)
@@ -134,7 +134,7 @@ public sealed class ResetModel : PageModel
             "Administrator {Administrator} reset the password for user {UserId}.",
             User.Identity?.Name,
             id);
-        TempData[FlashMessageKeys.AdminUsersSuccess] = $"Password reset for @{Account.UserName}. Any open sessions will be signed out {SessionEndDelay}, and a password change is required at next sign-in.";
+        TempData[FlashMessageKeys.AdminUsersSuccess] = $"Password reset for @{Account.UserName}. Any open sessions will be signed out {SessionEndDelay}, and they must change the password the next time they sign in.";
         return RedirectToPage("./Details", new { id });
     }
 
@@ -144,8 +144,8 @@ public sealed class ResetModel : PageModel
         {
             Title = "Reset password",
             Description = Account is null
-                ? "Issue a new temporary password."
-                : $"Issue a new temporary password for @{Account.UserName}.",
+                ? "Set a temporary password."
+                : $"Set a temporary password for @{Account.UserName}.",
             Icon = "bi-key",
             Actions = Account is null
                 ? Array.Empty<AdminPageActionModel>()

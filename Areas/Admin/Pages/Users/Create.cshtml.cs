@@ -71,7 +71,7 @@ public sealed class CreateModel : PageModel
         [StringLength(32)]
         public string Rank { get; set; } = string.Empty;
 
-        [Required, Display(Name = "Account classification")]
+        [Required, Display(Name = "Kind of account")]
         [EnumDataType(typeof(UserAccountKind))]
         public UserAccountKind AccountKind { get; set; } = UserAccountKind.Human;
 
@@ -79,7 +79,7 @@ public sealed class CreateModel : PageModel
         [StringLength(100)]
         public string Password { get; set; } = string.Empty;
 
-        [MinLength(1, ErrorMessage = "Assign at least one role to the user.")]
+        [MinLength(1, ErrorMessage = "Choose at least one role.")]
         public List<string> Roles { get; set; } = new();
     }
 
