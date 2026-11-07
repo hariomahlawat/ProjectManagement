@@ -178,7 +178,7 @@
             </div>
             <div>
                 <dt>Sign-ins in this period</dt>
-                <dd>@Model.Snapshot.AnalysedEvents.Count.ToString("N0")</dd>
+                <dd>@((Model.Snapshot.Successful + Model.Snapshot.Failed + Model.Snapshot.LockedOut).ToString("N0"))</dd>
             </div>
         </dl>
         @if (Model.Snapshot.IsTruncated)
