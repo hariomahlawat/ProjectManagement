@@ -1913,13 +1913,14 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 /* Audit logs */
 .admin-audit-filter { display: grid; }
 .admin-audit-filter__primary { display: grid; grid-template-columns: minmax(15rem, 1.6fr) minmax(7.5rem, .55fr) minmax(9rem, .65fr) minmax(4.5rem, .32fr) auto; align-items: end; gap: .6rem; padding: .72rem .8rem; }
+.admin-audit-filter__hint { margin: -.35rem .8rem .55rem; color: var(--admin-text-muted); font-size: .62rem; }
 .admin-input-with-icon { position: relative; }
 .admin-input-with-icon > i { position: absolute; top: 50%; left: .68rem; z-index: 1; color: var(--admin-text-muted); font-size: .72rem; transform: translateY(-50%); }
 .admin-input-with-icon .form-control { padding-left: 2rem; }
 .admin-advanced-filters { border-top: 1px solid var(--admin-border); }
 .admin-advanced-filters > summary { display: flex; align-items: center; gap: .4rem; width: max-content; margin: .55rem .8rem; color: var(--admin-text-secondary); font-size: .62rem; font-weight: 720; cursor: pointer; list-style: none; }
 .admin-advanced-filters > summary::-webkit-details-marker { display: none; }
-.admin-advanced-filters > summary::after { font-family: "bootstrap-icons"; font-size: .55rem; content: "\\f282"; transition: transform .15s ease; }
+.admin-advanced-filters > summary::after { font-family: "bootstrap-icons"; font-size: .55rem; content: "\f282"; transition: transform .15s ease; }
 .admin-advanced-filters[open] > summary::after { transform: rotate(180deg); }
 .admin-advanced-filters__grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem; padding: .1rem .8rem .75rem; }
 .admin-advanced-filters small { display: block; margin-top: .2rem; color: var(--admin-text-muted); font-size: .54rem; }

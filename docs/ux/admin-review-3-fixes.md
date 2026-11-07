@@ -195,3 +195,12 @@ parameter, not inlined), and compiled for use in memory.
 - **Media sources.** The off banner reads "Photos shows only what is stored in PRISM. Reading photos and videos from other folders is switched off…", and the add-folder card says a folder cannot be added yet. The out-of-date database banner no longer says "operational" next to "requires repair".
 - **Users.** The tile and filter read "Must change password", the column "Last signed in" (it shows the last successful sign-in), and a user's page "Must change password: Yes, at their next sign-in / No".
 - Tests: `AdminPlainWordsTests` (the old phrases stay gone, the holiday pair, scores as points, Built in).
+
+### PR 5 shipped: audit log names and figures
+
+- **Actor column (U5).** The audit log and its details drawer show roles in full through `IAdminRoleDescriptorCatalog` ("Administrator, Head of Department, Project Officer" instead of "Admin,HoD,Project Officer"). People were already resolved through `AuditActorNames`, the lookup Home uses since PR 3: full name, then user name, and "PRISM" for rows the application wrote.
+- **"Records changed" (C6).** The tile reads "8 people · 3 records changed". It counts distinct records, one per entity type and id, however many events name them; events that name no record are left out. The count runs in the database with plain string functions over the stored details.
+- **Search (C6).** `AuditService` and `AdminAuditService` now store details without escaping letters (`JavaScriptEncoder.UnsafeRelaxedJsonEscaping`), so search finds "R&D", apostrophes and Hindi in new entries. The drawer's raw JSON shows older rows' letters as written too. The stored JSON is never rendered as markup: Razor encodes it, and the drawer embeds it through a second serialisation that still escapes `<`, `>`, `&` and `'`, and sets it with `textContent`.
+- Older rows are not rewritten and still hold `\uXXXX` codes, so search can miss those letters in them. A short hint under the search box says so.
+- No migration; routes, policies and the CSV export are unchanged.
+- Tests: `AdminAuditLogNamesAndFiguresTests` (full role names and display names, the distinct-record count and its PostgreSQL translation, search for "R&D", an apostrophe and Hindi, the drawer JSON staying HTML-safe, older escaped rows reading as written).

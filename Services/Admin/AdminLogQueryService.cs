@@ -172,9 +172,7 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
                     .FirstOrDefault() ?? log.UserName)
             .Distinct()
             .CountAsync(cancellationToken);
-        var affectedRecords = await summaryQuery.CountAsync(
-            log => log.DataJson != null && log.DataJson.Contains("\"EntityId\""),
-            cancellationToken);
+        var affectedRecords = await CountDistinctRecordsAsync(summaryQuery, cancellationToken);
 
         return new AdminLogResult(
             rows,
@@ -200,6 +198,40 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
             .ToListAsync(cancellationToken);
         return await MapAsync(entities, cancellationToken);
     }
+
+    private const string EntityIdToken = "\"EntityId\":\"";
+    private const string EntityTypeToken = "\"EntityType\":\"";
+
+    /// <summary>
+    /// Counts the distinct records the events touched: one per entity type and id, however many
+    /// events name it. The details are compact JSON written by <see cref="AuditService"/>, so
+    /// the values are read with plain string functions that run in the database. Rows without
+    /// an entity id are not records.
+    /// </summary>
+    internal static Task<int> CountDistinctRecordsAsync(
+        IQueryable<AuditLog> query,
+        CancellationToken cancellationToken) =>
+        DistinctRecordKeys(query).CountAsync(cancellationToken);
+
+    /// <summary>One key per record ("type|id"); see <see cref="CountDistinctRecordsAsync"/>.</summary>
+    internal static IQueryable<string> DistinctRecordKeys(IQueryable<AuditLog> query) =>
+        query
+            .Where(log => log.DataJson != null && log.DataJson.Contains(EntityIdToken))
+            .Select(log => new
+            {
+                IdTail = log.DataJson!.Substring(log.DataJson.IndexOf(EntityIdToken) + EntityIdToken.Length),
+                TypeTail = log.DataJson.Contains(EntityTypeToken)
+                    ? log.DataJson.Substring(log.DataJson.IndexOf(EntityTypeToken) + EntityTypeToken.Length)
+                    : "\""
+            })
+            .Select(item => new
+            {
+                Type = item.TypeTail.Substring(0, item.TypeTail.IndexOf("\"")),
+                Id = item.IdTail.Substring(0, item.IdTail.IndexOf("\""))
+            })
+            .Where(record => record.Id != string.Empty)
+            .Select(record => record.Type + "|" + record.Id)
+            .Distinct();
 
     private IQueryable<AuditLog> ComposeQuery(AdminLogQuery request)
     {

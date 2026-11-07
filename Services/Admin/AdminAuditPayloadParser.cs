@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace ProjectManagement.Services.Admin;
@@ -66,9 +67,13 @@ public sealed class AdminAuditPayloadParser : IAdminAuditPayloadParser
         }
     }
 
+    // Shows "R&D" and Hindi as written, older \uXXXX rows included. The result is text only:
+    // Razor encodes it, and the audit drawer embeds it through an HTML-safe serialisation and
+    // sets it with textContent.
     private static readonly JsonSerializerOptions PrettyJsonOptions = new()
     {
-        WriteIndented = true
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
     private static string? ReadString(JsonElement root, string name)
