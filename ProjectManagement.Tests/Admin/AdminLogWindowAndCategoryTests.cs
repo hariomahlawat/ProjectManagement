@@ -95,7 +95,8 @@ public sealed class AdminLogWindowAndCategoryTests
             Unused<IAdminClientDescriptorService>(),
             Unused<IAdminAuditEntityLinkResolver>(),
             Unused<ISafeCsvWriter>(),
-            new AdminTimeService(FakeClock.AtUtc(Now)));
+            new AdminTimeService(FakeClock.AtUtc(Now)),
+            Unused<IAdminRoleDescriptorCatalog>());
 
     private static AdminLogQuery BuildQuery(LogsIndexModel page) =>
         (AdminLogQuery)typeof(LogsIndexModel)

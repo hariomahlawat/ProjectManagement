@@ -223,7 +223,8 @@ public sealed class AdminExportAuditTests
         new AdminClientDescriptorService(),
         Stub<IAdminAuditEntityLinkResolver>("Resolve", () => null),
         new SafeCsvWriter(),
-        Time()));
+        Time(),
+        new AdminRoleDescriptorCatalog()));
 
     private static LoginsModel LoginsPage(IAdminLoginMonitoringService monitoring) => WithContext(new LoginsModel(
         monitoring,
