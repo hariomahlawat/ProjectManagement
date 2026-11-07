@@ -50,6 +50,11 @@ public sealed class ArppAnalyticsVm
     public int OngoingCount { get; init; }
     public int CompletedCount { get; init; }
     public int CancelledCount { get; init; }
+    /// <summary>
+    /// The listing without the projects cancelled on the date: the progress slides count no cancelled project
+    /// (owner, 7 Nov 2026), so their Listed card reads from this.
+    /// </summary>
+    public ArppListingVm ListedExcludingCancelled { get; init; } = new(0, 0m, 0, 0, 0);
     /// <summary>Projects whose lifecycle on the date cannot be told (completed or cancelled with only a year).</summary>
     public int NotKnownCount { get; init; }
 
@@ -157,3 +162,6 @@ public sealed record AnalyticsBoardProjectVm(
     string ProjectName,
     string? Detail = null);
 // END SECTION
+
+/// <summary>A count of listed projects with its IPA value and its New / CL / CF split.</summary>
+public sealed record ArppListingVm(int Count, decimal IpaValue, int NewCount, int CommittedLiabilityCount, int CarryForwardCount);

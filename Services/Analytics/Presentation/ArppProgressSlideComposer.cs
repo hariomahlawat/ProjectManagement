@@ -21,12 +21,15 @@ public interface IArppProgressSlideComposer
 
 /// <summary>
 /// Analytics › ARPP as two or three slides (owner, 6 Nov 2026). Slide 1: the five headline cards and the
-/// stage chart stacked by parent category. Slide 2: every listed project in four columns (Pre-AoN, AoN to
+/// stage chart stacked by parent category, its stages banded as the cards group them (Pre-AoN, AoN to SO,
+/// Under development). Slide 2: every listed project in four columns (Pre-AoN, AoN to
 /// SO, Under development, Completed), full names wrapped, a stage tag before the supply order, the PDC for
 /// projects at Development (red when overdue) and the completion month and year; a column that does not fit
-/// continues on a further slide. ARTRAC insignia left, SDD insignia right, as the Briefing Studio header; no
-/// handling marking. Every figure comes from <see cref="ArppAnalyticsVm"/> and <see cref="ArppHeadlines"/>;
-/// nothing is counted here.
+/// continues on a further slide. Not-known projects, when there are any, get a slide of their own; cancelled
+/// projects are counted nowhere and are named only in the presenter's notes (owner, 7 Nov 2026). Built to be
+/// edited by hand: each card, column heading and column of projects is one shape, and each project one
+/// paragraph. ARTRAC insignia left, SDD insignia right, as the Briefing Studio header; no handling marking.
+/// Every figure comes from <see cref="ArppAnalyticsVm"/> and <see cref="ArppHeadlines"/>; nothing is counted here.
 /// </summary>
 public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
 {
@@ -80,35 +83,48 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
 
         var leftLogo = _leftLogoPath is null ? null : File.ReadAllBytes(_leftLogoPath);
         var rightLogo = _rightLogoPath is null ? null : File.ReadAllBytes(_rightLogoPath);
-        var shownOn = arpp.AsOfDate ?? today;
         var when = arpp.AsOfDate is { } asOf ? $"on {asOf:d MMM yyyy}" : $"as of {today:d MMM yyyy}";
         var year = $"FY {arpp.FinancialYearDisplay}";
         var categories = CategoryOrder(arpp);
+        var listing = arpp.ListedExcludingCancelled;
 
-        var renders = new List<Action<SlideCanvas, int>>
+        // Cancelled projects are counted nowhere on the slides (owner, 7 Nov 2026): the presenter's notes of the
+        // first projects slide name them, for information. Not-known projects are counted and get their own slide.
+        var cancelled = arpp.ProjectLines
+            .Where(line => line.Bucket == ArppProgressBucket.Cancelled)
+            .Select(line => line.ProjectName)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var notKnown = arpp.ProjectLines
+            .Where(line => line.Bucket == ArppProgressBucket.NotKnown)
+            .OrderBy(line => line.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var slides = new List<(Action<SlideCanvas, int> Render, string? Notes)>
         {
-            (canvas, page) => RenderOverview(canvas, arpp, year, when, categories, leftLogo, rightLogo, page, today)
+            ((canvas, page) => RenderOverview(canvas, arpp, listing, year, when, categories, leftLogo, rightLogo, page, today), null)
         };
         var columnPages = PaginateColumns(arpp, Columns);
-        // Cancelled and not-known projects: named in the footer when that fits on two lines, otherwise
-        // listed on their own slide (or slides) after the columns, never cut off.
-        var others = OtherProjectsText(arpp, when);
-        var othersFitFooter = others is null || WrapCount(others, FooterTextWidth, FooterSize) <= 2;
-        var otherPages = othersFitFooter ? new List<IReadOnlyList<ColumnPage>>() : PaginateColumns(arpp, OtherColumns);
+        var notKnownPages = PaginateFlow(notKnown);
+        var notKnownSlide = 2 + columnPages.Count;
+        var subtitle = $"{listing.Count} listed projects by where they stand, {when}"
+            + (notKnown.Count > 0 ? $" · {notKnown.Count} not known: slide {notKnownSlide}" : string.Empty);
+        var cancelledNotes = cancelled.Count == 0
+            ? null
+            : $"Cancelled, not counted on these slides ({cancelled.Count}):\n" + string.Join("\n", cancelled.Select(name => $"• {name}"));
         for (var index = 0; index < columnPages.Count; index++)
         {
             var pageColumns = columnPages[index];
             var isFirst = index == 0;
-            var footerOthers = index == columnPages.Count - 1
-                ? othersFitFooter ? others : "Cancelled and not-known projects: on the next slide"
-                : null;
-            renders.Add((canvas, page) => RenderProjects(canvas, arpp, year, when, shownOn, categories, pageColumns, isFirst ? ProjectsTitle(year) : $"{ProjectsTitle(year)} (continued)", isFirst, footerOthers, leftLogo, rightLogo, page, today));
+            var title = isFirst ? ProjectsTitle(year) : $"{ProjectsTitle(year)} (continued)";
+            slides.Add(((canvas, page) => RenderProjects(canvas, subtitle, categories, pageColumns, title, isFirst, leftLogo, rightLogo, page, today), isFirst ? cancelledNotes : null));
         }
-        for (var index = 0; index < otherPages.Count; index++)
+        for (var index = 0; index < notKnownPages.Count; index++)
         {
-            var pageColumns = otherPages[index];
+            var pageLines = notKnownPages[index];
             var isFirst = index == 0;
-            renders.Add((canvas, page) => RenderProjects(canvas, arpp, year, when, shownOn, categories, pageColumns, isFirst ? $"ARPP {year}: cancelled and not known" : $"ARPP {year}: cancelled and not known (continued)", isFirst, null, leftLogo, rightLogo, page, today));
+            var title = isFirst ? $"ARPP {year}: not known {when}" : $"ARPP {year}: not known {when} (continued)";
+            slides.Add(((canvas, page) => RenderNotKnown(canvas, notKnown.Count, when, categories, pageLines, title, isFirst, leftLogo, rightLogo, page, today), null));
         }
 
         var templateBytes = File.ReadAllBytes(_templatePath);
@@ -135,14 +151,18 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
             }
 
             uint nextId = 256;
-            for (var index = 0; index < renders.Count; index++)
+            for (var index = 0; index < slides.Count; index++)
             {
                 var slidePart = presentationPart.AddNewPart<SlidePart>();
                 slidePart.AddPart(layout);
                 var canvas = new SlideCanvas(slidePart);
-                renders[index](canvas, index + 1);
+                slides[index].Render(canvas, index + 1);
                 canvas.Commit();
                 slideIds.Append(new SlideId { Id = nextId++, RelationshipId = presentationPart.GetIdOfPart(slidePart) });
+                if (slides[index].Notes is { } notes)
+                {
+                    Services.Presentation.PptxSpeakerNotes.Add(presentationPart, slidePart, notes);
+                }
             }
 
             presentationPart.Presentation.Save();
@@ -153,13 +173,14 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
             document.PackageProperties.Modified = DateTime.UtcNow;
         }
 
-        return (stream.ToArray(), renders.Count);
+        return (stream.ToArray(), slides.Count);
     }
 
     // SECTION: Slide 1 — cards and the stage chart
     private static void RenderOverview(
         SlideCanvas canvas,
         ArppAnalyticsVm arpp,
+        ArppListingVm listing,
         string year,
         string when,
         IReadOnlyList<string> categories,
@@ -168,10 +189,11 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         int page,
         DateOnly today)
     {
-        RenderHeader(canvas, $"ARPP {year}: progress {when}", $"{arpp.ListedCount} listed projects · IPA {Utilities.IndianCurrencyFormatter.FormatCompact(arpp.ListedIpaValue)}", leftLogo, rightLogo, null);
+        RenderHeader(canvas, $"ARPP {year}: progress {when}", $"{listing.Count} listed projects · IPA {Utilities.IndianCurrencyFormatter.FormatCompact(listing.IpaValue)}", leftLogo, rightLogo, null);
 
-        // The page's five cards; the supply-order card reads as the column it feeds on slide 2.
-        var cards = ArppHeadlines.Build(arpp);
+        // The page's five cards, without cancelled projects; the supply-order card reads as the column it
+        // feeds on slide 2. Each card is one shape: figure, label and the line beneath.
+        var cards = ArppHeadlines.Build(arpp, excludeCancelled: true);
         var gap = .15;
         var cardWidth = (SlideWidth - 2 * Margin - gap * (cards.Count - 1)) / cards.Count;
         for (var index = 0; index < cards.Count; index++)
@@ -185,24 +207,64 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
                 ArppHeadlines.PreAon => "Pre-AoN",
                 _ => card.Label
             };
-            canvas.AddRect(x, 1.2, cardWidth, 1.25, CardFill, radius: true);
-            canvas.AddText(x + .14, 1.26, cardWidth - .28, .48, card.Value, 26, Ink, true, "l", anchor: "t");
-            canvas.AddText(x + .14, 1.72, cardWidth - .28, .26, label, 12, Ink, true, "l", anchor: "t");
-            canvas.AddText(x + .14, 1.98, cardWidth - .28, .42, card.Hint, 9.5, Muted, false, "l", anchor: "t");
+            canvas.AddTextBox(
+                x, 1.2, cardWidth, 1.25,
+                new[]
+                {
+                    Para(Run(card.Value, 26, Ink, bold: true)),
+                    Para(Run(label, 12, Ink, bold: true)),
+                    Para(Run(card.Hint, 9.5, Muted), props: "<a:spcBef><a:spcPts val=\"300\"/></a:spcBef>")
+                },
+                name: $"{label} card",
+                fill: CardFill,
+                radius: true,
+                inset: (.14, .06, .14, .06));
         }
 
-        // Legend: only the categories present in the year's listed projects.
-        RenderLegend(canvas, categories, arpp.ByStageByCategory.GroupBy(point => point.CategoryName).ToDictionary(group => group.Key, group => group.Sum(point => point.Count)), Margin, 2.66, alignRight: false);
+        // Legend: only the categories present among the ongoing projects, with their counts.
+        RenderLegend(canvas, categories, arpp.ProjectLines.Where(line => line.StageCode is not null).GroupBy(line => line.Category).ToDictionary(group => group.Key, group => group.Count()), Margin, 2.66, SlideWidth - 2 * Margin, "l");
 
-        // The stage chart: every workflow stage in order, then any other bucket present, stacked by category.
-        var codes = StageCodes.All
-            .Where(code => !StageCodes.IsTot(code) || arpp.ByStageByCategory.Any(point => Same(point.StageCode, code)))
-            .Concat(arpp.ByStageByCategory.Select(point => point.StageCode).Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase))
-            .ToList();
-        var totals = codes.Select(code => arpp.ByStageByCategory.Where(point => Same(point.StageCode, code)).Sum(point => point.Count)).ToList();
-        var top = NiceTop(totals.DefaultIfEmpty(0).Max());
-        const double plotLeft = .85, plotRight = 12.93, plotTop = 3.15, plotBottom = 6.45;
+        // The stage chart, grouped as the cards are (owner, 7 Nov 2026): a band each for Pre-AoN, AoN to SO and
+        // Under development holding the stages its projects stand at, the group's count at its foot, then any
+        // ongoing project no group holds (no stage recorded, or not known). Each bar is the projects of that
+        // group at that stage, so a band's bars always add up to its card. Empty stages are left out.
+        var ongoing = arpp.ProjectLines.Where(line => line.StageCode is not null).ToList();
+        var slots = new List<(string Code, ArppProgressBucket? Group, List<ArppProjectLineVm> Lines)>();
+        foreach (var group in ChartGroups.Select(item => (ArppProgressBucket?)item.Bucket).Append(null))
+        {
+            var inGroup = ongoing.Where(line => group is { } bucket ? line.Bucket == bucket : ChartGroups.All(item => item.Bucket != line.Bucket));
+            slots.AddRange(inGroup
+                .GroupBy(line => line.StageCode!, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(stage => StageOrder(stage.Key))
+                .Select(stage => (stage.Key, group, stage.ToList())));
+        }
+
+        var top = NiceTop(slots.Select(item => item.Lines.Count).DefaultIfEmpty(0).Max());
+        const double plotLeft = .85, plotRight = 12.93, plotTop = 3.2, plotBottom = 6.2;
         var plotHeight = plotBottom - plotTop;
+        var slot = (plotRight - plotLeft) / Math.Max(1, slots.Count);
+        var barWidth = Math.Min(.62, slot * .58);
+
+        // Bands first, behind the grid and bars: one shape each, its label anchored at the foot.
+        foreach (var (bucket, title, fill) in ChartGroups)
+        {
+            var first = slots.FindIndex(item => item.Group == bucket);
+            if (first < 0)
+            {
+                continue;
+            }
+
+            var last = slots.FindLastIndex(item => item.Group == bucket);
+            var count = slots.Where(item => item.Group == bucket).Sum(item => item.Lines.Count);
+            canvas.AddTextBox(
+                plotLeft + slot * first + .03, plotTop - .1, slot * (last - first + 1) - .06, plotBottom - plotTop + .72,
+                new[] { Para(Run(title, 10.5, Ink, bold: true) + Run($" · {count}", 10.5, Muted, bold: true), "ctr") },
+                name: $"{title} band",
+                fill: fill,
+                anchor: "b",
+                inset: (.05, 0, .05, .08));
+        }
+
         var step = top <= 5 ? 1 : top <= 10 ? 2 : top <= 25 ? 5 : 10;
         for (var tick = 0; tick <= top; tick += step)
         {
@@ -211,16 +273,14 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
             canvas.AddText(plotLeft - .5, y - .12, .42, .24, tick.ToString(CultureInfo.InvariantCulture), 9, Faint, false, "r");
         }
 
-        var slot = (plotRight - plotLeft) / Math.Max(1, codes.Count);
-        var barWidth = Math.Min(.62, slot * .58);
-        for (var index = 0; index < codes.Count; index++)
+        for (var index = 0; index < slots.Count; index++)
         {
-            var code = codes[index];
+            var (code, _, lines) = slots[index];
             var x = plotLeft + slot * index + (slot - barWidth) / 2;
             var y = plotBottom;
             foreach (var category in categories)
             {
-                var count = arpp.ByStageByCategory.Where(point => Same(point.StageCode, code) && point.CategoryName == category).Sum(point => point.Count);
+                var count = lines.Count(line => line.Category == category);
                 if (count == 0)
                 {
                     continue;
@@ -235,27 +295,27 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
                 }
             }
 
-            if (totals[index] > 0)
-            {
-                canvas.AddText(x - .2, y - .28, barWidth + .4, .26, totals[index].ToString(CultureInfo.InvariantCulture), 11, Ink, true, "ctr");
-            }
+            canvas.AddText(x - .2, y - .28, barWidth + .4, .26, lines.Count.ToString(CultureInfo.InvariantCulture), 11, Ink, true, "ctr");
             canvas.AddText(plotLeft + slot * index, plotBottom + .05, slot, .26, ShortOf(code), 10, Muted, false, "ctr");
         }
 
-        var source = new List<string> { $"Published ARPP {year}, latest row per project" };
-        if (arpp.AddedByAddendumCount > 0)
-        {
-            source.Add($"{arpp.AddedByAddendumCount} added or changed by addendum");
-        }
-        if (arpp.CancelledCount > 0)
-        {
-            source.Add($"{arpp.CancelledCount} cancelled");
-        }
-        if (arpp.UnlinkedRowCount > 0)
-        {
-            source.Add($"{arpp.UnlinkedRowCount} unlinked {(arpp.UnlinkedRowCount == 1 ? "row" : "rows")} excluded");
-        }
-        RenderFooter(canvas, string.Join(" · ", source), page, today);
+        RenderFooter(canvas, page, today);
+    }
+    // END SECTION
+
+    // The chart's bands, in the order of the cards they match.
+    private static readonly (ArppProgressBucket Bucket, string Title, string Fill)[] ChartGroups =
+    {
+        (ArppProgressBucket.PreAon, "Pre-AoN", "F4F5F8"),
+        (ArppProgressBucket.AonToSupplyOrder, "AoN to SO", "ECEFF4"),
+        (ArppProgressBucket.UnderDevelopment, "Under development", "E8F0FB")
+    };
+
+    // Workflow order; a bucket outside the workflow (no stage recorded, then not known) after it.
+    private static int StageOrder(string code)
+    {
+        var index = Array.FindIndex(StageCodes.All, stage => Same(stage, code));
+        return index >= 0 ? index : Same(code, "NOT_KNOWN") ? StageCodes.All.Length + 1 : StageCodes.All.Length;
     }
     // END SECTION
 
@@ -268,6 +328,7 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
     private const double DetailSize = 9;
     private const double LineHeight = .17;
     private const double RowGap = .07;
+    private const double BulletIndent = .22;
 
     private static readonly (ArppProgressBucket Bucket, string Title, string Fill)[] Columns =
     {
@@ -277,34 +338,9 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         (ArppProgressBucket.Completed, "Completed", "EAF5EE")
     };
 
-    // Their own slide when they do not fit the footer: same column widths, two columns.
-    private static readonly (ArppProgressBucket Bucket, string Title, string Fill)[] OtherColumns =
-    {
-        (ArppProgressBucket.Cancelled, "Cancelled", "F6EEEE"),
-        (ArppProgressBucket.NotKnown, "Not known", "F1F2F4")
-    };
-
-    private const double FooterSize = 9;
-    private static double FooterTextWidth => SlideWidth - 2 * Margin - 3.3;
+    private const string NotKnownFill = "F1F2F4";
 
     private static string ProjectsTitle(string year) => $"ARPP {year}: where each project stands";
-
-    private static string? OtherProjectsText(ArppAnalyticsVm arpp, string when)
-    {
-        var cancelled = arpp.ProjectLines.Where(line => line.Bucket == ArppProgressBucket.Cancelled).Select(line => line.ProjectName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
-        var notKnown = arpp.ProjectLines.Where(line => line.Bucket == ArppProgressBucket.NotKnown).Select(line => line.ProjectName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
-        var parts = new List<string>();
-        if (cancelled.Count > 0)
-        {
-            parts.Add($"Cancelled: {string.Join("; ", cancelled)}");
-        }
-        if (notKnown.Count > 0)
-        {
-            parts.Add($"Not known {when}: {string.Join("; ", notKnown)}");
-        }
-
-        return parts.Count == 0 ? null : string.Join(" · ", parts);
-    }
 
     private static double ColumnWidth => (SlideWidth - 2 * Margin - ColumnGap * (Columns.Length - 1)) / Columns.Length;
 
@@ -329,21 +365,7 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
             var page = new List<ColumnPage>();
             foreach (var (column, lines) in queues)
             {
-                var taken = new List<ArppProjectLineVm>();
-                var y = RowsTop;
-                while (lines.Count > 0)
-                {
-                    var height = RowHeight(lines.Peek(), column.Bucket);
-                    if (y + height > RowsBottom && taken.Count > 0)
-                    {
-                        break;
-                    }
-
-                    taken.Add(lines.Dequeue());
-                    y += height;
-                }
-
-                page.Add(new ColumnPage(column.Bucket, column.Title, column.Fill, totals[column.Bucket], taken));
+                page.Add(new ColumnPage(column.Bucket, column.Title, column.Fill, totals[column.Bucket], TakeColumn(lines, column.Bucket)));
             }
 
             pages.Add(page);
@@ -353,92 +375,163 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         return pages;
     }
 
+    /// <summary>Not-known projects flow through four text columns of one box, as many slides as they need.</summary>
+    private static List<IReadOnlyList<ArppProjectLineVm>> PaginateFlow(IReadOnlyList<ArppProjectLineVm> lines)
+    {
+        var queue = new Queue<ArppProjectLineVm>(lines);
+        var pages = new List<IReadOnlyList<ArppProjectLineVm>>();
+        while (queue.Count > 0)
+        {
+            var page = new List<ArppProjectLineVm>();
+            for (var column = 0; column < Columns.Length && queue.Count > 0; column++)
+            {
+                page.AddRange(TakeColumn(queue, ArppProgressBucket.NotKnown));
+            }
+
+            pages.Add(page);
+        }
+
+        return pages;
+    }
+
+    private static List<ArppProjectLineVm> TakeColumn(Queue<ArppProjectLineVm> lines, ArppProgressBucket bucket)
+    {
+        var taken = new List<ArppProjectLineVm>();
+        var y = RowsTop;
+        while (lines.Count > 0)
+        {
+            var height = RowHeight(lines.Peek(), bucket);
+            if (y + height > RowsBottom && taken.Count > 0)
+            {
+                break;
+            }
+
+            taken.Add(lines.Dequeue());
+            y += height;
+        }
+
+        return taken;
+    }
+
     private static double RowHeight(ArppProjectLineVm line, ArppProgressBucket bucket)
     {
-        var nameLines = WrapCount(line.ProjectName, NameWidth(bucket), NameSize);
+        // The tag (stage or completion) follows the name on its last line, pushed right by a tab.
+        var tag = TagOf(line, bucket);
+        var nameLines = WrapCount(tag is null ? line.ProjectName : $"{line.ProjectName}    {tag}", ColumnWidth - BulletIndent, NameSize);
         // A 9 pt PDC line is a little shorter than a 10 pt name line.
-        var detail = bucket == ArppProgressBucket.UnderDevelopment && line.DevelopmentPdc.HasValue ? .15 : 0;
+        var detail = PdcOf(line, bucket) is null ? 0 : .15;
         return nameLines * LineHeight + detail + RowGap;
     }
 
-    // Development rows carry no stage tag (owner, 6 Nov 2026); the others keep a tag on the right.
-    private static double TagWidth(ArppProgressBucket bucket) => bucket switch
+    // Development rows carry no stage tag (owner, 6 Nov 2026); completed rows show the month and year.
+    private static string? TagOf(ArppProjectLineVm line, ArppProgressBucket bucket) => bucket switch
     {
-        ArppProgressBucket.UnderDevelopment or ArppProgressBucket.Cancelled or ArppProgressBucket.NotKnown => 0,
-        ArppProgressBucket.Completed => .7,
-        _ => .45
+        ArppProgressBucket.Completed => line.CompletedLabel?.Replace(' ', ' '), // "Oct 2026" never splits
+        ArppProgressBucket.PreAon or ArppProgressBucket.AonToSupplyOrder => line.StageCode is { } code ? ShortOf(code) : null,
+        _ => null
     };
 
-    private static double NameWidth(ArppProgressBucket bucket) => ColumnWidth - .22 - TagWidth(bucket);
+    private static (string Text, string Color)? PdcOf(ArppProjectLineVm line, ArppProgressBucket bucket) =>
+        bucket == ArppProgressBucket.UnderDevelopment && line.DevelopmentPdc is { } pdc
+            ? line.PdcOverdue ? ($"PDC {pdc:d MMM yyyy} · overdue", OverdueRed) : ($"PDC {pdc:d MMM yyyy}", Muted)
+            : null;
+
+    /// <summary>
+    /// One paragraph per project: a bullet in the category colour, the name, the tag at the right tab stop and,
+    /// at Development, the PDC on the next line. Typing Enter in PowerPoint adds a project the same way.
+    /// </summary>
+    private static string ProjectParagraph(ArppProjectLineVm line, ArppProgressBucket bucket, double width)
+    {
+        var runs = new StringBuilder(Run(line.ProjectName, NameSize, Ink));
+        if (TagOf(line, bucket) is { } tag)
+        {
+            runs.Append(Run("\t" + tag, DetailSize, Muted));
+        }
+        if (PdcOf(line, bucket) is { } pdc)
+        {
+            runs.Append($"<a:br><a:rPr lang=\"en-IN\" sz=\"{Size(DetailSize)}\" dirty=\"0\"/></a:br>");
+            runs.Append(Run(pdc.Text, DetailSize, pdc.Color));
+        }
+
+        var props = $"<a:spcAft><a:spcPts val=\"{(int)Math.Round(RowGap * 7200)}\"/></a:spcAft>"
+            + $"<a:buClr><a:srgbClr val=\"{ColorOf(line.Category)}\"/></a:buClr><a:buSzPct val=\"100000\"/><a:buFont typeface=\"Arial\"/><a:buChar char=\"●\"/>"
+            + $"<a:tabLst><a:tab pos=\"{Emu(width - .02)}\" algn=\"r\"/></a:tabLst>";
+        return Para(runs.ToString(), props: props, attributes: $" marL=\"{Emu(BulletIndent)}\" indent=\"{-Emu(BulletIndent)}\"");
+    }
 
     private static void RenderProjects(
         SlideCanvas canvas,
-        ArppAnalyticsVm arpp,
-        string year,
-        string when,
-        DateOnly shownOn,
+        string subtitle,
         IReadOnlyList<string> categories,
         IReadOnlyList<ColumnPage> columns,
         string title,
         bool isFirst,
-        string? footerOthers,
         byte[]? leftLogo,
         byte[]? rightLogo,
         int page,
         DateOnly today)
     {
-        var subtitle = $"{arpp.ListedCount} listed projects by where they stand, {when}";
         RenderHeader(canvas, title, subtitle, leftLogo, rightLogo, categories);
 
+        // Two shapes per column: the heading bar (title and count) and one text box holding every project.
         for (var index = 0; index < columns.Count; index++)
         {
             var column = columns[index];
             var x = Margin + index * (ColumnWidth + ColumnGap);
-            canvas.AddRect(x, ColumnsTop, ColumnWidth, .34, column.Fill, radius: true);
-            canvas.AddText(x + .1, ColumnsTop, ColumnWidth - .7, .34, isFirst ? column.Title : $"{column.Title} (cont.)", 12, Ink, true, "l");
-            canvas.AddText(x + ColumnWidth - .6, ColumnsTop, .5, .34, column.Total.ToString(CultureInfo.InvariantCulture), 12, Ink, true, "r");
-
-            var y = RowsTop;
-            foreach (var line in column.Lines)
+            RenderColumnHeading(canvas, x, ColumnWidth, isFirst ? column.Title : $"{column.Title} (cont.)", column.Total, column.Fill);
+            if (column.Lines.Count > 0)
             {
-                var rowHeight = RowHeight(line, column.Bucket);
-                canvas.AddEllipse(x + .05, y + .055, .1, .1, ColorOf(line.Category));
-
-                // The name and, at Development, its PDC in one box: the PDC always sits right under the name.
-                var paragraphs = new List<(string Text, double Size, string Color)> { (line.ProjectName, NameSize, Ink) };
-                if (column.Bucket == ArppProgressBucket.UnderDevelopment && line.DevelopmentPdc is { } pdc)
-                {
-                    paragraphs.Add((line.PdcOverdue ? $"PDC {pdc:d MMM yyyy} · overdue" : $"PDC {pdc:d MMM yyyy}", DetailSize, line.PdcOverdue ? OverdueRed : Muted));
-                }
-                canvas.AddParagraphs(x + .22, y, NameWidth(column.Bucket), rowHeight - RowGap + .02, paragraphs);
-
-                var tag = column.Bucket switch
-                {
-                    ArppProgressBucket.Completed => line.CompletedLabel,
-                    ArppProgressBucket.UnderDevelopment => null,
-                    _ => line.StageCode is { } code ? ShortOf(code) : null
-                };
-                if (tag is not null)
-                {
-                    canvas.AddText(x + ColumnWidth - TagWidth(column.Bucket), y, TagWidth(column.Bucket), LineHeight + .02, tag, DetailSize, Muted, false, "r", anchor: "t");
-                }
-
-                y += rowHeight;
-                canvas.AddLine(x, y - RowGap / 2, x + ColumnWidth, y - RowGap / 2, "ECEEF2", .5);
+                canvas.AddTextBox(
+                    x, RowsTop, ColumnWidth, RowsBottom - RowsTop,
+                    column.Lines.Select(line => ProjectParagraph(line, column.Bucket, ColumnWidth)),
+                    name: $"{column.Title} projects",
+                    autofit: true);
             }
         }
 
-        var footer = new List<string>();
-        if (footerOthers is not null)
-        {
-            footer.Add(footerOthers);
-        }
-        if (arpp.ProjectLines.Any(line => line.PdcOverdue))
-        {
-            footer.Add("PDC in red: overdue");
-        }
-        RenderFooter(canvas, footer.Count == 0 ? $"Published ARPP {year}, latest row per project" : string.Join(" · ", footer), page, today);
+        RenderFooter(canvas, page, today);
     }
+
+    private static void RenderNotKnown(
+        SlideCanvas canvas,
+        int total,
+        string when,
+        IReadOnlyList<string> categories,
+        IReadOnlyList<ArppProjectLineVm> lines,
+        string title,
+        bool isFirst,
+        byte[]? leftLogo,
+        byte[]? rightLogo,
+        int page,
+        DateOnly today)
+    {
+        RenderHeader(canvas, title, $"{total} listed {(total == 1 ? "project" : "projects")} whose position {when} the records cannot tell", leftLogo, rightLogo, categories);
+        var width = SlideWidth - 2 * Margin;
+        RenderColumnHeading(canvas, Margin, width, isFirst ? "Not known" : "Not known (cont.)", total, NotKnownFill);
+        canvas.AddTextBox(
+            Margin, RowsTop, width, RowsBottom - RowsTop,
+            lines.Select(line => ProjectParagraph(line, ArppProgressBucket.NotKnown, ColumnWidth)),
+            name: "Not known projects",
+            autofit: true,
+            columns: Columns.Length,
+            columnGap: ColumnGap);
+        RenderFooter(canvas, page, today);
+    }
+
+    private static void RenderColumnHeading(SlideCanvas canvas, double x, double width, string title, int total, string fill) =>
+        canvas.AddTextBox(
+            x, ColumnsTop, width, .34,
+            new[]
+            {
+                Para(
+                    Run(title, 12, Ink, bold: true) + Run("\t" + total.ToString(CultureInfo.InvariantCulture), 12, Ink, bold: true),
+                    props: $"<a:tabLst><a:tab pos=\"{Emu(width - .2)}\" algn=\"r\"/></a:tabLst>")
+            },
+            name: $"{title} heading",
+            fill: fill,
+            radius: true,
+            anchor: "ctr",
+            inset: (.1, 0, .1, 0));
     // END SECTION
 
     // SECTION: Shared header, legend and footer
@@ -453,35 +546,48 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
             canvas.AddImageContained(rightLogo, SlideWidth - .34 - .62, .2, .62, .62, "SDD insignia");
         }
 
-        canvas.AddText(1.12, .2, 8.4, .42, title, 20, Navy, true, "l");
-        canvas.AddText(1.12, .6, 8.4, .28, subtitle, 11, Muted, false, "l");
+        canvas.AddTextBox(
+            1.12, .2, 8.4, .7,
+            new[] { Para(Run(title, 20, Navy, bold: true)), Para(Run(subtitle, 11, Muted)) },
+            name: "Title");
         if (legend is { Count: > 0 })
         {
-            RenderLegend(canvas, legend, null, SlideWidth - 1.12, .6, alignRight: true);
+            RenderLegend(canvas, legend, null, 7.2, .6, SlideWidth - 1.12 - 7.2, "r");
         }
         canvas.AddLine(Margin, .98, SlideWidth - Margin, .98, Navy, 1.5);
     }
 
-    private static void RenderLegend(SlideCanvas canvas, IReadOnlyList<string> categories, IReadOnlyDictionary<string, int>? counts, double anchorX, double y, bool alignRight)
+    /// <summary>The category legend as one text box: a dot in each category colour, then its name.</summary>
+    private static void RenderLegend(SlideCanvas canvas, IReadOnlyList<string> categories, IReadOnlyDictionary<string, int>? counts, double x, double y, double width, string align)
     {
-        var items = categories.Select(name => counts is not null && counts.TryGetValue(name, out var count) ? $"{name} {count}" : name).ToList();
-        var widths = items.Select(text => .16 + TextWidth(text, 10) + .2).ToList();
-        var x = alignRight ? anchorX - widths.Sum() : anchorX;
-        for (var index = 0; index < items.Count; index++)
-        {
-            canvas.AddEllipse(x, y + .085, .1, .1, ColorOf(categories[index]));
-            canvas.AddText(x + .14, y, widths[index], .28, items[index], 10, Muted, false, "l");
-            x += widths[index];
-        }
+        var runs = string.Join(
+            Run("      ", 10, Muted),
+            categories.Select(name =>
+                Run("● ", 10, ColorOf(name))
+                + Run(counts is not null && counts.TryGetValue(name, out var count) ? $"{name} {count}" : name, 10, Muted)));
+        canvas.AddTextBox(x, y, width, .28, new[] { Para(runs, align) }, name: "Category legend", anchor: "ctr");
     }
 
-    private static void RenderFooter(SlideCanvas canvas, string text, int page, DateOnly generatedOn)
+    private static void RenderFooter(SlideCanvas canvas, int page, DateOnly generatedOn)
     {
         canvas.AddLine(Margin, 6.98, SlideWidth - Margin, 6.98, Rule, .5);
-        canvas.AddText(Margin, 7.0, FooterTextWidth, .4, text, FooterSize, Faint, false, "l", anchor: "t", wrap: true);
-        canvas.AddText(SlideWidth - Margin - 3.2, 7.0, 2.6, .25, $"Generated by PRISM ERP on {generatedOn:d MMM yyyy}", 9, Faint, false, "r", anchor: "t");
-        canvas.AddText(SlideWidth - Margin - .5, 7.0, .5, .25, page.ToString(CultureInfo.InvariantCulture), 9, Faint, false, "r", anchor: "t");
+        canvas.AddTextBox(
+            SlideWidth - Margin - 4, 7.0, 4, .25,
+            new[] { Para(Run($"Generated by PRISM ERP on {generatedOn:d MMM yyyy}     {page.ToString(CultureInfo.InvariantCulture)}", 9, Faint), "r") },
+            name: "Footer");
     }
+
+    private static string Para(string runs, string align = "l", string? props = null, string? attributes = null) =>
+        $"<a:p><a:pPr algn=\"{align}\"{attributes}>{props}</a:pPr>{runs}</a:p>";
+
+    private static string Run(string text, double size, string color, bool bold = false) =>
+        $"<a:r><a:rPr lang=\"en-IN\" sz=\"{Size(size)}\" b=\"{(bold ? 1 : 0)}\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{color}\"/></a:solidFill><a:latin typeface=\"Aptos\"/></a:rPr><a:t xml:space=\"preserve\">{Escape(text)}</a:t></a:r>";
+
+    private static int Size(double points) => (int)Math.Round(points * 100);
+
+    private static long Emu(double inches) => (long)Math.Round(inches * 914400d);
+
+    private static string Escape(string value) => SecurityElement.Escape(value) ?? string.Empty;
     // END SECTION
 
     // SECTION: Helpers
@@ -521,8 +627,6 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
 
     // Aptos averages a little under half an em per character in these names; .5 keeps the estimate on the safe side.
     private const double CharacterEm = .5;
-
-    private static double TextWidth(string text, double points) => text.Length * points / 72d * CharacterEm;
 
     /// <summary>How many lines a name takes at a width, wrapping at spaces (a long word is broken).</summary>
     public static int WrapCount(string text, double width, double points)
@@ -568,9 +672,6 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         public void AddRect(double x, double y, double width, double height, string fill, bool radius = false) =>
             AddShape(x, y, width, height, fill, radius ? "roundRect" : "rect", null);
 
-        public void AddEllipse(double x, double y, double width, double height, string fill) =>
-            AddShape(x, y, width, height, fill, "ellipse", null);
-
         public void AddText(double x, double y, double width, double height, string text, double size, string color, bool bold, string align, string anchor = "ctr", bool wrap = true)
         {
             var body = $"""
@@ -579,11 +680,25 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
             AddShape(x, y, width, height, null, "rect", body);
         }
 
-        /// <summary>Several paragraphs in one top-anchored, wrapping box, each with its own size and colour.</summary>
-        public void AddParagraphs(double x, double y, double width, double height, IReadOnlyList<(string Text, double Size, string Color)> paragraphs)
+        /// <summary>One text box (or filled shape with text) holding whole paragraphs, so it edits as text in PowerPoint.</summary>
+        public void AddTextBox(
+            double x,
+            double y,
+            double width,
+            double height,
+            IEnumerable<string> paragraphs,
+            string name,
+            string? fill = null,
+            bool radius = false,
+            string anchor = "t",
+            (double Left, double Top, double Right, double Bottom) inset = default,
+            bool autofit = false,
+            int columns = 1,
+            double columnGap = 0)
         {
-            var runs = string.Join(string.Empty, paragraphs.Select(paragraph => $"<a:p><a:pPr algn=\"l\"/><a:r><a:rPr lang=\"en-IN\" sz=\"{(int)Math.Round(paragraph.Size * 100)}\" b=\"0\"><a:solidFill><a:srgbClr val=\"{paragraph.Color}\"/></a:solidFill><a:latin typeface=\"Aptos\"/></a:rPr><a:t xml:space=\"preserve\">{Escape(paragraph.Text)}</a:t></a:r></a:p>"));
-            AddShape(x, y, width, height, null, "rect", $"<p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" rIns=\"0\" tIns=\"0\" bIns=\"0\" anchor=\"t\"><a:noAutofit/></a:bodyPr><a:lstStyle/>{runs}</p:txBody>");
+            var textColumns = columns > 1 ? $" numCol=\"{columns}\" spcCol=\"{Emu(columnGap)}\"" : string.Empty;
+            var body = $"<p:txBody><a:bodyPr wrap=\"square\" lIns=\"{Emu(inset.Left)}\" tIns=\"{Emu(inset.Top)}\" rIns=\"{Emu(inset.Right)}\" bIns=\"{Emu(inset.Bottom)}\" anchor=\"{anchor}\"{textColumns}>{(autofit ? "<a:normAutofit/>" : "<a:noAutofit/>")}</a:bodyPr><a:lstStyle/>{string.Concat(paragraphs)}</p:txBody>";
+            AddShape(x, y, width, height, fill, radius ? "roundRect" : "rect", body, name);
         }
 
         public void AddLine(double x1, double y1, double x2, double y2, string color, double points)
@@ -623,13 +738,13 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
             _slidePart.FeedData(stream);
         }
 
-        private void AddShape(double x, double y, double width, double height, string? fill, string geometry, string? body)
+        private void AddShape(double x, double y, double width, double height, string? fill, string geometry, string? body, string? name = null)
         {
             var id = _nextId++;
             var fillXml = fill is null ? "<a:noFill/>" : $"<a:solidFill><a:srgbClr val=\"{fill}\"/></a:solidFill>";
             var adjust = geometry == "roundRect" ? "<a:gd name=\"adj\" fmla=\"val 6000\"/>" : string.Empty;
             _elements.Add($"""
-<p:sp><p:nvSpPr><p:cNvPr id="{id}" name="Shape {id}"/><p:cNvSpPr{(body is null ? string.Empty : " txBox=\"1\"")}/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(Math.Max(0, width))}" cy="{Emu(Math.Max(0, height))}"/></a:xfrm><a:prstGeom prst="{geometry}"><a:avLst>{adjust}</a:avLst></a:prstGeom>{fillXml}<a:ln><a:noFill/></a:ln></p:spPr>{body ?? string.Empty}</p:sp>
+<p:sp><p:nvSpPr><p:cNvPr id="{id}" name="{Escape(name ?? $"Shape {id}")}"/><p:cNvSpPr{(body is null ? string.Empty : " txBox=\"1\"")}/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(Math.Max(0, width))}" cy="{Emu(Math.Max(0, height))}"/></a:xfrm><a:prstGeom prst="{geometry}"><a:avLst>{adjust}</a:avLst></a:prstGeom>{fillXml}<a:ln><a:noFill/></a:ln></p:spPr>{body ?? string.Empty}</p:sp>
 """);
         }
 
@@ -638,8 +753,6 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
                 ? ((png[16] << 24) | (png[17] << 16) | (png[18] << 8) | png[19], (png[20] << 24) | (png[21] << 16) | (png[22] << 8) | png[23])
                 : (0, 0);
 
-        private static long Emu(double inches) => (long)Math.Round(inches * 914400d);
-        private static string Escape(string value) => SecurityElement.Escape(value) ?? string.Empty;
     }
     // END SECTION
 }

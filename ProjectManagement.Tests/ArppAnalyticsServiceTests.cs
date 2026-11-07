@@ -87,6 +87,8 @@ public sealed class ArppAnalyticsServiceTests
         Assert.Equal(2, vm.OngoingCount);
         Assert.Equal(1, vm.CompletedCount);
         Assert.Equal(1, vm.CancelledCount);
+        // The slides' listing leaves the cancelled project (Large, CF, 15 Cr) out.
+        Assert.Equal(new ArppListingVm(3, 435_000_000m, 2, 1, 0), vm.ListedExcludingCancelled);
 
         // Standing board: Completed first, then stages (Development, then Unassigned for the one without a stage), then Cancelled.
         Assert.Equal(new[] { "COMPLETED", StageCodes.DEVP, "UNASSIGNED", "CANCELLED" }, vm.StandingBoard.Select(group => group.Key).ToArray());

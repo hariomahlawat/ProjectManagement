@@ -8,7 +8,7 @@ using DocumentFormat.OpenXml.Presentation;
 
 namespace ProjectManagement.Services.Presentation;
 
-// SECTION: Speaker notes (one implementation for the generated decks: Briefing Studio and the CoE slides)
+// SECTION: Speaker notes (one implementation for the generated decks: Briefing Studio, the CoE slides and the ARPP progress slides)
 /// <summary>
 /// Writes speaker notes onto a generated slide. The bundled templates have no notes master, so one
 /// is added (themed like the slides) the first time a deck carries notes. Each line of the notes is
