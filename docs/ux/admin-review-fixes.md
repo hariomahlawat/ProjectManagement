@@ -152,6 +152,17 @@ What is left falls into three kinds:
   actions are unchanged.
 - **The guide.** Its body uses the current page names and plain words.
 
+### PR 8 as shipped
+
+- The "Need a look" tile and the list under it count the same things, each once. An account
+  without a role is one "accounts without a role" line, not that line plus one per account. Each
+  account keeps its own note in the access review export.
+- Normal states are not findings: an Administrator who is also HoD is no longer flagged, and the
+  single-holder tile is neutral (one Commandant is expected). One active Administrator is still
+  flagged, because nobody else could recover the system.
+- Holder lists end "and N more", linking to Users filtered by that role.
+- The tiles sit two per row on phones.
+
 Rules carried over from the redesign:
 - every PR keeps routes, policies and data contracts;
 - every PR ships with tests and is checked on screen while signed in;

@@ -25,13 +25,14 @@
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-person-exclamation"></i></span>
         <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.RestrictedPrivilegedUsers</strong><span>Restricted privileged</span><small>Disabled or pending deletion</small></span>
     </article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.SingleHolderCriticalRoles > 0 ? "warning" : "neutral")">
+    @* One holder is normal for a role such as Commandant, so this figure is information only. *@
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-person-check"></i></span>
         <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.SingleHolderCriticalRoles</strong><span>Single-holder roles</span><small>Privileged roles with one active holder</small></span>
     </article>
     <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.AccessIssueCount > 0 ? "warning" : "success")">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-clipboard2-pulse"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.AccessIssueCount</strong><span>Access findings</span><small>Review or critical conditions</small></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.AccessIssueCount</strong><span>Need a look</span><small>@(Model.Snapshot.AccessIssueCount == 0 ? "Nothing to look at" : "Listed below")</small></span>
     </article>
 </section>
 
@@ -39,11 +40,11 @@
 {
     <section class="admin-panel admin-governance-findings" aria-labelledby="access-findings-title">
         <header class="admin-panel__header">
-            <div><div class="admin-panel__eyebrow">Review queue</div><h2 id="access-findings-title">Access findings</h2></div>
-            <span class="admin-panel__meta">@Model.Snapshot.Findings.Count finding@(Model.Snapshot.Findings.Count == 1 ? string.Empty : "s")</span>
+            <div><h2 id="access-findings-title">Need a look</h2></div>
+            <span class="admin-panel__meta">@Model.Snapshot.Findings.Count to look at</span>
         </header>
         <div class="admin-governance-finding-list">
-            @foreach (var finding in Model.Snapshot.Findings.Take(8))
+            @foreach (var finding in Model.Snapshot.Findings)
             {
                 var tone = finding.Severity == AccessGovernanceFindingSeverity.Critical ? "danger" : finding.Severity == AccessGovernanceFindingSeverity.Review ? "warning" : "info";
                 <article class="admin-governance-finding admin-governance-finding--@tone">
@@ -88,7 +89,8 @@
                         }
                         @if (role.UserNames.Count > 0)
                         {
-                            <small class="admin-role-governance-card__holders">Holders: @string.Join(", ", role.UserNames)</small>
+                            var moreHolders = role.AssignedUsers - role.UserNames.Count;
+                            <small class="admin-role-governance-card__holders">Holders: @string.Join(", ", role.UserNames)@if (moreHolders > 0) {<text> and </text><a asp-area="Admin" asp-page="/Users/Index" asp-route-role="@role.Name">@moreHolders more</a>}</small>
                         }
                     </div>
                     <dl class="admin-role-governance-card__facts">

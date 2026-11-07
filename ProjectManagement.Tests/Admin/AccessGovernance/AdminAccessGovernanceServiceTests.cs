@@ -49,6 +49,51 @@ public sealed class AdminAccessGovernanceServiceTests
         Assert.Equal(3, snapshot.Users.Count);
     }
 
+    // Who has which role tells the truth (docs/ux/admin-review-fixes.md, PR 8).
+    [Fact]
+    public async Task Snapshot_CountsEachFindingOnce_AndLeavesNormalStatesOut()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        var adminRole = Role("role-admin", RoleNames.Admin);
+        var hodRole = Role("role-hod", RoleNames.HoD);
+        var comdtRole = Role("role-comdt", RoleNames.Comdt);
+        db.Roles.AddRange(adminRole, hodRole, comdtRole);
+        db.Users.AddRange(
+            User("admin-hod", "Admin and HoD", disabled: false, lastLogin: true),
+            User("admin-two", "Second Admin", disabled: false, lastLogin: true),
+            User("comdt", "Commandant", disabled: false, lastLogin: true),
+            User("roleless-a", "Roleless A", disabled: false),
+            User("roleless-b", "Roleless B", disabled: false));
+        db.UserRoles.AddRange(
+            new IdentityUserRole<string> { UserId = "admin-hod", RoleId = adminRole.Id },
+            new IdentityUserRole<string> { UserId = "admin-hod", RoleId = hodRole.Id },
+            new IdentityUserRole<string> { UserId = "admin-two", RoleId = adminRole.Id },
+            new IdentityUserRole<string> { UserId = "comdt", RoleId = comdtRole.Id });
+        await db.SaveChangesAsync();
+
+        var snapshot = await new AdminAccessGovernanceService(
+            db,
+            new AdminRoleDescriptorCatalog(),
+            new AdminCapabilityCatalog(),
+            new FixedAdminTime()).GetSnapshotAsync();
+
+        // The two role-less accounts are one line, not one line plus one per account.
+        var finding = Assert.Single(snapshot.Findings);
+        Assert.Equal("roleless-users", finding.Code);
+        Assert.Equal(snapshot.Findings.Count, snapshot.AccessIssueCount);
+
+        // An Administrator who is also HoD, and a single Commandant, are normal.
+        Assert.Empty(snapshot.Users.Single(user => user.Id == "admin-hod").Findings);
+        Assert.Empty(snapshot.Users.Single(user => user.Id == "comdt").Findings);
+
+        // The account itself still carries its own note for the export.
+        Assert.Contains(snapshot.Users.Single(user => user.Id == "roleless-a").Findings, item => item.Code == "user-no-role");
+    }
+
     [Fact]
     public async Task Snapshot_IncludesPolicyRolesThatAreNotProvisionedInIdentity()
     {
@@ -93,8 +138,9 @@ public sealed class AdminAccessGovernanceServiceTests
         NormalizedName = name.ToUpperInvariant()
     };
 
-    private static ApplicationUser User(string id, string fullName, bool disabled) => new()
+    private static ApplicationUser User(string id, string fullName, bool disabled, bool lastLogin = false) => new()
     {
+        LastLoginUtc = lastLogin ? new DateTime(2026, 7, 13, 8, 0, 0, DateTimeKind.Utc) : null,
         Id = id,
         UserName = id,
         NormalizedUserName = id.ToUpperInvariant(),
