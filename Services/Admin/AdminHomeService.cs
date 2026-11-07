@@ -112,7 +112,7 @@ public sealed class AdminHomeService : IAdminHomeService
             ? await TryAsync("data jobs", () => _maintenance.GetAsync(cancellationToken))
             : null;
 
-        var lookAt = AdminHomeRules.BuildLookAt(dashboard.AttentionItems, health, integrity)
+        var lookAt = AdminHomeRules.BuildLookAt(dashboard.AttentionItems, health, integrity, CanOpen)
             .Where(item => CanOpen(item.NavigationKey))
             .ToArray();
 
@@ -164,10 +164,26 @@ public static class AdminHomeRules
     /// <summary>At most this many system checks get their own "To look at" line.</summary>
     public const int MaxHealthLines = 5;
 
+    /// <summary>
+    /// System checks whose problem is fixed on a page of its own. Their "To look at" line opens that
+    /// page when the viewer can open it, and System health otherwise
+    /// (docs/ux/admin-review-2-fixes.md, PR 3). The keys are those of AdminSystemHealthService.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> HealthCheckFixPages { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["search-index"] = AdminNavigationKeys.SearchIndex,
+            ["document-repository-files"] = AdminNavigationKeys.MissingDocumentFiles,
+            ["media-availability"] = AdminNavigationKeys.MediaSources,
+            ["media-face-detector"] = AdminNavigationKeys.MediaIntelligence,
+            ["chat-upload-space"] = AdminNavigationKeys.ChatStorage
+        };
+
     public static IReadOnlyList<AdminHomeLookAt> BuildLookAt(
         IReadOnlyList<AdminDashboardAttention> attention,
         AdminSystemHealthSnapshot? health,
-        MasterDataIntegritySnapshot? integrity)
+        MasterDataIntegritySnapshot? integrity,
+        Func<string, bool>? canOpen = null)
     {
         var items = new List<AdminHomeLookAt>();
 
@@ -183,11 +199,12 @@ public static class AdminHomeRules
             foreach (var check in problems.Take(MaxHealthLines))
             {
                 var urgent = check.Status == AdminHealthStatus.Critical;
+                var page = FixPageFor(check.Key, canOpen);
                 items.Add(new AdminHomeLookAt(
                     check.Summary,
                     check.RecommendedAction is { Length: > 0 } action ? $"{check.Label}. {action}" : check.Label,
-                    "Open System health",
-                    AdminNavigationKeys.DatabaseHealth,
+                    $"Open {AdminNavigationCatalog.Get(page).Text}",
+                    page,
                     Urgent: urgent));
             }
 
@@ -226,6 +243,12 @@ public static class AdminHomeRules
         return items;
     }
 
+    /// <summary>The page that fixes a system check's problem, or System health.</summary>
+    public static string FixPageFor(string checkKey, Func<string, bool>? canOpen) =>
+        HealthCheckFixPages.TryGetValue(checkKey, out var page) && canOpen is not null && canOpen(page)
+            ? page
+            : AdminNavigationKeys.DatabaseHealth;
+
     public static AdminHomeStatus ResolveStatus(
         IReadOnlyList<AdminHomeLookAt> lookAt,
         AdminSystemHealthSnapshot? health,
@@ -244,12 +267,20 @@ public static class AdminHomeRules
             return new AdminHomeStatus(lookAt.Count > 0 ? AdminHomeTone.Attention : AdminHomeTone.Calm, lookAt.Count > 0 ? "To look at" : "All clear", tail);
         }
 
+        // Before the checks have run, Home cannot know whether anything needs an administrator, so
+        // it never says "Nothing needs you" (docs/ux/admin-review-2-fixes.md, H3).
         if (health is null)
         {
+            var summary = "The system checks have not run since PRISM last started. Open System health to run them.";
+            if (lookAt.Count > 0)
+            {
+                summary = $"{summary} {tail}";
+            }
+
             return new AdminHomeStatus(
                 lookAt.Count > 0 ? AdminHomeTone.Attention : AdminHomeTone.Unknown,
                 "Not checked yet",
-                $"The system checks have not run since PRISM last started. {tail}");
+                summary);
         }
 
         var when = formatWhen(health.CheckedUtc);
