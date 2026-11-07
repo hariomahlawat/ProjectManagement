@@ -13,6 +13,7 @@ public sealed class DocRepoTrashPurgeWorker : BackgroundService
 {
     private const string WorkerKey = "docrepo-trash-purge";
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
+    private const string SwitchedOffDetail = "Documents stay in the bin until someone deletes them";
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptionsMonitor<DocRepoOptions> _options;
@@ -30,6 +31,11 @@ public sealed class DocRepoTrashPurgeWorker : BackgroundService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _status = status;
         _status?.Register(WorkerKey, "Document trash purge", Interval);
+        if (_options.CurrentValue.TrashRetentionDays <= 0)
+        {
+            // Shown as "Switched off" from start-up, not as a job due every 6 hours.
+            _status?.MarkSwitchedOff(WorkerKey, SwitchedOffDetail);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -51,11 +57,11 @@ public sealed class DocRepoTrashPurgeWorker : BackgroundService
                         _logger.LogInformation("Purged {Count} document(s) that were in the trash for more than {Days} days.", purged, retentionDays);
                     }
 
-                    _status?.MarkSucceeded(WorkerKey, $"Purged {purged} document(s) older than {retentionDays} days in the trash.");
+                    _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(purged, "document", "documents", $"that were in the bin over {retentionDays} days"));
                 }
                 else
                 {
-                    _status?.MarkSucceeded(WorkerKey, "Trash retention is off (DocRepo:TrashRetentionDays is 0).");
+                    _status?.MarkSwitchedOff(WorkerKey, SwitchedOffDetail);
                 }
 
                 await Task.Delay(Interval, stoppingToken);

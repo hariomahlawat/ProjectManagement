@@ -66,7 +66,11 @@ public sealed class ChatAttachmentCleanupWorker : BackgroundService
                         _logger.LogInformation("Deleted {Count} removed chat attachment file(s).", deleted);
                     }
 
-                    _status?.MarkSucceeded(WorkerKey, $"Deleted {deleted} chat attachment file(s).");
+                    _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(deleted, "chat attachment file", "chat attachment files"));
+                }
+                else
+                {
+                    _status?.MarkSwitchedOff(WorkerKey, "Chat attachments are switched off, so there are no files to clean up");
                 }
 
                 await Task.Delay(Interval, stoppingToken);

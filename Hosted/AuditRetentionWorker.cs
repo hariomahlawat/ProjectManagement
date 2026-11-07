@@ -60,7 +60,7 @@ public sealed class AuditRetentionWorker : BackgroundService
                 {
                     _status?.MarkStarted(WorkerKey);
                     var removed = await RunOnceAsync(options, stoppingToken);
-                    _status?.MarkSucceeded(WorkerKey, $"Removed {removed} audit record(s).");
+                    _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(removed, "old audit record", "old audit records"));
                     if (removed > 0)
                     {
                         _logger.LogWarning(
@@ -71,7 +71,7 @@ public sealed class AuditRetentionWorker : BackgroundService
                 }
                 else
                 {
-                    _status?.MarkSucceeded(WorkerKey, "Retention is disabled by configuration.");
+                    _status?.MarkSwitchedOff(WorkerKey, "Audit records are kept until this is switched on");
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
