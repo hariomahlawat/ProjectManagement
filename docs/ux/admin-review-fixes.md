@@ -146,6 +146,8 @@ What is left falls into three kinds:
   filter, chip), ERP usage and Who has which role. The old role names `Main Office` and
   `ProjectOffice` read "… (old role name)". They are left out of the Users filter and Who has
   which role while nobody holds them. Exports keep the stored role names.
+- **What each role can do.** The admin jobs on Who has which role are named after their pages
+  in plain sentence case ("Run data checks", "See who has which role").
 - **Sign-in.** Visible text says "sign-in", not "login". Routes, export columns and stored audit
   actions are unchanged.
 - **The guide.** Its body uses the current page names and plain words.
