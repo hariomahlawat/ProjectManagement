@@ -194,8 +194,9 @@
             || document.querySelector(".modal.show")) {
             return;
         }
-        // Home's own box first, then the sidebar's.
+        // The page's own box first (Home's finder, Every admin page's filter), then the sidebar's.
         const search = Array.from(document.querySelectorAll("[data-admin-home-search]")).find(isVisible)
+            ?? Array.from(document.querySelectorAll("[data-admin-index-search]")).find(isVisible)
             ?? Array.from(document.querySelectorAll("[data-admin-sidebar-search]")).find(isVisible);
         if (!search) return;
         event.preventDefault();

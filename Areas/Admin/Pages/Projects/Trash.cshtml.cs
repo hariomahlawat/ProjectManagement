@@ -42,6 +42,13 @@ public sealed class TrashModel : PageModel
 
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public string? Retention { get; set; }
+    /// <summary>Any filter set (page and page size are not filters).</summary>
+    public bool HasFilters => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Retention);
+
+    /// <summary>Nothing is in this bin at all: the page shows one plain empty state
+    /// instead of zero tiles and filters (docs/ux/admin-review-fixes.md, PR 11).</summary>
+    public bool BinIsEmpty => Result.TotalCount == 0 && !HasFilters;
+
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
     [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
     [BindProperty] public ProjectRecoveryCommand Command { get; set; } = new();

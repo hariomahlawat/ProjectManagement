@@ -195,6 +195,15 @@ test('Every admin page: no match says so; clearing restores the list', () => {
   assert.equal(window.document.querySelector('[data-admin-index-count]').textContent, '3 pages');
 });
 
+test('"/" on Every admin page goes to the page filter, not the sidebar', () => {
+  const window = createDom(sidebar + pageIndex);
+
+  const event = press(window, window.document.getElementById('outside'), '/');
+
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(window.document.activeElement, window.document.querySelector('[data-admin-index-search]'));
+});
+
 test('"/" ignores the search box in a closed admin drawer (narrow screens)', () => {
   const drawer = `<div class="offcanvas" id="adminSidebarOffcanvas"><div class="admin-sidebar-offcanvas__body">
     <input data-admin-sidebar-search><nav data-admin-sidebar-nav></nav></div></div>`;

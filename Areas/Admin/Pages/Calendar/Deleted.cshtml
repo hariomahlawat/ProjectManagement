@@ -12,15 +12,22 @@
 
 @await Component.InvokeAsync("RestoreTabs", new { active = ProjectManagement.Services.Admin.Recovery.AdminRestoreTabKeys.CalendarEvents })
 
+@if (!Model.BinIsEmpty)
+{
 <section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Calendar recovery summary">
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-x"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Deleted events</span><small>Matching your filters</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-repeat"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.RecurringCount</strong><span>Repeating events</span><small>Restore brings back the whole series</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-week"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.AllDayCount</strong><span>All-day events</span><small>Come back on their original dates</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-shield-check"></i></span><span class="admin-monitoring-metric__copy"><strong>Yes</strong><span>Can be restored</span><small>Each restore is in the audit log</small></span></article>
 </section>
+}
 
 <section class="admin-panel" aria-labelledby="deleted-events-title">
-    <header class="admin-panel__header"><div><h2 id="deleted-events-title">Deleted events</h2></div><span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span></header>
+    <header class="admin-panel__header"><div><h2 id="deleted-events-title">Deleted events</h2></div>@if (!Model.BinIsEmpty) { <span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span> }</header>
+
+    @if (!Model.BinIsEmpty)
+
+    {
 
     <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar admin-recovery-filter-toolbar--calendar">
         <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-input-with-icon"><i class="bi bi-search" aria-hidden="true"></i><input asp-for="Search" class="form-control" placeholder="Title, location, creator or description" /></div></div>
@@ -32,9 +39,11 @@
         <div class="admin-filter-toolbar__actions"><button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Apply</button><a asp-page="./Deleted" class="btn btn-outline-secondary">Clear</a></div>
     </form>
 
+    }
+
     @if (Model.Result.Items.Count == 0)
     {
-        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-calendar-check", Title = "No deleted events", Description = "No deleted events match these filters." })" />
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-calendar-check", Title = Model.BinIsEmpty ? "Nothing deleted" : "No deleted events", Description = Model.BinIsEmpty ? "Events deleted from the shared calendar appear here until someone restores them." : "No deleted events match these filters." })" />
     }
     else
     {

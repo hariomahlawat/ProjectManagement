@@ -33,6 +33,13 @@ public sealed class DeletedModel : PageModel
     [BindProperty(SupportsGet = true)] public EventCategory? Category { get; set; }
     [BindProperty(SupportsGet = true), DataType(DataType.Date)] public DateTime? DeletedFrom { get; set; }
     [BindProperty(SupportsGet = true), DataType(DataType.Date)] public DateTime? DeletedTo { get; set; }
+    /// <summary>Any filter set (page and page size are not filters).</summary>
+    public bool HasFilters => !string.IsNullOrWhiteSpace(Search) || Category.HasValue || DeletedFrom.HasValue || DeletedTo.HasValue;
+
+    /// <summary>Nothing is in this bin at all: the page shows one plain empty state
+    /// instead of zero tiles and filters (docs/ux/admin-review-fixes.md, PR 11).</summary>
+    public bool BinIsEmpty => Result.TotalCount == 0 && !HasFilters;
+
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
     [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
     [BindProperty] public Guid RestoreEventId { get; set; }

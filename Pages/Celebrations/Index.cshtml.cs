@@ -65,17 +65,29 @@ public sealed class IndexModel : PageModel
         Window = Result.Window;
         PageNumber = Result.Page;
         PageSize = Result.PageSize;
+        // Like Holidays, Celebrations leads back to the lists it belongs with (docs/ux/admin-review-fixes.md, PR 11).
+        var actions = new List<AdminPageActionModel>();
+        if ((await _authorization.AuthorizeAsync(User, AdminPolicies.MasterDataManage)).Succeeded)
+        {
+            actions.Add(new AdminPageActionModel
+            {
+                Text = "Lists used in forms",
+                Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
+                Icon = "bi-arrow-left"
+            });
+        }
+
+        if (CanEdit)
+        {
+            actions.Add(new AdminPageActionModel { Text = AddButtonLabel, Href = Url.Page("./Edit"), Icon = "bi-plus-lg", IsPrimary = true });
+        }
+
         Header = new AdminPageHeaderModel
         {
             Title = "Celebrations",
             Description = "Birthdays and anniversaries shown on the shared calendar. Changing them here does not change anyone's account.",
             Icon = "bi-stars",
-            Actions = CanEdit
-                ? new[]
-                {
-                    new AdminPageActionModel { Text = AddButtonLabel, Href = Url.Page("./Edit"), Icon = "bi-plus-lg", IsPrimary = true }
-                }
-                : Array.Empty<AdminPageActionModel>()
+            Actions = actions
         };
     }
 

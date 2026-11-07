@@ -4557,3 +4557,17 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-more-panel__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .4rem .9rem; margin: .5rem 0 .9rem; }
 .admin-more-panel__facts dt { color: var(--admin-text-muted); font-weight: 600; }
 .admin-more-panel__facts dd { margin: 0; color: var(--admin-text); }
+
+/* Users on phones: each person is a card instead of a table row that scrolls sideways
+   (docs/ux/admin-review-fixes.md, PR 11). */
+@media (max-width: 575.98px) {
+    .admin-data-table-wrap:has(> .admin-user-table) { overflow-x: visible; }
+    .admin-user-table thead { display: none; }
+    .admin-user-table, .admin-user-table tbody, .admin-user-table tr, .admin-user-table td { display: block; width: 100%; }
+    .admin-user-table tr { position: relative; padding: .7rem .85rem; border-bottom: 1px solid var(--admin-border); }
+    .admin-user-table tbody tr:last-child { border-bottom: 0; }
+    .admin-user-table td { padding: .2rem 0; border-bottom: 0; }
+    .admin-user-table td:first-child { padding-right: 2.6rem; }
+    .admin-user-table .admin-user-cell { min-width: 0; }
+    .admin-user-table td.admin-data-table__actions { position: absolute; top: .65rem; right: .55rem; width: auto; }
+}
