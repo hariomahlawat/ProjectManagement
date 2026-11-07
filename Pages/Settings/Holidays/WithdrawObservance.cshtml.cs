@@ -32,7 +32,7 @@ public sealed class WithdrawObservanceModel : PageModel
     {
         Item = await _holidays.GetAsync(Input.Id, cancellationToken);
         if (Item is null) return NotFound();
-        if (!Input.Confirmed) ModelState.AddModelError("Input.Confirmed", "Confirm that the office will remain open on this date before continuing.");
+        if (!Input.Confirmed) ModelState.AddModelError("Input.Confirmed", "Tick the box to confirm the office will be open.");
         if (!ModelState.IsValid) return Page();
 
         var result = await _holidays.WithdrawOfficeObservanceAsync(Input.Id, Input.Remarks, Input.RowVersion, cancellationToken);
@@ -40,7 +40,7 @@ public sealed class WithdrawObservanceModel : PageModel
         {
             ModelState.AddModelError(string.Empty, !string.IsNullOrWhiteSpace(result.TraceId)
                 ? $"{result.UserMessage} Trace reference: {result.TraceId}."
-                : result.UserMessage ?? "Office observance could not be withdrawn.");
+                : result.UserMessage ?? "The office holiday could not be stopped.");
             var latest = await _holidays.GetAsync(Input.Id, cancellationToken);
             if (latest is not null) { Item = latest; Input.RowVersion = latest.RowVersion; }
             return Page();
@@ -53,9 +53,9 @@ public sealed class WithdrawObservanceModel : PageModel
     public sealed class InputModel
     {
         [Required] public int Id { get; set; }
-        [StringLength(1200), Display(Name = "Withdrawal remarks")] public string? Remarks { get; set; }
+        [StringLength(1200), Display(Name = "Remarks")] public string? Remarks { get; set; }
         [Required] public string RowVersion { get; set; } = string.Empty;
-        [Display(Name = "I confirm that this date will become a normal working day while the RH remains visible for information.")]
+        [Display(Name = "I confirm this day becomes a normal working day. It still shows on the calendar.")]
         public bool Confirmed { get; set; }
     }
 }

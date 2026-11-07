@@ -48,8 +48,8 @@
                         <dd><partial name="~/Areas/Admin/Pages/Shared/_AdminUserStateBadge.cshtml" model="Model.Account.AccountState" /></dd>
                     </div>
                     <div>
-                        <dt>Password change</dt>
-                        <dd>@(Model.Account.MustChangePassword ? "Required at next sign-in" : "Not required")</dd>
+                        <dt>Must change password</dt>
+                        <dd>@(Model.Account.MustChangePassword ? "Yes, at their next sign-in" : "No")</dd>
                     </div>
                     <div>
                         <dt>Counted in ERP usage</dt>

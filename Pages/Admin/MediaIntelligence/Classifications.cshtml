@@ -35,7 +35,6 @@
                     }
                 </button>
             </form>
-            <a class="btn btn-outline-secondary" asp-page="/Admin/MediaIntelligence/Index">Overview</a>
         </div>
     </div>
 
@@ -190,19 +189,19 @@
 
                         <div class="classification-card__body">
                             <div class="classification-evidence" aria-label="Classification evidence">
-                                <div title="How strongly PRISM leaned this way; it is not a percentage chance.">
+                                <div title="How well the image fits this kind. It is not a chance of being right.">
                                     <span>PRISM's best guess</span>
                                     <strong>@ClassificationLabel(item.PredictedClassification)</strong>
-                                    <small>Strength @item.PredictedScore.ToString("P0")</small>
+                                    <small>@item.PredictedScoreText</small>
                                 </div>
-                                <div title="How strongly PRISM leaned this way; it is not a percentage chance.">
+                                <div title="How well the image fits this kind. It is not a chance of being right.">
                                     <span>Next best guess</span>
                                     <strong>@ClassificationLabel(item.RunnerUpClassification)</strong>
-                                    <small>Strength @item.RunnerUpScore.ToString("P0")</small>
+                                    <small>@item.RunnerUpScoreText</small>
                                 </div>
-                                <div title="How far ahead the best guess was. A small lead means PRISM was unsure.">
-                                    <span>Lead</span>
-                                    <strong>@item.ScoreMargin.ToString("P0")</strong>
+                                <div title="A few points ahead means PRISM was unsure.">
+                                    <span>Best guess ahead by</span>
+                                    <strong>@item.LeadText</strong>
                                     <small>@item.DecisionReasonLabel</small>
                                 </div>
                             </div>
