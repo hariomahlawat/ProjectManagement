@@ -66,7 +66,9 @@ public sealed class AdminPageIndexTests
         Assert.Equal("the Document Repository", pages[AdminNavigationKeys.UnreadablePdfs].OwnModule);
         // Repository trash renders inside Administration (third review, PR 14).
         Assert.Null(pages[AdminNavigationKeys.RepositoryTrash].OwnModule);
-        Assert.Equal("the media library", pages[AdminNavigationKeys.MediaSources].OwnModule);
+        // Media sources opens inside Administration since PR 13 of the third review.
+        Assert.Null(pages[AdminNavigationKeys.MediaSources].OwnModule);
+        Assert.Equal("Media sources", pages[AdminNavigationKeys.MediaIntelligence].OpensFrom);
         Assert.Null(pages[AdminNavigationKeys.Users].OpensFrom);
     }
 

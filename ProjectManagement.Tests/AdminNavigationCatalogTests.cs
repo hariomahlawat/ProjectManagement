@@ -145,7 +145,6 @@ public sealed class AdminNavigationCatalogTests
 
     [Theory]
     [InlineData("DocumentRepository", "/Admin/OCRFailures/OcrFailures")]
-    [InlineData("", "/Admin/MediaSources/Index")]
     public void PagesFromOtherModules_KeepTheirOwnLayout(string area, string page)
     {
         Assert.NotNull(AdminNavigationCatalog.FindActiveEntry(area, page, new QueryCollection()));
