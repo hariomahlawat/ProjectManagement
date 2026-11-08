@@ -41,7 +41,9 @@ public static class ReferenceListKeys
 /// its list's sources names it. A source gives either a query the database runs
 /// (<see cref="ReferencingIds"/>) or, for ids the database cannot read (inside JSON, or in the
 /// application's settings), a loader that reads them in memory (<see cref="LoadReferencingIds"/>).
-/// Either way it yields one id per record that uses the item.
+/// A source can have both: a query where the database can read the ids (PostgreSQL reading JSON)
+/// and the loader elsewhere (the test databases). Either way it yields one id per record that
+/// uses the item.
 /// </summary>
 public class ReferenceListUsageSource<TKey> where TKey : struct
 {
@@ -68,13 +70,31 @@ public class ReferenceListUsageSource<TKey> where TKey : struct
         LoadReferencingIds = loadReferencingIds ?? throw new ArgumentNullException(nameof(loadReferencingIds));
     }
 
+    /// <summary>
+    /// A query where the database can run it (<paramref name="referencingIdsWhereSupported"/>
+    /// returns null where it cannot), with the loader as the fallback.
+    /// </summary>
+    public ReferenceListUsageSource(
+        string one,
+        string many,
+        Func<ApplicationDbContext, IQueryable<TKey>?> referencingIdsWhereSupported,
+        Func<ApplicationDbContext, CancellationToken, Task<IReadOnlyList<TKey>>> loadReferencingIds)
+    {
+        ArgumentNullException.ThrowIfNull(loadReferencingIds);
+        One = one;
+        Many = many;
+        ReferencingIds = referencingIdsWhereSupported ?? throw new ArgumentNullException(nameof(referencingIdsWhereSupported));
+        LoadReferencingIds = (db, _, cancellationToken) => loadReferencingIds(db, cancellationToken);
+    }
+
     /// <summary>The record in the singular, for "1 project".</summary>
     public string One { get; }
 
     /// <summary>The record in the plural, for "3 projects".</summary>
     public string Many { get; }
 
-    public Func<ApplicationDbContext, IQueryable<TKey>>? ReferencingIds { get; }
+    /// <summary>The ids as a database query, or null (from the function) where this database cannot run it.</summary>
+    public Func<ApplicationDbContext, IQueryable<TKey>?>? ReferencingIds { get; }
 
     public Func<ApplicationDbContext, IServiceProvider?, CancellationToken, Task<IReadOnlyList<TKey>>>? LoadReferencingIds { get; }
 }
@@ -94,6 +114,15 @@ public sealed class ReferenceListUsageSource : ReferenceListUsageSource<int>
 
     public ReferenceListUsageSource(string one, string many, Func<ApplicationDbContext, IServiceProvider?, CancellationToken, Task<IReadOnlyList<int>>> loadReferencingIds)
         : base(one, many, loadReferencingIds)
+    {
+    }
+
+    public ReferenceListUsageSource(
+        string one,
+        string many,
+        Func<ApplicationDbContext, IQueryable<int>?> referencingIdsWhereSupported,
+        Func<ApplicationDbContext, CancellationToken, Task<IReadOnlyList<int>>> loadReferencingIds)
+        : base(one, many, referencingIdsWhereSupported, loadReferencingIds)
     {
     }
 }
@@ -518,32 +547,36 @@ public static class ReferenceListCatalog
 
     // Project change requests keep the item they started from in a column and the item they
     // propose inside their JSON payload; neither has a foreign key. Every request counts, decided
-    // ones too, because their history shows the names.
+    // ones too, because their history shows the names. A request that names the item more than
+    // once (it started from it and proposes it again) counts once.
+    //
+    // On PostgreSQL the database reads the payload (fourth review, C3), so the count is one query
+    // like the other sources instead of every request loaded and parsed on each page. The test
+    // databases cannot, so there the requests are loaded and parsed as before, once per request.
     private static ReferenceListUsageSource ChangeRequests(
-        Func<ChangeRequestIds, int?> original,
+        string originalColumn,
+        string payloadKey,
         Func<ProjectMetaChangeRequestPayload, int?> proposed,
-        Func<ChangeRequestIds, int?>? proposedColumn = null) => new(
+        string? proposedColumn = null) => new(
         "change request", "change requests",
+        db => db.Database.IsNpgsql() ? ChangeRequestIdsInSql(db, originalColumn, payloadKey, proposedColumn) : null,
         async (db, cancellationToken) =>
         {
             var rows = await db.ProjectMetaChangeRequests.AsNoTracking()
-                .Select(request => new ChangeRequestIds
+                .Select(request => new
                 {
-                    ProjectTypeId = request.OriginalProjectTypeId,
-                    SponsoringUnitId = request.OriginalSponsoringUnitId,
-                    LineDirectorateId = request.OriginalSponsoringLineDirectorateId,
-                    CategoryId = request.OriginalCategoryId,
-                    TechnicalCategoryId = request.OriginalTechnicalCategoryId,
-                    ProposedTechnicalCategoryId = request.TechnicalCategoryId,
-                    Payload = request.Payload
+                    Original = EF.Property<int?>(request, originalColumn),
+                    // Without a proposed column the original is read twice; the set below keeps one.
+                    ProposedColumn = EF.Property<int?>(request, proposedColumn ?? originalColumn),
+                    request.Payload
                 })
                 .ToListAsync(cancellationToken);
             var ids = new List<int>();
             foreach (var row in rows)
             {
                 var named = new HashSet<int>();
-                if (original(row) is int start) named.Add(start);
-                if (proposedColumn?.Invoke(row) is int column) named.Add(column);
+                if (row.Original is int start) named.Add(start);
+                if (row.ProposedColumn is int column) named.Add(column);
                 if (ReadPayload(row.Payload) is { } payload && proposed(payload) is int target) named.Add(target);
                 ids.AddRange(named);
             }
@@ -551,19 +584,42 @@ public static class ReferenceListCatalog
             return ids;
         });
 
-    private sealed class ChangeRequestIds
+    /// <summary>
+    /// The ids each change request names, read by PostgreSQL: one row per request and item.
+    /// </summary>
+    /// <remarks>
+    /// The payload is read with a pattern, not a cast to jsonb: a cast fails the whole query (and
+    /// the list page) on one malformed payload, while the pattern at worst misses that row. The payload is written by System.Text.Json with the
+    /// key exactly as <see cref="ProjectMetaChangeRequestPayload"/> names it and a plain number
+    /// or null as the value, so the first "key": number is the value. A key inside a text value
+    /// cannot match, because the quotes around it are escaped there. A number too long for an
+    /// int is skipped, as the reader skips it. Names come from the EF model and the payload class,
+    /// never from input; the SQL has no braces, so EF does not read it as a format string.
+    /// </remarks>
+    private static IQueryable<int> ChangeRequestIdsInSql(ApplicationDbContext db, string originalColumn, string payloadKey, string? proposedColumn)
     {
-        public int? ProjectTypeId { get; init; }
-        public int? SponsoringUnitId { get; init; }
-        public int? LineDirectorateId { get; init; }
-        public int? CategoryId { get; init; }
-        public int? TechnicalCategoryId { get; init; }
+        var entityType = db.Model.FindEntityType(typeof(ProjectMetaChangeRequest))!;
+        var table = entityType.GetTableName()!;
+        var schema = entityType.GetSchema();
+        var store = Microsoft.EntityFrameworkCore.Metadata.StoreObjectIdentifier.Table(table, schema);
+        string Column(string property) => Quote(entityType.FindProperty(property)!.GetColumnName(store)!);
+        var qualified = schema is null ? Quote(table) : $"{Quote(schema)}.{Quote(table)}";
+        var pattern = "\"" + payloadKey + "\"\\s*:\\s*(-?[0-9]+)";
+        var values = $"(r.{Column(originalColumn)}), (p.\"Proposed\")"
+            + (proposedColumn is null ? string.Empty : $", (r.{Column(proposedColumn)})");
 
-        /// <summary>A request also keeps the technical category it proposes in a column, with a foreign key.</summary>
-        public int? ProposedTechnicalCategoryId { get; init; }
-
-        public string? Payload { get; init; }
+        var sql =
+            "SELECT named.\"Value\" FROM (" +
+            "SELECT DISTINCT r.\"Id\" AS \"RequestId\", v.\"Value\" " +
+            $"FROM {qualified} AS r " +
+            "CROSS JOIN LATERAL (SELECT substring(r." + Column(nameof(ProjectMetaChangeRequest.Payload)) + " from '" + pattern + "') AS \"Text\") AS t " +
+            "CROSS JOIN LATERAL (SELECT CASE WHEN length(ltrim(t.\"Text\", '-')) <= 9 THEN t.\"Text\"::integer END AS \"Proposed\") AS p " +
+            $"CROSS JOIN LATERAL (VALUES {values}) AS v(\"Value\") " +
+            "WHERE v.\"Value\" IS NOT NULL) AS named";
+        return db.Database.SqlQueryRaw<int>(sql);
     }
+
+    private static string Quote(string name) => "\"" + name.Replace("\"", "\"\"") + "\"";
 
     private static ProjectMetaChangeRequestPayload? ReadPayload(string? json)
     {
@@ -582,14 +638,14 @@ public static class ReferenceListCatalog
         }
     }
 
-    private static readonly ReferenceListUsageSource ChangeRequestsByType =
-        ChangeRequests(row => row.ProjectTypeId, payload => payload.ProjectTypeId);
+    private static readonly ReferenceListUsageSource ChangeRequestsByType = ChangeRequests(
+        nameof(ProjectMetaChangeRequest.OriginalProjectTypeId), "projectTypeId", payload => payload.ProjectTypeId);
 
-    private static readonly ReferenceListUsageSource ChangeRequestsBySponsoringUnit =
-        ChangeRequests(row => row.SponsoringUnitId, payload => payload.SponsoringUnitId);
+    private static readonly ReferenceListUsageSource ChangeRequestsBySponsoringUnit = ChangeRequests(
+        nameof(ProjectMetaChangeRequest.OriginalSponsoringUnitId), "sponsoringUnitId", payload => payload.SponsoringUnitId);
 
-    private static readonly ReferenceListUsageSource ChangeRequestsByLineDirectorate =
-        ChangeRequests(row => row.LineDirectorateId, payload => payload.SponsoringLineDirectorateId);
+    private static readonly ReferenceListUsageSource ChangeRequestsByLineDirectorate = ChangeRequests(
+        nameof(ProjectMetaChangeRequest.OriginalSponsoringLineDirectorateId), "sponsoringLineDirectorateId", payload => payload.SponsoringLineDirectorateId);
 
     // Every project row counts, archived and deleted ones too: the database's foreign key
     // refuses a delete while any project row points at the item.
@@ -635,11 +691,13 @@ public static class ReferenceListCatalog
         "legacy import", "legacy imports",
         db => db.ProjectLegacyImports.Select(import => import.TechnicalCategoryId));
 
-    private static readonly ReferenceListUsageSource ChangeRequestsByCategory =
-        ChangeRequests(row => row.CategoryId, payload => payload.CategoryId);
+    private static readonly ReferenceListUsageSource ChangeRequestsByCategory = ChangeRequests(
+        nameof(ProjectMetaChangeRequest.OriginalCategoryId), "categoryId", payload => payload.CategoryId);
 
-    private static readonly ReferenceListUsageSource ChangeRequestsByTechnicalCategory =
-        ChangeRequests(row => row.TechnicalCategoryId, payload => payload.TechnicalCategoryId, row => row.ProposedTechnicalCategoryId);
+    // A request also keeps the technical category it proposes in a column, with a foreign key.
+    private static readonly ReferenceListUsageSource ChangeRequestsByTechnicalCategory = ChangeRequests(
+        nameof(ProjectMetaChangeRequest.OriginalTechnicalCategoryId), "technicalCategoryId", payload => payload.TechnicalCategoryId,
+        nameof(ProjectMetaChangeRequest.TechnicalCategoryId));
 
     // Every activity row counts, deleted ones too: the foreign key refuses the delete.
     private static readonly ReferenceListUsageSource ActivitiesByType = new(

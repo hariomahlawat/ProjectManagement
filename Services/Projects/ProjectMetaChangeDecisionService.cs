@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using ProjectManagement.Application.Ipr;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -118,7 +119,21 @@ public sealed class ProjectMetaChangeDecisionService
         request.DecidedByUserId = user.UserId;
         request.DecidedOnUtc = _clock.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
+        {
+            // A proposed list item was deleted between the check above and the save (change
+            // requests name it inside their payload, with no foreign key the delete could see).
+            // The database refused the change, so nothing was saved.
+            _logger.LogWarning(ex,
+                "Project meta change request {RequestId} names a list item that was deleted while it was being approved.",
+                input.RequestId);
+            _db.ChangeTracker.Clear();
+            return ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.ProposedValueNoLongerAvailable);
+        }
 
         _logger.LogInformation(
             "Project meta change request {RequestId} marked as {Status} by {UserId}.",
@@ -208,39 +223,51 @@ public sealed class ProjectMetaChangeDecisionService
         var categoryId = payload.CategoryId;
         if (categoryId.HasValue && categoryId != project.CategoryId)
         {
-            var categoryExists = await _db.ProjectCategories
+            var categoryActive = await _db.ProjectCategories
                 .AsNoTracking()
-                .AnyAsync(c => c.Id == categoryId.Value && c.IsActive, cancellationToken);
+                .Where(c => c.Id == categoryId.Value)
+                .Select(c => (bool?)c.IsActive)
+                .SingleOrDefaultAsync(cancellationToken);
 
-            if (!categoryExists)
+            if (categoryActive is not true)
             {
-                return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveCategory), default!, new Dictionary<string, string?>());
+                return Refused(categoryActive is null
+                    ? ProjectValidationMessages.DeletedProposedValue("category")
+                    : ProjectValidationMessages.InactiveCategory);
             }
         }
 
         var technicalCategoryId = payload.TechnicalCategoryId;
         if (technicalCategoryId.HasValue && technicalCategoryId != project.TechnicalCategoryId)
         {
-            var technicalCategoryExists = await _db.TechnicalCategories
+            var technicalCategoryActive = await _db.TechnicalCategories
                 .AsNoTracking()
-                .AnyAsync(c => c.Id == technicalCategoryId.Value && c.IsActive, cancellationToken);
+                .Where(c => c.Id == technicalCategoryId.Value)
+                .Select(c => (bool?)c.IsActive)
+                .SingleOrDefaultAsync(cancellationToken);
 
-            if (!technicalCategoryExists)
+            if (technicalCategoryActive is not true)
             {
-                return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveTechnicalCategory), default!, new Dictionary<string, string?>());
+                return Refused(technicalCategoryActive is null
+                    ? ProjectValidationMessages.DeletedProposedValue("technical category")
+                    : ProjectValidationMessages.InactiveTechnicalCategory);
             }
         }
 
         var projectTypeId = payload.ProjectTypeId;
         if (projectTypeId.HasValue && projectTypeId != project.ProjectTypeId)
         {
-            var projectTypeExists = await _db.ProjectTypes
+            var projectTypeActive = await _db.ProjectTypes
                 .AsNoTracking()
-                .AnyAsync(p => p.Id == projectTypeId.Value && p.IsActive, cancellationToken);
+                .Where(p => p.Id == projectTypeId.Value)
+                .Select(p => (bool?)p.IsActive)
+                .SingleOrDefaultAsync(cancellationToken);
 
-            if (!projectTypeExists)
+            if (projectTypeActive is not true)
             {
-                return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveProjectType), default!, new Dictionary<string, string?>());
+                return Refused(projectTypeActive is null
+                    ? ProjectValidationMessages.DeletedProposedValue("project type")
+                    : ProjectValidationMessages.InactiveProjectType);
             }
         }
 
@@ -255,9 +282,14 @@ public sealed class ProjectMetaChangeDecisionService
                 .Select(u => new { u.Id, u.Name, u.IsActive })
                 .SingleOrDefaultAsync(u => u.Id == sponsoringUnitId.Value, cancellationToken);
 
-            if (unit is null || (!unit.IsActive && sponsoringUnitId != project.SponsoringUnitId))
+            if (unit is null)
             {
-                return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveSponsoringUnit), default!, new Dictionary<string, string?>());
+                return Refused(ProjectValidationMessages.DeletedProposedValue("sponsoring unit"));
+            }
+
+            if (!unit.IsActive && sponsoringUnitId != project.SponsoringUnitId)
+            {
+                return Refused(ProjectValidationMessages.InactiveSponsoringUnit);
             }
 
             newSponsoringUnitName = unit.Name;
@@ -272,9 +304,14 @@ public sealed class ProjectMetaChangeDecisionService
                 .Select(l => new { l.Id, l.Name, l.IsActive })
                 .SingleOrDefaultAsync(l => l.Id == sponsoringLineDirectorateId.Value, cancellationToken);
 
-            if (line is null || (!line.IsActive && sponsoringLineDirectorateId != project.SponsoringLineDirectorateId))
+            if (line is null)
             {
-                return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveLineDirectorate), default!, new Dictionary<string, string?>());
+                return Refused(ProjectValidationMessages.DeletedProposedValue("line directorate"));
+            }
+
+            if (!line.IsActive && sponsoringLineDirectorateId != project.SponsoringLineDirectorateId)
+            {
+                return Refused(ProjectValidationMessages.InactiveLineDirectorate);
             }
 
             newLineDirectorateName = line.Name;
@@ -366,6 +403,9 @@ public sealed class ProjectMetaChangeDecisionService
 
         return (null, cleanedPayload, before);
     }
+
+    private static (ProjectMetaDecisionResult? Error, ProjectMetaChangeRequestPayload Payload, Dictionary<string, string?> Before) Refused(string message) =>
+        (ProjectMetaDecisionResult.ValidationFailed(message), default!, new Dictionary<string, string?>());
 
     private async Task LogApprovalAsync(
         ProjectMetaChangeRequest request,

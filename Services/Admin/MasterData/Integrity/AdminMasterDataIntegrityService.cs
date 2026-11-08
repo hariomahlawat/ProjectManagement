@@ -77,16 +77,22 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
     public const string DocumentCategoryOrderKey = "document-category-order";
     public const string OfficeCategoryOrderKey = "office-category-order";
 
-    // The admin lists store positions from 0 and show them from 1. The Document Repository
-    // lists store and show the same number, so their first position is 1.
+    // The admin lists store positions from 0 and show them from 1, and are kept 1, 2, 3.
+    //
+    // The Document Repository lists are ordered by the number people type (-999 to 9999): lower
+    // numbers first, equal numbers A to Z, and a delete leaves the rest alone. Their pages say so,
+    // so any numbers are a valid order there and this check has nothing to flag (fourth review,
+    // U7). Before, it flagged every equal or spaced number ("display order 100; expected 1")
+    // while the page called them fine. No data is rewritten; NormaliseOrderAsync still renumbers
+    // them 1, 2, 3 in the order shown for a form that asks.
     private static readonly IReadOnlyDictionary<string, FlatOrderDefinition> FlatOrderDefinitions =
         new Dictionary<string, FlatOrderDefinition>(StringComparer.OrdinalIgnoreCase)
         {
             [ProjectTypeOrderKey] = new("Project type order", "Project types should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-tags", "Project type", 0),
             [SponsoringUnitOrderKey] = new("Sponsoring unit order", "Sponsoring units should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-building", "Sponsoring unit", 0),
             [LineDirectorateOrderKey] = new("Line directorate order", "Line directorates should be numbered 1, 2, 3… with no gaps or repeats, so dropdowns list them in a fixed order.", "bi-diagram-2", "Line directorate", 0),
-            [DocumentCategoryOrderKey] = new("Document type order", "Document types in the Document Repository should be numbered 1, 2, 3… with no gaps or repeats, so lists show them in a fixed order.", "bi-folder2", "Document type", 1),
-            [OfficeCategoryOrderKey] = new("Office order", "Offices in the Document Repository should be numbered 1, 2, 3… with no gaps or repeats, so lists show them in a fixed order.", "bi-building", "Office", 1)
+            [DocumentCategoryOrderKey] = new("Document type order", "Document types in the Document Repository are listed by their order number: lower numbers first, equal numbers A to Z. Any numbers give a fixed order.", "bi-folder2", "Document type", 1, TypedOrder: true),
+            [OfficeCategoryOrderKey] = new("Office order", "Offices in the Document Repository are listed by their order number: lower numbers first, equal numbers A to Z. Any numbers give a fixed order.", "bi-building", "Office", 1, TypedOrder: true)
         };
 
     private readonly ApplicationDbContext _db;
@@ -298,7 +304,9 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
             definition.Title,
             definition.Description,
             definition.Icon,
-            FlatOrderFindings(items, definition.Label, definition.FirstPosition));
+            definition.TypedOrder
+                ? Array.Empty<MasterDataIntegrityFinding>()
+                : FlatOrderFindings(items, definition.Label, definition.FirstPosition));
     }
 
     private Task<List<FlatProjection>> LoadDocumentCategoriesAsync(CancellationToken cancellationToken) =>
@@ -652,7 +660,9 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
 
     private sealed record CategoryProjection(int Id, string Name, int? ParentId, bool IsActive, int SortOrder, bool IsReferenced) : IReferenceProjection;
     private sealed record FlatProjection(int Id, string Name, bool IsActive, int SortOrder, bool IsReferenced) : IReferenceProjection;
-    private sealed record FlatOrderDefinition(string Title, string Description, string Icon, string Label, int FirstPosition);
+    /// <param name="TypedOrder">True when people type the order number and equal numbers are
+    /// listed A to Z (the Document Repository lists): every set of numbers is then a valid order.</param>
+    private sealed record FlatOrderDefinition(string Title, string Description, string Icon, string Label, int FirstPosition, bool TypedOrder = false);
     private sealed record ActivityProjection(int Id, string Name, bool IsActive, bool IsReferenced) : IReferenceProjection;
     private sealed record HolidayProjection(int Id, DateOnly Date, string Name, HolidayType Type, bool IsObservedAsOfficeHoliday);
     private sealed record CelebrationProjection(Guid Id, string Name, byte Day, byte Month, short? Year);

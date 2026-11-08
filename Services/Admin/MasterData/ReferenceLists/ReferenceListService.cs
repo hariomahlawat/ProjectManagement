@@ -545,8 +545,26 @@ internal sealed class ReferenceListEngine<TKey> : IReferenceListEngine where TKe
     private static AdminOperationResult Concurrency() =>
         AdminOperationResult.Failure("This record was changed by another administrator. Reload the page and try again.", "ConcurrencyConflict");
 
+    // Ids a source reads in memory, loaded once per engine: a page counts use for its tiles, its
+    // filter and its rows, and must not read every change request three times (fourth review, C3).
+    private readonly Dictionary<ReferenceListUsageSource<TKey>, IReadOnlyList<TKey>> _loaded = new();
+
+    // The source as a database query, or null when it is read in memory on this database.
+    private IQueryable<TKey>? Query(ReferenceListUsageSource<TKey> source) => source.ReferencingIds?.Invoke(_db);
+
+    private async Task<IReadOnlyList<TKey>> LoadAsync(ReferenceListUsageSource<TKey> source, CancellationToken cancellationToken)
+    {
+        if (!_loaded.TryGetValue(source, out var ids))
+        {
+            ids = await source.LoadReferencingIds!(_db, Provider, cancellationToken);
+            _loaded[source] = ids;
+        }
+
+        return ids;
+    }
+
     // Items some record uses. Sources the database can query stay one subquery; sources read in
-    // memory (ids inside JSON, or in the settings) are passed in as a list.
+    // memory (ids inside JSON on the test databases, or in the settings) are passed in as a list.
     private async Task<IQueryable<ReferenceListItemProjection<TKey>>> WhereInUseAsync(
         IQueryable<ReferenceListItemProjection<TKey>> items,
         CancellationToken cancellationToken)
@@ -555,14 +573,13 @@ internal sealed class ReferenceListEngine<TKey> : IReferenceListEngine where TKe
         var loaded = new HashSet<TKey>();
         foreach (var source in _definition.UsedBy)
         {
-            if (source.ReferencingIds is not null)
+            if (Query(source) is { } ids)
             {
-                var ids = source.ReferencingIds(_db);
                 queried = queried is null ? ids : queried.Union(ids);
             }
             else
             {
-                loaded.UnionWith(await source.LoadReferencingIds!(_db, Provider, cancellationToken));
+                loaded.UnionWith(await LoadAsync(source, cancellationToken));
             }
         }
 
@@ -591,9 +608,9 @@ internal sealed class ReferenceListEngine<TKey> : IReferenceListEngine where TKe
                 continue;
             }
 
-            if (source.ReferencingIds is not null)
+            if (Query(source) is { } query)
             {
-                counts.Add(await source.ReferencingIds(_db)
+                counts.Add(await query
                     .Where(value => idArray.Contains(value))
                     .GroupBy(value => value)
                     .Select(group => new { group.Key, Count = group.Count() })
@@ -601,7 +618,7 @@ internal sealed class ReferenceListEngine<TKey> : IReferenceListEngine where TKe
             }
             else
             {
-                counts.Add((await source.LoadReferencingIds!(_db, Provider, cancellationToken))
+                counts.Add((await LoadAsync(source, cancellationToken))
                     .Where(value => idArray.Contains(value))
                     .GroupBy(value => value)
                     .ToDictionary(group => group.Key, group => group.Count()));

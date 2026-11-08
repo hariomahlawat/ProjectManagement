@@ -302,6 +302,50 @@ public sealed class ProjectMetaChangeDecisionServiceTests
         Assert.Equal(26, project.TechnicalCategoryId);
     }
 
+    // Fourth review, C3: a change request names the item it proposes inside its payload, with no
+    // foreign key, so the item can be deleted while the request waits. Approving it then says so
+    // plainly instead of calling the item "no longer active" or failing on the project's key.
+    [Theory]
+    [InlineData("projectTypeId", "project type")]
+    [InlineData("sponsoringUnitId", "sponsoring unit")]
+    [InlineData("sponsoringLineDirectorateId", "line directorate")]
+    [InlineData("categoryId", "category")]
+    [InlineData("technicalCategoryId", "technical category")]
+    public async Task DecideAsync_ApproveARequestWhoseProposedItemWasDeleted_IsRefusedPlainly(string key, string label)
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, "hod-owner");
+        await db.ProjectMetaChangeRequests.AddAsync(new ProjectMetaChangeRequest
+        {
+            Id = 1,
+            ProjectId = 1,
+            ChangeType = ProjectMetaChangeRequestChangeTypes.Meta,
+            Payload = $"{{\"name\":\"Updated\",\"{key}\":404}}",
+            DecisionStatus = ProjectMetaDecisionStatuses.Pending,
+            RequestedByUserId = "po-user",
+            RequestedOnUtc = DateTimeOffset.UtcNow,
+            OriginalName = "Project"
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2026, 11, 8, 9, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, audit);
+
+        var result = await service.DecideAsync(
+            new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, null),
+            new ProjectMetaDecisionUser("hod-owner", IsAdmin: false, IsHoD: true));
+
+        Assert.Equal(ProjectMetaDecisionOutcome.ValidationFailed, result.Outcome);
+        Assert.Equal(ProjectValidationMessages.DeletedProposedValue(label), result.Error);
+        Assert.Contains("has been deleted", result.Error);
+        var project = await db.Projects.AsNoTracking().SingleAsync(p => p.Id == 1);
+        Assert.Equal("Project", project.Name);
+        var request = await db.ProjectMetaChangeRequests.AsNoTracking().SingleAsync(r => r.Id == 1);
+        Assert.Equal(ProjectMetaDecisionStatuses.Pending, request.DecisionStatus);
+        Assert.Empty(audit.Entries);
+    }
+
     private static async Task SeedProjectAsync(ApplicationDbContext db, string hodUserId, int? technicalCategoryId = null)
     {
         await db.Projects.AddAsync(new Project
