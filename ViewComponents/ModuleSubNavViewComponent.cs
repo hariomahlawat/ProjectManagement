@@ -79,7 +79,7 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         var projectModuleItems = ProjectModuleNavDefinition.Build();
         var adminModuleItems = AdminModuleNavDefinition.Build();
         var isInProjectsScope = IsInProjectsScope(currentPage, projectModuleItems);
-        // Pages that keep their own module's layout (Document Repository, media) are linked from
+        // Pages that keep their own module's layout (Document Repository) are linked from
         // Administration but are not Administration pages, so they do not get its module bar.
         var adminScopeItems = AdminNavigationCatalog.Entries
             .Where(entry => entry.InSidebar && entry.UsesAdminShell)
