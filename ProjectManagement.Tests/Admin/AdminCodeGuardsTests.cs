@@ -55,14 +55,25 @@ public sealed class AdminCodeGuardsTests
             await seed.SaveChangesAsync();
         }
 
+        // Since PR 11 the shared list page lays the tree out (ReferenceListTree).
         await using var db = new ApplicationDbContext(options);
-        var result = await new MasterDataAdministrationQueryService(db, new AuditActionPresentationCatalog())
-            .GetCategoriesAsync(MasterDataCategoryKind.Project, new CategoryDirectoryRequest(null, "all"));
+        var items = await db.ProjectCategories.AsNoTracking()
+            .Select(item => new ProjectManagement.Services.Admin.MasterData.ReferenceLists.ReferenceListItemProjection
+            {
+                Id = item.Id,
+                Name = item.Name,
+                IsActive = item.IsActive,
+                SortOrder = item.SortOrder,
+                ParentId = item.ParentId
+            })
+            .ToListAsync();
+        var rows = ProjectManagement.Services.Admin.MasterData.ReferenceLists.ReferenceListTree.Build(items);
 
-        Assert.Equal(5, result.Total);
-        Assert.Equal(5, result.Rows.Count);
-        Assert.Equal(result.Rows.Count, result.Rows.Select(row => row.Id).Distinct().Count());
-        Assert.Equal(new[] { "Root", "Child" }, result.Rows.Take(2).Select(row => row.Name));
+        Assert.Equal(5, rows.Count);
+        Assert.Equal(rows.Count, rows.Select(row => row.Item.Id).Distinct().Count());
+        Assert.Equal(new[] { "Root", "Child" }, rows.Take(2).Select(row => row.Item.Name));
+        Assert.Equal(1, rows[1].Depth);
+        Assert.Equal("Root", rows[1].ParentPath);
     }
 
     // The failure report used a private escaper that missed a leading tab, carriage return or

@@ -3,19 +3,6 @@
 @{
     ViewData["Title"] = "Project categories";
 }
-
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 <partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
-
-<section class="admin-master-summary-grid" aria-label="Project category summary">
-    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-diagram-3"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.Total</strong><span>Total categories</span><small>@Model.Result.RootCount root categories</small></span></article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-check-circle"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.Active</strong><span>Active</span><small>Available for project classification</small></span></article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-slash-circle"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.Inactive</strong><span>Inactive</span><small>Retained for historical records</small></span></article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-link-45deg"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.InUse</strong><span>In use</span><small>Referenced by one or more projects</small></span></article>
-</section>
-
-<partial name="~/Areas/Admin/Pages/Shared/_AdminCategoryDirectory.cshtml" model="Model.DirectoryModel" />
-
-@section Scripts {
-    <script src="~/js/admin/admin-category-tree.js" asp-append-version="true" defer></script>
-}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminReferenceList.cshtml" model="Model.ListModel" />

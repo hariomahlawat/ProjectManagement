@@ -67,7 +67,60 @@ public sealed class AdminSearchEscapingPostgresTests
         });
     }
 
-    private static async Task WithDatabaseAsync(Func<ApplicationDbContext, Task> test)
+    // Codex review on #3018: an ARPP entry's link is emptied when its value is deleted, so the
+    // database does not refuse the delete. An entry saved while an administrator deletes the
+    // value must either be counted (and the delete refused) or be refused itself; it must never
+    // silently lose its value.
+    [AdminSearchPostgresFact]
+    public async Task DeletingAnArppValue_WaitsForAnEntryBeingSaved_AndThenRefuses()
+    {
+        await WithDatabaseAsync(async (db, connectionString) =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            db.Users.Add(new ApplicationUser { Id = "admin", UserName = "admin", NormalizedUserName = "ADMIN" });
+            var value = new ProjectManagement.Models.Arpp.ArppCfaOption { Name = "CFA One", NormalizedName = "CFA ONE", CreatedAtUtc = now, UpdatedAtUtc = now, CreatedByUserId = "admin", UpdatedByUserId = "admin" };
+            var issue = new ProjectManagement.Models.Arpp.ArppIssue { Name = "ARPP 2026-27", FinancialYearStart = 2026, Kind = ProjectManagement.Models.Arpp.ArppIssueKind.Original, IssueSequence = 0, IssueDate = new DateOnly(2026, 4, 1), CreatedAtUtc = now, UpdatedAtUtc = now, CreatedByUserId = "admin", UpdatedByUserId = "admin" };
+            db.AddRange(value, issue);
+            await db.SaveChangesAsync();
+            var rowVersion = value.RowVersion;
+
+            // Another person saves an entry that uses the value, and has not committed yet.
+            await using var other = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options);
+            await using var saving = await other.Database.BeginTransactionAsync();
+            other.ArppEntries.Add(new ProjectManagement.Models.Arpp.ArppEntry
+            {
+                ArppIssueId = issue.Id, ProjectReference = "P-1", Category = ProjectManagement.Models.Arpp.ArppCategory.New, SerialNumber = "1",
+                CfaOptionId = value.Id, Cfa = value.Name, Fund = "Capital", DfpdsSchedule = "Sch 4",
+                CreatedAtUtc = now, UpdatedAtUtc = now, CreatedByUserId = "admin", UpdatedByUserId = "admin"
+            });
+            await other.SaveChangesAsync();
+
+            var http = new Microsoft.AspNetCore.Http.DefaultHttpContext
+            {
+                User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(new[] { new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "admin") }, "test"))
+            };
+            var lists = new ReferenceListService(db, new NoAdminAudit(), new AllowAuthorization(), new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = http });
+            var deleting = lists.DeleteAsync(ReferenceListKeys.ArppCfa, value.Id, rowVersion);
+
+            // The delete waits on the entry's lock instead of counting nothing and going ahead.
+            await Task.Delay(1500);
+            Assert.False(deleting.IsCompleted);
+
+            await saving.CommitAsync();
+            var result = await deleting;
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("EntityInUse", result.ErrorCode);
+            await using var check = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options);
+            Assert.Equal(value.Id, await check.ArppEntries.Select(entry => entry.CfaOptionId).SingleAsync());
+            Assert.True(await check.ArppCfaOptions.AnyAsync(item => item.Id == value.Id));
+        });
+    }
+
+    private static Task WithDatabaseAsync(Func<ApplicationDbContext, Task> test) =>
+        WithDatabaseAsync((db, _) => test(db));
+
+    private static async Task WithDatabaseAsync(Func<ApplicationDbContext, string, Task> test)
     {
         var server = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("PRISM_TEST_POSTGRES_CONNECTION")!);
         var databaseName = $"prism_test_adminsearch_{Guid.NewGuid():N}"[..40];
@@ -79,7 +132,7 @@ public sealed class AdminSearchEscapingPostgresTests
         {
             await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(target).Options);
             await db.Database.MigrateAsync();
-            await test(db);
+            await test(db, target);
         }
         finally
         {
@@ -122,4 +175,13 @@ file sealed class DenyAuthorization : Microsoft.AspNetCore.Authorization.IAuthor
 
     public Task<Microsoft.AspNetCore.Authorization.AuthorizationResult> AuthorizeAsync(System.Security.Claims.ClaimsPrincipal user, object? resource, string policyName) =>
         Task.FromResult(Microsoft.AspNetCore.Authorization.AuthorizationResult.Failed());
+}
+
+file sealed class AllowAuthorization : Microsoft.AspNetCore.Authorization.IAuthorizationService
+{
+    public Task<Microsoft.AspNetCore.Authorization.AuthorizationResult> AuthorizeAsync(System.Security.Claims.ClaimsPrincipal user, object? resource, System.Collections.Generic.IEnumerable<Microsoft.AspNetCore.Authorization.IAuthorizationRequirement> requirements) =>
+        Task.FromResult(Microsoft.AspNetCore.Authorization.AuthorizationResult.Success());
+
+    public Task<Microsoft.AspNetCore.Authorization.AuthorizationResult> AuthorizeAsync(System.Security.Claims.ClaimsPrincipal user, object? resource, string policyName) =>
+        Task.FromResult(Microsoft.AspNetCore.Authorization.AuthorizationResult.Success());
 }

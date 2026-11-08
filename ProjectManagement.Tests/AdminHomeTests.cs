@@ -469,9 +469,6 @@ public sealed class AdminHomeTests
                 ? throw new InvalidOperationException("Database unavailable.")
                 : Task.FromResult(new MasterDataOverviewSnapshot(new[] { Domain(1) }, Array.Empty<MasterDataRecentChange>(), 10, 9, 1, 5));
 
-        public Task<CategoryDirectoryResult> GetCategoriesAsync(MasterDataCategoryKind kind, CategoryDirectoryRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<CategoryImpact?> GetCategoryImpactAsync(MasterDataCategoryKind kind, int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<ActivityTypeDirectoryResult> GetActivityTypesAsync(ActivityTypeDirectoryRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FixedMaintenance : IAdminMaintenanceSummaryService

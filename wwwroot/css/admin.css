@@ -2335,7 +2335,17 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-reference-list-usage { font-weight: 650; color: var(--admin-text); }
 .admin-reference-list-locked { align-items: flex-start; }
 .admin-reference-list-locked small { display: block; max-width: 13rem; color: var(--admin-text-muted); font-size: .72rem; white-space: normal; }
+/* A tree list (categories): children sit under their parent, indented one step per level. */
+.admin-lookup-name.admin-reference-list-child { padding-left: calc(var(--reference-depth, 0) * 1.25rem); }
+.admin-lookup-name.admin-reference-list-child > span:first-child { background: transparent; color: var(--admin-text-muted); }
+/* The ARPP values: a tab per list, with that list's Add beside the tabs. */
+.admin-arpp-list-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: .75rem; }
+.admin-arpp-list-bar .admin-restore-tabs { flex: 1 1 auto; min-width: 0; }
+.admin-arpp-list-bar > .btn { flex: 0 0 auto; margin-bottom: .9rem; }
 @media (max-width: 575.98px) {
+    .admin-lookup-name.admin-reference-list-child { padding-left: calc(var(--reference-depth, 0) * .6rem); }
+    .admin-arpp-list-bar { flex-direction: column; align-items: stretch; gap: 0; }
+    .admin-arpp-list-bar > .btn { margin: 0 0 .75rem; }
     .admin-reference-list-tiles { gap: .45rem; }
     .admin-reference-list-tiles .admin-monitoring-metric { min-height: 0; padding: .6rem .65rem; }
     .admin-reference-list-tiles .admin-monitoring-metric__icon,
@@ -2603,49 +2613,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-master-filter-toolbar .admin-filter-toolbar__search input { padding-left: 2rem; }
 .admin-filter-toolbar__field { display: grid; gap: .22rem; }
 .admin-filter-toolbar__field label { color: var(--admin-text-muted); font-size: .56rem; font-weight: 680; }
-.admin-filter-toolbar__actions,
-.admin-category-toolbar__tree-actions { display: flex; align-items: center; gap: .4rem; }
-.admin-category-toolbar__tree-actions { justify-content: flex-end; }
-
-.admin-category-table { min-width: 58rem; }
-.admin-category-cell {
-    display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
-    align-items: center;
-    gap: .45rem;
-    padding-left: calc(var(--category-depth, 0) * 1.1rem);
-}
-.admin-category-toggle {
-    display: grid;
-    width: 1.45rem;
-    height: 1.45rem;
-    padding: 0;
-    place-items: center;
-    border: 0;
-    border-radius: .35rem;
-    background: transparent;
-    color: var(--admin-text-secondary);
-}
-.admin-category-toggle:hover { background: var(--admin-surface-muted); color: var(--admin-primary); }
-.admin-category-toggle--placeholder { pointer-events: none; }
-.admin-category-cell__icon {
-    display: grid;
-    width: 1.7rem;
-    height: 1.7rem;
-    place-items: center;
-    border-radius: .5rem;
-    background: var(--admin-primary-soft);
-    color: var(--admin-primary);
-}
-.admin-category-cell__copy { display: grid; min-width: 0; gap: .08rem; }
-.admin-category-cell__copy strong { color: var(--admin-text); font-size: .67rem; }
-.admin-category-cell__copy span { overflow: hidden; color: var(--admin-text-muted); font-size: .55rem; text-overflow: ellipsis; white-space: nowrap; }
-.admin-category-cell__copy small { color: var(--admin-info); font-size: .52rem; }
-.admin-category-table tr.is-context { opacity: .72; }
-.admin-category-table tr.is-tree-hidden { display: none; }
-.admin-usage-summary { display: grid; gap: .08rem; }
-.admin-usage-summary strong { color: var(--admin-text); font-size: .62rem; }
-.admin-usage-summary span { color: var(--admin-text-muted); font-size: .54rem; }
+.admin-filter-toolbar__actions { display: flex; align-items: center; gap: .4rem; }
 .admin-order-control { display: flex; align-items: center; gap: .2rem; }
 .admin-order-control > span { min-width: 1.6rem; color: var(--admin-text-secondary); font-size: .62rem; text-align: center; }
 .admin-order-control form { margin: 0; }
@@ -2792,7 +2760,6 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-master-filter-toolbar {
         grid-template-columns: minmax(0, 1fr) minmax(8rem, .35fr) auto;
     }
-    .admin-category-toolbar__tree-actions { grid-column: 1 / -1; justify-content: flex-start; }
     .admin-guide-nav { position: static; }
 }
 @media (max-width: 767.98px) {
@@ -2800,8 +2767,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-master-domain-card { border-right: 0; }
     .admin-master-domain-card__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: .45rem; }
     .admin-master-filter-toolbar { grid-template-columns: 1fr; }
-    .admin-master-filter-toolbar .admin-filter-toolbar__actions,
-    .admin-category-toolbar__tree-actions { justify-content: stretch; }
+    .admin-master-filter-toolbar .admin-filter-toolbar__actions { justify-content: stretch; }
     .admin-master-filter-toolbar .btn { flex: 1; }
     .admin-master-form-grid { grid-template-columns: 1fr; }
     .admin-recovery-retention dl { grid-template-columns: 1fr; }
@@ -3260,80 +3226,6 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 @media (max-width: 1500px) { .admin-holiday-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .admin-holiday-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } .admin-holiday-toolbar .admin-filter-toolbar__actions { grid-column: 1 / -1; justify-content: flex-end; } }
 @media (max-width: 800px) { .admin-holiday-summary, .admin-holiday-toolbar { grid-template-columns: 1fr; } .admin-year-stepper { grid-template-columns: auto 1fr auto; } .admin-holiday-toolbar .admin-filter-toolbar__actions { grid-column: auto; } }
 
-/* ARPP controlled reference data */
-.admin-arpp-reference-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-.admin-arpp-reference-panel .admin-panel__header {
-    align-items: flex-start;
-}
-
-.admin-arpp-reference-list {
-    display: grid;
-}
-
-.admin-arpp-reference-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: .9rem 1rem;
-    border-top: 1px solid var(--bs-border-color);
-}
-
-.admin-arpp-reference-row:first-child {
-    border-top: 0;
-}
-
-.admin-arpp-reference-row.is-inactive {
-    background: color-mix(in srgb, var(--bs-secondary-bg) 55%, transparent);
-}
-
-.admin-arpp-reference-row__main {
-    min-width: 0;
-    display: grid;
-    gap: .2rem;
-}
-
-.admin-arpp-reference-row__main > span,
-.admin-arpp-reference-row__main > small {
-    color: var(--bs-secondary-color);
-}
-
-.admin-arpp-reference-row__actions {
-    display: flex;
-    align-items: flex-start;
-    gap: .4rem;
-    flex: 0 0 auto;
-}
-
-.admin-arpp-reference-empty {
-    display: grid;
-    justify-items: center;
-    gap: .35rem;
-    padding: 2rem 1rem;
-    color: var(--bs-secondary-color);
-    text-align: center;
-}
-
-.admin-arpp-reference-empty > .bi {
-    font-size: 1.5rem;
-}
-
-@media (max-width: 1199.98px) {
-    .admin-arpp-reference-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 575.98px) {
-    .admin-arpp-reference-row {
-        flex-direction: column;
-    }
-}
 
 /* Dark: tokens used with literal fallbacks but never defined for Light, so only Dark sets them. */
 [data-bs-theme="dark"] {

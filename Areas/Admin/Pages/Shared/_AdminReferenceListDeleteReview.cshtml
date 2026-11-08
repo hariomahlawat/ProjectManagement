@@ -1,0 +1,39 @@
+@model ProjectManagement.Areas.Admin.Pages.Shared.AdminReferenceListDeletePageModel
+@using ProjectManagement.Areas.Admin.Models
+@* The older "review deletion" page, on the shared list page's rule (PR 11). *@
+@{
+    var header = new AdminPageHeaderModel
+    {
+        Title = $"Delete {Model.SingularLabel}",
+        Description = "Only an item nothing uses can be deleted. Deactivate an item in use instead: it stays on old records and drops out of new forms.",
+        Icon = "bi-trash3",
+        Actions = new[] { new AdminPageActionModel { Text = $"Back to {ProjectManagement.Services.Admin.MasterData.ReferenceLists.ReferenceListDefinition.InSentence(Model.PluralLabel)}", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } }
+    };
+    var item = Model.Item;
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+@if (item is not null)
+{
+    var usedBy = item.UsedBy.Where(usage => usage.Count > 0).ToArray();
+    <div class="admin-operation-layout">
+        <form method="post" class="admin-panel admin-controlled-operation @(Model.CanDelete ? "admin-controlled-operation--danger" : "admin-controlled-operation--warning")" novalidate>
+            <input asp-for="RowVersion" type="hidden" />
+            <header><span class="admin-controlled-operation__icon"><i class="bi @(Model.CanDelete ? "bi-trash3" : "bi-shield-exclamation")" aria-hidden="true"></i></span><div><h2>@item.Name</h2><p>@(Model.CanDelete ? "Nothing uses it, so it can be deleted." : "It is in use, so it cannot be deleted.")</p></div></header>
+            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+            <dl class="admin-operation-facts">
+                <div><dt>Under</dt><dd>@(item.ParentPath ?? "Top level")</dd></div>
+                <div><dt>Status</dt><dd>@(item.IsActive ? "Active" : "Inactive")</dd></div>
+                <div><dt>Used by</dt><dd>@(usedBy.Length == 0 ? "Not used" : string.Join(" · ", usedBy.Select(usage => usage.Text)))</dd></div>
+            </dl>
+            @if (Model.CanDelete)
+            {
+                <div class="admin-confirmation-field"><label asp-for="Confirmation">Type <strong>@item.Name</strong> to confirm</label><input asp-for="Confirmation" class="form-control" autocomplete="off" /><span asp-validation-for="Confirmation" class="text-danger"></span></div>
+            }
+            else
+            {
+                <div class="admin-operation-notice"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Deactivate it instead</strong><span>Go back to the list and choose Deactivate. Records that use it keep it.</span></div></div>
+            }
+            <footer><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>@if (Model.CanDelete){<button type="submit" class="btn btn-danger"><i class="bi bi-trash3" aria-hidden="true"></i>Delete</button>}</footer>
+        </form>
+    </div>
+}

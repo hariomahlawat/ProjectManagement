@@ -5,6 +5,8 @@
     The shared list page for reference lists (docs/ux/admin-review-3-fixes.md, owner decision 1):
     tiles All, In use and Inactive; one table of Name, [extra columns], Order, Used by, Status and
     Actions; Delete only when nothing uses the item. On a phone each row is a card (PR 8).
+    A tree list (categories) indents children under their parent; a list with no stored order
+    has no Order column.
 *@
 @{
     var list = Model.Page;
@@ -13,15 +15,24 @@
     var last = Math.Min(list.Page * list.PageSize, list.FilteredCount);
     var startPage = Math.Max(1, list.Page - 2);
     var endPage = Math.Min(list.TotalPages, list.Page + 2);
-    var pluralLower = Model.PluralLabel.ToLowerInvariant();
-    string TileHref(string status) => Url.Page(Model.IndexPage, new { area = "Admin", status, q = string.IsNullOrEmpty(list.Search) ? null : list.Search, pageSize = list.PageSize == 25 ? (int?)null : list.PageSize })!;
+    var pluralLower = ReferenceListDefinition.InSentence(Model.PluralLabel);
+    var keep = Model.RouteValues.ToDictionary(pair => pair.Key, pair => pair.Value);
+    string TileHref(string status)
+    {
+        var values = new RouteValueDictionary(keep.ToDictionary(pair => pair.Key, pair => (object?)pair.Value)) { ["area"] = "Admin", ["status"] = status };
+        if (!string.IsNullOrEmpty(list.Search)) values["q"] = list.Search;
+        if (list.PageSize != 25) values["pageSize"] = list.PageSize;
+        return Url.Page(Model.IndexPage, values)!;
+    }
     var tileModels = new[]
     {
         new AdminMonitoringMetricModel { Label = "All", Value = tiles.All.ToString(), Detail = $"Every {Model.SingularLabel}", Icon = Model.Icon, Tone = "neutral", Href = TileHref(ReferenceListStatuses.All), IsActive = list.Status == ReferenceListStatuses.All },
         new AdminMonitoringMetricModel { Label = "In use", Value = tiles.InUse.ToString(), Detail = $"Used by {Model.UsedByLabel}", Icon = "bi-link-45deg", Tone = "info", Href = TileHref(ReferenceListStatuses.InUse), IsActive = list.Status == ReferenceListStatuses.InUse },
         new AdminMonitoringMetricModel { Label = "Inactive", Value = tiles.Inactive.ToString(), Detail = "Kept on old records", Icon = "bi-slash-circle", Tone = "neutral", Href = TileHref(ReferenceListStatuses.Inactive), IsActive = list.Status == ReferenceListStatuses.Inactive }
     };
-    var showOrder = !string.IsNullOrEmpty(Model.MoveHandler);
+    var showOrder = Model.ShowOrder;
+    var canMove = !string.IsNullOrEmpty(Model.MoveHandler);
+    var dialog = Model.EditDialog;
     var filterName = list.Status switch
     {
         ReferenceListStatuses.InUse => "in use",
@@ -39,20 +50,31 @@
 
 <section class="admin-panel" aria-labelledby="reference-list-title">
     <header class="admin-panel__header">
-        <div><h2 id="reference-list-title">@(filterName is null ? Model.PluralLabel : $"{Model.PluralLabel} {filterName}")</h2></div>
+        <div>
+            <h2 id="reference-list-title">@(filterName is null ? Model.PluralLabel : $"{Model.PluralLabel} {filterName}")</h2>
+            @if (!string.IsNullOrEmpty(Model.Note))
+            {
+                <p>@Model.Note</p>
+            }
+        </div>
         <span class="admin-panel__meta">Showing @first–@last of @list.FilteredCount</span>
     </header>
     <form method="get" class="admin-master-filter-toolbar">
+        @foreach (var pair in keep)
+        {
+            <input type="hidden" name="@pair.Key" value="@pair.Value" />
+        }
         <input type="hidden" name="status" value="@list.Status" />
         <div class="admin-filter-toolbar__search"><i class="bi bi-search" aria-hidden="true"></i><label class="visually-hidden" for="reference-list-search">Search @pluralLower</label><input id="reference-list-search" class="form-control" type="search" name="q" value="@list.Search" placeholder="Search @pluralLower" autocomplete="off" /></div>
         <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label for="reference-list-page-size">Rows</label><select id="reference-list-page-size" class="form-select" name="pageSize">@foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size" selected="@(list.PageSize == size ? "selected" : null)">@size</option> }</select></div>
-        <div class="admin-filter-toolbar__actions"><button class="btn btn-primary" type="submit"><i class="bi bi-search" aria-hidden="true"></i>Search</button><a class="btn btn-outline-secondary" asp-area="Admin" asp-page="@Model.IndexPage">Clear</a></div>
+        <div class="admin-filter-toolbar__actions"><button class="btn btn-primary" type="submit"><i class="bi bi-search" aria-hidden="true"></i>Search</button><a class="btn btn-outline-secondary" asp-area="Admin" asp-page="@Model.IndexPage" asp-all-route-data="keep">Clear</a></div>
     </form>
 
     @if (list.Rows.Count == 0)
     {
         var listIsEmpty = tiles.All == 0;
-        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new AdminEmptyStateModel { Icon = Model.Icon, Title = listIsEmpty ? $"No {pluralLower} yet" : $"No {pluralLower} match", Description = listIsEmpty ? $"Add the first {Model.SingularLabel}; forms offer it straight away." : "Change the search or pick another tile.", ActionText = listIsEmpty ? $"Add {Model.SingularLabel}" : null, ActionHref = listIsEmpty ? Url.Page(Model.CreatePage, new { area = "Admin" }) : null })" />
+        var addHref = listIsEmpty && dialog is null ? Url.Page(Model.CreatePage, new { area = "Admin" }) : null;
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new AdminEmptyStateModel { Icon = Model.Icon, Title = listIsEmpty ? $"No {pluralLower} yet" : $"No {pluralLower} match", Description = listIsEmpty ? $"Add the first {Model.SingularLabel}; forms offer it straight away." : "Change the search or pick another tile.", ActionText = addHref is null ? null : $"Add {Model.SingularLabel}", ActionHref = addHref })" />
     }
     else
     {
@@ -78,8 +100,30 @@
                 @foreach (var row in list.Rows)
                 {
                     var usedBy = row.UsedBy.Where(item => item.Count > 0).ToArray();
-                    <tr data-reference-list-row="@row.Id">
-                        <td><div class="admin-lookup-name"><span aria-hidden="true"><i class="bi @Model.Icon"></i></span><strong>@row.Name</strong></div></td>
+                    <tr data-reference-list-row="@row.Id" data-depth="@row.Depth">
+                        <td>
+                            <div class="admin-lookup-name @(row.Depth > 0 ? "admin-reference-list-child" : null)" style="@(row.Depth > 0 ? $"--reference-depth:{row.Depth}" : null)">
+                                <span aria-hidden="true"><i class="bi @(row.Depth > 0 ? "bi-arrow-return-right" : Model.Icon)"></i></span>
+                                @if (row.ParentPath is null && string.IsNullOrWhiteSpace(row.Detail))
+                                {
+                                    <strong>@row.Name</strong>
+                                }
+                                else
+                                {
+                                    <div>
+                                        <strong>@row.Name</strong>
+                                        @if (row.ParentPath is not null)
+                                        {
+                                            <small>Under @row.ParentPath</small>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(row.Detail))
+                                        {
+                                            <small>@row.Detail</small>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </td>
                         @for (var index = 0; index < Model.ExtraColumns.Count; index++)
                         {
                             var value = index < row.ExtraValues.Count ? row.ExtraValues[index] : null;
@@ -89,18 +133,18 @@
                         {
                             <td data-label="Order">
                                 <div class="admin-order-control">
-                                    <span>@(row.SortOrder + 1)</span>
-                                    @foreach (var (offset, canMove, direction) in new[] { (-1, row.CanMoveUp, "up"), (1, row.CanMoveDown, "down") })
+                                    <span>@row.ShownOrder</span>
+                                    @if (canMove)
                                     {
-                                        <form method="post" data-admin-controlled-submit asp-area="Admin" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
-                                            <input type="hidden" name="id" value="@row.Id" />
-                                            <input type="hidden" name="offset" value="@offset" />
-                                            <input type="hidden" name="q" value="@list.Search" />
-                                            <input type="hidden" name="status" value="@list.Status" />
-                                            <input type="hidden" name="pageNumber" value="@list.Page" />
-                                            <input type="hidden" name="pageSize" value="@list.PageSize" />
-                                            <button class="btn btn-sm btn-icon" type="submit" disabled="@(!canMove ? "disabled" : null)" aria-label="Move @row.Name @direction"><i class="bi bi-chevron-@direction" aria-hidden="true"></i></button>
-                                        </form>
+                                        @foreach (var (offset, movable, direction) in new[] { (-1, row.CanMoveUp, "up"), (1, row.CanMoveDown, "down") })
+                                        {
+                                            <form method="post" data-admin-controlled-submit asp-area="Admin" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
+                                                <input type="hidden" name="id" value="@row.Id" />
+                                                <input type="hidden" name="offset" value="@offset" />
+                                                <partial name="~/Areas/Admin/Pages/Shared/_AdminReferenceListState.cshtml" model="Model" />
+                                                <button class="btn btn-sm btn-icon" type="submit" disabled="@(!movable ? "disabled" : null)" aria-label="Move @row.Name @direction"><i class="bi bi-chevron-@direction" aria-hidden="true"></i></button>
+                                            </form>
+                                        }
                                     }
                                 </div>
                             </td>
@@ -111,8 +155,34 @@
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Name"><i class="bi bi-three-dots" aria-hidden="true"></i></button>
                                 <ul class="dropdown-menu dropdown-menu-end">
-                                    <li><a class="dropdown-item" asp-area="Admin" asp-page="@Model.EditPage" asp-route-id="@row.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</a></li>
-                                    <li><a class="dropdown-item" asp-area="Admin" asp-page="@Model.DeactivatePage" asp-route-id="@row.Id" asp-route-restore="@(!row.IsActive)"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")" aria-hidden="true"></i>@(row.IsActive ? "Deactivate" : "Reactivate")</a></li>
+                                    @if (Model.OffersAddChild)
+                                    {
+                                        <li><a class="dropdown-item" asp-area="Admin" asp-page="@Model.CreatePage" asp-route-parentId="@row.Id"><i class="bi bi-node-plus" aria-hidden="true"></i>Add sub-category</a></li>
+                                    }
+                                    @if (dialog is null)
+                                    {
+                                        <li><a class="dropdown-item" asp-area="Admin" asp-page="@Model.EditPage" asp-route-id="@row.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</a></li>
+                                    }
+                                    else
+                                    {
+                                        <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="@dialog.Target" data-reference-edit data-id="@row.Id" data-value="@row.Name" data-description="@row.Detail" data-sort-order="@row.SortOrder" data-row-version="@row.RowVersion" data-kind="@dialog.Kind" data-kind-label="@dialog.KindLabel"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</button></li>
+                                    }
+                                    @if (string.IsNullOrEmpty(Model.ToggleHandler))
+                                    {
+                                        <li><a class="dropdown-item" asp-area="Admin" asp-page="@Model.DeactivatePage" asp-route-id="@row.Id" asp-route-restore="@(!row.IsActive)"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")" aria-hidden="true"></i>@(row.IsActive ? "Deactivate" : "Reactivate")</a></li>
+                                    }
+                                    else
+                                    {
+                                        <li>
+                                            <form method="post" data-admin-controlled-submit asp-area="Admin" asp-page="@Model.IndexPage" asp-page-handler="@Model.ToggleHandler">
+                                                <input type="hidden" name="id" value="@row.Id" />
+                                                <input type="hidden" name="isActive" value="@(row.IsActive ? "false" : "true")" />
+                                                <input type="hidden" name="rowVersion" value="@row.RowVersion" />
+                                                <partial name="~/Areas/Admin/Pages/Shared/_AdminReferenceListState.cshtml" model="Model" />
+                                                <button class="dropdown-item" type="submit"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")" aria-hidden="true"></i>@(row.IsActive ? "Deactivate" : "Reactivate")</button>
+                                            </form>
+                                        </li>
+                                    }
                                     @if (!string.IsNullOrEmpty(Model.DeleteHandler))
                                     {
                                         <li><hr class="dropdown-divider" /></li>
@@ -126,10 +196,7 @@
                                                       data-confirm-tone="danger">
                                                     <input type="hidden" name="id" value="@row.Id" />
                                                     <input type="hidden" name="rowVersion" value="@row.RowVersion" />
-                                                    <input type="hidden" name="q" value="@list.Search" />
-                                                    <input type="hidden" name="status" value="@list.Status" />
-                                                    <input type="hidden" name="pageNumber" value="@list.Page" />
-                                                    <input type="hidden" name="pageSize" value="@list.PageSize" />
+                                                    <partial name="~/Areas/Admin/Pages/Shared/_AdminReferenceListState.cshtml" model="Model" />
                                                     <button class="dropdown-item text-danger" type="submit"><i class="bi bi-trash3" aria-hidden="true"></i>Delete</button>
                                                 </form>
                                             </li>
@@ -151,6 +218,6 @@
 
     @if (list.TotalPages > 1)
     {
-        <nav class="admin-pagination" aria-label="@Model.PluralLabel pages"><span>Page @list.Page of @list.TotalPages</span><ul class="pagination pagination-sm mb-0"><li class="page-item @(list.Page <= 1 ? "disabled" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@(list.Page - 1)">Previous</a></li>@for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++){<li class="page-item @(pageNumber == list.Page ? "active" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@pageNumber">@pageNumber</a></li>}<li class="page-item @(list.Page >= list.TotalPages ? "disabled" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@(list.Page + 1)">Next</a></li></ul></nav>
+        <nav class="admin-pagination" aria-label="@Model.PluralLabel pages"><span>Page @list.Page of @list.TotalPages</span><ul class="pagination pagination-sm mb-0"><li class="page-item @(list.Page <= 1 ? "disabled" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-all-route-data="keep" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@(list.Page - 1)">Previous</a></li>@for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++){<li class="page-item @(pageNumber == list.Page ? "active" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-all-route-data="keep" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@pageNumber">@pageNumber</a></li>}<li class="page-item @(list.Page >= list.TotalPages ? "disabled" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-all-route-data="keep" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@(list.Page + 1)">Next</a></li></ul></nav>
     }
 </section>

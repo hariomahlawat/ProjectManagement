@@ -18,13 +18,11 @@ public interface IAdminMasterDataCommandService
 {
     Task<AdminOperationResult<ProjectCategory>> CreateProjectCategoryAsync(CategoryCreateCommand command, CancellationToken cancellationToken = default);
     Task<AdminOperationResult<ProjectCategory>> UpdateProjectCategoryAsync(CategoryUpdateCommand command, CancellationToken cancellationToken = default);
-    Task<AdminOperationResult> DeleteProjectCategoryAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> SetProjectCategoryActiveAsync(int id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> MoveProjectCategoryAsync(int id, int offset, CancellationToken cancellationToken = default);
 
     Task<AdminOperationResult<TechnicalCategory>> CreateTechnicalCategoryAsync(CategoryCreateCommand command, CancellationToken cancellationToken = default);
     Task<AdminOperationResult<TechnicalCategory>> UpdateTechnicalCategoryAsync(CategoryUpdateCommand command, CancellationToken cancellationToken = default);
-    Task<AdminOperationResult> DeleteTechnicalCategoryAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> SetTechnicalCategoryActiveAsync(int id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> MoveTechnicalCategoryAsync(int id, int offset, CancellationToken cancellationToken = default);
 
@@ -194,13 +192,6 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         }
     }
 
-    public Task<AdminOperationResult> DeleteProjectCategoryAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default) =>
-        DeleteCategoryAsync(
-            id,
-            rowVersion,
-            isTechnical: false,
-            cancellationToken);
-
     public Task<AdminOperationResult> SetProjectCategoryActiveAsync(int id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken = default) =>
         SetCategoryActiveAsync(id, isActive, rowVersion, isTechnical: false, cancellationToken);
 
@@ -331,9 +322,6 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
             return Duplicate<TechnicalCategory>("A technical category with this name already exists under the selected parent.");
         }
     }
-
-    public Task<AdminOperationResult> DeleteTechnicalCategoryAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default) =>
-        DeleteCategoryAsync(id, rowVersion, isTechnical: true, cancellationToken);
 
     public Task<AdminOperationResult> SetTechnicalCategoryActiveAsync(int id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken = default) =>
         SetCategoryActiveAsync(id, isActive, rowVersion, isTechnical: true, cancellationToken);
@@ -467,117 +455,6 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
     public Task<AdminOperationResult> MoveLineDirectorateAsync(int id, int offset, CancellationToken cancellationToken = default) =>
         MoveFlatLookupAsync(id, offset, _db.LineDirectorates, "LineDirectorate", "MasterData.LineDirectorateReordered", item => item.Id, item => item.Name, item => item.SortOrder, (item, value) => { item.SortOrder = value; item.UpdatedUtc = _clock.UtcNow.UtcDateTime; }, Snapshot, cancellationToken);
 
-    private async Task<AdminOperationResult> DeleteCategoryAsync(
-        int id,
-        byte[] rowVersion,
-        bool isTechnical,
-        CancellationToken cancellationToken)
-    {
-        var auth = await EnsureAuthorizedAsync(cancellationToken);
-        if (!auth.Succeeded)
-        {
-            return auth;
-        }
-
-        if (!HasRowVersion(rowVersion))
-        {
-            return MissingRowVersion();
-        }
-
-        if (isTechnical)
-        {
-            var category = await _db.TechnicalCategories.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-            if (category is null)
-            {
-                return NotFound("Technical category");
-            }
-
-            if (await _db.TechnicalCategories.AnyAsync(item => item.ParentId == id, cancellationToken))
-            {
-                return AdminOperationResult.Failure("Reassign or remove the child technical categories first.", "EntityInUse");
-            }
-
-            if (await _db.Projects.AnyAsync(project => project.TechnicalCategoryId == id, cancellationToken))
-            {
-                return AdminOperationResult.Failure("This technical category is assigned to existing projects and cannot be deleted.", "EntityInUse");
-            }
-
-            if (await _db.ProjectLegacyImports.AnyAsync(import => import.TechnicalCategoryId == id, cancellationToken)
-                || await _db.ProjectMetaChangeRequests.AnyAsync(request => request.TechnicalCategoryId == id, cancellationToken))
-            {
-                return AdminOperationResult.Failure(OtherReferencesMessage("technical category"), "EntityInUse");
-            }
-
-            SetOriginalRowVersion(category, rowVersion);
-            var before = Snapshot(category);
-            _db.TechnicalCategories.Remove(category);
-            await CompactTechnicalCategorySiblingsAsync(category.ParentId, category.Id, cancellationToken);
-
-            return await SaveDeleteAsync("MasterData.TechnicalCategoryDeleted", "TechnicalCategory", category.Id, category.Name, before, cancellationToken);
-        }
-
-        var projectCategory = await _db.ProjectCategories.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if (projectCategory is null)
-        {
-            return NotFound("Project category");
-        }
-
-        if (await _db.ProjectCategories.AnyAsync(item => item.ParentId == id, cancellationToken))
-        {
-            return AdminOperationResult.Failure("Reassign or remove the child project categories first.", "EntityInUse");
-        }
-
-        if (await _db.Projects.AnyAsync(project => project.CategoryId == id, cancellationToken))
-        {
-            return AdminOperationResult.Failure("This project category is assigned to existing projects and cannot be deleted.", "EntityInUse");
-        }
-
-        if (await _db.ProjectLegacyImports.AnyAsync(import => import.ProjectCategoryId == id, cancellationToken))
-        {
-            return AdminOperationResult.Failure(OtherReferencesMessage("project category"), "EntityInUse");
-        }
-
-        SetOriginalRowVersion(projectCategory, rowVersion);
-        var projectBefore = Snapshot(projectCategory);
-        _db.ProjectCategories.Remove(projectCategory);
-        await CompactProjectCategorySiblingsAsync(projectCategory.ParentId, projectCategory.Id, cancellationToken);
-        return await SaveDeleteAsync("MasterData.ProjectCategoryDeleted", "ProjectCategory", projectCategory.Id, projectCategory.Name, projectBefore, cancellationToken);
-    }
-
-    private async Task<AdminOperationResult> SaveDeleteAsync(
-        string action,
-        string entityType,
-        int id,
-        string name,
-        object before,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            await _db.SaveChangesAsync(cancellationToken);
-            await AuditAsync(action, entityType, id, before, null, cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return AdminOperationResult.Success($"Deleted '{name}'.");
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return Concurrency();
-        }
-        catch (DbUpdateException ex) when (IsForeignKeyViolation(ex))
-        {
-            // A record the checks above do not know about still points at this row. The
-            // database refused the delete, so nothing changed; say so instead of failing.
-            await transaction.RollbackAsync(CancellationToken.None);
-            _db.ChangeTracker.Clear();
-            return AdminOperationResult.Failure(
-                $"'{name}' is still referenced by other records and cannot be deleted. Deactivate it instead.",
-                "EntityInUse");
-        }
-    }
-
-    private static string OtherReferencesMessage(string label) =>
-        $"This {label} is referenced by legacy imports or project change requests and cannot be deleted. Deactivate it instead.";
 
     // The admin asks for a target state (not "flip whatever is stored") with the row version
     // the page showed. A resubmitted form or a second administrator's change can then never
@@ -1081,9 +958,6 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         AdminOperationResult.Failure(
             "The record version is missing. Reload the page and try again.",
             "ConcurrencyTokenMissing");
-
-    private static bool IsForeignKeyViolation(DbUpdateException exception) =>
-        exception.InnerException is PostgresException postgres && postgres.SqlState == PostgresErrorCodes.ForeignKeyViolation;
 
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is PostgresException postgres && postgres.SqlState == PostgresErrorCodes.UniqueViolation;

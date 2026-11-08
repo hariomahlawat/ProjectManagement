@@ -2,42 +2,90 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Areas.Admin.Pages.Shared;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData.Integrity;
+using ProjectManagement.Services.Admin.MasterData.ReferenceLists;
 using ProjectManagement.Services.Arpp;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences;
 
+// The three ARPP value lists on the shared list page (docs/ux/admin-review-3-fixes.md, owner
+// decision 1, PR 11), one at a time under a tab strip (?list=cfa|funds|dfpds). Add and Edit stay
+// in the dialog on this page (Save); the order is the number people type.
 [Authorize(Policy = AdminPolicies.MasterDataManage)]
 [ResponseCache(NoStore = true)]
-public sealed class IndexModel : PageModel
+public sealed class IndexModel : AdminReferenceListPageModel
 {
+    public sealed record ArppList(string Key, ArppReferenceDataKind Kind, ReferenceListDefinition Definition, string Label, string KindLabel);
+
+    public static IReadOnlyList<ArppList> AllLists { get; } = new[]
+    {
+        new ArppList("cfa", ArppReferenceDataKind.Cfa, ReferenceListCatalog.ArppCfa, "CFA", "CFA"),
+        new ArppList("funds", ArppReferenceDataKind.Fund, ReferenceListCatalog.ArppFunds, "Funds", "Fund"),
+        new ArppList("dfpds", ArppReferenceDataKind.DfpdsSchedule, ReferenceListCatalog.ArppDfpdsSchedules, "DFPDS schedules", "DFPDS schedule")
+    };
+
+    private static readonly AdminReferenceListPresentation Shown = new(
+        AdminNavigationKeys.ArppReferenceData, "bi-list-check", "Add value", "ARPP entries", "/MasterData/ArppReferences");
+
     private readonly IArppReferenceDataService _referenceData;
 
-    public IndexModel(IArppReferenceDataService referenceData)
+    public IndexModel(IReferenceListService lists, IListOrderNoticeService order, IArppReferenceDataService referenceData)
+        : base(lists, order)
     {
         _referenceData = referenceData ?? throw new ArgumentNullException(nameof(referenceData));
     }
 
-    public AdminPageHeaderModel Header { get; private set; } = new();
+    /// <summary>Which list is open: cfa (the default), funds or dfpds.</summary>
+    [BindProperty(SupportsGet = true, Name = "list")]
+    public string? List { get; set; }
 
-    public ArppReferenceDataAdminSnapshot Snapshot { get; private set; } = new([], [], []);
+    public ArppList Current => AllLists.FirstOrDefault(item => string.Equals(item.Key, List, StringComparison.OrdinalIgnoreCase)) ?? AllLists[0];
+
+    /// <summary>How many values each list has, for the tab strip.</summary>
+    public IReadOnlyDictionary<string, int> Counts { get; private set; } = new Dictionary<string, int>();
 
     [BindProperty]
     public ReferenceInputModel Input { get; set; } = new();
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
-        => await LoadAsync(cancellationToken);
+    protected override ReferenceListDefinition Definition => Current.Definition;
+    protected override string? OrderCheckKey => null;
+    protected override AdminReferenceListPresentation Presentation => Shown;
+    protected override string Title => "ARPP values";
+    protected override string? Note => "Lower numbers come first in the ARPP forms; equal numbers are listed A to Z.";
+    protected override IReadOnlyDictionary<string, string> ListRouteValues => new Dictionary<string, string> { ["list"] = Current.Key };
+    protected override AdminReferenceListEditDialog? EditDialog => new("#arppReferenceModal", ((int)Current.Kind).ToString(), Current.KindLabel);
+    protected override Func<int, bool?, byte[], CancellationToken, Task<AdminOperationResult>>? Toggle => SetActiveFromListAsync;
+
+    protected override AdminPageActionModel? PrimaryAction(string folder) => new()
+    {
+        Text = "Open ARPP register",
+        Href = Url.Page("/ARPP/Index", new { area = "ProjectOfficeReports" }),
+        Icon = "bi-box-arrow-up-right",
+        IsPrimary = true
+    };
+
+    protected override async Task OnListLoadedAsync(CancellationToken cancellationToken)
+    {
+        var counts = new Dictionary<string, int>();
+        foreach (var item in AllLists)
+        {
+            counts[item.Key] = (await Lists.GetTilesAsync(item.Definition.Key, cancellationToken)).All;
+        }
+
+        Counts = counts;
+    }
 
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken cancellationToken)
     {
+        List = AllLists.FirstOrDefault(item => item.Kind == Input.Kind)?.Key ?? List;
         if (!ModelState.IsValid)
         {
-            await LoadAsync(cancellationToken);
-            ViewData["ReopenReferenceModal"] = true;
-            return Page();
+            return await ShowAgainAsync(cancellationToken);
         }
 
         var result = await _referenceData.SaveAsync(
@@ -66,17 +114,16 @@ public sealed class IndexModel : PageModel
                 foreach (var message in pair.Value) ModelState.AddModelError(key, message);
             }
             if (result.FieldErrors.Count == 0) ModelState.AddModelError(string.Empty, result.Message);
-            await LoadAsync(cancellationToken);
-            ViewData["ReopenReferenceModal"] = true;
-            return Page();
+            return await ShowAgainAsync(cancellationToken);
         }
 
         // Admin pages render the namespaced admin keys only. The generic StatusMessage /
         // ErrorMessage keys were never shown here and surfaced later on ARPP and FFC pages.
         TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.Message;
-        return RedirectToPage();
+        return RedirectToPage(new { list = Current.Key });
     }
 
+    // Kept for forms from before the shared list page; the list's own Deactivate posts Toggle.
     public async Task<IActionResult> OnPostSetActiveAsync(
         ArppReferenceDataKind kind,
         int id,
@@ -85,44 +132,31 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var result = await _referenceData.SetActiveAsync(
-            new ArppReferenceDataActivationCommand(
-                kind,
-                id,
-                isActive,
-                rowVersion,
-                CurrentUserId(),
-                User.Identity?.Name),
+            new ArppReferenceDataActivationCommand(kind, id, isActive, rowVersion, CurrentUserId(), User.Identity?.Name),
             cancellationToken);
 
         TempData[result.Success ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.Message;
-        return RedirectToPage();
+        return RedirectToPage(new { list = AllLists.FirstOrDefault(item => item.Kind == kind)?.Key });
     }
 
-    private async Task LoadAsync(CancellationToken cancellationToken)
+    private async Task<AdminOperationResult> SetActiveFromListAsync(int id, bool? isActive, byte[] rowVersion, CancellationToken cancellationToken)
     {
-        Snapshot = await _referenceData.GetAdminSnapshotAsync(cancellationToken);
-        Header = new AdminPageHeaderModel
+        if (isActive is not bool target)
         {
-            Title = "ARPP values",
-            Description = "The CFA, Fund and DFPDS values offered in the ARPP workspace. Deactivate a value instead of deleting it: entries that use it keep it.",
-            Icon = "bi-list-check",
-            Actions = new[]
-            {
-                new AdminPageActionModel
-                {
-                    Text = "Lists used in forms",
-                    Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
-                    Icon = "bi-arrow-left"
-                },
-                new AdminPageActionModel
-                {
-                    Text = "Open ARPP register",
-                    Href = Url.Page("/ARPP/Index", new { area = "ProjectOfficeReports" }),
-                    Icon = "bi-box-arrow-up-right",
-                    IsPrimary = true
-                }
-            }
-        };
+            return AdminOperationResult.Failure("Reload the page and try again.", "BadRequest");
+        }
+
+        var result = await _referenceData.SetActiveAsync(
+            new ArppReferenceDataActivationCommand(Current.Kind, id, target, Convert.ToBase64String(rowVersion), CurrentUserId(), User.Identity?.Name),
+            cancellationToken);
+        return result.Success ? AdminOperationResult.Success(result.Message) : AdminOperationResult.Failure(result.Message, "Failed");
+    }
+
+    private async Task<IActionResult> ShowAgainAsync(CancellationToken cancellationToken)
+    {
+        await LoadListAsync(cancellationToken);
+        ViewData["ReopenReferenceModal"] = true;
+        return Page();
     }
 
     private string CurrentUserId()
@@ -147,11 +181,4 @@ public sealed class IndexModel : PageModel
 
         public string? RowVersion { get; set; }
     }
-    public sealed record ReferencePanelModel(
-        ArppReferenceDataKind Kind,
-        string Title,
-        string Description,
-        string Icon,
-        IReadOnlyList<ArppReferenceOption> Items);
-
 }

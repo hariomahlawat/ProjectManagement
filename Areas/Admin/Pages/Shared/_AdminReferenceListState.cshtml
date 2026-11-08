@@ -1,0 +1,10 @@
+@model ProjectManagement.Areas.Admin.Models.AdminReferenceListModel
+@* What a row's form sends back so the list reopens as it was: the search, tile, page and any list key. *@
+@foreach (var pair in Model.RouteValues)
+{
+    <input type="hidden" name="@pair.Key" value="@pair.Value" />
+}
+<input type="hidden" name="q" value="@Model.Page.Search" />
+<input type="hidden" name="status" value="@Model.Page.Status" />
+<input type="hidden" name="pageNumber" value="@Model.Page.Page" />
+<input type="hidden" name="pageSize" value="@Model.Page.PageSize" />

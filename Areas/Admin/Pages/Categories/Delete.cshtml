@@ -1,43 +1,7 @@
 @page "{id:int}"
 @model ProjectManagement.Areas.Admin.Pages.Categories.DeleteModel
-@using ProjectManagement.Areas.Admin.Models
 @{
     ViewData["Title"] = "Delete project category";
-    var header = new AdminPageHeaderModel
-    {
-        Eyebrow = "Master data · Controlled operation",
-        Title = "Review category deletion",
-        Description = "Permanent deletion is only permitted for an unused category without child categories.",
-        Icon = "bi-trash3",
-        Actions = new[] { new AdminPageActionModel { Text = "Back to categories", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } }
-    };
 }
-<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-@if (Model.Impact is not null)
-{
-    <div class="admin-operation-layout">
-        <form method="post" class="admin-panel admin-controlled-operation @(Model.CanDelete ? "admin-controlled-operation--danger" : "admin-controlled-operation--warning")" novalidate>
-            <input asp-for="RowVersion" type="hidden" />
-            <header><span class="admin-controlled-operation__icon"><i class="bi @(Model.CanDelete ? "bi-trash3" : "bi-shield-exclamation")"></i></span><div><div class="admin-panel__eyebrow">Project category</div><h2>@Model.Impact.Name</h2><p>@(Model.CanDelete ? "This record can be deleted because no dependencies were detected." : "Deletion is blocked because the category remains structurally or operationally significant.")</p></div></header>
-            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
-            <dl class="admin-operation-facts">
-                <div><dt>Parent</dt><dd>@(Model.Impact.ParentName ?? "Root category")</dd></div>
-                <div><dt>Status</dt><dd>@(Model.Impact.IsActive ? "Active" : "Inactive")</dd></div>
-                <div><dt>Projects</dt><dd>@Model.Impact.DirectUsageCount</dd></div>
-                <div><dt>Direct children</dt><dd>@Model.Impact.DirectChildCount</dd></div>
-                <div><dt>Legacy imports and change requests</dt><dd>@Model.Impact.OtherReferenceCount</dd></div>
-                <div><dt>All descendants</dt><dd>@Model.Impact.DescendantCount</dd></div>
-            </dl>
-            @if (Model.CanDelete)
-            {
-                <div class="admin-confirmation-field"><label asp-for="Confirmation">Type <strong>@Model.Impact.Name</strong> to confirm</label><input asp-for="Confirmation" class="form-control" autocomplete="off" /><span asp-validation-for="Confirmation" class="text-danger"></span></div>
-            }
-            else
-            {
-                <div class="admin-operation-notice"><i class="bi bi-info-circle"></i><div><strong>Recommended action</strong><span>Return to the directory and deactivate the category. Existing projects and descendants will remain intact.</span></div></div>
-            }
-            <footer><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>@if (Model.CanDelete){<button type="submit" class="btn btn-danger"><i class="bi bi-trash3"></i>Delete permanently</button>}</footer>
-        </form>
-    </div>
-}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminReferenceListDeleteReview.cshtml" model="Model" />
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

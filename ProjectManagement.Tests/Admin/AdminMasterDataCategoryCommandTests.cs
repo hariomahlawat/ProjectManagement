@@ -13,6 +13,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.MasterData;
+using ProjectManagement.Services.Admin.MasterData.ReferenceLists;
 using ProjectManagement.Tests.Fakes;
 using Xunit;
 
@@ -66,15 +67,15 @@ public sealed class AdminMasterDataCategoryCommandTests : IAsyncLifetime
 
         await using var db = new ApplicationDbContext(_options);
         var category = await db.TechnicalCategories.AsNoTracking().SingleAsync(item => item.Id == categoryId);
-        var result = await CreateService(db).DeleteTechnicalCategoryAsync(categoryId, category.RowVersion);
+        var result = await Lists(db).DeleteAsync(ReferenceListKeys.TechnicalCategories, categoryId, category.RowVersion);
 
         Assert.False(result.Succeeded);
         Assert.Equal("EntityInUse", result.ErrorCode);
         Assert.True(await db.TechnicalCategories.AnyAsync(item => item.Id == categoryId));
 
-        var impact = await new MasterDataAdministrationQueryService(db, new AuditActionPresentationCatalog())
-            .GetCategoryImpactAsync(MasterDataCategoryKind.Technical, categoryId);
-        Assert.Equal(1, impact!.OtherReferenceCount);
+        var item = await Lists(db).GetItemAsync(ReferenceListKeys.TechnicalCategories, categoryId);
+        Assert.Contains("1 change request", item!.UsedBy.Select(usage => usage.Text));
+        Assert.False(item.CanDelete);
     }
 
     [Fact]
@@ -99,7 +100,7 @@ public sealed class AdminMasterDataCategoryCommandTests : IAsyncLifetime
 
         await using var db = new ApplicationDbContext(_options);
         var row = await db.ProjectCategories.AsNoTracking().SingleAsync(item => item.Id == projectCategoryId);
-        var result = await CreateService(db).DeleteProjectCategoryAsync(projectCategoryId, row.RowVersion);
+        var result = await Lists(db).DeleteAsync(ReferenceListKeys.ProjectCategories, projectCategoryId, row.RowVersion);
 
         Assert.False(result.Succeeded);
         Assert.Equal("EntityInUse", result.ErrorCode);
@@ -113,7 +114,7 @@ public sealed class AdminMasterDataCategoryCommandTests : IAsyncLifetime
 
         await using var db = new ApplicationDbContext(_options);
         var category = await db.TechnicalCategories.AsNoTracking().SingleAsync(item => item.Id == categoryId);
-        var result = await CreateService(db).DeleteTechnicalCategoryAsync(categoryId, category.RowVersion);
+        var result = await Lists(db).DeleteAsync(ReferenceListKeys.TechnicalCategories, categoryId, category.RowVersion);
 
         Assert.True(result.Succeeded, result.UserMessage);
         Assert.False(await db.TechnicalCategories.AnyAsync(item => item.Id == categoryId));
@@ -221,7 +222,7 @@ public sealed class AdminMasterDataCategoryCommandTests : IAsyncLifetime
         await using (var db = new ApplicationDbContext(_options))
         {
             var second = await db.TechnicalCategories.AsNoTracking().SingleAsync(item => item.Id == secondId);
-            Assert.True((await CreateService(db).DeleteTechnicalCategoryAsync(secondId, second.RowVersion)).Succeeded);
+            Assert.True((await Lists(db).DeleteAsync(ReferenceListKeys.TechnicalCategories, secondId, second.RowVersion)).Succeeded);
         }
 
         await using (var db = new ApplicationDbContext(_options))
@@ -279,6 +280,17 @@ public sealed class AdminMasterDataCategoryCommandTests : IAsyncLifetime
         db.TechnicalCategories.Add(category);
         await db.SaveChangesAsync();
         return category.Id;
+    }
+
+    // Since PR 11 categories are deleted through the shared list page's one rule.
+    private static ReferenceListService Lists(ApplicationDbContext db)
+    {
+        var http = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, Admin) }, "test"))
+        };
+
+        return new ReferenceListService(db, new NoAdminAudit(), new AllowAllAuthorization(), new HttpContextAccessor { HttpContext = http });
     }
 
     private static AdminMasterDataCommandService CreateService(ApplicationDbContext db)
