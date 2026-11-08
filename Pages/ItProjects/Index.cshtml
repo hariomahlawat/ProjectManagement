@@ -151,6 +151,7 @@
         <input type="hidden" name="group" value="@Model.Group" />
         <input type="hidden" name="fy" value="@Model.Fy" />
         <input type="hidden" name="sort" value="@Model.SortKey" />
+        <input type="hidden" name="dates" value="@(Model.OnlyMissingDates ? "missing" : null)" />
         <nav class="itp-pills" aria-label="Status">
             <a class="itp-pill @(scopeKey == "active" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Active <b>@Model.Board.ActiveCount</b></a>
             <a class="itp-pill @(scopeKey == "completed" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="completed" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Delivered <b>@Model.Board.CompletedCount</b></a>
@@ -163,7 +164,7 @@
             <a class="itp-sort__item @(Model.BoardSort == ItProjectBoardSort.LongestWait ? "itp-sort__item--on" : null)" aria-current="@(Model.BoardSort == ItProjectBoardSort.LongestWait ? "true" : null)"
                asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-dates="@Model.Dates" asp-route-sort="wait" asp-fragment="itpRegister">Longest wait</a>
         </div>
-        <a class="itp-toggle @(Model.GroupByFinancialYear ? "itp-toggle--on" : null)" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-sort="@Model.SortKey" asp-route-group="@(Model.GroupByFinancialYear ? null : "fy")" asp-fragment="itpRegister" role="switch" aria-checked="@(Model.GroupByFinancialYear ? "true" : "false")">
+        <a class="itp-toggle @(Model.GroupByFinancialYear ? "itp-toggle--on" : null)" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-sort="@Model.SortKey" asp-route-dates="@(Model.OnlyMissingDates ? "missing" : null)" asp-route-group="@(Model.GroupByFinancialYear ? null : "fy")" asp-fragment="itpRegister" role="switch" aria-checked="@(Model.GroupByFinancialYear ? "true" : "false")">
             <i aria-hidden="true"></i><span>Group by FY</span>
         </a>
         @if (Model.CanManage && Model.Board.Figures.DatesMissingCount > 0)

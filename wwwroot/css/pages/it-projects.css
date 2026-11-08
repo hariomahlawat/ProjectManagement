@@ -2045,7 +2045,8 @@ a.itp-fig--selected:hover {
         display: block;
     }
 
-    .itp-reg__row {
+    /* :not([hidden]) so the in-page search can still hide a card. */
+    .itp-reg__row:not([hidden]) {
         display: grid !important;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: .55rem .75rem;
