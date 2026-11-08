@@ -45,6 +45,7 @@ public sealed class AdminRestoreTabsTests
                 AdminRestoreTabKeys.ProjectDocuments,
                 AdminRestoreTabKeys.RepositoryDocuments,
                 AdminRestoreTabKeys.CalendarEvents,
+                AdminRestoreTabKeys.BriefingDecks,
                 AdminRestoreTabKeys.ChatFiles
             },
             tabs.Select(tab => tab.Key).ToArray());
@@ -142,6 +143,7 @@ public sealed class AdminRestoreTabsTests
                      AdminNavigationKeys.ProjectTrash,
                      AdminNavigationKeys.DocumentRecycle,
                      AdminNavigationKeys.DeletedEvents,
+                     AdminNavigationKeys.DeletedBriefingDecks,
                      AdminNavigationKeys.RepositoryTrash
                  })
         {
@@ -154,7 +156,7 @@ public sealed class AdminRestoreTabsTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private static AdminRestoreTabsService CreateService(ApplicationDbContext db, string[] openableKeys) =>
+    internal static AdminRestoreTabsService CreateService(ApplicationDbContext db, string[] openableKeys, ProjectManagement.Services.IClock? clock = null) =>
         new(
             db,
             new ChatStorageService(
@@ -165,6 +167,7 @@ public sealed class AdminRestoreTabsTests
                 new ChatAttachmentServiceTests.RecordingAudit(),
                 NullLogger<ChatStorageService>.Instance),
             new FixedAccess(openableKeys),
+            clock ?? ProjectManagement.Tests.Fakes.FakeClock.AtUtc(DateTimeOffset.UtcNow),
             NullLogger<AdminRestoreTabsService>.Instance);
 
     private sealed class FixedAccess(string[] keys) : IAdminNavigationAccess

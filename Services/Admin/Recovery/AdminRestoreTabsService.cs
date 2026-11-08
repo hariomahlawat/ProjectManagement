@@ -39,6 +39,7 @@ public static class AdminRestoreTabKeys
     public const string ProjectDocuments = "project-documents";
     public const string RepositoryDocuments = "repository-documents";
     public const string CalendarEvents = "calendar-events";
+    public const string BriefingDecks = "briefing-decks";
     public const string ChatFiles = "chat-files";
 }
 
@@ -47,17 +48,20 @@ public sealed class AdminRestoreTabsService : IAdminRestoreTabsService
     private readonly ApplicationDbContext _db;
     private readonly ChatStorageService _chat;
     private readonly IAdminNavigationAccess _access;
+    private readonly IClock _clock;
     private readonly ILogger<AdminRestoreTabsService> _logger;
 
     public AdminRestoreTabsService(
         ApplicationDbContext db,
         ChatStorageService chat,
         IAdminNavigationAccess access,
+        IClock clock,
         ILogger<AdminRestoreTabsService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _chat = chat ?? throw new ArgumentNullException(nameof(chat));
         _access = access ?? throw new ArgumentNullException(nameof(access));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -90,6 +94,8 @@ public sealed class AdminRestoreTabsService : IAdminRestoreTabsService
             () => AdminBins.CountRepositoryDocumentsAsync(_db, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.CalendarEvents, "Calendar events", AdminNavigationKeys.DeletedEvents, false,
             () => AdminBins.CountEventsAsync(_db, cancellationToken));
+        await AddAsync(AdminRestoreTabKeys.BriefingDecks, "Briefing decks", AdminNavigationKeys.DeletedBriefingDecks, false,
+            () => AdminBins.CountBriefingDecksAsync(_db, _clock.UtcNow, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.ChatFiles, "Chat files", AdminNavigationKeys.ChatStorage, true,
             () => _chat.CountRestorableByAdministratorAsync(cancellationToken),
             // Chat files open at the clean-ups that can be undone, not at the top of the page.
