@@ -4,43 +4,50 @@
 @{
     ViewData["Title"] = "ARPP values";
     var reopenModal = ViewData["ReopenReferenceModal"] as bool? == true;
+    var current = Model.Current;
 }
 
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 <partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 
-<section class="admin-master-summary-grid" aria-label="ARPP reference-data summary">
-    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
-        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-collection"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Total</strong><span>Total values</span><small>Across CFA, Fund and DFPDS</small></span>
-    </article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--success">
-        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-check-circle"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Active</strong><span>Active values</span><small>Available in the ARPP workspace</small></span>
-    </article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
-        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-slash-circle"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Inactive</strong><span>Inactive values</span><small>Retained for historical rows</small></span>
-    </article>
-    <article class="admin-monitoring-metric admin-monitoring-metric--info">
-        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-link-45deg"></i></span>
-        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.InUse</strong><span>Values in use</span><small>Referenced by ARPP rows</small></span>
-    </article>
-</section>
+@* One ARPP list at a time, on the shared list page (docs/ux/admin-review-3-fixes.md, PR 11). *@
+<p class="admin-restore-tabs__current" aria-hidden="true">Showing: <strong>@current.Label</strong></p>
+<div class="admin-arpp-list-bar">
+    <nav class="admin-restore-tabs" aria-label="ARPP value list" data-admin-restore-tabs>
+        @foreach (var item in ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel.AllLists)
+        {
+            var isActive = item.Key == current.Key;
+            <a class="admin-restore-tabs__tab@(isActive ? " is-active" : string.Empty)"
+               asp-page="./Index" asp-route-list="@item.Key"
+               aria-current="@(isActive ? "page" : null)">
+                <span>@item.Label</span>
+                @if (Model.Counts.TryGetValue(item.Key, out var count))
+                {
+                    <span class="admin-restore-tabs__count"><span class="visually-hidden">: </span>@count<span class="visually-hidden"> values</span></span>
+                }
+            </a>
+        }
+    </nav>
+    <button type="button"
+            class="btn btn-primary btn-sm"
+            data-bs-toggle="modal"
+            data-bs-target="#arppReferenceModal"
+            data-reference-add
+            data-kind="@((int)current.Kind)"
+            data-kind-label="@current.KindLabel">
+        <span class="bi bi-plus-lg" aria-hidden="true"></span> Add @current.KindLabel
+    </button>
+</div>
 
 <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
-<div class="admin-arpp-reference-grid">
-    <partial name="_ReferencePanel" model="@(new ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel.ReferencePanelModel(ArppReferenceDataKind.Cfa, "CFA", "Competent Financial Authority designations.", "bi-person-badge", Model.Snapshot.CfaOptions))" />
-    <partial name="_ReferencePanel" model="@(new ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel.ReferencePanelModel(ArppReferenceDataKind.Fund, "Funds", "Controlled fund heads used in ARPP rows.", "bi-wallet2", Model.Snapshot.FundOptions))" />
-    <partial name="_ReferencePanel" model="@(new ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel.ReferencePanelModel(ArppReferenceDataKind.DfpdsSchedule, "DFPDS schedules", "Schedule number with an optional explanatory description.", "bi-journal-check", Model.Snapshot.DfpdsSchedules))" />
-</div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminReferenceList.cshtml" model="Model.ListModel" />
 
-<section class="admin-guidance-strip" aria-label="Reference-data guidance">
+<section class="admin-guidance-strip" aria-label="Changing ARPP values">
     <span aria-hidden="true"><i class="bi bi-shield-check"></i></span>
     <div>
-        <strong>Historical wording is protected</strong>
-        <p>Editing a master value does not rewrite wording already stored in issued ARPP rows. Deactivate obsolete values so old records remain readable.</p>
+        <strong>Old ARPP entries keep their wording</strong>
+        <p>Editing a value does not change the wording already stored in ARPP entries. Deactivate a value you no longer use; delete only a value no entry uses.</p>
     </div>
 </section>
 
@@ -50,7 +57,7 @@
             <form method="post" asp-page-handler="Save" data-arpp-reference-form>
                 <div class="modal-header">
                     <div>
-                        <div class="admin-panel__eyebrow" data-reference-kind-label>ARPP reference</div>
+                        <div class="admin-panel__eyebrow" data-reference-kind-label>ARPP value</div>
                         <h2 class="modal-title fs-5" id="arppReferenceModalLabel" data-reference-modal-title>Add value</h2>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -68,13 +75,13 @@
                     <div class="mb-3" data-reference-description-field>
                         <label asp-for="Input.Description" class="form-label">Description <span class="text-body-secondary">optional</span></label>
                         <textarea asp-for="Input.Description" class="form-control" rows="3" data-reference-description></textarea>
-                        <div class="form-text">Shown in the dropdown to help users choose the correct schedule.</div>
+                        <div class="form-text">Shown in the dropdown to help people pick the right schedule.</div>
                         <span asp-validation-for="Input.Description" class="text-danger small"></span>
                     </div>
                     <div>
-                        <label asp-for="Input.SortOrder" class="form-label">Display order</label>
+                        <label asp-for="Input.SortOrder" class="form-label">Order</label>
                         <input asp-for="Input.SortOrder" class="form-control" type="number" min="0" data-reference-sort-order />
-                        <div class="form-text">Lower numbers appear first. Equal values are sorted alphabetically.</div>
+                        <div class="form-text">Lower numbers come first. Equal numbers are listed A to Z.</div>
                         <span asp-validation-for="Input.SortOrder" class="text-danger small"></span>
                     </div>
                 </div>

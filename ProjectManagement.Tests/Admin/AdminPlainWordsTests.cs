@@ -280,18 +280,6 @@ public sealed class AdminPlainWordsTests
         Assert.Equal("Less than 1 point", ClassificationRow(0.374m, 0.366, 0.008).LeadText);
     }
 
-    [Fact]
-    public void ActivityTypes_SeededAndNeverEditedReadsBuiltIn()
-    {
-        var seeded = new ActivityTypeAdminRow(1, "Misc", null, true, 0, DateTimeOffset.UnixEpoch, null, "system", "");
-        var edited = seeded with { UpdatedAtUtc = DateTimeOffset.UnixEpoch.AddDays(1), ChangedBy = "admin" };
-        var editedBySeed = seeded with { UpdatedAtUtc = DateTimeOffset.UnixEpoch.AddDays(1) };
-
-        Assert.True(seeded.IsBuiltIn);
-        Assert.False(edited.IsBuiltIn);
-        Assert.False(editedBySeed.IsBuiltIn);
-    }
-
     private static ProjectManagement.Pages.Admin.MediaIntelligence.ClassificationsModel.Row ClassificationRow(
         decimal predicted, double runnerUp, double margin) =>
         new(1, "Image", "Context", "image.jpg",

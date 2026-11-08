@@ -80,6 +80,8 @@ public sealed class AuditActionPresentationCatalog : IAuditActionPresentationCat
             ["MasterData.LineDirectorateDeleted"] = new("Line directorate deleted", "bi-trash3", "danger", "Master data", "LineDirectorate"),
             ["MasterData.ActivityTypeCreated"] = new("Activity type created", "bi-list-task", "success", "Master data", "ActivityType"),
             ["MasterData.ActivityTypeUpdated"] = new("Activity type updated", "bi-pencil-square", "neutral", "Master data", "ActivityType"),
+            ["MasterData.ActivityTypeDeleted"] = new("Activity type deleted", "bi-trash3", "danger", "Master data", "ActivityType"),
+            ["MasterData.ArppReferenceDeleted"] = new("ARPP value deleted", "bi-trash3", "danger", "Master data", "ArppReference"),
             ["HolidayCreated"] = new("Holiday created", "bi-calendar-plus", "success", "Master data", "Holiday"),
             ["GazettedHolidayCreated"] = new("Gazetted Holiday created", "bi-calendar2-check", "success", "Master data", "Holiday"),
             ["RestrictedHolidayCreated"] = new("Restricted Holiday created", "bi-info-square", "success", "Master data", "Holiday"),

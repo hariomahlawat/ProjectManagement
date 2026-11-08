@@ -1,119 +1,39 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Areas.Admin.Pages.Shared;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.MasterData;
+using ProjectManagement.Services.Admin.MasterData.Integrity;
+using ProjectManagement.Services.Admin.MasterData.ReferenceLists;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.Areas.Admin.Pages.Categories;
 
+// On the shared list page (docs/ux/admin-review-3-fixes.md, owner decision 1, PR 11): a tree,
+// with sub-categories indented under their parent and moved among their siblings.
 [Authorize(Policy = AdminPolicies.MasterDataManage)]
-public sealed class IndexModel : PageModel
+public sealed class IndexModel : AdminReferenceListPageModel
 {
-    private readonly IMasterDataAdministrationQueryService _query;
+    private static readonly AdminReferenceListPresentation Shown = new(
+        AdminNavigationKeys.ProjectCategories, "bi-diagram-3", "Add category", "projects and sub-categories", "/Categories");
+
     private readonly IAdminMasterDataCommandService _commands;
 
-    public IndexModel(
-        IMasterDataAdministrationQueryService query,
-        IAdminMasterDataCommandService commands)
+    public IndexModel(IReferenceListService lists, IAdminMasterDataCommandService commands, IListOrderNoticeService order)
+        : base(lists, order)
     {
-        _query = query ?? throw new ArgumentNullException(nameof(query));
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
-    [BindProperty(SupportsGet = true, Name = "q")]
-    public string? Search { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public string Status { get; set; } = "active";
-
-    public CategoryDirectoryResult Result { get; private set; } = new(
-        MasterDataCategoryKind.Project,
-        Array.Empty<CategoryAdminRow>(),
-        0, 0, 0, 0, 0,
-        string.Empty,
-        "active");
-
-    public AdminPageHeaderModel Header { get; private set; } = new();
-    public AdminCategoryDirectoryModel DirectoryModel { get; private set; } = new();
-
-    public async Task OnGetAsync(CancellationToken cancellationToken)
-    {
-        Result = await _query.GetCategoriesAsync(
-            MasterDataCategoryKind.Project,
-            new CategoryDirectoryRequest(Search, Status),
-            cancellationToken);
-        Search = Result.Search;
-        Status = Result.Status;
-        BuildPresentation();
-    }
+    protected override ReferenceListDefinition Definition => ReferenceListCatalog.ProjectCategories;
+    protected override string? OrderCheckKey => null;
+    protected override AdminReferenceListPresentation Presentation => Shown;
+    protected override Func<int, int, CancellationToken, Task<AdminOperationResult>>? Move => _commands.MoveProjectCategoryAsync;
 
     // The form sends the state the administrator chose and the row version it showed, so a
     // resubmitted form or another administrator's change cannot flip the item the wrong way.
-    public async Task<IActionResult> OnPostToggleAsync(int id, bool isActive, string? rowVersion, CancellationToken cancellationToken)
-    {
-        var result = await _commands.SetProjectCategoryActiveAsync(id, isActive, DecodeRowVersion(rowVersion), cancellationToken);
-        return RedirectWithResult(result);
-    }
-
-    private static byte[] DecodeRowVersion(string? value)
-    {
-        try
-        {
-            return string.IsNullOrWhiteSpace(value) ? Array.Empty<byte>() : Convert.FromBase64String(value);
-        }
-        catch (FormatException)
-        {
-            return Array.Empty<byte>();
-        }
-    }
-
-    public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)
-    {
-        var result = await _commands.MoveProjectCategoryAsync(id, offset, cancellationToken);
-        return RedirectWithResult(result);
-    }
-
-    private IActionResult RedirectWithResult(AdminOperationResult result)
-    {
-        TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
-        return RedirectToPage(new { q = Search, status = Status });
-    }
-
-    private void BuildPresentation()
-    {
-        Header = new AdminPageHeaderModel
-        {
-            Title = "Project categories",
-            Description = ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationCatalog.GetEntry(ProjectManagement.Services.Navigation.ModuleNav.AdminNavigationKeys.ProjectCategories).Description,
-            Icon = "bi-diagram-3",
-            Actions = new[]
-            {
-                new AdminPageActionModel
-                {
-                    Text = "Lists used in forms",
-                    Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
-                    Icon = "bi-arrow-left"
-                },
-                new AdminPageActionModel
-                {
-                    Text = "Add root category",
-                    Href = Url.Page("./Create", new { area = "Admin" }),
-                    Icon = "bi-plus-lg",
-                    IsPrimary = true
-                }
-            }
-        };
-
-        DirectoryModel = new AdminCategoryDirectoryModel
-        {
-            Result = Result,
-            Area = "Admin",
-            IndexPage = "/Categories/Index",
-            CreatePage = "/Categories/Create",
-            EditPage = "/Categories/Edit",
-            DeletePage = "/Categories/Delete"
-        };
-    }
+    protected override Func<int, bool?, byte[], CancellationToken, Task<AdminOperationResult>>? Toggle =>
+        (id, isActive, rowVersion, cancellationToken) => isActive is bool target
+            ? _commands.SetProjectCategoryActiveAsync(id, target, rowVersion, cancellationToken)
+            : Task.FromResult(AdminOperationResult.Failure("Reload the page and try again.", "BadRequest"));
 }

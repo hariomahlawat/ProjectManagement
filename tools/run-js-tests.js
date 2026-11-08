@@ -32,7 +32,6 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'widgets', 'media-viewer.test.js'),
   path.join('wwwroot', 'js', 'core', 'declarative-actions.test.js'),
   path.join('wwwroot', 'js', 'admin', 'admin-shell.test.js'),
-  path.join('wwwroot', 'js', 'admin', 'admin-category-tree.test.js'),
   path.join('wwwroot', 'js', 'core', 'page-handled-contract.test.js'),
   path.join('wwwroot', 'js', 'core', 'theme-preference.test.js'),
   path.join('wwwroot', 'js', 'core', 'whats-new.test.js'),

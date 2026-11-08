@@ -33,4 +33,32 @@ public sealed record AdminReferenceListModel
 
     /// <summary>The Index page handler that deletes an unused item; null hides Delete.</summary>
     public string? DeleteHandler { get; init; } = "Delete";
+
+    /// <summary>False for a list with no stored order: no Order column.</summary>
+    public bool ShowOrder { get; init; } = true;
+
+    /// <summary>
+    /// The Index page handler that deactivates or reactivates an item in place (it gets id,
+    /// isActive and rowVersion). Null links to the Deactivate page instead.
+    /// </summary>
+    public string? ToggleHandler { get; init; }
+
+    /// <summary>Offers "Add sub-category" (the Create page with parentId) on each row of a tree list.</summary>
+    public bool OffersAddChild { get; init; }
+
+    /// <summary>Edit opens this dialog instead of the Edit page (the ARPP values).</summary>
+    public AdminReferenceListEditDialog? EditDialog { get; init; }
+
+    /// <summary>A line under the table's heading, such as how the list is ordered.</summary>
+    public string? Note { get; init; }
+
+    /// <summary>Route values every link and form on the list keeps, such as which ARPP list is open.</summary>
+    public IReadOnlyDictionary<string, string> RouteValues { get; init; } = new Dictionary<string, string>();
 }
+
+/// <summary>
+/// A dialog that adds and edits items in place (the ARPP values, arpp-reference-data.js). Edit
+/// carries data-reference-edit with the row's values (data-id, data-value, data-description,
+/// data-sort-order, data-row-version) and the list's data-kind and data-kind-label.
+/// </summary>
+public sealed record AdminReferenceListEditDialog(string Target, string Kind, string KindLabel);

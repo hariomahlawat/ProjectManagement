@@ -44,6 +44,18 @@ public sealed record ReferenceListRow(
     bool CanMoveDown,
     IReadOnlyList<string?> ExtraValues)
 {
+    /// <summary>How deep the item sits in a tree list, for the indent; 0 at the top and in flat lists.</summary>
+    public int Depth { get; init; }
+
+    /// <summary>The item's parents, "Defence / Electronics", for a child in a tree list.</summary>
+    public string? ParentPath { get; init; }
+
+    /// <summary>A short line under the name, such as a description.</summary>
+    public string? Detail { get; init; }
+
+    /// <summary>The order as people read it: a position from 1, or the number they typed.</summary>
+    public int ShownOrder { get; init; }
+
     public int UsageCount => UsedBy.Sum(item => item.Count);
 
     /// <summary>Delete is offered only when nothing uses the item.</summary>
@@ -73,6 +85,9 @@ public interface IReferenceListService
 
     /// <summary>What uses one item, per kind of record.</summary>
     Task<IReadOnlyList<ReferenceListUsage>> GetUsageAsync(string key, int id, CancellationToken cancellationToken = default);
+
+    /// <summary>One item as the list shows it (its parents and use included), or null.</summary>
+    Task<ReferenceListRow?> GetItemAsync(string key, int id, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes an item nothing uses. An item in use is refused with "EntityInUse"; the
@@ -119,6 +134,11 @@ public sealed class ReferenceListService : IReferenceListService
             _ => request.PageSize
         };
 
+        if (definition.IsTree)
+        {
+            return await GetTreePageAsync(definition, tiles, search, status, request.Page, pageSize, cancellationToken);
+        }
+
         var all = definition.Items(_db);
         var filtered = status switch
         {
@@ -133,12 +153,16 @@ public sealed class ReferenceListService : IReferenceListService
             if (_db.Database.IsNpgsql())
             {
                 var pattern = SearchLikePattern.Contains(search);
-                filtered = filtered.Where(item => EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter));
+                filtered = filtered.Where(item =>
+                    EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter)
+                    || (item.Detail != null && EF.Functions.ILike(item.Detail, pattern, SearchLikePattern.EscapeCharacter)));
             }
             else
             {
                 var upper = search.ToUpperInvariant();
-                filtered = filtered.Where(item => item.Name.ToUpper().Contains(upper));
+                filtered = filtered.Where(item =>
+                    item.Name.ToUpper().Contains(upper)
+                    || (item.Detail != null && item.Detail.ToUpper().Contains(upper)));
             }
         }
 
@@ -175,11 +199,82 @@ public sealed class ReferenceListService : IReferenceListService
                 usage[item.Id],
                 position > 0,
                 position >= 0 && position < orderedIds.Count - 1,
-                ExtraValuesFor(definition, extra, item.Id));
+                ExtraValuesFor(definition, extra, item.Id))
+            {
+                Detail = item.Detail,
+                ShownOrder = ShownOrder(definition, item.SortOrder)
+            };
         }).ToArray();
 
         return new ReferenceListPage(definition.Key, rows, tiles, filteredCount, page, pageSize, totalPages, search, status);
     }
+
+    // A list kept as a tree (categories) is small, so it is read whole and laid out in memory:
+    // parents before their children, siblings by their order. With no filter the rows are
+    // indented; with a filter or search they are not, and each child names its parents.
+    private async Task<ReferenceListPage> GetTreePageAsync(
+        ReferenceListDefinition definition,
+        ReferenceListTiles tiles,
+        string search,
+        string status,
+        int requestedPage,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var items = await definition.Items(_db).ToListAsync(cancellationToken);
+        HashSet<int>? inUse = null;
+        if (status == ReferenceListStatuses.InUse)
+        {
+            inUse = (await (await WhereInUseAsync(definition, definition.Items(_db), cancellationToken))
+                .Select(item => item.Id)
+                .ToListAsync(cancellationToken)).ToHashSet();
+        }
+
+        var matching = ReferenceListTree.Build(items)
+            .Where(node => status switch
+            {
+                ReferenceListStatuses.InUse => inUse!.Contains(node.Item.Id),
+                ReferenceListStatuses.Active => node.Item.IsActive,
+                ReferenceListStatuses.Inactive => !node.Item.IsActive,
+                _ => true
+            })
+            .Where(node => search.Length == 0
+                || node.Item.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || (node.ParentPath?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false))
+            .ToList();
+
+        var indent = status == ReferenceListStatuses.All && search.Length == 0;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(matching.Count / (double)pageSize));
+        var page = Math.Clamp(requestedPage, 1, totalPages);
+        var shown = matching.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
+        var ids = shown.Select(node => node.Item.Id).ToArray();
+        var usage = await CountUsageAsync(definition, ids, cancellationToken);
+        var extra = definition.LoadExtraColumns is null || ids.Length == 0
+            ? null
+            : await definition.LoadExtraColumns(_db, ids, cancellationToken);
+
+        var rows = shown.Select(node => new ReferenceListRow(
+            node.Item.Id,
+            node.Item.Name,
+            node.Item.SortOrder,
+            node.Item.IsActive,
+            Convert.ToBase64String(node.Item.RowVersion ?? Array.Empty<byte>()),
+            usage[node.Item.Id],
+            node.CanMoveUp,
+            node.CanMoveDown,
+            ExtraValuesFor(definition, extra, node.Item.Id))
+        {
+            Depth = indent ? node.Depth : 0,
+            ParentPath = node.ParentPath,
+            Detail = node.Item.Detail,
+            ShownOrder = ShownOrder(definition, node.Item.SortOrder)
+        }).ToArray();
+
+        return new ReferenceListPage(definition.Key, rows, tiles, matching.Count, page, pageSize, totalPages, search, status);
+    }
+
+    private static int ShownOrder(ReferenceListDefinition definition, int sortOrder) =>
+        definition.OrderIsPosition ? sortOrder + 1 : sortOrder;
 
     public Task<ReferenceListTiles> GetTilesAsync(string key, CancellationToken cancellationToken = default) =>
         CountTilesAsync(Require(key), cancellationToken);
@@ -188,6 +283,46 @@ public sealed class ReferenceListService : IReferenceListService
     {
         var usage = await CountUsageAsync(Require(key), new[] { id }, cancellationToken);
         return usage[id];
+    }
+
+    public async Task<ReferenceListRow?> GetItemAsync(string key, int id, CancellationToken cancellationToken = default)
+    {
+        var definition = Require(key);
+        ReferenceListItemProjection? item;
+        string? parentPath = null;
+        if (definition.IsTree)
+        {
+            var node = ReferenceListTree.Build(await definition.Items(_db).ToListAsync(cancellationToken))
+                .FirstOrDefault(candidate => candidate.Item.Id == id);
+            item = node?.Item;
+            parentPath = node?.ParentPath;
+        }
+        else
+        {
+            item = await definition.Items(_db).SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
+        }
+
+        if (item is null)
+        {
+            return null;
+        }
+
+        var usage = await CountUsageAsync(definition, new[] { id }, cancellationToken);
+        return new ReferenceListRow(
+            item.Id,
+            item.Name,
+            item.SortOrder,
+            item.IsActive,
+            Convert.ToBase64String(item.RowVersion ?? Array.Empty<byte>()),
+            usage[id],
+            false,
+            false,
+            Array.Empty<string?>())
+        {
+            ParentPath = parentPath,
+            Detail = item.Detail,
+            ShownOrder = ShownOrder(definition, item.SortOrder)
+        };
     }
 
     public async Task<AdminOperationResult> DeleteAsync(string key, int id, byte[] rowVersion, CancellationToken cancellationToken = default)
@@ -201,7 +336,7 @@ public sealed class ReferenceListService : IReferenceListService
         var principal = _httpContextAccessor.HttpContext?.User;
         if (principal is null || !(await _authorization.AuthorizeAsync(principal, null, definition.Policy)).Succeeded)
         {
-            return AdminOperationResult.Failure($"You are not allowed to change {definition.PluralLabel.ToLowerInvariant()}.", "Forbidden", _httpContextAccessor.HttpContext?.TraceIdentifier);
+            return AdminOperationResult.Failure($"You are not allowed to change {definition.PluralInSentence}.", "Forbidden", _httpContextAccessor.HttpContext?.TraceIdentifier);
         }
 
         if (rowVersion is not { Length: > 0 })
@@ -210,14 +345,15 @@ public sealed class ReferenceListService : IReferenceListService
         }
 
         var entity = await definition.FindAsync(_db, id, cancellationToken);
-        if (entity is null)
+        var item = await definition.Items(_db).SingleOrDefaultAsync(row => row.Id == id, cancellationToken);
+        if (entity is null || item is null)
         {
             return AdminOperationResult.Failure($"That {definition.Label} is no longer in the list.", "NotFound");
         }
 
         var entry = _db.Entry(entity);
-        var name = (string)entry.Property("Name").CurrentValue!;
-        var sortOrder = (int)entry.Property("SortOrder").CurrentValue!;
+        var name = item.Name;
+        var sortOrder = item.SortOrder;
 
         var usage = (await CountUsageAsync(definition, new[] { id }, cancellationToken))[id];
         var inUse = usage.Where(item => item.Count > 0).ToArray();
@@ -233,17 +369,22 @@ public sealed class ReferenceListService : IReferenceListService
         {
             Id = id,
             Name = name,
-            IsActive = (bool)entry.Property("IsActive").CurrentValue!,
-            SortOrder = sortOrder
+            item.IsActive,
+            SortOrder = sortOrder,
+            item.ParentId
         };
         entry.Property("RowVersion").OriginalValue = rowVersion;
         definition.Remove(_db, entity);
 
-        // Close the gap the item leaves, so the order reads 1, 2, 3 without a renumber.
-        foreach (var later in await definition.LoadOrderedAfterAsync(_db, sortOrder, cancellationToken))
+        // Close the gap the item leaves, so the order reads 1, 2, 3 without a renumber. In a
+        // tree only its siblings move; an order people typed themselves is left as it is.
+        if (definition.HasOrder && definition.OrderIsPosition)
         {
-            var property = _db.Entry(later).Property("SortOrder");
-            property.CurrentValue = (int)property.CurrentValue! - 1;
+            foreach (var later in await definition.LoadOrderedAfterAsync(_db, sortOrder, item.ParentId, cancellationToken))
+            {
+                var property = _db.Entry(later).Property("SortOrder");
+                property.CurrentValue = (int)property.CurrentValue! - 1;
+            }
         }
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
