@@ -285,6 +285,21 @@ parameter, not inlined), and compiled for use in memory.
 - Routes, handlers, policies and the Photos links are unchanged.
 - Tests: `AdminMediaPagesInShellTests` (in scope for the shell, no return bar, "System" eyebrow, sidebar parent, no "own module" note, the shared header in the views); `AdminNavigationCatalogTests` and `AdminPageIndexTests` updated.
 
+### PR 10 shipped: one shared list page
+
+**Shipped.** Owner decision 1, first step. Project types, Sponsoring units and Line directorates use the shared list page. PRs 11 and 12 move the other lists onto it.
+
+- **One rule in a service.** `IReferenceListService` (Services/Admin/MasterData/ReferenceLists) counts use once, for the tiles, the Used by column and Delete. A list is described by a `ReferenceListDefinition`: its table, and which records use it (`ReferenceListUsageSource`, one per kind of record, so a list can be used by projects and by activities). `ReferenceListCatalog` holds the three lists.
+- **What counts as use.** Projects (every project row, archived and deleted ones too, because the foreign key counts them) and project change requests, decided ones included. A change request names the item it started from in a column and the item it proposes inside its JSON payload, with no foreign key behind either, so the service reads the payload in memory. A source is either a database query or such an in-memory loader.
+- **Delete only when nothing uses the item.** The service refuses an item in use with "EntityInUse" and says to deactivate it instead. The database's foreign keys stay as the backstop: a refused delete leaves nothing changed. A delete is audited (`MasterData.ProjectTypeDeleted`, `…SponsoringUnitDeleted`, `…LineDirectorateDeleted`) and closes the gap in the order. These three lists had no Delete before.
+- **The page.** `_AdminReferenceList.cshtml` with `AdminReferenceListModel`: tiles All, In use and Inactive, which also filter the table; one table of Name, any extra columns, Order, Used by, Status and Actions (Edit, Deactivate or Reactivate, Delete). Delete asks in the shared confirm dialog; for an item in use it is shown locked with "In use, so deactivate it instead". On a phone each row is a card with its actions at the top right (PR 8's layout).
+- **Extra columns.** A definition can add columns between Name and Order (`ExtraColumns`, `LoadExtraColumns`), for a code or a parent in PRs 11 and 12.
+- **Pages.** The three Index pages derive from `AdminReferenceListPageModel`, which holds the handlers (Move, RenumberOrder and the new Delete) and the query names (`q`, `status`, `pageNumber`, `pageSize`). Each page keeps its own policy. Routes, Create, Edit and Deactivate are unchanged.
+- **One change of default.** The list opens on All instead of Active, so the All tile is the landing view. `?status=active` still works.
+- Removed: `_AdminFlatLookupDirectory.cshtml`, `AdminFlatLookupDirectoryModel` and the query service's `GetFlatLookupAsync`, which only these pages used. The "Last changed" column is gone; the audit log keeps the history.
+- No migration.
+- Tests: `AdminReferenceListTests` (items used by a project or named by a change request refuse Delete, unused ones are deleted and audited, an old version and a missing permission are refused, tile counts and filters, the three pages render the shared layout); `AdminSearchEscapingPostgresTests` now searches through the shared service on PostgreSQL.
+
 ### PR 14 shipped: repository trash in Administration
 
 - **Repository trash (decision 2, option A).** The Document Repository's deleted documents (`/DocumentRepository/Admin/Trash`) render inside the admin layout: sidebar (with Restore deleted items lit), mobile header, the "Restore & archive" eyebrow and the "Restore deleted items" heading, like the other bins. The page shows the Restore deleted items tabs with "Repository documents" selected, and that tab and the overview card no longer say the page opens in another module. The Documents tab in the top bar is no longer lit there.

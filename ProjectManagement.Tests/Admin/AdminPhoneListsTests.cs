@@ -8,7 +8,7 @@ namespace ProjectManagement.Tests.Admin;
 public sealed class AdminPhoneListsTests
 {
     [Theory]
-    [InlineData("Areas/Admin/Pages/Shared/_AdminFlatLookupDirectory.cshtml", new[] { "Usage", "Status", "Order", "Last changed" })]
+    [InlineData("Areas/Admin/Pages/Shared/_AdminReferenceList.cshtml", new[] { "Order", "Used by", "Status" })]
     [InlineData("Areas/Admin/Pages/ActivityTypes/Index.cshtml", new[] { "Usage", "Status", "Last changed" })]
     public void LookupTables_BecomeCardsOnPhones_WithEveryValueLabelled(string view, string[] labels)
     {

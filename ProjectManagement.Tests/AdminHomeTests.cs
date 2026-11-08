@@ -471,7 +471,6 @@ public sealed class AdminHomeTests
 
         public Task<CategoryDirectoryResult> GetCategoriesAsync(MasterDataCategoryKind kind, CategoryDirectoryRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CategoryImpact?> GetCategoryImpactAsync(MasterDataCategoryKind kind, int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<FlatLookupDirectoryResult> GetFlatLookupAsync(MasterDataFlatLookupKind kind, FlatLookupDirectoryRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ActivityTypeDirectoryResult> GetActivityTypesAsync(ActivityTypeDirectoryRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 

@@ -9,6 +9,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.MasterData;
+using ProjectManagement.Services.Admin.MasterData.ReferenceLists;
 using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Tests.Fakes;
 using Xunit;
@@ -40,14 +41,21 @@ public sealed class AdminSearchEscapingPostgresTests
                 new Project { Name = "RadarXMk2", CreatedByUserId = "admin", CreatedAt = DateTime.UtcNow, IsArchived = true, ArchivedAt = DateTimeOffset.UtcNow });
             await db.SaveChangesAsync();
 
-            var lists = new MasterDataAdministrationQueryService(db, new AuditActionPresentationCatalog());
-            var underscore = await lists.GetFlatLookupAsync(
-                MasterDataFlatLookupKind.SponsoringUnit, new FlatLookupDirectoryRequest("t_7", "all", 1, 25));
+            // The shared list page (PR 10) searches the reference lists; its In use tile and
+            // Used by counts must translate for PostgreSQL too.
+            var lists = new ReferenceListService(db, new NoAdminAudit(), new DenyAuthorization(), new Microsoft.AspNetCore.Http.HttpContextAccessor());
+            var underscore = await lists.GetPageAsync(
+                ReferenceListKeys.SponsoringUnits, new ReferenceListRequest("t_7", "all", 1, 25));
             Assert.Equal(new[] { "Unit_7" }, underscore.Rows.Select(row => row.Name));
 
-            var percent = await lists.GetFlatLookupAsync(
-                MasterDataFlatLookupKind.SponsoringUnit, new FlatLookupDirectoryRequest("50%", "all", 1, 25));
+            var percent = await lists.GetPageAsync(
+                ReferenceListKeys.SponsoringUnits, new ReferenceListRequest("50%", "inuse", 1, 25));
+            Assert.Empty(percent.Rows);
+            Assert.Equal(new ReferenceListTiles(4, 0, 0), percent.Tiles);
+            percent = await lists.GetPageAsync(
+                ReferenceListKeys.SponsoringUnits, new ReferenceListRequest("50%", "all", 1, 25));
             Assert.Equal(new[] { "Share 50% cut" }, percent.Rows.Select(row => row.Name));
+            Assert.Equal(new[] { "0 projects", "0 change requests" }, percent.Rows[0].UsedBy.Select(item => item.Text));
 
             var recovery = new ProjectRecoveryQueryService(
                 db,
@@ -99,4 +107,19 @@ internal sealed class AdminSearchPostgresFactAttribute : FactAttribute
             Skip = "Provide PRISM_TEST_POSTGRES_CONNECTION to run the admin search escaping test.";
         }
     }
+
+}
+
+file sealed class NoAdminAudit : IAdminAuditService
+{
+    public Task RecordAsync(AdminAuditEntry entry, System.Threading.CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
+file sealed class DenyAuthorization : Microsoft.AspNetCore.Authorization.IAuthorizationService
+{
+    public Task<Microsoft.AspNetCore.Authorization.AuthorizationResult> AuthorizeAsync(System.Security.Claims.ClaimsPrincipal user, object? resource, System.Collections.Generic.IEnumerable<Microsoft.AspNetCore.Authorization.IAuthorizationRequirement> requirements) =>
+        Task.FromResult(Microsoft.AspNetCore.Authorization.AuthorizationResult.Failed());
+
+    public Task<Microsoft.AspNetCore.Authorization.AuthorizationResult> AuthorizeAsync(System.Security.Claims.ClaimsPrincipal user, object? resource, string policyName) =>
+        Task.FromResult(Microsoft.AspNetCore.Authorization.AuthorizationResult.Failed());
 }
