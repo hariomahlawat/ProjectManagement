@@ -48,7 +48,8 @@
     }
 
     var touched = {};
-    var reopenQueue = [];
+    // Gestures a failed save carried back are already in the field; start from them.
+    var reopenQueue = reopenInput.value ? reopenInput.value.split(',').filter(Boolean) : [];
     var latest = null;        // the last preview the server answered with, or null
     var inFlight = null;      // the preview request currently running, or null
     var requestId = 0;
@@ -94,6 +95,19 @@
 
     function setReopenField() {
         reopenInput.value = reopenQueue.join(',');
+    }
+
+    // A tick or a date on a stage supersedes any queued reopen of that stage or an earlier one:
+    // the newest gesture wins. Rows are in stage order, so position stands in for order here.
+    function supersedeReopens(rowIndex) {
+        var keep = reopenQueue.filter(function (code) {
+            var row = rowByCode(code);
+            return row && rows.indexOf(row) > rowIndex;
+        });
+        if (keep.length !== reopenQueue.length) {
+            reopenQueue = keep;
+            setReopenField();
+        }
     }
 
     function preview() {
@@ -143,7 +157,7 @@
         return request;
     }
 
-    rows.forEach(function (row) {
+    rows.forEach(function (row, rowIndex) {
         var code = row.getAttribute('data-itp-code');
         var tick = row.querySelector('[data-itp-completed]');
         var date = row.querySelector('[data-itp-date]');
@@ -152,7 +166,9 @@
         if (tick) {
             tick.addEventListener('change', function () {
                 touched[code] = true;
-                if (!tick.checked && reopenQueue.indexOf(code) === -1) {
+                if (tick.checked) {
+                    supersedeReopens(rowIndex);
+                } else if (reopenQueue.indexOf(code) === -1) {
                     reopenQueue.push(code);
                     setReopenField();
                 }
@@ -162,6 +178,9 @@
         if (date) {
             date.addEventListener('change', function () {
                 touched[code] = true;
+                if (date.value) {
+                    supersedeReopens(rowIndex); // a date means done
+                }
                 preview();
             });
         }

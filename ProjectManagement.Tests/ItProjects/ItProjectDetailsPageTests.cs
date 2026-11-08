@@ -250,6 +250,34 @@ public class ItProjectDetailsPageTests
     }
 
     [Fact]
+    public async Task Stages_AFailedSaveKeepsThePendingReopenForTheNextAttempt()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync();
+        Assert.True((await db.Commands().SaveStagesAsync(id, Input(S("SO", true, new DateOnly(2026, 3, 4))), rowVersion, ItProjectTestDb.Actor())).Result.Succeeded);
+        var page = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await page.OnGetAsync(id, CancellationToken.None);
+        Assert.Null(page.ReopenPending);
+
+        // Untick COB (reopen pending) but post a negative SO cost: validation fails.
+        page.Stages.Items.Single(item => item.StageCode == "COB").IsCompleted = false;
+        page.Stages.Items.Single(item => item.StageCode == "SO").CostLakhs = -1m;
+        var result = await page.OnPostStagesAsync(id, reopen: "COB", CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(DetailsModel.OpenStages, page.Open);
+        Assert.Equal("COB", page.ReopenPending); // the hidden field carries it into the next attempt
+
+        // The user corrects the cost and saves again with the kept reopen: COB and SO reopen.
+        page.Stages.Items.Single(item => item.StageCode == "SO").CostLakhs = 46.8m;
+        var again = await page.OnPostStagesAsync(id, reopen: page.ReopenPending, CancellationToken.None);
+        Assert.IsType<RedirectToPageResult>(again);
+        await using var context = db.NewContext();
+        Assert.Equal(new[] { "PPP", "AON", "BID", "TEC" },
+            (await context.ItProjectStages.Where(stage => stage.ItProjectId == id && stage.IsCompleted).OrderBy(stage => stage.SortOrder).Select(stage => stage.StageCode).ToListAsync()));
+    }
+
+    [Fact]
     public async Task Preview_IsForbiddenForViewers()
     {
         await using var db = await ItProjectTestDb.CreateAsync();

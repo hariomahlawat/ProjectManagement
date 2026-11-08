@@ -144,7 +144,7 @@
             <div class="offcanvas-body">
                 <form method="post" asp-page-handler="Stages" asp-route-id="@Model.Project.Id" data-page-handled data-itp-stage-editor data-itp-preview-url="@Url.Page(null, "Preview", new { id = Model.Project.Id })" novalidate>
                     <input type="hidden" asp-for="Stages.RowVersion" />
-                    <input type="hidden" name="reopen" value="" data-itp-reopen />
+                    <input type="hidden" name="reopen" value="@Model.ReopenPending" data-itp-reopen />
                     @if (stageErrors.Count > 0)
                     {
                         <div class="alert alert-danger itp-drawer__errors" role="alert">

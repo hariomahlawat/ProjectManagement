@@ -70,6 +70,12 @@ public class DetailsModel : PageModel
     [BindProperty]
     public string? RowVersion { get; set; }
 
+    /// <summary>
+    /// The reopen gestures a failed stage save carried, put back into the editor's hidden field so
+    /// the user's intent survives the validation round trip.
+    /// </summary>
+    public string? ReopenPending { get; private set; }
+
     public sealed record StageRow(
         string Code,
         string Label,
@@ -220,6 +226,7 @@ public class DetailsModel : PageModel
             return Forbid();
         }
 
+        ReopenPending = string.IsNullOrWhiteSpace(reopen) ? null : reopen.Trim();
         if (!IsSectionValid(nameof(Stages)))
         {
             // A date or cost that did not bind must not be saved as "empty".
