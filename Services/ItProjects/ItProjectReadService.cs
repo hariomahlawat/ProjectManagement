@@ -109,7 +109,7 @@ public sealed class ItProjectReadService : IItProjectReadService
                 stage.CompletedOn,
                 stage.IsSkipped,
                 stage.CostLakhs,
-                IsCurrent: status.Kind == ItProjectStatusKind.InProgress && status.CurrentStageCode == stage.StageCode))
+                IsCurrent: IsActive(status.Kind) && status.CurrentStageCode == stage.StageCode))
             .ToList();
 
         return new ItProjectBoardRow(
