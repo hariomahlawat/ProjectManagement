@@ -242,6 +242,79 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         return await CommitAsync(project, rowVersion, actor, "ItProjects.Reinstated", data, cancellationToken);
     }
 
+    public async Task<ItProjectCommandResult> SaveYearAsync(int id, int financialYearStart, ItProjectYearInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        EnsureActor(actor);
+        if (input.Type is { } requested && !Enum.IsDefined(requested))
+        {
+            return ItProjectCommandResult.Fail("Choose New, CL or CF.");
+        }
+
+        var reference = string.IsNullOrWhiteSpace(input.PppReferenceNumber) ? null : input.PppReferenceNumber.Trim();
+        if (reference is { Length: > ItProjectFinancialYear.ReferenceMaxLength })
+        {
+            return ItProjectCommandResult.Fail($"The IT PPP reference number must be {ItProjectFinancialYear.ReferenceMaxLength} characters or fewer.");
+        }
+
+        var project = await LoadForWriteAsync(id, cancellationToken);
+        if (project is null)
+        {
+            return ItProjectCommandResult.Fail(NotFoundMessage);
+        }
+
+        var currentYear = ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
+        var before = ItProjectYearTypes.Resolve(project, financialYearStart, currentYear);
+        if (before is null)
+        {
+            return ItProjectCommandResult.Fail($"This IT project does not count in FY {FinancialYearHelper.Format(financialYearStart)}.");
+        }
+
+        if (before.IsOwnYear && reference is not null && !string.Equals(reference, project.PppReferenceNumber, StringComparison.Ordinal))
+        {
+            return ItProjectCommandResult.Fail("The first year's IT PPP reference number is changed with Edit.");
+        }
+
+        // Only later years store a number; choosing the automatic type stores no type.
+        var storedReference = before.IsOwnYear ? null : reference;
+        var manual = input.Type is { } chosen && chosen != before.AutomaticType ? chosen : (ItProjectYearType?)null;
+        var row = ItProjectYearTypes.YearRow(project, financialYearStart);
+
+        if (row?.TypeOverride == manual && row?.PppReferenceNumber == storedReference)
+        {
+            return ItProjectCommandResult.Ok();
+        }
+
+        if (manual is null && storedReference is null)
+        {
+            project.FinancialYears.Remove(row!);
+            _db.ItProjectFinancialYears.Remove(row!);
+        }
+        else
+        {
+            if (row is null)
+            {
+                row = new ItProjectFinancialYear { FinancialYearStart = financialYearStart };
+                project.FinancialYears.Add(row);
+            }
+
+            row.TypeOverride = manual;
+            row.PppReferenceNumber = storedReference;
+            row.UpdatedByUserId = actor.UserId;
+            row.UpdatedAtUtc = UtcNow();
+        }
+
+        var afterType = manual ?? before.AutomaticType;
+        return await CommitAsync(project, rowVersion, actor, "ItProjects.YearChanged", new Dictionary<string, string?>
+        {
+            ["FinancialYear"] = FinancialYearHelper.Format(financialYearStart),
+            ["TypeBefore"] = ItProjectYearTypes.Code(before.Type) + (before.IsManual ? " (set by hand)" : " (automatic)"),
+            ["TypeAfter"] = ItProjectYearTypes.Code(afterType) + (manual is null ? " (automatic)" : " (set by hand)"),
+            ["ReferenceBefore"] = before.IsOwnYear ? project.PppReferenceNumber : before.PppReferenceNumber,
+            ["ReferenceAfter"] = before.IsOwnYear ? project.PppReferenceNumber : storedReference
+        }, cancellationToken);
+    }
+
     public async Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
@@ -305,6 +378,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     private Task<ItProject?> LoadForWriteAsync(int id, CancellationToken cancellationToken)
         => _db.ItProjects
             .Include(project => project.Stages)
+            .Include(project => project.FinancialYears)
             .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
 
     private async Task<ItProjectCommandResult> CommitAsync(

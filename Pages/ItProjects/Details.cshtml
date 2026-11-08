@@ -242,6 +242,43 @@
                         <dt>SO cost</dt><dd>@ItProjectBoardPresentation.Cost(soCost)</dd>
                     }
                 </dl>
+                @if (Model.YearTypes.Count > 0)
+                {
+                    <h3 class="itp-years__title">In each year's IT PPP</h3>
+                    <ul class="itp-years">
+                        @foreach (var year in Model.YearTypes.Reverse())
+                        {
+                            var fyLabel = ItProjectBoardPresentation.FinancialYear(year.FinancialYearStart);
+                            var how = year.IsManual ? $"set by hand (automatic: {ItProjectYearTypes.Code(year.AutomaticType)})" : "automatic";
+                            <li class="itp-years__row">
+                                <span class="itp-years__fy">@fyLabel</span>
+                                <span class="itp-years__type itp-years__type--@year.Code.ToLowerInvariant()" title="@year.Label, @how">@year.Code</span>
+                                <span class="itp-years__ref @(year.PppReferenceNumber is null ? "itp-years__ref--none" : null)">@(year.PppReferenceNumber ?? "number not entered")</span>
+                                @if (Model.CanManage)
+                                {
+                                    <form method="post" asp-page-handler="Year" asp-route-id="@Model.Project.Id" class="itp-years__form">
+                                        <input type="hidden" asp-for="RowVersion" />
+                                        <input type="hidden" name="fy" value="@year.FinancialYearStart" />
+                                        @if (!year.IsOwnYear)
+                                        {
+                                            <label class="visually-hidden" for="itpYearRef@(year.FinancialYearStart)">IT PPP reference number in FY @fyLabel</label>
+                                            <input id="itpYearRef@(year.FinancialYearStart)" name="yearReference" value="@year.PppReferenceNumber" maxlength="@ItProjectFinancialYear.ReferenceMaxLength"
+                                                   class="form-control form-control-sm" placeholder="IT PPP no. in @fyLabel" autocomplete="off" />
+                                        }
+                                        <label class="visually-hidden" for="itpYearType@(year.FinancialYearStart)">Type in FY @fyLabel</label>
+                                        <select id="itpYearType@(year.FinancialYearStart)" name="yearType" class="form-select form-select-sm">
+                                            <option value="auto" selected="@(!year.IsManual)">Automatic (@ItProjectYearTypes.Code(year.AutomaticType))</option>
+                                            <option value="New" selected="@(year.IsManual && year.Type == ItProjectYearType.New)">New</option>
+                                            <option value="CL" selected="@(year.IsManual && year.Type == ItProjectYearType.CommittedLiability)">CL</option>
+                                            <option value="CF" selected="@(year.IsManual && year.Type == ItProjectYearType.CarriedForward)">CF</option>
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">Save</button>
+                                    </form>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
             </section>
 
             <section class="itp-card itp-files" id="attachments" aria-labelledby="itpFilesTitle">

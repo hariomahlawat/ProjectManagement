@@ -1327,3 +1327,102 @@ a.itp-tile--selected:hover {
         background: transparent;
     }
 }
+
+/* ---- year type (New / CL / CF per financial year) ---------------------------------------- */
+
+.itp-years__title {
+    margin: .9rem 0 .4rem;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--pm-text-muted);
+}
+
+.itp-years {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+}
+
+.itp-years__row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: .35rem .45rem;
+    padding: .45rem 0;
+    border-top: 1px solid var(--pm-border);
+    font-size: var(--pm-font-size-sm);
+}
+
+.itp-years__row:first-child {
+    border-top: 0;
+}
+
+.itp-years__fy {
+    color: var(--pm-text-strong);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.itp-years__type {
+    display: inline-flex;
+    align-items: center;
+    height: 1.35rem;
+    padding: 0 .5rem;
+    border-radius: 999px;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 700;
+    background: var(--pm-surface);
+    color: var(--pm-text-secondary);
+}
+
+.itp-years__type--new {
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+}
+
+.itp-years__type--cl {
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-warning-strong);
+}
+
+.itp-years__type--cf {
+    background: var(--pm-surface-muted);
+    color: var(--pm-text-strong);
+}
+
+.itp-years__ref {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--pm-text-strong);
+    font-weight: 600;
+}
+
+.itp-years__ref--none {
+    color: var(--pm-text-muted);
+    font-weight: 500;
+    font-style: italic;
+}
+
+.itp-years__form {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: .35rem;
+}
+
+.itp-years__form .form-control {
+    flex: 1 1 8rem;
+    min-width: 0;
+    border-radius: 8px;
+}
+
+.itp-years__form .form-select {
+    flex: 0 1 auto;
+    width: auto;
+    border-radius: 8px;
+}

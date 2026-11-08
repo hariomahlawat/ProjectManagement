@@ -62,4 +62,10 @@ public class ItProject
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public ICollection<ItProjectStage> Stages { get; set; } = new List<ItProjectStage>();
+
+    /// <summary>
+    /// Later financial years the project was carried into: that year's IT PPP reference number and
+    /// any type set by hand. The project's own year is not stored here.
+    /// </summary>
+    public ICollection<ItProjectFinancialYear> FinancialYears { get; set; } = new List<ItProjectFinancialYear>();
 }

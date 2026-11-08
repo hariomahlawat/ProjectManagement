@@ -366,7 +366,8 @@ public sealed class AdminDataJobTidyUpTests : IDisposable
         Assert.Contains("20261226080013_AddPdfIngestionRuns", manifest);
         Assert.Contains("20261227080014_AddItProjects", manifest);
         Assert.Contains("20261229080016_AddItProjectAttachments", manifest);
-        Assert.Equal("20261230080017_AddItProjectStageMovedAt", manifest[^1]);
+        Assert.Contains("20261230080017_AddItProjectStageMovedAt", manifest);
+        Assert.Equal("20261231080018_AddItProjectFinancialYears", manifest[^1]);
     }
 
     // ---- helpers ---------------------------------------------------------------------------
