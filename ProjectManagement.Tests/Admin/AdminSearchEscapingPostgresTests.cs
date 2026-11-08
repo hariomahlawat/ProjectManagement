@@ -125,9 +125,10 @@ public sealed class AdminSearchEscapingPostgresTests
     {
         await WithDatabaseAsync(async (db, connectionString) =>
         {
-            var type = ProjectManagement.Tests.SocialMediaTestData.CreateEventType();
-            var platform = ProjectManagement.Tests.SocialMediaTestData.CreatePlatform(name: "Threads");
-            var unused = ProjectManagement.Tests.SocialMediaTestData.CreatePlatform(name: "Mastodon");
+            // Unique names: the migrations seed some event types and platforms.
+            var type = ProjectManagement.Tests.SocialMediaTestData.CreateEventType(name: "PR12 race type");
+            var platform = ProjectManagement.Tests.SocialMediaTestData.CreatePlatform(name: "PR12 Threads");
+            var unused = ProjectManagement.Tests.SocialMediaTestData.CreatePlatform(name: "PR12 Mastodon");
             db.SocialMediaEventTypes.Add(type);
             db.SocialMediaPlatforms.AddRange(platform, unused);
             await db.SaveChangesAsync();
@@ -140,7 +141,7 @@ public sealed class AdminSearchEscapingPostgresTests
                 new(context, new NoAdminAudit(), new AllowAuthorization(), new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = http });
 
             var page = await Lists(db).GetPageAsync(ReferenceListKeys.SocialMediaPlatforms, new ReferenceListRequest(null, null, 1, 25));
-            var row = page.Rows.Single(item => item.Name == "Threads");
+            var row = page.Rows.Single(item => item.Name == "PR12 Threads");
             Assert.Equal(platform.Id.ToString(), row.Id);
 
             // Someone logs an event on the platform and has not committed yet.
@@ -164,7 +165,7 @@ public sealed class AdminSearchEscapingPostgresTests
 
             // An unused platform goes.
             var unusedRow = (await Lists(check).GetPageAsync(ReferenceListKeys.SocialMediaPlatforms, new ReferenceListRequest(null, null, 1, 25)))
-                .Rows.Single(item => item.Name == "Mastodon");
+                .Rows.Single(item => item.Name == "PR12 Mastodon");
             var deleted = await Lists(check).DeleteAsync(ReferenceListKeys.SocialMediaPlatforms, unused.Id, Convert.FromBase64String(unusedRow.RowVersion));
             Assert.True(deleted.Succeeded, deleted.UserMessage);
         });
