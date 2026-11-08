@@ -290,3 +290,37 @@ test('"/" on Home goes to the Home search box first', () => {
 
   assert.equal(window.document.activeElement, window.document.querySelector('[data-admin-home-search]'));
 });
+
+// Restore deleted items on a phone (docs/ux/admin-review-3-fixes.md, PR 8).
+const restoreTabs = `
+<nav class="admin-restore-tabs" data-admin-restore-tabs>
+  <a id="t-overview" href="/Admin/Recovery">Overview</a>
+  <a id="t-projects" href="/Admin/Projects/Trash">Projects</a>
+  <a id="t-calendar" href="/Admin/Calendar/Deleted" aria-current="page">Calendar events</a>
+</nav>`;
+
+function createRestoreDom({ scrollWidth, clientWidth }) {
+  const dom = new JSDOM(`<!doctype html><html><body>${restoreTabs}</body></html>`, {
+    runScripts: 'outside-only',
+    url: 'https://prism.local/Admin/Calendar/Deleted'
+  });
+  const calls = [];
+  const strip = dom.window.document.querySelector('[data-admin-restore-tabs]');
+  Object.defineProperty(strip, 'scrollWidth', { value: scrollWidth });
+  Object.defineProperty(strip, 'clientWidth', { value: clientWidth });
+  dom.window.HTMLElement.prototype.scrollIntoView = function (options) { calls.push({ id: this.id, options: { ...options } }); };
+  dom.window.eval(script);
+  return calls;
+}
+
+test('a restore tab strip that scrolls brings the open tab into view, without moving the page', () => {
+  const calls = createRestoreDom({ scrollWidth: 600, clientWidth: 343 });
+
+  assert.deepEqual(calls, [{ id: 't-calendar', options: { inline: 'center', block: 'nearest' } }]);
+});
+
+test('a restore tab strip that fits is left alone', () => {
+  const calls = createRestoreDom({ scrollWidth: 900, clientWidth: 900 });
+
+  assert.equal(calls.length, 0);
+});
