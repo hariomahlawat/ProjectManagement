@@ -671,6 +671,8 @@ public class ItProjectDetailsPageTests
         Assert.False(reloaded.YearTypes.Single().IsManual);
     }
 
+    internal static DetailsModel PageFor(ItProjectTestDb db, ClaimsPrincipal user) => Page(db, user);
+
     private static DetailsModel Page(ItProjectTestDb db, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };
