@@ -65,6 +65,37 @@ public sealed class DbHealthModel : PageModel
         _ => "bi-dash-circle"
     };
 
+    /// <summary>
+    /// The sentence under the overall status. It names only what the figures above show, so it
+    /// never says checks "have not run yet" while Not run yet shows 0
+    /// (docs/ux/admin-review-4-fixes.md, PR 9).
+    /// </summary>
+    public static string OverviewSentence(AdminSystemHealthSnapshot health)
+    {
+        ArgumentNullException.ThrowIfNull(health);
+        if (health.CriticalCount > 0)
+        {
+            return health.CriticalCount == 1
+                ? "1 check failed. Its row below says what to do."
+                : $"{health.CriticalCount:N0} checks failed. Their rows below say what to do.";
+        }
+
+        var parts = new List<string>();
+        if (health.WarningCount > 0)
+        {
+            parts.Add(health.WarningCount == 1 ? "1 check has a warning" : $"{health.WarningCount:N0} checks have warnings");
+        }
+
+        if (health.UnavailableCount > 0)
+        {
+            parts.Add(health.UnavailableCount == 1 ? "1 check has not run yet" : $"{health.UnavailableCount:N0} checks have not run yet");
+        }
+
+        return parts.Count == 0
+            ? "Everything that was checked is working."
+            : string.Join(" and ", parts) + ". Each row below says what it found.";
+    }
+
     public string StatusLabel(AdminHealthStatus status) => status switch
     {
         AdminHealthStatus.Healthy => "Healthy",

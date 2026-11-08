@@ -49,10 +49,25 @@
                 var tone = issue.Severity == AccessGovernanceFindingSeverity.Critical ? "danger" : issue.Severity == AccessGovernanceFindingSeverity.Review ? "warning" : "info";
                 <article class="admin-governance-finding admin-governance-finding--@tone">
                     <span aria-hidden="true"><i class="bi @(issue.Severity == AccessGovernanceFindingSeverity.Critical ? "bi-exclamation-octagon" : issue.Severity == AccessGovernanceFindingSeverity.Review ? "bi-exclamation-triangle" : "bi-info-circle")"></i></span>
-                    <div><strong>@issue.Title</strong><p>@issue.Description</p></div>
+                    <div>
+                        <strong>@issue.Title</strong><p>@issue.Description</p>
+                        @if (issue.Accounts is { Count: > 0 } accounts)
+                        {
+                            <ul class="admin-governance-finding__accounts" data-roleless-accounts>
+                                @foreach (var account in accounts)
+                                {
+                                    <li><a href="@Model.UserUrl(account.UserId)">@account.DisplayName</a>@if (!string.Equals(account.DisplayName, account.UserName, StringComparison.OrdinalIgnoreCase)) {<small>@@@account.UserName</small>}</li>
+                                }
+                            </ul>
+                        }
+                    </div>
                     @if (!string.IsNullOrWhiteSpace(issue.UserId))
                     {
                         <a href="@Model.UserUrl(issue.UserId)">Review account <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                    }
+                    else if (issue.Accounts is { Count: > 0 })
+                    {
+                        <a asp-area="Admin" asp-page="/Users/Index" asp-route-role="@ProjectManagement.Services.Admin.AdminUserListRequest.NoRole">Show in Users <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                     }
                 </article>
             }

@@ -42,10 +42,10 @@ public sealed class DisableModel : PageModel
     public AdminPageHeaderModel Header { get; private set; } = new();
 
     [BindProperty, Required, StringLength(500, MinimumLength = 5)]
-    [Display(Name = "Reason for disabling access")]
+    [Display(Name = "Why disable this account?")]
     public string Reason { get; set; } = string.Empty;
 
-    [BindProperty, Display(Name = "Username confirmation")]
+    [BindProperty, Display(Name = "User name")]
     public string ConfirmUser { get; set; } = string.Empty;
 
     [BindProperty]
@@ -68,7 +68,7 @@ public sealed class DisableModel : PageModel
 
         if (Account.AccountState.State == AdminUserAccountState.PendingDeletion)
         {
-            TempData[FlashMessageKeys.AdminUsersError] = "This account is pending deletion. Review or undo that request before changing its state.";
+            TempData[FlashMessageKeys.AdminUsersError] = "This account is waiting to be deleted. Undo that first if you want to disable it instead.";
             return RedirectToPage("./Details", new { id });
         }
 
@@ -102,7 +102,7 @@ public sealed class DisableModel : PageModel
 
         if (Account.AccountState.State == AdminUserAccountState.PendingDeletion)
         {
-            ModelState.AddModelError(string.Empty, "This account is pending deletion. Undo that request before changing its state.");
+            ModelState.AddModelError(string.Empty, "This account is waiting to be deleted. Undo that first if you want to disable it instead.");
         }
         else if (Account.AccountState.State == AdminUserAccountState.Disabled)
         {
@@ -111,7 +111,7 @@ public sealed class DisableModel : PageModel
 
         if (Reason.Length < 5)
         {
-            ModelState.AddModelError(nameof(Reason), "Provide a reason of at least 5 characters.");
+            ModelState.AddModelError(nameof(Reason), "Give a reason of at least 5 characters.");
         }
 
         if (!string.Equals(ConfirmUser, Account.UserName, StringComparison.OrdinalIgnoreCase))
@@ -121,7 +121,7 @@ public sealed class DisableModel : PageModel
 
         if (!Acknowledge)
         {
-            ModelState.AddModelError(nameof(Acknowledge), "Acknowledge the operational impact before disabling the account.");
+            ModelState.AddModelError(nameof(Acknowledge), "Tick the box to say you understand.");
         }
 
         if (!ModelState.IsValid)
@@ -164,7 +164,7 @@ public sealed class DisableModel : PageModel
             UserDisableOutcome.SelfDisable =>
                 "You cannot disable your own signed-in account.",
             UserDisableOutcome.PendingDeletion =>
-                "Undo the deletion request before changing this account's state.",
+                "This account is waiting to be deleted. Undo that first if you want to disable it instead.",
             UserDisableOutcome.LastActiveAdmin =>
                 "This account is the last active Administrator and cannot be disabled.",
             UserDisableOutcome.NotFound =>
@@ -178,8 +178,8 @@ public sealed class DisableModel : PageModel
         {
             Title = "Disable account",
             Description = Account is null
-                ? "Block sign-in access while preserving records."
-                : $"Block sign-in access for @{Account.UserName} while preserving records and ownership history.",
+                ? "Stop someone signing in. Their records and history stay."
+                : $"Stop @{Account.UserName} signing in. Their records and history stay.",
             Icon = "bi-person-slash",
             Actions = Account is null
                 ? Array.Empty<AdminPageActionModel>()

@@ -66,7 +66,7 @@ public sealed class ErpUsageQueryServiceTests
             ErpUsageHeatmapState.BusinessAction,
             row.Heatmap.Single(cell => cell.Date == new DateOnly(2026, 7, 13)).State);
         Assert.Contains(
-            "Historical audited operational action",
+            "Made a change (from the audit log)",
             row.Heatmap.Single(cell => cell.Date == new DateOnly(2026, 7, 13)).Label);
     }
 

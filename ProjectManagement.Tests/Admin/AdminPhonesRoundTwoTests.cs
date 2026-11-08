@@ -11,7 +11,7 @@ public sealed class AdminPhonesRoundTwoTests
     [Theory]
     [InlineData("Areas/Admin/Pages/Logs/Index.cshtml", "admin-audit-table", new[] { "Actor", "Affected record", "Time", "Severity" })]
     [InlineData("Areas/Admin/Pages/Analytics/Logins.cshtml", "admin-monitoring-table", new[] { "When", "Outcome", "Review reason", "Source" })]
-    [InlineData("Pages/Usage/Index.cshtml", "erp-usage-table", new[] { "Today / last active", "Active working days", "Approx. active time", "Modules / actions", "How often" })]
+    [InlineData("Pages/Usage/Index.cshtml", "erp-usage-table", new[] { "Today / last active", "Active working days", "Time in PRISM", "Modules and changes", "How often" })]
     [InlineData("Pages/Admin/MediaSources/Index.cshtml", "media-unavailable-table", new[] { "Source", "Status", "Last checked" })]
     public void WideTables_BecomeCardsOnPhones_WithEveryValueLabelled(string view, string tableClass, string[] labels)
     {

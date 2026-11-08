@@ -58,7 +58,7 @@ public sealed class CreateModel : PageModel
 
     public sealed class InputModel
     {
-        [Required, Display(Name = "Username")]
+        [Required, Display(Name = "User name")]
         [StringLength(32, MinimumLength = 3)]
         [RegularExpression(@"^[a-zA-Z0-9_.-]+$", ErrorMessage = "Use letters, numbers, dot, underscore or hyphen only.")]
         public string UserName { get; set; } = string.Empty;
@@ -144,7 +144,7 @@ public sealed class CreateModel : PageModel
         Header = new AdminPageHeaderModel
         {
             Title = "Add user",
-            Description = "Create an account, issue a temporary password and assign the minimum required access.",
+            Description = "Make an account, give it a temporary password and only the roles the job needs.",
             Icon = "bi-person-plus",
             Actions = new[]
             {

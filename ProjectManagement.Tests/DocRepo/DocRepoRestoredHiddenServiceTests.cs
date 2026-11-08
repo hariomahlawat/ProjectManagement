@@ -291,7 +291,7 @@ public sealed class DocRepoRestoredHiddenServiceTests
         var adminPage = new IndexModel(CreateService(db), new ProjectManagement.Services.Admin.AdminTimeService(new ProjectManagement.Services.SystemClock()));
         ConfigurePage(adminPage, Admin);
         Assert.IsType<RedirectToPageResult>(await adminPage.OnPostReactivateAllAsync(new[] { hidden.Id }, CancellationToken.None));
-        Assert.Equal("1 document reactivated.", adminPage.TempData[FlashMessageKeys.AdminRecoverySuccess]);
+        Assert.Equal("1 document shown again.", adminPage.TempData[FlashMessageKeys.AdminRecoverySuccess]);
         Assert.True((await db.Documents.AsNoTracking().SingleAsync()).IsActive);
     }
 

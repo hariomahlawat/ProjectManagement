@@ -38,7 +38,7 @@ public sealed class IndexModel : PageModel
     public AdminPageHeaderModel Header { get; } = new()
     {
         Title = "Restored but still hidden",
-        Description = "Repository documents brought back from the trash before restore was fixed. They are out of the trash but still inactive, so readers and search cannot see them. Some may have been made inactive on purpose, so nothing changes until you choose Reactivate.",
+        Description = "Documents restored from Deleted repository documents by an older version of PRISM. They came back hidden, so readers and search cannot find them. Some were hidden on purpose, so nothing changes until you choose Show again.",
         Icon = "bi-eye-slash"
     };
 
@@ -58,10 +58,10 @@ public sealed class IndexModel : PageModel
             case DocRepoReactivateOutcome.Forbidden:
                 return Forbid();
             case DocRepoReactivateOutcome.Reactivated:
-                TempData[FlashMessageKeys.AdminRecoverySuccess] = "Document reactivated. Readers and search can see it again.";
+                TempData[FlashMessageKeys.AdminRecoverySuccess] = "Document shown again. Readers and search can find it.";
                 break;
             default:
-                TempData[FlashMessageKeys.AdminRecoveryError] = "That document is no longer on this list. Someone may have reactivated, deactivated or deleted it.";
+                TempData[FlashMessageKeys.AdminRecoveryError] = "That document is no longer on this list. Someone may have shown, hidden or deleted it.";
                 break;
         }
 
@@ -86,7 +86,7 @@ public sealed class IndexModel : PageModel
 
         if (result.Reactivated > 0)
         {
-            var message = result.Reactivated == 1 ? "1 document reactivated." : $"{result.Reactivated} documents reactivated.";
+            var message = result.Reactivated == 1 ? "1 document shown again." : $"{result.Reactivated} documents shown again.";
             if (result.NotListed > 0)
             {
                 message += result.NotListed == 1

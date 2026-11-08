@@ -55,13 +55,13 @@
         if (acknowledge) acknowledge.checked = false;
         restorePanel.hidden = deleting;
         deletePanel.hidden = !deleting;
-        eyebrow.textContent = deleting ? "Controlled permanent deletion" : "Recovery operation";
-        title.textContent = deleting ? "Delete permanently" : "Restore document";
+        eyebrow.textContent = "Deleted project documents";
+        title.textContent = deleting ? "Delete for good" : "Restore document";
 
         if (isBulk) {
             const totalBytes = checked.reduce((sum, item) => sum + (Number(item.dataset.documentSize) || 0), 0);
             summaryTitle.textContent = `${checked.length} selected document${checked.length === 1 ? "" : "s"}`;
-            summaryDetail.textContent = `${humanBytes(totalBytes)} measured storage`;
+            summaryDetail.textContent = `${humanBytes(totalBytes)} of files`;
         } else {
             summaryTitle.textContent = documentTitle || "Selected document";
             summaryDetail.textContent = humanBytes(size);
@@ -69,7 +69,7 @@
 
         submit.className = deleting ? "btn btn-danger" : "btn btn-primary";
         submit.innerHTML = deleting
-            ? '<i class="bi bi-trash"></i> Delete permanently'
+            ? '<i class="bi bi-trash"></i> Delete for good'
             : '<i class="bi bi-arrow-counterclockwise"></i> Restore';
     };
 

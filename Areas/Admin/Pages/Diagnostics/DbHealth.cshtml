@@ -21,20 +21,7 @@
     <span class="admin-health-overview__icon" aria-hidden="true"><i class="bi @Model.StatusIcon(health.OverallStatus)"></i></span>
     <div class="admin-health-overview__copy">
         <h2 id="health-overview-title">@Model.StatusLabel(health.OverallStatus)</h2>
-        <p>
-            @if (health.OverallStatus == AdminHealthStatus.Healthy)
-            {
-                <text>Everything that was checked is working.</text>
-            }
-            else if (health.OverallStatus == AdminHealthStatus.Critical)
-            {
-                <text>At least one check failed. Its row below says what to do.</text>
-            }
-            else
-            {
-                <text>Some checks have warnings or have not run yet. Each row below says what it found.</text>
-            }
-        </p>
+        <p>@ProjectManagement.Areas.Admin.Pages.Diagnostics.DbHealthModel.OverviewSentence(health)</p>
     </div>
     <div class="admin-health-overview__meta">
         <span>Checked</span>

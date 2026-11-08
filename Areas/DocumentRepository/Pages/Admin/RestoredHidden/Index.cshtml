@@ -18,22 +18,22 @@
 
     @if (count == 0)
     {
-        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-check2-circle", Title = "Nothing to review", Description = "Every document restored from the trash is visible, or was made inactive again on purpose." })" />
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-check2-circle", Title = "Nothing to review", Description = "Every document restored from the bin can be found, or was hidden again on purpose." })" />
     }
     else
     {
         <div class="admin-panel__body admin-restored-hidden__intro">
-            <p class="admin-inline-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Open a document to check it, then choose Reactivate to show it to readers and in search again. A document made inactive before it was deleted is marked, so you can leave it hidden if that was the intent.@if (Model.Result.IsCapped)
+            <p class="admin-inline-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Open a document to check it, then choose Show again so readers and search can find it. A document that was hidden on purpose before it was deleted is marked, so you can leave it hidden.@if (Model.Result.IsCapped)
                 {<text> Showing the @count most recently restored of @Model.Result.TotalCount.ToString("N0"); the rest appear here as these are done.</text>}</span></p>
             <form method="post" asp-page-handler="ReactivateAll"
-                  data-confirm="@(count == 1 ? "Reactivate the 1 document shown?" : $"Reactivate all {count} documents shown?") Readers and search will see @(count == 1 ? "it" : "them") again. Each change is recorded in the repository's audit."
-                  data-confirm-action="Reactivate all"
+                  data-confirm="@(count == 1 ? "Show the 1 document again?" : $"Show all {count} documents again?") Readers and search will find @(count == 1 ? "it" : "them"). Each change goes in the repository's audit log."
+                  data-confirm-action="Show all again"
                   data-confirm-tone="primary">
                 @foreach (var row in Model.Items)
                 {
                     <input type="hidden" name="ids" value="@row.Id" />
                 }
-                <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye" aria-hidden="true"></i> Reactivate all shown (@count)</button>
+                <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye" aria-hidden="true"></i> Show all again (@count)</button>
             </form>
         </div>
 
@@ -62,17 +62,17 @@
                         <td data-label="Before it was deleted">
                             @if (row.DeactivatedBeforeAtUtc is { } deactivatedAt)
                             {
-                                <span class="admin-status-pill admin-status-pill--warning">Made inactive on purpose</span>
+                                <span class="admin-status-pill admin-status-pill--warning">Hidden on purpose</span>
                                 <div class="admin-table-secondary mt-1">By @row.DeactivatedBeforeBy, @Model.FormatIst(deactivatedAt)</div>
                             }
                             else
                             {
-                                <span class="admin-table-secondary">Active</span>
+                                <span class="admin-table-secondary">Shown</span>
                             }
                         </td>
                         <td class="text-end">
                             <form method="post" asp-page-handler="Reactivate" asp-route-id="@row.Id">
-                                <button type="submit" class="btn btn-sm btn-primary" aria-label="Reactivate @row.Subject">Reactivate</button>
+                                <button type="submit" class="btn btn-sm btn-primary" aria-label="Show @row.Subject again">Show again</button>
                             </form>
                         </td>
                     </tr>

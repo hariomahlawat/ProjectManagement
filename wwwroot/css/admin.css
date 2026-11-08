@@ -3036,6 +3036,9 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-governance-finding strong { display: block; color: var(--admin-text); font-size: .69rem; }
 .admin-governance-finding p { margin: .12rem 0 0; color: var(--admin-text-secondary); font-size: .59rem; line-height: 1.45; }
 .admin-governance-finding a { color: var(--admin-primary); font-size: .61rem; font-weight: 720; text-decoration: none; white-space: nowrap; }
+.admin-governance-finding__accounts { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin: .35rem 0 0; padding: 0; list-style: none; }
+.admin-governance-finding__accounts li { display: inline-flex; align-items: baseline; gap: .3rem; min-width: 0; }
+.admin-governance-finding__accounts small { color: var(--admin-text-muted); font-size: .57rem; }
 
 .admin-role-governance-list { display: grid; }
 .admin-role-governance-card {

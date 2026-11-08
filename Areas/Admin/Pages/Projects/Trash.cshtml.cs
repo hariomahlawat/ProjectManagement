@@ -72,7 +72,7 @@ public sealed class TrashModel : PageModel
         NormalizeFilters();
         if (Command.ProjectId <= 0 || string.IsNullOrWhiteSpace(Command.Action))
         {
-            TempData[FlashMessageKeys.AdminRecoveryError] = "The selected project recovery operation is invalid.";
+            TempData[FlashMessageKeys.AdminRecoveryError] = "That action is not available here.";
             return RedirectToPage(RouteValues());
         }
 
@@ -96,7 +96,7 @@ public sealed class TrashModel : PageModel
 
         if (!string.Equals(Command.Action, "purge", StringComparison.OrdinalIgnoreCase))
         {
-            TempData[FlashMessageKeys.AdminRecoveryError] = "The requested project operation is not supported.";
+            TempData[FlashMessageKeys.AdminRecoveryError] = "That action is not available here.";
             return RedirectToPage(RouteValues());
         }
 
@@ -187,8 +187,8 @@ public sealed class TrashModel : PageModel
         TempData[FlashMessageKeys.AdminRecoveryError] = result.Error ?? result.Status switch
         {
             ProjectModerationStatus.NotFound => "The project could not be found.",
-            ProjectModerationStatus.InvalidState => "The project is no longer in a valid state for this operation.",
-            _ => "The project recovery operation could not be completed."
+            ProjectModerationStatus.InvalidState => "The project has changed since the page opened. Reload and try again.",
+            _ => "That did not work. Try again."
         };
     }
 

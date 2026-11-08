@@ -52,8 +52,8 @@
         <input type="hidden" asp-for="Command.Action" data-document-command-action /><input type="hidden" asp-for="Command.DocumentId" data-document-command-id />
 
         <div class="admin-selection-toolbar" data-document-selection-toolbar hidden>
-            <div><strong><span data-document-selected-count>0</span> selected</strong><small>Maximum @Model.MaximumBulkDocuments records per operation.</small></div>
-            <div><button class="btn btn-outline-primary" type="button" data-document-bulk-action="restore-selected" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-arrow-counterclockwise"></i> Restore selected</button><button class="btn btn-outline-danger" type="button" data-document-bulk-action="delete-selected" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-trash"></i> Delete permanently</button></div>
+            <div><strong><span data-document-selected-count>0</span> selected</strong><small>Up to @Model.MaximumBulkDocuments at a time.</small></div>
+            <div><button class="btn btn-outline-primary" type="button" data-document-bulk-action="restore-selected" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-arrow-counterclockwise"></i> Restore selected</button><button class="btn btn-outline-danger" type="button" data-document-bulk-action="delete-selected" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-trash"></i> Delete for good</button></div>
         </div>
 
         @if (Model.Result.Items.Count == 0)
@@ -64,7 +64,7 @@
         {
             <div class="admin-table-wrap">
                 <table class="admin-data-table admin-recovery-table admin-document-recycle-table">
-                    <thead><tr><th class="admin-checkbox-column"><input type="checkbox" class="form-check-input" data-document-select-all aria-label="Select all visible documents" /></th><th>Document</th><th>Project and stage</th><th>File</th><th>Deletion record</th><th class="text-end">Actions</th></tr></thead>
+                    <thead><tr><th class="admin-checkbox-column"><input type="checkbox" class="form-check-input" data-document-select-all aria-label="Select all visible documents" /></th><th>Document</th><th>Project and stage</th><th>File</th><th>Deleted</th><th class="text-end">Actions</th></tr></thead>
                     <tbody>
                     @foreach (var row in Model.Result.Items)
                     {
@@ -74,7 +74,7 @@
                             <td><div class="admin-table-primary">@row.ProjectName</div><div class="admin-table-secondary">@row.StageDisplayName</div></td>
                             <td><div class="admin-table-primary admin-break-word">@row.OriginalFileName</div><div class="admin-table-secondary">@Model.FormatBytes(row.FileSize) · @row.ContentType</div></td>
                             <td><div class="admin-table-primary">@Model.FormatTime(row.DeletedAtUtc)</div><div class="admin-table-secondary">By @(row.DeletedByDisplay ?? "Unknown user")</div></td>
-                            <td class="text-end"><div class="dropdown"><button class="admin-row-action" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Title"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" type="button" data-document-action="restore" data-document-id="@row.DocumentId" data-document-title="@row.Title" data-document-size="@row.FileSize" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-arrow-counterclockwise"></i> Restore document</button></li><li><hr class="dropdown-divider" /></li><li><button class="dropdown-item text-danger" type="button" data-document-action="delete" data-document-id="@row.DocumentId" data-document-title="@row.Title" data-document-size="@row.FileSize" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-trash"></i> Delete permanently</button></li></ul></div></td>
+                            <td class="text-end"><div class="dropdown"><button class="admin-row-action" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Title"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" type="button" data-document-action="restore" data-document-id="@row.DocumentId" data-document-title="@row.Title" data-document-size="@row.FileSize" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-arrow-counterclockwise"></i> Restore document</button></li><li><hr class="dropdown-divider" /></li><li><button class="dropdown-item text-danger" type="button" data-document-action="delete" data-document-id="@row.DocumentId" data-document-title="@row.Title" data-document-size="@row.FileSize" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-trash"></i> Delete for good</button></li></ul></div></td>
                         </tr>
                     }
                     </tbody>
@@ -91,14 +91,14 @@
 
 <div class="modal fade" id="documentRecoveryModal" tabindex="-1" aria-labelledby="documentRecoveryTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-controlled-modal">
-        <div class="modal-header"><div><div class="admin-panel__eyebrow" data-document-operation-eyebrow>Recovery operation</div><h2 class="modal-title fs-5" id="documentRecoveryTitle" data-document-operation-title>Restore document</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-header"><div><div class="admin-panel__eyebrow" data-document-operation-eyebrow>Deleted project documents</div><h2 class="modal-title fs-5" id="documentRecoveryTitle" data-document-operation-title>Restore document</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
         <div class="modal-body">
-            <div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-file-earmark"></i></span><div><strong data-document-summary-title>Selected document</strong><small data-document-summary-detail>Review the operation before continuing.</small></div></div>
+            <div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-file-earmark"></i></span><div><strong data-document-summary-title>Selected document</strong><small data-document-summary-detail>Check this is the right one.</small></div></div>
             <div data-document-restore-panel><p class="mb-0">The document goes back on its project, in the same stage.</p></div>
             <div data-document-delete-panel hidden>
-                <div class="admin-destructive-warning"><i class="bi bi-exclamation-octagon"></i><div><strong>Permanent deletion cannot be undone</strong><p>The documents and their files are removed. If some cannot be removed, you are told which; the rest are still removed.</p></div></div>
+                <div class="admin-destructive-warning"><i class="bi bi-exclamation-octagon"></i><div><strong>This cannot be undone</strong><p>The documents and their files are removed. If some cannot be removed, you are told which; the rest are still removed.</p></div></div>
                 <div class="mb-3"><label asp-for="Command.Confirmation" class="form-label">Type <strong>DELETE</strong> to confirm</label><input asp-for="Command.Confirmation" class="form-control" autocomplete="off" data-document-confirmation /></div>
-                <label class="form-check"><input asp-for="Command.Acknowledge" class="form-check-input" data-document-acknowledge /><span class="form-check-label">I understand that these documents and stored files cannot be recovered after deletion.</span></label>
+                <label class="form-check"><input asp-for="Command.Acknowledge" class="form-check-input" data-document-acknowledge /><span class="form-check-label">I understand these documents and their files cannot be brought back.</span></label>
             </div>
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" form="documentRecoveryForm" class="btn btn-primary" data-document-submit><i class="bi bi-arrow-counterclockwise"></i> Restore</button></div>

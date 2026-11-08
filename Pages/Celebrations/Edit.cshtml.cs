@@ -38,8 +38,8 @@ public sealed class EditModel : PageModel
     public bool IsRestrictedEditor => IsBirthdayOnlyEditor || IsAnniversaryOnlyEditor;
     public string RestrictedTypeLabel => IsAnniversaryOnlyEditor ? "Anniversary" : "Birthday";
     public string PermissionNotice => IsAnniversaryOnlyEditor
-        ? "Your role can maintain anniversary entries only."
-        : "Your role can maintain birthday entries only.";
+        ? "Your role can add and change anniversaries only."
+        : "Your role can add and change birthdays only.";
     public string PageTitle => Input.Id.HasValue
         ? (Input.EventType == CelebrationType.Anniversary ? "Edit anniversary" : "Edit birthday")
         : (CanManageBirthdays, CanManageAnniversaries) switch
@@ -81,7 +81,7 @@ public sealed class EditModel : PageModel
         await LoadPermissionsAsync();
         if (!Enum.IsDefined(Input.EventType))
         {
-            ModelState.AddModelError("Input.EventType", "Select a valid celebration type.");
+            ModelState.AddModelError("Input.EventType", "Choose Birthday or Anniversary.");
             return Page();
         }
         if (!await CanManageAsync(Input.EventType)) return Forbid();
